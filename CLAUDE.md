@@ -241,10 +241,12 @@ community-patterns/        # THIS REPO (user's fork)
 **Recommended organization within `patterns/$GITHUB_USER/`:**
 
 **WIP/** - Work in progress
+- **IMPORTANT: Most pattern development should happen in WIP/**
 - Patterns actively being developed
 - Experimental features
 - Not fully tested
 - Can be messy/incomplete
+- Keep working here until pattern is stable and tested
 
 **lib/** - Copied reference patterns
 - **CRITICAL**: NO MODIFICATIONS to files in lib/
@@ -253,6 +255,7 @@ community-patterns/        # THIS REPO (user's fork)
 - Helps differentiate your work from upstream patterns
 
 **Root level** - Stable patterns
+- Only move patterns here when fully tested and working
 - Completed, tested patterns
 - Ready for use or sharing
 - Well-documented
@@ -330,6 +333,159 @@ echo "Both servers restarted"
 
 ---
 
+## Development Best Practices
+
+### Always Use `deno task ct`, Never `ct` Directly
+
+**CRITICAL: Always use `deno task ct` for all ct commands:**
+
+```bash
+# ✅ CORRECT
+cd ~/Code/labs
+deno task ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
+
+# ❌ WRONG - Don't use ct directly
+ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
+```
+
+**Why this matters:**
+- Ensures consistent version across environments
+- Avoids path resolution issues
+- Matches framework expectations
+
+### Use pattern-dev Skill for Reference
+
+When learning patterns or stuck on implementation:
+
+```
+"Use the pattern-dev skill to refresh your understanding of framework patterns"
+```
+
+The pattern-dev skill reads all latest pattern documentation from the labs repo.
+
+**When to use:**
+- Starting a new pattern
+- Confused about framework features
+- Need examples of best practices
+- Encountering framework-related issues
+
+### Deleting Space Databases - DANGEROUS
+
+**⚠️ ONLY delete with explicit user confirmation**
+
+Location: `~/Code/labs/packages/toolshed/cache/memory/*.sqlite`
+
+**WARNING: Deleting these files wipes out ALL local spaces permanently**
+- All charms, data, and work in all spaces will be lost
+- This affects all test spaces across all sessions
+
+**When this might be needed:**
+- Fixing corrupted spaces
+- Testing fresh installs
+- Clearing test data completely
+- User explicitly says "delete all my spaces"
+
+**Command:**
+```bash
+rm -rf ~/Code/labs/packages/toolshed/cache/memory/*.sqlite
+```
+
+**NEVER do this without explicit user permission**
+
+### Space Naming Conventions
+
+When testing patterns with Playwright, use temporary test spaces:
+
+**Format:** `test-<username>-<counter>` or `debug-<username>-<counter>`
+
+**Examples:**
+```
+test-alice-1
+test-alice-2
+debug-bob-1
+experiment-charlie-1
+```
+
+**Important:**
+- Increment counter for each new test space during session
+- These are throwaway spaces for testing
+- Use descriptive prefixes (test, debug, experiment, etc.)
+- Include your username to identify your test spaces
+
+### Communication Guidelines
+
+**Don't:**
+- Continuously summarize the entire session (user already knows what happened)
+- Congratulate yourself for progress or use celebratory language
+- Stop working just because you hit a problem (persist through issues)
+
+**Do:**
+- Report specific results when tasks complete
+- Keep moving forward through challenges
+- Focus on the current task, not past accomplishments
+
+### Incremental Development & Commits
+
+**Commit frequently as you make progress:**
+
+- Make small, frequent commits as you accumulate verified working pieces
+- **Verified means tested and working** (ideally with Playwright if available)
+- Clearly label commits: "Add basic counter functionality"
+- Slice work into small chunks that can be continuously extended
+- Check in working pieces incrementally rather than waiting for complete features
+- Each commit should represent a working increment
+
+**Example commit flow:**
+```bash
+# After getting basic pattern working
+git add patterns/$GITHUB_USER/WIP/my-pattern.tsx
+git commit -m "Add basic counter pattern structure"
+
+# After adding features
+git commit -m "Add increment/decrement buttons"
+
+# After testing
+git commit -m "Test counter pattern in browser"
+```
+
+### Recovery Strategies
+
+When encountering difficulties, follow this escalation path:
+
+1. **Minor Confusion**: Reset back to your last commit, reflect on what you learned, and try another approach with that knowledge
+2. **Moderate Confusion**: Look at other patterns in these directories for reference:
+   - `patterns/examples/`
+   - Other users' patterns in `patterns/*/`
+   - Labs patterns (if you have recipes repo cloned)
+
+### Snapshot Capability
+
+When asked to "snapshot yourself", create a `SNAPSHOT.md` file containing:
+- Current learnings and insights gained during the work
+- Current work in progress and next steps
+- Context needed for resuming work later
+- **Important**: Add a note at the top: "DELETE THIS FILE AFTER READING"
+
+**Example:**
+```markdown
+# DELETE THIS FILE AFTER READING
+
+## Current Work
+Working on photo gallery pattern in WIP/photo-gallery.tsx
+
+## Learnings
+- generateObject works well for image analysis
+- Need to batch API calls to avoid rate limits
+- Cell arrays require .equals() for reactivity
+
+## Next Steps
+- Add pagination for large photo sets
+- Test with 50+ photos
+- Add loading states
+```
+
+---
+
 ## Key Paths
 
 | Purpose | Path |
@@ -346,6 +502,8 @@ echo "Both servers restarted"
 ---
 
 ## Pattern Development Commands
+
+**IMPORTANT:** Always use `deno task ct`, never just `ct` directly.
 
 ### Test Syntax
 
@@ -451,17 +609,48 @@ git pull --rebase upstream main
 git push origin main
 ```
 
-### Sharing Work Upstream
+### Sharing Work Upstream (Creating Pull Requests)
 
-If user wants to contribute patterns back:
+**IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create PRs automatically.
 
+When user wants to contribute patterns back to community-patterns:
+
+**Step 1: Ensure changes are committed and pushed**
 ```bash
+cd ~/Code/community-patterns
+git status  # Verify all changes are committed
 git push origin main
+```
+
+**Step 2: Create pull request**
+```bash
 gh pr create \
   --repo commontoolsinc/community-patterns \
   --title "Add: pattern name" \
-  --body "Description"
+  --body "$(cat <<'EOF'
+## Summary
+- Brief description of the pattern
+- Key features
+- Use cases
+
+## Testing
+- [x] Pattern compiles without errors
+- [x] Tested in browser at http://localhost:8000
+- [x] All features working as expected
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
 ```
+
+**Step 3: Provide PR URL to user**
+The `gh pr create` command will output the PR URL - share this with the user.
+
+**Important notes:**
+- Always wait for user permission before creating PRs
+- Commit frequently locally, but only create PR when user asks
+- PRs will be reviewed before merging to upstream
+- After merge, everyone gets your patterns automatically on next update
 
 ---
 
