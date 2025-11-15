@@ -2,48 +2,44 @@
 
 Welcome! This guide will help you set up your development environment for building Common Tools patterns.
 
-## The 5-Minute Setup
+## Setup Overview
 
-**Brand new?** Here's the fastest path:
+**IMPORTANT:** Setup is split into two phases to avoid interruptions:
 
-1. **Fork the repo**: Visit [community-patterns](https://github.com/commontoolsinc/community-patterns) → Click "Fork"
-2. **Clone it**:
-   ```bash
-   cd ~/Code
-   gh repo clone YOUR-USERNAME/community-patterns
-   cd community-patterns
-   ```
-3. **Clone labs** (framework):
-   ```bash
-   cd ~/Code
-   gh repo clone commontoolsinc/labs
-   ```
-4. **Start server**: `cd labs && deno task dev`
-5. **Launch Claude Code** in the `community-patterns` directory:
-   ```
-   Read CLAUDE.md and help me set up my workspace
-   ```
+**Phase 1: Pre-Setup** (30 minutes - do this BEFORE launching Claude Code)
+- Install all tools
+- Configure MCP servers
+- Get API keys
+- Clone repositories
+- **Restart Claude Code** (required for MCP to load)
 
-Claude will guide you through creating your pattern namespace and building your first pattern!
+**Phase 2: Workspace Setup** (10 minutes - Claude Code will help)
+- Configure environment
+- Create your pattern workspace
+- Build your first pattern
+
+This split prevents confusing intermediate states when you need to restart Claude Code.
 
 ---
 
 ## Table of Contents
 
-1. [Initial Setup](#initial-setup)
-2. [Repository Structure](#repository-structure)
-3. [Environment Configuration](#environment-configuration)
-4. [Your Pattern Workspace](#your-pattern-workspace)
-5. [Daily Workflow](#daily-workflow)
-6. [Your First Pattern](#your-first-pattern)
-7. [Getting Updates](#getting-updates)
-8. [Sharing Your Work](#sharing-your-work)
+1. [Phase 1: Pre-Setup (Do First)](#phase-1-pre-setup-do-first)
+2. [Phase 2: Workspace Setup (Claude Helps)](#phase-2-workspace-setup-claude-helps)
+3. [Daily Workflow](#daily-workflow)
+4. [Your First Pattern](#your-first-pattern)
+5. [Getting Updates](#getting-updates)
+6. [Sharing Your Work](#sharing-your-work)
 
 ---
 
-## Initial Setup
+## Phase 1: Pre-Setup (Do First)
 
-### Install Required Tools
+**Complete all these steps BEFORE launching Claude Code for the first time.**
+
+This phase includes everything that requires restarts or manual configuration. Do all of these steps, then restart Claude Code at the end.
+
+### Step 1: Install Required Tools
 
 ```bash
 # 1. Install Homebrew (macOS)
@@ -62,7 +58,7 @@ gh auth login
 # Choose: GitHub.com → HTTPS → Yes → Login with browser
 ```
 
-### Get API Keys
+### Step 2: Get API Keys
 
 **Anthropic API Key** (REQUIRED):
 - Visit: https://console.anthropic.com/
@@ -83,9 +79,7 @@ gh auth login
 - Create OAuth 2.0 Client ID
 - Only needed if you want to use patterns that import Gmail
 
----
-
-## Repository Structure
+### Step 3: Clone Repositories
 
 You'll work with two repositories:
 
@@ -105,8 +99,6 @@ You'll work with two repositories:
 
 **Key principle**: Everyone works in `patterns/YOUR-USERNAME/` - no conflicts!
 
-### Clone the Repositories
-
 ```bash
 cd ~/Code
 
@@ -125,85 +117,17 @@ cd ~/Code
 gh repo clone commontoolsinc/labs
 ```
 
----
-
-## Environment Configuration
-
-### Set Up Dev Server
-
-Create `.env` file in the `labs/packages/toolshed` directory:
-
-```bash
-cd ~/Code/labs/packages/toolshed
-
-cat > .env << 'EOF'
-ENV=development
-PORT=8000
-LOG_LEVEL=info
-
-# Shell frontend URL for local development
-SHELL_URL=http://localhost:5173
-
-## OpenTelemetry Configuration (disabled for local dev)
-OTEL_ENABLED=false
-
-## REQUIRED: Anthropic API Key
-# Get from: https://console.anthropic.com/
-CTTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-your-actual-key-here
-
-## OPTIONAL: Jina AI web reader API key (only needed for web search in patterns)
-# Get from: https://jina.ai/
-# JINA_API_KEY=jina_xxxx-your-actual-key-here
-
-## OPTIONAL: Google OAuth Credentials (only needed for Gmail patterns)
-## Get from: https://console.cloud.google.com/apis/credentials
-## Add redirect URI: http://localhost:8000/api/integrations/google-oauth/callback
-# GOOGLE_CLIENT_ID=your-client-id-here
-# GOOGLE_CLIENT_SECRET=your-client-secret-here
-EOF
-
-chmod 600 .env
-```
-
-### Test Your Setup
-
-**IMPORTANT: You need to run TWO dev servers:**
-
-**Terminal 1 - Toolshed (backend):**
-```bash
-cd ~/Code/labs/packages/toolshed
-deno task dev
-
-# You should see: Server starting on port 8000
-```
-
-**Terminal 2 - Shell (frontend):**
-```bash
-cd ~/Code/labs/packages/shell
-deno task dev-local
-
-# You should see: Server starting on port 5173
-```
-
-**Verify both are running:**
-- Open browser to http://localhost:8000 (should load the shell UI)
-- Both terminals should stay running
-
-**Note:** Claude Code will auto-start these servers for you during sessions, but for manual testing you need both running.
-
----
-
-## MCP Server Setup (Optional but Recommended)
+### Step 4: Install and Configure Playwright MCP (Optional but Recommended)
 
 MCP (Model Context Protocol) servers extend Claude Code's capabilities. The Playwright MCP enables automated browser testing of your patterns.
 
-### Install Playwright MCP Server
+**Install Playwright MCP:**
 
 ```bash
 npm install -g @modelcontextprotocol/server-playwright
 ```
 
-### Configure Claude Code for MCP
+**Configure Claude Code** (do this manually):
 
 Create or edit your Claude Code MCP configuration:
 
@@ -225,7 +149,9 @@ Create or edit your Claude Code MCP configuration:
 }
 ```
 
-### Restart Claude Code
+### Step 5: Restart Claude Code
+
+**CRITICAL:** You must restart Claude Code for MCP to load.
 
 After updating the config:
 1. Quit Claude Code completely (Cmd+Q on macOS, Alt+F4 on Windows)
@@ -242,52 +168,51 @@ After updating the config:
 
 ---
 
-## Your Pattern Workspace
+## ✅ Phase 1 Complete!
 
-### Create Your Namespace
+You've installed all tools, cloned repositories, and configured MCP. Now Claude Code can help with the rest!
 
-```bash
-cd ~/Code/community-patterns
+---
 
-# Create your directory (use your GitHub username)
-mkdir -p patterns/YOUR-USERNAME
-cd patterns/YOUR-USERNAME
+## Phase 2: Workspace Setup (Claude Helps)
 
-# Create a README (optional but recommended)
-cat > README.md << 'EOF'
-# My Common Tools Patterns
-
-Personal collection of Common Tools patterns.
-
-## Patterns
-
-- (patterns will be listed here as you create them)
-EOF
-
-# Commit and push
-cd ~/Code/community-patterns
-git add patterns/YOUR-USERNAME/
-git commit -m "Create my pattern namespace"
-git push origin main
-```
-
-### Store Your Identity Key and Workspace Config
+**Launch Claude Code from the `community-patterns` directory:**
 
 ```bash
 cd ~/Code/community-patterns
-
-# Create identity key for deploying patterns (at repo root)
-deno task -c ~/Code/labs/deno.json ct id new > claude.key
-chmod 600 claude.key
-
-# Create workspace config file
-cat > .claude-workspace << 'EOF'
-username=YOUR-USERNAME
-setup_complete=true
-EOF
-
-# Both files are gitignored - never committed
+# Launch Claude Code here
 ```
+
+Tell Claude: "Help me complete Phase 2 setup"
+
+Claude will now guide you through:
+- Creating `.env` file with your API keys
+- Creating your pattern namespace
+- Creating identity key and workspace config
+- Building your first pattern
+
+Claude will guide you through creating:
+
+**1. .env File**
+- Location: `labs/packages/toolshed/.env`
+- Includes your Anthropic API key
+- Optional: Jina and Google OAuth keys
+
+**2. Your Pattern Namespace**
+- Directory: `patterns/YOUR-USERNAME/`
+- README file for your patterns
+
+**3. Identity Key and Workspace Config**
+- Identity key: `claude.key` (at repo root)
+- Workspace config: `.claude-workspace`
+- Both files are gitignored
+
+**4. Your First Pattern**
+- Claude will walk you through creating a simple counter pattern
+- Test it in the browser
+- Commit it to your repository
+
+That's it! Claude handles all the details.
 
 ---
 
