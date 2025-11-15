@@ -29,38 +29,58 @@ Complete these steps BEFORE launching Claude Code for the first time. This takes
 
 ### Step 2: Install Tools
 
-```bash
-# 1. Check if git is installed (ships with macOS)
-git --version
-# If this prompts to install Command Line Tools, click "Install"
+**Check what you already have first:**
 
-# 2. Install Deno (following guidance from https://docs.deno.com/runtime/getting_started/installation/)
+```bash
+# Check which tools are already installed
+git --version 2>/dev/null && echo "✓ git installed" || echo "✗ git not found"
+deno --version 2>/dev/null && echo "✓ deno installed" || echo "✗ deno not found"
+gh --version 2>/dev/null && echo "✓ gh installed" || echo "✗ gh not found"
+node --version 2>/dev/null && echo "✓ node installed" || echo "✗ node not found"
+```
+
+**Install only what you need:**
+
+```bash
+# 1. Git (ships with macOS)
+# If git is not installed, run this to trigger Command Line Tools installation:
+git --version
+# Click "Install" when prompted
+
+# 2. Install Deno (only if not already installed)
+# Following guidance from https://docs.deno.com/runtime/getting_started/installation/
 curl -fsSL https://deno.land/x/install/install.sh | sh
 
-# 3. Install Homebrew (for GitHub CLI)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# 3. Install Homebrew (only if not already installed - needed for gh)
+# Skip if you already have brew
+which brew || /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# 4. Install GitHub CLI (following guidance from https://github.com/cli/cli)
-brew install gh
+# 4. Install GitHub CLI (only if not already installed)
+# Following guidance from https://github.com/cli/cli
+which gh || brew install gh
 
-# 5. Install NVM (Node Version Manager) (following guidance from https://github.com/nvm-sh/nvm)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+# 5. Install NVM and Node.js (only if you don't have node)
+# Following guidance from https://github.com/nvm-sh/nvm
+if ! command -v node &> /dev/null; then
+  # Install NVM
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
 
-# 6. Load NVM and install Node.js
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm install --lts
-nvm use --lts
+  # Load NVM and install Node.js LTS
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  nvm install --lts
+  nvm use --lts
+fi
 
-# 7. Verify installations
+# 6. Verify installations
 deno --version
 git --version
 gh --version
 node --version
 npm --version
 
-# 8. Authenticate with GitHub
-gh auth login
+# 7. Authenticate with GitHub (if not already authenticated)
+gh auth status || gh auth login
 # Choose: GitHub.com → HTTPS → Yes → Login with browser
 ```
 
