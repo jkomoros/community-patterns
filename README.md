@@ -1,6 +1,6 @@
-# CommonTools Community Patterns
+# Common Tools Community Patterns
 
-A community-driven repository for sharing CommonTools patterns. Each developer works in their own namespace under `patterns/YOUR-USERNAME/`.
+A community-driven repository for sharing Common Tools patterns. Each developer works in their own namespace under `patterns/YOUR-USERNAME/`.
 
 ## Quick Start
 
@@ -58,7 +58,7 @@ community-patterns/
 
 ## Resources
 
-- [CommonTools Labs](https://github.com/commontoolsinc/labs) - Framework repository
+- [Common Tools Labs](https://github.com/commontoolsinc/labs) - Framework repository
 - [Pattern Documentation](https://github.com/commontoolsinc/labs/blob/main/docs/common/PATTERNS.md) - Pattern examples
 - [Component Reference](https://github.com/commontoolsinc/labs/blob/main/docs/common/COMPONENTS.md) - UI components
 

@@ -1,6 +1,6 @@
-# Getting Started with CommonTools Pattern Development
+# Getting Started with Common Tools Pattern Development
 
-Welcome! This guide will help you set up your development environment for building CommonTools patterns.
+Welcome! This guide will help you set up your development environment for building Common Tools patterns.
 
 ## The 5-Minute Setup
 
@@ -171,9 +171,9 @@ cd patterns/YOUR-USERNAME
 
 # Create a README (optional but recommended)
 cat > README.md << 'EOF'
-# My CommonTools Patterns
+# My Common Tools Patterns
 
-Personal collection of CommonTools patterns.
+Personal collection of Common Tools patterns.
 
 ## Patterns
 
