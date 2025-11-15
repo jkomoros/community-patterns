@@ -76,7 +76,7 @@ Checking for updates from upstream...
 
 ### Step 1.5: Check Reference Repositories (Weekly)
 
-**If it's been a while since last check, remind user to update reference repos:**
+**If it's been a while since last check, check for reference repo updates:**
 
 ```bash
 # Check if labs or recipes need updating
@@ -84,16 +84,22 @@ cd ~/Code/labs && git fetch origin && git status
 cd ~/Code/recipes && git fetch origin && git status 2>/dev/null
 ```
 
-**If updates available, guide user:**
+**If updates available, update automatically:**
 
-```
-It looks like the labs framework has updates available.
-Would you like me to help you update?
+```bash
+# Stop dev server if running (will handle gracefully if not running)
+pkill -f "deno task dev"
 
-This requires:
-1. Stopping the dev server (if running)
-2. Pulling updates: git pull origin main
-3. Restarting the dev server: deno task dev
+# Pull updates
+cd ~/Code/labs && git pull origin main
+
+# Restart dev server in background
+cd ~/Code/labs && deno task dev > /tmp/labs-dev-server.log 2>&1 &
+
+# Give it a moment to start
+sleep 2
+
+echo "Dev server restarted with latest labs updates"
 ```
 
 **Important Notes:**
@@ -144,6 +150,41 @@ Ready to work! Your workspace: patterns/$GITHUB_USER/
 
 What would you like to work on today?
 ```
+
+### Step 3: Check and Start Dev Server
+
+**Check if dev server is running:**
+
+```bash
+# Check if dev server is already running
+if lsof -ti:8000 > /dev/null 2>&1; then
+  echo "Dev server is running on port 8000"
+else
+  echo "Dev server not running - starting now..."
+fi
+```
+
+**If not running, start it:**
+
+```bash
+# Start dev server in background
+cd ~/Code/labs && deno task dev > /tmp/labs-dev-server.log 2>&1 &
+
+# Give it a moment to start
+sleep 2
+
+# Verify it started
+if lsof -ti:8000 > /dev/null 2>&1; then
+  echo "Dev server started successfully on http://localhost:8000"
+else
+  echo "Failed to start dev server - check /tmp/labs-dev-server.log for errors"
+fi
+```
+
+**Why this matters:**
+- Patterns need the dev server to deploy and test
+- Claude can restart it automatically when needed
+- Runs in background so session can continue
 
 ---
 
@@ -232,7 +273,28 @@ patterns/alice/
 
 ❌ **NEVER commit or push to labs** - it's READ-ONLY
 ✅ **If you accidentally changed something**: `git restore .`
-✅ **To update labs**: User should `git pull origin main` in labs directory
+✅ **To update labs**: Pull updates and restart dev server automatically
+
+### Managing the Dev Server
+
+**You can restart the dev server whenever needed:**
+
+```bash
+# Stop dev server
+pkill -f "deno task dev"
+
+# Start dev server
+cd ~/Code/labs && deno task dev > /tmp/labs-dev-server.log 2>&1 &
+sleep 2
+```
+
+**When to restart:**
+- After pulling labs updates
+- If patterns aren't deploying correctly
+- If you see connection errors to localhost:8000
+- User reports something not working
+
+**Dev server runs in background** - session can continue while it starts
 
 ---
 
@@ -413,13 +475,13 @@ Covers:
 
 Every session:
 
-- [ ] **First**: Check if setup is complete (patterns/*/claude.key exists?)
+- [ ] **First**: Check if setup is complete (.claude-workspace exists?)
   - If NO → Run GETTING_STARTED.md
   - If YES → Continue below
 - [ ] **Step 1**: Check and pull from upstream (this repo)
 - [ ] **Step 1.5**: Check if labs/recipes need updates (weekly)
-- [ ] **Step 2**: Confirm user's workspace (patterns/$GITHUB_USER/)
-- [ ] **Check**: Is dev server running? Remind to start if needed
+- [ ] **Step 2**: Load workspace configuration (.claude-workspace)
+- [ ] **Step 3**: Check and start dev server if needed
 - [ ] **Check**: Is Playwright MCP available for testing?
 - [ ] **Ready**: Ask user what they want to work on
 
