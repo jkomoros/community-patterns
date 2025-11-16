@@ -20,18 +20,14 @@ const prizeOptions = [
 interface SpinnerInput {
   currentEmoji: Default<string, "🎁">;
   isSpinning: Default<boolean, false>;
-  // Weights for each prize (can be adjusted to change odds)
-  weightThreeBeans: Default<number, 1>;
-  weightOneBean: Default<number, 1>;
-  weightHug: Default<number, 1>;
+  // Generosity level: 0 = lots of candy (5% hugs), 10 = mostly hugs (99%)
+  generosity: Default<number, 0>;
 }
 
 interface SpinnerOutput {
   currentEmoji: Default<string, "🎁">;
   isSpinning: Default<boolean, false>;
-  weightThreeBeans: Default<number, 1>;
-  weightOneBean: Default<number, 1>;
-  weightHug: Default<number, 1>;
+  generosity: Default<number, 0>;
 }
 
 const spin = handler<
@@ -39,18 +35,21 @@ const spin = handler<
   {
     currentEmoji: Cell<string>;
     isSpinning: Cell<boolean>;
-    weightThreeBeans: Cell<number>;
-    weightOneBean: Cell<number>;
-    weightHug: Cell<number>;
+    generosity: Cell<number>;
   }
 >(
-  (_, { currentEmoji, isSpinning, weightThreeBeans, weightOneBean, weightHug }) => {
-    // Get the weights
-    const weights = [
-      weightThreeBeans.get(),
-      weightOneBean.get(),
-      weightHug.get(),
-    ];
+  (_, { currentEmoji, isSpinning, generosity }) => {
+    // Convert generosity (0-10) to weights
+    // At 0: mostly candy (5% hugs), At 10: mostly hugs (99%)
+    const gen = generosity.get();
+    const hugWeight = 1 + (gen * 10); // 1 to 101
+    const candyWeight = 11 - gen; // 11 to 1
+
+    // Split candy between 3 beans and 1 bean
+    const weightThreeBeans = candyWeight * 0.45;
+    const weightOneBean = candyWeight * 0.55;
+
+    const weights = [weightThreeBeans, weightOneBean, hugWeight];
 
     // Calculate total weight
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
@@ -77,8 +76,28 @@ const spin = handler<
   }
 );
 
+const decrementGenerosity = handler<
+  unknown,
+  { generosity: Cell<number> }
+>(
+  (_, { generosity }) => {
+    const current = generosity.get();
+    if (current > 0) generosity.set(current - 1);
+  }
+);
+
+const incrementGenerosity = handler<
+  unknown,
+  { generosity: Cell<number> }
+>(
+  (_, { generosity }) => {
+    const current = generosity.get();
+    if (current < 10) generosity.set(current + 1);
+  }
+);
+
 export default recipe<SpinnerInput, SpinnerOutput>(
-  ({ currentEmoji, isSpinning, weightThreeBeans, weightOneBean, weightHug }) => {
+  ({ currentEmoji, isSpinning, generosity }) => {
     return {
       [NAME]: str`Reward Spinner`,
       [UI]: (
@@ -115,9 +134,7 @@ export default recipe<SpinnerInput, SpinnerOutput>(
             onClick={spin({
               currentEmoji,
               isSpinning,
-              weightThreeBeans,
-              weightOneBean,
-              weightHug,
+              generosity,
             })}
             style={{
               fontSize: "48px",
@@ -127,13 +144,66 @@ export default recipe<SpinnerInput, SpinnerOutput>(
           >
             🎰 SPIN!
           </ct-button>
+
+          {/* Subtle controls at bottom - not obvious to kids */}
+          <div
+            style={{
+              position: "fixed",
+              bottom: "10px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "4px",
+              fontSize: "9px",
+              color: "#94a3b8",
+              backgroundColor: "rgba(255, 255, 255, 0.6)",
+              padding: "6px 10px",
+              borderRadius: "3px",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            {/* Visual readout: 0-5 TADA emojis based on generosity */}
+            <div style={{ fontSize: "14px", minHeight: "18px" }}>
+              {"🎉".repeat(Math.floor(generosity / 2))}
+            </div>
+
+            {/* Controls */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <button
+                onClick={decrementGenerosity({ generosity })}
+                style={{
+                  fontSize: "14px",
+                  padding: "2px 8px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "2px",
+                  background: "white",
+                  cursor: "pointer",
+                }}
+              >
+                −
+              </button>
+              <button
+                onClick={incrementGenerosity({ generosity })}
+                style={{
+                  fontSize: "14px",
+                  padding: "2px 8px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "2px",
+                  background: "white",
+                  cursor: "pointer",
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
         </div>
       ),
       currentEmoji,
       isSpinning,
-      weightThreeBeans,
-      weightOneBean,
-      weightHug,
+      generosity,
     };
   }
 );
