@@ -45,8 +45,6 @@ const spin = handler<
   }
 >(
   (_, { currentEmoji, isSpinning, weightThreeBeans, weightOneBean, weightHug }) => {
-    if (isSpinning.get()) return; // Already spinning
-
     // Get the weights
     const weights = [
       weightThreeBeans.get(),
@@ -72,40 +70,10 @@ const spin = handler<
       }
     }
 
-    // Generate sequence: 20 random emojis, then end with the selected prize
-    const sequence: string[] = [];
-    for (let i = 0; i < 20; i++) {
-      const randomIdx = Math.floor(Math.random() * prizeOptions.length);
-      sequence.push(prizeOptions[randomIdx].emoji);
-    }
-    sequence.push(prizeOptions[selectedIndex].emoji);
+    const finalEmoji = prizeOptions[selectedIndex].emoji;
 
-    // Set spinning state
-    isSpinning.set(true);
-
-    // Animate through the sequence with increasing delays
-    let index = 0;
-    const animate = () => {
-      if (index >= sequence.length) {
-        // Done spinning
-        isSpinning.set(false);
-        return;
-      }
-
-      currentEmoji.set(sequence[index]);
-
-      // Calculate delay: start fast, get slower
-      // First 10: 100ms, next 5: 200ms, next 3: 300ms, last 3: 500ms
-      let delay = 100;
-      if (index >= 10) delay = 200;
-      if (index >= 15) delay = 300;
-      if (index >= 18) delay = 500;
-
-      index++;
-      setTimeout(animate, delay);
-    };
-
-    animate();
+    // Show the result immediately (no animation for now - setTimeout doesn't work with framework)
+    currentEmoji.set(finalEmoji);
   }
 );
 
@@ -151,14 +119,13 @@ export default recipe<SpinnerInput, SpinnerOutput>(
               weightOneBean,
               weightHug,
             })}
-            disabled={isSpinning}
             style={{
               fontSize: "48px",
               padding: "30px 60px",
               fontWeight: "bold",
             }}
           >
-            {isSpinning ? "Spinning..." : "🎰 SPIN!"}
+            🎰 SPIN!
           </ct-button>
         </div>
       ),
