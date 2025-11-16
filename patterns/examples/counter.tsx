@@ -1,46 +1,61 @@
 /// <cts-enable />
-import { Cell, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, NAME, recipe, str, UI } from "commontools";
 
 /**
  * Example: Simple Counter Pattern
  *
  * This demonstrates:
- * - Basic pattern structure
- * - Using Cell<> for write access
- * - Inline event handlers
+ * - Basic recipe structure
+ * - Using Default<> for state with default values
+ * - Using handlers for button clicks
  * - Simple styling with object syntax
  */
 
 interface CounterInput {
-  count: Cell<number>;
+  count: Default<number, 0>;
 }
 
 interface CounterOutput {
-  count: Cell<number>;
+  count: Default<number, 0>;
 }
 
-export default pattern<CounterInput, CounterOutput>(
-  "Counter",
-  ({ count }) => {
-    return {
-      [NAME]: "Counter Example",
-      [UI]: (
-        <div style={{ padding: "2rem", textAlign: "center" }}>
-          <h1 style={{ marginBottom: "1rem" }}>Count: {count}</h1>
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-            <button onClick={() => count.set(count.get() - 1)}>
-              Decrement
-            </button>
-            <button onClick={() => count.set(0)}>
-              Reset
-            </button>
-            <button onClick={() => count.set(count.get() + 1)}>
-              Increment
-            </button>
-          </div>
-        </div>
-      ),
-      count,
-    };
+const decrement = handler<unknown, { count: Cell<number> }>(
+  (_, { count }) => {
+    count.set(count.get() - 1);
   }
 );
+
+const reset = handler<unknown, { count: Cell<number> }>(
+  (_, { count }) => {
+    count.set(0);
+  }
+);
+
+const increment = handler<unknown, { count: Cell<number> }>(
+  (_, { count }) => {
+    count.set(count.get() + 1);
+  }
+);
+
+export default recipe<CounterInput, CounterOutput>(({ count }) => {
+  return {
+    [NAME]: str`Counter: ${count}`,
+    [UI]: (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <h1 style={{ marginBottom: "1rem" }}>Count: {count}</h1>
+        <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
+          <ct-button onClick={decrement({ count })}>
+            Decrement
+          </ct-button>
+          <ct-button onClick={reset({ count })}>
+            Reset
+          </ct-button>
+          <ct-button onClick={increment({ count })}>
+            Increment
+          </ct-button>
+        </div>
+      </div>
+    ),
+    count,
+  };
+});

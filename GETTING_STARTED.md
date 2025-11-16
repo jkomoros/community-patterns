@@ -224,46 +224,19 @@ echo "Passphrase saved to .passphrase (this file is gitignored)"
 
 ## Step 8: Create First Pattern
 
-Walk user through creating a simple counter pattern:
+Copy the example counter pattern to the user's directory:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)/patterns/$GITHUB_USER"
+COMMUNITY_PATTERNS_DIR="$(git rev-parse --show-toplevel)"
+cd "$COMMUNITY_PATTERNS_DIR"
+
+# Copy the working example counter
+cp patterns/examples/counter.tsx patterns/$GITHUB_USER/counter.tsx
+
+echo "Created test pattern at patterns/$GITHUB_USER/counter.tsx"
 ```
 
-Create `counter.tsx`:
-
-```typescript
-/// <cts-enable />
-import { Cell, NAME, pattern, UI } from "commontools";
-
-interface CounterInput {
-  count: Cell<number>;
-}
-
-interface CounterOutput {
-  count: Cell<number>;
-}
-
-export default pattern<CounterInput, CounterOutput>(
-  "Counter",
-  ({ count }) => {
-    return {
-      [NAME]: "My Counter",
-      [UI]: (
-        <div style={{ padding: "2rem", textAlign: "center" }}>
-          <h1>Count: {count}</h1>
-          <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-            <button onClick={() => count.set(count.get() - 1)}>-</button>
-            <button onClick={() => count.set(0)}>Reset</button>
-            <button onClick={() => count.set(count.get() + 1)}>+</button>
-          </div>
-        </div>
-      ),
-      count,
-    };
-  }
-);
-```
+**Tell the user:** "I've copied a working counter pattern to your directory. Let's deploy it to make sure everything is working."
 
 ---
 
@@ -290,27 +263,21 @@ deno task ct charm new \
 # Note the charm ID from output
 ```
 
-If Playwright is available, test in browser:
-```
-Navigate to: http://localhost:8000/test-$GITHUB_USER-1/CHARM-ID
-```
+**Open in Playwright to verify it works:**
 
----
+Use Playwright MCP to navigate to: `http://localhost:8000/test-$GITHUB_USER-1/CHARM-ID`
 
-## Step 10: Commit Pattern
-
-```bash
-cd "$(git rev-parse --show-toplevel)"
-git add patterns/$GITHUB_USER/counter.tsx
-git commit -m "Add counter pattern"
-git push origin main
-```
+**Once you see the counter rendering on screen, STOP HERE.**
 
 ---
 
 ## ✅ Setup Complete!
 
-User is now ready to build patterns. Remind them:
+**Tell the user:** "Great! Your test pattern is working. The setup is now complete. What would you like to build next?"
+
+**Do NOT commit the test pattern - it was just for verification.**
+
+User is now ready to build patterns. When they're ready, remind them:
 - Patterns go in `patterns/$GITHUB_USER/WIP/` while developing
 - Move to root level when stable and tested
 - Claude auto-starts dev servers on future sessions
