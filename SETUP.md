@@ -197,4 +197,48 @@ For a comprehensive overview of what Common Tools is, how it works, and why it's
 
 *Note: If you don't have access to this document, please ask an employee of Common Tools for access.*
 
+---
+
+## Optional: Workflow Improvement with Happy
+
+**[Happy](https://happy.engineering/)** is a free, open-source mobile app that lets you control Claude Code from your phone or desktop. It's completely optional but can improve your workflow.
+
+### What Happy Provides
+
+- **Voice-to-action** - Execute Claude Code commands hands-free with voice
+- **Multiple sessions** - Run several Claude Code instances across different projects simultaneously
+- **Mobile access** - Control Claude Code from iOS, Android, or web app
+- **End-to-end encryption** - Your code and sessions remain private
+- **Real-time notifications** - Stay updated on Claude Code activity from anywhere
+
+### Installation
+
+Requires Node.js 20.0.0 or higher:
+
+```bash
+# Install Happy CLI globally
+npm install -g happy-coder
+
+# Start Happy (displays QR code to connect your mobile device)
+happy
+
+# Scan QR code with mobile app from:
+# - iOS: App Store
+# - Android: Google Play
+# - Web: app.happy.engineering
+```
+
+### Useful Commands
+
+```bash
+happy            # Start session and show QR code
+happy auth       # Manage authentication
+happy notify     # Send notifications to your devices
+happy doctor     # Run diagnostics if you have issues
+```
+
+For more information: [Happy CLI GitHub](https://github.com/slopus/happy-cli)
+
+---
+
 Happy pattern building! 🚀
