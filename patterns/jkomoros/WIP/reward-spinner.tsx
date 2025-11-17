@@ -605,25 +605,6 @@ export default recipe<SpinnerInput, SpinnerOutput>(
             }
           `}</style>
 
-          {/* Spin Button */}
-          <ct-button
-            onClick={spin({
-              currentEmoji,
-              isSpinning,
-              generosity,
-              spinSequence,
-              spinCount,
-              spinHistory,
-            })}
-            style={{
-              fontSize: "32px",
-              padding: "20px 40px",
-              fontWeight: "bold",
-            }}
-          >
-            🎰 SPIN!
-          </ct-button>
-
           {/* Subtle controls at bottom - not obvious to kids */}
           <div
             style={{
