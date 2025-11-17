@@ -118,6 +118,11 @@ const spin = handler<
     spinSequence.set(sequence);
     spinCount.set(spinCount.get() + 1);
 
+    // Clear the sequence after animation completes (6s) to show static display
+    setTimeout(() => {
+      spinSequence.set([]);
+    }, 6000);
+
     // Record this spin in history
     const history = spinHistory.get();
     const newRecord: SpinRecord = {
