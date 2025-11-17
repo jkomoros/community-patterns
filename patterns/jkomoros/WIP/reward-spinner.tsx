@@ -61,15 +61,15 @@ const spin = handler<
 >(
   (_, { currentEmoji, isSpinning, generosity, spinSequence, spinCount, spinHistory }) => {
     // Convert generosity (0-10) to weights
-    // Smooth curve from ~90% candy at 0 to ~90% hugs at 10
+    // Smooth curve from 95% candy at 0 to 95% hugs at 10
     const gen = generosity.get();
 
-    // Use exponential curve for smooth transition
-    // At gen=0: hugWeight=1, candyWeight=10 → ~9% hugs
-    // At gen=5: hugWeight=5, candyWeight=5 → ~50% hugs
-    // At gen=10: hugWeight=10, candyWeight=1 → ~91% hugs
-    const hugWeight = 1 + (gen * 0.9); // 1.0 to 10.0
-    const candyWeight = 1 + ((10 - gen) * 0.9); // 10.0 to 1.0
+    // Use linear curve for smooth transition
+    // At gen=0: hugWeight=1, candyWeight=21 → 5% hugs, 95% candy
+    // At gen=5: hugWeight=11, candyWeight=11 → 50% hugs, 50% candy
+    // At gen=10: hugWeight=21, candyWeight=1 → 95% hugs, 5% candy
+    const hugWeight = 1 + (gen * 2.0); // 1.0 to 21.0
+    const candyWeight = 1 + ((10 - gen) * 2.0); // 21.0 to 1.0
 
     // Split candy between 3 beans and 1 bean
     const weightThreeBeans = candyWeight * 0.45;
@@ -196,8 +196,8 @@ export default recipe<SpinnerInput, SpinnerOutput>(
       const gen = generosity.get();
 
       // Same smooth curve as spin handler
-      const hugWeight = 1 + (gen * 0.9); // 1.0 to 10.0
-      const candyWeight = 1 + ((10 - gen) * 0.9); // 10.0 to 1.0
+      const hugWeight = 1 + (gen * 2.0); // 1.0 to 21.0
+      const candyWeight = 1 + ((10 - gen) * 2.0); // 21.0 to 1.0
       const weightThreeBeans = candyWeight * 0.45;
       const weightOneBean = candyWeight * 0.55;
       const totalWeight = weightThreeBeans + weightOneBean + hugWeight;
