@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, recipe, str, UI } from "commontools";
+import { Cell, computed, Default, handler, NAME, pattern, str, UI } from "commontools";
 
 /**
  * Reward Spinner Pattern
@@ -172,8 +172,7 @@ const incrementGenerosity = handler<
   }
 );
 
-export default recipe<SpinnerInput, SpinnerOutput>(
-  "Reward Spinner",
+export default pattern<SpinnerInput, SpinnerOutput>(
   ({ currentEmoji, isSpinning, generosity, spinSequence, spinCount, payoutAnimationCount, spinHistory }) => {
     // Compute the TADA emoji display from generosity level (0-10 emojis, one per level)
     const tadaDisplay = computed(() =>

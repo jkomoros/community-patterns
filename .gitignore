@@ -53,3 +53,8 @@ coverage/
 
 # Playwright MCP screenshots
 .playwright-mcp/
+
+# ct CLI helper files
+.ct-docs
+.ct-types
+tsconfig.json

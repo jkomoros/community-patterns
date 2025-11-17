@@ -1,0 +1,58 @@
+name: Pattern Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+env:
+  CT_COMMIT_SHA: 8ce4b704b0e89ade41fe0127d79404fbc900785a 
+
+jobs:
+  check-patterns:
+    name: "Check Patterns"
+    runs-on: ubuntu-latest
+    environment: test
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: 📥 Download tarball from GCS
+        run: |
+          mkdir -p downloaded-artifacts/
+          curl -sL https://storage.googleapis.com/commontools-build-artifacts/workspace-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz -o downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz 
+
+          # Verify the tarball exists
+          if [ ! -f downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz ]; then
+            echo "::error::Artifact tarball for commit ${{ env.CT_COMMIT_SHA }} not found!"
+            echo "Make sure this commit was successfully built and artifacts were uploaded."
+            exit 1
+          fi
+
+      - name: 📥 Install ct
+        run: |
+          mkdir -p bin
+          # Extract the jumble frontend artifacts from the tarball if they exist
+          # or download them from a known location if stored separately
+          tar -xzf downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz -C bin
+          chmod -R 755 bin
+          # Set tools to path
+          echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
+
+      - name: 👆 Initialize ct environment
+        working-directory: repo
+        run: ct init
+
+      - name: 🔡 Type Check
+        working-directory: repo
+        run: ./scripts/typecheck.sh -f '!WIP'
+   
+      - name: 🔡 Type Check (WIP, Fallible)
+        continue-on-error: true # Don't fail the workflow if tests fail
+        working-directory: repo
+        run: ./scripts/typecheck.sh -f 'WIP'

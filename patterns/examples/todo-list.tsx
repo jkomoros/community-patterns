@@ -26,7 +26,6 @@ interface TodoListOutput {
 }
 
 export default pattern<TodoListInput, TodoListOutput>(
-  "Todo List",
   ({ items }) => {
     return {
       [NAME]: "Todo List Example",
@@ -78,7 +77,7 @@ export default pattern<TodoListInput, TodoListOutput>(
           {/* Add new item */}
           <ct-message-input
             placeholder="Add new task..."
-            onct-send={(e) => {
+            onct-send={(e: { detail: { message: string; }; }) => {
               const title = e.detail?.message?.trim();
               if (title) {
                 items.push({ title, done: false });
