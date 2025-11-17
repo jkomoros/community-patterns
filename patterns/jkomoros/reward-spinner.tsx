@@ -473,7 +473,7 @@ export default recipe<SpinnerInput, SpinnerOutput>(
             </div>
 
             {/* Sparkle Burst - alternates between two animation sets to restart on each spin */}
-            {spinCount.get() > 0 && (
+            {spinSequence.get().length > 0 && (
               (spinCount.get() % 2 === 0) ? (
                 <div
                   style={{
