@@ -61,10 +61,10 @@ const spin = handler<
 >(
   (_, { currentEmoji, isSpinning, generosity, spinSequence, spinCount, spinHistory }) => {
     // Convert generosity (0-10) to weights
-    // At 0: mostly hugs (99%), At 10: mostly candy (99%)
+    // At 0: lots of candy, At 10: mostly hugs
     const gen = generosity.get();
-    const hugWeight = 11 - gen; // 11 to 1 (high gen = few hugs)
-    const candyWeight = 1 + (gen * 10); // 1 to 101 (high gen = lots of candy)
+    const hugWeight = 1 + (gen * 10); // 1 to 101 (high gen = lots of hugs)
+    const candyWeight = 11 - gen; // 11 to 1 (high gen = few candy)
 
     // Split candy between 3 beans and 1 bean
     const weightThreeBeans = candyWeight * 0.45;
@@ -179,8 +179,8 @@ export default recipe<SpinnerInput, SpinnerOutput>(
     // Calculate payout percentages
     const payoutPercentages = computed(() => {
       const gen = generosity.get();
-      const hugWeight = 11 - gen;
-      const candyWeight = 1 + (gen * 10);
+      const hugWeight = 1 + (gen * 10); // 1 to 101 (high gen = lots of hugs)
+      const candyWeight = 11 - gen; // 11 to 1 (high gen = few candy)
       const weightThreeBeans = candyWeight * 0.45;
       const weightOneBean = candyWeight * 0.55;
       const totalWeight = weightThreeBeans + weightOneBean + hugWeight;
