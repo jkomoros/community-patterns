@@ -229,6 +229,24 @@ export default recipe<SpinnerInput, SpinnerOutput>(
           >
           {/* Wrapper for emoji and sparkles */}
           <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {/* "Tap to spin" message - shows on every page load */}
+            <div
+              style={{
+                position: "absolute",
+                top: "20%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                fontSize: "16px",
+                color: "#64748b",
+                letterSpacing: "0.5px",
+                opacity: 0,
+                animation: "tapToSpinFade 3s ease-in-out forwards",
+                pointerEvents: "none",
+                zIndex: 10,
+              }}
+            >
+              Tap to spin
+            </div>
             {/* Slot Machine Display */}
             <div
               onClick={spin({
@@ -528,6 +546,14 @@ export default recipe<SpinnerInput, SpinnerOutput>(
 
           {/* CSS Animations */}
           <style>{`
+            /* Tap to spin fade animation */
+            @keyframes tapToSpinFade {
+              0% { opacity: 0; }
+              10% { opacity: 1; }
+              50% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+
             /* Sparkle burst animations - varied sizes, speeds, huge stars fade faster */
             @keyframes sparkleBurst0  { 0% { transform: translate(0, 0) rotate(0deg) scale(0.2); opacity: 0; } 1% { opacity: 1; } 45% { opacity: 1; } 100% { transform: translate(320px, -15px) rotate(840deg) scale(1.8); opacity: 0; } }
             @keyframes sparkleBurst1  { 0% { transform: translate(0, 0) rotate(0deg) scale(0.3); opacity: 0; } 1% { opacity: 0.6; } 25% { opacity: 0.6; } 100% { transform: translate(265px, 110px) rotate(620deg) scale(2.5); opacity: 0; } }
