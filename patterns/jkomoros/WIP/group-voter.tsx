@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
 
 /**
  * Group Voter Pattern
@@ -38,6 +38,20 @@ export default pattern<PollInput, PollOutput>(
     // Local state (hardcoded name for testing)
     const myName = "Alice";
 
+    // Derived: Organize all votes by option ID and vote type
+    const votesByOption = derive(votes, (allVotes: Vote[]) => {
+      const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
+
+      for (const vote of allVotes) {
+        if (!organized[vote.optionId]) {
+          organized[vote.optionId] = { green: [], yellow: [], red: [] };
+        }
+        organized[vote.optionId][vote.voteType].push(vote.voterName);
+      }
+
+      return organized;
+    });
+
     return {
       [NAME]: "Group Voter",
       [UI]: (
@@ -63,9 +77,50 @@ export default pattern<PollInput, PollOutput>(
                     backgroundColor: "#f9f9f9",
                   }}
                 >
-                  <span style={{ flex: 1, fontWeight: "500" }}>
-                    {option.title}
-                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "500", marginBottom: "0.25rem" }}>
+                      {option.title}
+                    </div>
+
+                    {/* Vote dots display */}
+                    {votesByOption[option.id] && (
+                      <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
+                        {votesByOption[option.id].green.map((voterName) => (
+                          <span style={{
+                            backgroundColor: "#22c55e",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600"
+                          }}>
+                            {voterName}
+                          </span>
+                        ))}
+                        {votesByOption[option.id].yellow.map((voterName) => (
+                          <span style={{
+                            backgroundColor: "#eab308",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600"
+                          }}>
+                            {voterName}
+                          </span>
+                        ))}
+                        {votesByOption[option.id].red.map((voterName) => (
+                          <span style={{
+                            backgroundColor: "#ef4444",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600"
+                          }}>
+                            {voterName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Remove button */}
                   <ct-button
