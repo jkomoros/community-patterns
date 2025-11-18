@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -18,12 +18,14 @@ interface CodenamesHelperInput {
   board: Cell<BoardWord[]>;
   myTeam: Cell<Team>;
   setupMode: Cell<boolean>;
+  selectedWordIndex: Cell<number>;
 }
 
 interface CodenamesHelperOutput {
   board: Cell<BoardWord[]>;
   myTeam: Cell<Team>;
   setupMode: Cell<boolean>;
+  selectedWordIndex: Cell<number>;
 }
 
 // ===== HELPER FUNCTIONS =====
@@ -63,10 +65,26 @@ function getWordBackgroundColor(owner: WordOwner, state: WordState): string {
   return "#f5f5dc"; // Unrevealed = tan/beige
 }
 
+// ===== HANDLERS =====
+
+// Assign color to selected word
+const assignColor = handler<
+  unknown,
+  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number>; owner: WordOwner }
+>((_event, { board, selectedWordIndex, owner }) => {
+  const selIdx = selectedWordIndex.get();
+  if (selIdx >= 0 && selIdx < 25) {
+    const currentBoard = board.get().slice();
+    currentBoard[selIdx] = { ...currentBoard[selIdx], owner };
+    board.set(currentBoard);
+    selectedWordIndex.set(-1); // Deselect after assigning
+  }
+});
+
 // ===== MAIN PATTERN =====
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
-  ({ board, myTeam, setupMode }) => {
+  ({ board, myTeam, setupMode, selectedWordIndex }) => {
     return {
       [NAME]: "Codenames Helper",
       [UI]: (
@@ -148,7 +166,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                   key={index}
                   style={{
                     aspectRatio: "1",
-                    border: "2px solid #000",
+                    border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
                     borderRadius: "0.375rem",
                     padding: "0.5rem",
                     backgroundColor: bgColor,
@@ -159,12 +177,19 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     alignItems: "center",
                     position: "relative",
                     cursor: "pointer",
+                    boxShadow: selectedWordIndex.get() === index ? "0 0 8px rgba(59, 130, 246, 0.5)" : "none",
                   }}
                   onClick={() => {
-                    if (!setupMode.get() && word.word && word.state === "unrevealed") {
-                      const currentBoard = board.get().slice();
-                      currentBoard[index] = { ...currentBoard[index], state: "revealed" };
-                      board.set(currentBoard);
+                    if (setupMode.get()) {
+                      // In setup mode: select this word for color assignment
+                      selectedWordIndex.set(index);
+                    } else {
+                      // In play mode: reveal the word
+                      if (word.word && word.state === "unrevealed") {
+                        const currentBoard = board.get().slice();
+                        currentBoard[index] = { ...currentBoard[index], state: "revealed" };
+                        board.set(currentBoard);
+                      }
                     }
                   }}
                 >
@@ -203,7 +228,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                   )}
 
                   {/* Owner Indicator (Setup Mode) */}
-                  {setupMode.get() && word.owner !== "unassigned" && (
+                  {setupMode.get() && word.owner !== "unassigned" ? (
                     <div style={{
                       position: "absolute",
                       top: "2px",
@@ -214,7 +239,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                       backgroundColor: getWordColor(word.owner),
                       border: "1px solid white",
                     }} />
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -247,7 +272,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
           </div>
 
           {/* Setup Controls */}
-          {setupMode.get() && (
+          {ifElse(
+            setupMode,
             <div style={{
               marginBottom: "1.5rem",
               padding: "1rem",
@@ -260,7 +286,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                 fontWeight: "600",
                 marginBottom: "0.75rem",
               }}>
-                Assign Colors (TODO: click word, then color)
+                Assign Colors (click a word, then choose a color)
               </h3>
 
               <div style={{
@@ -269,22 +295,40 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                 flexWrap: "wrap",
                 marginBottom: "1rem",
               }}>
-                {(["red", "blue", "neutral", "assassin", "unassigned"] as WordOwner[]).map((owner: WordOwner, idx: number) => (
-                  <ct-button
-                    key={idx}
-                    style={`padding: 0.5rem 1rem; background-color: ${getWordColor(owner)}; color: ${owner === "neutral" || owner === "unassigned" ? "black" : "white"}; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
-                  >
-                    {owner === "unassigned" ? "Clear" : owner}
-                  </ct-button>
-                ))}
+                <ct-button
+                  onClick={assignColor({ board, selectedWordIndex, owner: "red" })}
+                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("red")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                >
+                  red
+                </ct-button>
+                <ct-button
+                  onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}
+                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("blue")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                >
+                  blue
+                </ct-button>
+                <ct-button
+                  onClick={assignColor({ board, selectedWordIndex, owner: "neutral" })}
+                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("neutral")}; color: black; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                >
+                  neutral
+                </ct-button>
+                <ct-button
+                  onClick={assignColor({ board, selectedWordIndex, owner: "assassin" })}
+                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("assassin")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                >
+                  assassin
+                </ct-button>
+                <ct-button
+                  onClick={assignColor({ board, selectedWordIndex, owner: "unassigned" })}
+                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("unassigned")}; color: black; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                >
+                  Clear
+                </ct-button>
               </div>
 
               {/* TODO: Reset Board button */}
-            </div>
-          )}
-
-          {/* Play Mode Instructions */}
-          {!setupMode.get() && (
+            </div>,
             <div style={{
               padding: "1rem",
               backgroundColor: "#f9fafb",
@@ -300,6 +344,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
       board,
       myTeam,
       setupMode,
+      selectedWordIndex,
     };
   }
 );
