@@ -237,6 +237,13 @@ export default pattern<PollInput, PollOutput>(
                   }}>
                     🔴
                   </ct-button>
+                  <ct-button onClick={() => {
+                    const allVotes = votes.get();
+                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
+                    votes.set(filtered);
+                  }}>
+                    Clear
+                  </ct-button>
                 </div>
               </div>
             ))}
