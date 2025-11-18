@@ -131,9 +131,11 @@ const cellClick = handler<
   } else {
     // In play mode: reveal the word
     if (currentBoard[index].state === "unrevealed") {
-      const newBoard = currentBoard.slice();
-      newBoard[index] = { ...newBoard[index], state: "revealed" };
-      board.set(newBoard);
+      // Create new array and update the item
+      const updatedBoard = currentBoard.map((word, i) =>
+        i === index ? { ...word, state: "revealed" as WordState } : word
+      );
+      board.set(updatedBoard);
     }
   }
 });
