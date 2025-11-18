@@ -81,6 +81,19 @@ const assignColor = handler<
   }
 });
 
+// Reset all word colors to unassigned
+const resetAllColors = handler<
+  unknown,
+  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number> }
+>((_event, { board, selectedWordIndex }) => {
+  const currentBoard = board.get().slice();
+  for (let i = 0; i < currentBoard.length; i++) {
+    currentBoard[i] = { ...currentBoard[i], owner: "unassigned" };
+  }
+  board.set(currentBoard);
+  selectedWordIndex.set(-1);
+});
+
 // ===== MAIN PATTERN =====
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
@@ -327,7 +340,18 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                 </ct-button>
               </div>
 
-              {/* TODO: Reset Board button */}
+              {/* Reset Board Colors button */}
+              <div style={{
+                marginTop: "1rem",
+                textAlign: "center",
+              }}>
+                <ct-button
+                  onClick={resetAllColors({ board, selectedWordIndex })}
+                  style="padding: 0.5rem 1rem; background-color: #ef4444; color: white; border-radius: 0.375rem; font-weight: 600;"
+                >
+                  Reset All Colors
+                </ct-button>
+              </div>
             </div>,
             <div style={{
               padding: "1rem",
