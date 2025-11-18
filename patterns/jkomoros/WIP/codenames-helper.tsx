@@ -94,6 +94,24 @@ const resetAllColors = handler<
   selectedWordIndex.set(-1);
 });
 
+// Update word text in a cell
+const updateWord = handler<
+  any,
+  { board: Cell<BoardWord[]>; row: number; col: number }
+>((event, { board, row, col }) => {
+  const text = event.target.value;
+  const currentBoard = board.get().slice();
+  // Find index by position (stable identifier)
+  const index = currentBoard.findIndex((el: BoardWord) =>
+    el.position.row === row && el.position.col === col
+  );
+
+  if (index < 0) return; // Safety check
+
+  currentBoard[index] = { ...currentBoard[index], word: text.toUpperCase() };
+  board.set(currentBoard);
+});
+
 // Handle cell click (setup mode: select, play mode: reveal)
 const cellClick = handler<
   unknown,
@@ -226,11 +244,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                       type="text"
                       value={word.word}
                       placeholder={`${word.position.row},${word.position.col}`}
-                      onChange={(e: any) => {
-                        const currentBoard = board.get().slice();
-                        currentBoard[index] = { ...currentBoard[index], word: e.target.value.toUpperCase() };
-                        board.set(currentBoard);
-                      }}
+                      onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
                       style={{
                         width: "100%",
                         height: "100%",
