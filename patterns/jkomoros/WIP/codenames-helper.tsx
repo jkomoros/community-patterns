@@ -302,6 +302,50 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                 Assign Colors (click a word, then choose a color)
               </h3>
 
+              {/* Color Counts */}
+              <div style={{
+                display: "flex",
+                gap: "1rem",
+                marginBottom: "0.75rem",
+                padding: "0.5rem",
+                backgroundColor: "#ffffff",
+                borderRadius: "0.375rem",
+                border: "1px solid #e5e7eb",
+                fontSize: "0.875rem",
+              }}>
+                {derive(board, (boardData: BoardWord[]) => {
+                  const counts: Record<WordOwner, number> = {
+                    red: 0,
+                    blue: 0,
+                    neutral: 0,
+                    assassin: 0,
+                    unassigned: 0,
+                  };
+                  boardData.forEach((word: BoardWord) => {
+                    counts[word.owner]++;
+                  });
+                  return (
+                    <>
+                      <span style={{ fontWeight: "600", color: "#dc2626" }}>
+                        Red: {counts.red}
+                      </span>
+                      <span style={{ fontWeight: "600", color: "#2563eb" }}>
+                        Blue: {counts.blue}
+                      </span>
+                      <span style={{ fontWeight: "600", color: "#71717a" }}>
+                        Neutral: {counts.neutral}
+                      </span>
+                      <span style={{ fontWeight: "600", color: "#000000" }}>
+                        Assassin: {counts.assassin}
+                      </span>
+                      <span style={{ fontWeight: "600", color: "#9ca3af" }}>
+                        Unassigned: {counts.unassigned}
+                      </span>
+                    </>
+                  );
+                })}
+              </div>
+
               <div style={{
                 display: "flex",
                 gap: "0.5rem",
