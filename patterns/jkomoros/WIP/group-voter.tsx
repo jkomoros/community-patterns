@@ -132,7 +132,7 @@ export default pattern<PollInput, PollOutput>(
                     {/* Vote dots display */}
                     {votesByOption[option.id] && (
                       <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                        {votesByOption[option.id].green.map((voterName) => (
+                        {votesByOption[option.id]?.green?.map((voterName) => (
                           <span style={{
                             backgroundColor: "#22c55e",
                             color: "white",
@@ -143,7 +143,7 @@ export default pattern<PollInput, PollOutput>(
                             {voterName}
                           </span>
                         ))}
-                        {votesByOption[option.id].yellow.map((voterName) => (
+                        {votesByOption[option.id]?.yellow?.map((voterName) => (
                           <span style={{
                             backgroundColor: "#eab308",
                             color: "white",
@@ -154,7 +154,7 @@ export default pattern<PollInput, PollOutput>(
                             {voterName}
                           </span>
                         ))}
-                        {votesByOption[option.id].red.map((voterName) => (
+                        {votesByOption[option.id]?.red?.map((voterName) => (
                           <span style={{
                             backgroundColor: "#ef4444",
                             color: "white",
@@ -225,6 +225,39 @@ export default pattern<PollInput, PollOutput>(
               }
             }}
           />
+
+          {/* Admin Controls */}
+          <div style={{
+            marginTop: "2rem",
+            paddingTop: "1rem",
+            borderTop: "1px solid #e5e7eb"
+          }}>
+            <div style={{
+              fontSize: "0.875rem",
+              fontWeight: "600",
+              color: "#6b7280",
+              marginBottom: "0.75rem"
+            }}>
+              Admin Controls
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <ct-button
+                onClick={() => {
+                  votes.set([]);
+                }}
+              >
+                Reset Votes
+              </ct-button>
+              <ct-button
+                onClick={() => {
+                  options.set([]);
+                  votes.set([]);
+                }}
+              >
+                Clear All Options
+              </ct-button>
+            </div>
+          </div>
         </div>
       ),
       options,
