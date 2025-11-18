@@ -57,12 +57,10 @@ function getWordColor(owner: WordOwner): string {
   }
 }
 
-// Get background color for word based on owner and state
-function getWordBackgroundColor(owner: WordOwner, state: WordState): string {
-  if (state === "revealed") {
-    return getWordColor(owner);
-  }
-  return "#f5f5dc"; // Unrevealed = tan/beige
+// Get background color for word based on owner
+// Spymaster ALWAYS sees all colors (they have the key card)
+function getWordBackgroundColor(owner: WordOwner): string {
+  return getWordColor(owner);
 }
 
 // ===== HANDLERS =====
@@ -203,7 +201,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                 : "padding: 0.5rem 1rem; background-color: #10b981; color: white; border-radius: 0.375rem; font-weight: 600;"
               }
             >
-              {setupMode.get() ? "Setup Mode" : "Play Mode"}
+              {setupMode.get() ? "Setup Mode" : "Game Mode"}
             </ct-button>
           </div>
 
@@ -215,21 +213,18 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
             marginBottom: "1.5rem",
           }}>
             {board.map((word: BoardWord, index: number) => {
-              const bgColor = getWordBackgroundColor(word.owner, word.state);
-              const textColor = word.state === "revealed" &&
-                (word.owner === "red" || word.owner === "blue" || word.owner === "assassin")
-                ? "white" : "black";
-
               return (
                 <div
-                  key={index}
                   style={{
                     aspectRatio: "1",
                     border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
                     borderRadius: "0.375rem",
                     padding: "0.5rem",
-                    backgroundColor: bgColor,
-                    color: textColor,
+                    backgroundColor: getWordBackgroundColor(word.owner),
+                    opacity: word.state === "revealed" ? 0.5 : 1,
+                    color: word.state === "revealed" &&
+                      (word.owner === "red" || word.owner === "blue" || word.owner === "assassin")
+                      ? "white" : "black",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
@@ -238,7 +233,24 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     cursor: "pointer",
                     boxShadow: selectedWordIndex.get() === index ? "0 0 8px rgba(59, 130, 246, 0.5)" : "none",
                   }}
-                  onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
+                  onClick={() => {
+                    const currentBoard = board.get();
+                    const index = currentBoard.findIndex((el: BoardWord) =>
+                      el.position.row === word.position.row && el.position.col === word.position.col
+                    );
+
+                    if (index < 0) return;
+
+                    if (setupMode.get()) {
+                      selectedWordIndex.set(index);
+                    } else {
+                      if (currentBoard[index].state === "unrevealed") {
+                        const updatedBoard = currentBoard.slice();
+                        updatedBoard[index] = { ...updatedBoard[index], state: "revealed" };
+                        board.set(updatedBoard);
+                      }
+                    }
+                  }}
                 >
                   {/* Word Display/Input */}
                   {setupMode.get() ? (
@@ -434,7 +446,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               border: "1px solid #e5e7eb",
               textAlign: "center",
             }}>
-              <p>Click cards to reveal them during play</p>
+              <p style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Game Mode</p>
+              <p style={{ fontSize: "0.875rem" }}>Click cards to mark them as guessed (faded = out of play)</p>
             </div>
           )}
         </div>
