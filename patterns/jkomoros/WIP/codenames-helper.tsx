@@ -94,6 +94,24 @@ const resetAllColors = handler<
   selectedWordIndex.set(-1);
 });
 
+// Handle cell click (setup mode: select, play mode: reveal)
+const cellClick = handler<
+  unknown,
+  { board: Cell<BoardWord[]>; setupMode: Cell<boolean>; selectedWordIndex: Cell<number>; index: number }
+>((_event, { board, setupMode, selectedWordIndex, index }) => {
+  if (setupMode.get()) {
+    // In setup mode: select this word for color assignment
+    selectedWordIndex.set(index);
+  } else {
+    // In play mode: reveal the word
+    const currentBoard = board.get().slice();
+    if (currentBoard[index].state === "unrevealed") {
+      currentBoard[index] = { ...currentBoard[index], state: "revealed" };
+      board.set(currentBoard);
+    }
+  }
+});
+
 // ===== MAIN PATTERN =====
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
@@ -192,19 +210,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     cursor: "pointer",
                     boxShadow: selectedWordIndex.get() === index ? "0 0 8px rgba(59, 130, 246, 0.5)" : "none",
                   }}
-                  onClick={() => {
-                    if (setupMode.get()) {
-                      // In setup mode: select this word for color assignment
-                      selectedWordIndex.set(index);
-                    } else {
-                      // In play mode: reveal the word
-                      if (word.word && word.state === "unrevealed") {
-                        const currentBoard = board.get().slice();
-                        currentBoard[index] = { ...currentBoard[index], state: "revealed" };
-                        board.set(currentBoard);
-                      }
-                    }
-                  }}
+                  onClick={cellClick({ board, setupMode, selectedWordIndex, index })}
                 >
                   {/* Word Display/Input */}
                   {setupMode.get() ? (
