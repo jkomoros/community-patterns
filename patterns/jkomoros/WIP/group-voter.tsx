@@ -35,43 +35,74 @@ interface PollOutput {
 
 export default pattern<PollInput, PollOutput>(
   ({ options, votes, nextOptionId }) => {
+    // Local state (hardcoded name for testing)
+    const myName = "Alice";
+
     return {
       [NAME]: "Group Voter",
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
 
+          <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem", textAlign: "right" }}>
+            Voting as: <strong>{myName}</strong>
+          </div>
+
           {/* Options List */}
           <div style={{ marginBottom: "1rem" }}>
             {options.map((option) => (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.75rem",
-                  marginBottom: "0.5rem",
-                  border: "1px solid #ddd",
-                  borderRadius: "4px",
-                  backgroundColor: "#f9f9f9",
-                }}
-              >
-                <span style={{ flex: 1, fontWeight: "500" }}>
-                  {option.title}
-                </span>
-
-                {/* Remove button */}
-                <ct-button
-                  onClick={() => {
-                    const current = options.get();
-                    const index = current.findIndex((el) => Cell.equals(option, el));
-                    if (index >= 0) {
-                      options.set(current.toSpliced(index, 1));
-                    }
+              <div style={{ marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.75rem",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    backgroundColor: "#f9f9f9",
                   }}
                 >
-                  Remove
-                </ct-button>
+                  <span style={{ flex: 1, fontWeight: "500" }}>
+                    {option.title}
+                  </span>
+
+                  {/* Remove button */}
+                  <ct-button
+                    onClick={() => {
+                      const current = options.get();
+                      const index = current.findIndex((el) => Cell.equals(option, el));
+                      if (index >= 0) {
+                        options.set(current.toSpliced(index, 1));
+                      }
+                    }}
+                  >
+                    Remove
+                  </ct-button>
+
+                  {/* Vote buttons */}
+                  <ct-button onClick={() => {
+                    const allVotes = votes.get();
+                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "green" }]);
+                  }}>
+                    🟢
+                  </ct-button>
+                  <ct-button onClick={() => {
+                    const allVotes = votes.get();
+                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "yellow" }]);
+                  }}>
+                    🟡
+                  </ct-button>
+                  <ct-button onClick={() => {
+                    const allVotes = votes.get();
+                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "red" }]);
+                  }}>
+                    🔴
+                  </ct-button>
+                </div>
               </div>
             ))}
           </div>
