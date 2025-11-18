@@ -52,6 +52,27 @@ export default pattern<PollInput, PollOutput>(
       return organized;
     });
 
+    // Derived: Ranked options (fewest reds, then most greens)
+    const rankedOptions = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+      // Count votes for each option
+      const voteCounts = currentOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+        const reds = optionVotes.filter(v => v.voteType === "red").length;
+        const greens = optionVotes.filter(v => v.voteType === "green").length;
+        const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
+
+        return { option, reds, greens, yellows, totalVotes: optionVotes.length };
+      });
+
+      // Sort: fewest reds (ascending), then most greens (descending)
+      return voteCounts.sort((a, b) => {
+        if (a.reds !== b.reds) {
+          return a.reds - b.reds; // Fewer reds is better
+        }
+        return b.greens - a.greens; // More greens is better
+      });
+    });
+
     return {
       [NAME]: "Group Voter",
       [UI]: (
@@ -61,6 +82,32 @@ export default pattern<PollInput, PollOutput>(
           <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem", textAlign: "right" }}>
             Voting as: <strong>{myName}</strong>
           </div>
+
+          {/* Top Choice Display */}
+          {rankedOptions.length > 0 && rankedOptions[0].totalVotes > 0 && (
+            <div style={{
+              padding: "1rem",
+              marginBottom: "1.5rem",
+              border: "2px solid #10b981",
+              borderRadius: "8px",
+              backgroundColor: "#ecfdf5",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <span style={{ fontSize: "1.5rem" }}>🏆</span>
+                <span style={{ fontWeight: "600", fontSize: "1.125rem" }}>TOP CHOICE</span>
+              </div>
+              <div style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.5rem" }}>
+                {rankedOptions[0].option.title}
+              </div>
+              <div style={{ fontSize: "0.875rem", color: "#059669" }}>
+                {rankedOptions[0].greens > 0 && <span>{rankedOptions[0].greens} love it</span>}
+                {rankedOptions[0].greens > 0 && rankedOptions[0].yellows > 0 && <span>, </span>}
+                {rankedOptions[0].yellows > 0 && <span>{rankedOptions[0].yellows} okay with it</span>}
+                {(rankedOptions[0].greens > 0 || rankedOptions[0].yellows > 0) && rankedOptions[0].reds > 0 && <span>, </span>}
+                {rankedOptions[0].reds > 0 && <span style={{ color: "#dc2626" }}>{rankedOptions[0].reds} can't accept</span>}
+              </div>
+            </div>
+          )}
 
           {/* Options List */}
           <div style={{ marginBottom: "1rem" }}>
