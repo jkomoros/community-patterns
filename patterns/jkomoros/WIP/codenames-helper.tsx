@@ -221,19 +221,30 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
           </div>
 
           {/* Initialize Button */}
-          {setupMode.get() && (
-            <div style={{
-              textAlign: "center",
-              marginBottom: "1.5rem",
-            }}>
-              <ct-button
-                onClick={() => board.set(initializeEmptyBoard())}
-                style="padding: 1rem 2rem; background-color: #3b82f6; color: white; border-radius: 0.5rem; font-weight: 600;"
-              >
-                Initialize Empty Board
-              </ct-button>
-            </div>
-          )}
+          <div style={{
+            textAlign: "center",
+            marginBottom: "1.5rem",
+          }}>
+            <ct-button
+              onClick={() => {
+                const newBoard: BoardWord[] = [];
+                for (let row = 0; row < 5; row++) {
+                  for (let col = 0; col < 5; col++) {
+                    newBoard.push({
+                      word: "",
+                      position: { row, col },
+                      owner: "unassigned",
+                      state: "unrevealed",
+                    });
+                  }
+                }
+                board.set(newBoard);
+              }}
+              style="padding: 1rem 2rem; background-color: #3b82f6; color: white; border-radius: 0.5rem; font-weight: 600;"
+            >
+              Initialize Empty Board
+            </ct-button>
+          </div>
 
           {/* Setup Controls */}
           {setupMode.get() && (
