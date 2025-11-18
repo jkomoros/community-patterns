@@ -25,18 +25,18 @@ interface PollInput {
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
+  myName: Cell<Default<string, "Alice">>;
 }
 
 interface PollOutput {
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
+  myName: Cell<Default<string, "Alice">>;
 }
 
 export default pattern<PollInput, PollOutput>(
-  ({ options, votes, nextOptionId }) => {
-    // Local state (hardcoded name for testing)
-    const myName = "Alice";
+  ({ options, votes, nextOptionId, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -217,29 +217,33 @@ export default pattern<PollInput, PollOutput>(
 
                   {/* Vote buttons */}
                   <ct-button onClick={() => {
+                    const currentName = myName.get();
                     const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "green" }]);
+                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "green" }]);
                   }}>
                     🟢
                   </ct-button>
                   <ct-button onClick={() => {
+                    const currentName = myName.get();
                     const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "yellow" }]);
+                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "yellow" }]);
                   }}>
                     🟡
                   </ct-button>
                   <ct-button onClick={() => {
+                    const currentName = myName.get();
                     const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: myName, optionId: option.id, voteType: "red" }]);
+                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "red" }]);
                   }}>
                     🔴
                   </ct-button>
                   <ct-button onClick={() => {
+                    const currentName = myName.get();
                     const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === myName && v.optionId === option.id));
+                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
                     votes.set(filtered);
                   }}>
                     Clear
@@ -303,6 +307,7 @@ export default pattern<PollInput, PollOutput>(
       options,
       votes,
       nextOptionId,
+      myName,
     };
   }
 );
