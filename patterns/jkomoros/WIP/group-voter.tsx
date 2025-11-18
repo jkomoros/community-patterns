@@ -73,6 +73,34 @@ export default pattern<PollInput, PollOutput>(
       });
     });
 
+    // Derived: Map option IDs to their rank numbers
+    const optionRanks = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+      // Count votes for each option
+      const voteCounts = currentOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+        const reds = optionVotes.filter(v => v.voteType === "red").length;
+        const greens = optionVotes.filter(v => v.voteType === "green").length;
+
+        return { option, reds, greens };
+      });
+
+      // Sort same way as rankedOptions
+      const sorted = voteCounts.sort((a, b) => {
+        if (a.reds !== b.reds) {
+          return a.reds - b.reds;
+        }
+        return b.greens - a.greens;
+      });
+
+      // Create map of option ID to rank (1-indexed)
+      const ranks: Record<string, number> = {};
+      sorted.forEach((item, index) => {
+        ranks[item.option.id] = index + 1;
+      });
+
+      return ranks;
+    });
+
     return {
       [NAME]: "Group Voter",
       [UI]: (
@@ -125,8 +153,13 @@ export default pattern<PollInput, PollOutput>(
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "500", marginBottom: "0.25rem" }}>
-                      {option.title}
+                    <div style={{ fontWeight: "500", marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span>{option.title}</span>
+                      {optionRanks[option.id] && (
+                        <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: "600" }}>
+                          [RANK {optionRanks[option.id]}]
+                        </span>
+                      )}
                     </div>
 
                     {/* Vote dots display */}
