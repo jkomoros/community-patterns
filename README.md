@@ -1,4 +1,4 @@
-# Common Tools Community Patterns
+# Community Patterns
 
 ## ⚠️ WARNING: Early Development - Not Ready for Most Users
 

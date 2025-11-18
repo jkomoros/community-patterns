@@ -1,4 +1,4 @@
-# Getting Started with Common Tools Pattern Development
+# Getting Started with Pattern Development
 
 **Note:** This guide is for Claude Code to use when guiding new users through workspace setup. Users should complete the pre-setup steps in SETUP.md first.
 
@@ -134,9 +134,9 @@ mkdir -p patterns/$GITHUB_USER
 
 # Create README
 cat > patterns/$GITHUB_USER/README.md << 'EOF'
-# My Common Tools Patterns
+# My Patterns
 
-Personal collection of Common Tools patterns.
+Personal collection of patterns.
 
 ## Patterns
 
@@ -240,7 +240,7 @@ cd "$COMMUNITY_PATTERNS_DIR"
 
 # Save passphrase to file (will be gitignored)
 cat > .passphrase << EOF
-# Common Tools User Passphrase
+# User Passphrase
 # Keep this safe - you'll need it to access your spaces
 # Generated: $(date)
 

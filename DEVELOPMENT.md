@@ -2,7 +2,7 @@
 
 This guide covers normal day-to-day pattern development workflows, best practices, and common patterns.
 
-**New to Common Tools?** Start with [GETTING_STARTED.md](GETTING_STARTED.md) first.
+**New to pattern development?** Start with [GETTING_STARTED.md](GETTING_STARTED.md) first.
 
 ---
 
