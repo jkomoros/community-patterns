@@ -642,10 +642,7 @@ export default recipe<SpinnerInput, SpinnerOutput>(
               gap: "4px",
               fontSize: "9px",
               color: "#94a3b8",
-              backgroundColor: "rgba(255, 255, 255, 0.6)",
               padding: "6px 10px",
-              borderRadius: "3px",
-              backdropFilter: "blur(4px)",
             }}
           >
             {/* Payout visualization - auto-fades after 3s */}
@@ -657,6 +654,10 @@ export default recipe<SpinnerInput, SpinnerOutput>(
                   gap: "3px",
                   marginBottom: "6px",
                   animation: "payoutFade 3.5s ease-out forwards",
+                  backgroundColor: "rgba(255, 255, 255, 0.6)",
+                  padding: "6px 10px",
+                  borderRadius: "3px",
+                  backdropFilter: "blur(4px)",
                 }}
               >
                 {payoutDots.map((prize, i) => (
@@ -685,6 +686,10 @@ export default recipe<SpinnerInput, SpinnerOutput>(
                   gap: "3px",
                   marginBottom: "6px",
                   animation: "payoutFade 3.5s ease-out forwards",
+                  backgroundColor: "rgba(255, 255, 255, 0.6)",
+                  padding: "6px 10px",
+                  borderRadius: "3px",
+                  backdropFilter: "blur(4px)",
                 }}
               >
                 {payoutDots.map((prize, i) => (
