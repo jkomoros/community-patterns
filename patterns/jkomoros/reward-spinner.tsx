@@ -107,7 +107,7 @@ const spin = handler<
     // Build slot machine sequence: start with current emoji to avoid visual discontinuity,
     // then random items, then final result at the end
     // Total of 32 items, with final result at position 30 (animation shows positions 0-30)
-    // Animation translates -6000px over 32 items of 200px each, ending at position 30 visible
+    // Animation translates -6000px (30 items × 200px) to center item 30 in the viewport window
     const sequence: string[] = [];
     for (let i = 0; i < 32; i++) {
       if (i === 0) {
@@ -129,11 +129,6 @@ const spin = handler<
     // Set the sequence to trigger animation
     spinSequence.set(sequence);
     spinCount.set(spinCount.get() + 1);
-
-    // Clear the sequence after animation completes (6s) to show static display
-    setTimeout(() => {
-      spinSequence.set([]);
-    }, 6000);
 
     // Record this spin in history
     const history = spinHistory.get();
@@ -186,6 +181,19 @@ export default pattern<SpinnerInput, SpinnerOutput>(
     // Check if spinCount is even or odd to alternate animations
     const isEvenSpin = computed(() => spinCount.get() % 2 === 0);
 
+    // Only show animation if the last spin was very recent (within 10 seconds)
+    // This prevents auto-spin when navigating back to the page later
+    const shouldShowAnimation = computed(() => {
+      const sequence = spinSequence.get();
+      const history = spinHistory.get();
+      if (sequence.length === 0) return false;
+      if (history.length === 0) return false;
+
+      const lastSpin = history[history.length - 1];
+      const timeSinceLastSpin = Date.now() - lastSpin.timestamp;
+      return timeSinceLastSpin < 10000; // 10 seconds
+    });
+
     // Calculate payout percentages and convert to emoji dots (poor man's progress bars)
     const payoutDots = computed(() => {
       const gen = generosity.get();
@@ -228,6 +236,24 @@ export default pattern<SpinnerInput, SpinnerOutput>(
           >
           {/* Wrapper for emoji and sparkles */}
           <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {/* "Tap to spin" message - shows on every page load */}
+            <div
+              style={{
+                position: "absolute",
+                top: "20%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                fontSize: "16px",
+                color: "#64748b",
+                letterSpacing: "0.5px",
+                opacity: 0,
+                animation: "tapToSpinFade 3s ease-in-out forwards",
+                pointerEvents: "none",
+                zIndex: 10,
+              }}
+            >
+              Tap to spin
+            </div>
             {/* Slot Machine Display */}
             <div
               onClick={spin({
@@ -247,10 +273,10 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                 justifyContent: "center",
                 maskImage: "linear-gradient(to bottom, transparent 0%, black 30%, black 70%, transparent 100%)",
                 cursor: "pointer",
-                transform: "scale(clamp(0.95, calc(0.7 + 0.00078125 * 100vw), 2.2))",
+                transform: "scale(2.0)",
               }}
             >
-            {spinSequence.get().length > 0 ? (
+            {shouldShowAnimation ? (
               isEvenSpin ? (
                 // Animated sequence (even spins)
                 <div
@@ -270,7 +296,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                     <div
                       key={index}
                       style={{
-                        fontSize: "150px",
+                        fontSize: "105px",
                         lineHeight: "200px",
                         height: "200px",
                         display: "flex",
@@ -286,8 +312,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Left candy - behind and up-left */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
-                            left: "calc(50% - 60px)",
+                            left: "calc(50% - 40px)",
                             top: "calc(50% - 15px)",
                             transform: "translate(-50%, -50%)",
                             zIndex: 1,
@@ -295,8 +320,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Right candy - behind and up-right */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
-                            left: "calc(50% + 60px)",
+                            left: "calc(50% + 40px)",
                             top: "calc(50% - 15px)",
                             transform: "translate(-50%, -50%)",
                             zIndex: 1,
@@ -304,7 +328,6 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Middle candy - in front, centered */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
                             left: "50%",
                             top: "50%",
                             transform: "translate(-50%, -50%)",
@@ -314,7 +337,6 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                       ) : (
                         <span style={{
                           position: "absolute",
-                          fontSize: "150px",
                           left: "50%",
                           top: "50%",
                           transform: "translate(-50%, -50%)",
@@ -342,7 +364,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                     <div
                       key={index}
                       style={{
-                        fontSize: "150px",
+                        fontSize: "105px",
                         lineHeight: "200px",
                         height: "200px",
                         display: "flex",
@@ -358,8 +380,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Left candy - behind and up-left */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
-                            left: "calc(50% - 60px)",
+                            left: "calc(50% - 40px)",
                             top: "calc(50% - 15px)",
                             transform: "translate(-50%, -50%)",
                             zIndex: 1,
@@ -367,8 +388,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Right candy - behind and up-right */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
-                            left: "calc(50% + 60px)",
+                            left: "calc(50% + 40px)",
                             top: "calc(50% - 15px)",
                             transform: "translate(-50%, -50%)",
                             zIndex: 1,
@@ -376,7 +396,6 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                           {/* Middle candy - in front, centered */}
                           <span style={{
                             position: "absolute",
-                            fontSize: "150px",
                             left: "50%",
                             top: "50%",
                             transform: "translate(-50%, -50%)",
@@ -386,7 +405,6 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                       ) : (
                         <span style={{
                           position: "absolute",
-                          fontSize: "150px",
                           left: "50%",
                           top: "50%",
                           transform: "translate(-50%, -50%)",
@@ -400,7 +418,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
               // Initial static display
               <div
                 style={{
-                  fontSize: "150px",
+                  fontSize: "105px",
                   lineHeight: "1",
                   height: "200px",
                   display: "flex",
@@ -443,7 +461,6 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                 ) : (
                   <span style={{
                     position: "absolute",
-                    fontSize: "150px",
                     left: "50%",
                     top: "50%",
                     transform: "translate(-50%, -50%)",
@@ -454,7 +471,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
             </div>
 
             {/* Sparkle Burst - alternates between two animation sets to restart on each spin */}
-            {spinCount.get() > 0 && (
+            {shouldShowAnimation && (
               (spinCount.get() % 2 === 0) ? (
                 <div
                   style={{
@@ -527,6 +544,14 @@ export default pattern<SpinnerInput, SpinnerOutput>(
 
           {/* CSS Animations */}
           <style>{`
+            /* Tap to spin fade animation */
+            @keyframes tapToSpinFade {
+              0% { opacity: 0; }
+              10% { opacity: 1; }
+              50% { opacity: 1; }
+              100% { opacity: 0; }
+            }
+
             /* Sparkle burst animations - varied sizes, speeds, huge stars fade faster */
             @keyframes sparkleBurst0  { 0% { transform: translate(0, 0) rotate(0deg) scale(0.2); opacity: 0; } 1% { opacity: 1; } 45% { opacity: 1; } 100% { transform: translate(320px, -15px) rotate(840deg) scale(1.8); opacity: 0; } }
             @keyframes sparkleBurst1  { 0% { transform: translate(0, 0) rotate(0deg) scale(0.3); opacity: 0; } 1% { opacity: 0.6; } 25% { opacity: 0.6; } 100% { transform: translate(265px, 110px) rotate(620deg) scale(2.5); opacity: 0; } }
@@ -576,7 +601,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                 transform: translateY(0);
               }
               100% {
-                transform: translateY(-6000px);
+                transform: translateY(-3000px);
               }
             }
             @keyframes slotSpin2 {
@@ -584,7 +609,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                 transform: translateY(0);
               }
               100% {
-                transform: translateY(-6000px);
+                transform: translateY(-3000px);
               }
             }
             @keyframes payoutFade {
@@ -616,10 +641,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
               gap: "4px",
               fontSize: "9px",
               color: "#94a3b8",
-              backgroundColor: "rgba(255, 255, 255, 0.6)",
               padding: "6px 10px",
-              borderRadius: "3px",
-              backdropFilter: "blur(4px)",
             }}
           >
             {/* Payout visualization - auto-fades after 3s */}
@@ -631,6 +653,10 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                   gap: "3px",
                   marginBottom: "6px",
                   animation: "payoutFade 3.5s ease-out forwards",
+                  backgroundColor: "rgba(255, 255, 255, 0.6)",
+                  padding: "6px 10px",
+                  borderRadius: "3px",
+                  backdropFilter: "blur(4px)",
                 }}
               >
                 {payoutDots.map((prize, i) => (
@@ -659,6 +685,10 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                   gap: "3px",
                   marginBottom: "6px",
                   animation: "payoutFade 3.5s ease-out forwards",
+                  backgroundColor: "rgba(255, 255, 255, 0.6)",
+                  padding: "6px 10px",
+                  borderRadius: "3px",
+                  backdropFilter: "blur(4px)",
                 }}
               >
                 {payoutDots.map((prize, i) => (
