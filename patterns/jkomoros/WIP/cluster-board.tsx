@@ -141,12 +141,8 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
                       gap: "0.5rem",
                       pointerEvents: "auto",
                     }}>
-                      <input
-                        type="text"
-                        value={derive(postIt, (note) => note.content)}
-                        onChange={(e: any) => {
-                          postIts.key(index).key("content").set(e.target.value);
-                        }}
+                      <ct-input
+                        $value={postIts.key(index).key("content")}
                         placeholder="Type your note here..."
                         style={{
                           width: "100%",
