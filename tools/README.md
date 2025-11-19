@@ -15,6 +15,7 @@ cd ~/Code/community-patterns
 - 📝 **Remembers your last space** - Quick repeat deployments
 - 📋 **Pattern history** - Recently used patterns at your fingertips
 - 📁 **Interactive directory browser** - Navigate and pick patterns visually
+- ⬆️⬇️ **Arrow key navigation** - Use ↑/↓ and Enter to select, no typing numbers
 - 🔗 **Full URL output** - Get clickable charm URL immediately
 - ⚙️ **Auto-configuration** - Detects labs directory automatically
 - 🌐 **Production support** - Deploy to production with `--prod` flag
@@ -51,69 +52,59 @@ Uses `https://api.commontools.io` instead of `http://localhost:8000`.
 
 Enter space name [test-space]: my-space
 
-📋 Select a pattern:
+📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):
 
-  [Recent Patterns]
-  1. cozy-poll.tsx (5 min ago)
-  2. group-voter.tsx (yesterday)
-  3. shopping-list.tsx (3 days ago)
+→ 📄 cozy-poll.tsx (5 min ago)
+  📄 group-voter.tsx (yesterday)
+  📄 shopping-list.tsx (3 days ago)
+  📁 Browse for a new pattern...
 
-  [Actions]
-  b. Browse for a new pattern
-  q. Quit
-
-Enter selection:
+[Use arrow keys to highlight, press Enter to select]
 ```
 
 ### Directory Browser
 
-Select `b` to browse:
+Select "Browse for a new pattern...":
 
 ```
 📁 /path/to/community-patterns/patterns/
+(↑/↓ to move, Enter to select, Q to cancel)
 
-  1. 📁 examples
-  2. 📁 jkomoros
-  3. 📁 yourname
+→ 📁 examples
+  📁 jkomoros
+  📁 yourname
+  ⬆️  .. (Go up one directory)
+  ✏️  Enter absolute path manually...
 
-  [Actions]
-  .. Go up one directory
-  p. Enter absolute path manually
-  q. Cancel
-
-Enter selection: 3
+[Use arrow keys, press Enter when on "yourname"]
 ```
 
 Navigate into directories:
 
 ```
 📁 /path/to/community-patterns/patterns/yourname/
+(↑/↓ to move, Enter to select, Q to cancel)
 
-  1. 📁 WIP
-  2. 📄 my-stable-pattern.tsx
+→ 📁 WIP
+  📄 my-stable-pattern.tsx
+  ⬆️  .. (Go up one directory)
+  ✏️  Enter absolute path manually...
 
-  [Actions]
-  .. Go up one directory
-  p. Enter absolute path manually
-  q. Cancel
-
-Enter selection: 1
+[Use arrow keys, press Enter when on "WIP"]
 ```
 
 Pick a pattern:
 
 ```
 📁 /path/to/community-patterns/patterns/yourname/WIP/
+(↑/↓ to move, Enter to select, Q to cancel)
 
-  1. 📄 cozy-poll.tsx
-  2. 📄 experimental-chat.tsx
+→ 📄 cozy-poll.tsx
+  📄 experimental-chat.tsx
+  ⬆️  .. (Go up one directory)
+  ✏️  Enter absolute path manually...
 
-  [Actions]
-  .. Go up one directory
-  p. Enter absolute path manually
-  q. Cancel
-
-Enter selection: 1
+[Press Enter to select cozy-poll.tsx]
 ```
 
 ### Deployment Output
@@ -173,13 +164,28 @@ If you need a different identity key location, you'll need to modify `IDENTITY_P
 - **Sorts:** Most recently used first
 - **Format:** Relative path with time ago (e.g., "5 min ago", "yesterday")
 
+## Keyboard Controls
+
+| Key | Action |
+|-----|--------|
+| ↑ | Move selection up |
+| ↓ | Move selection down |
+| Enter | Confirm selection |
+| Q | Quit/cancel current menu |
+| Ctrl-C | Exit immediately |
+
+The currently selected item is highlighted with:
+- `→` arrow indicator on the left
+- Reverse video (inverted colors)
+
 ## Tips
 
-- **Quick re-deploy:** Just hit Enter on space name, then pick from recent list
-- **Navigate with numbers:** Type 1, 2, 3, etc. to select items
-- **Go up:** Type `..` to navigate to parent directory
-- **Manual path:** Type `p` to enter an absolute path if needed
-- **Quit anytime:** Type `q` to cancel
+- **Quick re-deploy:** Just hit Enter on space name, then use arrow keys to pick from recent list
+- **Arrow key navigation:** Use ↑/↓ to move through options, Enter to select
+- **Visual feedback:** The → arrow and reverse video show your current selection
+- **Go up:** Navigate to ".. (Go up one directory)" option to go back
+- **Manual path:** Navigate to "Enter absolute path manually..." if you know the exact path
+- **Quit anytime:** Press `Q` to cancel, or `Ctrl-C` to exit immediately
 
 ## Troubleshooting
 
