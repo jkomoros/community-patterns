@@ -140,27 +140,6 @@ export default pattern<ViewerInput, ViewerOutput>(
             {question || "Cozy Poll"}
           </h2>
 
-          {/* Name Entry - Prominent Call to Action */}
-          <div style={{
-            marginBottom: "2rem",
-            padding: "1.5rem",
-            backgroundColor: "#dbeafe",
-            borderRadius: "8px",
-            border: "2px solid #3b82f6",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "0.75rem", color: "#1e40af" }}>
-              Ready to vote?
-            </div>
-            <div style={{ fontSize: "0.875rem", marginBottom: "1rem", color: "#1e3a8a" }}>
-              Enter your name to create your personal ballot. Bookmark the page to return later!
-            </div>
-            <ct-message-input
-              placeholder="Your name..."
-              onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
-            />
-          </div>
-
           {/* Top Choice Display */}
           {rankedOptions.length > 0 && rankedOptions[0].totalVotes > 0 && (
             <div style={{
@@ -262,8 +241,29 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
           )}
 
+          {/* Name Entry - Prominent Call to Action */}
+          <div style={{
+            marginBottom: "2rem",
+            padding: "1.5rem",
+            backgroundColor: "#dbeafe",
+            borderRadius: "8px",
+            border: "2px solid #3b82f6",
+            textAlign: "center"
+          }}>
+            <div style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "0.75rem", color: "#1e40af" }}>
+              Ready to vote?
+            </div>
+            <div style={{ fontSize: "0.875rem", marginBottom: "1rem", color: "#1e3a8a" }}>
+              Enter your name to create your personal ballot. Bookmark the page to return later!
+            </div>
+            <ct-message-input
+              placeholder="Your name..."
+              onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
+            />
+          </div>
+
           <div style={{ padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "4px", fontSize: "0.875rem", color: "#78350f", textAlign: "center" }}>
-            <strong>Poll Lobby:</strong> Enter your name above to cast your vote. Results update in real-time.
+            <strong>Poll Lobby:</strong> Enter your name below to cast your vote. Results update in real-time.
           </div>
         </div>
       ),
