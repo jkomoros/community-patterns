@@ -19,8 +19,8 @@ interface HistoryItem {
 // Handler to launch a pattern from URL input
 const launchFromInput = handler<
   unknown,
-  { urlInput: Cell<string>; history: Cell<HistoryItem[]>; selectedPatternUrl: Cell<string | undefined>; launchCounter: Cell<number> }
->((_event, { urlInput, history, selectedPatternUrl, launchCounter }) => {
+  { urlInput: Cell<string>; history: Cell<HistoryItem[]>; selectedPatternUrl: Cell<string | undefined> }
+>((_event, { urlInput, history, selectedPatternUrl }) => {
   const url = urlInput.get().trim();
   if (!url) return;
 
@@ -40,19 +40,20 @@ const launchFromInput = handler<
 
   // Launch the pattern
   selectedPatternUrl.set(fullUrl);
-  launchCounter.set(launchCounter.get() + 1);
 
   // Clear input
   urlInput.set("");
 });
 
-// Handler to launch from history
-const launchFromHistory = handler<
+// Handler to populate input from history
+// TODO: Make this directly re-launch the pattern instead of just populating input
+const populateFromHistory = handler<
   unknown,
-  { url: string; selectedPatternUrl: Cell<string | undefined>; launchCounter: Cell<number> }
->((_event, { url, selectedPatternUrl, launchCounter }) => {
-  selectedPatternUrl.set(url);
-  launchCounter.set(launchCounter.get() + 1);
+  { url: string; urlInput: Cell<string> }
+>((_event, { url, urlInput }) => {
+  // Strip the localhost prefix if present to show cleaner path
+  const cleanUrl = url.replace('http://localhost:8765/', '');
+  urlInput.set(cleanUrl);
 });
 
 export default recipe("Pattern Launcher", () => {
@@ -65,11 +66,8 @@ export default recipe("Pattern Launcher", () => {
   // Currently selected pattern URL
   const selectedPatternUrl = Cell.of<string | undefined>(undefined);
 
-  // Launch counter to force re-evaluation even for same URL
-  const launchCounter = Cell.of(0);
-
   // Fetch the selected pattern
-  const fetchParams = derive([selectedPatternUrl, launchCounter] as const, ([url, _counter]) => ({
+  const fetchParams = derive(selectedPatternUrl, (url) => ({
     url: url || "",
   }));
   const {
@@ -128,7 +126,7 @@ export default recipe("Pattern Launcher", () => {
                 style="width: 100%;"
               />
               <ct-button
-                onClick={launchFromInput({ urlInput, history, selectedPatternUrl, launchCounter })}
+                onClick={launchFromInput({ urlInput, history, selectedPatternUrl })}
                 style="width: 100%;"
               >
                 Launch Pattern
@@ -193,7 +191,7 @@ export default recipe("Pattern Launcher", () => {
             <ct-vstack style="gap: 8px;">
               {history.map((item) => (
                 <ct-button
-                  onClick={launchFromHistory({ url: item.url, selectedPatternUrl, launchCounter })}
+                  onClick={populateFromHistory({ url: item.url, urlInput })}
                   size="sm"
                   style="textAlign: left; justifyContent: flex-start; width: 100%; overflow: hidden;"
                 >
