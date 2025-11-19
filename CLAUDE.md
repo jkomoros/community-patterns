@@ -693,16 +693,18 @@ git push origin main
 
 **IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create PRs automatically.
 
-When user wants to contribute patterns back to community-patterns:
+#### If User Has Their Own Fork (Most Common)
 
-**Step 1: Ensure changes are committed and pushed**
+When user wants to contribute patterns from their fork to upstream:
+
+**Step 1: Ensure changes are committed and pushed to their fork**
 ```bash
 cd ~/Code/community-patterns
 git status  # Verify all changes are committed
 git push origin main
 ```
 
-**Step 2: Create pull request**
+**Step 2: Create pull request to upstream**
 ```bash
 gh pr create \
   --repo jkomoros/community-patterns \
@@ -723,11 +725,49 @@ EOF
 )"
 ```
 
-**Step 3: Provide PR URL to user**
-The `gh pr create` command will output the PR URL - share this with the user.
+#### If Working Directly on jkomoros/community-patterns
 
-**Important notes:**
-- Always wait for user permission before creating PRs
+**CRITICAL: When working directly on the upstream repository, you MUST use branches and PRs. Direct pushes to main are NOT allowed.**
+
+**Step 1: Create feature branch**
+```bash
+cd ~/Code/community-patterns
+git checkout -b username/feature-name
+```
+
+**Step 2: Commit and push branch**
+```bash
+git add patterns/$GITHUB_USER/
+git commit -m "Add: pattern name"
+git push origin username/feature-name
+```
+
+**Step 3: Create pull request**
+```bash
+gh pr create \
+  --title "Add: pattern name" \
+  --body "$(cat <<'EOF'
+## Summary
+- Brief description
+
+## Testing
+- [x] Tested and working
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+**Step 4: Merge with rebase (when approved)**
+```bash
+gh pr merge PR_NUMBER --rebase --delete-branch
+```
+
+#### Important Notes
+
+- **Always wait for user permission** before creating PRs
+- **All PRs are merged with `--rebase`** (NOT `--squash` or `--merge`)
+- This preserves individual commit history
 - Commit frequently locally, but only create PR when user asks
 - PRs will be reviewed before merging to upstream
 - After merge, everyone gets your patterns automatically on next update

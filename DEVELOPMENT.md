@@ -502,7 +502,9 @@ cp patterns/alice/shopping-list.tsx patterns/YOUR-USERNAME/study-shopping.tsx
 
 ## Sharing Your Work
 
-### Push to Your Fork
+### Push to Your Fork (Most Users)
+
+If you're working on your own fork (most common):
 
 ```bash
 git add patterns/YOUR-USERNAME/
@@ -512,20 +514,49 @@ git push origin main
 
 Your fork can be private (only you see it) or public (others can browse).
 
-### Contribute to Upstream
+### Working Directly on Upstream Repository
+
+**If you have direct access to jkomoros/community-patterns** (e.g., you're jkomoros or a collaborator):
+
+**IMPORTANT: You MUST use branches and Pull Requests. Direct pushes to main are not allowed.**
+
+```bash
+# Create a feature branch
+git checkout -b your-username/feature-name
+
+# Make your changes and commit
+git add patterns/YOUR-USERNAME/
+git commit -m "Add shopping list pattern"
+git push origin your-username/feature-name
+
+# Create PR
+gh pr create \
+  --title "Add: shopping list pattern" \
+  --body "Shopping list pattern with categories and filtering"
+
+# PRs are merged with --rebase (NOT --squash)
+gh pr merge PR_NUMBER --rebase --delete-branch
+```
+
+### Contribute to Upstream (From Your Fork)
 
 Share your patterns with everyone:
 
 ```bash
-# Make sure changes are pushed
+# Make sure changes are pushed to your fork
 git push origin main
 
-# Create PR
+# Create PR to upstream
 gh pr create \
   --repo jkomoros/community-patterns \
   --title "Add: shopping list pattern" \
   --body "Shopping list pattern with categories and filtering"
 ```
+
+**Merge Policy:**
+- All PRs are merged using `--rebase` (preserves individual commit history)
+- NOT `--squash` or `--merge`
+- This keeps a linear, easy-to-follow git history
 
 Your patterns will be reviewed and merged, appearing in `patterns/YOUR-USERNAME/` for everyone!
 
