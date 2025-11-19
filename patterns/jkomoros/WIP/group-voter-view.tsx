@@ -21,6 +21,7 @@ interface Vote {
 }
 
 interface VoterInput {
+  question: Default<string, "">;            // Read-only from admin
   options: Cell<Default<Option[], []>>;     // Shared from admin
   votes: Cell<Default<Vote[], []>>;         // Shared from admin
   myName: Cell<Default<string, "">>;        // Local to this voter
@@ -31,7 +32,7 @@ interface VoterOutput {
 }
 
 export default pattern<VoterInput, VoterOutput>(
-  ({ options, votes, myName }) => {
+  ({ question, options, votes, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -110,10 +111,16 @@ export default pattern<VoterInput, VoterOutput>(
     });
 
     return {
-      [NAME]: "Voter View",
+      [NAME]: myName && question
+        ? `${myName} - ${question} - Voter`
+        : question
+          ? `${question} - Voter`
+          : "Voter View",
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
+          <h2 style={{ marginBottom: "1rem" }}>
+            {question || "Group Decision Maker"}
+          </h2>
 
           {/* Name Entry/Display */}
           <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>

@@ -1,5 +1,6 @@
 /// <cts-enable />
-import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+import { Cell, cell, Default, derive, handler, lift, NAME, OpaqueRef, pattern, toSchema, UI } from "commontools";
+import GroupVoterView from "./group-voter-view.tsx";
 
 /**
  * Group Voter Pattern
@@ -21,22 +22,94 @@ interface Vote {
   voteType: "green" | "yellow" | "red";
 }
 
+interface VoterCharmRef {
+  id: string;
+  charm: any;
+  voterName: string;
+}
+
 interface PollInput {
+  question: Cell<Default<string, "">>;
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
+  voterCharms: Cell<Default<VoterCharmRef[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
   myName: Cell<Default<string, "">>;
 }
 
 interface PollOutput {
+  question: Cell<Default<string, "">>;
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
+  voterCharms: Cell<Default<VoterCharmRef[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
   myName: Cell<Default<string, "">>;
 }
 
+// Lift function to store voter charm instance
+const storeVoter = lift(
+  toSchema<{
+    charm: any;
+    voterCharms: Cell<VoterCharmRef[]>;
+    isInitialized: Cell<boolean>;
+  }>(),
+  undefined,
+  ({ charm, voterCharms, isInitialized }) => {
+    if (!isInitialized.get()) {
+      console.log("storeVoter: storing voter charm");
+
+      // Generate random ID for this voter
+      const randomId = Math.random().toString(36).substring(2, 10);
+      voterCharms.push({
+        id: randomId,
+        charm,
+        voterName: "(pending)",  // Will be updated when voter enters their name
+      });
+
+      isInitialized.set(true);
+      return charm;
+    } else {
+      console.log("storeVoter: already initialized");
+    }
+    return undefined;
+  },
+);
+
+// Handler to create a new voter charm
+const createVoter = handler<
+  unknown,
+  {
+    question: Cell<string>;
+    options: Cell<Option[]>;
+    votes: Cell<Vote[]>;
+    voterCharms: Cell<VoterCharmRef[]>;
+  }
+>(
+  (_, { question, options, votes, voterCharms }) => {
+    console.log("Creating new Voter charm...");
+
+    // Create the voter instance with cell references
+    const isInitialized = cell(false);
+    const voterInstance = GroupVoterView({
+      question: question.get(),  // Pass as plain value
+      options,  // Pass as cell reference (shared)
+      votes,    // Pass as cell reference (shared)
+      myName: Cell.of(""),  // New local cell for this voter
+    });
+
+    console.log("Voter created, storing with lift...");
+
+    // Store and return the voter instance
+    return storeVoter({
+      charm: voterInstance,
+      voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
+      isInitialized: isInitialized as unknown as Cell<boolean>,
+    });
+  },
+);
+
 export default pattern<PollInput, PollOutput>(
-  ({ options, votes, nextOptionId, myName }) => {
+  ({ question, options, votes, voterCharms, nextOptionId, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -115,15 +188,49 @@ export default pattern<PollInput, PollOutput>(
     });
 
     return {
-      [NAME]: "Group Voter",
+      [NAME]: question ? `Group Voter: ${question}` : "Group Voter",
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
 
+          {/* Question Input */}
+          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "1px solid #fde68a" }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
+              Poll Question: <strong style={{ fontSize: "1rem", color: "#78350f" }}>{question || "(not set)"}</strong>
+            </div>
+            <ct-message-input
+              placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
+              onct-send={(e: { detail: { message: string } }) => {
+                const q = e.detail?.message?.trim();
+                if (q) {
+                  question.set(q);
+                }
+              }}
+            />
+          </div>
+
+          {/* Join as Voter Button */}
+          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#ecfdf5", borderRadius: "4px", border: "1px solid #a7f3d0" }}>
+            <div style={{ fontSize: "0.875rem", marginBottom: "0.5rem", color: "#065f46" }}>
+              <strong>Voters:</strong> Click below to create your own voting charm
+            </div>
+            <ct-button
+              onClick={createVoter({
+                question,
+                options,
+                votes,
+                voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
+              })}
+              style="background-color: #10b981; color: white; font-weight: 600;"
+            >
+              👥 Join as Voter
+            </ct-button>
+          </div>
+
           {/* Name Entry/Display */}
           <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
             <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#0369a1" }}>
-              Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
+              Admin voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
             </div>
             <ct-message-input
               placeholder="Enter your name to start voting..."
@@ -404,8 +511,10 @@ export default pattern<PollInput, PollOutput>(
           </div>
         </div>
       ),
+      question,
       options,
       votes,
+      voterCharms,
       nextOptionId,
       myName,
     };

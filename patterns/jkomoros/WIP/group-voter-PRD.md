@@ -33,20 +33,32 @@ The winning option is determined by:
 
 ## Architecture
 
-### Two-Pattern System
+### Multi-Charm System
 
-**Main Pattern: Poll Admin**
-- Holds shared poll data (options, votes, voter list)
-- Displays results prominently
-- Provides admin controls
-- Can be viewed by anyone (shows results)
+**Admin Pattern ("Poll Lobby")**
+- Single charm created by poll organizer
+- Holds shared poll data (question, options, votes)
+- Has "Join as Voter" button that creates new voter charms
+- Tracks list of voter charms created
+- Shows live results to admin
+- Provides admin controls (add/remove options, reset)
+- URL is shared with team to join the poll
 
-**Sub-Pattern: Voter View**
-- Launched when someone visits the poll URL
-- Prompts for voter name/initials (stored locally)
-- Receives shared poll data via cell references
-- Writes votes back to shared state
-- Shows same live results as admin view
+**Voter Pattern (created per voter)**
+- Separate charm instance created for each voter
+- Created when someone clicks "Join as Voter" in lobby
+- Receives `options` and `votes` as cell references (shared with admin)
+- Has local `myName` cell (stored only in this voter's charm)
+- Charm title: `"{voterName} - {question} - Voter"`
+- Each voter gets their own unique URL to return to
+- Updates shared votes cell when voting
+
+**Key Architectural Decisions:**
+1. **Security**: Admin charm URL stays separate from voter URLs
+2. **Isolation**: Each voter has their own charm with their own URL
+3. **Shared Data**: options and votes are linked via cell references
+4. **Local Data**: Each voter's name is stored only in their charm
+5. **Scalability**: Creating many voter charms won't spam the charm list due to descriptive naming
 
 ### Data Structure
 
@@ -62,40 +74,78 @@ interface Option {
   title: string;         // "Chipotle", "Taco Bell", etc.
 }
 
-interface Poll {
-  options: Cell<Option[]>;
-  votes: Cell<Vote[]>;
-  voters: Cell<string[]>;  // List of people who have joined
+interface VoterCharmRef {
+  id: string;            // Unique ID for tracking
+  charm: any;            // Voter charm instance
+  voterName: string;     // Name for display in list
+}
+
+interface AdminInput {
+  question: Cell<Default<string, "">>;
+  options: Cell<Default<Option[], []>>;
+  votes: Cell<Default<Vote[], []>>;
+  voterCharms: Cell<Default<VoterCharmRef[], []>>;
+  nextOptionId: Cell<Default<number, 1>>;
+  myName: Cell<Default<string, "">>;  // Admin can vote too
+}
+
+interface VoterInput {
+  question: string;      // Read-only, passed from admin
+  options: Cell<Option[]>;  // Shared via cell reference
+  votes: Cell<Vote[]>;      // Shared via cell reference
+  myName: Cell<Default<string, "">>;  // Local to this voter
 }
 ```
 
 ### Technical Implementation
 
-**Pattern Composition Approach**:
-- Main pattern exports `options`, `votes`, `voters` as cells
-- Voter pattern receives these as input (cell references)
-- Voter pattern has local state for `myName: Cell<string>`
-- Both patterns compute results from same shared data
-- Changes propagate automatically via cell reactivity
+**Charm Creation Flow**:
+1. User clicks "Join as Voter" button in admin pattern
+2. Handler creates new voter pattern instance via `GroupVoterView({ ... })`
+3. `lift` function stores voter instance in `voterCharms` array
+4. Cell references for `options` and `votes` are passed to voter
+5. System navigates user to their new voter charm URL
+6. Voter enters their name (stored locally in their charm)
+7. Voter votes → updates shared `votes` cell
+8. All charms (admin + all voters) see the update
+
+**Cell Reference Sharing**:
+```typescript
+// In admin pattern:
+const voterInstance = GroupVoterView({
+  question: question.get(),  // Plain value
+  options,  // Cell reference (shared)
+  votes,    // Cell reference (shared)
+  myName: Cell.of(""),  // New local cell for this voter
+});
+```
+
+**Title Generation**:
+- Admin charm: `"Group Voter: {question}"`
+- Voter charm: `"{voterName} - {question} - Voter"`
+- Example: `"Alice - Where should we go for lunch? - Voter"`
 
 ## User Flows
 
 ### Flow 1: Admin Creates Poll
 
-1. Admin opens pattern
-2. Sees empty state: "Add your first option"
-3. Enters option titles (e.g., "Chipotle", "Taco Bell", "Thai Kitchen")
+1. Admin creates new Group Voter charm
+2. Enters poll question (e.g., "Where should we go for lunch?")
+3. Adds option titles (e.g., "Chipotle", "Taco Bell", "Thai Kitchen")
 4. Each option gets a unique ID
-5. Shares poll URL with group
+5. Shares **admin charm URL** with team
+6. Admin can also vote (has own name field)
 
 ### Flow 2: Voter Joins Poll
 
-1. Voter opens poll URL
-2. Sees prompt: "What's your name?" (if first visit)
-3. Enters name or initials (2-15 characters)
-4. Name stored in local state + added to shared voter list
-5. Sees all options with current vote visualization
-6. Sees top-ranked option prominently displayed
+1. Voter opens admin charm URL (the "lobby")
+2. Sees current poll question and live results
+3. Clicks "Join as Voter" button
+4. **New voter charm is created** and voter is navigated to it
+5. Voter enters their name (stored locally in their charm)
+6. Voter saves their voter charm URL to return later
+7. Voter sees all options with current vote visualization
+8. Voter sees top-ranked option prominently displayed
 
 ### Flow 3: Voting
 
