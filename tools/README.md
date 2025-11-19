@@ -54,9 +54,9 @@ Enter space name [test-space]: my-space
 
 📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):
 
-→ 📄 cozy-poll.tsx (5 min ago)
-  📄 group-voter.tsx (yesterday)
-  📄 shopping-list.tsx (3 days ago)
+→ 📄 cozy-poll.tsx  (community-patterns/jkomoros/WIP) (5 min ago)
+  📄 group-voter.tsx  (recipes/alex) (yesterday)
+  📄 shopping-list.tsx  (labs/examples) (3 days ago)
   📁 Browse for a new pattern...
 
 [Use arrow keys to highlight, press Enter to select]
@@ -111,7 +111,7 @@ Pick a pattern:
 
 ```
 🚀 Deploying...
-  Pattern: cozy-poll.tsx
+  Pattern: cozy-poll.tsx  (community-patterns/jkomoros/WIP)
   Space: my-space
   API: http://localhost:8000
   Identity: /path/to/claude.key
@@ -157,12 +157,32 @@ Uses `claude.key` from the community-patterns root directory.
 
 If you need a different identity key location, you'll need to modify `IDENTITY_PATH` in `launch.ts`.
 
+## Pattern Display Format
+
+Patterns are shown with the filename first, followed by context tags:
+
+```
+pattern-name.tsx  (repo/username/WIP) (time ago)
+```
+
+**Examples:**
+- `cozy-poll.tsx  (community-patterns/jkomoros/WIP)` - Work in progress
+- `group-voter.tsx  (recipes/alex)` - Stable pattern
+- `shopping-list.tsx  (labs/examples)` - Example pattern
+
+**Context tags include:**
+- **Repository:** Which repo the pattern is in (labs, recipes, community-patterns, etc.)
+- **Username:** Which user's namespace (patterns/username/)
+- **WIP:** Only shown if pattern is in a WIP/ directory
+
+This format lets you quickly scan pattern names while still seeing important context!
+
 ## Pattern History
 
 - **Stores:** Last 50 patterns used
 - **Shows:** Most recent 10 in the main menu
 - **Sorts:** Most recently used first
-- **Format:** Relative path with time ago (e.g., "5 min ago", "yesterday")
+- **Time format:** "5 min ago", "yesterday", "3 days ago"
 
 ## Keyboard Controls
 
