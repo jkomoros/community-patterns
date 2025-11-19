@@ -25,14 +25,14 @@ interface PollInput {
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
-  myName: Cell<Default<string, "Alice">>;
+  myName: Cell<Default<string, "">>;
 }
 
 interface PollOutput {
   options: Cell<Default<Option[], []>>;
   votes: Cell<Default<Vote[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
-  myName: Cell<Default<string, "Alice">>;
+  myName: Cell<Default<string, "">>;
 }
 
 export default pattern<PollInput, PollOutput>(
@@ -107,8 +107,20 @@ export default pattern<PollInput, PollOutput>(
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
 
-          <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem", textAlign: "right" }}>
-            Voting as: <strong>{myName}</strong>
+          {/* Name Entry/Display */}
+          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#0369a1" }}>
+              Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
+            </div>
+            <ct-message-input
+              placeholder="Enter your name to start voting..."
+              onct-send={(e: { detail: { message: string } }) => {
+                const name = e.detail?.message?.trim();
+                if (name) {
+                  myName.set(name);
+                }
+              }}
+            />
           </div>
 
           {/* Top Choice Display */}
