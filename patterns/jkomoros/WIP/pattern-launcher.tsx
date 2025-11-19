@@ -19,8 +19,8 @@ interface HistoryItem {
 // Handler to launch a pattern from URL input
 const launchFromInput = handler<
   unknown,
-  { urlInput: Cell<string>; history: Cell<HistoryItem[]>; selectedPatternUrl: Cell<string | undefined> }
->((_event, { urlInput, history, selectedPatternUrl }) => {
+  { urlInput: Cell<string>; history: Cell<HistoryItem[]>; selectedPatternUrl: Cell<string | undefined>; launchCounter: Cell<number> }
+>((_event, { urlInput, history, selectedPatternUrl, launchCounter }) => {
   const url = urlInput.get().trim();
   if (!url) return;
 
@@ -38,9 +38,9 @@ const launchFromInput = handler<
   const newItem: HistoryItem = { url: fullUrl, timestamp: Date.now() };
   history.set([newItem, ...currentHistory.filter(h => h.url !== fullUrl)]);
 
-  // Clear first to reset the reactive chain, then launch
-  selectedPatternUrl.set(undefined);
+  // Set URL and increment counter to force re-evaluation
   selectedPatternUrl.set(fullUrl);
+  launchCounter.set(launchCounter.get() + 1);
 
   // Clear input
   urlInput.set("");
@@ -67,8 +67,12 @@ export default recipe("Pattern Launcher", () => {
   // Currently selected pattern URL
   const selectedPatternUrl = Cell.of<string | undefined>(undefined);
 
+  // Launch counter to force re-evaluation even for same URL
+  const launchCounter = Cell.of(0);
+
   // Fetch the selected pattern
-  const fetchParams = derive(selectedPatternUrl, (url) => ({
+  // Include launchCounter to force re-evaluation even when URL is the same
+  const fetchParams = derive([selectedPatternUrl, launchCounter] as const, ([url, _counter]) => ({
     url: url || "",
   }));
   const {
@@ -127,7 +131,7 @@ export default recipe("Pattern Launcher", () => {
                 style="width: 100%;"
               />
               <ct-button
-                onClick={launchFromInput({ urlInput, history, selectedPatternUrl })}
+                onClick={launchFromInput({ urlInput, history, selectedPatternUrl, launchCounter })}
                 style="width: 100%;"
               >
                 Launch Pattern
