@@ -539,12 +539,24 @@ async function deployPattern(
 
   if (code === 0) {
     // Extract charm ID from output
-    // Looking for pattern like: "Created charm: <charm-id>" or charm ID in URL
-    const charmIdMatch = output.match(/Created charm[:\s]+([a-f0-9-]+)/i) ||
-                         output.match(/charm[\/\s]+([a-f0-9-]{36})/i) ||
-                         output.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    // Try multiple patterns to find the charm ID (UUID format)
+    const patterns = [
+      // Standard UUID pattern anywhere in output
+      /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i,
+      // After "charm" or "Charm"
+      /charm[:\s]+([a-f0-9-]{36})/i,
+      // In a URL path
+      /\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i,
+    ];
 
-    const charmId = charmIdMatch ? charmIdMatch[1] : null;
+    let charmId = null;
+    for (const pattern of patterns) {
+      const match = output.match(pattern);
+      if (match) {
+        charmId = match[1];
+        break;
+      }
+    }
 
     if (charmId) {
       const fullUrl = `${apiUrl}/${space}/${charmId}`;
@@ -552,9 +564,12 @@ async function deployPattern(
       console.log(`\n🔗 ${fullUrl}\n`);
       return charmId;
     } else {
+      // Debug: show what output we got
       console.log("\n✅ Deployed successfully!");
       console.log(`   View at: ${apiUrl}/${space}/`);
-      console.log("   (Could not extract charm ID from output)\n");
+      console.log("\n⚠️  Could not extract charm ID from output.");
+      console.log("   Output was:");
+      console.log(output.split("\n").map(line => `   ${line}`).join("\n"));
       return "success";
     }
   } else {
