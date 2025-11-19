@@ -82,13 +82,27 @@ The tool intelligently suggests the next space name:
 Select "Browse for a new pattern...":
 
 ```
+📂 Quick navigate to a recent folder, or browse:
+(↑/↓ to move, Enter to select, Q to cancel)
+
+→ 📁 ~/Code/community-patterns/patterns/jkomoros/WIP/
+  📁 ~/Code/recipes/patterns/alex/
+  📁 ~/Code/labs/patterns/examples/
+  🔍 Browse from patterns/ directory...
+
+[Select a recent folder to jump there, or browse to navigate manually]
+```
+
+If you select a recent folder, you jump directly there. If you select "Browse from patterns/ directory...", you get the full directory tree:
+
+```
 📁 /path/to/community-patterns/patterns/
 (↑/↓ to move, Enter to select, Q to cancel)
 
-→ 📁 examples
+→ ⬆️  .. (Go up one directory)
+  📁 examples
   📁 jkomoros
   📁 yourname
-  ⬆️  .. (Go up one directory)
   ✏️  Enter absolute path manually...
 
 [Use arrow keys, press Enter when on "yourname"]
@@ -188,6 +202,23 @@ The tool provides smart space name suggestions based on your last used space:
 3. **Custom** - Enter a completely new space name
 
 This makes it fast to create numbered test spaces without typing!
+
+## Smart Directory Navigation
+
+The browse feature learns from your pattern history and shows recently used directories first:
+
+**Benefits:**
+- Jump directly to folders you use frequently
+- Skip navigation if you're working in the same area
+- Saves time on repetitive deployments
+
+**How it works:**
+- Extracts unique directories from your last 50 pattern uses
+- Shows up to 10 most recently used folders
+- Option to browse manually if you need a new location
+
+**Example:**
+If you've been working in `patterns/jkomoros/WIP/`, that folder appears as a quick option next time you browse. Just press Enter to jump there!
 
 ## Pattern Display Format
 
