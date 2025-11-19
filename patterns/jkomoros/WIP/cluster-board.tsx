@@ -83,7 +83,7 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
           }}>
             <h1 style={{ margin: 0, fontSize: "1.5rem" }}>ClusterBoard</h1>
             <span style={{ color: "#666", fontSize: "0.9rem" }}>
-              Click canvas to add notes • Drag to move
+              Click canvas to add notes • Drag handle to move • Click text to edit
             </span>
           </div>
 
@@ -100,57 +100,97 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
                   x={derive(postIt, (note) => note.x)}
                   y={derive(postIt, (note) => note.y)}
                   onpositionchange={updatePosition({ postIts, index })}
+                  style={{
+                    pointerEvents: "none",
+                  }}
                 >
                   <div style={{
                     width: "200px",
                     minHeight: "150px",
                     backgroundColor: "#fff59d",
-                    border: "1px solid #f9a825",
                     borderRadius: "4px",
-                    padding: "0.75rem",
                     boxShadow: "2px 2px 8px rgba(0,0,0,0.1)",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "0.5rem",
-                    cursor: "move",
+                    pointerEvents: "auto",
                   }}>
-                    {/* Content */}
-                    <div style={{
-                      flex: 1,
-                      fontSize: "0.95rem",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                    }}>
-                      {postIt.content}
+                    {/* Drag handle header */}
+                    <div
+                      data-drag-handle
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        borderBottom: "1px solid #f9a825",
+                        cursor: "move",
+                        fontSize: "0.75rem",
+                        color: "#666",
+                        backgroundColor: "rgba(249, 168, 37, 0.1)",
+                        borderTopLeftRadius: "4px",
+                        borderTopRightRadius: "4px",
+                        pointerEvents: "auto",
+                      }}
+                    >
+                      ⋮⋮ Drag here
                     </div>
 
-                    {/* Footer with delete button */}
+                    {/* Content area - Click to edit */}
                     <div style={{
+                      flex: 1,
+                      padding: "0.75rem",
                       display: "flex",
-                      justifyContent: "flex-end",
-                      borderTop: "1px solid #f9a825",
-                      paddingTop: "0.5rem",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                      pointerEvents: "auto",
                     }}>
-                      <button
-                        onClick={() => {
-                          const current = postIts.get();
-                          const idx = current.findIndex((el) => Cell.equals(postIt, el));
-                          if (idx >= 0) {
-                            postIts.set(current.toSpliced(idx, 1));
-                          }
+                      <input
+                        type="text"
+                        value={derive(postIt, (note) => note.content)}
+                        onChange={(e: any) => {
+                          postIts.key(index).key("content").set(e.target.value);
                         }}
+                        placeholder="Type your note here..."
                         style={{
-                          padding: "0.25rem 0.5rem",
-                          backgroundColor: "#f44336",
-                          color: "white",
-                          border: "none",
+                          width: "100%",
+                          padding: "0.5rem",
+                          fontSize: "0.95rem",
+                          backgroundColor: "transparent",
+                          border: "1px solid #f9a825",
                           borderRadius: "3px",
-                          cursor: "pointer",
-                          fontSize: "0.85rem",
+                          cursor: "text",
+                          outline: "none",
                         }}
-                      >
-                        Delete
-                      </button>
+                      />
+
+                      {/* Footer with delete button */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        borderTop: "1px solid #f9a825",
+                        paddingTop: "0.5rem",
+                        marginTop: "0.5rem",
+                        pointerEvents: "auto",
+                      }}>
+                        <button
+                          onClick={() => {
+                            const current = postIts.get();
+                            const idx = current.findIndex((el) => Cell.equals(postIt, el));
+                            if (idx >= 0) {
+                              postIts.set(current.toSpliced(idx, 1));
+                            }
+                          }}
+                          style={{
+                            padding: "0.25rem 0.5rem",
+                            backgroundColor: "#f44336",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "3px",
+                            cursor: "pointer",
+                            fontSize: "0.85rem",
+                            pointerEvents: "auto",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </ct-draggable>
