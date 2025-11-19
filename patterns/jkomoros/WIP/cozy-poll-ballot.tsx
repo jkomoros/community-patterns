@@ -38,6 +38,18 @@ interface VoterOutput {
   myName: Cell<Default<string, "">>;
 }
 
+// Utility function to get initials from a name
+function getInitials(name: string): string {
+  if (!name || typeof name !== 'string') return '?';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 3); // Max 3 initials
+}
+
 export default pattern<VoterInput, VoterOutput>(
   ({ question, options, votes, voterCharms, myName }) => {
 
@@ -139,7 +151,6 @@ export default pattern<VoterInput, VoterOutput>(
               </div>
               <ct-message-input
                 placeholder="Enter your name..."
-                submitText="Enter"
                 onct-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {
@@ -210,36 +221,45 @@ export default pattern<VoterInput, VoterOutput>(
                   </div>
                   <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
                     {votesByOption[ranked.option.id]?.green?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#22c55e",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#22c55e",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                     {votesByOption[ranked.option.id]?.yellow?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#eab308",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#eab308",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                     {votesByOption[ranked.option.id]?.red?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#ef4444",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                   </div>
@@ -264,7 +284,7 @@ export default pattern<VoterInput, VoterOutput>(
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "500", marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <div style={{ fontWeight: "500", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <span>{option.title}</span>
                       {optionRanks[option.id] && (
                         <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: "600" }}>
@@ -272,45 +292,6 @@ export default pattern<VoterInput, VoterOutput>(
                         </span>
                       )}
                     </div>
-
-                    {/* Vote dots display */}
-                    {votesByOption[option.id] && (
-                      <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                        {votesByOption[option.id]?.green?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#22c55e",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
-                          </span>
-                        ))}
-                        {votesByOption[option.id]?.yellow?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#eab308",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
-                          </span>
-                        ))}
-                        {votesByOption[option.id]?.red?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#ef4444",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   {/* Vote buttons */}
