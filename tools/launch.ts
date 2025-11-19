@@ -245,9 +245,59 @@ async function interactiveSelect(
 // ===== MAIN FUNCTIONS =====
 
 async function promptForSpace(config: Config): Promise<string> {
-  console.log("\n🚀 Pattern Launcher\n");
-  const space = await prompt("Enter space name", config.lastSpace);
-  return space;
+  const options: SelectOption[] = [];
+
+  // Add last used space if available
+  if (config.lastSpace) {
+    options.push({
+      label: `${config.lastSpace} (last used)`,
+      value: config.lastSpace,
+      icon: "🔄 ",
+    });
+
+    // Generate incremented space name
+    const nextSpace = getNextSpaceName(config.lastSpace);
+    options.push({
+      label: `${nextSpace} (next)`,
+      value: nextSpace,
+      icon: "➡️  ",
+    });
+  }
+
+  // Add "new space" option
+  options.push({
+    label: "Enter new space name...",
+    value: "__new__",
+    icon: "✨ ",
+  });
+
+  const selection = await interactiveSelect(
+    options,
+    "🚀 Pattern Launcher\n\nSelect space (↑/↓ to move, Enter to select):"
+  );
+
+  if (selection === "__new__") {
+    return await prompt("Enter space name", config.lastSpace || "test-space");
+  }
+
+  return selection || config.lastSpace || "test-space";
+}
+
+function getNextSpaceName(lastSpace: string): string {
+  // Check if the space ends with "-<number>"
+  const match = lastSpace.match(/^(.+)-(\d+)$/);
+
+  if (match) {
+    // Has a trailing number, increment it
+    // e.g., "alex-1119-1" → "alex-1119-2"
+    const base = match[1];
+    const num = parseInt(match[2], 10);
+    return `${base}-${num + 1}`;
+  } else {
+    // No trailing number, append "-1"
+    // e.g., "alex-1119" → "alex-1119-1"
+    return `${lastSpace}-1`;
+  }
 }
 
 async function selectPattern(config: Config): Promise<string | null> {
