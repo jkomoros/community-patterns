@@ -141,6 +141,63 @@ const createViewer = handler<
   },
 );
 
+// Handler to clone the poll (same question and options, no votes)
+const clonePoll = handler<
+  unknown,
+  {
+    question: Cell<string>;
+    options: Cell<Option[]>;
+  }
+>(
+  (_, { question, options }) => {
+    console.log("Cloning poll...");
+
+    // Get current data
+    const currentQuestion = question.get();
+    const currentOptions = options.get();
+
+    // Create new cells for the cloned poll
+    const newQuestion = cell(currentQuestion);
+    const newOptions = cell(currentOptions.map(opt => ({
+      ...opt,
+      id: `option-${Math.random().toString(36).substring(2, 10)}`  // New IDs to avoid conflicts
+    })));
+    const newVotes = cell<Vote[]>([]);
+    const newVoterCharms = cell<VoterCharmRef[]>([]);
+    const newNextOptionId = cell(currentOptions.length + 1);
+
+    // Create new poll instance by re-importing the default export
+    // Note: This creates a fresh poll with the same question/options but no votes
+    const CozyPoll = pattern<PollInput, PollOutput>(
+      ({ question, options, votes, voterCharms, nextOptionId }) => {
+        // This is a simplified version - the full pattern will be created by navigateTo
+        return {
+          [NAME]: str`Poll - ${question}`,
+          [UI]: <div>Loading cloned poll...</div>,
+          question,
+          options,
+          votes,
+          voterCharms,
+          nextOptionId,
+        };
+      }
+    );
+
+    const clonedPoll = CozyPoll({
+      question: newQuestion,
+      options: newOptions,
+      votes: newVotes,
+      voterCharms: newVoterCharms,
+      nextOptionId: newNextOptionId,
+    });
+
+    console.log("Navigating to cloned poll...");
+
+    // Navigate to the new poll
+    return navigateTo(clonedPoll);
+  },
+);
+
 // Utility function to get initials from a name
 function getInitials(name: string): string {
   if (!name || typeof name !== 'string') return '?';
@@ -491,6 +548,11 @@ export default pattern<PollInput, PollOutput>(
               Admin Controls
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <ct-button
+                onClick={clonePoll({ question, options })}
+              >
+                📋 Clone Poll
+              </ct-button>
               <ct-button
                 onClick={() => {
                   votes.set([]);
