@@ -1,18 +1,18 @@
-# Group Voter - 3-Charm Architecture
+# Cozy Poll - 3-Charm Architecture
 
 ## Overview
 
 A collaborative voting system using a **3-charm architecture** where each component serves a distinct purpose:
 
-1. **Admin Pattern** (`group-voter.tsx`) - Poll creator's control panel
-2. **Viewer Pattern** (`group-voter-viewer.tsx`) - Public lobby for joining
-3. **Voter Pattern** (`group-voter-view.tsx`) - Individual voter's ballot
+1. **Admin Pattern** (`cozy-poll.tsx`) - Poll creator's control panel
+2. **Viewer Pattern** (`cozy-poll-lobby.tsx`) - Public lobby for joining
+3. **Voter Pattern** (`cozy-poll-ballot.tsx`) - Individual voter's ballot
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Admin Pattern (group-voter.tsx)                                 │
+│ Admin Pattern (cozy-poll.tsx)                                 │
 │ - Creates poll question and options                             │
 │ - Can add/remove options                                        │
 │ - Can vote (has own name field)                                 │
@@ -24,7 +24,7 @@ A collaborative voting system using a **3-charm architecture** where each compon
                          │ Creates Viewer
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Viewer Pattern (group-voter-viewer.tsx)                         │
+│ Viewer Pattern (cozy-poll-lobby.tsx)                         │
 │ - PUBLIC URL shared with team                                   │
 │ - Shows question and live results (read-only)                   │
 │ - Name entry → creates Voter charm                              │
@@ -35,7 +35,7 @@ A collaborative voting system using a **3-charm architecture** where each compon
                          │ Creates Voter
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Voter Pattern (group-voter-view.tsx)                            │
+│ Voter Pattern (cozy-poll-ballot.tsx)                            │
 │ - Individual voter's personal ballot                            │
 │ - Has pre-filled name (passed from Viewer)                      │
 │ - Can vote on all options                                       │
@@ -60,7 +60,7 @@ const options = cell<Option[]>([]);
 const votes = cell<Vote[]>([]);
 
 // Admin creates Viewer and passes references
-const viewerInstance = GroupVoterViewer({
+const viewerInstance = CozyPollLobby({
   question: question.get(),  // Plain value (read-only)
   options,                   // Cell reference (shared, reactive)
   votes,                     // Cell reference (shared, reactive)
@@ -68,7 +68,7 @@ const viewerInstance = GroupVoterViewer({
 });
 
 // Viewer creates Voter and passes references
-const voterInstance = GroupVoterView({
+const voterInstance = CozyPollBallot({
   question: question,        // Plain value (read-only)
   options,                   // Cell reference (shared, reactive)
   votes,                     // Cell reference (shared, reactive)
@@ -92,14 +92,14 @@ When any voter modifies the `votes` cell:
 
 **❌ This FAILS:**
 ```typescript
-const voterInstance = GroupVoterView({ ... });
+const voterInstance = CozyPollBallot({ ... });
 voterCharms.set([...voterCharms.get(), { charm: voterInstance }]); // Blocks!
 return navigateTo(voterInstance); // Never reaches here
 ```
 
 **✅ This WORKS:**
 ```typescript
-const voterInstance = GroupVoterView({ ... });
+const voterInstance = CozyPollBallot({ ... });
 return navigateTo(voterInstance); // Navigate immediately
 ```
 
@@ -185,11 +185,11 @@ RANK 3: Pizza Place
 
 ```
 patterns/jkomoros/WIP/
-├── group-voter.tsx                 # Admin pattern (poll creator)
-├── group-voter-viewer.tsx          # Viewer pattern (public lobby)
-├── group-voter-view.tsx            # Voter pattern (individual ballot)
-├── group-voter-PRD.md              # Product requirements document
-└── group-voter-ARCHITECTURE.md     # This file
+├── cozy-poll.tsx                 # Admin pattern (poll creator)
+├── cozy-poll-lobby.tsx          # Viewer pattern (public lobby)
+├── cozy-poll-ballot.tsx            # Voter pattern (individual ballot)
+├── cozy-poll-PRD.md              # Product requirements document
+└── cozy-poll-ARCHITECTURE.md     # This file
 ```
 
 ## URL Structure

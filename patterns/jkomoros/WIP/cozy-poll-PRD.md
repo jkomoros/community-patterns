@@ -1,4 +1,4 @@
-# Group Voter Pattern - PRD
+# Cozy Poll Pattern - PRD
 
 ## Overview
 
@@ -101,7 +101,7 @@ interface VoterInput {
 
 **Charm Creation Flow**:
 1. User clicks "Join as Voter" button in admin pattern
-2. Handler creates new voter pattern instance via `GroupVoterView({ ... })`
+2. Handler creates new voter pattern instance via `CozyPollBallot({ ... })`
 3. `lift` function stores voter instance in `voterCharms` array
 4. Cell references for `options` and `votes` are passed to voter
 5. System navigates user to their new voter charm URL
@@ -112,7 +112,7 @@ interface VoterInput {
 **Cell Reference Sharing**:
 ```typescript
 // In admin pattern:
-const voterInstance = GroupVoterView({
+const voterInstance = CozyPollBallot({
   question: question.get(),  // Plain value
   options,  // Cell reference (shared)
   votes,    // Cell reference (shared)
@@ -121,7 +121,7 @@ const voterInstance = GroupVoterView({
 ```
 
 **Title Generation**:
-- Admin charm: `"Group Voter: {question}"`
+- Admin charm: `"Cozy Poll: {question}"`
 - Voter charm: `"{voterName} - {question} - Voter"`
 - Example: `"Alice - Where should we go for lunch? - Voter"`
 
@@ -129,7 +129,7 @@ const voterInstance = GroupVoterView({
 
 ### Flow 1: Admin Creates Poll
 
-1. Admin creates new Group Voter charm
+1. Admin creates new Cozy Poll charm
 2. Enters poll question (e.g., "Where should we go for lunch?")
 3. Adds option titles (e.g., "Chipotle", "Taco Bell", "Thai Kitchen")
 4. Each option gets a unique ID
@@ -441,4 +441,4 @@ function rankOptions(options: Option[], votes: Vote[]): Option[] {
 
 **End of PRD**
 
-This document should guide the implementation of the group-voter pattern. The key insight is the social transparency - everyone sees everything in real-time, which creates natural consensus and discussion.
+This document should guide the implementation of the cozy-poll pattern. The key insight is the social transparency - everyone sees everything in real-time, which creates natural consensus and discussion.

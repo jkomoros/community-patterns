@@ -1,15 +1,12 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, handler, ifElse, lift, NAME, navigateTo, OpaqueRef, pattern, str, toSchema, UI } from "commontools";
-import GroupVoterView from "./group-voter-view.tsx";
-import GroupVoterViewer from "./group-voter-viewer.tsx";
+import { Cell, Default, derive, ifElse, NAME, pattern, str, UI } from "commontools";
 
 /**
- * Group Voter Pattern
+ * Cozy Poll Ballot Pattern
  *
- * A collaborative voting system for small groups to make decisions together.
- * Each person can vote Green (LOVE IT), Yellow (CAN LIVE WITH IT), or Red (CAN'T LIVE WITH IT).
- *
- * Winning option: Fewest reds (minimize opposition), then most greens (maximize enthusiasm)
+ * Voter interface for collaborative voting system.
+ * Receives shared poll data (options, votes) via cell references from admin pattern.
+ * Each voter has their own local name stored in myName cell.
  */
 
 interface Option {
@@ -23,127 +20,19 @@ interface Vote {
   voteType: "green" | "yellow" | "red";
 }
 
-interface VoterCharmRef {
-  id: string;
-  charm: any;
-  voterName: string;
+interface VoterInput {
+  question: Default<string, "">;            // Read-only from admin
+  options: Cell<Default<Option[], []>>;     // Shared from admin
+  votes: Cell<Default<Vote[], []>>;         // Shared from admin
+  myName: Cell<Default<string, "">>;        // Local to this voter
 }
 
-interface PollInput {
-  question: Cell<Default<string, "">>;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
-  nextOptionId: Cell<Default<number, 1>>;
+interface VoterOutput {
   myName: Cell<Default<string, "">>;
 }
 
-interface PollOutput {
-  question: Cell<Default<string, "">>;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
-  nextOptionId: Cell<Default<number, 1>>;
-  myName: Cell<Default<string, "">>;
-}
-
-// Lift function to store voter charm instance
-const storeVoter = lift(
-  toSchema<{
-    charm: any;
-    voterCharms: Cell<VoterCharmRef[]>;
-    isInitialized: Cell<boolean>;
-  }>(),
-  undefined,
-  ({ charm, voterCharms, isInitialized }) => {
-    if (!isInitialized.get()) {
-      console.log("storeVoter: storing voter charm");
-
-      // Generate random ID for this voter
-      const randomId = Math.random().toString(36).substring(2, 10);
-      voterCharms.push({
-        id: randomId,
-        charm,
-        voterName: "(pending)",  // Will be updated when voter enters their name
-      });
-
-      isInitialized.set(true);
-      return charm;
-    } else {
-      console.log("storeVoter: already initialized");
-    }
-    return undefined;
-  },
-);
-
-// Handler to create a new voter charm (DEPRECATED - use viewer instead)
-const createVoter = handler<
-  unknown,
-  {
-    question: Cell<string>;
-    options: Cell<Option[]>;
-    votes: Cell<Vote[]>;
-    voterCharms: Cell<VoterCharmRef[]>;
-  }
->(
-  (_, { question, options, votes, voterCharms }) => {
-    console.log("Creating new Voter charm...");
-
-    // Create the voter instance with cell references
-    const isInitialized = cell(false);
-    const voterInstance = GroupVoterView({
-      question: question.get(),  // Pass as plain value
-      options,  // Pass as cell reference (shared)
-      votes,    // Pass as cell reference (shared)
-      myName: Cell.of(""),  // New local cell for this voter
-    });
-
-    console.log("Voter created, storing with lift...");
-
-    // Store the voter instance and navigate to it
-    const storedCharm = storeVoter({
-      charm: voterInstance,
-      voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
-      isInitialized: isInitialized as unknown as Cell<boolean>,
-    });
-
-    console.log("Navigating to voter charm...");
-
-    // Navigate the user to their new voter charm
-    return navigateTo(storedCharm || voterInstance);
-  },
-);
-
-// Handler to create the public viewer charm (poll lobby)
-const createViewer = handler<
-  unknown,
-  {
-    question: Cell<string>;
-    options: Cell<Option[]>;
-    votes: Cell<Vote[]>;
-    voterCharms: Cell<VoterCharmRef[]>;
-  }
->(
-  (_, { question, options, votes, voterCharms }) => {
-    console.log("Creating Viewer charm (public lobby)...");
-
-    // Create the viewer instance with cell references
-    const viewerInstance = GroupVoterViewer({
-      question: question.get(),  // Pass as plain value
-      options,  // Pass as cell reference (shared)
-      votes,    // Pass as cell reference (shared)
-      voterCharms,  // Pass as cell reference (shared)
-    });
-
-    console.log("Viewer created, navigating...");
-
-    // Navigate to the viewer charm
-    return navigateTo(viewerInstance);
-  },
-);
-
-export default pattern<PollInput, PollOutput>(
-  ({ question, options, votes, voterCharms, nextOptionId, myName }) => {
+export default pattern<VoterInput, VoterOutput>(
+  ({ question, options, votes, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -223,55 +112,20 @@ export default pattern<PollInput, PollOutput>(
 
     return {
       [NAME]: ifElse(
-        derive(question, (q: string) => q && q.trim().length > 0),
-        str`Poll - ${question}`,
-        str`Poll`
+        derive(myName, (n: string) => n && n.trim().length > 0),
+        str`${myName} - ${question} - Voter`,
+        str`${question} - Voter`
       ),
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
-          <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
-
-          {/* Question Input */}
-          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "1px solid #fde68a" }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
-              Poll Question: <strong style={{ fontSize: "1rem", color: "#78350f" }}>{question || "(not set)"}</strong>
-            </div>
-            <ct-message-input
-              placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
-              onct-send={(e: { detail: { message: string } }) => {
-                const q = e.detail?.message?.trim();
-                if (q) {
-                  question.set(q);
-                }
-              }}
-            />
-          </div>
-
-          {/* Create Public Lobby Button */}
-          <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#dbeafe", borderRadius: "8px", border: "2px solid #3b82f6" }}>
-            <div style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.5rem", color: "#1e40af" }}>
-              📢 Share Your Poll
-            </div>
-            <div style={{ fontSize: "0.875rem", marginBottom: "0.75rem", color: "#1e3a8a" }}>
-              Create a public lobby page where your team can enter their names and vote. Share that URL with your team.
-            </div>
-            <ct-button
-              onClick={createViewer({
-                question,
-                options,
-                votes,
-                voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
-              })}
-              style="background-color: #3b82f6; color: white; font-weight: 600; font-size: 1rem; padding: 0.75rem 1.5rem;"
-            >
-              🚀 Create Public Lobby
-            </ct-button>
-          </div>
+          <h2 style={{ marginBottom: "1rem" }}>
+            {question || "Cozy Poll"}
+          </h2>
 
           {/* Name Entry/Display */}
           <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
             <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#0369a1" }}>
-              Admin voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
+              Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
             </div>
             <ct-message-input
               placeholder="Enter your name to start voting..."
@@ -441,19 +295,6 @@ export default pattern<PollInput, PollOutput>(
                     )}
                   </div>
 
-                  {/* Remove button */}
-                  <ct-button
-                    onClick={() => {
-                      const current = options.get();
-                      const index = current.findIndex((el) => Cell.equals(option, el));
-                      if (index >= 0) {
-                        options.set(current.toSpliced(index, 1));
-                      }
-                    }}
-                  >
-                    Remove
-                  </ct-button>
-
                   {/* Vote buttons */}
                   <ct-button
                     style={myVoteByOption[option.id] === "green" ? "background-color: #22c55e; color: white; font-weight: bold;" : ""}
@@ -501,62 +342,11 @@ export default pattern<PollInput, PollOutput>(
             ))}
           </div>
 
-          {/* Add Option */}
-          <ct-message-input
-            placeholder="Add an option (e.g., restaurant name)..."
-            onct-send={(e: { detail: { message: string } }) => {
-              const title = e.detail?.message?.trim();
-              if (title) {
-                const currentId = nextOptionId.get();
-                const newOption: Option = {
-                  id: `option-${currentId}`,
-                  title,
-                };
-                options.push(newOption);
-                nextOptionId.set(currentId + 1);
-              }
-            }}
-          />
-
-          {/* Admin Controls */}
-          <div style={{
-            marginTop: "2rem",
-            paddingTop: "1rem",
-            borderTop: "1px solid #e5e7eb"
-          }}>
-            <div style={{
-              fontSize: "0.875rem",
-              fontWeight: "600",
-              color: "#6b7280",
-              marginBottom: "0.75rem"
-            }}>
-              Admin Controls
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <ct-button
-                onClick={() => {
-                  votes.set([]);
-                }}
-              >
-                Reset Votes
-              </ct-button>
-              <ct-button
-                onClick={() => {
-                  options.set([]);
-                  votes.set([]);
-                }}
-              >
-                Clear All Options
-              </ct-button>
-            </div>
+          <div style={{ padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "4px", fontSize: "0.875rem", color: "#78350f" }}>
+            <strong>Ballot View:</strong> You can vote on options. The poll admin manages options and controls.
           </div>
         </div>
       ),
-      question,
-      options,
-      votes,
-      voterCharms,
-      nextOptionId,
       myName,
     };
   }
