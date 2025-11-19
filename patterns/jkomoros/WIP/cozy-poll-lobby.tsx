@@ -1,9 +1,9 @@
 /// <cts-enable />
 import { Cell, Default, derive, handler, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
-import GroupVoterView from "./group-voter-view.tsx";
+import CozyPollBallot from "./cozy-poll-ballot.tsx";
 
 /**
- * Group Voter Viewer Pattern (Public Lobby)
+ * Cozy Poll Lobby Pattern
  *
  * This is the PUBLIC URL that the admin shares with the team.
  * - Shows poll question and live results (read-only)
@@ -65,7 +65,7 @@ const findOrCreateVoter = handler<
     console.log(`[Handler] Creating voter charm for ${name}...`);
 
     // Create new voter charm with name pre-filled
-    const voterInstance = GroupVoterView({
+    const voterInstance = CozyPollBallot({
       question: question,  // Already a plain value
       options,
       votes,
@@ -123,7 +123,7 @@ export default pattern<ViewerInput, ViewerOutput>(
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem", textAlign: "center" }}>
-            {question || "Group Decision Maker"}
+            {question || "Cozy Poll"}
           </h2>
 
           {/* Name Entry - Prominent Call to Action */}
