@@ -1,6 +1,7 @@
 /// <cts-enable />
 import { Cell, cell, Default, derive, handler, ifElse, lift, NAME, navigateTo, OpaqueRef, pattern, str, toSchema, UI } from "commontools";
 import GroupVoterView from "./group-voter-view.tsx";
+import GroupVoterViewer from "./group-voter-viewer.tsx";
 
 /**
  * Group Voter Pattern
@@ -75,7 +76,7 @@ const storeVoter = lift(
   },
 );
 
-// Handler to create a new voter charm
+// Handler to create a new voter charm (DEPRECATED - use viewer instead)
 const createVoter = handler<
   unknown,
   {
@@ -110,6 +111,34 @@ const createVoter = handler<
 
     // Navigate the user to their new voter charm
     return navigateTo(storedCharm || voterInstance);
+  },
+);
+
+// Handler to create the public viewer charm (poll lobby)
+const createViewer = handler<
+  unknown,
+  {
+    question: Cell<string>;
+    options: Cell<Option[]>;
+    votes: Cell<Vote[]>;
+    voterCharms: Cell<VoterCharmRef[]>;
+  }
+>(
+  (_, { question, options, votes, voterCharms }) => {
+    console.log("Creating Viewer charm (public lobby)...");
+
+    // Create the viewer instance with cell references
+    const viewerInstance = GroupVoterViewer({
+      question: question.get(),  // Pass as plain value
+      options,  // Pass as cell reference (shared)
+      votes,    // Pass as cell reference (shared)
+      voterCharms,  // Pass as cell reference (shared)
+    });
+
+    console.log("Viewer created, navigating...");
+
+    // Navigate to the viewer charm
+    return navigateTo(viewerInstance);
   },
 );
 
@@ -218,21 +247,24 @@ export default pattern<PollInput, PollOutput>(
             />
           </div>
 
-          {/* Join as Voter Button */}
-          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#ecfdf5", borderRadius: "4px", border: "1px solid #a7f3d0" }}>
-            <div style={{ fontSize: "0.875rem", marginBottom: "0.5rem", color: "#065f46" }}>
-              <strong>Voters:</strong> Click below to create your own voting charm
+          {/* Create Public Lobby Button */}
+          <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#dbeafe", borderRadius: "8px", border: "2px solid #3b82f6" }}>
+            <div style={{ fontSize: "1rem", fontWeight: "600", marginBottom: "0.5rem", color: "#1e40af" }}>
+              📢 Share Your Poll
+            </div>
+            <div style={{ fontSize: "0.875rem", marginBottom: "0.75rem", color: "#1e3a8a" }}>
+              Create a public lobby page where your team can enter their names and vote. Share that URL with your team.
             </div>
             <ct-button
-              onClick={createVoter({
+              onClick={createViewer({
                 question,
                 options,
                 votes,
                 voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
               })}
-              style="background-color: #10b981; color: white; font-weight: 600;"
+              style="background-color: #3b82f6; color: white; font-weight: 600; font-size: 1rem; padding: 0.75rem 1.5rem;"
             >
-              👥 Join as Voter
+              🚀 Create Public Lobby
             </ct-button>
           </div>
 
