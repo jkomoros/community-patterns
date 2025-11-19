@@ -123,20 +123,30 @@ export default pattern<VoterInput, VoterOutput>(
           </h2>
 
           {/* Name Entry/Display */}
-          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#0369a1" }}>
-              Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
+          {ifElse(
+            derive(myName, (n: string) => !n || n.trim().length === 0),
+            // If name is empty: show input
+            <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "2px solid #f59e0b" }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
+                ⚠️ Please enter your name to start voting
+              </div>
+              <ct-message-input
+                placeholder="Enter your name..."
+                onct-send={(e: { detail: { message: string } }) => {
+                  const name = e.detail?.message?.trim();
+                  if (name) {
+                    myName.set(name);
+                  }
+                }}
+              />
+            </div>,
+            // If name is set: show name only (no input)
+            <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#0369a1" }}>
+                Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName}</strong>
+              </div>
             </div>
-            <ct-message-input
-              placeholder="Enter your name to start voting..."
-              onct-send={(e: { detail: { message: string } }) => {
-                const name = e.detail?.message?.trim();
-                if (name) {
-                  myName.set(name);
-                }
-              }}
-            />
-          </div>
+          )}
 
           {/* Top Choice Display */}
           {rankedOptions.length > 0 && rankedOptions[0].totalVotes > 0 && (

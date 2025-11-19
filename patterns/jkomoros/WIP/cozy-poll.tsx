@@ -35,7 +35,6 @@ interface PollInput {
   votes: Cell<Default<Vote[], []>>;
   voterCharms: Cell<Default<VoterCharmRef[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
-  myName: Cell<Default<string, "">>;
 }
 
 interface PollOutput {
@@ -44,7 +43,6 @@ interface PollOutput {
   votes: Cell<Default<Vote[], []>>;
   voterCharms: Cell<Default<VoterCharmRef[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
-  myName: Cell<Default<string, "">>;
 }
 
 // Lift function to store voter charm instance
@@ -143,7 +141,7 @@ const createViewer = handler<
 );
 
 export default pattern<PollInput, PollOutput>(
-  ({ question, options, votes, voterCharms, nextOptionId, myName }) => {
+  ({ question, options, votes, voterCharms, nextOptionId }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -208,18 +206,6 @@ export default pattern<PollInput, PollOutput>(
       return ranks;
     });
 
-    // Derived: Map option IDs to current user's vote
-    const myVoteByOption = derive({ votes, myName }, ({ votes: allVotes, myName: currentName }: { votes: Vote[], myName: string }) => {
-      const myVotes: Record<string, "green" | "yellow" | "red"> = {};
-
-      for (const vote of allVotes) {
-        if (vote.voterName === currentName) {
-          myVotes[vote.optionId] = vote.voteType;
-        }
-      }
-
-      return myVotes;
-    });
 
     return {
       [NAME]: ifElse(
@@ -266,22 +252,6 @@ export default pattern<PollInput, PollOutput>(
             >
               🚀 Create Public Lobby
             </ct-button>
-          </div>
-
-          {/* Name Entry/Display */}
-          <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f0f9ff", borderRadius: "4px", border: "1px solid #bae6fd" }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#0369a1" }}>
-              Admin voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName || "(not set)"}</strong>
-            </div>
-            <ct-message-input
-              placeholder="Enter your name to start voting..."
-              onct-send={(e: { detail: { message: string } }) => {
-                const name = e.detail?.message?.trim();
-                if (name) {
-                  myName.set(name);
-                }
-              }}
-            />
           </div>
 
           {/* Top Choice Display */}
@@ -453,49 +423,6 @@ export default pattern<PollInput, PollOutput>(
                   >
                     Remove
                   </ct-button>
-
-                  {/* Vote buttons */}
-                  <ct-button
-                    style={myVoteByOption[option.id] === "green" ? "background-color: #22c55e; color: white; font-weight: bold;" : ""}
-                    onClick={() => {
-                      const currentName = myName.get();
-                      const allVotes = votes.get();
-                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "green" }]);
-                    }}
-                  >
-                    🟢
-                  </ct-button>
-                  <ct-button
-                    style={myVoteByOption[option.id] === "yellow" ? "background-color: #eab308; color: white; font-weight: bold;" : ""}
-                    onClick={() => {
-                      const currentName = myName.get();
-                      const allVotes = votes.get();
-                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "yellow" }]);
-                    }}
-                  >
-                    🟡
-                  </ct-button>
-                  <ct-button
-                    style={myVoteByOption[option.id] === "red" ? "background-color: #ef4444; color: white; font-weight: bold;" : ""}
-                    onClick={() => {
-                      const currentName = myName.get();
-                      const allVotes = votes.get();
-                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "red" }]);
-                    }}
-                  >
-                    🔴
-                  </ct-button>
-                  <ct-button onClick={() => {
-                    const currentName = myName.get();
-                    const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                    votes.set(filtered);
-                  }}>
-                    Clear
-                  </ct-button>
                 </div>
               </div>
             ))}
@@ -557,7 +484,6 @@ export default pattern<PollInput, PollOutput>(
       votes,
       voterCharms,
       nextOptionId,
-      myName,
     };
   }
 );

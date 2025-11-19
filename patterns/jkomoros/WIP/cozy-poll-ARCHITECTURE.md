@@ -4,9 +4,9 @@
 
 A collaborative voting system using a **3-charm architecture** where each component serves a distinct purpose:
 
-1. **Admin Pattern** (`cozy-poll.tsx`) - Poll creator's control panel
-2. **Viewer Pattern** (`cozy-poll-lobby.tsx`) - Public lobby for joining
-3. **Voter Pattern** (`cozy-poll-ballot.tsx`) - Individual voter's ballot
+1. **Admin Pattern** (`cozy-poll.tsx`) - Poll creator's control panel (setup only, no voting)
+2. **Lobby Pattern** (`cozy-poll-lobby.tsx`) - Public lobby for joining (shows results)
+3. **Ballot Pattern** (`cozy-poll-ballot.tsx`) - Individual voter's ballot (name set once)
 
 ## Architecture Diagram
 
@@ -15,35 +15,37 @@ A collaborative voting system using a **3-charm architecture** where each compon
 │ Admin Pattern (cozy-poll.tsx)                                 │
 │ - Creates poll question and options                             │
 │ - Can add/remove options                                        │
-│ - Can vote (has own name field)                                 │
-│ - Creates Viewer charm                                          │
-│ - Shares URL to Viewer charm with team                          │
+│ - Creates Lobby charm (public URL)                              │
+│ - Shares Lobby URL with team                                    │
+│ - NO VOTING - admin must create their own ballot to vote        │
 │                                                                  │
 │ Cells: question, options, votes, voterCharms                    │
 └────────────────────────┬────────────────────────────────────────┘
                          │ Creates Viewer
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Viewer Pattern (cozy-poll-lobby.tsx)                         │
+│ Lobby Pattern (cozy-poll-lobby.tsx)                          │
 │ - PUBLIC URL shared with team                                   │
 │ - Shows question and live results (read-only)                   │
-│ - Name entry → creates Voter charm                              │
+│ - Name entry → creates Ballot charm                             │
 │ - Navigation works WITHOUT storage tracking                     │
 │                                                                  │
 │ Receives: question (value), options (cell ref), votes (cell ref)│
 └────────────────────────┬────────────────────────────────────────┘
-                         │ Creates Voter
+                         │ Creates Ballot
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ Voter Pattern (cozy-poll-ballot.tsx)                            │
+│ Ballot Pattern (cozy-poll-ballot.tsx)                         │
 │ - Individual voter's personal ballot                            │
-│ - Has pre-filled name (passed from Viewer)                      │
+│ - Name pre-filled on creation (from Lobby)                      │
+│ - Name entry shown ONLY if name is empty                        │
+│ - Once name is set, input disappears (name locked)              │
 │ - Can vote on all options                                       │
 │ - Can change votes at any time                                  │
 │ - Updates shared votes cell                                     │
 │                                                                  │
 │ Receives: question (value), options (cell ref), votes (cell ref)│
-│ Local: myName (local cell)                                      │
+│ Local: myName (local cell, set once)                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
