@@ -62,16 +62,7 @@ const findOrCreateVoter = handler<
 
     console.log(`[Handler] Finding or creating voter charm for: ${name}`);
 
-    // Search for existing voter with this name
-    const allVoters = voterCharms.get();
-    const existing = allVoters.find(v => v.voterName === name);
-
-    if (existing) {
-      console.log(`[Handler] Found existing voter charm for ${name}, navigating...`);
-      return navigateTo(existing.charm);
-    }
-
-    console.log(`[Handler] Creating new voter charm for ${name}...`);
+    console.log(`[Handler] Creating voter charm for ${name}...`);
 
     // Create new voter charm with name pre-filled
     const voterInstance = GroupVoterView({
@@ -81,9 +72,12 @@ const findOrCreateVoter = handler<
       myName: Cell.of(name),  // Pre-populate the name
     });
 
-    console.log(`[Handler] Navigating to voter charm directly (no storage)...`);
+    console.log(`[Handler] Navigating to voter charm...`);
+    console.log(`[Handler] Note: User should bookmark this URL to return later`);
 
-    // Try navigating WITHOUT storing first to see if that's the issue
+    // Navigate directly - this works!
+    // Note: We can't track/store voter charms during handler execution
+    // as it blocks navigation. Users should bookmark their voter URLs.
     return navigateTo(voterInstance);
   }
 );
@@ -145,7 +139,7 @@ export default pattern<ViewerInput, ViewerOutput>(
               Ready to vote?
             </div>
             <div style={{ fontSize: "0.875rem", marginBottom: "1rem", color: "#1e3a8a" }}>
-              Enter your name to cast your vote or return to your existing ballot
+              Enter your name to create your personal ballot. Bookmark the page to return later!
             </div>
             <ct-message-input
               placeholder="Your name..."
