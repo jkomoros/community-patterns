@@ -24,6 +24,14 @@ interface PatternManifest {
   patterns: PatternSource[];
 }
 
+// Handler to launch a pattern - takes the URL as state parameter
+const launchPattern = handler<
+  unknown,
+  { url: string; selectedPatternUrl: Cell<string | undefined> }
+>((_event, { url, selectedPatternUrl }) => {
+  selectedPatternUrl.set(url);
+});
+
 export default recipe("Pattern Launcher", () => {
   // Manual list of patterns to start with
   const manualPatterns = Cell.of<PatternSource[]>([
@@ -155,7 +163,7 @@ export default recipe("Pattern Launcher", () => {
                 <ct-vstack style="gap: 8px;">
                   {patterns.map((pattern: PatternSource) => (
                       <ct-button
-                        onClick={handler(() => selectedPatternUrl.set(pattern.path))}
+                        onClick={launchPattern({ url: pattern.path, selectedPatternUrl })}
                         size="lg"
                         style="textAlign: left; justifyContent: flex-start;"
                       >
