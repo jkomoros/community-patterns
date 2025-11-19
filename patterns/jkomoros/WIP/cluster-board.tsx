@@ -6,8 +6,13 @@ import { Cell, Default, NAME, pattern, str, UI } from "commontools";
  *
  * Phase 1: Basic board with manual positioning
  * - Create/edit/delete post-it notes
- * - Drag and drop positioning
+ * - Click-to-place positioning (temporary workaround)
  * - Real-time collaboration
+ *
+ * NOTE: Drag-and-drop is the ideal UX but not yet supported by the Common Tools
+ * framework (requires DOM mouse events: onmousedown, onmousemove, onmouseup).
+ * Current implementation uses click-to-place: click "Move" button, then click
+ * canvas to place. When framework adds drag support, this should be replaced.
  */
 
 interface PostIt {
@@ -16,6 +21,7 @@ interface PostIt {
   x: Default<number, 100>;
   y: Default<number, 100>;
   createdAt: number;
+  isMoving: Default<boolean, false>;  // Track if note is in "move mode"
 }
 
 interface ClusterBoardInput {
@@ -68,6 +74,7 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
                   x: Math.random() * 400 + 100,
                   y: Math.random() * 400 + 150,
                   createdAt: Date.now(),
+                  isMoving: false,
                 };
                 postIts.push(newPostIt);
               }}
@@ -87,13 +94,38 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
           </div>
 
           {/* Canvas Area */}
-          <div style={{
-            position: "absolute",
-            top: "80px",
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}>
+          <div
+            onClick={(e: any) => {
+              // If a note is in move mode, place it at click location
+              const current = postIts.get();
+              const movingNote = current.find(note => note.isMoving);
+
+              if (movingNote) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left - 100; // Center note on click
+                const y = e.clientY - rect.top - 75;
+
+                const index = current.findIndex(note => note.id === movingNote.id);
+                if (index >= 0) {
+                  const updated = [...current];
+                  updated[index] = {
+                    ...updated[index],
+                    x: Math.max(0, x),
+                    y: Math.max(0, y),
+                    isMoving: false,
+                  };
+                  postIts.set(updated);
+                }
+              }
+            }}
+            style={{
+              position: "absolute",
+              top: "80px",
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          >
             {/* Render all post-its */}
             {postIts.map((postIt) => (
               <div
@@ -104,14 +136,17 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
                   top: `${postIt.y}px`,
                   width: "200px",
                   minHeight: "150px",
-                  backgroundColor: "#fff59d",
-                  border: "1px solid #f9a825",
+                  backgroundColor: postIt.isMoving ? "#ffeb3b" : "#fff59d",
+                  border: postIt.isMoving ? "3px solid #ff5722" : "1px solid #f9a825",
                   borderRadius: "4px",
                   padding: "0.75rem",
-                  boxShadow: "2px 2px 8px rgba(0,0,0,0.1)",
+                  boxShadow: postIt.isMoving
+                    ? "4px 4px 16px rgba(255,87,34,0.4)"
+                    : "2px 2px 8px rgba(0,0,0,0.1)",
                   display: "flex",
                   flexDirection: "column",
                   gap: "0.5rem",
+                  opacity: postIt.isMoving ? 0.8 : 1,
                 }}
               >
                 {/* Content */}
@@ -124,13 +159,64 @@ export default pattern<ClusterBoardInput, ClusterBoardOutput>(
                   {postIt.content}
                 </div>
 
-                {/* Footer with delete button */}
+                {/* Footer with action buttons */}
                 <div style={{
                   display: "flex",
-                  justifyContent: "flex-end",
+                  justifyContent: "space-between",
+                  gap: "0.5rem",
                   borderTop: "1px solid #f9a825",
                   paddingTop: "0.5rem",
                 }}>
+                  {postIt.isMoving ? (
+                    <button
+                      onClick={() => {
+                        // Cancel move mode
+                        const current = postIts.get();
+                        const index = current.findIndex((el) => Cell.equals(postIt, el));
+                        if (index >= 0) {
+                          const updated = [...current];
+                          updated[index] = { ...updated[index], isMoving: false };
+                          postIts.set(updated);
+                        }
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "0.25rem 0.5rem",
+                        backgroundColor: "#9e9e9e",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        // Enter move mode - cancel any other moving notes first
+                        const current = postIts.get();
+                        const updated = current.map(note => ({
+                          ...note,
+                          isMoving: note.id === postIt.id,
+                        }));
+                        postIts.set(updated);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "0.25rem 0.5rem",
+                        backgroundColor: "#2196F3",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      Move
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       const current = postIts.get();
