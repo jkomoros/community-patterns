@@ -274,7 +274,6 @@ export default pattern<PollInput, PollOutput>(
             </div>
             <ct-message-input
               placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
-              button-text="Set Question"
               onct-send={(e: { detail: { message: string } }) => {
                 const q = e.detail?.message?.trim();
                 if (q) {
@@ -500,7 +499,6 @@ export default pattern<PollInput, PollOutput>(
           {/* Add Option */}
           <ct-message-input
             placeholder="Add an option (e.g., restaurant name)..."
-            button-text="Add Option"
             onct-send={(e: { detail: { message: string } }) => {
               const title = e.detail?.message?.trim();
               if (title) {
