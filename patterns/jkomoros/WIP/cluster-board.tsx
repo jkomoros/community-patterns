@@ -4,11 +4,23 @@ import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
 /**
  * ClusterBoard - Collaborative Brainstorming with AI Clustering
  *
- * Phase 1: Basic board with drag-and-drop positioning
- * - Create/edit/delete post-it notes
- * - Drag-and-drop positioning using ct-canvas and ct-draggable
- * - Real-time collaboration
+ * Phase 1: Basic board with drag-and-drop positioning ✓
+ *   - Create/edit/delete post-it notes
+ *   - Drag-and-drop with ct-draggable
+ *   - ct-input with bidirectional binding
+ *   - Real-time collaboration
+ *
+ * Phase 2: Collision detection (DEFERRED)
+ *   - Framework limitations: CRDT transaction conflicts with rapid Cell updates
+ *   - No lifecycle hooks for continuous animation loops
+ *   - See PRD for details and future options
+ *
+ * Next: Phase 3 - LLM clustering (core innovation)
  */
+
+// Post-it dimensions
+const POSTIT_WIDTH = 200;
+const POSTIT_HEIGHT = 150;
 
 interface PostIt {
   id: string;
@@ -45,6 +57,7 @@ const handleCanvasClick = handler<
   { detail: { x: number; y: number } },
   { postIts: Cell<PostIt[]> }
 >((event, { postIts }) => {
+  const currentLength = postIts.get().length;
   const newPostIt: PostIt = {
     id: generateId(),
     content: "New note...",
@@ -53,6 +66,9 @@ const handleCanvasClick = handler<
     createdAt: Date.now(),
   };
   postIts.push(newPostIt);
+
+  // Check and resolve collision for the newly created note
+  resolveCollisionForNote(postIts, currentLength);
 });
 
 export default pattern<ClusterBoardInput, ClusterBoardOutput>(

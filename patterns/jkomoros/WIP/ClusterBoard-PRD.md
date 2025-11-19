@@ -174,19 +174,31 @@ similarity = cosineSimilarity(embedding1, embedding2)
 ### Phase 2: Collision Detection & Repulsion
 **Goal**: Notes automatically avoid overlapping
 
-**Features**:
+**Status**: ⚠️ **DEFERRED** - Framework limitations discovered
+
+**Original Features**:
 - Detect overlapping notes
 - Apply repulsion force to push apart
 - Smooth animation to new positions
 - "Shake" animation when notes collide
 
-**Technical**:
-- Bounding box collision detection
-- Physics simulation loop (requestAnimationFrame)
-- Velocity and acceleration vectors
-- Damping to prevent infinite bouncing
+**Technical Challenges Discovered**:
+- **CRDT Transaction Conflicts**: Rapid Cell updates create optimistic concurrency conflicts
+- **No Lifecycle Hooks**: Patterns lack mount/unmount hooks for continuous animation loops
+- **No requestAnimationFrame Access**: Cannot use browser animation APIs in pattern context
+- **Event-Driven Limitations**: Framework expects reactive/declarative updates, not imperative position adjustments
 
-**Success Criteria**: 20 notes don't overlap, even when placed randomly
+**Attempted Approaches**:
+1. ❌ Continuous physics loop with requestAnimationFrame - Framework doesn't support
+2. ❌ Event-driven collision resolution on create/move - CRDT conflicts from rapid updates
+3. ❌ Single-note push on collision - Still creates transaction conflicts
+
+**Recommended Path Forward**:
+- **Option A**: Skip Phase 2, move directly to Phase 3 (LLM clustering) which is more feasible
+- **Option B**: Implement as separate web component (like ct-draggable) that can manage continuous physics
+- **Option C**: Simplify to visual overlap warnings instead of automatic resolution
+
+**Decision**: Defer Phase 2 until after Phase 3 MVP. LLM clustering is the core innovation and doesn't require continuous animation. Can revisit collision avoidance later with a dedicated component if needed.
 
 ---
 
@@ -576,3 +588,8 @@ Return a 768-dimensional vector.
 ## Change Log
 
 - **2025-11-19**: Initial PRD draft (v0.1)
+- **2025-11-19**: Phase 1 completed - Basic board with drag-and-drop
+- **2025-11-19**: Phase 2 deferred - Documented framework limitations with collision physics
+  - Discovered CRDT transaction conflicts prevent rapid Cell updates
+  - Pattern framework lacks lifecycle hooks for continuous animation
+  - Recommendation: Move to Phase 3 (LLM clustering) as core MVP feature
