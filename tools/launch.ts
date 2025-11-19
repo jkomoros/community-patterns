@@ -530,12 +530,9 @@ async function deployPattern(
 
   const { code, stdout, stderr } = await command.output();
 
-  // Stream output in real-time
+  // Decode output for charm ID extraction
   const output = new TextDecoder().decode(stdout);
   const errorOutput = new TextDecoder().decode(stderr);
-
-  if (output) console.log(output);
-  if (errorOutput) console.error(errorOutput);
 
   if (code === 0) {
     // Extract charm ID from output
@@ -568,16 +565,18 @@ async function deployPattern(
       console.log(`\n🔗 ${fullUrl}\n`);
       return charmId;
     } else {
-      // Debug: show what output we got
+      // Could not extract charm ID - just show space URL
       console.log("\n✅ Deployed successfully!");
       console.log(`   View at: ${apiUrl}/${space}/`);
       console.log("\n⚠️  Could not extract charm ID from output.");
-      console.log("   Output was:");
-      console.log(output.split("\n").map(line => `   ${line}`).join("\n"));
+      console.log("   (Check the space to find your charm)");
       return "success";
     }
   } else {
-    console.log("\n❌ Deployment failed");
+    // Deployment failed - show output for debugging
+    console.log("\n❌ Deployment failed\n");
+    if (output) console.log(output);
+    if (errorOutput) console.error(errorOutput);
     return null;
   }
 }
