@@ -87,6 +87,120 @@ async function prompt(message: string, defaultValue?: string): Promise<string> {
   return input || defaultValue || "";
 }
 
+// ANSI escape codes
+const CURSOR_UP = "\x1b[A";
+const CURSOR_DOWN = "\x1b[B";
+const CLEAR_LINE = "\x1b[2K";
+const CURSOR_TO_START = "\x1b[0G";
+const HIDE_CURSOR = "\x1b[?25l";
+const SHOW_CURSOR = "\x1b[?25h";
+
+interface SelectOption {
+  label: string;
+  value: string;
+  icon?: string;
+}
+
+async function interactiveSelect(
+  options: SelectOption[],
+  title?: string
+): Promise<string | null> {
+  if (options.length === 0) {
+    return null;
+  }
+
+  if (title) {
+    console.log(`\n${title}\n`);
+  }
+
+  let selectedIndex = 0;
+
+  // Enable raw mode to capture arrow keys
+  Deno.stdin.setRaw(true);
+
+  // Hide cursor
+  await Deno.stdout.write(new TextEncoder().encode(HIDE_CURSOR));
+
+  // Initial render
+  const renderOptions = () => {
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      const icon = option.icon || "";
+      const prefix = i === selectedIndex ? "→ " : "  ";
+      const style = i === selectedIndex ? "\x1b[7m" : ""; // Reverse video for selected
+      const reset = i === selectedIndex ? "\x1b[0m" : "";
+
+      console.log(`${prefix}${style}${icon}${option.label}${reset}`);
+    }
+  };
+
+  renderOptions();
+
+  // Listen for input
+  const buf = new Uint8Array(3);
+
+  while (true) {
+    const n = await Deno.stdin.read(buf);
+
+    if (n === null) break;
+
+    const input = buf.slice(0, n);
+
+    // Check for arrow keys
+    if (input[0] === 0x1b && input[1] === 0x5b) {
+      // Move cursor up to start of list
+      for (let i = 0; i < options.length; i++) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+      }
+
+      if (input[2] === 0x41) {
+        // Up arrow
+        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+      } else if (input[2] === 0x42) {
+        // Down arrow
+        selectedIndex = (selectedIndex + 1) % options.length;
+      }
+
+      // Clear all lines
+      for (let i = 0; i < options.length; i++) {
+        await Deno.stdout.write(new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START));
+        if (i < options.length - 1) {
+          await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
+        }
+      }
+
+      // Move back to start
+      for (let i = 0; i < options.length - 1; i++) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+      }
+      await Deno.stdout.write(new TextEncoder().encode(CURSOR_TO_START));
+
+      // Re-render
+      renderOptions();
+    } else if (input[0] === 0x0d || input[0] === 0x0a) {
+      // Enter key
+      Deno.stdin.setRaw(false);
+      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      return options[selectedIndex].value;
+    } else if (input[0] === 0x71 || input[0] === 0x51) {
+      // 'q' or 'Q' key
+      Deno.stdin.setRaw(false);
+      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      return null;
+    } else if (input[0] === 0x03) {
+      // Ctrl-C
+      Deno.stdin.setRaw(false);
+      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      console.log("\n👋 Cancelled");
+      Deno.exit(0);
+    }
+  }
+
+  Deno.stdin.setRaw(false);
+  await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR));
+  return null;
+}
+
 // ===== MAIN FUNCTIONS =====
 
 async function promptForSpace(config: Config): Promise<string> {
@@ -96,40 +210,38 @@ async function promptForSpace(config: Config): Promise<string> {
 }
 
 async function selectPattern(config: Config): Promise<string | null> {
-  console.log("\n📋 Select a pattern:\n");
+  const options: SelectOption[] = [];
 
+  // Add recent patterns
   if (config.patterns.length > 0) {
-    console.log("  [Recent Patterns]");
-    config.patterns.slice(0, 10).forEach((p, i) => {
+    config.patterns.slice(0, 10).forEach((p) => {
       const shortPath = getShortPath(p.path);
       const timeStr = formatTimeSince(p.lastUsed);
-      console.log(`  ${i + 1}. ${shortPath} (${timeStr})`);
+      options.push({
+        label: `${shortPath} (${timeStr})`,
+        value: p.path,
+        icon: "📄 ",
+      });
     });
-    console.log();
   }
 
-  console.log("  [Actions]");
-  console.log("  b. Browse for a new pattern");
-  console.log("  q. Quit\n");
+  // Add browse action
+  options.push({
+    label: "Browse for a new pattern...",
+    value: "__browse__",
+    icon: "📁 ",
+  });
 
-  const choice = await prompt("Enter selection");
+  const selection = await interactiveSelect(
+    options,
+    "📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):"
+  );
 
-  if (choice.toLowerCase() === "q") {
-    return null;
-  }
-
-  if (choice.toLowerCase() === "b") {
+  if (selection === "__browse__") {
     return await browseForPattern();
   }
 
-  // Try to parse as number
-  const index = parseInt(choice, 10) - 1;
-  if (index >= 0 && index < config.patterns.length) {
-    return config.patterns[index].path;
-  }
-
-  console.log("❌ Invalid selection");
-  return await selectPattern(config);
+  return selection;
 }
 
 async function browseForPattern(): Promise<string | null> {
@@ -139,8 +251,6 @@ async function browseForPattern(): Promise<string | null> {
 }
 
 async function navigateDirectory(currentPath: string): Promise<string | null> {
-  console.log(`\n📁 ${currentPath}\n`);
-
   // Read directory contents
   const entries: { name: string; isDir: boolean; isPattern: boolean }[] = [];
 
@@ -167,36 +277,41 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
     return a.name.localeCompare(b.name);
   });
 
-  // Display entries
-  if (entries.length === 0) {
-    console.log("  (no .tsx files or directories)\n");
-  } else {
-    entries.forEach((entry, i) => {
-      const icon = entry.isDir ? "📁" : "📄";
-      console.log(`  ${i + 1}. ${icon} ${entry.name}`);
+  // Build options for interactive selection
+  const options: SelectOption[] = [];
+
+  // Add entries
+  entries.forEach((entry) => {
+    const icon = entry.isDir ? "📁 " : "📄 ";
+    options.push({
+      label: entry.name,
+      value: entry.name,
+      icon,
     });
-    console.log();
-  }
+  });
 
-  // Show options
-  console.log("  [Actions]");
+  // Add navigation actions
   if (currentPath !== "/") {
-    console.log("  .. Go up one directory");
+    options.push({
+      label: ".. (Go up one directory)",
+      value: "__up__",
+      icon: "⬆️  ",
+    });
   }
-  console.log("  p. Enter absolute path manually");
-  console.log("  q. Cancel\n");
+  options.push({
+    label: "Enter absolute path manually...",
+    value: "__manual__",
+    icon: "✏️  ",
+  });
 
-  const choice = await prompt("Enter selection");
+  const title = `📁 ${currentPath}\n(↑/↓ to move, Enter to select, Q to cancel)`;
+  const selection = await interactiveSelect(options, title);
 
-  if (choice.toLowerCase() === "q") {
+  if (selection === null) {
     return null;
   }
 
-  if (choice.toLowerCase() === "p") {
-    return await enterPathManually();
-  }
-
-  if (choice === "..") {
+  if (selection === "__up__") {
     // Go up one directory
     const parentPath = currentPath.split("/").slice(0, -2).join("/") + "/";
     if (parentPath.length > 0) {
@@ -205,23 +320,23 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
     return await navigateDirectory("/");
   }
 
-  // Try to parse as number
-  const index = parseInt(choice, 10) - 1;
-  if (index >= 0 && index < entries.length) {
-    const selected = entries[index];
-    const fullPath = `${currentPath}${selected.name}`;
-
-    if (selected.isDir) {
-      // Navigate into directory
-      return await navigateDirectory(`${fullPath}/`);
-    } else {
-      // Selected a file
-      return fullPath;
-    }
+  if (selection === "__manual__") {
+    return await enterPathManually();
   }
 
-  console.log("❌ Invalid selection");
-  return await navigateDirectory(currentPath);
+  // Check if it's a directory or file
+  const selectedEntry = entries.find((e) => e.name === selection);
+  if (!selectedEntry) return null;
+
+  const fullPath = `${currentPath}${selectedEntry.name}`;
+
+  if (selectedEntry.isDir) {
+    // Navigate into directory
+    return await navigateDirectory(`${fullPath}/`);
+  } else {
+    // Selected a file
+    return fullPath;
+  }
 }
 
 async function enterPathManually(): Promise<string | null> {
