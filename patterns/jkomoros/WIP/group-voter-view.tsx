@@ -144,6 +144,72 @@ export default pattern<VoterInput, VoterOutput>(
             </div>
           )}
 
+          {/* Summary View - All Options */}
+          {rankedOptions.length > 0 && (
+            <div style={{
+              marginBottom: "1.5rem",
+              padding: "1rem",
+              backgroundColor: "#f9fafb",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb"
+            }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
+                ALL OPTIONS
+              </div>
+              {rankedOptions.map((ranked) => (
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.5rem",
+                  marginBottom: "0.25rem",
+                  backgroundColor: "white",
+                  borderRadius: "4px",
+                  border: "1px solid #e5e7eb"
+                }}>
+                  <div style={{ flex: 1, fontWeight: "500", fontSize: "0.875rem" }}>
+                    {ranked.option.title}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
+                    {votesByOption[ranked.option.id]?.green?.map((voterName) => (
+                      <span style={{
+                        backgroundColor: "#22c55e",
+                        color: "white",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "9999px",
+                        fontWeight: "600"
+                      }}>
+                        {voterName}
+                      </span>
+                    ))}
+                    {votesByOption[ranked.option.id]?.yellow?.map((voterName) => (
+                      <span style={{
+                        backgroundColor: "#eab308",
+                        color: "white",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "9999px",
+                        fontWeight: "600"
+                      }}>
+                        {voterName}
+                      </span>
+                    ))}
+                    {votesByOption[ranked.option.id]?.red?.map((voterName) => (
+                      <span style={{
+                        backgroundColor: "#ef4444",
+                        color: "white",
+                        padding: "0.125rem 0.375rem",
+                        borderRadius: "9999px",
+                        fontWeight: "600"
+                      }}>
+                        {voterName}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Options List */}
           <div style={{ marginBottom: "1rem" }}>
             {options.map((option) => (
