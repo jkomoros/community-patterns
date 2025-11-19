@@ -11,6 +11,9 @@ claude.key
 **/claude.key
 .passphrase
 
+# Local development server manifest (developer-specific, never commit!)
+LOCAL_ENDPOINTS.json
+
 # Node modules and Deno
 node_modules/
 .deno/

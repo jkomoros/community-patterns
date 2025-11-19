@@ -205,6 +205,65 @@ Ready to work! Your workspace: patterns/$GITHUB_USER/
 What would you like to work on today?
 ```
 
+### Step 2.5: Check and Start Local Dev Server (If Needed)
+
+**For loading local patterns during development:**
+
+See **LOCAL_DEV_SERVER.md** for full documentation.
+
+```bash
+# Get parent directory (where server should run)
+PARENT_DIR="$(git rev-parse --show-toplevel)/.."
+
+# Check if local dev server is running on port 8765
+if lsof -ti:8765 > /dev/null 2>&1; then
+  echo "✓ Local dev server already running on port 8765"
+else
+  echo "→ Starting local dev server on port 8765..."
+
+  # Start Python HTTP server with CORS in background
+  cd "$PARENT_DIR"
+  python3 -c "
+import http.server
+import socketserver
+
+class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+with socketserver.TCPServer(('127.0.0.1', 8765), CORSHTTPRequestHandler) as httpd:
+    httpd.serve_forever()
+" > /tmp/local-dev-server.log 2>&1 &
+
+  # Give server a moment to start
+  sleep 1
+
+  # Return to repo directory
+  cd -
+
+  echo "✓ Local dev server started at http://localhost:8765"
+  echo "  (Logs: /tmp/local-dev-server.log)"
+fi
+```
+
+**Why this matters:**
+- Allows `fetchProgram` to load patterns from local filesystem via HTTP
+- Enables testing patterns before pushing to GitHub
+- Serves from parent directory, so all repos are accessible
+- Example: `http://localhost:8765/community-patterns-2/patterns/jkomoros/WIP/demo.tsx`
+- Shared across all Claude Code sessions
+
+**If port is in use by something else:**
+- The distinctive port (8765) means if it's running, it's likely our server
+- If there are issues, user can manually stop it: `kill $(lsof -ti:8765)`
+
 ### Step 3: Check and Start Dev Servers (If Needed)
 
 **IMPORTANT: Two servers must be running:**
