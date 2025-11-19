@@ -133,6 +133,98 @@ async function selectPattern(config: Config): Promise<string | null> {
 }
 
 async function browseForPattern(): Promise<string | null> {
+  // Start in the patterns directory
+  const startDir = `${REPO_ROOT}patterns/`;
+  return await navigateDirectory(startDir);
+}
+
+async function navigateDirectory(currentPath: string): Promise<string | null> {
+  console.log(`\n📁 ${currentPath}\n`);
+
+  // Read directory contents
+  const entries: { name: string; isDir: boolean; isPattern: boolean }[] = [];
+
+  try {
+    for await (const entry of Deno.readDir(currentPath)) {
+      const isPattern = entry.isFile && entry.name.endsWith(".tsx");
+      // Show directories and .tsx files only
+      if (entry.isDirectory || isPattern) {
+        entries.push({
+          name: entry.name,
+          isDir: entry.isDirectory,
+          isPattern,
+        });
+      }
+    }
+  } catch (error) {
+    console.log(`❌ Cannot read directory: ${error.message}`);
+    return null;
+  }
+
+  // Sort: directories first, then files, alphabetically
+  entries.sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Display entries
+  if (entries.length === 0) {
+    console.log("  (no .tsx files or directories)\n");
+  } else {
+    entries.forEach((entry, i) => {
+      const icon = entry.isDir ? "📁" : "📄";
+      console.log(`  ${i + 1}. ${icon} ${entry.name}`);
+    });
+    console.log();
+  }
+
+  // Show options
+  console.log("  [Actions]");
+  if (currentPath !== "/") {
+    console.log("  .. Go up one directory");
+  }
+  console.log("  p. Enter absolute path manually");
+  console.log("  q. Cancel\n");
+
+  const choice = await prompt("Enter selection");
+
+  if (choice.toLowerCase() === "q") {
+    return null;
+  }
+
+  if (choice.toLowerCase() === "p") {
+    return await enterPathManually();
+  }
+
+  if (choice === "..") {
+    // Go up one directory
+    const parentPath = currentPath.split("/").slice(0, -2).join("/") + "/";
+    if (parentPath.length > 0) {
+      return await navigateDirectory(parentPath);
+    }
+    return await navigateDirectory("/");
+  }
+
+  // Try to parse as number
+  const index = parseInt(choice, 10) - 1;
+  if (index >= 0 && index < entries.length) {
+    const selected = entries[index];
+    const fullPath = `${currentPath}${selected.name}`;
+
+    if (selected.isDir) {
+      // Navigate into directory
+      return await navigateDirectory(`${fullPath}/`);
+    } else {
+      // Selected a file
+      return fullPath;
+    }
+  }
+
+  console.log("❌ Invalid selection");
+  return await navigateDirectory(currentPath);
+}
+
+async function enterPathManually(): Promise<string | null> {
   console.log("\n📁 Enter absolute path to pattern file:");
   const path = await prompt("Path");
 
@@ -145,7 +237,7 @@ async function browseForPattern(): Promise<string | null> {
     const stat = await Deno.stat(path);
     if (!stat.isFile) {
       console.log("❌ Path is not a file");
-      return await browseForPattern();
+      return await enterPathManually();
     }
     if (!path.endsWith(".tsx")) {
       console.log("⚠️  Warning: File doesn't end with .tsx");
@@ -153,7 +245,7 @@ async function browseForPattern(): Promise<string | null> {
     return path;
   } catch {
     console.log("❌ File not found");
-    return await browseForPattern();
+    return await enterPathManually();
   }
 }
 
