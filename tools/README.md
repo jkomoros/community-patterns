@@ -45,13 +45,28 @@ Uses `https://api.commontools.io` instead of `http://localhost:8000`.
 
 ## Interactive Flow
 
-### Main Menu
+### Space Selection
 
 ```
 🚀 Pattern Launcher
 
-Enter space name [test-space]: my-space
+Select space (↑/↓ to move, Enter to select):
 
+→ alex-1119-1 (last used)
+  alex-1119-2 (next)
+  ✨ Enter new space name...
+
+[Use arrow keys, press Enter]
+```
+
+The tool intelligently suggests the next space name:
+- If last space was `alex-1119-1` → suggests `alex-1119-2` (increments trailing number)
+- If last space was `alex-1119` → suggests `alex-1119-1` (appends `-1`)
+- If last space was `test-space` → suggests `test-space-1`
+
+### Pattern Selection
+
+```
 📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):
 
 → 📄 cozy-poll.tsx  (community-patterns/jkomoros/WIP) (5 min ago)
@@ -156,6 +171,23 @@ The tool automatically detects your labs directory:
 Uses `claude.key` from the community-patterns root directory.
 
 If you need a different identity key location, you'll need to modify `IDENTITY_PATH` in `launch.ts`.
+
+## Space Naming
+
+The tool provides smart space name suggestions based on your last used space:
+
+**Increment Logic:**
+- `alex-1119-1` → `alex-1119-2` (increments last number)
+- `test-space-5` → `test-space-6` (increments last number)
+- `alex-1119` → `alex-1119-1` (appends `-1`, doesn't treat 1119 as an index)
+- `test-space` → `test-space-1` (appends `-1`)
+
+**Options:**
+1. **Last used** - Reuse the same space (useful for quick iterations)
+2. **Next** - Auto-incremented space name (useful for sequential testing)
+3. **Custom** - Enter a completely new space name
+
+This makes it fast to create numbered test spaces without typing!
 
 ## Pattern Display Format
 
