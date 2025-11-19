@@ -32,7 +32,6 @@ interface VoterInput {
   votes: Cell<Default<Vote[], []>>;         // Shared from admin
   voterCharms: Cell<Default<VoterCharmRef[], []>>;  // Shared from admin
   myName: Cell<Default<string, "">>;        // Local to this voter
-  lobbyRef?: any;                            // Optional reference to lobby for back navigation
 }
 
 interface VoterOutput {
@@ -40,7 +39,7 @@ interface VoterOutput {
 }
 
 export default pattern<VoterInput, VoterOutput>(
-  ({ question, options, votes, voterCharms, myName, lobbyRef }) => {
+  ({ question, options, votes, voterCharms, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = derive(votes, (allVotes: Vote[]) => {
@@ -118,14 +117,6 @@ export default pattern<VoterInput, VoterOutput>(
       return myVotes;
     });
 
-    // Handler to go back to lobby
-    const goBack = handler<unknown, { lobbyRef: any }>(
-      (_, { lobbyRef }) => {
-        // Navigate back to lobby
-        return navigateTo(lobbyRef);
-      }
-    );
-
     return {
       [NAME]: ifElse(
         derive(myName, (n: string) => n && n.trim().length > 0),
@@ -148,6 +139,7 @@ export default pattern<VoterInput, VoterOutput>(
               </div>
               <ct-message-input
                 placeholder="Enter your name..."
+                submitText="Enter"
                 onct-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {
@@ -161,18 +153,6 @@ export default pattern<VoterInput, VoterOutput>(
               <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#0369a1" }}>
                 Voting as: <strong style={{ fontSize: "1rem", color: "#0c4a6e" }}>{myName}</strong>
               </div>
-            </div>
-          )}
-
-          {/* Back to Lobby Button - only show if lobbyRef is provided */}
-          {lobbyRef && (
-            <div style={{ marginBottom: "1rem" }}>
-              <ct-button
-                onClick={goBack({ lobbyRef })}
-                style="background-color: #6366f1; color: white; font-weight: 500; padding: 0.5rem 1rem; width: 100%;"
-              >
-                ← Back to Lobby
-              </ct-button>
             </div>
           )}
 

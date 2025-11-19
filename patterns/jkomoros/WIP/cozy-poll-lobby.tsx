@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
+import { cell, Cell, Default, derive, handler, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
 import CozyPollBallot from "./cozy-poll-ballot.tsx";
 
 /**
@@ -50,10 +50,9 @@ const findOrCreateVoter = handler<
     options: Cell<Option[]>;
     votes: Cell<Vote[]>;
     voterCharms: Cell<VoterCharmRef[]>;
-    lobbyPattern: any;
   }
 >(
-  (event, { question, options, votes, voterCharms, lobbyPattern }) => {
+  (event, { question, options, votes, voterCharms }) => {
     const name = event.detail?.message?.trim();
 
     if (!name) {
@@ -72,11 +71,10 @@ const findOrCreateVoter = handler<
       votes,
       voterCharms,
       myName: Cell.of(name),  // Pre-populate the name
-      lobbyRef: lobbyPattern,  // Pass lobby for back navigation
     });
 
     console.log(`[Handler] Navigating to voter charm...`);
-    console.log(`[Handler] Note: User should bookmark this URL to return later`);
+    console.log(`[Handler] Note: Use browser back button to return to lobby`);
 
     // Navigate directly - this works!
     // Note: We can't track/store voter charms during handler execution
@@ -121,10 +119,8 @@ export default pattern<ViewerInput, ViewerOutput>(
       });
     });
 
-    // Create pattern output - we'll set lobbyPattern after construction
-    let lobbyPattern: any;
-
-    const lobbyOutput = {
+    // Create output object
+    return {
       [NAME]: str`Poll Lobby - ${question}`,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
@@ -149,7 +145,8 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
             <ct-message-input
               placeholder="Your name..."
-              onct-send={findOrCreateVoter({ question, options, votes, voterCharms, lobbyPattern })}
+              submitText="Join"
+              onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
             />
           </div>
 
@@ -255,10 +252,5 @@ export default pattern<ViewerInput, ViewerOutput>(
       votes,
       voterCharms,
     };
-
-    // Set the lobby pattern reference for handlers to use
-    lobbyPattern = lobbyOutput;
-
-    return lobbyOutput;
   }
 );

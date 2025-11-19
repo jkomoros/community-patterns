@@ -93,6 +93,7 @@ const createVoter = handler<
       question: question.get(),  // Pass as plain value
       options,  // Pass as cell reference (shared)
       votes,    // Pass as cell reference (shared)
+      voterCharms,  // Pass as cell reference (shared)
       myName: Cell.of(""),  // New local cell for this voter
     });
 
@@ -224,6 +225,7 @@ export default pattern<PollInput, PollOutput>(
             </div>
             <ct-message-input
               placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
+              submitText="Set"
               onct-send={(e: { detail: { message: string } }) => {
                 const q = e.detail?.message?.trim();
                 if (q) {
@@ -431,6 +433,7 @@ export default pattern<PollInput, PollOutput>(
           {/* Add Option */}
           <ct-message-input
             placeholder="Add an option (e.g., restaurant name)..."
+            submitText="Add"
             onct-send={(e: { detail: { message: string } }) => {
               const title = e.detail?.message?.trim();
               if (title) {
