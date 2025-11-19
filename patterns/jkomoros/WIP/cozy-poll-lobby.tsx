@@ -50,9 +50,10 @@ const findOrCreateVoter = handler<
     options: Cell<Option[]>;
     votes: Cell<Vote[]>;
     voterCharms: Cell<VoterCharmRef[]>;
+    lobbyPattern: any;
   }
 >(
-  (event, { question, options, votes, voterCharms }) => {
+  (event, { question, options, votes, voterCharms, lobbyPattern }) => {
     const name = event.detail?.message?.trim();
 
     if (!name) {
@@ -69,7 +70,9 @@ const findOrCreateVoter = handler<
       question: question,  // Already a plain value
       options,
       votes,
+      voterCharms,
       myName: Cell.of(name),  // Pre-populate the name
+      lobbyRef: lobbyPattern,  // Pass lobby for back navigation
     });
 
     console.log(`[Handler] Navigating to voter charm...`);
@@ -118,7 +121,10 @@ export default pattern<ViewerInput, ViewerOutput>(
       });
     });
 
-    return {
+    // Create pattern output - we'll set lobbyPattern after construction
+    let lobbyPattern: any;
+
+    const lobbyOutput = {
       [NAME]: str`Poll Lobby - ${question}`,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
@@ -143,7 +149,7 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
             <ct-message-input
               placeholder="Your name..."
-              onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
+              onct-send={findOrCreateVoter({ question, options, votes, voterCharms, lobbyPattern })}
             />
           </div>
 
@@ -249,5 +255,10 @@ export default pattern<ViewerInput, ViewerOutput>(
       votes,
       voterCharms,
     };
+
+    // Set the lobby pattern reference for handlers to use
+    lobbyPattern = lobbyOutput;
+
+    return lobbyOutput;
   }
 );
