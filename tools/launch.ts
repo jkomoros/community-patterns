@@ -291,7 +291,7 @@ async function deployPattern(
   space: string,
   isProd: boolean,
   labsDir: string
-): Promise<boolean> {
+): Promise<string | null> {
   const apiUrl = isProd
     ? "https://api.commontools.io"
     : "http://localhost:8000";
@@ -306,7 +306,7 @@ async function deployPattern(
   Deno.env.set("CT_IDENTITY", IDENTITY_PATH);
   Deno.env.set("CT_API_URL", apiUrl);
 
-  // Run deployment command
+  // Run deployment command - capture output to extract charm ID
   const command = new Deno.Command("deno", {
     args: [
       "task",
@@ -318,19 +318,42 @@ async function deployPattern(
       patternPath,
     ],
     cwd: labsDir,
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: "piped",
+    stderr: "piped",
   });
 
-  const { code } = await command.output();
+  const { code, stdout, stderr } = await command.output();
+
+  // Stream output in real-time
+  const output = new TextDecoder().decode(stdout);
+  const errorOutput = new TextDecoder().decode(stderr);
+
+  if (output) console.log(output);
+  if (errorOutput) console.error(errorOutput);
 
   if (code === 0) {
-    console.log("\n✅ Deployed successfully!");
-    console.log(`   View at: ${apiUrl}/${space}/`);
-    return true;
+    // Extract charm ID from output
+    // Looking for pattern like: "Created charm: <charm-id>" or charm ID in URL
+    const charmIdMatch = output.match(/Created charm[:\s]+([a-f0-9-]+)/i) ||
+                         output.match(/charm[\/\s]+([a-f0-9-]{36})/i) ||
+                         output.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+
+    const charmId = charmIdMatch ? charmIdMatch[1] : null;
+
+    if (charmId) {
+      const fullUrl = `${apiUrl}/${space}/${charmId}`;
+      console.log("\n✅ Deployed successfully!");
+      console.log(`\n🔗 ${fullUrl}\n`);
+      return charmId;
+    } else {
+      console.log("\n✅ Deployed successfully!");
+      console.log(`   View at: ${apiUrl}/${space}/`);
+      console.log("   (Could not extract charm ID from output)\n");
+      return "success";
+    }
   } else {
     console.log("\n❌ Deployment failed");
-    return false;
+    return null;
   }
 }
 
@@ -383,20 +406,17 @@ async function main() {
   }
 
   // Deploy
-  const success = await deployPattern(patternPath, space, isProd, labsDir);
+  const result = await deployPattern(patternPath, space, isProd, labsDir);
 
-  if (success) {
+  if (result) {
     // Update config
     config.lastSpace = space;
     config = recordPatternUsage(config, patternPath);
     await saveConfig(config);
-
-    console.log("\n✨ Done!");
+  } else {
+    // Deployment failed
+    Deno.exit(1);
   }
-
-  // Wait for user to press enter
-  console.log("\nPress Enter to exit...");
-  await prompt("");
 }
 
 if (import.meta.main) {
