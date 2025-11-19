@@ -96,6 +96,19 @@ export default pattern<VoterInput, VoterOutput>(
       return ranks;
     });
 
+    // Derived: Map option IDs to current user's vote
+    const myVoteByOption = derive({ votes, myName }, ({ votes: allVotes, myName: currentName }: { votes: Vote[], myName: string }) => {
+      const myVotes: Record<string, "green" | "yellow" | "red"> = {};
+
+      for (const vote of allVotes) {
+        if (vote.voterName === currentName) {
+          myVotes[vote.optionId] = vote.voteType;
+        }
+      }
+
+      return myVotes;
+    });
+
     return {
       [NAME]: "Voter View",
       [UI]: (
@@ -276,28 +289,37 @@ export default pattern<VoterInput, VoterOutput>(
                   </div>
 
                   {/* Vote buttons */}
-                  <ct-button onClick={() => {
-                    const currentName = myName.get();
-                    const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "green" }]);
-                  }}>
+                  <ct-button
+                    style={myVoteByOption[option.id] === "green" ? "background-color: #22c55e; color: white; font-weight: bold;" : ""}
+                    onClick={() => {
+                      const currentName = myName.get();
+                      const allVotes = votes.get();
+                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "green" }]);
+                    }}
+                  >
                     🟢
                   </ct-button>
-                  <ct-button onClick={() => {
-                    const currentName = myName.get();
-                    const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "yellow" }]);
-                  }}>
+                  <ct-button
+                    style={myVoteByOption[option.id] === "yellow" ? "background-color: #eab308; color: white; font-weight: bold;" : ""}
+                    onClick={() => {
+                      const currentName = myName.get();
+                      const allVotes = votes.get();
+                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "yellow" }]);
+                    }}
+                  >
                     🟡
                   </ct-button>
-                  <ct-button onClick={() => {
-                    const currentName = myName.get();
-                    const allVotes = votes.get();
-                    const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
-                    votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "red" }]);
-                  }}>
+                  <ct-button
+                    style={myVoteByOption[option.id] === "red" ? "background-color: #ef4444; color: white; font-weight: bold;" : ""}
+                    onClick={() => {
+                      const currentName = myName.get();
+                      const allVotes = votes.get();
+                      const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
+                      votes.set([...filtered, { voterName: currentName, optionId: option.id, voteType: "red" }]);
+                    }}
+                  >
                     🔴
                   </ct-button>
                   <ct-button onClick={() => {
