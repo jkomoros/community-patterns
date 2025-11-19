@@ -539,8 +539,12 @@ async function deployPattern(
 
   if (code === 0) {
     // Extract charm ID from output
-    // Try multiple patterns to find the charm ID (UUID format)
+    // Try multiple patterns to find the charm ID
     const patterns = [
+      // Base32 encoded ID (starts with baedr, baed, etc.) - CommonTools format
+      /^(ba[a-z0-9]{50,})$/m,
+      // On its own line at the end
+      /\n(ba[a-z0-9]{50,})\s*$/,
       // Standard UUID pattern anywhere in output
       /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i,
       // After "charm" or "Charm"
