@@ -141,6 +141,18 @@ const createViewer = handler<
   },
 );
 
+// Utility function to get initials from a name
+function getInitials(name: string): string {
+  if (!name || typeof name !== 'string') return '?';
+  return name
+    .trim()
+    .split(/\s+/)
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 3); // Max 3 initials
+}
+
 export default pattern<PollInput, PollOutput>(
   ({ question, options, votes, voterCharms, nextOptionId }) => {
 
@@ -225,7 +237,6 @@ export default pattern<PollInput, PollOutput>(
             </div>
             <ct-message-input
               placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
-              submitText="Set"
               onct-send={(e: { detail: { message: string } }) => {
                 const q = e.detail?.message?.trim();
                 if (q) {
@@ -310,36 +321,45 @@ export default pattern<PollInput, PollOutput>(
                   </div>
                   <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
                     {votesByOption[ranked.option.id]?.green?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#22c55e",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#22c55e",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                     {votesByOption[ranked.option.id]?.yellow?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#eab308",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#eab308",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                     {votesByOption[ranked.option.id]?.red?.map((voterName) => (
-                      <span style={{
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        padding: "0.125rem 0.375rem",
-                        borderRadius: "9999px",
-                        fontWeight: "600"
-                      }}>
-                        {voterName}
+                      <span
+                        title={voterName}
+                        style={{
+                          backgroundColor: "#ef4444",
+                          color: "white",
+                          padding: "0.125rem 0.375rem",
+                          borderRadius: "9999px",
+                          fontWeight: "600",
+                          cursor: "default"
+                        }}>
+                        {getInitials(voterName)}
                       </span>
                     ))}
                   </div>
@@ -377,36 +397,45 @@ export default pattern<PollInput, PollOutput>(
                     {votesByOption[option.id] && (
                       <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
                         {votesByOption[option.id]?.green?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#22c55e",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
+                          <span
+                            title={voterName}
+                            style={{
+                              backgroundColor: "#22c55e",
+                              color: "white",
+                              padding: "0.125rem 0.375rem",
+                              borderRadius: "9999px",
+                              fontWeight: "600",
+                              cursor: "default"
+                            }}>
+                            {getInitials(voterName)}
                           </span>
                         ))}
                         {votesByOption[option.id]?.yellow?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#eab308",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
+                          <span
+                            title={voterName}
+                            style={{
+                              backgroundColor: "#eab308",
+                              color: "white",
+                              padding: "0.125rem 0.375rem",
+                              borderRadius: "9999px",
+                              fontWeight: "600",
+                              cursor: "default"
+                            }}>
+                            {getInitials(voterName)}
                           </span>
                         ))}
                         {votesByOption[option.id]?.red?.map((voterName) => (
-                          <span style={{
-                            backgroundColor: "#ef4444",
-                            color: "white",
-                            padding: "0.125rem 0.375rem",
-                            borderRadius: "9999px",
-                            fontWeight: "600"
-                          }}>
-                            {voterName}
+                          <span
+                            title={voterName}
+                            style={{
+                              backgroundColor: "#ef4444",
+                              color: "white",
+                              padding: "0.125rem 0.375rem",
+                              borderRadius: "9999px",
+                              fontWeight: "600",
+                              cursor: "default"
+                            }}>
+                            {getInitials(voterName)}
                           </span>
                         ))}
                       </div>
@@ -433,7 +462,6 @@ export default pattern<PollInput, PollOutput>(
           {/* Add Option */}
           <ct-message-input
             placeholder="Add an option (e.g., restaurant name)..."
-            submitText="Add"
             onct-send={(e: { detail: { message: string } }) => {
               const title = e.detail?.message?.trim();
               if (title) {
