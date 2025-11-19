@@ -110,12 +110,22 @@ export default pattern<VoterInput, VoterOutput>(
       return myVotes;
     });
 
+    // Derived: Compute charm title based on voter name and question
+    const charmName = derive(myName, (currentName: string) => {
+      // Handle case where currentName might be wrapped in Default object
+      const name = typeof currentName === 'string' ? currentName : String(currentName || '');
+
+      if (name && question) {
+        return `${name} - ${question} - Voter`;
+      } else if (question) {
+        return `${question} - Voter`;
+      } else {
+        return "Voter View";
+      }
+    });
+
     return {
-      [NAME]: myName && question
-        ? `${myName} - ${question} - Voter`
-        : question
-          ? `${question} - Voter`
-          : "Voter View",
+      [NAME]: charmName,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>
