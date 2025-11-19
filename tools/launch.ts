@@ -371,7 +371,16 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
   // Build options for interactive selection
   const options: SelectOption[] = [];
 
-  // Add entries
+  // Add "up" navigation first
+  if (currentPath !== "/") {
+    options.push({
+      label: ".. (Go up one directory)",
+      value: "__up__",
+      icon: "⬆️  ",
+    });
+  }
+
+  // Add entries (directories and files)
   entries.forEach((entry) => {
     const icon = entry.isDir ? "📁 " : "📄 ";
     options.push({
@@ -381,14 +390,7 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
     });
   });
 
-  // Add navigation actions
-  if (currentPath !== "/") {
-    options.push({
-      label: ".. (Go up one directory)",
-      value: "__up__",
-      icon: "⬆️  ",
-    });
-  }
+  // Add manual path entry at the end
   options.push({
     label: "Enter absolute path manually...",
     value: "__manual__",
