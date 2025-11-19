@@ -296,7 +296,9 @@ export default pattern<VoterInput, VoterOutput>(
 
                   {/* Vote buttons */}
                   <ct-button
-                    style={myVoteByOption[option.id] === "green" ? "background-color: #22c55e; color: white; font-weight: bold;" : ""}
+                    style={myVoteByOption[option.id] === "green"
+                      ? "background-color: #22c55e; color: white; font-weight: bold; border: 2px solid #16a34a;"
+                      : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
                     onClick={() => {
                       const currentName = myName.get();
                       const allVotes = votes.get();
@@ -307,7 +309,9 @@ export default pattern<VoterInput, VoterOutput>(
                     🟢
                   </ct-button>
                   <ct-button
-                    style={myVoteByOption[option.id] === "yellow" ? "background-color: #eab308; color: white; font-weight: bold;" : ""}
+                    style={myVoteByOption[option.id] === "yellow"
+                      ? "background-color: #eab308; color: white; font-weight: bold; border: 2px solid #ca8a04;"
+                      : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
                     onClick={() => {
                       const currentName = myName.get();
                       const allVotes = votes.get();
@@ -318,7 +322,9 @@ export default pattern<VoterInput, VoterOutput>(
                     🟡
                   </ct-button>
                   <ct-button
-                    style={myVoteByOption[option.id] === "red" ? "background-color: #ef4444; color: white; font-weight: bold;" : ""}
+                    style={myVoteByOption[option.id] === "red"
+                      ? "background-color: #ef4444; color: white; font-weight: bold; border: 2px solid #dc2626;"
+                      : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
                     onClick={() => {
                       const currentName = myName.get();
                       const allVotes = votes.get();
