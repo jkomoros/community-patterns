@@ -38,7 +38,8 @@ const launchFromInput = handler<
   const newItem: HistoryItem = { url: fullUrl, timestamp: Date.now() };
   history.set([newItem, ...currentHistory.filter(h => h.url !== fullUrl)]);
 
-  // Launch the pattern
+  // Clear first to reset the reactive chain, then launch
+  selectedPatternUrl.set(undefined);
   selectedPatternUrl.set(fullUrl);
 
   // Clear input
