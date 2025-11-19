@@ -1,5 +1,6 @@
 # Workspace config (never commit!)
 .claude-workspace
+.launcher-config
 
 # Claude settings (never commit!)
 .claude/settings.local.json
