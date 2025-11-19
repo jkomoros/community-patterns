@@ -63,13 +63,54 @@ function formatTimeSince(timestamp: string): string {
 }
 
 function getShortPath(absolutePath: string): string {
-  // Try to make path relative to community-patterns
-  const cwd = Deno.cwd();
-  if (absolutePath.startsWith(cwd)) {
-    return absolutePath.slice(cwd.length + 1);
+  // Parse path to extract: filename, repo, username, WIP status
+  // Example: /Users/alex/Code/community-patterns/patterns/jkomoros/WIP/cozy-poll.tsx
+  // Result: "cozy-poll.tsx  (community-patterns/jkomoros/WIP)"
+
+  const parts = absolutePath.split("/");
+  const filename = parts[parts.length - 1];
+
+  // Find the repo directory (look for common repo names)
+  let repoIndex = -1;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (
+      part === "labs" ||
+      part === "recipes" ||
+      part.startsWith("community-patterns")
+    ) {
+      repoIndex = i;
+      break;
+    }
   }
-  // Otherwise show just filename
-  return absolutePath.split("/").pop() || absolutePath;
+
+  if (repoIndex === -1) {
+    // Can't determine repo structure, just return filename
+    return filename;
+  }
+
+  const repo = parts[repoIndex];
+
+  // Look for patterns directory after repo
+  const patternsIndex = parts.indexOf("patterns", repoIndex);
+  if (patternsIndex === -1 || patternsIndex + 1 >= parts.length) {
+    // No patterns directory found, just return filename
+    return filename;
+  }
+
+  // Username is right after patterns/
+  const username = parts[patternsIndex + 1];
+
+  // Check if WIP is in the path
+  const isWIP = parts.includes("WIP");
+
+  // Build the tag
+  const tags = [repo, username];
+  if (isWIP) {
+    tags.push("WIP");
+  }
+
+  return `${filename}  (${tags.join("/")})`;
 }
 
 async function prompt(message: string, defaultValue?: string): Promise<string> {
