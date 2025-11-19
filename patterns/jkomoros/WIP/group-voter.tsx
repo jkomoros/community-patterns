@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, handler, lift, NAME, navigateTo, OpaqueRef, pattern, toSchema, UI } from "commontools";
+import { Cell, cell, Default, derive, handler, ifElse, lift, NAME, navigateTo, OpaqueRef, pattern, str, toSchema, UI } from "commontools";
 import GroupVoterView from "./group-voter-view.tsx";
 
 /**
@@ -192,13 +192,12 @@ export default pattern<PollInput, PollOutput>(
       return myVotes;
     });
 
-    // Derived: Compute charm title based on question
-    const charmName = derive(question, (q: string) => {
-      return q ? `Group Voter: ${q}` : "Group Voter";
-    });
-
     return {
-      [NAME]: charmName,
+      [NAME]: ifElse(
+        derive(question, (q: string) => q && q.trim().length > 0),
+        str`Poll - ${question}`,
+        str`Poll`
+      ),
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>

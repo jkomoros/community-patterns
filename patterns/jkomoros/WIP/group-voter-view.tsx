@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, ifElse, NAME, pattern, str, UI } from "commontools";
 
 /**
  * Group Voter View Pattern
@@ -110,24 +110,12 @@ export default pattern<VoterInput, VoterOutput>(
       return myVotes;
     });
 
-    // Derived: Compute charm title based on voter name and question
-    const charmName = derive(myName, (currentName: string) => {
-      // Check if we have a valid non-empty string name
-      const hasValidName = typeof currentName === 'string' && currentName.trim().length > 0;
-
-      if (hasValidName && question) {
-        return `${currentName} - ${question} - Voter`;
-      } else if (question) {
-        return `${question} - Voter`;
-      } else if (hasValidName) {
-        return `${currentName} - Voter`;
-      } else {
-        return "Voter View";
-      }
-    });
-
     return {
-      [NAME]: charmName,
+      [NAME]: ifElse(
+        derive(myName, (n: string) => n && n.trim().length > 0),
+        str`${myName} - ${question} - Voter`,
+        str`${question} - Voter`
+      ),
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>
