@@ -141,8 +141,8 @@ const createViewer = handler<
   },
 );
 
-// Handler to clone the poll (same question and options, no votes)
-const clonePoll = handler<
+// Handler to start a new poll session (creates fresh lobby with same question/options, no votes)
+const startNewSession = handler<
   unknown,
   {
     question: Cell<string>;
@@ -150,51 +150,31 @@ const clonePoll = handler<
   }
 >(
   (_, { question, options }) => {
-    console.log("Cloning poll...");
+    console.log("Starting new poll session...");
 
     // Get current data
     const currentQuestion = question.get();
     const currentOptions = options.get();
 
-    // Create new cells for the cloned poll
-    const newQuestion = cell(currentQuestion);
-    const newOptions = cell(currentOptions.map(opt => ({
-      ...opt,
-      id: `option-${Math.random().toString(36).substring(2, 10)}`  // New IDs to avoid conflicts
-    })));
+    // Create new cells for the fresh session
     const newVotes = cell<Vote[]>([]);
     const newVoterCharms = cell<VoterCharmRef[]>([]);
-    const newNextOptionId = cell(currentOptions.length + 1);
 
-    // Create new poll instance by re-importing the default export
-    // Note: This creates a fresh poll with the same question/options but no votes
-    const CozyPoll = pattern<PollInput, PollOutput>(
-      ({ question, options, votes, voterCharms, nextOptionId }) => {
-        // This is a simplified version - the full pattern will be created by navigateTo
-        return {
-          [NAME]: str`Poll - ${question}`,
-          [UI]: <div>Loading cloned poll...</div>,
-          question,
-          options,
-          votes,
-          voterCharms,
-          nextOptionId,
-        };
-      }
-    );
+    console.log(`Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`);
 
-    const clonedPoll = CozyPoll({
-      question: newQuestion,
-      options: newOptions,
-      votes: newVotes,
-      voterCharms: newVoterCharms,
-      nextOptionId: newNextOptionId,
+    // Create a new lobby with the same question/options but no votes
+    // This gives you a fresh poll session to share with a new group
+    const lobbyInstance = CozyPollLobby({
+      question: currentQuestion,
+      options,  // Keep the same options cell (admin can still edit)
+      votes: newVotes,  // Fresh votes
+      voterCharms: newVoterCharms,  // Fresh voter list
     });
 
-    console.log("Navigating to cloned poll...");
+    console.log("Navigating to fresh lobby...");
 
-    // Navigate to the new poll
-    return navigateTo(clonedPoll);
+    // Navigate to the new lobby
+    return navigateTo(lobbyInstance);
   },
 );
 
@@ -551,9 +531,9 @@ export default pattern<PollInput, PollOutput>(
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <ct-button
-                onClick={clonePoll({ question, options })}
+                onClick={startNewSession({ question, options })}
               >
-                📋 Clone Poll
+                🔄 Start New Session
               </ct-button>
               <ct-button
                 onClick={() => {
@@ -570,6 +550,9 @@ export default pattern<PollInput, PollOutput>(
               >
                 Clear All Options
               </ct-button>
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.5rem" }}>
+              "Start New Session" creates a fresh lobby with the same question/options but no votes - perfect for reusing this poll with a different group.
             </div>
           </div>
         </div>
