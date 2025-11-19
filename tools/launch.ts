@@ -329,16 +329,63 @@ async function selectPattern(config: Config): Promise<string | null> {
   );
 
   if (selection === "__browse__") {
-    return await browseForPattern();
+    return await browseForPattern(config);
   }
 
   return selection;
 }
 
-async function browseForPattern(): Promise<string | null> {
-  // Start in the patterns directory
-  const startDir = `${REPO_ROOT}patterns/`;
-  return await navigateDirectory(startDir);
+async function browseForPattern(config: Config): Promise<string | null> {
+  // Extract unique directories from pattern history
+  const recentDirs = new Set<string>();
+
+  for (const pattern of config.patterns) {
+    // Get the directory containing this pattern
+    const dir = pattern.path.substring(0, pattern.path.lastIndexOf("/") + 1);
+    if (dir) {
+      recentDirs.add(dir);
+    }
+  }
+
+  const dirArray = Array.from(recentDirs).slice(0, 10); // Show up to 10 recent dirs
+
+  // Build options
+  const options: SelectOption[] = [];
+
+  // Add recent directories
+  if (dirArray.length > 0) {
+    dirArray.forEach((dir) => {
+      const shortDir = dir.replace(Deno.env.get("HOME") || "", "~");
+      options.push({
+        label: shortDir,
+        value: dir,
+        icon: "📁 ",
+      });
+    });
+  }
+
+  // Add browse option
+  options.push({
+    label: "Browse from patterns/ directory...",
+    value: "__browse__",
+    icon: "🔍 ",
+  });
+
+  const selection = await interactiveSelect(
+    options,
+    "📂 Quick navigate to a recent folder, or browse:\n(↑/↓ to move, Enter to select, Q to cancel)"
+  );
+
+  if (selection === "__browse__") {
+    // Start in the patterns directory
+    const startDir = `${REPO_ROOT}patterns/`;
+    return await navigateDirectory(startDir);
+  } else if (selection) {
+    // Navigate to the selected directory
+    return await navigateDirectory(selection);
+  } else {
+    return null;
+  }
 }
 
 async function navigateDirectory(currentPath: string): Promise<string | null> {
