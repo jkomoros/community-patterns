@@ -151,6 +151,7 @@ export default pattern<VoterInput, VoterOutput>(
               </div>
               <ct-message-input
                 placeholder="Enter your name..."
+                button-text="Set Name"
                 onct-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {

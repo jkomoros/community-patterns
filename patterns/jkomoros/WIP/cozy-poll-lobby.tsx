@@ -258,6 +258,7 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
             <ct-message-input
               placeholder="Your name..."
+              button-text="Join Poll"
               onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
             />
           </div>
