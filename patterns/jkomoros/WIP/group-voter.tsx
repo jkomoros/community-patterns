@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, handler, lift, NAME, OpaqueRef, pattern, toSchema, UI } from "commontools";
+import { Cell, cell, Default, derive, handler, lift, NAME, navigateTo, OpaqueRef, pattern, toSchema, UI } from "commontools";
 import GroupVoterView from "./group-voter-view.tsx";
 
 /**
@@ -99,12 +99,17 @@ const createVoter = handler<
 
     console.log("Voter created, storing with lift...");
 
-    // Store and return the voter instance
-    return storeVoter({
+    // Store the voter instance and navigate to it
+    const storedCharm = storeVoter({
       charm: voterInstance,
       voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
       isInitialized: isInitialized as unknown as Cell<boolean>,
     });
+
+    console.log("Navigating to voter charm...");
+
+    // Navigate the user to their new voter charm
+    return navigateTo(storedCharm || voterInstance);
   },
 );
 
@@ -187,8 +192,13 @@ export default pattern<PollInput, PollOutput>(
       return myVotes;
     });
 
+    // Derived: Compute charm title based on question
+    const charmName = derive(question, (q: string) => {
+      return q ? `Group Voter: ${q}` : "Group Voter";
+    });
+
     return {
-      [NAME]: question ? `Group Voter: ${question}` : "Group Voter",
+      [NAME]: charmName,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "600px", margin: "0 auto" }}>
           <h2 style={{ marginBottom: "1rem" }}>Group Decision Maker</h2>
