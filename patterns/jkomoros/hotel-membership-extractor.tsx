@@ -298,9 +298,27 @@ Return empty array if no NEW memberships found.`,
     queryGeneratorInput: Cell<string>;
     isScanning: Cell<Default<boolean, false>>;
     currentQuery: Cell<Default<string, "">>;
+    auth: Cell<Default<{
+      token: string;
+      tokenType: string;
+      scope: string[];
+      expiresIn: number;
+      expiresAt: number;
+      refreshToken: string;
+      user: { email: string; name: string; picture: string };
+    }, {
+      token: "";
+      tokenType: "";
+      scope: [];
+      expiresIn: 0;
+      expiresAt: 0;
+      refreshToken: "";
+      user: { email: ""; name: ""; picture: "" };
+    }>>;
   }>((_, state) => {
-    // Check if authenticated by looking at auth charm
-    const authenticated = isAuthenticated.get();
+    // Check if authenticated by looking at auth cell directly
+    const authData = state.auth.get();
+    const authenticated = !!(authData && authData.token && authData.user && authData.user.email);
 
     if (!authenticated) {
       // Don't start scan if not authenticated - just return silently
@@ -424,7 +442,7 @@ Return empty array if no NEW memberships found.`,
 
               {/* Scan button - disabled if not authenticated or currently scanning */}
               <ct-button
-                onClick={startScan({ queryGeneratorInput, isScanning, currentQuery })}
+                onClick={startScan({ queryGeneratorInput, isScanning, currentQuery, auth })}
                 size="lg"
                 disabled={derive([isAuthenticated, isScanning], ([authenticated, scanning]) =>
                   !authenticated || scanning
