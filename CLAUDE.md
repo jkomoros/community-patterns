@@ -176,7 +176,9 @@ echo "Shell (frontend): http://localhost:5173"
 # Read workspace config (created during first-time setup)
 if [ -f .claude-workspace ]; then
   GITHUB_USER=$(grep "^username=" .claude-workspace | cut -d= -f2)
+  IS_FORK=$(grep "^is_fork=" .claude-workspace | cut -d= -f2)
   echo "Loaded workspace: patterns/$GITHUB_USER/"
+  echo "Repository type: $([ "$IS_FORK" = "true" ] && echo "fork" || echo "upstream")"
 else
   echo "ERROR: .claude-workspace not found - run GETTING_STARTED.md first"
   exit 1
@@ -189,13 +191,22 @@ fi
 ORIGIN_URL=$(git remote get-url origin)
 GITHUB_USER=$(echo "$ORIGIN_URL" | sed -E 's/.*[:/]([^/]+)\/community-patterns.*/\1/')
 
+# Detect if this is a fork (has upstream remote)
+if git remote get-url upstream >/dev/null 2>&1; then
+  IS_FORK=true
+else
+  IS_FORK=false
+fi
+
 # Create workspace config file
 cat > .claude-workspace << EOF
 username=$GITHUB_USER
+is_fork=$IS_FORK
 setup_complete=true
 EOF
 
 echo "Created .claude-workspace for: $GITHUB_USER"
+echo "Repository type: $([ "$IS_FORK" = "true" ] && echo "fork" || echo "upstream")"
 ```
 
 **Confirm with user:**
@@ -204,6 +215,17 @@ Ready to work! Your workspace: patterns/$GITHUB_USER/
 
 What would you like to work on today?
 ```
+
+**About `is_fork` configuration:**
+- **Fork** (`is_fork=true`): User has their own fork with `upstream` remote pointing to jkomoros/community-patterns
+  - PRs go from their fork to upstream
+  - Fetch/rebase from `upstream/main` before creating PRs
+  - Most common scenario for contributors
+- **Direct** (`is_fork=false`): User working directly on jkomoros/community-patterns (e.g., jkomoros or collaborators)
+  - PRs go from feature branch to main in same repo
+  - Fetch/rebase from `origin/main` before creating PRs
+  - Less common, requires write access to upstream
+- This value is cached to avoid repeatedly checking `git remote` - it won't change during development
 
 ### Step 3: Check and Start Dev Servers (If Needed)
 
@@ -277,8 +299,8 @@ fi
 ## Repository Structure
 
 ```
-community-patterns/        # THIS REPO (user's fork)
-├── .claude-workspace      # Workspace config: username, setup status (gitignored)
+community-patterns/        # THIS REPO (user's fork or direct)
+├── .claude-workspace      # Workspace config: username, is_fork, setup status (gitignored)
 ├── claude.key             # Identity key for deploying patterns (gitignored)
 ├── CLAUDE.md              # This file - Claude's instructions
 ├── GETTING_STARTED.md     # First-time setup guide (Claude-guided)
@@ -697,11 +719,14 @@ git push origin main
 
 #### Step 0: Update and Rebase Before Creating PR
 
-**First, detect if working on fork or main repo:**
+**Use cached repository type from workspace config:**
 
 ```bash
-# Check if upstream remote exists (indicates fork)
-if git remote get-url upstream >/dev/null 2>&1; then
+# Read IS_FORK from .claude-workspace (set during Step 2)
+IS_FORK=$(grep "^is_fork=" .claude-workspace | cut -d= -f2)
+
+# Determine which remote to use
+if [ "$IS_FORK" = "true" ]; then
   echo "Working on fork - will fetch from upstream"
   MAIN_REMOTE="upstream"
 else
