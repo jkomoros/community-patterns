@@ -214,6 +214,92 @@ Return empty array if no NEW memberships found.`,
     state.queryGeneratorInput.set(`START-${Date.now()}`);
   });
 
+  // Handler to apply query and fetch emails
+  const applyQuery = handler<unknown, {
+    currentQuery: Cell<Default<string, "">>;
+    queryResult: typeof queryResult;
+  }>((_, state) => {
+    const result = state.queryResult.get();
+    if (result && result.query && result.query !== "done") {
+      state.currentQuery.set(result.query);
+    }
+  });
+
+  // Handler to trigger extraction
+  const triggerExtraction = handler<unknown, {
+    extractorInput: Cell<string>;
+  }>((_, state) => {
+    state.extractorInput.set(`EXTRACT-${Date.now()}`);
+  });
+
+  // Handler to process extraction results and update state
+  const processResults = handler<unknown, {
+    memberships: Cell<Default<MembershipRecord[], []>>;
+    extractorResult: typeof extractorResult;
+    queryResult: typeof queryResult;
+    searchedBrands: Cell<Default<string[], []>>;
+    searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
+    unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
+    emails: Cell<any[]>;
+    scannedEmailIds: Cell<Default<string[], []>>;
+    lastScanAt: Cell<Default<number, 0>>;
+    isScanning: Cell<Default<boolean, false>>;
+  }>((_, state) => {
+    const extracted = state.extractorResult.get();
+    const query = state.queryResult.get();
+    const currentMemberships = state.memberships.get();
+    const emailsList = state.emails.get();
+    const scanned = state.scannedEmailIds.get();
+    const currentUnsearched = state.unsearchedBrands.get();
+    const currentSearched = state.searchedBrands.get();
+    const currentNotFound = state.searchedNotFound.get();
+
+    if (!extracted || !query) return;
+
+    const selectedBrand = query.selectedBrand;
+    const extractedMemberships = extracted.memberships || [];
+
+    // Add new memberships with unique IDs and extractedAt timestamp
+    const newMemberships = extractedMemberships.map((m: any) => ({
+      ...m,
+      id: `${m.hotelBrand}-${m.membershipNumber}-${Date.now()}`,
+      extractedAt: Date.now(),
+    }));
+
+    // Update memberships array
+    state.memberships.set([...currentMemberships, ...newMemberships]);
+
+    // Update scanned email IDs
+    const emailIds = emailsList.map(e => e.id);
+    state.scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
+
+    // Update brand tracking
+    const newUnsearched = currentUnsearched.filter(b => b !== selectedBrand);
+    state.unsearchedBrands.set(newUnsearched);
+
+    if (newMemberships.length > 0) {
+      // Found memberships - add to searchedBrands
+      if (!currentSearched.includes(selectedBrand)) {
+        state.searchedBrands.set([...currentSearched, selectedBrand]);
+      }
+    } else {
+      // No memberships found - add to searchedNotFound with timestamp
+      const alreadyNotFound = currentNotFound.find(r => r.brand === selectedBrand);
+      if (!alreadyNotFound) {
+        state.searchedNotFound.set([
+          ...currentNotFound,
+          { brand: selectedBrand, searchedAt: Date.now() },
+        ]);
+      }
+    }
+
+    // Update last scan timestamp
+    state.lastScanAt.set(Date.now());
+
+    // Clear scanning flag
+    state.isScanning.set(false);
+  });
+
   return {
     [NAME]: "🏨 Hotel Membership Extractor",
     [UI]: (
@@ -224,18 +310,50 @@ Return empty array if no NEW memberships found.`,
 
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
-            {/* Scan Button */}
-            <div>
+            {/* Workflow Buttons */}
+            <ct-vstack gap={2}>
               <ct-button
                 onClick={startScan({ isScanning, queryGeneratorInput })}
                 size="lg"
                 disabled={isScanning}
               >
                 {derive(isScanning, (scanning) =>
-                  scanning ? "🔄 Scanning..." : "🔍 Scan for Memberships"
+                  scanning ? "🔄 Scanning..." : "🔍 Step 1: Generate Query"
                 )}
               </ct-button>
-            </div>
+
+              <ct-button
+                onClick={applyQuery({ currentQuery, queryResult })}
+                disabled={derive(queryPending, (p) => p)}
+              >
+                📥 Step 2: Fetch Emails
+              </ct-button>
+
+              <ct-button
+                onClick={triggerExtraction({ extractorInput })}
+                disabled={derive(extractorPending, (p) => p)}
+              >
+                🔍 Step 3: Extract Memberships
+              </ct-button>
+
+              <ct-button
+                onClick={processResults({
+                  memberships,
+                  extractorResult,
+                  queryResult,
+                  searchedBrands,
+                  searchedNotFound,
+                  unsearchedBrands,
+                  emails,
+                  scannedEmailIds,
+                  lastScanAt,
+                  isScanning,
+                })}
+                disabled={derive(extractorPending, (p) => p)}
+              >
+                ✅ Step 4: Save Results
+              </ct-button>
+            </ct-vstack>
 
             {/* Summary Stats */}
             <div style="fontSize: 13px; color: #666;">
