@@ -10,7 +10,7 @@
 
 // Get repo root (one level up from tools/)
 const REPO_ROOT = new URL("..", import.meta.url).pathname;
-const CONFIG_FILE = `${REPO_ROOT}.launcher-config`;
+const CONFIG_FILE = `${REPO_ROOT}.launcher-history`;
 const DEFAULT_LABS_DIR = `${REPO_ROOT}../labs`;
 const IDENTITY_PATH = `${REPO_ROOT}claude.key`;
 
