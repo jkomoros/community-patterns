@@ -163,13 +163,22 @@ chmod 600 claude.key
 # Get username
 GITHUB_USER=$(git remote get-url origin | sed -E 's/.*[:/]([^/]+)\/community-patterns.*/\1/')
 
+# Detect if this is a fork (has upstream remote)
+if git remote get-url upstream >/dev/null 2>&1; then
+  IS_FORK=true
+else
+  IS_FORK=false
+fi
+
 # Create workspace config
 cat > .claude-workspace << EOF
 username=$GITHUB_USER
+is_fork=$IS_FORK
 setup_complete=true
 EOF
 
 echo "Created workspace for: $GITHUB_USER"
+echo "Repository type: $([ "$IS_FORK" = "true" ] && echo "fork" || echo "upstream")"
 ```
 
 ---
