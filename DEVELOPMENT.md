@@ -388,7 +388,7 @@ Note: claude.key is at repo root, not in your pattern directory
 - Clear separation of work-in-progress vs stable
 - `lib/` keeps upstream patterns pristine for reference
 - Easy to see what you're actively working on
-- Matches the structure used in the main recipes repo
+- Matches the structure used in the main patterns repo
 
 **Example workflow:**
 ```bash
