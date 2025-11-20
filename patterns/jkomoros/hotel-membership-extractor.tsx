@@ -125,6 +125,12 @@ Return the selected brand name and the query string.`,
 
   const emails = importer.emails;
 
+  // Check if Gmail is authenticated by checking if auth has a valid token
+  const isAuthenticated = derive([auth], ([authCharm]) => {
+    const authData = authCharm?.auth;
+    return !!(authData && authData.token && authData.user && authData.user.email);
+  });
+
   // AGENTIC: Automatically trigger extraction when emails arrive
   // Create a stable trigger based on email IDs so it only fires when emails actually change
   const autoExtractorTrigger = derive([emails, queryPending, isScanning], ([emailList, qPending, scanning]) => {
@@ -223,12 +229,44 @@ Return empty array if no NEW memberships found.`,
 
   const totalMemberships = derive(memberships, (list) => list.length);
 
+  // Auto-reset isScanning if it's stale (e.g., after page refresh with no active workflow)
+  // This prevents the button from being stuck in "Scanning..." state
+  const shouldResetScanning = derive(
+    [isScanning, queryPending, extractorPending],
+    ([scanning, qPending, ePending]) => {
+      // If scanning is true but no LLMs are pending, it's stale - should reset
+      return scanning && !qPending && !ePending;
+    }
+  );
+
+  // Handler to reset stale scanning state
+  const resetScanningIfStale = handler<unknown, {
+    isScanning: Cell<Default<boolean, false>>;
+  }>((_, state) => {
+    const shouldReset = shouldResetScanning.get();
+    const scanning = state.isScanning.get();
+
+    // Only reset if both conditions are true (defensive check)
+    if (shouldReset && scanning) {
+      state.isScanning.set(false);
+    }
+  });
+
   // AGENTIC: Single handler to start the scan workflow
   const startScan = handler<unknown, {
     queryGeneratorInput: Cell<string>;
     isScanning: Cell<Default<boolean, false>>;
     currentQuery: Cell<Default<string, "">>;
   }>((_, state) => {
+    // Check if authenticated by looking at auth charm
+    const authenticated = isAuthenticated.get();
+
+    if (!authenticated) {
+      // Don't start scan if not authenticated - just return silently
+      // The button should be disabled anyway, but this is a safety check
+      return;
+    }
+
     // Set scanning flag
     state.isScanning.set(true);
     // Clear any old query
@@ -332,15 +370,42 @@ Return empty array if no NEW memberships found.`,
           <ct-vstack style="padding: 16px; gap: 16px;">
             {/* Scan Control */}
             <ct-vstack gap={2}>
+              {/* Authentication warning */}
+              {derive(isAuthenticated, (authenticated) =>
+                !authenticated ? (
+                  <div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 8px; fontSize: 13px; textAlign: center;">
+                    ⚠️ Please authenticate with Gmail in Settings below before scanning
+                  </div>
+                ) : null
+              )}
+
+              {/* Scan button - disabled if not authenticated or currently scanning */}
               <ct-button
                 onClick={startScan({ queryGeneratorInput, isScanning, currentQuery })}
                 size="lg"
-                disabled={isScanning}
-              >
-                {derive(isScanning, (scanning) =>
-                  scanning ? "⏳ Scanning..." : "🔍 Scan for Hotel Memberships"
+                disabled={derive([isAuthenticated, isScanning], ([authenticated, scanning]) =>
+                  !authenticated || scanning
                 )}
+              >
+                {derive([isAuthenticated, isScanning], ([authenticated, scanning]) => {
+                  if (!authenticated) return "🔒 Authenticate First";
+                  if (scanning) return "⏳ Scanning...";
+                  return "🔍 Scan for Hotel Memberships";
+                })}
               </ct-button>
+
+              {/* Reset button for stuck state (only shows if scanning but no LLMs active) */}
+              {derive(shouldResetScanning, (shouldReset) =>
+                shouldReset ? (
+                  <ct-button
+                    onClick={resetScanningIfStale({ isScanning })}
+                    size="sm"
+                    style="background: #ef4444; color: white;"
+                  >
+                    🔄 Reset Stuck Scan
+                  </ct-button>
+                ) : null
+              )}
 
               {/* Progress Status */}
               {derive(scanStatus, (status) =>
