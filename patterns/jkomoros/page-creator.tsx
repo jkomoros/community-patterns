@@ -10,6 +10,8 @@ import MetaAnalyzer from "./meta-analyzer.tsx";
 import FoodRecipe from "./food-recipe.tsx";
 import PromptInjectionTracker from "./prompt-injection-tracker.tsx";
 import SubstackSummarizer from "./substack-summarizer.tsx";
+import CozyPoll from "./cozy-poll.tsx";
+import RewardSpinner from "./reward-spinner.tsx";
 
 type Input = void;
 type Output = {
@@ -103,6 +105,28 @@ const createSubstackSummarizer = handler<void, void>((_, __) => {
   }));
 });
 
+const createCozyPoll = handler<void, void>((_, __) => {
+  return navigateTo(CozyPoll({
+    question: "",
+    options: [],
+    votes: [],
+    voterCharms: [],
+    nextOptionId: 1,
+  }));
+});
+
+const createRewardSpinner = handler<void, void>((_, __) => {
+  return navigateTo(RewardSpinner({
+    currentEmoji: "🎁",
+    isSpinning: false,
+    generosity: 10,
+    spinSequence: [],
+    spinCount: 0,
+    payoutAnimationCount: 0,
+    spinHistory: [],
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -179,6 +203,20 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   📧 Substack Summarizer
+                </ct-button>
+
+                <ct-button
+                  onClick={createCozyPoll()}
+                  size="lg"
+                >
+                  🗳️ Cozy Poll
+                </ct-button>
+
+                <ct-button
+                  onClick={createRewardSpinner()}
+                  size="lg"
+                >
+                  🎰 Reward Spinner
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
