@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -31,6 +31,7 @@ interface HotelMembershipInput {
   unsearchedBrands: Default<string[], ["Marriott"]>;
   currentQuery: Default<string, "">;
   isScanning: Default<boolean, false>;
+  queryGeneratorInput: Default<string, "">;  // Trigger cell for LLM query generation
 }
 
 export default pattern<HotelMembershipInput>(({
@@ -42,6 +43,7 @@ export default pattern<HotelMembershipInput>(({
   unsearchedBrands,
   currentQuery,
   isScanning,
+  queryGeneratorInput,
 }) => {
   // Gmail authentication
   const auth = GmailAuth({
@@ -55,9 +57,6 @@ export default pattern<HotelMembershipInput>(({
       user: { email: "", name: "", picture: "" },
     },
   });
-
-  // Cell to trigger query generation (timestamp-based)
-  const queryGeneratorInput = cell<string>("");
 
   // Stage 1: LLM Query Generator
   const queryGeneratorPrompt = derive(
@@ -134,6 +133,11 @@ Return the selected brand name and the query string.`,
   // AGENTIC: Automatically trigger extraction when emails arrive
   // Create a stable trigger based on email IDs so it only fires when emails actually change
   const autoExtractorTrigger = derive([emails, queryPending, isScanning], ([emailList, qPending, scanning]) => {
+    // Defensive check for emailList
+    if (!emailList || !Array.isArray(emailList)) {
+      return "";
+    }
+
     // Only trigger if we're in scanning mode, query is done, and we have emails
     if (scanning && !qPending && emailList.length > 0) {
       const emailIds = emailList.map((e: any) => e.id).sort().join(",");
@@ -146,11 +150,15 @@ Return the selected brand name and the query string.`,
   const extractorPrompt = derive(
     [emails, memberships],
     ([emailList, existingMemberships]: [any[], MembershipRecord[]]) => {
+      // Defensive checks for undefined/null
+      const safeEmailList = (emailList && Array.isArray(emailList)) ? emailList : [];
+      const safeExistingMemberships = (existingMemberships && Array.isArray(existingMemberships)) ? existingMemberships : [];
+
       // Extract just the membership numbers to avoid duplicates
-      const existingNumbers = existingMemberships.map(m => m.membershipNumber);
+      const existingNumbers = safeExistingMemberships.map(m => m.membershipNumber);
 
       return JSON.stringify({
-        emails: emailList.map(email => ({
+        emails: safeEmailList.map(email => ({
           id: email.id,
           subject: email.subject,
           from: email.from,
@@ -217,6 +225,11 @@ Return empty array if no NEW memberships found.`,
   const groupedMemberships = derive(memberships, (membershipList: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
 
+    // Defensive check for undefined/null
+    if (!membershipList || !Array.isArray(membershipList)) {
+      return groups;
+    }
+
     for (const membership of membershipList) {
       if (!groups[membership.hotelBrand]) {
         groups[membership.hotelBrand] = [];
@@ -227,7 +240,7 @@ Return empty array if no NEW memberships found.`,
     return groups;
   });
 
-  const totalMemberships = derive(memberships, (list) => list.length);
+  const totalMemberships = derive(memberships, (list) => (list && Array.isArray(list)) ? list.length : 0);
 
   // Auto-reset isScanning if it's stale (e.g., after page refresh with no active workflow)
   // This prevents the button from being stuck in "Scanning..." state
@@ -352,7 +365,9 @@ Return empty array if no NEW memberships found.`,
     ([scanning, qPending, emailList, ePending]) => {
       if (!scanning) return "";
       if (qPending) return "🔄 Generating Gmail search query...";
-      if (emailList.length === 0) return "📧 Fetching emails from Gmail...";
+      // Defensive check for emailList
+      const emailCount = (emailList && Array.isArray(emailList)) ? emailList.length : 0;
+      if (emailCount === 0) return "📧 Fetching emails from Gmail...";
       if (ePending) return "✨ Extracting membership numbers from emails...";
       return "✅ Extraction complete!";
     }
@@ -454,6 +469,15 @@ Return empty array if no NEW memberships found.`,
             <div>
               <h3 style="margin: 0 0 12px 0; fontSize: 15px;">Your Memberships</h3>
               {derive(groupedMemberships, (groups) => {
+                // Defensive check
+                if (!groups || typeof groups !== 'object') {
+                  return (
+                    <div style="padding: 24px; textAlign: center; color: #999;">
+                      No memberships found yet. Click "Scan for Memberships" to search your emails.
+                    </div>
+                  );
+                }
+
                 const brands = Object.keys(groups).sort();
 
                 if (brands.length === 0) {
@@ -466,32 +490,43 @@ Return empty array if no NEW memberships found.`,
 
                 return brands.map((brand) => {
                   const membershipList = groups[brand];
+
+                  // Defensive check for membershipList
+                  if (!membershipList || !Array.isArray(membershipList)) {
+                    return null;
+                  }
+
                   return (
                     <details open style="border: 1px solid #e0e0e0; borderRadius: 8px; marginBottom: 12px; padding: 12px;">
                       <summary style="cursor: pointer; fontWeight: 600; fontSize: 14px; marginBottom: 8px;">
                         {brand} ({membershipList.length})
                       </summary>
                       <ct-vstack gap={2} style="paddingLeft: 16px;">
-                        {membershipList.map((membership) => (
-                          <div style="padding: 8px; background: #f8f9fa; borderRadius: 4px;">
-                            <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px;">
-                              {membership.programName}
-                            </div>
-                            <div style="marginBottom: 4px;">
-                              <code style="fontSize: 14px; background: white; padding: 6px 12px; borderRadius: 4px; display: inline-block;">
-                                {membership.membershipNumber}
-                              </code>
-                            </div>
-                            {membership.tier && (
-                              <div style="fontSize: 12px; color: #666; marginBottom: 2px;">
-                                ⭐ {membership.tier}
+                        {membershipList.map((membership) => {
+                          // Defensive check for membership object
+                          if (!membership) return null;
+
+                          return (
+                            <div style="padding: 8px; background: #f8f9fa; borderRadius: 4px;">
+                              <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px;">
+                                {membership.programName || 'Unknown Program'}
                               </div>
-                            )}
-                            <div style="fontSize: 11px; color: #999;">
-                              📧 {membership.sourceEmailSubject} • {new Date(membership.sourceEmailDate).toLocaleDateString()}
+                              <div style="marginBottom: 4px;">
+                                <code style="fontSize: 14px; background: white; padding: 6px 12px; borderRadius: 4px; display: inline-block;">
+                                  {membership.membershipNumber || 'No Number'}
+                                </code>
+                              </div>
+                              {membership.tier && (
+                                <div style="fontSize: 12px; color: #666; marginBottom: 2px;">
+                                  ⭐ {membership.tier}
+                                </div>
+                              )}
+                              <div style="fontSize: 11px; color: #999;">
+                                📧 {membership.sourceEmailSubject || 'No Subject'} • {membership.sourceEmailDate ? new Date(membership.sourceEmailDate).toLocaleDateString() : 'Unknown Date'}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </ct-vstack>
                     </details>
                   );
@@ -505,17 +540,17 @@ Return empty array if no NEW memberships found.`,
                 🔧 Debug Info
               </summary>
               <ct-vstack gap={2} style="padding: 12px; fontSize: 12px; fontFamily: monospace;">
-                <div>Unsearched Brands: {derive(unsearchedBrands, (brands) => brands.join(", ") || "None")}</div>
-                <div>Searched (Found): {derive(searchedBrands, (brands) => brands.join(", ") || "None")}</div>
+                <div>Unsearched Brands: {derive(unsearchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
+                <div>Searched (Found): {derive(searchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
                 <div>Searched (Not Found): {derive(searchedNotFound, (records) =>
-                  records.map(r => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None"
+                  (records && Array.isArray(records)) ? records.map(r => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None" : "None"
                 )}</div>
                 <div>LLM Query: {derive(queryResult, (result) => result?.query || "None")}</div>
                 <div>Selected Brand: {derive(queryResult, (result) => result?.selectedBrand || "None")}</div>
                 <div>Query Pending: {derive(queryPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Extractor Pending: {derive(extractorPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Extracted Count: {derive(extractorResult, (result) => result?.memberships?.length || 0)}</div>
-                <div>Emails Count: {derive(emails, (list) => list.length)}</div>
+                <div>Emails Count: {derive(emails, (list) => (list && Array.isArray(list)) ? list.length : 0)}</div>
                 <div>Current Query: {currentQuery || "None"}</div>
               </ct-vstack>
             </details>
