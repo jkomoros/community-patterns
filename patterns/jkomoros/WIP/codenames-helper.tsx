@@ -220,13 +220,13 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
                     borderRadius: "0.375rem",
                     padding: "0.5rem",
-                    backgroundColor: board.get()[index].owner === "red" ? "#dc2626"
-                      : board.get()[index].owner === "blue" ? "#2563eb"
-                      : board.get()[index].owner === "neutral" ? "#d4d4d8"
-                      : board.get()[index].owner === "assassin" ? "#000000"
+                    backgroundColor: word.owner === "red" ? "#dc2626"
+                      : word.owner === "blue" ? "#2563eb"
+                      : word.owner === "neutral" ? "#d4d4d8"
+                      : word.owner === "assassin" ? "#000000"
                       : "#e5e7eb",
-                    opacity: board.get()[index].state === "revealed" ? 0.5 : 1,
-                    color: (board.get()[index].owner === "neutral" || board.get()[index].owner === "unassigned") ? "black" : "white",
+                    opacity: word.state === "revealed" ? 0.5 : 1,
+                    color: (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
