@@ -129,26 +129,53 @@ Return the selected brand name and the query string.`,
   const emails = importer.emails;
 
   // AGENTIC: Auto-update Gmail query when LLM generates one
-  // Using computed() for side effects - check cells exist before calling .get()
+  // Using computed() for side effects
   computed(() => {
-    // Guard against undefined cells during initialization - check BEFORE calling .get()
-    if (!queryResult || !queryPending || !isScanning || !gmailFilterQuery) return;
+    console.log("[Auto-fetch] Computed block triggered");
+
+    // Check if cells exist before trying to call .get()
+    if (!queryResult || !queryPending || !isScanning) {
+      console.log("[Auto-fetch] Cells not yet available");
+      return;
+    }
 
     try {
+      // Call .get() on ALL cells to register them as dependencies
       const result = queryResult.get();
       const pending = queryPending.get();
       const scanning = isScanning.get();
 
+      console.log("[Auto-fetch] Cell values:", {
+        scanning,
+        pending,
+        result: result ? { query: result.query, brand: result.selectedBrand } : null
+      });
+
       // Only update during scanning workflow
-      if (!scanning) return;
+      if (!scanning) {
+        console.log("[Auto-fetch] Not scanning, returning early");
+        return;
+      }
 
       // When query generation completes, update Gmail filter query
       if (!pending && result && result.query && result.query !== "done") {
         const currentQuery = gmailFilterQuery.get();
+        console.log(`[Auto-fetch] Ready to update! Current: "${currentQuery}", New: "${result.query}"`);
+
         if (currentQuery !== result.query) {
           console.log(`[Auto-fetch] Updating gmailFilterQuery from "${currentQuery}" to "${result.query}"`);
           gmailFilterQuery.set(result.query);
+          console.log(`[Auto-fetch] ✅ Update complete!`);
+        } else {
+          console.log(`[Auto-fetch] Skipping update - query unchanged`);
         }
+      } else {
+        console.log("[Auto-fetch] Conditions not met for update:", {
+          pending,
+          hasResult: !!result,
+          hasQuery: !!(result && result.query),
+          queryNotDone: result && result.query !== "done"
+        });
       }
     } catch (error) {
       // Silently handle any remaining initialization errors
@@ -596,7 +623,8 @@ Return empty array if no NEW memberships found.`,
                 <div>Extractor Pending: {derive(extractorPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Extracted Count: {derive(extractorResult, (result) => result?.memberships?.length || 0)}</div>
                 <div>Emails Count: {derive(emails, (list) => (list && Array.isArray(list)) ? list.length : 0)}</div>
-                <div>Current Query: {currentQuery || "None"}</div>
+                <div>Current Query (deprecated): {currentQuery || "None"}</div>
+                <div>Gmail Filter Query (actual): {gmailFilterQuery || "None"}</div>
               </ct-vstack>
             </details>
 
