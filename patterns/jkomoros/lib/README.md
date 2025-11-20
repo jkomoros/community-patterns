@@ -1,6 +1,8 @@
 # Local Library Pattern
 
-This directory contains copies of reusable patterns from the `labs` repository.
+This directory contains **read-only copies** of reusable patterns from the `labs` repository.
+
+**IMPORTANT**: Files in this directory should NEVER be modified. They are reference files from upstream. For custom utilities, use the `../utils/` directory instead.
 
 ## Why This Weird Pattern?
 
@@ -73,12 +75,16 @@ We initially tried symlinks, but they don't work because:
 
 This directory contains copies of the following labs patterns:
 
-- `note.tsx` - Simple note-taking with markdown
-- `charm-creator.tsx` - Pattern launcher
 - `backlinks-index.tsx` - Backlink tracking system
-- `counter.tsx` - Simple counter example
+- `counter.tsx` - Simple counter pattern
 - `counter-handlers.ts` - Counter helper functions
-- `person.tsx` - Person contact information
+- `note.tsx` - Simple note-taking with markdown
+
+## Custom Utilities
+
+For custom utilities (not from labs), use the `../utils/` directory:
+
+- `../utils/diff-utils.tsx` - Word-level diff computation for LLM extraction preview
 
 ## Maintenance
 
