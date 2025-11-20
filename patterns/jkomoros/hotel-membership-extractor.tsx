@@ -114,6 +114,80 @@ Return the selected brand name and the query string.`,
     },
   });
 
+  // Cell to trigger membership extraction
+  const extractorInput = cell<string>("");
+
+  // Stage 2: LLM Membership Extractor
+  const extractorPrompt = derive(
+    [emails, memberships],
+    ([emailList, existingMemberships]: [any[], MembershipRecord[]]) => {
+      // Extract just the membership numbers to avoid duplicates
+      const existingNumbers = existingMemberships.map(m => m.membershipNumber);
+
+      return JSON.stringify({
+        emails: emailList.map(email => ({
+          id: email.id,
+          subject: email.subject,
+          from: email.from,
+          date: email.date,
+          content: email.markdownContent || email.snippet,
+        })),
+        existingMembershipNumbers: existingNumbers,
+      });
+    }
+  );
+
+  const { result: extractorResult, pending: extractorPending } = generateObject({
+    system: `Extract hotel loyalty program membership information from emails.
+
+IMPORTANT: Only extract NEW memberships. Do not return memberships whose numbers are already in existingMembershipNumbers.
+
+Look for:
+- Hotel brand name (Marriott, Hilton, Hyatt, IHG, Accor, Wyndham, etc.)
+- Program name (Marriott Bonvoy, Hilton Honors, etc.)
+- Membership/account numbers (typically 9-12 digits)
+- Tier/status levels (Gold, Platinum, Diamond, etc.)
+
+For each membership found, provide:
+- hotelBrand: Brand name (e.g., "Marriott")
+- programName: Full program name (e.g., "Marriott Bonvoy")
+- membershipNumber: The actual membership number
+- tier: Member tier/status if mentioned (optional)
+- sourceEmailId: The email ID where this was found
+- sourceEmailSubject: The email subject
+- sourceEmailDate: The email date
+- confidence: Your confidence level (0-100) that this is a valid membership
+
+Return empty array if no NEW memberships found.`,
+    prompt: derive([extractorPrompt, extractorInput], ([data, trigger]) =>
+      `${data}\n---TRIGGER-${trigger}---`
+    ),
+    model: "anthropic:claude-sonnet-4-5",
+    schema: {
+      type: "object",
+      properties: {
+        memberships: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              hotelBrand: { type: "string" },
+              programName: { type: "string" },
+              membershipNumber: { type: "string" },
+              tier: { type: "string" },
+              sourceEmailId: { type: "string" },
+              sourceEmailSubject: { type: "string" },
+              sourceEmailDate: { type: "string" },
+              confidence: { type: "number" },
+            },
+            required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
+          },
+        },
+      },
+      required: ["memberships"],
+    },
+  });
+
   // Group memberships by hotel brand
   const groupedMemberships = derive(memberships, (membershipList: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
@@ -238,6 +312,9 @@ Return the selected brand name and the query string.`,
                 <div>LLM Query: {derive(queryResult, (result) => result?.query || "None")}</div>
                 <div>Selected Brand: {derive(queryResult, (result) => result?.selectedBrand || "None")}</div>
                 <div>Query Pending: {derive(queryPending, (p) => p ? "Yes" : "No")}</div>
+                <div>Extractor Pending: {derive(extractorPending, (p) => p ? "Yes" : "No")}</div>
+                <div>Extracted Count: {derive(extractorResult, (result) => result?.memberships?.length || 0)}</div>
+                <div>Emails Count: {derive(emails, (list) => list.length)}</div>
                 <div>Current Query: {currentQuery || "None"}</div>
               </ct-vstack>
             </details>
