@@ -701,22 +701,39 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             marginBottom: "1rem",
           }}>
             {board.map((word, index) => {
-              // Use derive to ensure reactive backgroundColor
-              const bgColor = derive(word, (w) => {
-                if (w.owner === "red") return "#dc2626";
-                if (w.owner === "blue") return "#2563eb";
-                if (w.owner === "neutral") return "#d4d4d8";
-                if (w.owner === "assassin") return "#000000";
-                return "#e5e7eb";
-              });
+              // Guard against undefined word entries entirely
+              if (!word || !word.position) {
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      aspectRatio: "1",
+                      border: "2px solid #000",
+                      borderRadius: "0.25rem",
+                      padding: "0.25rem",
+                      backgroundColor: "#e5e7eb",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      position: "relative",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>Error</span>
+                  </div>
+                );
+              }
 
-              const textColor = derive(word, (w) =>
-                (w.owner === "neutral" || w.owner === "unassigned") ? "black" : "white"
-              );
+              // Calculate colors and opacity directly (word is already unwrapped)
+              const bgColor = word.owner === "red" ? "#dc2626"
+                : word.owner === "blue" ? "#2563eb"
+                : word.owner === "neutral" ? "#d4d4d8"
+                : word.owner === "assassin" ? "#000000"
+                : "#e5e7eb";
 
-              const cellOpacity = derive(word, (w) =>
-                w.state === "revealed" ? 0.5 : 1
-              );
+              const textColor = (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white";
+
+              const cellOpacity = word.state === "revealed" ? 0.5 : 1;
 
               return (
                 <div
