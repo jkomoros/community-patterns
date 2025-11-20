@@ -727,6 +727,31 @@ async function deployPattern(
     console.log("\n❌ Deployment failed\n");
     if (output) console.log(output);
     if (errorOutput) console.error(errorOutput);
+
+    // If this was a production deployment, check for network-related errors
+    if (isProd) {
+      const combinedOutput = (output + errorOutput).toLowerCase();
+      const networkErrorPatterns = [
+        'connect',
+        'econnrefused',
+        'network',
+        'timeout',
+        'enotfound',
+        'getaddrinfo',
+        'fetch failed',
+        'failed to fetch',
+      ];
+
+      const hasNetworkError = networkErrorPatterns.some(pattern =>
+        combinedOutput.includes(pattern)
+      );
+
+      if (hasNetworkError) {
+        console.log("\n💡 Tip: Production deployments require Tailscale to be running.");
+        console.log("   Check if Tailscale is connected and try again.\n");
+      }
+    }
+
     return null;
   }
 }
