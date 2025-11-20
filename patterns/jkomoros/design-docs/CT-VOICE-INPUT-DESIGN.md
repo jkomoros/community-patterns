@@ -1,4 +1,4 @@
-# ct-audio-recorder Component Design
+# ct-voice-input Component Design
 
 ## Overview
 
@@ -49,7 +49,7 @@ A trusted UI component that enables voice recording and real-time transcription 
 
 ### Element Definition
 ```typescript
-<ct-audio-recorder
+<ct-voice-input
   $transcription={transcription}
   recordingMode="hold"
   autoTranscribe={true}
@@ -102,7 +102,7 @@ interface TranscriptionData {
 ### 1. Recording Flow
 
 ```typescript
-class CTAudioRecorder extends BaseElement {
+class CTVoiceInput extends BaseElement {
   // Cell controller for bidirectional binding
   private _cellController = createCellController<TranscriptionData>(this, {
     timing: { strategy: "immediate" },
@@ -258,7 +258,7 @@ export default pattern<Input>(({ transcription }) => {
     [NAME]: "Voice Note",
     [UI]: (
       <div>
-        <ct-audio-recorder
+        <ct-voice-input
           $transcription={transcription}
           recordingMode="hold"
         />
@@ -318,7 +318,7 @@ export default pattern<Input>(({ notes }) => {
     [NAME]: "Voice Notes",
     [UI]: (
       <div>
-        <ct-audio-recorder
+        <ct-voice-input
           $transcription={currentRecording}
           onct-transcription-complete={saveRecording({ notes, currentRecording })}
         />
@@ -370,7 +370,7 @@ export default pattern<Input>(({ transcription }) => {
     [NAME]: "Voice AI Assistant",
     [UI]: (
       <div>
-        <ct-audio-recorder
+        <ct-voice-input
           $transcription={transcription}
         />
 
