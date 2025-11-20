@@ -701,6 +701,23 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             marginBottom: "1rem",
           }}>
             {board.map((word, index) => {
+              // Use derive to ensure reactive backgroundColor
+              const bgColor = derive(word, (w) => {
+                if (w.owner === "red") return "#dc2626";
+                if (w.owner === "blue") return "#2563eb";
+                if (w.owner === "neutral") return "#d4d4d8";
+                if (w.owner === "assassin") return "#000000";
+                return "#e5e7eb";
+              });
+
+              const textColor = derive(word, (w) =>
+                (w.owner === "neutral" || w.owner === "unassigned") ? "black" : "white"
+              );
+
+              const cellOpacity = derive(word, (w) =>
+                w.state === "revealed" ? 0.5 : 1
+              );
+
               return (
                 <div
                   key={index}
@@ -709,13 +726,9 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                     border: "2px solid #000",
                     borderRadius: "0.25rem",
                     padding: "0.25rem",
-                    backgroundColor: word.owner === "red" ? "#dc2626"
-                      : word.owner === "blue" ? "#2563eb"
-                      : word.owner === "neutral" ? "#d4d4d8"
-                      : word.owner === "assassin" ? "#000000"
-                      : "#e5e7eb",
-                    opacity: word.state === "revealed" ? 0.5 : 1,
-                    color: (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white",
+                    backgroundColor: bgColor,
+                    opacity: cellOpacity,
+                    color: textColor,
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
@@ -742,7 +755,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                         textTransform: "uppercase",
                         border: "none",
                         background: "transparent",
-                        color: (word.owner === "neutral" || word.owner === "unassigned") ? "#000" : "#fff",
+                        color: textColor,
                         pointerEvents: "auto",
                       }}
                     />,
