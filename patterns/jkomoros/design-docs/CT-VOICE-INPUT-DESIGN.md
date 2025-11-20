@@ -4,32 +4,116 @@
 
 A trusted UI component that enables voice recording and real-time transcription in CommonTools patterns. Similar to `ct-image-input`, this component handles browser APIs that patterns cannot access directly (MediaRecorder, getUserMedia) and provides transcribed text via reactive cells.
 
+**Reference Implementation:** Based on the previous `common-audio-recorder` component ([source](https://github.com/commontoolsinc/labs/blob/56b4ef4351fec8616b3d8cce8c6d3ceda73ab7c8/packages/ui/src/v1/components/common-audio-recorder.ts))
+
+## Component Architecture
+
+This design proposes splitting concerns into two components:
+
+1. **`ct-voice-input`** (Main Component)
+   - Manages microphone permissions and MediaRecorder
+   - Handles recording lifecycle and state
+   - Integrates with transcription API
+   - Manages cell binding and event emission
+   - Provides audio stream to visualizer
+
+2. **`ct-audio-visualizer`** (Sub-Component)
+   - Receives audio stream handle from parent
+   - Renders real-time waveform visualization
+   - Lightweight, focused responsibility
+   - Reusable for other audio contexts
+
+This separation allows for:
+- Cleaner code organization
+- Reusable visualization component
+- Easier testing of each concern
+- Flexibility in waveform rendering approaches
+
 ## Visual Design
 
-### Microphone Button (Idle State)
+**Design Reference:** Discord-style voice message interaction with sophisticated expansion animations.
+
+**Note:** The detailed Discord-style design below represents the **long-term vision** for this component. The initial v1 implementation will focus on core functionality (recording, transcription, basic waveform). Visual polish and advanced animations can be added iteratively in future versions.
+
+### Idle State
 ```
-┌───────────┐
-│     🎤    │
-│           │
-└───────────┘
+┌──────────┐
+│    🎤    │  Small circular button
+└──────────┘  Light gray (#EBEDEF)
 ```
 
 **Security Note:** Button always displays microphone icon - no custom text allowed to prevent misleading users about recording.
 
-### Recording State (Animated)
+### Recording State - Expanded Bar (Animated)
+
+When user presses and holds the microphone button:
+
+```
+┌─────────────────────────────────────────────────┐
+│ 🗑️           Release to Send              🔒↑ │  Organic wave shape at top
+│                                                 │  Vibrant indigo (#5865F2)
+│  🔴 0:03    ▂▃▅▇▅▃▂▅▃▂                         │  Live waveform (white bars)
+└─────────────────────────────────────────────────┘
+```
+
+**Animation Details:**
+- **Expansion**: Small button → Full-width bar (elastic morph)
+- **Color Transition**: Light gray → Vibrant indigo (#5865F2)
+- **Shape**: Top edge curves organically (wave-like, not flat rectangle)
+- **Controls**:
+  - Left: 🗑️ Trash icon (slide left to delete)
+  - Center: "Release to Send" text
+  - Right: 🔒↑ Lock icon + chevron (slide up to lock recording)
+- **Recording Indicator**: Red pulsing dot + timer (0:00, 0:01, ...)
+- **Waveform**: White vertical bars that fluctuate with audio input
+- **Duration**: Timer increments in real-time
+
+### Send Transition
+
+On release:
+- Bar collapses back to standard input size
+- All recording controls disappear
+- Microphone button returns to original state
+
+### Message Bubble States (Chat Interfaces)
+
+After sending, message bubble transitions through states:
+
+**1. Uploading/Processing**
 ```
 ┌─────────────────────┐
-│  🔴 Recording...     │
-│  ▂▃▅▇▅▃▂  0:03      │
-│  Release to finish   │
+│ ✖  ▂▃▅▇▅▃▂  0:03   │  Gray waveform, X icon (cancellable)
 └─────────────────────┘
 ```
 
-- Animated waveform visualization showing audio input levels
-- Timer showing recording duration
-- Red pulsing indicator
+**2. Upload Complete (Brief)**
+```
+┌─────────────────────┐
+│ ✓  ▂▃▅▇▅▃▂  0:03   │  Gray waveform, checkmark icon
+└─────────────────────┘
+```
 
-### Processing State
+**3. Ready to Play**
+```
+┌─────────────────────┐
+│ ▶  ▂▃▅▇▅▃▂  0:03   │  Black waveform, play triangle
+└─────────────────────┘
+```
+
+**4. Playing**
+```
+┌─────────────────────┐
+│ ⏸  ▅▅▅▅▃▂▂  0:03   │  Filling indigo → black, pause icon
+└─────────────────────┘
+```
+
+**Playback Animation:**
+- Play icon (▶) switches to Pause icon (⏸)
+- Waveform bars fill from left to right: Black → Indigo
+- Progress represents playback position
+- On completion: Returns to play icon, waveform resets
+
+### Processing State (Transcription)
 ```
 ┌─────────────────────┐
 │  ⏳ Transcribing...  │
@@ -214,30 +298,219 @@ async transcribeAudio(audioBlob: Blob) {
 
 ### 3. Waveform Visualization
 
+**Sub-component: `ct-audio-visualizer`**
+
+This component receives an audio stream from the parent and handles visualization independently.
+
 ```typescript
-private setupWaveformVisualization(stream: MediaStream) {
-  const audioContext = new AudioContext();
-  const analyser = audioContext.createAnalyser();
-  const microphone = audioContext.createMediaStreamSource(stream);
+interface AudioVisualizerProps {
+  stream: MediaStream;         // Audio stream from parent
+  bars?: number;               // Number of bars to display (default: 8)
+  color?: string;              // Bar color (default: 'white')
+  height?: number;             // Visualizer height (default: 40)
+  renderMode?: 'canvas' | 'svg'; // Rendering approach
+}
+```
 
-  microphone.connect(analyser);
-  analyser.fftSize = 256;
+**Implementation Option A: Canvas with Polyline**
 
-  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+Simple, performant approach using Canvas 2D:
 
-  const draw = () => {
-    if (!this.recording) return;
+```typescript
+class CTAudioVisualizer extends BaseElement {
+  private audioContext?: AudioContext;
+  private analyser?: AnalyserNode;
+  private canvas?: HTMLCanvasElement;
+  private ctx?: CanvasRenderingContext2D;
+  private animationFrame?: number;
 
-    analyser.getByteFrequencyData(dataArray);
+  async startVisualization(stream: MediaStream) {
+    this.audioContext = new AudioContext();
+    this.analyser = this.audioContext.createAnalyser();
+    const microphone = this.audioContext.createMediaStreamSource(stream);
 
-    // Update waveform visualization
-    this.waveformData = Array.from(dataArray).slice(0, 8);
-    this.requestUpdate();
+    microphone.connect(this.analyser);
+    this.analyser.fftSize = 256;
 
-    requestAnimationFrame(draw);
-  };
+    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
 
-  draw();
+    const draw = () => {
+      if (!this.stream) return;
+
+      this.analyser!.getByteFrequencyData(dataArray);
+
+      // Clear canvas
+      this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height);
+
+      // Draw polyline
+      const barCount = this.bars || 8;
+      const barWidth = this.canvas!.width / barCount;
+
+      this.ctx!.strokeStyle = this.color || 'white';
+      this.ctx!.lineWidth = 2;
+      this.ctx!.beginPath();
+
+      for (let i = 0; i < barCount; i++) {
+        const value = dataArray[i];
+        const barHeight = (value / 255) * this.canvas!.height;
+        const x = i * barWidth + barWidth / 2;
+        const y = this.canvas!.height - barHeight;
+
+        if (i === 0) {
+          this.ctx!.moveTo(x, y);
+        } else {
+          this.ctx!.lineTo(x, y);
+        }
+      }
+
+      this.ctx!.stroke();
+      this.animationFrame = requestAnimationFrame(draw);
+    };
+
+    draw();
+  }
+
+  stopVisualization() {
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+    }
+    if (this.audioContext) {
+      this.audioContext.close();
+    }
+  }
+}
+```
+
+**Implementation Option B: SVG with Parameterized Shapes**
+
+More flexible for styling, animations, and responsive design:
+
+```typescript
+class CTAudioVisualizer extends BaseElement {
+  private audioContext?: AudioContext;
+  private analyser?: AnalyserNode;
+  private waveformData: number[] = [];
+
+  async startVisualization(stream: MediaStream) {
+    this.audioContext = new AudioContext();
+    this.analyser = this.audioContext.createAnalyser();
+    const microphone = this.audioContext.createMediaStreamSource(stream);
+
+    microphone.connect(this.analyser);
+    this.analyser.fftSize = 256;
+
+    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+
+    const update = () => {
+      if (!this.stream) return;
+
+      this.analyser!.getByteFrequencyData(dataArray);
+
+      // Update reactive data
+      const barCount = this.bars || 8;
+      this.waveformData = Array.from(dataArray)
+        .slice(0, barCount)
+        .map(value => value / 255); // Normalize to 0-1
+
+      this.requestUpdate();
+      requestAnimationFrame(update);
+    };
+
+    update();
+  }
+
+  render() {
+    const barCount = this.waveformData.length || 8;
+    const barWidth = 100 / barCount; // Percentage
+    const height = this.height || 40;
+
+    return html`
+      <svg width="100%" height="${height}px" preserveAspectRatio="none">
+        ${this.waveformData.map((value, i) => {
+          const x = i * barWidth;
+          const barHeight = value * height;
+          const y = height - barHeight;
+
+          return svg`
+            <rect
+              x="${x}%"
+              y="${y}"
+              width="${barWidth * 0.8}%"
+              height="${barHeight}"
+              fill="${this.color || 'white'}"
+              rx="1"
+            />
+          `;
+        })}
+      </svg>
+    `;
+  }
+}
+```
+
+**Comparison:**
+
+| Aspect | Canvas (Polyline) | SVG (Rectangles) |
+|--------|------------------|------------------|
+| Performance | Faster for frequent updates | Slightly slower |
+| Styling | Limited (stroke/fill) | Full CSS control |
+| Accessibility | Requires ARIA labels | Native SVG semantics |
+| Responsiveness | Manual resize handling | Automatic scaling |
+| Complexity | Simpler imperative code | More declarative |
+
+**Recommendation:** Start with SVG for flexibility, optimize to Canvas if performance becomes an issue.
+
+### 4. Parent-Child Communication
+
+The parent `ct-voice-input` provides the audio stream to `ct-audio-visualizer`:
+
+```typescript
+class CTVoiceInput extends BaseElement {
+  private stream?: MediaStream;
+  private visualizer?: CTAudioVisualizer;
+
+  async startRecording() {
+    // Get audio stream
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+      }
+    });
+
+    // Pass stream to visualizer
+    const visualizer = this.shadowRoot?.querySelector('ct-audio-visualizer');
+    if (visualizer && this.showWaveform) {
+      visualizer.startVisualization(this.stream);
+    }
+
+    // Setup MediaRecorder
+    this.mediaRecorder = new MediaRecorder(this.stream, {
+      mimeType: 'audio/webm;codecs=opus'
+    });
+
+    // ... rest of recording setup
+  }
+
+  stopRecording() {
+    // Stop visualizer
+    const visualizer = this.shadowRoot?.querySelector('ct-audio-visualizer');
+    if (visualizer) {
+      visualizer.stopVisualization();
+    }
+
+    // Stop recording
+    if (this.mediaRecorder) {
+      this.mediaRecorder.stop();
+    }
+
+    // Stop stream
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+    }
+  }
 }
 ```
 
@@ -450,35 +723,71 @@ try {
 }
 ```
 
-## Implementation Phases
+## Implementation Roadmap
 
-### Phase 1: Basic Recording
+### v1: Core Functionality (MVP)
+
+**Goal:** Get a working voice input component with transcription
+
 - [ ] Microphone permission handling
 - [ ] Start/stop recording with MediaRecorder
 - [ ] Basic button UI (hold to record)
 - [ ] Audio blob collection
 - [ ] Duration tracking
-
-### Phase 2: Transcription
 - [ ] API integration with `/api/ai/voice/transcribe`
 - [ ] Audio format conversion (WebM → WAV)
 - [ ] Cell binding with CellController
 - [ ] Event emission (ct-transcription-complete, etc.)
-- [ ] Error handling
+- [ ] Basic error handling
+- [ ] Simple waveform visualization (canvas OR SVG, pick one)
+- [ ] Recording state indicator (recording/processing/complete)
 
-### Phase 3: Visual Polish
-- [ ] Waveform visualization with AudioContext
+**What can wait for v2+:**
+- Sophisticated expansion animations
+- Organic wave shapes
+- Color morphing (gray → indigo)
+- Slide gestures (trash, lock)
+- Message bubble states
+- Playback functionality
+
+### v2: Visual Polish & UX Refinement
+
+**Goal:** Make it feel delightful to use
+
+- [ ] Discord-style expansion animation
+- [ ] Organic wave shape morphing
+- [ ] Color transitions (gray → indigo)
+- [ ] Slide-to-delete gesture
+- [ ] Slide-to-lock gesture
+- [ ] "Release to Send" visual feedback
+- [ ] Improved waveform visualization (if needed)
 - [ ] Recording state animations
-- [ ] Timer display
-- [ ] Pending/processing states
-- [ ] Error state UI
+- [ ] Polished timer display
+- [ ] Better pending/processing states
 
-### Phase 4: Advanced Features
-- [ ] Toggle recording mode
+### v3: Advanced Features
+
+**Goal:** Support chat and messaging use cases
+
+- [ ] Message bubble states (X → Check → Play)
 - [ ] Playback of recorded audio
+- [ ] Playback progress visualization (waveform fill)
+- [ ] Play/pause toggle
+- [ ] Toggle recording mode (vs hold-to-record)
 - [ ] Volume indicator
 - [ ] Keyboard shortcuts (spacebar to record)
 - [ ] Save audio data option
+- [ ] Streaming transcription (if API supports it)
+
+### v4: Component Ecosystem
+
+**Goal:** Reusable, composable audio components
+
+- [ ] Split out `ct-audio-visualizer` as standalone component
+- [ ] `ct-audio-player` component for playback
+- [ ] `ct-audio-message` component for chat bubbles
+- [ ] Shared audio utilities library
+- [ ] Comprehensive API for audio manipulation
 
 ## Open Questions
 
