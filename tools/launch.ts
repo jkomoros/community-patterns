@@ -20,8 +20,9 @@ interface PatternRecord {
 }
 
 interface Config {
-  lastSpace: string;
-  labsDir?: string;  // Optional: override default labs location
+  lastSpaceLocal?: string;   // Last space for localhost deployments
+  lastSpaceProd?: string;     // Last space for production deployments
+  labsDir?: string;           // Optional: override default labs location
   patterns: PatternRecord[];
 }
 
@@ -30,11 +31,18 @@ interface Config {
 async function loadConfig(): Promise<Config> {
   try {
     const content = await Deno.readTextFile(CONFIG_FILE);
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+
+    // Backward compatibility: migrate old lastSpace to lastSpaceLocal
+    if (parsed.lastSpace && !parsed.lastSpaceLocal) {
+      parsed.lastSpaceLocal = parsed.lastSpace;
+      delete parsed.lastSpace;
+    }
+
+    return parsed;
   } catch {
     // File doesn't exist or is invalid, return default
     return {
-      lastSpace: "test-space",
       patterns: [],
     };
   }
@@ -244,19 +252,23 @@ async function interactiveSelect(
 
 // ===== MAIN FUNCTIONS =====
 
-async function promptForSpace(config: Config): Promise<string> {
+async function promptForSpace(config: Config, isProd: boolean): Promise<string> {
   const options: SelectOption[] = [];
 
+  // Get the appropriate last space based on deployment target
+  const lastSpace = isProd ? config.lastSpaceProd : config.lastSpaceLocal;
+  const defaultSpace = isProd ? "prod-space" : "test-space";
+
   // Add last used space if available
-  if (config.lastSpace) {
+  if (lastSpace) {
     options.push({
-      label: `${config.lastSpace} (last used)`,
-      value: config.lastSpace,
+      label: `${lastSpace} (last used)`,
+      value: lastSpace,
       icon: "🔄 ",
     });
 
     // Check if we should suggest a new date-based space
-    const todaySpace = getTodayDateSpace(config.lastSpace);
+    const todaySpace = getTodayDateSpace(lastSpace);
     if (todaySpace) {
       options.push({
         label: `${todaySpace} (today)`,
@@ -266,7 +278,7 @@ async function promptForSpace(config: Config): Promise<string> {
     }
 
     // Generate incremented space name
-    const nextSpace = getNextSpaceName(config.lastSpace);
+    const nextSpace = getNextSpaceName(lastSpace);
     options.push({
       label: `${nextSpace} (next)`,
       value: nextSpace,
@@ -281,16 +293,17 @@ async function promptForSpace(config: Config): Promise<string> {
     icon: "✨ ",
   });
 
+  const envLabel = isProd ? " (production)" : " (localhost)";
   const selection = await interactiveSelect(
     options,
-    "🚀 Pattern Launcher\n\nSelect space (↑/↓ to move, Enter to select):"
+    `🚀 Pattern Launcher${envLabel}\n\nSelect space (↑/↓ to move, Enter to select):`
   );
 
   if (selection === "__new__") {
-    return await prompt("Enter space name", config.lastSpace || "test-space");
+    return await prompt("Enter space name", lastSpace || defaultSpace);
   }
 
-  return selection || config.lastSpace || "test-space";
+  return selection || lastSpace || defaultSpace;
 }
 
 function getNextSpaceName(lastSpace: string): string {
@@ -453,7 +466,8 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
       }
     }
   } catch (error) {
-    console.log(`❌ Cannot read directory: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`❌ Cannot read directory: ${message}`);
     return null;
   }
 
@@ -730,7 +744,7 @@ async function main() {
   }
 
   // Prompt for space
-  const space = await promptForSpace(config);
+  const space = await promptForSpace(config, isProd);
   if (!space) {
     console.log("❌ No space provided");
     Deno.exit(1);
@@ -747,8 +761,12 @@ async function main() {
   const result = await deployPattern(patternPath, space, isProd, labsDir);
 
   if (result) {
-    // Update config
-    config.lastSpace = space;
+    // Update config - save to appropriate last space field
+    if (isProd) {
+      config.lastSpaceProd = space;
+    } else {
+      config.lastSpaceLocal = space;
+    }
     config = recordPatternUsage(config, patternPath);
     config = await cullNonExistentPatterns(config);
     await saveConfig(config);
