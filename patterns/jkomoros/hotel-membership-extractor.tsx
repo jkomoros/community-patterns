@@ -129,23 +129,30 @@ Return the selected brand name and the query string.`,
   const emails = importer.emails;
 
   // AGENTIC: Auto-update Gmail query when LLM generates one
-  // This computed block watches queryResult and updates gmailFilterQuery directly
+  // Using computed() for side effects - check cells exist before calling .get()
   computed(() => {
-    if (!queryResult || !queryPending) return;
+    // Guard against undefined cells during initialization - check BEFORE calling .get()
+    if (!queryResult || !queryPending || !isScanning || !gmailFilterQuery) return;
 
-    const result = queryResult.get();
-    const pending = queryPending.get();
-    const scanning = isScanning.get();
+    try {
+      const result = queryResult.get();
+      const pending = queryPending.get();
+      const scanning = isScanning.get();
 
-    // Only update during scanning workflow
-    if (!scanning) return;
+      // Only update during scanning workflow
+      if (!scanning) return;
 
-    // When query generation completes, update Gmail filter query
-    if (!pending && result && result.query && result.query !== "done") {
-      const currentQuery = gmailFilterQuery.get();
-      if (currentQuery !== result.query) {
-        gmailFilterQuery.set(result.query);
+      // When query generation completes, update Gmail filter query
+      if (!pending && result && result.query && result.query !== "done") {
+        const currentQuery = gmailFilterQuery.get();
+        if (currentQuery !== result.query) {
+          console.log(`[Auto-fetch] Updating gmailFilterQuery from "${currentQuery}" to "${result.query}"`);
+          gmailFilterQuery.set(result.query);
+        }
       }
+    } catch (error) {
+      // Silently handle any remaining initialization errors
+      console.warn("[Auto-fetch] Skipping during initialization:", error);
     }
   });
 
