@@ -11,10 +11,11 @@ This guide covers normal day-to-day pattern development workflows, best practice
 1. [Daily Workflow](#daily-workflow)
 2. [Pattern Development](#pattern-development)
 3. [Testing Patterns](#testing-patterns)
-4. [Common Patterns](#common-patterns)
-5. [Best Practices](#best-practices)
-6. [Troubleshooting](#troubleshooting)
-7. [Sharing Your Work](#sharing-your-work)
+4. [Deploying Patterns](#deploying-patterns)
+5. [Common Patterns](#common-patterns)
+6. [Best Practices](#best-practices)
+7. [Troubleshooting](#troubleshooting)
+8. [Sharing Your Work](#sharing-your-work)
 
 ---
 
@@ -54,9 +55,9 @@ cd ~/Code/community-patterns
 
 1. **Create/Edit Pattern** in `patterns/YOUR-USERNAME/`
 2. **Test Syntax**: `deno task ct dev pattern.tsx --no-run`
-3. **Deploy Locally**: `deno task ct charm new ...`
+3. **Deploy**: Use launcher tool or ask Claude (see [Deploying Patterns](#deploying-patterns))
 4. **Test in Browser**: Open `http://localhost:8000/space/charm-id`
-5. **Iterate**: Update with `charm setsrc`
+5. **Iterate**: Update with `charm setsrc` or re-deploy
 6. **Commit**: `git add`, `git commit`, `git push`
 
 ### End of Day
@@ -118,39 +119,228 @@ export default pattern<MyPatternInput, MyPatternOutput>(
 
 ### Testing Patterns
 
-**Check Syntax:**
+Before deploying, check that your pattern compiles correctly:
+
 ```bash
 cd ~/Code/labs
 deno task ct dev ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx --no-run
 ```
 
-**Deploy to Test:**
+This verifies:
+- TypeScript types are correct
+- All imports resolve
+- Pattern structure is valid
+- No syntax errors
+
+If you get errors, fix them before deploying. See [Troubleshooting](#troubleshooting) for common issues.
+
+---
+
+## Deploying Patterns
+
+Once your pattern compiles, you can deploy it to test it in the browser. There are three methods:
+
+### Method 1: Ask Claude (Easiest)
+
+If you're working with Claude Code, just ask:
+
+```
+"Deploy my shopping-list.tsx pattern to a test space"
+```
+
+Claude will:
+- Check syntax first
+- Deploy to an appropriate test space
+- Give you the URL to open
+- Handle any errors automatically
+
+**Pros:**
+- Easiest method - no commands to remember
+- Claude handles all the details
+- Automatic error handling and retry
+
+**Best for:** Regular development workflow, beginners
+
+### Method 2: Launcher Tool (Recommended for Direct Use)
+
+Interactive CLI tool for quick pattern deployment:
+
+```bash
+cd ~/Code/community-patterns
+./tools/launch.ts
+```
+
+**Features:**
+- 🔄 **Recent patterns** - Shows your 10 most recently used patterns
+- 📁 **Browse mode** - Navigate through your patterns directory
+- 📅 **Smart spaces** - Suggests today's date space or increments last space
+- ⚡ **Quick launch** - Arrow keys to select, Enter to deploy
+- 🔗 **Auto-opens URL** - Shows full charm URL after deployment
+
+**Keyboard shortcuts:**
+- ↑/↓ - Navigate options
+- Enter - Select
+- Q - Quit/Cancel
+
+**Example workflow:**
+```bash
+$ ./tools/launch.ts
+
+🚀 Pattern Launcher
+
+Select space (↑/↓ to move, Enter to select):
+→ jkomoros-1120-3 (last used)
+  jkomoros-1121-1 (today)
+  jkomoros-1120-4 (next)
+  ✨ Enter new space name...
+
+# After selecting space, choose pattern:
+📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):
+→ shopping-list.tsx  (community-patterns/jkomoros)
+  cozy-poll.tsx  (community-patterns/jkomoros)
+  page-creator.tsx  (community-patterns/jkomoros)
+  📁 Browse for a new pattern...
+
+🚀 Deploying...
+  Pattern: shopping-list.tsx  (community-patterns/jkomoros)
+  Space: jkomoros-1120-3
+  API: http://localhost:8000
+
+✅ Deployed successfully!
+
+🔗 http://localhost:8000/jkomoros-1120-3/baedreicq...
+```
+
+**Production deployment:**
+```bash
+./tools/launch.ts --prod
+```
+
+**Pros:**
+- Fast interactive workflow
+- Remembers your patterns and spaces
+- Smart space naming (date-based, incremental)
+- Works for both local and production
+
+**Best for:** Frequent deployments, testing multiple patterns quickly
+
+### Method 3: Manual Commands (Full Control)
+
+Use raw `deno task ct` commands when you need precise control:
+
+#### Deploy New Pattern
+
 ```bash
 cd ~/Code/labs
 deno task ct charm new \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
-  --space test-space \
+  --space test-space-1 \
   ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
 ```
 
-**Update After Changes:**
+This outputs a charm ID like `baedreicqpqie6td...`
+
+**View in browser:**
+```
+http://localhost:8000/test-space-1/CHARM-ID
+```
+
+**IMPORTANT**: Always use `http://localhost:8000/SPACE-ID/CHARM-ID` format, not just `/charm/CHARM-ID`.
+
+#### Update Deployed Pattern
+
+After making changes to your pattern:
+
 ```bash
 cd ~/Code/labs
 deno task ct charm setsrc \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
-  --space test-space \
+  --space test-space-1 \
   --charm CHARM-ID \
   ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
 ```
 
-**View in Browser:**
-```
-http://localhost:8000/test-space/CHARM-ID
+Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows).
+
+#### Inspect Pattern
+
+See pattern details:
+
+```bash
+cd ~/Code/labs
+deno task ct charm inspect \
+  --api-url http://localhost:8000 \
+  --identity ../community-patterns/claude.key \
+  --space test-space-1 \
+  --charm CHARM-ID
 ```
 
-**IMPORTANT**: Always use the format `http://localhost:8000/SPACE-ID/CHARM-ID`, not just `/charm/CHARM-ID`.
+#### Environment Variables
+
+You can set these to avoid repeating flags:
+
+```bash
+export CT_API_URL=http://localhost:8000
+export CT_IDENTITY=/path/to/community-patterns/claude.key
+
+# Then just:
+cd ~/Code/labs
+deno task ct charm new --space test-space-1 ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+```
+
+**Pros:**
+- Full control over all parameters
+- Scriptable (can use in automation)
+- Direct access to all ct CLI features
+
+**Best for:** Automation scripts, CI/CD, power users
+
+### Space Naming Conventions
+
+**For testing:**
+- `test-<username>-<counter>` - Simple sequential: `test-alice-1`, `test-alice-2`
+- `<username>-<mmdd>-<counter>` - Date-based: `alice-1120-1`, `alice-1120-2`
+- `debug-<username>-<feature>` - Feature-specific: `debug-alice-shopping`
+
+**Tips:**
+- Use date-based spaces to organize by day: `jkomoros-1120-1`, `jkomoros-1120-2`
+- Increment counter for each new test within the same context
+- Launcher tool handles this automatically
+
+### Deployment Troubleshooting
+
+**Servers not running?**
+```bash
+# Check if servers are up
+lsof -ti:8000  # Toolshed (backend)
+lsof -ti:5173  # Shell (frontend)
+
+# Start if needed (Claude Code auto-starts these)
+cd ~/Code/labs/packages/toolshed && deno task dev &
+cd ~/Code/labs/packages/shell && deno task dev-local &
+```
+
+**Wrong URL format?**
+- ✅ Correct: `http://localhost:8000/test-space/charm-id`
+- ❌ Wrong: `http://localhost:8000/charm/charm-id`
+
+**Pattern not updating?**
+1. Use `charm setsrc` to update (not `charm new` again)
+2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
+3. Check you're using the correct charm ID
+
+**Identity key missing?**
+```bash
+# Check it exists at repo root
+ls ~/Code/community-patterns/claude.key
+
+# If missing, recreate it
+cd ~/Code/community-patterns
+deno task -c ../labs/deno.json ct id new > claude.key
+chmod 600 claude.key
+```
 
 ### Organizing Your Workspace
 
@@ -622,8 +812,22 @@ Deploy the main file - ct bundles dependencies automatically.
 
 ## Quick Reference
 
-### Essential Commands
+### Deployment Methods
 
+**Easiest:**
+```bash
+# Just ask Claude Code
+"Deploy my pattern to a test space"
+```
+
+**Interactive (recommended for direct use):**
+```bash
+cd ~/Code/community-patterns
+./tools/launch.ts              # Local deployment
+./tools/launch.ts --prod       # Production deployment
+```
+
+**Manual (full control):**
 ```bash
 # Test syntax
 cd ~/Code/labs
