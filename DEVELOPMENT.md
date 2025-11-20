@@ -211,16 +211,17 @@ Select space (↑/↓ to move, Enter to select):
 🔗 http://localhost:8000/jkomoros-1120-3/baedreicq...
 ```
 
-**Production deployment:**
-```bash
-./tools/launch.ts --prod
-```
+**The launcher will ask:**
+1. **Deployment target** - localhost or production (remembers your last choice)
+2. **Space** - Suggests recent spaces or today's date
+3. **Pattern** - Shows recent patterns or browse
 
 **Pros:**
 - Fast interactive workflow
-- Remembers your patterns and spaces
+- Remembers your patterns, spaces, and deployment target
 - Smart space naming (date-based, incremental)
 - Works for both local and production
+- Just hit Enter to repeat last deployment quickly
 
 **Best for:** Frequent deployments, testing multiple patterns quickly
 
@@ -823,8 +824,7 @@ Deploy the main file - ct bundles dependencies automatically.
 **Interactive (recommended for direct use):**
 ```bash
 cd ~/Code/community-patterns
-./tools/launch.ts              # Local deployment
-./tools/launch.ts --prod       # Production deployment
+./tools/launch.ts              # Asks: localhost or production?
 ```
 
 **Manual (full control):**

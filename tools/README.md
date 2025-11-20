@@ -12,13 +12,14 @@ cd ~/Code/community-patterns
 ## Features
 
 - 🚀 **One-command deployment** - No more long bash commands
-- 📝 **Remembers your last space** - Quick repeat deployments
+- 🎯 **Remembers deployment target** - localhost or production (defaults to last used)
+- 📝 **Separate space history** - Tracks last space per deployment target
 - 📋 **Pattern history** - Recently used patterns at your fingertips
 - 📁 **Interactive directory browser** - Navigate and pick patterns visually
 - ⬆️⬇️ **Arrow key navigation** - Use ↑/↓ and Enter to select, no typing numbers
 - 🔗 **Full URL output** - Get clickable charm URL immediately
 - ⚙️ **Auto-configuration** - Detects labs directory automatically
-- 🌐 **Production support** - Deploy to production with `--prod` flag
+- ⚡ **Quick repeat** - Just hit Enter 3 times to repeat last deployment
 
 ## Usage
 
@@ -29,35 +30,50 @@ cd ~/Code/community-patterns
 ```
 
 This will:
-1. Prompt for space name (defaults to last used)
-2. Show recent patterns or let you browse
-3. Deploy the pattern
-4. Print the full URL with charm ID
-5. Exit immediately
+1. Prompt for deployment target (localhost or production - remembers last choice)
+2. Prompt for space name (suggests last space for that target)
+3. Show recent patterns or let you browse
+4. Deploy the pattern
+5. Print the full URL with charm ID
+6. Exit immediately
 
-### Deploy to Production
-
-```bash
-./tools/launch.ts --prod
-```
-
-Uses `https://api.commontools.io` instead of `http://localhost:8000`.
+**Quick repeat workflow:** Hit Enter on each prompt to use defaults:
+- Enter → (use last deployment target)
+- Enter → (use last space for that target)
+- Enter → (use last pattern)
+- Pattern deploys in seconds!
 
 ## Interactive Flow
 
-### Space Selection
+### Deployment Target Selection (First Question)
 
 ```
 🚀 Pattern Launcher
 
+Select deployment target (↑/↓ to move, Enter to select):
+
+→ 💻 localhost:8000 (last used)
+  🌐 production (api.commontools.io)
+
+[Use arrow keys, press Enter]
+```
+
+The tool remembers your last choice and shows it first, so you can just press Enter to repeat.
+
+### Space Selection
+
+```
 Select space (↑/↓ to move, Enter to select):
 
 → alex-1119-1 (last used)
+  alex-1120-1 (today)
   alex-1119-2 (next)
   ✨ Enter new space name...
 
 [Use arrow keys, press Enter]
 ```
+
+Each deployment target (localhost/production) has its own separate space history.
 
 The tool intelligently suggests the next space name:
 - If last space was `alex-1119-1` → suggests `alex-1119-2` (increments trailing number)
@@ -161,7 +177,9 @@ The tool stores its configuration in `.launcher-config` at the repository root (
 **Config file structure:**
 ```json
 {
-  "lastSpace": "my-space",
+  "lastSpaceLocal": "test-jkomoros-1",
+  "lastSpaceProd": "prod-jkomoros-1",
+  "lastDeploymentTarget": "local",
   "labsDir": "/custom/path/to/labs",
   "patterns": [
     {
@@ -188,7 +206,7 @@ If you need a different identity key location, you'll need to modify `IDENTITY_P
 
 ## Space Naming
 
-The tool provides smart space name suggestions based on your last used space:
+The tool provides smart space name suggestions based on your last used space **for that deployment target** (localhost and production track spaces separately).
 
 **Increment Logic:**
 - `alex-1119-1` → `alex-1119-2` (increments last number)
@@ -196,12 +214,17 @@ The tool provides smart space name suggestions based on your last used space:
 - `alex-1119` → `alex-1119-1` (appends `-1`, doesn't treat 1119 as an index)
 - `test-space` → `test-space-1` (appends `-1`)
 
+**Date-based spaces:**
+- If your last space was `alex-1119-1` and today is November 20, you'll see `alex-1120-1 (today)` as a suggestion
+- Counter resets to 1 when the date changes
+
 **Options:**
 1. **Last used** - Reuse the same space (useful for quick iterations)
-2. **Next** - Auto-incremented space name (useful for sequential testing)
-3. **Custom** - Enter a completely new space name
+2. **Today** - Today's date with counter 1 (if date changed from last use)
+3. **Next** - Auto-incremented space name (useful for sequential testing)
+4. **Custom** - Enter a completely new space name
 
-This makes it fast to create numbered test spaces without typing!
+**Separate tracking:** localhost might remember `test-jkomoros-3` while production remembers `prod-jkomoros-1`, so you never mix contexts!
 
 ## Smart Directory Navigation
 

@@ -33,20 +33,32 @@ export CT_API_URL="http://localhost:8000/" && \
 ./launch.ts
 # or with deno:
 deno run --allow-all launch.ts
-# or with production:
-deno run --allow-all launch.ts --prod
 ```
 
 ### Interactive Flow
 
-**Step 1: Space Name**
+**Step 1: Deployment Target**
 ```
-Enter space name [last: test-alex-5]: █
-```
-- Press Enter → uses last space (shown in brackets)
-- Type new name → uses that space
+Select deployment target (↑/↓ to move, Enter to select):
 
-**Step 2: Pattern Selection**
+→ 💻 localhost:8000 (last used)
+  🌐 production (api.commontools.io)
+```
+- Press Enter → uses last deployment target
+- Arrow keys → switch between localhost and production
+
+**Step 2: Space Name**
+```
+Select space (↑/↓ to move, Enter to select):
+
+→ test-alex-5 (last used)
+  test-alex-6 (next)
+  ✨ Enter new space name...
+```
+- Press Enter → uses last space for this deployment target
+- Each target (localhost/production) tracks spaces separately
+
+**Step 3: Pattern Selection**
 ```
 Select a pattern:
   [Recent Patterns]
