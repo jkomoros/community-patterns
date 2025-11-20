@@ -533,15 +533,104 @@ git commit -m "Add increment/decrement buttons"
 git commit -m "Test counter pattern in browser"
 ```
 
-### Recovery Strategies
+### Recovery Strategies for Pattern Development
 
-When encountering difficulties, follow this escalation path:
+When stuck developing patterns, follow this escalation path:
 
-1. **Minor Confusion**: Reset back to your last commit, reflect on what you learned, and try another approach with that knowledge
-2. **Moderate Confusion**: Look at other patterns in these directories for reference:
-   - `patterns/examples/`
-   - Other users' patterns in `patterns/*/`
-   - Labs patterns (if you have recipes repo cloned)
+#### Step 1: Re-read Documentation (First Response to Being Stuck)
+
+**ALWAYS start here when encountering pattern development issues:**
+
+```
+"Use the pattern-dev skill to refresh your understanding of framework patterns"
+```
+
+The pattern-dev skill reads all latest pattern documentation from labs. Pay **particular attention** to:
+
+- **`~/Code/labs/docs/common/DEBUGGING.md`** - Common pitfalls and anti-patterns
+  - Quick error reference table
+  - Type errors (Cell<>, OpaqueRef<>, etc.)
+  - Style errors (object vs string syntax)
+  - Reactivity issues (bidirectional binding, computed(), ifElse())
+  - Runtime errors (DOM access, LLM in handlers, etc.)
+- **`~/Code/labs/docs/common/PATTERNS.md`** - Pattern examples and best practices
+- **`~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`** - Reactivity system details
+- **`~/Code/labs/docs/common/TYPES_AND_SCHEMAS.md`** - Type system rules
+
+**When to use:**
+- Encountering any TypeScript errors
+- Pattern compiles but doesn't work as expected
+- UI not updating reactively
+- Confused about Cell<>, OpaqueRef<>, bidirectional binding
+- Before asking user for clarification on framework behavior
+
+#### Step 2: Study Similar Working Patterns
+
+After refreshing documentation, look at existing working patterns **in this priority order:**
+
+**1. Labs patterns** (highest priority - canonical examples):
+```bash
+~/Code/labs/packages/patterns/
+# These are the most up-to-date, authoritative examples
+# If a pattern exists here, it's the gold standard
+```
+
+**2. Recipes patterns** (if available - well-tested real-world examples):
+```bash
+~/Code/recipes/patterns/*/
+# Prefer root-level (stable) over WIP/
+# Skip this if recipes repo not cloned
+```
+
+**3. Community patterns - examples** (curated examples):
+```bash
+~/Code/community-patterns/patterns/examples/
+# These are specifically chosen as good examples
+```
+
+**4. Community patterns - jkomoros** (user patterns):
+```bash
+~/Code/community-patterns/patterns/jkomoros/
+# Prefer root-level (stable) over WIP/
+# These may be more complex/experimental
+```
+
+**Within each directory:**
+- ✅ Prefer non-WIP patterns (stable, tested)
+- ⚠️ Use WIP/ patterns only if non-WIP doesn't exist
+- 📁 Check root level first, then WIP/ as fallback
+
+**How to find similar patterns:**
+```bash
+# Search for patterns using specific features
+grep -r "generateObject" ~/Code/labs/packages/patterns/
+grep -r "computed(" ~/Code/community-patterns/patterns/examples/
+grep -r "handler<" ~/Code/labs/packages/patterns/
+
+# List available patterns
+ls ~/Code/labs/packages/patterns/
+ls ~/Code/community-patterns/patterns/examples/
+ls ~/Code/community-patterns/patterns/jkomoros/
+```
+
+#### Step 3: Reset and Try Again (Minor Confusion)
+
+If still stuck after Steps 1-2:
+
+1. Reset to your last commit: `git reset --hard HEAD`
+2. Reflect on what you learned from documentation and examples
+3. Try a different approach incorporating that knowledge
+4. Start with the simplest possible version that works
+5. Add complexity incrementally, testing after each addition
+
+#### Step 4: Ask User (Significant Confusion)
+
+If Steps 1-3 don't resolve the issue:
+
+1. Explain what you've tried (docs, examples, approaches)
+2. Show specific error messages or unexpected behavior
+3. Ask user for clarification or guidance
+4. Consider if this is a framework limitation vs implementation issue
 
 ### Snapshot Capability
 
