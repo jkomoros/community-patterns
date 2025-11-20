@@ -529,6 +529,11 @@ git add patterns/YOUR-USERNAME/
 git commit -m "Add shopping list pattern"
 git push origin your-username/feature-name
 
+# Before creating PR: Rebase on latest main
+git fetch origin
+git rebase origin/main
+git push origin your-username/feature-name --force-with-lease
+
 # Create PR
 gh pr create \
   --title "Add: shopping list pattern" \
@@ -544,6 +549,11 @@ Share your patterns with everyone:
 
 ```bash
 # Make sure changes are pushed to your fork
+git push origin main
+
+# Before creating PR: Rebase on latest upstream
+git fetch upstream
+git rebase upstream/main
 git push origin main
 
 # Create PR to upstream
