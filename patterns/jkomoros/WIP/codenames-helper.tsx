@@ -46,6 +46,92 @@ function initializeEmptyBoard(): BoardWord[] {
   return board;
 }
 
+// Validation result structure
+interface ValidationResult {
+  isValid: boolean;
+  warnings: string[];
+  errors: string[];
+}
+
+// Validate extracted data for coherence
+function validateExtraction(result: any): ValidationResult {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  if (!result) {
+    return { isValid: false, warnings, errors: ["No extraction result"] };
+  }
+
+  // Validate board words
+  if (result.photoType === "board" && result.boardWords) {
+    const words = result.boardWords;
+
+    // Check count
+    if (words.length !== 25) {
+      errors.push(`Expected 25 words, found ${words.length}`);
+    }
+
+    // Check for duplicates
+    const wordTexts = words.map((w: any) => w.word.toUpperCase());
+    const duplicates = wordTexts.filter((word: string, idx: number) =>
+      wordTexts.indexOf(word) !== idx
+    );
+    if (duplicates.length > 0) {
+      warnings.push(`Duplicate words found: ${[...new Set(duplicates)].join(", ")}`);
+    }
+
+    // Check for empty words
+    const emptyCount = words.filter((w: any) => !w.word || w.word.trim() === "").length;
+    if (emptyCount > 0) {
+      warnings.push(`${emptyCount} empty word(s) detected`);
+    }
+  }
+
+  // Validate key card colors
+  if (result.photoType === "keycard" && result.keyCardColors) {
+    const colors = result.keyCardColors;
+
+    // Check count
+    if (colors.length !== 25) {
+      errors.push(`Expected 25 color assignments, found ${colors.length}`);
+    }
+
+    // Count by color
+    const counts: Record<string, number> = {
+      red: 0,
+      blue: 0,
+      neutral: 0,
+      assassin: 0,
+    };
+    colors.forEach((c: any) => {
+      if (counts[c.color] !== undefined) {
+        counts[c.color]++;
+      }
+    });
+
+    // Valid patterns: (9,8,7,1) or (8,9,7,1)
+    const validPattern1 = counts.red === 9 && counts.blue === 8 && counts.neutral === 7 && counts.assassin === 1;
+    const validPattern2 = counts.red === 8 && counts.blue === 9 && counts.neutral === 7 && counts.assassin === 1;
+
+    if (!validPattern1 && !validPattern2) {
+      warnings.push(
+        `Unusual color distribution: ${counts.red} red, ${counts.blue} blue, ${counts.neutral} neutral, ${counts.assassin} assassin. ` +
+        `Expected: (9 red, 8 blue, 7 neutral, 1 assassin) or (8 red, 9 blue, 7 neutral, 1 assassin)`
+      );
+    }
+
+    if (counts.assassin !== 1) {
+      errors.push(`Expected exactly 1 assassin, found ${counts.assassin}`);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    warnings,
+    errors,
+  };
+}
+
 // Get color for word based on owner
 function getWordColor(owner: WordOwner): string {
   switch (owner) {
@@ -65,11 +151,11 @@ function getWordBackgroundColor(owner: WordOwner): string {
 
 // ===== HANDLERS =====
 
-// Apply extracted board data from AI
+// Apply extracted board data from AI (after approval)
 const applyExtractedData = handler<
   unknown,
-  { board: Cell<BoardWord[]>; extraction: any }
->((_event, { board, extraction }) => {
+  { board: Cell<BoardWord[]>; extraction: any; approvalState: Cell<any>; idx: number }
+>((_event, { board, extraction, approvalState, idx }) => {
   if (!extraction || !extraction.result) return;
 
   const result = extraction.result;
@@ -106,6 +192,27 @@ const applyExtractedData = handler<
   }
 
   board.set(currentBoard);
+
+  // Mark as approved/applied
+  const currentApprovals = approvalState.get().slice();
+  currentApprovals[idx] = { ...currentApprovals[idx], applied: true };
+  approvalState.set(currentApprovals);
+});
+
+// Reject extraction
+const rejectExtraction = handler<
+  unknown,
+  { uploadedPhotos: Cell<ImageData[]>; idx: number; approvalState: Cell<any> }
+>((_event, { uploadedPhotos, idx, approvalState }) => {
+  // Remove from uploaded photos
+  const photos = uploadedPhotos.get().slice();
+  photos.splice(idx, 1);
+  uploadedPhotos.set(photos);
+
+  // Remove from approval state
+  const approvals = approvalState.get().slice();
+  approvals.splice(idx, 1);
+  approvalState.set(approvals);
 });
 
 // Assign color to selected word
@@ -188,7 +295,25 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // Image upload for board and key card
     const uploadedPhotos = cell<ImageData[]>([]);
 
+    // Approval state for each photo (tracks corrections, approval status)
+    const approvalState = cell<Array<{
+      correctionText: string;
+      applied: boolean;
+    }>>([]);
+
+    // Sync approval state length with uploaded photos
+    derive(uploadedPhotos, (photos: ImageData[]) => {
+      const current = approvalState.get();
+      if (current.length !== photos.length) {
+        const newState = photos.map((_: ImageData, i: number) =>
+          current[i] || { correctionText: "", applied: false }
+        );
+        approvalState.set(newState);
+      }
+    });
+
     // AI extraction for each uploaded photo
+    // Note: We can't easily track idx in map, so we'll get correction text dynamically in prompt
     const photoExtractions = uploadedPhotos.map((photo) => {
       return generateObject({
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
@@ -197,11 +322,25 @@ You will receive either:
 1. A photo of the game board (5×5 grid of 25 word cards)
 2. A photo of the key card (showing which words are red, blue, neutral, or assassin)
 
-IMPORTANT: Determine which type of photo this is and extract the appropriate information.`,
+IMPORTANT: Determine which type of photo this is and extract the appropriate information.
+
+If the user provides a correction, apply it to your previous extraction. The user may describe positions using natural language like:
+- "top left" = row 0, col 0
+- "top right" = row 0, col 4
+- "bottom left" = row 4, col 0
+- "bottom right" = row 4, col 4
+- "middle" or "center" = row 2, col 2
+- "second row, third column" = row 1, col 2
+Parse these descriptions and update the extraction accordingly.`,
 
         prompt: derive(photo, (p) => {
-          if (!p) return "No photo provided.";
-          return `Analyze this photo and determine if it shows:
+          if (!p || !p.data) return [];
+
+          return [
+            { type: "image" as const, image: p.data },
+            {
+              type: "text" as const,
+              text: `Analyze this photo and determine if it shows:
 A) The game board (25 word cards in a 5×5 grid)
 B) The key card (showing color assignments)
 
@@ -218,7 +357,9 @@ If it's a KEY CARD photo:
 - Beige/tan squares indicate neutral words
 - Black square indicates the assassin
 
-Provide the extracted information in the appropriate format.`;
+Provide the extracted information in the appropriate format.`
+            }
+          ];
         }),
 
         schema: {
@@ -754,11 +895,20 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   $images={uploadedPhotos}
                 />
 
-                {/* Display extraction results */}
-                {photoExtractions.map((extraction, idx) => {
+                {/* Display extraction results with confirmation dialog */}
+                {photoExtractions.map((extraction) => {
+                  // Get the index by finding this extraction in the array
+                  const idx = photoExtractions.indexOf(extraction);
+
                   return derive(
-                    { pending: extraction.pending, result: extraction.result },
-                    ({ pending, result }) => {
+                    {
+                      pending: extraction.pending,
+                      result: extraction.result,
+                      approvalState: approvalState
+                    },
+                    ({ pending, result, approvalState: approvalStateValue }: { pending: boolean; result: any; approvalState: Array<{ correctionText: string; applied: boolean }> }) => {
+                      const approval = approvalStateValue[idx] || { correctionText: "", applied: false };
+
                       if (pending) {
                         return (
                           <div
@@ -783,6 +933,27 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       const photoType = result.photoType || "unknown";
                       const confidence = result.confidence || "unknown";
                       const notes = result.notes || "";
+                      const validation = validateExtraction(result);
+
+                      // If already applied, show compact success message
+                      if (approval.applied) {
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              marginTop: "0.75rem",
+                              padding: "0.5rem",
+                              backgroundColor: "#d1fae5",
+                              borderRadius: "0.375rem",
+                              border: "1px solid #10b981",
+                              fontSize: "0.7rem",
+                              color: "#065f46",
+                            }}
+                          >
+                            ✓ Photo {idx + 1} applied to board
+                          </div>
+                        );
+                      }
 
                       return (
                         <div
@@ -790,18 +961,19 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           style={{
                             marginTop: "0.75rem",
                             padding: "0.75rem",
-                            backgroundColor: "#f0fdf4",
+                            backgroundColor: validation.isValid ? "#f0fdf4" : "#fef2f2",
                             borderRadius: "0.375rem",
-                            border: "1px solid #22c55e",
+                            border: validation.isValid ? "2px solid #22c55e" : "2px solid #f59e0b",
                           }}
                         >
+                          {/* Header with photo type and confidence */}
                           <div style={{
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            marginBottom: "0.5rem",
+                            marginBottom: "0.75rem",
                           }}>
-                            <p style={{ fontSize: "0.75rem", fontWeight: "600", color: "#166534" }}>
+                            <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "#166534" }}>
                               📸 Photo {idx + 1}: {photoType === "board" ? "Game Board" : photoType === "keycard" ? "Key Card" : "Unknown"}
                             </p>
                             <span style={{
@@ -816,42 +988,205 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             </span>
                           </div>
 
-                          {photoType === "board" && result.boardWords && (
-                            <div style={{ fontSize: "0.7rem", color: "#166534", marginBottom: "0.5rem" }}>
-                              ✓ Extracted {result.boardWords.length} words from board
+                          {/* Validation errors */}
+                          {validation.errors.length > 0 && (
+                            <div style={{
+                              marginBottom: "0.75rem",
+                              padding: "0.5rem",
+                              backgroundColor: "#fee2e2",
+                              borderRadius: "0.25rem",
+                              border: "1px solid #ef4444",
+                            }}>
+                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#991b1b", marginBottom: "0.25rem" }}>
+                                ⚠️ Errors:
+                              </p>
+                              {validation.errors.map((err, i) => (
+                                <p key={i} style={{ fontSize: "0.65rem", color: "#991b1b", margin: "0.125rem 0" }}>
+                                  • {err}
+                                </p>
+                              ))}
                             </div>
                           )}
 
+                          {/* Validation warnings */}
+                          {validation.warnings.length > 0 && (
+                            <div style={{
+                              marginBottom: "0.75rem",
+                              padding: "0.5rem",
+                              backgroundColor: "#fef3c7",
+                              borderRadius: "0.25rem",
+                              border: "1px solid #f59e0b",
+                            }}>
+                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#92400e", marginBottom: "0.25rem" }}>
+                                ⚠️ Warnings:
+                              </p>
+                              {validation.warnings.map((warn, i) => (
+                                <p key={i} style={{ fontSize: "0.65rem", color: "#92400e", margin: "0.125rem 0" }}>
+                                  • {warn}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Visual preview for key card */}
                           {photoType === "keycard" && result.keyCardColors && (
-                            <div style={{ fontSize: "0.7rem", color: "#166534", marginBottom: "0.5rem" }}>
-                              ✓ Extracted {result.keyCardColors.length} color assignments
+                            <div style={{ marginBottom: "0.75rem" }}>
+                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
+                                Key Card Preview:
+                              </p>
+                              <div style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(5, 1fr)",
+                                gap: "2px",
+                                maxWidth: "150px",
+                              }}>
+                                {Array.from({ length: 25 }).map((_, cellIdx) => {
+                                  const row = Math.floor(cellIdx / 5);
+                                  const col = cellIdx % 5;
+                                  const colorData = result.keyCardColors.find((c: any) => c.row === row && c.col === col);
+                                  const color = colorData ? colorData.color : "unassigned";
+                                  return (
+                                    <div
+                                      key={cellIdx}
+                                      style={{
+                                        aspectRatio: "1",
+                                        backgroundColor: color === "red" ? "#dc2626"
+                                          : color === "blue" ? "#2563eb"
+                                          : color === "neutral" ? "#d4d4d8"
+                                          : color === "assassin" ? "#000000"
+                                          : "#e5e7eb",
+                                        borderRadius: "2px",
+                                      }}
+                                    />
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
 
+                          {/* Visual preview for board words */}
+                          {photoType === "board" && result.boardWords && (
+                            <div style={{ marginBottom: "0.75rem" }}>
+                              <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
+                                Board Preview: ({result.boardWords.length} words)
+                              </p>
+                              <div style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(5, 1fr)",
+                                gap: "2px",
+                                fontSize: "0.45rem",
+                                maxWidth: "250px",
+                              }}>
+                                {Array.from({ length: 25 }).map((_, cellIdx) => {
+                                  const row = Math.floor(cellIdx / 5);
+                                  const col = cellIdx % 5;
+                                  const wordData = result.boardWords.find((w: any) => w.row === row && w.col === col);
+                                  return (
+                                    <div
+                                      key={cellIdx}
+                                      style={{
+                                        aspectRatio: "1",
+                                        backgroundColor: "#f3f4f6",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "2px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        padding: "1px",
+                                        textAlign: "center",
+                                        wordBreak: "break-word",
+                                        lineHeight: "1",
+                                      }}
+                                    >
+                                      {wordData ? wordData.word.substring(0, 8) : "—"}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Notes from AI */}
                           {notes && (
                             <div style={{
-                              fontSize: "0.7rem",
+                              fontSize: "0.65rem",
                               color: "#78716c",
                               fontStyle: "italic",
-                              marginBottom: "0.5rem",
+                              marginBottom: "0.75rem",
+                              padding: "0.5rem",
+                              backgroundColor: "#fafaf9",
+                              borderRadius: "0.25rem",
                             }}>
                               Note: {notes}
                             </div>
                           )}
 
-                          <ct-button
-                            onClick={applyExtractedData({ board, extraction })}
-                            style={{
-                              fontSize: "0.75rem",
-                              padding: "0.375rem 0.75rem",
-                              backgroundColor: "#22c55e",
-                              color: "white",
-                              borderRadius: "0.25rem",
+                          {/* Correction text box */}
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <label style={{
+                              display: "block",
+                              fontSize: "0.7rem",
                               fontWeight: "600",
-                            }}
-                          >
-                            Apply to Board
-                          </ct-button>
+                              color: "#374151",
+                              marginBottom: "0.25rem",
+                            }}>
+                              Corrections (optional):
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g., 'top right should be blue not red'"
+                              value={approval.correctionText}
+                              onChange={(e: any) => {
+                                const currentApprovals = approvalState.get().slice();
+                                currentApprovals[idx] = { ...currentApprovals[idx], correctionText: e.target.value };
+                                approvalState.set(currentApprovals);
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: "0.375rem",
+                                fontSize: "0.7rem",
+                                border: "1px solid #d1d5db",
+                                borderRadius: "0.25rem",
+                                fontFamily: "system-ui, sans-serif",
+                              }}
+                            />
+                          </div>
+
+                          {/* Action buttons */}
+                          <div style={{
+                            display: "flex",
+                            gap: "0.5rem",
+                            flexWrap: "wrap",
+                          }}>
+                            <ct-button
+                              onClick={applyExtractedData({ board, extraction, approvalState, idx })}
+                              disabled={!validation.isValid}
+                              style={{
+                                fontSize: "0.75rem",
+                                padding: "0.5rem 0.75rem",
+                                backgroundColor: validation.isValid ? "#22c55e" : "#9ca3af",
+                                color: "white",
+                                borderRadius: "0.25rem",
+                                fontWeight: "600",
+                                cursor: validation.isValid ? "pointer" : "not-allowed",
+                              }}
+                            >
+                              ✓ Approve & Apply to Board
+                            </ct-button>
+                            <ct-button
+                              onClick={rejectExtraction({ uploadedPhotos, idx, approvalState })}
+                              style={{
+                                fontSize: "0.75rem",
+                                padding: "0.5rem 0.75rem",
+                                backgroundColor: "#ef4444",
+                                color: "white",
+                                borderRadius: "0.25rem",
+                                fontWeight: "600",
+                              }}
+                            >
+                              ✗ Reject
+                            </ct-button>
+                          </div>
                         </div>
                       );
                     }
