@@ -89,15 +89,25 @@ interface PatternState {
 
   // Smart search tracking:
   searchedBrands: string[];          // Brands we've searched for (found memberships)
-  searchedNotFound: string[];        // Brands we searched but found NOTHING
+  searchedNotFound: BrandSearchRecord[];  // Brands we searched but found NOTHING (with timestamp)
   unsearchedBrands: string[];        // Brands NOT yet searched
+}
+
+interface BrandSearchRecord {
+  brand: string;                     // Brand name (e.g., "Marriott")
+  searchedAt: number;                // Timestamp when we last searched
 }
 ```
 
 ✅ **Key improvement:** Track three categories of brands to prevent redundant searches:
 1. **searchedBrands** - We found memberships (in `memberships` array)
-2. **searchedNotFound** - We looked, found nothing (don't look again)
+2. **searchedNotFound** - We looked, found nothing (track timestamp for potential re-search)
 3. **unsearchedBrands** - Haven't searched yet (LLM picks from this list)
+
+**Why timestamp matters:** If we searched 6 months ago and found nothing, user might have new emails since then. The timestamp lets us:
+- Show user "Last searched: 6 months ago"
+- Allow manual re-search
+- Future: auto-suggest re-search if >90 days old
 
 **Initial state:**
 ```typescript
@@ -105,8 +115,8 @@ interface PatternState {
   memberships: [],
   scannedEmailIds: [],
   searchedBrands: [],
-  searchedNotFound: [],
-  unsearchedBrands: ["Marriott"]  // Start with just Marriott
+  searchedNotFound: [],              // Empty array of BrandSearchRecord
+  unsearchedBrands: ["Marriott"]     // Start with just Marriott
 }
 ```
 
@@ -176,7 +186,9 @@ interface PatternState {
 7. LLM extracts memberships, checking against existing list to avoid duplicates
 8. **Update tracking:**
    - Add new memberships to `memberships`
-   - Move brand from `unsearchedBrands` to `searchedBrands` (if found) or `searchedNotFound` (if not)
+   - Move brand from `unsearchedBrands` to:
+     - `searchedBrands` (if found memberships) OR
+     - `searchedNotFound` with timestamp (if found nothing)
    - Add email IDs to `scannedEmailIds`
 
 **Benefits:**
@@ -212,10 +224,14 @@ Given the user's hotel membership search state, suggest the next Gmail search qu
 
 Current state:
 - Brands with memberships found: [searchedBrands]
-- Brands searched but nothing found: [searchedNotFound]
+- Brands searched but nothing found: [searchedNotFound with timestamps]
 - Brands not yet searched: [unsearchedBrands]
 
 Task: Pick ONE brand from unsearchedBrands and generate a Gmail query for it.
+
+Note: searchedNotFound includes timestamps showing when we last searched.
+These brands had no results before, but might have new emails since then.
+Focus on unsearchedBrands first.
 
 Suggest a Gmail query that:
 - Searches emails from that specific hotel chain
@@ -274,7 +290,7 @@ Return empty array if no NEW memberships found.
 2. **Smart Brand Tracking** - Three categories:
    - `unsearchedBrands` - Brands not yet searched (LLM picks from here)
    - `searchedBrands` - Brands where we found memberships
-   - `searchedNotFound` - Brands searched but found nothing (don't search again)
+   - `searchedNotFound` - Brands searched but found nothing (with timestamp for potential re-search)
 3. **Start Small** - Launch with ONE brand (Marriott), expand later
 4. **Email Tracking** - Track scanned email IDs to avoid re-processing
 5. **No Duplicates** - LLM checks existing memberships before adding
