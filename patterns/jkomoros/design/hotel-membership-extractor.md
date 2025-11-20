@@ -68,7 +68,7 @@ When LLM extracts a membership number, should we:
 
 **My recommendation:** Option (c) - auto-add high confidence, flag low confidence for review
 
-### 4. Data Structure
+### 4. Data Structure (UPDATED)
 
 ```typescript
 interface MembershipRecord {
@@ -77,16 +77,23 @@ interface MembershipRecord {
   programName: string;          // "Marriott Bonvoy", "Hilton Honors"
   membershipNumber: string;     // The actual number
   tier?: string;                // "Gold", "Platinum", etc.
-  sourceEmailId: string;        // Gmail message ID
+  sourceEmailId: string;        // Gmail message ID (for tracking)
   sourceEmailDate: string;      // Email date
   sourceEmailSubject: string;   // Email subject
-  extractedAt: number;          // Timestamp
+  extractedAt: number;          // Timestamp when extracted
   confidence?: number;          // LLM confidence 0-100
-  verified: boolean;            // User manually verified?
+}
+
+// Pattern state tracking:
+interface PatternState {
+  memberships: MembershipRecord[];
+  scannedEmailIds: string[];    // Track which emails we've processed
+  lastScanAt: number;            // Timestamp of last scan
+  suggestedQuery: string;        // LLM's next suggested Gmail query
 }
 ```
 
-**Does this structure work? Any fields missing or unnecessary?**
+✅ **Updated with email tracking for incremental scanning**
 
 ### 5. UI Layout
 
@@ -120,23 +127,15 @@ Hilton         | 9876543210  | Gold     | Feb 2024
 
 **My recommendation:** Option C for better organization
 
-### 6. Background vs Manual Scan
+### 6. Scan Trigger (DECIDED)
 
-**Should the pattern:**
-- a) **Auto-scan on load** - Immediately process all matching emails with LLM
-- b) **Manual trigger** - User clicks "Scan Emails" button
-- c) **Background incremental** - Processes a few at a time, shows progress
+**Manual trigger** - User clicks "Scan Emails" button to avoid surprise LLM costs.
 
-**My recommendation:** Option (b) - manual trigger with clear "Scan X emails" button
+✅ **Decision:** Manual scan only
 
-### 7. Duplicate Handling
+### 7. Duplicate Handling (DECIDED)
 
-What if the same membership number appears in multiple emails?
-- a) Keep all occurrences (for audit trail)
-- b) Keep only the most recent
-- c) Keep one but show "Found in 3 emails"
-
-**My recommendation:** Option (c) - deduplicate but track sources
+✅ **Decision:** LLM should check existing memberships before adding. Don't re-add memberships we already have.
 
 ### 8. Additional Features
 
@@ -150,41 +149,90 @@ What if the same membership number appears in multiple emails?
 
 **Should I include any of these in v1, or keep it simple?**
 
-## Technical Approach
+## Technical Approach (UPDATED)
+
+### Smart Incremental Scanning
+
+**Key Innovation:** LLM-driven search strategy based on what we already have.
+
+**Flow:**
+1. User clicks "Scan for Memberships"
+2. System asks LLM: "Given these existing memberships [list], what Gmail query should we try next to find more hotel memberships?"
+3. LLM suggests query (e.g., "from:hyatt.com" if we don't have Hyatt yet)
+4. System fetches emails matching that query
+5. Filter out emails we've already scanned (track by email ID)
+6. LLM processes only NEW emails
+7. LLM extracts memberships, checking against existing list to avoid duplicates
+8. Add new memberships to collection
+
+**Benefits:**
+- Incremental discovery (find one hotel at a time)
+- No duplicate work (track scanned emails)
+- Smart search (LLM knows what to look for next)
+- Cost-efficient (only scan new emails)
 
 ### Pattern Structure
 ```typescript
 interface HotelMembershipInput {
-  gmailFilterQuery: Default<string, "from:(marriott.com OR hilton.com)">;
-  limit: Default<number, 100>;
   memberships: Default<MembershipRecord[], []>;
+  scannedEmailIds: Default<string[], []>;  // Track processed emails
+  lastScanAt: Default<number, 0>;          // Timestamp of last scan
+  suggestedQuery: Default<string, "">;     // LLM's next suggested search
 }
 
 // Components:
 // 1. GmailAuth - authentication
-// 2. GmailImporter - fetch emails
-// 3. LLM extraction handler - process email content
-// 4. Display component - show extracted memberships
+// 2. GmailImporter - fetch emails (dynamic query)
+// 3. LLM query generator - suggest next search based on existing memberships
+// 4. LLM extractor - process NEW emails, avoid duplicates
+// 5. Display component - show extracted memberships
 ```
 
-### LLM Prompt Strategy
+### LLM Prompt Strategy (UPDATED)
 
-**System prompt:**
+**Two-stage LLM approach:**
+
+#### Stage 1: Query Generator
 ```
-You are extracting hotel loyalty program membership information from emails.
+Given the user's existing hotel memberships, suggest the next Gmail search query
+to find more hotel loyalty program memberships.
+
+Current memberships: [list of brands we have]
+
+Suggest a Gmail query that:
+- Searches for emails from major hotel chains not yet found
+- Uses from: or subject: filters
+- Focuses on one brand at a time for efficiency
+
+Return just the query string (e.g., "from:hyatt.com" or "from:ihg.com")
+
+If we have all major brands, suggest: "done"
+```
+
+#### Stage 2: Membership Extractor
+```
+Extract hotel loyalty program membership information from emails.
+
+IMPORTANT: Only extract NEW memberships. Do not return memberships already in this list:
+[existing membership numbers]
 
 Look for:
-- Hotel brand name (Marriott, Hilton, Hyatt, IHG, etc.)
+- Hotel brand name (Marriott, Hilton, Hyatt, IHG, Accor, Wyndham, etc.)
 - Program name (Marriott Bonvoy, Hilton Honors, etc.)
 - Membership/account numbers (typically 9-12 digits)
 - Tier/status levels (Gold, Platinum, Diamond, etc.)
 
-Return structured JSON with fields: hotelBrand, programName, membershipNumber, tier, confidence (0-100)
+Return array of JSON objects with fields:
+{
+  hotelBrand: string,
+  programName: string,
+  membershipNumber: string,
+  tier?: string,
+  confidence: number (0-100)
+}
 
-If no membership info found, return null.
+Return empty array if no NEW memberships found.
 ```
-
-**Should this be configurable or hard-coded?**
 
 ### Performance Considerations
 
@@ -200,16 +248,44 @@ If no membership info found, return null.
 3. Should we validate membership number formats per brand?
 4. Integration with other patterns (e.g., store in Person charm)?
 
+## Approved Design Summary
+
+### ✅ Key Decisions Made
+
+1. **Manual Trigger** - User clicks "Scan" button to start
+2. **Smart Incremental Scanning** - LLM suggests next search query based on existing memberships
+3. **Email Tracking** - Track scanned email IDs to avoid re-processing
+4. **No Duplicates** - LLM checks existing memberships before adding
+5. **Two-Stage LLM**:
+   - Stage 1: Generate next Gmail search query
+   - Stage 2: Extract memberships from emails
+
+### Workflow
+
+```
+[User clicks "Scan"]
+       ↓
+[LLM: What query should we try next?]
+       ↓
+[Fetch emails matching query]
+       ↓
+[Filter out already-scanned email IDs]
+       ↓
+[LLM: Extract NEW memberships only]
+       ↓
+[Display updated membership list]
+```
+
+### Remaining Questions
+
+1. **Hotel brands** - Include all major chains (Marriott, Hilton, Hyatt, IHG, Accor, Wyndham, Choice, Best Western)?
+2. **UI layout** - Grouped list (recommended) or table or cards?
+3. **Phase 1 scope** - Just extraction/display, or also include export/edit features?
+
 ## Next Steps
 
-Please review and answer:
-1. Which hotel brands to include (Q1)
-2. Gmail query preference (Q2)
-3. Auto-add vs review flow (Q3)
-4. Data structure approval (Q4)
-5. UI layout preference (Q5)
-6. Scan trigger approach (Q6)
-7. Duplicate handling (Q7)
-8. Phase 1 scope (Q8)
-
-Once approved, I'll implement the pattern following the substack-summarizer architecture.
+Once you answer the remaining questions, I'll implement the pattern with:
+- Smart incremental scanning architecture
+- Email tracking system
+- Two-stage LLM approach
+- Following substack-summarizer pattern structure
