@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
+import { Cell, cell, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -68,6 +68,52 @@ export default pattern<HotelMembershipInput>(({
 
   const emails = importer.emails;
 
+  // Cell to trigger query generation
+  const queryGeneratorInput = cell<string>("");
+
+  // Stage 1: LLM Query Generator
+  const queryGeneratorPrompt = derive(
+    [unsearchedBrands, searchedBrands, searchedNotFound],
+    ([unsearched, searched, notFound]: [string[], string[], BrandSearchRecord[]]) => {
+      return JSON.stringify({
+        unsearchedBrands: unsearched,
+        searchedBrands: searched,
+        searchedNotFound: notFound,
+      });
+    }
+  );
+
+  const { result: queryResult, pending: queryPending } = generateObject({
+    system: `Given the user's hotel membership search state, suggest the next Gmail search query.
+
+Task: Pick ONE brand from unsearchedBrands and generate a Gmail query for it.
+
+Note: searchedNotFound includes timestamps showing when we last searched.
+These brands had no results before, but might have new emails since then.
+Focus on unsearchedBrands first.
+
+Suggest a Gmail query that:
+- Searches emails from that specific hotel chain
+- Uses from: filter with the hotel's domain (e.g., "from:marriott.com")
+- Is focused and specific
+
+If unsearchedBrands is empty, return query "done"
+
+Return the selected brand name and the query string.`,
+    prompt: derive([queryGeneratorPrompt, queryGeneratorInput], ([state, trigger]) =>
+      `${state}\n---TRIGGER-${trigger}---`
+    ),
+    model: "anthropic:claude-sonnet-4-5",
+    schema: {
+      type: "object",
+      properties: {
+        selectedBrand: { type: "string" },
+        query: { type: "string" },
+      },
+      required: ["selectedBrand", "query"],
+    },
+  });
+
   // Group memberships by hotel brand
   const groupedMemberships = derive(memberships, (membershipList: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
@@ -85,9 +131,13 @@ export default pattern<HotelMembershipInput>(({
   const totalMemberships = derive(memberships, (list) => list.length);
 
   // Handler to start scanning
-  const startScan = handler<unknown, { isScanning: Cell<Default<boolean, false>> }>((_, state) => {
+  const startScan = handler<unknown, {
+    isScanning: Cell<Default<boolean, false>>;
+    queryGeneratorInput: Cell<string>;
+  }>((_, state) => {
     state.isScanning.set(true);
-    // TODO: Implement LLM query generation and extraction
+    // Trigger query generation with timestamp to ensure it always changes
+    state.queryGeneratorInput.set(`START-${Date.now()}`);
   });
 
   return {
@@ -103,7 +153,7 @@ export default pattern<HotelMembershipInput>(({
             {/* Scan Button */}
             <div>
               <ct-button
-                onClick={startScan({ isScanning })}
+                onClick={startScan({ isScanning, queryGeneratorInput })}
                 size="lg"
                 disabled={isScanning}
               >
@@ -185,6 +235,9 @@ export default pattern<HotelMembershipInput>(({
                 <div>Searched (Not Found): {derive(searchedNotFound, (records) =>
                   records.map(r => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None"
                 )}</div>
+                <div>LLM Query: {derive(queryResult, (result) => result?.query || "None")}</div>
+                <div>Selected Brand: {derive(queryResult, (result) => result?.selectedBrand || "None")}</div>
+                <div>Query Pending: {derive(queryPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Current Query: {currentQuery || "None"}</div>
               </ct-vstack>
             </details>
