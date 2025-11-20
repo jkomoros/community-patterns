@@ -32,15 +32,9 @@ interface HotelMembershipInput {
   currentQuery: Default<string, "">;
   isScanning: Default<boolean, false>;
   queryGeneratorInput: Default<string, "">;  // Trigger cell for LLM query generation
-  gmailSettings: Default<{
-    gmailFilterQuery: string;
-    limit: number;
-    historyId: string;
-  }, {
-    gmailFilterQuery: "";
-    limit: 50;
-    historyId: "";
-  }>;
+  // Gmail settings - individual fields like substack-summarizer
+  gmailFilterQuery: Default<string, "">;
+  limit: Default<number, 50>;
   auth: Default<{
     token: string;
     tokenType: string;
@@ -70,7 +64,8 @@ export default pattern<HotelMembershipInput>(({
   currentQuery,
   isScanning,
   queryGeneratorInput,
-  gmailSettings,
+  gmailFilterQuery,
+  limit,
   auth,
 }) => {
   // Gmail authentication charm - using auth cell from pattern input
@@ -121,16 +116,20 @@ Return the selected brand name and the query string.`,
     },
   });
 
-  // Import emails - using gmailSettings cell from pattern input
+  // Import emails - individual cells like substack-summarizer
   const importer = GmailImporter({
-    settings: gmailSettings,
+    settings: {
+      gmailFilterQuery,  // Individual cell value
+      limit,             // Individual cell value
+      historyId: "",
+    },
     authCharm: authCharm,
   });
 
   const emails = importer.emails;
 
   // AGENTIC: Auto-update Gmail query when LLM generates one
-  // This computed block watches queryResult and updates gmailSettings
+  // This computed block watches queryResult and updates gmailFilterQuery directly
   computed(() => {
     if (!queryResult || !queryPending) return;
 
@@ -141,14 +140,11 @@ Return the selected brand name and the query string.`,
     // Only update during scanning workflow
     if (!scanning) return;
 
-    // When query generation completes, update Gmail settings
+    // When query generation completes, update Gmail filter query
     if (!pending && result && result.query && result.query !== "done") {
-      const settings = gmailSettings.get();
-      if (settings.gmailFilterQuery !== result.query) {
-        gmailSettings.set({
-          ...settings,
-          gmailFilterQuery: result.query,
-        });
+      const currentQuery = gmailFilterQuery.get();
+      if (currentQuery !== result.query) {
+        gmailFilterQuery.set(result.query);
       }
     }
   });
@@ -281,16 +277,12 @@ Return empty array if no NEW memberships found.`,
   );
 
   // Handler to reset stale scanning state
+  // Note: This button only shows when shouldResetScanning is true, so we can safely reset
   const resetScanningIfStale = handler<unknown, {
     isScanning: Cell<Default<boolean, false>>;
   }>((_, state) => {
-    const shouldReset = shouldResetScanning.get();
-    const scanning = state.isScanning.get();
-
-    // Only reset if both conditions are true (defensive check)
-    if (shouldReset && scanning) {
-      state.isScanning.set(false);
-    }
+    // Reset scanning flag - button only shows when it's safe to reset
+    state.isScanning.set(false);
   });
 
   // AGENTIC: Single handler to start the scan workflow
