@@ -15,10 +15,10 @@ interface BoardWord {
 }
 
 interface CodenamesHelperInput {
-  board: Cell<BoardWord[]>;
-  myTeam: Cell<Team>;
+  board: Cell<Default<BoardWord[], []>>;
+  myTeam: Cell<Default<Team, "red">>;
   setupMode: Cell<Default<boolean, true>>;
-  selectedWordIndex: Cell<number>;
+  selectedWordIndex: Cell<Default<number, 999>>;
 }
 
 interface CodenamesHelperOutput {
@@ -244,7 +244,7 @@ const assignColor = handler<
     const currentBoard = board.get().slice();
     currentBoard[selIdx] = { ...currentBoard[selIdx], owner };
     board.set(currentBoard);
-    selectedWordIndex.set(-1); // Deselect after assigning
+    selectedWordIndex.set(999); // Deselect after assigning
   }
 });
 
@@ -258,7 +258,7 @@ const resetAllColors = handler<
     currentBoard[i] = { ...currentBoard[i], owner: "unassigned" };
   }
   board.set(currentBoard);
-  selectedWordIndex.set(-1);
+  selectedWordIndex.set(999);
 });
 
 // Update word text in a cell
@@ -429,6 +429,8 @@ Provide the extracted information in the appropriate format.`
         model: "anthropic:claude-sonnet-4-5"
       });
     });
+
+    // Note: We'll use derive() directly in JSX for board emptiness check
 
     // AI Clue Suggestions - only in Game Mode
     const clueSuggestions = generateObject({
@@ -646,37 +648,28 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               Codenames Spymaster Helper
             </h1>
 
-            {/* Team Selection - only show if team hasn't been picked yet */}
-            {derive(myTeam, (team) => {
-              // Only show team selection if not yet set
-              if (!team || team === null || team === undefined) {
-                return (
-                  <div style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginBottom: "1rem",
-                  }}>
-                    <span style={{ fontWeight: "500" }}>My Team:</span>
-                    <ct-button
-                      onClick={() => myTeam.set("red")}
-                      className="team-red-inactive"
-                    >
-                      Red Team
-                    </ct-button>
-                    <ct-button
-                      onClick={() => myTeam.set("blue")}
-                      className="team-blue-inactive"
-                    >
-                      Blue Team
-                    </ct-button>
-                  </div>
-                );
-              }
-              // Team has been set - don't show buttons
-              return null;
-            })}
+            {/* Team Selection */}
+            <div style={{
+              display: "flex",
+              gap: "0.5rem",
+              justifyContent: "center",
+              alignItems: "center",
+              marginBottom: "1rem",
+            }}>
+              <span style={{ fontWeight: "500" }}>My Team:</span>
+              <ct-button
+                onClick={() => myTeam.set("red")}
+                className={myTeam.get() === "red" ? "team-red-active" : "team-red-inactive"}
+              >
+                Red Team
+              </ct-button>
+              <ct-button
+                onClick={() => myTeam.set("blue")}
+                className={myTeam.get() === "blue" ? "team-blue-active" : "team-blue-inactive"}
+              >
+                Blue Team
+              </ct-button>
+            </div>
 
             {/* Mode Toggle */}
             <ct-button
@@ -687,50 +680,33 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             </ct-button>
           </div>
 
-          {/* Initialize Board Button - shown when board is empty */}
-          {derive(board, (boardData: BoardWord[]) => {
-            if (boardData.length === 0) {
-              return (
-                <div style={{
-                  marginBottom: "1rem",
-                  padding: "2rem",
-                  textAlign: "center",
-                  backgroundColor: "#eff6ff",
-                  borderRadius: "0.5rem",
-                  border: "2px solid #3b82f6",
-                }}>
-                  <p style={{
-                    marginBottom: "1rem",
-                    fontSize: "1rem",
-                    fontWeight: "500",
-                  }}>
-                    Ready to start? Click below to create your game board.
-                  </p>
-                  <ct-button
-                    onClick={initializeBoardHandler({ board, setupMode })}
-                    className="btn-initialize"
-                  >
-                    Create 5×5 Game Board
-                  </ct-button>
-                </div>
-              );
-            }
-            return null;
-          })}
+          {/* Initialize Board Button */}
+          <div style={{
+            marginBottom: "1rem",
+            textAlign: "center",
+          }}>
+            <ct-button
+              onClick={initializeBoardHandler({ board, setupMode })}
+              className="btn-initialize"
+            >
+              Create 5×5 Game Board
+            </ct-button>
+          </div>
 
-          {/* Game Board */}
+          {/* Board Display */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(5, 1fr)",
             gap: "0.25rem",
             marginBottom: "1rem",
           }}>
-            {board.map((word: BoardWord, index: number) => {
+            {board.map((word, index) => {
               return (
                 <div
+                  key={index}
                   style={{
                     aspectRatio: "1",
-                    border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
+                    border: "2px solid #000",
                     borderRadius: "0.25rem",
                     padding: "0.25rem",
                     backgroundColor: word.owner === "red" ? "#dc2626"
@@ -746,32 +722,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                     alignItems: "center",
                     position: "relative",
                     cursor: "pointer",
-                    boxShadow: selectedWordIndex.get() === index ? "0 0 8px rgba(59, 130, 246, 0.5)" : "none",
                   }}
-                  onClick={(e: any) => {
-                    // Don't select cell if clicking on input field
-                    if (e.target.tagName === 'INPUT') return;
-
-                    const currentBoard = board.get();
-                    const index = currentBoard.findIndex((el: BoardWord) =>
-                      el.position.row === word.position.row && el.position.col === word.position.col
-                    );
-
-                    if (index < 0) return;
-
-                    if (setupMode.get()) {
-                      selectedWordIndex.set(index);
-                    } else {
-                      if (currentBoard[index].state === "unrevealed") {
-                        const updatedBoard = currentBoard.slice();
-                        updatedBoard[index] = { ...updatedBoard[index], state: "revealed" };
-                        board.set(updatedBoard);
-                      }
-                    }
-                  }}
+                  onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
                 >
                   {/* Word Display/Input */}
-                  {setupMode.get() ? (
+                  {ifElse(
+                    setupMode,
                     <input
                       type="text"
                       value={word.word}
@@ -789,8 +745,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                         color: (word.owner === "neutral" || word.owner === "unassigned") ? "#000" : "#fff",
                         pointerEvents: "auto",
                       }}
-                    />
-                  ) : (
+                    />,
                     <span style={{
                       fontSize: "0.7rem",
                       fontWeight: "600",
