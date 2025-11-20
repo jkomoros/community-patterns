@@ -32,10 +32,12 @@ A pattern that searches through Gmail and extracts hotel loyalty program members
 
 ## Questions for Review
 
-### 1. Hotel Brands - Which to include?
+### 1. Hotel Brands (DECIDED)
 
-**Major chains I'm thinking:**
-- Marriott (Bonvoy)
+✅ **Decision:** Start with ONE hotel chain (Marriott), expand to others in future iterations.
+
+**Future expansion list:**
+- Marriott (Bonvoy) ← Start here
 - Hilton (Honors)
 - Hyatt (World of Hyatt)
 - IHG (IHG One Rewards)
@@ -43,11 +45,6 @@ A pattern that searches through Gmail and extracts hotel loyalty program members
 - Wyndham (Wyndham Rewards)
 - Choice Hotels (Choice Privileges)
 - Best Western (Best Western Rewards)
-
-**Should I:**
-- a) Start with top 5 and expand later?
-- b) Include all major chains from the start?
-- c) Make it configurable with a list user can edit?
 
 ### 2. Gmail Query Default
 
@@ -87,45 +84,59 @@ interface MembershipRecord {
 // Pattern state tracking:
 interface PatternState {
   memberships: MembershipRecord[];
-  scannedEmailIds: string[];    // Track which emails we've processed
-  lastScanAt: number;            // Timestamp of last scan
-  suggestedQuery: string;        // LLM's next suggested Gmail query
+  scannedEmailIds: string[];        // Track which emails we've processed
+  lastScanAt: number;                // Timestamp of last scan
+
+  // Smart search tracking:
+  searchedBrands: string[];          // Brands we've searched for (found memberships)
+  searchedNotFound: string[];        // Brands we searched but found NOTHING
+  unsearchedBrands: string[];        // Brands NOT yet searched
 }
 ```
 
-✅ **Updated with email tracking for incremental scanning**
+✅ **Key improvement:** Track three categories of brands to prevent redundant searches:
+1. **searchedBrands** - We found memberships (in `memberships` array)
+2. **searchedNotFound** - We looked, found nothing (don't look again)
+3. **unsearchedBrands** - Haven't searched yet (LLM picks from this list)
 
-### 5. UI Layout
-
-**Option A - Cards:**
-```
-┌─────────────────────────────────────┐
-│ 🏨 Marriott Bonvoy                 │
-│ Number: 1234567890     [Copy]       │
-│ Tier: Platinum Elite                │
-│ Source: Welcome email (Jan 2024)    │
-└─────────────────────────────────────┘
-```
-
-**Option B - Table:**
-```
-Brand          | Number      | Tier     | Source
-──────────────────────────────────────────────
-Marriott       | 1234567890  | Platinum | Jan 2024
-Hilton         | 9876543210  | Gold     | Feb 2024
+**Initial state:**
+```typescript
+{
+  memberships: [],
+  scannedEmailIds: [],
+  searchedBrands: [],
+  searchedNotFound: [],
+  unsearchedBrands: ["Marriott"]  // Start with just Marriott
+}
 ```
 
-**Option C - Grouped List:**
+### 5. UI Layout (DECIDED)
+
+✅ **Phase 1: Grouped List** - Simple, functional
 ```
 ▼ Marriott (2 memberships)
-  • Marriott Bonvoy: 1234567890 (Platinum)
-  • Ritz-Carlton Rewards: 0987654321
-
-▼ Hilton (1 membership)
-  • Hilton Honors: 9876543210 (Gold)
+  • Marriott Bonvoy
+    Number: 1234567890 [Copy]
+    Tier: Platinum Elite
+    Source: Welcome email (Jan 2024)
 ```
 
-**My recommendation:** Option C for better organization
+✅ **Phase 2: Big Visual Cards** - More polished
+```
+┌─────────────────────────────────────────────┐
+│  🏨                                         │
+│  Marriott Bonvoy                            │
+│                                             │
+│  ┌───────────────────────────────────────┐ │
+│  │ 1234567890                  [Copy]    │ │
+│  └───────────────────────────────────────┘ │
+│                                             │
+│  ⭐ Platinum Elite                          │
+│  📧 Welcome email • Jan 15, 2024            │
+└─────────────────────────────────────────────┘
+```
+
+**Key feature:** Copy button prominently displayed with membership number
 
 ### 6. Scan Trigger (DECIDED)
 
@@ -157,13 +168,16 @@ Hilton         | 9876543210  | Gold     | Feb 2024
 
 **Flow:**
 1. User clicks "Scan for Memberships"
-2. System asks LLM: "Given these existing memberships [list], what Gmail query should we try next to find more hotel memberships?"
-3. LLM suggests query (e.g., "from:hyatt.com" if we don't have Hyatt yet)
+2. System asks LLM: "Pick a brand from unsearchedBrands and generate Gmail query"
+3. LLM suggests query (e.g., "from:marriott.com")
 4. System fetches emails matching that query
-5. Filter out emails we've already scanned (track by email ID)
+5. Filter out emails we've already scanned (by email ID)
 6. LLM processes only NEW emails
 7. LLM extracts memberships, checking against existing list to avoid duplicates
-8. Add new memberships to collection
+8. **Update tracking:**
+   - Add new memberships to `memberships`
+   - Move brand from `unsearchedBrands` to `searchedBrands` (if found) or `searchedNotFound` (if not)
+   - Add email IDs to `scannedEmailIds`
 
 **Benefits:**
 - Incremental discovery (find one hotel at a time)
@@ -192,21 +206,25 @@ interface HotelMembershipInput {
 
 **Two-stage LLM approach:**
 
-#### Stage 1: Query Generator
+#### Stage 1: Query Generator (UPDATED)
 ```
-Given the user's existing hotel memberships, suggest the next Gmail search query
-to find more hotel loyalty program memberships.
+Given the user's hotel membership search state, suggest the next Gmail search query.
 
-Current memberships: [list of brands we have]
+Current state:
+- Brands with memberships found: [searchedBrands]
+- Brands searched but nothing found: [searchedNotFound]
+- Brands not yet searched: [unsearchedBrands]
+
+Task: Pick ONE brand from unsearchedBrands and generate a Gmail query for it.
 
 Suggest a Gmail query that:
-- Searches for emails from major hotel chains not yet found
-- Uses from: or subject: filters
-- Focuses on one brand at a time for efficiency
+- Searches emails from that specific hotel chain
+- Uses from: filter with the hotel's domain (e.g., "from:marriott.com")
+- Is focused and specific
 
-Return just the query string (e.g., "from:hyatt.com" or "from:ihg.com")
+Return ONLY the query string (e.g., "from:marriott.com")
 
-If we have all major brands, suggest: "done"
+If unsearchedBrands is empty, return: "done"
 ```
 
 #### Stage 2: Membership Extractor
@@ -248,44 +266,66 @@ Return empty array if no NEW memberships found.
 3. Should we validate membership number formats per brand?
 4. Integration with other patterns (e.g., store in Person charm)?
 
-## Approved Design Summary
+## Final Approved Design
 
-### ✅ Key Decisions Made
+### ✅ All Decisions Finalized
 
 1. **Manual Trigger** - User clicks "Scan" button to start
-2. **Smart Incremental Scanning** - LLM suggests next search query based on existing memberships
-3. **Email Tracking** - Track scanned email IDs to avoid re-processing
-4. **No Duplicates** - LLM checks existing memberships before adding
-5. **Two-Stage LLM**:
-   - Stage 1: Generate next Gmail search query
+2. **Smart Brand Tracking** - Three categories:
+   - `unsearchedBrands` - Brands not yet searched (LLM picks from here)
+   - `searchedBrands` - Brands where we found memberships
+   - `searchedNotFound` - Brands searched but found nothing (don't search again)
+3. **Start Small** - Launch with ONE brand (Marriott), expand later
+4. **Email Tracking** - Track scanned email IDs to avoid re-processing
+5. **No Duplicates** - LLM checks existing memberships before adding
+6. **Two-Stage LLM**:
+   - Stage 1: Generate next Gmail search query (from unsearchedBrands)
    - Stage 2: Extract memberships from emails
+7. **UI Evolution**:
+   - Phase 1: Grouped list (simple, functional)
+   - Phase 2: Big visual cards (polished)
+   - Copy button for membership numbers
 
-### Workflow
+### Complete Workflow
 
 ```
 [User clicks "Scan"]
        ↓
-[LLM: What query should we try next?]
+[LLM: Pick brand from unsearchedBrands] → "from:marriott.com"
        ↓
 [Fetch emails matching query]
        ↓
-[Filter out already-scanned email IDs]
+[Filter out scannedEmailIds]
        ↓
-[LLM: Extract NEW memberships only]
+[LLM: Extract NEW memberships]
        ↓
-[Display updated membership list]
+[Update state:
+ - Add memberships
+ - Move brand: unsearched → searched/searchedNotFound
+ - Add email IDs to scannedEmailIds]
+       ↓
+[Display in grouped list with [Copy] buttons]
 ```
 
-### Remaining Questions
+### Implementation Scope (Phase 1)
 
-1. **Hotel brands** - Include all major chains (Marriott, Hilton, Hyatt, IHG, Accor, Wyndham, Choice, Best Western)?
-2. **UI layout** - Grouped list (recommended) or table or cards?
-3. **Phase 1 scope** - Just extraction/display, or also include export/edit features?
+**Core features:**
+- ✅ Gmail integration (GmailAuth + GmailImporter)
+- ✅ Smart brand tracking (unsearched/searched/notfound)
+- ✅ Two-stage LLM extraction
+- ✅ Email deduplication
+- ✅ Grouped list UI with copy buttons
+- ✅ Marriott support only
+
+**Future enhancements (Phase 2+):**
+- Big visual card UI
+- Additional hotel brands (Hilton, Hyatt, IHG, etc.)
+- Export to CSV
+- Manual add/edit
+- Direct links to hotel websites
 
 ## Next Steps
 
-Once you answer the remaining questions, I'll implement the pattern with:
-- Smart incremental scanning architecture
-- Email tracking system
-- Two-stage LLM approach
-- Following substack-summarizer pattern structure
+✅ **Design approved - ready to implement!**
+
+Pattern will follow substack-summarizer architecture with smart brand tracking system.
