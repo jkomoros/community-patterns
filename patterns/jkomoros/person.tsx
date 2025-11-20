@@ -17,7 +17,7 @@ import {
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
-import { computeWordDiff, compareFields } from "./lib/diff-utils.tsx";
+import { computeWordDiff, compareFields } from "./utils/diff-utils.tsx";
 
 // Social platform types
 type SocialPlatform =

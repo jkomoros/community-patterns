@@ -18,7 +18,7 @@ import {
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
-import { compareFields, computeWordDiff } from "./lib/diff-utils.tsx";
+import { compareFields, computeWordDiff } from "./utils/diff-utils.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
