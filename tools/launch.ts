@@ -255,6 +255,16 @@ async function promptForSpace(config: Config): Promise<string> {
       icon: "🔄 ",
     });
 
+    // Check if we should suggest a new date-based space
+    const todaySpace = getTodayDateSpace(config.lastSpace);
+    if (todaySpace) {
+      options.push({
+        label: `${todaySpace} (today)`,
+        value: todaySpace,
+        icon: "📅 ",
+      });
+    }
+
     // Generate incremented space name
     const nextSpace = getNextSpaceName(config.lastSpace);
     options.push({
@@ -298,6 +308,45 @@ function getNextSpaceName(lastSpace: string): string {
     // e.g., "alex-1119" → "alex-1119-1"
     return `${lastSpace}-1`;
   }
+}
+
+function getTodayDateSpace(lastSpace: string): string | null {
+  // Try to detect date pattern (MMDD format): prefix-MMDD-counter
+  // Example: alex-1119-1 → alex-1120-1 (if today is Nov 20)
+  const pattern = /^(.+)-(\d{4})-(\d+)$/;
+  const match = lastSpace.match(pattern);
+
+  if (!match) {
+    return null; // No date pattern detected
+  }
+
+  const prefix = match[1];
+  const dateStr = match[2];
+
+  // Try to parse as MMDD
+  const month = parseInt(dateStr.substring(0, 2), 10);
+  const day = parseInt(dateStr.substring(2, 4), 10);
+
+  // Validate it's a reasonable date
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null; // Not a valid date
+  }
+
+  // Get today's date
+  const today = new Date();
+  const todayMonth = today.getMonth() + 1; // 0-indexed
+  const todayDay = today.getDate();
+
+  // Check if it's a different day
+  if (month === todayMonth && day === todayDay) {
+    return null; // Same day, don't suggest
+  }
+
+  // Format today's date as MMDD
+  const todayMMDD = String(todayMonth).padStart(2, '0') + String(todayDay).padStart(2, '0');
+
+  // Return new space name with today's date, counter reset to 1
+  return `${prefix}-${todayMMDD}-1`;
 }
 
 async function selectPattern(config: Config): Promise<string | null> {
