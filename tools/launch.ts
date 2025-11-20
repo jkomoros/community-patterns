@@ -20,9 +20,10 @@ interface PatternRecord {
 }
 
 interface Config {
-  lastSpaceLocal?: string;   // Last space for localhost deployments
-  lastSpaceProd?: string;     // Last space for production deployments
-  labsDir?: string;           // Optional: override default labs location
+  lastSpaceLocal?: string;      // Last space for localhost deployments
+  lastSpaceProd?: string;        // Last space for production deployments
+  lastDeploymentTarget?: "local" | "prod";  // Last deployment target chosen
+  labsDir?: string;              // Optional: override default labs location
   patterns: PatternRecord[];
 }
 
@@ -252,6 +253,45 @@ async function interactiveSelect(
 
 // ===== MAIN FUNCTIONS =====
 
+async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod"> {
+  const options: SelectOption[] = [];
+
+  // Get last used target
+  const lastTarget = config.lastDeploymentTarget || "local";
+
+  // Add both options, with last used first
+  if (lastTarget === "local") {
+    options.push({
+      label: "localhost:8000 (last used)",
+      value: "local",
+      icon: "💻 ",
+    });
+    options.push({
+      label: "production (api.commontools.io)",
+      value: "prod",
+      icon: "🌐 ",
+    });
+  } else {
+    options.push({
+      label: "production (api.commontools.io) (last used)",
+      value: "prod",
+      icon: "🌐 ",
+    });
+    options.push({
+      label: "localhost:8000",
+      value: "local",
+      icon: "💻 ",
+    });
+  }
+
+  const selection = await interactiveSelect(
+    options,
+    "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):"
+  );
+
+  return (selection as "local" | "prod") || lastTarget;
+}
+
 async function promptForSpace(config: Config, isProd: boolean): Promise<string> {
   const options: SelectOption[] = [];
 
@@ -293,10 +333,9 @@ async function promptForSpace(config: Config, isProd: boolean): Promise<string> 
     icon: "✨ ",
   });
 
-  const envLabel = isProd ? " (production)" : " (localhost)";
   const selection = await interactiveSelect(
     options,
-    `🚀 Pattern Launcher${envLabel}\n\nSelect space (↑/↓ to move, Enter to select):`
+    "Select space (↑/↓ to move, Enter to select):"
   );
 
   if (selection === "__new__") {
@@ -728,9 +767,6 @@ async function cullNonExistentPatterns(config: Config): Promise<Config> {
 // ===== MAIN =====
 
 async function main() {
-  const args = Deno.args;
-  const isProd = args.includes("--prod");
-
   // Load config
   let config = await loadConfig();
 
@@ -742,6 +778,10 @@ async function main() {
     config.labsDir = labsDir;
     await saveConfig(config);
   }
+
+  // Prompt for deployment target (first question)
+  const deploymentTarget = await promptForDeploymentTarget(config);
+  const isProd = deploymentTarget === "prod";
 
   // Prompt for space
   const space = await promptForSpace(config, isProd);
@@ -761,7 +801,8 @@ async function main() {
   const result = await deployPattern(patternPath, space, isProd, labsDir);
 
   if (result) {
-    // Update config - save to appropriate last space field
+    // Update config - save deployment target and space
+    config.lastDeploymentTarget = deploymentTarget;
     if (isProd) {
       config.lastSpaceProd = space;
     } else {
