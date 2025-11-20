@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -142,6 +142,83 @@ const cellClick = handler<
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
   ({ board, myTeam, setupMode, selectedWordIndex }) => {
+    // AI Clue Suggestions - only in Game Mode
+    const clueSuggestions = generateObject({
+      system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
+
+CRITICAL RULES:
+1. Clues must be ONE WORD only (no hyphens, spaces, or compound words)
+2. Clues should connect 2-4 words of the target team's color
+3. AVOID clues that might lead players to opponent words, neutral words, or the assassin
+4. Only suggest clues for UNREVEALED words
+5. Be creative with connections (synonyms, categories, rhymes, cultural references)`,
+
+      prompt: derive({ board, setupMode, myTeam }, (values) => {
+        // Only run in Game Mode
+        if (values.setupMode) return "Not in game mode yet.";
+
+        const boardData: BoardWord[] = values.board as any;
+        const myTeamValue: Team = values.myTeam as any;
+
+        // Get unrevealed words by team
+        const myWords = boardData.filter((w: BoardWord) => w.owner === myTeamValue && w.state === "unrevealed").map((w: BoardWord) => w.word);
+        const opponentTeam = myTeamValue === "red" ? "blue" : "red";
+        const opponentWords = boardData.filter((w: BoardWord) => w.owner === opponentTeam && w.state === "unrevealed").map((w: BoardWord) => w.word);
+        const neutralWords = boardData.filter((w: BoardWord) => w.owner === "neutral" && w.state === "unrevealed").map((w: BoardWord) => w.word);
+        const assassinWords = boardData.filter((w: BoardWord) => w.owner === "assassin" && w.state === "unrevealed").map((w: BoardWord) => w.word);
+
+        if (myWords.length === 0) return "No more words to guess for your team!";
+
+        return `Team: ${myTeamValue.toUpperCase()}
+
+MY TEAM'S UNREVEALED WORDS (try to connect these):
+${myWords.join(", ")}
+
+OPPONENT'S WORDS (AVOID these):
+${opponentWords.join(", ")}
+
+NEUTRAL WORDS (AVOID these):
+${neutralWords.join(", ")}
+
+ASSASSIN WORD (CRITICAL - NEVER hint at this):
+${assassinWords.join(", ")}
+
+Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
+      }),
+
+      schema: {
+        type: "object",
+        properties: {
+          clues: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                clue: {
+                  type: "string",
+                  description: "The one-word clue"
+                },
+                number: {
+                  type: "number",
+                  description: "How many words this clue connects (2-4)"
+                },
+                targetWords: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Which of your team's words this clue connects"
+                },
+                reasoning: {
+                  type: "string",
+                  description: "Brief explanation of the connection"
+                }
+              }
+            }
+          }
+        }
+      },
+      model: "anthropic:claude-sonnet-4-5"
+    });
+
     return {
       [NAME]: "Codenames Helper",
       [UI]: (
@@ -524,6 +601,115 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
             }}>
               <p style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Game Mode</p>
               <p style={{ fontSize: "0.875rem" }}>Click cards to mark them as guessed (faded = out of play)</p>
+            </div>
+          )}
+
+          {/* AI Clue Suggestions - Only in Game Mode */}
+          {ifElse(
+            setupMode,
+            null,
+            <div style={{
+              marginBottom: "1rem",
+              padding: "1rem",
+              backgroundColor: "#fef3c7",
+              borderRadius: "0.5rem",
+              border: "2px solid #f59e0b",
+            }}>
+              <h3 style={{
+                fontSize: "1rem",
+                fontWeight: "bold",
+                marginBottom: "0.75rem",
+                color: "#92400e",
+              }}>
+                🤖 AI Clue Suggestions
+              </h3>
+
+              {derive({ pending: clueSuggestions.pending, result: clueSuggestions.result }, ({ pending, result }) => {
+                if (pending) {
+                  return (
+                    <div style={{
+                      padding: "1rem",
+                      textAlign: "center",
+                      color: "#92400e",
+                      fontSize: "0.875rem",
+                    }}>
+                      Analyzing board and generating clues...
+                    </div>
+                  );
+                }
+
+                if (!result || !result.clues || result.clues.length === 0) {
+                  return (
+                    <div style={{
+                      padding: "1rem",
+                      textAlign: "center",
+                      color: "#92400e",
+                      fontSize: "0.875rem",
+                    }}>
+                      No clues available yet. Make sure the board is set up!
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                  }}>
+                    {result.clues.map((clue: any, idx: number) => (
+                      <div
+                        key={idx}
+                        style={{
+                          padding: "0.75rem",
+                          backgroundColor: "#ffffff",
+                          borderRadius: "0.375rem",
+                          border: "1px solid #f59e0b",
+                        }}
+                      >
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          marginBottom: "0.5rem",
+                        }}>
+                          <span style={{
+                            fontSize: "1.25rem",
+                            fontWeight: "bold",
+                            color: "#92400e",
+                            textTransform: "uppercase",
+                          }}>
+                            {clue.clue}
+                          </span>
+                          <span style={{
+                            fontSize: "1rem",
+                            fontWeight: "600",
+                            color: "#d97706",
+                          }}>
+                            ({clue.number})
+                          </span>
+                        </div>
+
+                        <div style={{
+                          fontSize: "0.75rem",
+                          color: "#78716c",
+                          marginBottom: "0.25rem",
+                        }}>
+                          <strong>Connects:</strong> {clue.targetWords.join(", ")}
+                        </div>
+
+                        <div style={{
+                          fontSize: "0.75rem",
+                          color: "#78716c",
+                          fontStyle: "italic",
+                        }}>
+                          {clue.reasoning}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           )}
 
