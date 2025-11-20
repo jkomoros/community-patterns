@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  type Cell,
+  Cell,
   cell,
   type Default,
   derive,
@@ -8,18 +8,17 @@ import {
   handler,
   NAME,
   navigateTo,
-  type Opaque,
-  type OpaqueRef,
   patternTool,
   recipe,
   str,
+  Stream,
   UI,
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./backlinks-index.tsx";
 type Input = {
-  title: Default<string, "Untitled Note">;
-  content: Default<string, "">;
+  title?: Cell<Default<string, "Untitled Note">>;
+  content?: Cell<Default<string, "">>;
 };
 
 type Output = {
@@ -28,9 +27,9 @@ type Output = {
 
   /** The content of the note */
   content: Default<string, "">;
-  grep: OpaqueRef<{ query: string }>;
-  translate: OpaqueRef<{ language: string }>;
-  editContent: OpaqueRef<{ detail: { value: string } }>;
+  grep: Stream<{ query: string }>;
+  translate: Stream<{ language: string }>;
+  editContent: Stream<{ detail: { value: string } }>;
 };
 
 const _updateTitle = handler<
@@ -86,11 +85,12 @@ const handleNewBacklink = handler<
 
 /** This edits the content */
 const handleEditContent = handler<
-  { detail: { value: string } },
+  { detail: { value: string }; result?: Cell<string> },
   { content: Cell<string> }
 >(
-  ({ detail }, { content }) => {
+  ({ detail, result }, { content }) => {
     content.set(detail.value);
+    result?.set("test!");
   },
 );
 
