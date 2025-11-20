@@ -17,7 +17,7 @@ interface BoardWord {
 interface CodenamesHelperInput {
   board: Cell<BoardWord[]>;
   myTeam: Cell<Team>;
-  setupMode: Cell<boolean>;
+  setupMode: Cell<Default<boolean, true>>;
   selectedWordIndex: Cell<number>;
 }
 
@@ -305,6 +305,15 @@ const cellClick = handler<
       board.set(updatedBoard);
     }
   }
+});
+
+// Initialize board with empty cells
+const initializeBoardHandler = handler<
+  unknown,
+  { board: Cell<BoardWord[]>; setupMode: Cell<boolean> }
+>((_event, { board, setupMode }) => {
+  board.set(initializeEmptyBoard());
+  setupMode.set(true);
 });
 
 // ===== MAIN PATTERN =====
@@ -637,28 +646,37 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               Codenames Spymaster Helper
             </h1>
 
-            {/* Team Selection */}
-            <div style={{
-              display: "flex",
-              gap: "0.5rem",
-              justifyContent: "center",
-              alignItems: "center",
-              marginBottom: "1rem",
-            }}>
-              <span style={{ fontWeight: "500" }}>My Team:</span>
-              <ct-button
-                onClick={() => myTeam.set("red")}
-                className={myTeam.get() === "red" ? "team-red-active" : "team-red-inactive"}
-              >
-                Red Team
-              </ct-button>
-              <ct-button
-                onClick={() => myTeam.set("blue")}
-                className={myTeam.get() === "blue" ? "team-blue-active" : "team-blue-inactive"}
-              >
-                Blue Team
-              </ct-button>
-            </div>
+            {/* Team Selection - only show if team hasn't been picked yet */}
+            {derive(myTeam, (team) => {
+              // Only show team selection if not yet set
+              if (!team || team === null || team === undefined) {
+                return (
+                  <div style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: "1rem",
+                  }}>
+                    <span style={{ fontWeight: "500" }}>My Team:</span>
+                    <ct-button
+                      onClick={() => myTeam.set("red")}
+                      className="team-red-inactive"
+                    >
+                      Red Team
+                    </ct-button>
+                    <ct-button
+                      onClick={() => myTeam.set("blue")}
+                      className="team-blue-inactive"
+                    >
+                      Blue Team
+                    </ct-button>
+                  </div>
+                );
+              }
+              // Team has been set - don't show buttons
+              return null;
+            })}
 
             {/* Mode Toggle */}
             <ct-button
@@ -668,6 +686,37 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               {setupMode.get() ? "Setup Mode" : "Game Mode"}
             </ct-button>
           </div>
+
+          {/* Initialize Board Button - shown when board is empty */}
+          {derive(board, (boardData: BoardWord[]) => {
+            if (boardData.length === 0) {
+              return (
+                <div style={{
+                  marginBottom: "1rem",
+                  padding: "2rem",
+                  textAlign: "center",
+                  backgroundColor: "#eff6ff",
+                  borderRadius: "0.5rem",
+                  border: "2px solid #3b82f6",
+                }}>
+                  <p style={{
+                    marginBottom: "1rem",
+                    fontSize: "1rem",
+                    fontWeight: "500",
+                  }}>
+                    Ready to start? Click below to create your game board.
+                  </p>
+                  <ct-button
+                    onClick={initializeBoardHandler({ board, setupMode })}
+                    className="btn-initialize"
+                  >
+                    Create 5×5 Game Board
+                  </ct-button>
+                </div>
+              );
+            }
+            return null;
+          })}
 
           {/* Game Board */}
           <div style={{
@@ -1319,32 +1368,6 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               })}
             </div>
           )}
-
-          {/* Initialize Button */}
-          <div style={{
-            textAlign: "center",
-            marginTop: "1rem",
-          }}>
-            <ct-button
-              onClick={() => {
-                const newBoard: BoardWord[] = [];
-                for (let row = 0; row < 5; row++) {
-                  for (let col = 0; col < 5; col++) {
-                    newBoard.push({
-                      word: "",
-                      position: { row, col },
-                      owner: "unassigned",
-                      state: "unrevealed",
-                    });
-                  }
-                }
-                board.set(newBoard);
-              }}
-              className="btn-initialize"
-            >
-              Initialize Empty Board
-            </ct-button>
-          </div>
         </div>
       ),
       board,
