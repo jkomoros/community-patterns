@@ -69,6 +69,12 @@ gh repo clone commontoolsinc/patterns 2>/dev/null || echo "Note: patterns repo n
 2. Sign up/login → API Keys → Create key
 3. Save it securely
 
+**FAL AI** (for voice transcription with ct-voice-input):
+1. Visit: https://fal.ai/
+2. Sign up/login → API Keys → Create key
+3. Save it securely
+4. Needed for `ct-voice-input` component to transcribe voice recordings
+
 **Google OAuth** (for Gmail patterns):
 1. Visit: https://console.cloud.google.com/apis/credentials
 2. Create OAuth 2.0 Client ID
@@ -104,6 +110,10 @@ CTTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-their-actual-key-here
 ## OPTIONAL: Jina AI web reader API key (only needed for web search in patterns)
 # Get from: https://jina.ai/
 # JINA_API_KEY=jina_xxxx-their-actual-key-here
+
+## OPTIONAL: FAL AI API key (only needed for voice transcription with ct-voice-input)
+# Get from: https://fal.ai/
+# FAL_API_KEY=your-fal-key-here
 
 ## OPTIONAL: Google OAuth Credentials (only needed for Gmail patterns)
 ## Get from: https://console.cloud.google.com/apis/credentials
