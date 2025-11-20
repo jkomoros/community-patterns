@@ -693,6 +693,53 @@ git push origin main
 
 **IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create PRs automatically.
 
+**Before creating any PR, you MUST update from main and rebase your branch:**
+
+#### Step 0: Update and Rebase Before Creating PR
+
+**First, detect if working on fork or main repo:**
+
+```bash
+# Check if upstream remote exists (indicates fork)
+if git remote get-url upstream >/dev/null 2>&1; then
+  echo "Working on fork - will fetch from upstream"
+  MAIN_REMOTE="upstream"
+else
+  echo "Working on main repo - will fetch from origin"
+  MAIN_REMOTE="origin"
+fi
+```
+
+**Then fetch latest main and rebase your branch:**
+
+```bash
+# Fetch latest main
+git fetch $MAIN_REMOTE
+
+# Rebase current branch on top of main
+git rebase $MAIN_REMOTE/main
+
+# If rebase succeeds, push (force-with-lease if on feature branch)
+if [ "$(git branch --show-current)" != "main" ]; then
+  git push origin $(git branch --show-current) --force-with-lease
+else
+  git push origin main
+fi
+```
+
+**If rebase has conflicts:**
+1. Show conflict files: `git status`
+2. Help resolve conflicts
+3. Continue: `git rebase --continue`
+4. Then push
+
+**Why this matters:**
+- Ensures your PR is based on the latest main
+- Avoids merge conflicts during PR review
+- Makes PR review easier
+
+---
+
 #### If User Has Their Own Fork (Most Common)
 
 When user wants to contribute patterns from their fork to upstream:
@@ -704,7 +751,9 @@ git status  # Verify all changes are committed
 git push origin main
 ```
 
-**Step 2: Create pull request to upstream**
+**Step 2: Update and rebase (see Step 0 above)**
+
+**Step 3: Create pull request to upstream**
 ```bash
 gh pr create \
   --repo jkomoros/community-patterns \
@@ -742,7 +791,9 @@ git commit -m "Add: pattern name"
 git push origin username/feature-name
 ```
 
-**Step 3: Create pull request**
+**Step 3: Update and rebase (see Step 0 above)**
+
+**Step 4: Create pull request**
 ```bash
 gh pr create \
   --title "Add: pattern name" \
@@ -758,7 +809,7 @@ EOF
 )"
 ```
 
-**Step 4: Merge with rebase (when approved)**
+**Step 5: Merge with rebase (when approved)**
 ```bash
 gh pr merge PR_NUMBER --rebase --delete-branch
 ```
