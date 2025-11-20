@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -32,6 +32,32 @@ interface HotelMembershipInput {
   currentQuery: Default<string, "">;
   isScanning: Default<boolean, false>;
   queryGeneratorInput: Default<string, "">;  // Trigger cell for LLM query generation
+  gmailSettings: Default<{
+    gmailFilterQuery: string;
+    limit: number;
+    historyId: string;
+  }, {
+    gmailFilterQuery: "";
+    limit: 50;
+    historyId: "";
+  }>;
+  auth: Default<{
+    token: string;
+    tokenType: string;
+    scope: string[];
+    expiresIn: number;
+    expiresAt: number;
+    refreshToken: string;
+    user: { email: string; name: string; picture: string };
+  }, {
+    token: "";
+    tokenType: "";
+    scope: [];
+    expiresIn: 0;
+    expiresAt: 0;
+    refreshToken: "";
+    user: { email: ""; name: ""; picture: "" };
+  }>;
 }
 
 export default pattern<HotelMembershipInput>(({
@@ -44,18 +70,12 @@ export default pattern<HotelMembershipInput>(({
   currentQuery,
   isScanning,
   queryGeneratorInput,
+  gmailSettings,
+  auth,
 }) => {
-  // Gmail authentication
-  const auth = GmailAuth({
-    auth: {
-      token: "",
-      tokenType: "",
-      scope: [],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    },
+  // Gmail authentication charm - using auth cell from pattern input
+  const authCharm = GmailAuth({
+    auth: auth,
   });
 
   // Stage 1: LLM Query Generator
@@ -101,32 +121,40 @@ Return the selected brand name and the query string.`,
     },
   });
 
-  // AGENTIC: Automatically apply query when LLM generates it
-  const activeQuery = derive([queryResult, queryPending, currentQuery], ([result, pending, current]) => {
-    // If we already have a query set manually, keep it
-    if (current) return current;
-    // When query generation completes, use the generated query
-    if (!pending && result && result.query && result.query !== "done") {
-      return result.query;
-    }
-    return "";
-  });
-
-  // Import emails - automatically fetches when activeQuery changes!
+  // Import emails - using gmailSettings cell from pattern input
   const importer = GmailImporter({
-    settings: {
-      gmailFilterQuery: activeQuery,
-      limit: 50,
-      historyId: "",
-    },
-    authCharm: auth,
+    settings: gmailSettings,
+    authCharm: authCharm,
   });
 
   const emails = importer.emails;
 
-  // Check if Gmail is authenticated by checking if auth has a valid token
-  const isAuthenticated = derive([auth], ([authCharm]) => {
-    const authData = authCharm?.auth;
+  // AGENTIC: Auto-update Gmail query when LLM generates one
+  // This computed block watches queryResult and updates gmailSettings
+  computed(() => {
+    if (!queryResult || !queryPending) return;
+
+    const result = queryResult.get();
+    const pending = queryPending.get();
+    const scanning = isScanning.get();
+
+    // Only update during scanning workflow
+    if (!scanning) return;
+
+    // When query generation completes, update Gmail settings
+    if (!pending && result && result.query && result.query !== "done") {
+      const settings = gmailSettings.get();
+      if (settings.gmailFilterQuery !== result.query) {
+        gmailSettings.set({
+          ...settings,
+          gmailFilterQuery: result.query,
+        });
+      }
+    }
+  });
+
+  // Check if Gmail is authenticated by checking if auth cell has a valid token
+  const isAuthenticated = derive([auth], ([authData]) => {
     return !!(authData && authData.token && authData.user && authData.user.email);
   });
 
@@ -562,7 +590,7 @@ Return empty array if no NEW memberships found.`,
               </summary>
               <ct-vstack gap={3} style="padding: 12px; marginTop: 8px;">
                 <div>
-                  {auth}
+                  {authCharm}
                 </div>
                 <div>
                   {importer}
