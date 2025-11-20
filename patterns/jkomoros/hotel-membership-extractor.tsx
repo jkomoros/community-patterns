@@ -56,19 +56,7 @@ export default pattern<HotelMembershipInput>(({
     },
   });
 
-  // Import emails (will be configured dynamically based on LLM query)
-  const importer = GmailImporter({
-    settings: {
-      gmailFilterQuery: currentQuery,
-      limit: 50,
-      historyId: "",
-    },
-    authCharm: auth,
-  });
-
-  const emails = importer.emails;
-
-  // Cell to trigger query generation
+  // Cell to trigger query generation (timestamp-based)
   const queryGeneratorInput = cell<string>("");
 
   // Stage 1: LLM Query Generator
@@ -101,7 +89,7 @@ If unsearchedBrands is empty, return query "done"
 
 Return the selected brand name and the query string.`,
     prompt: derive([queryGeneratorPrompt, queryGeneratorInput], ([state, trigger]) =>
-      `${state}\n---TRIGGER-${trigger}---`
+      trigger ? `${state}\n---TRIGGER-${trigger}---` : ""
     ),
     model: "anthropic:claude-sonnet-4-5",
     schema: {
@@ -114,8 +102,39 @@ Return the selected brand name and the query string.`,
     },
   });
 
-  // Cell to trigger membership extraction
-  const extractorInput = cell<string>("");
+  // AGENTIC: Automatically apply query when LLM generates it
+  const activeQuery = derive([queryResult, queryPending, currentQuery], ([result, pending, current]) => {
+    // If we already have a query set manually, keep it
+    if (current) return current;
+    // When query generation completes, use the generated query
+    if (!pending && result && result.query && result.query !== "done") {
+      return result.query;
+    }
+    return "";
+  });
+
+  // Import emails - automatically fetches when activeQuery changes!
+  const importer = GmailImporter({
+    settings: {
+      gmailFilterQuery: activeQuery,
+      limit: 50,
+      historyId: "",
+    },
+    authCharm: auth,
+  });
+
+  const emails = importer.emails;
+
+  // AGENTIC: Automatically trigger extraction when emails arrive
+  // Create a stable trigger based on email IDs so it only fires when emails actually change
+  const autoExtractorTrigger = derive([emails, queryPending, isScanning], ([emailList, qPending, scanning]) => {
+    // Only trigger if we're in scanning mode, query is done, and we have emails
+    if (scanning && !qPending && emailList.length > 0) {
+      const emailIds = emailList.map((e: any) => e.id).sort().join(",");
+      return `AUTO-${emailIds}`;
+    }
+    return "";
+  });
 
   // Stage 2: LLM Membership Extractor
   const extractorPrompt = derive(
@@ -159,8 +178,8 @@ For each membership found, provide:
 - confidence: Your confidence level (0-100) that this is a valid membership
 
 Return empty array if no NEW memberships found.`,
-    prompt: derive([extractorPrompt, extractorInput], ([data, trigger]) =>
-      `${data}\n---TRIGGER-${trigger}---`
+    prompt: derive([extractorPrompt, autoExtractorTrigger], ([data, trigger]) =>
+      trigger ? `${data}\n---TRIGGER-${trigger}---` : ""
     ),
     model: "anthropic:claude-sonnet-4-5",
     schema: {
@@ -204,49 +223,35 @@ Return empty array if no NEW memberships found.`,
 
   const totalMemberships = derive(memberships, (list) => list.length);
 
-  // Handler to trigger query generation
-  const generateQuery = handler<unknown, {
+  // AGENTIC: Single handler to start the scan workflow
+  const startScan = handler<unknown, {
     queryGeneratorInput: Cell<string>;
+    isScanning: Cell<Default<boolean, false>>;
+    currentQuery: Cell<Default<string, "">>;
   }>((_, state) => {
+    // Set scanning flag
+    state.isScanning.set(true);
+    // Clear any old query
+    state.currentQuery.set("");
     // Trigger query generation with timestamp to ensure it always changes
     state.queryGeneratorInput.set(`START-${Date.now()}`);
   });
 
-  // Handler to apply query and fetch emails
-  const applyQuery = handler<
-    { query: string },
-    { currentQuery: Cell<Default<string, "">> }
-  >((args, state) => {
-    if (args.query && args.query !== "done") {
-      state.currentQuery.set(args.query);
-    }
-  });
-
-  // Handler to trigger extraction
-  const triggerExtraction = handler<unknown, {
-    extractorInput: Cell<string>;
+  // AGENTIC: Automatically save extraction results when they arrive
+  const autoSaveResults = handler<unknown, {
+    memberships: Cell<Default<MembershipRecord[], []>>;
+    searchedBrands: Cell<Default<string[], []>>;
+    searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
+    unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
+    scannedEmailIds: Cell<Default<string[], []>>;
+    lastScanAt: Cell<Default<number, 0>>;
+    isScanning: Cell<Default<boolean, false>>;
   }>((_, state) => {
-    state.extractorInput.set(`EXTRACT-${Date.now()}`);
-  });
+    // Get current extraction results
+    const extracted = extractorResult.get();
+    const selectedBrand = queryResult.get()?.selectedBrand;
+    const emailsList = emails.get();
 
-  // Handler to process extraction results and update state
-  const processResults = handler<
-    {
-      extracted: any;
-      selectedBrand: string;
-      emailsList: any[];
-    },
-    {
-      memberships: Cell<Default<MembershipRecord[], []>>;
-      searchedBrands: Cell<Default<string[], []>>;
-      searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
-      unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
-      scannedEmailIds: Cell<Default<string[], []>>;
-      lastScanAt: Cell<Default<number, 0>>;
-      isScanning: Cell<Default<boolean, false>>;
-    }
-  >((args, state) => {
-    const { extracted, selectedBrand, emailsList } = args;
     const currentMemberships = state.memberships.get();
     const scanned = state.scannedEmailIds.get();
     const currentUnsearched = state.unsearchedBrands.get();
@@ -268,7 +273,7 @@ Return empty array if no NEW memberships found.`,
     state.memberships.set([...currentMemberships, ...newMemberships]);
 
     // Update scanned email IDs
-    const emailIds = emailsList.map(e => e.id);
+    const emailIds = emailsList.map((e: any) => e.id);
     state.scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
 
     // Update brand tracking
@@ -298,6 +303,23 @@ Return empty array if no NEW memberships found.`,
     state.isScanning.set(false);
   });
 
+  // Determine if we should show the "Save Results" button
+  const hasNewResults = derive([extractorResult, extractorPending, isScanning], ([result, pending, scanning]) => {
+    return scanning && !pending && result && result.memberships && result.memberships.length > 0;
+  });
+
+  // Progress status message
+  const scanStatus = derive(
+    [isScanning, queryPending, emails, extractorPending],
+    ([scanning, qPending, emailList, ePending]) => {
+      if (!scanning) return "";
+      if (qPending) return "🔄 Generating Gmail search query...";
+      if (emailList.length === 0) return "📧 Fetching emails from Gmail...";
+      if (ePending) return "✨ Extracting membership numbers from emails...";
+      return "✅ Extraction complete!";
+    }
+  );
+
   return {
     [NAME]: "🏨 Hotel Membership Extractor",
     [UI]: (
@@ -308,33 +330,47 @@ Return empty array if no NEW memberships found.`,
 
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
-            {/* Workflow Info */}
+            {/* Scan Control */}
             <ct-vstack gap={2}>
-              <div style="padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; borderRadius: 8px; fontSize: 13px;">
-                <div style="fontWeight: 600; marginBottom: 8px;">📋 Manual Workflow:</div>
-                <div style="marginBottom: 4px;">1. LLM generates Gmail query automatically</div>
-                <div style="marginBottom: 4px;">2. Copy query from Debug Info below</div>
-                <div style="marginBottom: 4px;">3. Paste into Gmail Settings → Gmail Filter Query</div>
-                <div style="marginBottom: 4px;">4. Click "Fetch Emails" in Gmail Settings</div>
-                <div>5. Review extracted memberships below</div>
-              </div>
-
               <ct-button
-                onClick={generateQuery({ queryGeneratorInput })}
+                onClick={startScan({ queryGeneratorInput, isScanning, currentQuery })}
                 size="lg"
-                disabled={derive(queryPending, (p) => p)}
+                disabled={isScanning}
               >
-                {derive(queryPending, (pending) =>
-                  pending ? "🔄 Generating..." : "🔍 Generate Gmail Query"
+                {derive(isScanning, (scanning) =>
+                  scanning ? "⏳ Scanning..." : "🔍 Scan for Hotel Memberships"
                 )}
               </ct-button>
 
-              <ct-button
-                onClick={triggerExtraction({ extractorInput })}
-                size="lg"
-              >
-                ✨ Extract Memberships from Emails
-              </ct-button>
+              {/* Progress Status */}
+              {derive(scanStatus, (status) =>
+                status ? (
+                  <div style="padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; borderRadius: 8px; fontSize: 13px; textAlign: center;">
+                    {status}
+                  </div>
+                ) : null
+              )}
+
+              {/* Save Results Button (appears when extraction completes) */}
+              {derive(hasNewResults, (show) =>
+                show ? (
+                  <ct-button
+                    onClick={autoSaveResults({
+                      memberships,
+                      searchedBrands,
+                      searchedNotFound,
+                      unsearchedBrands,
+                      scannedEmailIds,
+                      lastScanAt,
+                      isScanning,
+                    })}
+                    size="lg"
+                    style="background: #10b981; color: white;"
+                  >
+                    💾 Save Extracted Memberships
+                  </ct-button>
+                ) : null
+              )}
             </ct-vstack>
 
             {/* Summary Stats */}
