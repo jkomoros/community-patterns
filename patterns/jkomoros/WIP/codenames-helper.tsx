@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { cell, Cell, Default, derive, generateObject, handler, ifElse, ImageData, NAME, pattern, UI } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -64,6 +64,49 @@ function getWordBackgroundColor(owner: WordOwner): string {
 }
 
 // ===== HANDLERS =====
+
+// Apply extracted board data from AI
+const applyExtractedData = handler<
+  unknown,
+  { board: Cell<BoardWord[]>; extraction: any }
+>((_event, { board, extraction }) => {
+  if (!extraction || !extraction.result) return;
+
+  const result = extraction.result;
+  const currentBoard = board.get().slice();
+
+  // Apply board words if available
+  if (result.boardWords && result.boardWords.length > 0) {
+    result.boardWords.forEach((wordData: any) => {
+      const index = currentBoard.findIndex((w: BoardWord) =>
+        w.position.row === wordData.row && w.position.col === wordData.col
+      );
+      if (index >= 0) {
+        currentBoard[index] = {
+          ...currentBoard[index],
+          word: wordData.word.toUpperCase()
+        };
+      }
+    });
+  }
+
+  // Apply key card colors if available
+  if (result.keyCardColors && result.keyCardColors.length > 0) {
+    result.keyCardColors.forEach((colorData: any) => {
+      const index = currentBoard.findIndex((w: BoardWord) =>
+        w.position.row === colorData.row && w.position.col === colorData.col
+      );
+      if (index >= 0) {
+        currentBoard[index] = {
+          ...currentBoard[index],
+          owner: colorData.color as WordOwner
+        };
+      }
+    });
+  }
+
+  board.set(currentBoard);
+});
 
 // Assign color to selected word
 const assignColor = handler<
@@ -142,6 +185,93 @@ const cellClick = handler<
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
   ({ board, myTeam, setupMode, selectedWordIndex }) => {
+    // Image upload for board and key card
+    const uploadedPhotos = cell<ImageData[]>([]);
+
+    // AI extraction for each uploaded photo
+    const photoExtractions = uploadedPhotos.map((photo) => {
+      return generateObject({
+        system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
+
+You will receive either:
+1. A photo of the game board (5×5 grid of 25 word cards)
+2. A photo of the key card (showing which words are red, blue, neutral, or assassin)
+
+IMPORTANT: Determine which type of photo this is and extract the appropriate information.`,
+
+        prompt: derive(photo, (p) => {
+          if (!p) return "No photo provided.";
+          return `Analyze this photo and determine if it shows:
+A) The game board (25 word cards in a 5×5 grid)
+B) The key card (showing color assignments)
+
+If it's a BOARD photo:
+- Extract all 25 words in their exact grid positions (row 0-4, col 0-4)
+- Start from top-left (0,0) and go row by row
+- Keep words in UPPERCASE
+
+If it's a KEY CARD photo:
+- The key card shows colored squares representing the word assignments
+- Extract the color pattern (red/blue/neutral/assassin) for each position
+- Match the grid layout (5×5)
+- Red and blue squares indicate team words
+- Beige/tan squares indicate neutral words
+- Black square indicates the assassin
+
+Provide the extracted information in the appropriate format.`;
+        }),
+
+        schema: {
+          type: "object",
+          properties: {
+            photoType: {
+              type: "string",
+              enum: ["board", "keycard", "unknown"],
+              description: "Type of photo detected"
+            },
+            boardWords: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  word: { type: "string", description: "The word in uppercase" },
+                  row: { type: "number", description: "Row position (0-4)" },
+                  col: { type: "number", description: "Column position (0-4)" }
+                }
+              },
+              description: "For board photos: all 25 words with positions"
+            },
+            keyCardColors: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  row: { type: "number", description: "Row position (0-4)" },
+                  col: { type: "number", description: "Column position (0-4)" },
+                  color: {
+                    type: "string",
+                    enum: ["red", "blue", "neutral", "assassin"],
+                    description: "Color assignment"
+                  }
+                }
+              },
+              description: "For keycard photos: color for each position"
+            },
+            confidence: {
+              type: "string",
+              enum: ["high", "medium", "low"],
+              description: "Confidence level in the extraction"
+            },
+            notes: {
+              type: "string",
+              description: "Any issues or uncertainties in the extraction"
+            }
+          }
+        },
+        model: "anthropic:claude-sonnet-4-5"
+      });
+    });
+
     // AI Clue Suggestions - only in Game Mode
     const clueSuggestions = generateObject({
       system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
@@ -589,6 +719,144 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 >
                   Reset All Colors
                 </ct-button>
+              </div>
+
+              {/* AI Image Upload */}
+              <div style={{
+                marginTop: "1.5rem",
+                padding: "1rem",
+                backgroundColor: "#ffffff",
+                borderRadius: "0.375rem",
+                border: "2px solid #8b5cf6",
+              }}>
+                <h4 style={{
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  marginBottom: "0.75rem",
+                  color: "#6b21a8",
+                }}>
+                  📷 AI-Powered Board Setup
+                </h4>
+                <p style={{
+                  fontSize: "0.75rem",
+                  color: "#71717a",
+                  marginBottom: "0.75rem",
+                }}>
+                  Upload photos of your board and key card to automatically extract words and colors.
+                </p>
+                <ct-image-input
+                  multiple
+                  maxImages={5}
+                  maxSizeBytes={4000000}
+                  showPreview={false}
+                  buttonText="📷 Upload Board & Key Card Photos"
+                  variant="secondary"
+                  $images={uploadedPhotos}
+                />
+
+                {/* Display extraction results */}
+                {photoExtractions.map((extraction, idx) => {
+                  return derive(
+                    { pending: extraction.pending, result: extraction.result },
+                    ({ pending, result }) => {
+                      if (pending) {
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              marginTop: "0.75rem",
+                              padding: "0.75rem",
+                              backgroundColor: "#fef3c7",
+                              borderRadius: "0.375rem",
+                              border: "1px solid #f59e0b",
+                            }}
+                          >
+                            <p style={{ fontSize: "0.75rem", color: "#92400e" }}>
+                              📸 Photo {idx + 1}: Analyzing...
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      if (!result) return null;
+
+                      const photoType = result.photoType || "unknown";
+                      const confidence = result.confidence || "unknown";
+                      const notes = result.notes || "";
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            marginTop: "0.75rem",
+                            padding: "0.75rem",
+                            backgroundColor: "#f0fdf4",
+                            borderRadius: "0.375rem",
+                            border: "1px solid #22c55e",
+                          }}
+                        >
+                          <div style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: "0.5rem",
+                          }}>
+                            <p style={{ fontSize: "0.75rem", fontWeight: "600", color: "#166534" }}>
+                              📸 Photo {idx + 1}: {photoType === "board" ? "Game Board" : photoType === "keycard" ? "Key Card" : "Unknown"}
+                            </p>
+                            <span style={{
+                              fontSize: "0.65rem",
+                              padding: "0.125rem 0.375rem",
+                              backgroundColor: confidence === "high" ? "#22c55e" : confidence === "medium" ? "#f59e0b" : "#ef4444",
+                              color: "white",
+                              borderRadius: "0.25rem",
+                              fontWeight: "600",
+                            }}>
+                              {confidence} confidence
+                            </span>
+                          </div>
+
+                          {photoType === "board" && result.boardWords && (
+                            <div style={{ fontSize: "0.7rem", color: "#166534", marginBottom: "0.5rem" }}>
+                              ✓ Extracted {result.boardWords.length} words from board
+                            </div>
+                          )}
+
+                          {photoType === "keycard" && result.keyCardColors && (
+                            <div style={{ fontSize: "0.7rem", color: "#166534", marginBottom: "0.5rem" }}>
+                              ✓ Extracted {result.keyCardColors.length} color assignments
+                            </div>
+                          )}
+
+                          {notes && (
+                            <div style={{
+                              fontSize: "0.7rem",
+                              color: "#78716c",
+                              fontStyle: "italic",
+                              marginBottom: "0.5rem",
+                            }}>
+                              Note: {notes}
+                            </div>
+                          )}
+
+                          <ct-button
+                            onClick={applyExtractedData({ board, extraction })}
+                            style={{
+                              fontSize: "0.75rem",
+                              padding: "0.375rem 0.75rem",
+                              backgroundColor: "#22c55e",
+                              color: "white",
+                              borderRadius: "0.25rem",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Apply to Board
+                          </ct-button>
+                        </div>
+                      );
+                    }
+                  );
+                })}
               </div>
             </div>,
             <div style={{
