@@ -645,6 +645,23 @@ function recordPatternUsage(config: Config, patternPath: string): Config {
   return config;
 }
 
+async function cullNonExistentPatterns(config: Config): Promise<Config> {
+  const existingPatterns: PatternRecord[] = [];
+
+  for (const pattern of config.patterns) {
+    try {
+      await Deno.stat(pattern.path);
+      // File exists, keep it
+      existingPatterns.push(pattern);
+    } catch {
+      // File doesn't exist, skip it (silent removal)
+    }
+  }
+
+  config.patterns = existingPatterns;
+  return config;
+}
+
 // ===== MAIN =====
 
 async function main() {
@@ -684,6 +701,7 @@ async function main() {
     // Update config
     config.lastSpace = space;
     config = recordPatternUsage(config, patternPath);
+    config = await cullNonExistentPatterns(config);
     await saveConfig(config);
   } else {
     // Deployment failed
