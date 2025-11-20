@@ -148,16 +148,133 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
         <div style={{
           padding: "1rem",
           fontFamily: "system-ui, sans-serif",
-          maxWidth: "800px",
+          maxWidth: "600px",
           margin: "0 auto",
         }}>
+          <style>{`
+            /* Team selection buttons */
+            ct-button.team-red-active::part(button) {
+              background-color: #dc2626;
+              color: white;
+              border: 2px solid #dc2626;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.team-red-inactive::part(button) {
+              background-color: #f3f4f6;
+              color: #000;
+              border: 2px solid #dc2626;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.team-blue-active::part(button) {
+              background-color: #2563eb;
+              color: white;
+              border: 2px solid #2563eb;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.team-blue-inactive::part(button) {
+              background-color: #f3f4f6;
+              color: #000;
+              border: 2px solid #2563eb;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+
+            /* Mode toggle buttons */
+            ct-button.mode-setup::part(button) {
+              background-color: #8b5cf6;
+              color: white;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.mode-game::part(button) {
+              background-color: #10b981;
+              color: white;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+
+            /* Color assignment buttons */
+            ct-button.color-red::part(button) {
+              background-color: #dc2626;
+              color: white;
+              border: 2px solid #000;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              text-transform: capitalize;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.color-blue::part(button) {
+              background-color: #2563eb;
+              color: white;
+              border: 2px solid #000;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              text-transform: capitalize;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.color-neutral::part(button) {
+              background-color: #d4d4d8;
+              color: #000;
+              border: 2px solid #000;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              text-transform: capitalize;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.color-assassin::part(button) {
+              background-color: #000000;
+              color: white;
+              border: 2px solid #000;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              text-transform: capitalize;
+              padding: 0.5rem 1rem;
+            }
+            ct-button.color-clear::part(button) {
+              background-color: #e5e7eb;
+              color: #000;
+              border: 2px solid #000;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              text-transform: capitalize;
+              padding: 0.5rem 1rem;
+            }
+
+            /* Initialize button */
+            ct-button.btn-initialize::part(button) {
+              background-color: #3b82f6;
+              color: white;
+              border-radius: 0.5rem;
+              font-weight: 600;
+              padding: 1rem 2rem;
+            }
+
+            /* Reset button */
+            ct-button.btn-reset::part(button) {
+              background-color: #ef4444;
+              color: white;
+              border-radius: 0.375rem;
+              font-weight: 600;
+              padding: 0.5rem 1rem;
+            }
+          `}</style>
+
           {/* Header */}
           <div style={{
-            marginBottom: "1.5rem",
+            marginBottom: "1rem",
             textAlign: "center",
           }}>
             <h1 style={{
-              fontSize: "1.5rem",
+              fontSize: "1.25rem",
               fontWeight: "bold",
               marginBottom: "0.5rem",
             }}>
@@ -175,19 +292,13 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               <span style={{ fontWeight: "500" }}>My Team:</span>
               <ct-button
                 onClick={() => myTeam.set("red")}
-                style={myTeam.get() === "red"
-                  ? "padding: 0.5rem 1rem; background-color: #dc2626; color: white; border: 2px solid #dc2626; border-radius: 0.375rem; font-weight: 600;"
-                  : "padding: 0.5rem 1rem; background-color: #f3f4f6; color: black; border: 2px solid #dc2626; border-radius: 0.375rem; font-weight: 600;"
-                }
+                className={myTeam.get() === "red" ? "team-red-active" : "team-red-inactive"}
               >
                 Red Team
               </ct-button>
               <ct-button
                 onClick={() => myTeam.set("blue")}
-                style={myTeam.get() === "blue"
-                  ? "padding: 0.5rem 1rem; background-color: #2563eb; color: white; border: 2px solid #2563eb; border-radius: 0.375rem; font-weight: 600;"
-                  : "padding: 0.5rem 1rem; background-color: #f3f4f6; color: black; border: 2px solid #2563eb; border-radius: 0.375rem; font-weight: 600;"
-                }
+                className={myTeam.get() === "blue" ? "team-blue-active" : "team-blue-inactive"}
               >
                 Blue Team
               </ct-button>
@@ -196,10 +307,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
             {/* Mode Toggle */}
             <ct-button
               onClick={() => setupMode.set(!setupMode.get())}
-              style={setupMode.get()
-                ? "padding: 0.5rem 1rem; background-color: #8b5cf6; color: white; border-radius: 0.375rem; font-weight: 600;"
-                : "padding: 0.5rem 1rem; background-color: #10b981; color: white; border-radius: 0.375rem; font-weight: 600;"
-              }
+              className={setupMode.get() ? "mode-setup" : "mode-game"}
             >
               {setupMode.get() ? "Setup Mode" : "Game Mode"}
             </ct-button>
@@ -209,8 +317,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(5, 1fr)",
-            gap: "0.5rem",
-            marginBottom: "1.5rem",
+            gap: "0.25rem",
+            marginBottom: "1rem",
           }}>
             {board.map((word: BoardWord, index: number) => {
               return (
@@ -218,8 +326,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                   style={{
                     aspectRatio: "1",
                     border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
-                    borderRadius: "0.375rem",
-                    padding: "0.5rem",
+                    borderRadius: "0.25rem",
+                    padding: "0.25rem",
                     backgroundColor: word.owner === "red" ? "#dc2626"
                       : word.owner === "blue" ? "#2563eb"
                       : word.owner === "neutral" ? "#d4d4d8"
@@ -265,21 +373,21 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                       placeholder={`${word.position.row},${word.position.col}`}
                       onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
                       style={{
-                        width: "100%",
-                        height: "100%",
+                        width: "90%",
+                        height: "80%",
                         textAlign: "center",
-                        fontSize: "0.875rem",
+                        fontSize: "0.7rem",
                         fontWeight: "600",
                         textTransform: "uppercase",
                         border: "none",
                         background: "transparent",
-                        color: "inherit",
+                        color: (word.owner === "neutral" || word.owner === "unassigned") ? "#000" : "#fff",
                         pointerEvents: "auto",
                       }}
                     />
                   ) : (
                     <span style={{
-                      fontSize: "0.875rem",
+                      fontSize: "0.7rem",
                       fontWeight: "600",
                       textAlign: "center",
                       wordBreak: "break-word",
@@ -292,44 +400,18 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
             })}
           </div>
 
-          {/* Initialize Button */}
-          <div style={{
-            textAlign: "center",
-            marginBottom: "1.5rem",
-          }}>
-            <ct-button
-              onClick={() => {
-                const newBoard: BoardWord[] = [];
-                for (let row = 0; row < 5; row++) {
-                  for (let col = 0; col < 5; col++) {
-                    newBoard.push({
-                      word: "",
-                      position: { row, col },
-                      owner: "unassigned",
-                      state: "unrevealed",
-                    });
-                  }
-                }
-                board.set(newBoard);
-              }}
-              style="padding: 1rem 2rem; background-color: #3b82f6; color: white; border-radius: 0.5rem; font-weight: 600;"
-            >
-              Initialize Empty Board
-            </ct-button>
-          </div>
-
           {/* Setup Controls */}
           {ifElse(
             setupMode,
             <div style={{
-              marginBottom: "1.5rem",
+              marginBottom: "1rem",
               padding: "1rem",
               backgroundColor: "#f9fafb",
               borderRadius: "0.5rem",
               border: "1px solid #e5e7eb",
             }}>
               <h3 style={{
-                fontSize: "1rem",
+                fontSize: "0.9rem",
                 fontWeight: "600",
                 marginBottom: "0.75rem",
               }}>
@@ -339,13 +421,14 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               {/* Color Counts */}
               <div style={{
                 display: "flex",
-                gap: "1rem",
+                gap: "0.5rem",
                 marginBottom: "0.75rem",
                 padding: "0.5rem",
                 backgroundColor: "#ffffff",
                 borderRadius: "0.375rem",
                 border: "1px solid #e5e7eb",
-                fontSize: "0.875rem",
+                fontSize: "0.75rem",
+                flexWrap: "wrap",
               }}>
                 {derive(board, (boardData: BoardWord[]) => {
                   const counts: Record<WordOwner, number> = {
@@ -388,31 +471,31 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               }}>
                 <ct-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "red" })}
-                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("red")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                  className="color-red"
                 >
                   red
                 </ct-button>
                 <ct-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}
-                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("blue")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                  className="color-blue"
                 >
                   blue
                 </ct-button>
                 <ct-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "neutral" })}
-                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("neutral")}; color: black; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                  className="color-neutral"
                 >
                   neutral
                 </ct-button>
                 <ct-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "assassin" })}
-                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("assassin")}; color: white; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                  className="color-assassin"
                 >
                   assassin
                 </ct-button>
                 <ct-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "unassigned" })}
-                  style={`padding: 0.5rem 1rem; background-color: ${getWordColor("unassigned")}; color: black; border: 2px solid #000; border-radius: 0.375rem; font-weight: 600; text-transform: capitalize;`}
+                  className="color-clear"
                 >
                   Clear
                 </ct-button>
@@ -420,12 +503,12 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
 
               {/* Reset Board Colors button */}
               <div style={{
-                marginTop: "1rem",
+                marginTop: "0.5rem",
                 textAlign: "center",
               }}>
                 <ct-button
                   onClick={resetAllColors({ board, selectedWordIndex })}
-                  style="padding: 0.5rem 1rem; background-color: #ef4444; color: white; border-radius: 0.375rem; font-weight: 600;"
+                  className="btn-reset"
                 >
                   Reset All Colors
                 </ct-button>
@@ -437,11 +520,38 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
               borderRadius: "0.5rem",
               border: "1px solid #e5e7eb",
               textAlign: "center",
+              marginBottom: "1rem",
             }}>
               <p style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Game Mode</p>
               <p style={{ fontSize: "0.875rem" }}>Click cards to mark them as guessed (faded = out of play)</p>
             </div>
           )}
+
+          {/* Initialize Button */}
+          <div style={{
+            textAlign: "center",
+            marginTop: "1rem",
+          }}>
+            <ct-button
+              onClick={() => {
+                const newBoard: BoardWord[] = [];
+                for (let row = 0; row < 5; row++) {
+                  for (let col = 0; col < 5; col++) {
+                    newBoard.push({
+                      word: "",
+                      position: { row, col },
+                      owner: "unassigned",
+                      state: "unrevealed",
+                    });
+                  }
+                }
+                board.set(newBoard);
+              }}
+              className="btn-initialize"
+            >
+              Initialize Empty Board
+            </ct-button>
+          </div>
         </div>
       ),
       board,
