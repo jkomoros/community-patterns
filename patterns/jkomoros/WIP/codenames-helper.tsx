@@ -220,11 +220,13 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     border: selectedWordIndex.get() === index ? "3px solid #3b82f6" : "2px solid #000",
                     borderRadius: "0.375rem",
                     padding: "0.5rem",
-                    backgroundColor: getWordBackgroundColor(word.owner),
-                    opacity: word.state === "revealed" ? 0.5 : 1,
-                    color: word.state === "revealed" &&
-                      (word.owner === "red" || word.owner === "blue" || word.owner === "assassin")
-                      ? "white" : "black",
+                    backgroundColor: board.get()[index].owner === "red" ? "#dc2626"
+                      : board.get()[index].owner === "blue" ? "#2563eb"
+                      : board.get()[index].owner === "neutral" ? "#d4d4d8"
+                      : board.get()[index].owner === "assassin" ? "#000000"
+                      : "#e5e7eb",
+                    opacity: board.get()[index].state === "revealed" ? 0.5 : 1,
+                    color: (board.get()[index].owner === "neutral" || board.get()[index].owner === "unassigned") ? "black" : "white",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
@@ -233,7 +235,10 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                     cursor: "pointer",
                     boxShadow: selectedWordIndex.get() === index ? "0 0 8px rgba(59, 130, 246, 0.5)" : "none",
                   }}
-                  onClick={() => {
+                  onClick={(e: any) => {
+                    // Don't select cell if clicking on input field
+                    if (e.target.tagName === 'INPUT') return;
+
                     const currentBoard = board.get();
                     const index = currentBoard.findIndex((el: BoardWord) =>
                       el.position.row === word.position.row && el.position.col === word.position.col
@@ -269,6 +274,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                         border: "none",
                         background: "transparent",
                         color: "inherit",
+                        pointerEvents: "auto",
                       }}
                     />
                   ) : (
@@ -281,20 +287,6 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
                       {word.word || "—"}
                     </span>
                   )}
-
-                  {/* Owner Indicator (Setup Mode) */}
-                  {setupMode.get() && word.owner !== "unassigned" ? (
-                    <div style={{
-                      position: "absolute",
-                      top: "2px",
-                      right: "2px",
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "50%",
-                      backgroundColor: getWordColor(word.owner),
-                      border: "1px solid white",
-                    }} />
-                  ) : null}
                 </div>
               );
             })}
