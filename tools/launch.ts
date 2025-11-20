@@ -770,6 +770,17 @@ async function main() {
   // Load config
   let config = await loadConfig();
 
+  // Clean up any invalid pattern entries (files that no longer exist)
+  const originalPatternCount = config.patterns.length;
+  config = await cullNonExistentPatterns(config);
+  const removedCount = originalPatternCount - config.patterns.length;
+
+  // Save cleaned config if anything was removed
+  if (removedCount > 0) {
+    await saveConfig(config);
+    console.log(`🧹 Cleaned up ${removedCount} invalid pattern${removedCount > 1 ? 's' : ''} from history\n`);
+  }
+
   // Get labs directory (may prompt user if not configured)
   const labsDir = await getLabsDir(config);
 
