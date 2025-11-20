@@ -204,24 +204,21 @@ Return empty array if no NEW memberships found.`,
 
   const totalMemberships = derive(memberships, (list) => list.length);
 
-  // Handler to start scanning
-  const startScan = handler<unknown, {
-    isScanning: Cell<Default<boolean, false>>;
+  // Handler to trigger query generation
+  const generateQuery = handler<unknown, {
     queryGeneratorInput: Cell<string>;
   }>((_, state) => {
-    state.isScanning.set(true);
     // Trigger query generation with timestamp to ensure it always changes
     state.queryGeneratorInput.set(`START-${Date.now()}`);
   });
 
   // Handler to apply query and fetch emails
-  const applyQuery = handler<unknown, {
-    currentQuery: Cell<Default<string, "">>;
-    queryResult: typeof queryResult;
-  }>((_, state) => {
-    const result = state.queryResult.get();
-    if (result && result.query && result.query !== "done") {
-      state.currentQuery.set(result.query);
+  const applyQuery = handler<
+    { query: string },
+    { currentQuery: Cell<Default<string, "">> }
+  >((args, state) => {
+    if (args.query && args.query !== "done") {
+      state.currentQuery.set(args.query);
     }
   });
 
@@ -233,30 +230,31 @@ Return empty array if no NEW memberships found.`,
   });
 
   // Handler to process extraction results and update state
-  const processResults = handler<unknown, {
-    memberships: Cell<Default<MembershipRecord[], []>>;
-    extractorResult: typeof extractorResult;
-    queryResult: typeof queryResult;
-    searchedBrands: Cell<Default<string[], []>>;
-    searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
-    unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
-    emails: Cell<any[]>;
-    scannedEmailIds: Cell<Default<string[], []>>;
-    lastScanAt: Cell<Default<number, 0>>;
-    isScanning: Cell<Default<boolean, false>>;
-  }>((_, state) => {
-    const extracted = state.extractorResult.get();
-    const query = state.queryResult.get();
+  const processResults = handler<
+    {
+      extracted: any;
+      selectedBrand: string;
+      emailsList: any[];
+    },
+    {
+      memberships: Cell<Default<MembershipRecord[], []>>;
+      searchedBrands: Cell<Default<string[], []>>;
+      searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
+      unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
+      scannedEmailIds: Cell<Default<string[], []>>;
+      lastScanAt: Cell<Default<number, 0>>;
+      isScanning: Cell<Default<boolean, false>>;
+    }
+  >((args, state) => {
+    const { extracted, selectedBrand, emailsList } = args;
     const currentMemberships = state.memberships.get();
-    const emailsList = state.emails.get();
     const scanned = state.scannedEmailIds.get();
     const currentUnsearched = state.unsearchedBrands.get();
     const currentSearched = state.searchedBrands.get();
     const currentNotFound = state.searchedNotFound.get();
 
-    if (!extracted || !query) return;
+    if (!extracted || !selectedBrand) return;
 
-    const selectedBrand = query.selectedBrand;
     const extractedMemberships = extracted.memberships || [];
 
     // Add new memberships with unique IDs and extractedAt timestamp
@@ -310,48 +308,32 @@ Return empty array if no NEW memberships found.`,
 
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
-            {/* Workflow Buttons */}
+            {/* Workflow Info */}
             <ct-vstack gap={2}>
+              <div style="padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; borderRadius: 8px; fontSize: 13px;">
+                <div style="fontWeight: 600; marginBottom: 8px;">📋 Manual Workflow:</div>
+                <div style="marginBottom: 4px;">1. LLM generates Gmail query automatically</div>
+                <div style="marginBottom: 4px;">2. Copy query from Debug Info below</div>
+                <div style="marginBottom: 4px;">3. Paste into Gmail Settings → Gmail Filter Query</div>
+                <div style="marginBottom: 4px;">4. Click "Fetch Emails" in Gmail Settings</div>
+                <div>5. Review extracted memberships below</div>
+              </div>
+
               <ct-button
-                onClick={startScan({ isScanning, queryGeneratorInput })}
+                onClick={generateQuery({ queryGeneratorInput })}
                 size="lg"
-                disabled={isScanning}
+                disabled={derive(queryPending, (p) => p)}
               >
-                {derive(isScanning, (scanning) =>
-                  scanning ? "🔄 Scanning..." : "🔍 Step 1: Generate Query"
+                {derive(queryPending, (pending) =>
+                  pending ? "🔄 Generating..." : "🔍 Generate Gmail Query"
                 )}
               </ct-button>
 
               <ct-button
-                onClick={applyQuery({ currentQuery, queryResult })}
-                disabled={derive(queryPending, (p) => p)}
-              >
-                📥 Step 2: Fetch Emails
-              </ct-button>
-
-              <ct-button
                 onClick={triggerExtraction({ extractorInput })}
-                disabled={derive(extractorPending, (p) => p)}
+                size="lg"
               >
-                🔍 Step 3: Extract Memberships
-              </ct-button>
-
-              <ct-button
-                onClick={processResults({
-                  memberships,
-                  extractorResult,
-                  queryResult,
-                  searchedBrands,
-                  searchedNotFound,
-                  unsearchedBrands,
-                  emails,
-                  scannedEmailIds,
-                  lastScanAt,
-                  isScanning,
-                })}
-                disabled={derive(extractorPending, (p) => p)}
-              >
-                ✅ Step 4: Save Results
+                ✨ Extract Memberships from Emails
               </ct-button>
             </ct-vstack>
 
