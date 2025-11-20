@@ -35,7 +35,7 @@ echo "Working directory: $COMMUNITY_PATTERNS_DIR"
 
 ## Step 1: Clone Required Repositories
 
-Clone the labs repository (required) and recipes repository (optional, if accessible) as peers to community-patterns.
+Clone the labs repository (required) and patterns repository (optional, if accessible) as peers to community-patterns.
 
 ```bash
 # Go to parent directory of community-patterns (clone as peers)
@@ -44,11 +44,11 @@ cd "$PARENT_DIR"
 # Clone labs (framework - REQUIRED, READ ONLY)
 gh repo clone commontoolsinc/labs
 
-# Try to clone recipes (optional - don't worry if this fails)
-gh repo clone commontoolsinc/recipes 2>/dev/null || echo "Note: recipes repo not accessible (this is fine)"
+# Try to clone patterns (optional - don't worry if this fails)
+gh repo clone commontoolsinc/patterns 2>/dev/null || echo "Note: patterns repo not accessible (this is fine)"
 ```
 
-**Tell the user:** "I've cloned the Common Tools framework repository (labs) as a peer to your community-patterns directory. The recipes repository is optional and may not be accessible depending on your permissions."
+**Tell the user:** "I've cloned the Common Tools framework repository (labs) as a peer to your community-patterns directory. The patterns repository is optional and may not be accessible depending on your permissions."
 
 ---
 

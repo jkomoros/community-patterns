@@ -84,9 +84,9 @@ git push origin main
 - Gets new example patterns
 - Gets other users' contributed patterns
 
-### Step 1.5: Update Labs and Recipes Repositories
+### Step 1.5: Update Labs and Patterns Repositories
 
-**After updating community-patterns, also update labs/ and recipes/ (if they exist):**
+**After updating community-patterns, also update labs/ and patterns/ (if they exist):**
 
 ```bash
 # Get parent directory
@@ -103,10 +103,10 @@ else
   echo "⚠️  labs/ not found - user may need to clone it"
 fi
 
-# Update recipes (optional)
-if [ -d "$PARENT_DIR/recipes" ]; then
-  echo "Updating recipes repository..."
-  cd "$PARENT_DIR/recipes"
+# Update patterns (optional)
+if [ -d "$PARENT_DIR/patterns" ]; then
+  echo "Updating patterns repository..."
+  cd "$PARENT_DIR/patterns"
   git fetch origin
   git pull --rebase origin main
   cd -
@@ -115,7 +115,7 @@ fi
 
 **Tell user:**
 ```
-Updated dependency repositories (labs and recipes if available).
+Updated dependency repositories (labs and patterns if available).
 [If found updates]: Pulled latest updates! This includes:
   - Updated documentation
   - New example patterns
@@ -129,9 +129,12 @@ Updated dependency repositories (labs and recipes if available).
 **If it's been a while since last check, check for reference repo updates:**
 
 ```bash
-# Check if labs or recipes need updating
-cd ~/Code/labs && git fetch origin && git status
-cd ~/Code/recipes && git fetch origin && git status 2>/dev/null
+# Get parent directory
+PARENT_DIR="$(git rev-parse --show-toplevel)/.."
+
+# Check if labs or patterns need updating
+cd "$PARENT_DIR/labs" && git fetch origin && git status
+cd "$PARENT_DIR/patterns" && git fetch origin && git status 2>/dev/null
 ```
 
 **If updates available, update automatically:**
@@ -142,11 +145,11 @@ pkill -f "packages/toolshed.*deno task dev"
 pkill -f "packages/shell.*deno task dev-local"
 
 # Pull updates
-cd ~/Code/labs && git pull origin main
+cd "$PARENT_DIR/labs" && git pull origin main
 
 # Restart both servers in background
-cd ~/Code/labs/packages/toolshed && deno task dev > /tmp/toolshed-dev.log 2>&1 &
-cd ~/Code/labs/packages/shell && deno task dev-local > /tmp/shell-dev.log 2>&1 &
+cd "$PARENT_DIR/labs/packages/toolshed" && deno task dev > /tmp/toolshed-dev.log 2>&1 &
+cd "$PARENT_DIR/labs/packages/shell" && deno task dev-local > /tmp/shell-dev.log 2>&1 &
 
 # Give them a moment to start
 sleep 3
@@ -159,7 +162,7 @@ echo "Shell (frontend): http://localhost:5173"
 **Important Notes:**
 - **labs/** updates may include new framework features, bug fixes, or documentation
 - **Dev server must be restarted** after pulling labs updates
-- **recipes/** (if cloned) contains example patterns - optional to update
+- **patterns/** (if cloned) contains example patterns - optional to update
 - Check approximately weekly, or when user encounters framework issues
 
 ### Step 2: Load Workspace Configuration
@@ -535,7 +538,16 @@ git commit -m "Test counter pattern in browser"
 
 ### Recovery Strategies for Pattern Development
 
-When stuck developing patterns, follow this escalation path:
+**CRITICAL: Don't spin your wheels when stuck. Follow this escalation path AGGRESSIVELY.**
+
+When encountering any difficulty with pattern development - whether it's TypeScript errors, unexpected behavior, or uncertainty about framework features - **immediately begin this recovery sequence**. Do NOT:
+- Continue trying the same approach repeatedly
+- Guess at solutions without checking documentation
+- Waste time in unproductive loops
+
+**If you find yourself stuck for more than 2-3 attempts, MOVE TO THE NEXT STEP.**
+
+Use this escalation path:
 
 #### Step 1: Re-read Documentation (First Response to Being Stuck)
 
@@ -564,33 +576,39 @@ The pattern-dev skill reads all latest pattern documentation from labs. Pay **pa
 - Confused about Cell<>, OpaqueRef<>, bidirectional binding
 - Before asking user for clarification on framework behavior
 
+**When to move to Step 2:**
+- After reading relevant docs but still unclear on solution
+- Error persists after applying documented fixes
+- Need to see concrete examples of working code
+- After 1-2 attempts based on documentation
+
 #### Step 2: Study Similar Working Patterns
 
 After refreshing documentation, look at existing working patterns **in this priority order:**
 
 **1. Labs patterns** (highest priority - canonical examples):
 ```bash
-~/Code/labs/packages/patterns/
+$PARENT_DIR/labs/packages/patterns/
 # These are the most up-to-date, authoritative examples
 # If a pattern exists here, it's the gold standard
 ```
 
-**2. Recipes patterns** (if available - well-tested real-world examples):
+**2. Patterns repository** (if available - well-tested real-world examples):
 ```bash
-~/Code/recipes/patterns/*/
-# Prefer root-level (stable) over WIP/
-# Skip this if recipes repo not cloned
+$PARENT_DIR/patterns/
+# These are well-tested real-world patterns
+# Skip this if patterns repo not cloned
 ```
 
 **3. Community patterns - examples** (curated examples):
 ```bash
-~/Code/community-patterns/patterns/examples/
+patterns/examples/
 # These are specifically chosen as good examples
 ```
 
 **4. Community patterns - jkomoros** (user patterns):
 ```bash
-~/Code/community-patterns/patterns/jkomoros/
+patterns/jkomoros/
 # Prefer root-level (stable) over WIP/
 # These may be more complex/experimental
 ```
@@ -602,16 +620,26 @@ After refreshing documentation, look at existing working patterns **in this prio
 
 **How to find similar patterns:**
 ```bash
+# Get parent directory for relative paths
+PARENT_DIR="$(git rev-parse --show-toplevel)/.."
+
 # Search for patterns using specific features
-grep -r "generateObject" ~/Code/labs/packages/patterns/
-grep -r "computed(" ~/Code/community-patterns/patterns/examples/
-grep -r "handler<" ~/Code/labs/packages/patterns/
+grep -r "generateObject" $PARENT_DIR/labs/packages/patterns/
+grep -r "computed(" patterns/examples/
+grep -r "handler<" $PARENT_DIR/labs/packages/patterns/
 
 # List available patterns
-ls ~/Code/labs/packages/patterns/
-ls ~/Code/community-patterns/patterns/examples/
-ls ~/Code/community-patterns/patterns/jkomoros/
+ls $PARENT_DIR/labs/packages/patterns/
+ls $PARENT_DIR/patterns/ 2>/dev/null || echo "patterns repo not cloned"
+ls patterns/examples/
+ls patterns/jkomoros/
 ```
+
+**When to move to Step 3:**
+- Can't find similar patterns for your use case
+- Examples don't solve your specific problem
+- After studying 2-3 similar patterns without clarity
+- Ready to try a fresh approach with new knowledge
 
 #### Step 3: Reset and Try Again (Minor Confusion)
 
@@ -622,6 +650,12 @@ If still stuck after Steps 1-2:
 3. Try a different approach incorporating that knowledge
 4. Start with the simplest possible version that works
 5. Add complexity incrementally, testing after each addition
+
+**When to move to Step 4:**
+- After 1-2 reset attempts without progress
+- Problem persists despite fresh approaches
+- Suspect this might be a framework limitation or bug
+- Need architectural guidance beyond documentation
 
 #### Step 4: Ask User (Significant Confusion)
 
@@ -985,7 +1019,7 @@ Every session:
   - If NO → Run GETTING_STARTED.md
   - If YES → Continue below
 - [ ] **Step 1**: Check and pull from upstream (this repo)
-- [ ] **Step 1.5**: Check if labs/recipes need updates (weekly)
+- [ ] **Step 1.5**: Check if labs/patterns need updates (weekly)
 - [ ] **Step 2**: Load workspace configuration (.claude-workspace)
 - [ ] **Step 3**: Check and start dev server if needed
 - [ ] **Check**: Is Playwright MCP available for testing?
