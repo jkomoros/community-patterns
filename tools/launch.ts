@@ -307,9 +307,8 @@ async function selectPattern(config: Config): Promise<string | null> {
   if (config.patterns.length > 0) {
     config.patterns.slice(0, 10).forEach((p) => {
       const shortPath = getShortPath(p.path);
-      const timeStr = formatTimeSince(p.lastUsed);
       options.push({
-        label: `${shortPath} (${timeStr})`,
+        label: shortPath,
         value: p.path,
         icon: "📄 ",
       });
