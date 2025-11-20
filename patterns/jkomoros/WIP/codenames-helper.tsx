@@ -154,7 +154,7 @@ function getWordBackgroundColor(owner: WordOwner): string {
 // Apply extracted board data from AI (after approval)
 const applyExtractedData = handler<
   unknown,
-  { board: Cell<BoardWord[]>; extraction: any; approvalState: Cell<any>; idx: number }
+  { board: Cell<BoardWord[]>; extraction: any; approvalState: Cell<Array<{ correctionText: string; applied: boolean }>>; idx: number }
 >((_event, { board, extraction, approvalState, idx }) => {
   if (!extraction || !extraction.result) return;
 
@@ -195,6 +195,10 @@ const applyExtractedData = handler<
 
   // Mark as approved/applied
   const currentApprovals = approvalState.get().slice();
+  // Extend array if needed
+  while (currentApprovals.length <= idx) {
+    currentApprovals.push({ correctionText: "", applied: false });
+  }
   currentApprovals[idx] = { ...currentApprovals[idx], applied: true };
   approvalState.set(currentApprovals);
 });
@@ -202,7 +206,7 @@ const applyExtractedData = handler<
 // Reject extraction
 const rejectExtraction = handler<
   unknown,
-  { uploadedPhotos: Cell<ImageData[]>; idx: number; approvalState: Cell<any> }
+  { uploadedPhotos: Cell<ImageData[]>; idx: number; approvalState: Cell<Array<{ correctionText: string; applied: boolean }>> }
 >((_event, { uploadedPhotos, idx, approvalState }) => {
   // Remove from uploaded photos
   const photos = uploadedPhotos.get().slice();
@@ -213,6 +217,21 @@ const rejectExtraction = handler<
   const approvals = approvalState.get().slice();
   approvals.splice(idx, 1);
   approvalState.set(approvals);
+});
+
+// Update correction text
+const updateCorrectionText = handler<
+  any,
+  { approvalState: Cell<Array<{ correctionText: string; applied: boolean }>>; idx: number }
+>((event, { approvalState, idx }) => {
+  const text = event.target.value;
+  const currentApprovals = approvalState.get().slice();
+  // Extend array if needed
+  while (currentApprovals.length <= idx) {
+    currentApprovals.push({ correctionText: "", applied: false });
+  }
+  currentApprovals[idx] = { ...currentApprovals[idx], correctionText: text };
+  approvalState.set(currentApprovals);
 });
 
 // Assign color to selected word
@@ -300,17 +319,6 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
       correctionText: string;
       applied: boolean;
     }>>([]);
-
-    // Sync approval state length with uploaded photos
-    derive(uploadedPhotos, (photos: ImageData[]) => {
-      const current = approvalState.get();
-      if (current.length !== photos.length) {
-        const newState = photos.map((_: ImageData, i: number) =>
-          current[i] || { correctionText: "", applied: false }
-        );
-        approvalState.set(newState);
-      }
-    });
 
     // AI extraction for each uploaded photo
     // Note: We can't easily track idx in map, so we'll get correction text dynamically in prompt
@@ -898,7 +906,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 {/* Display extraction results with confirmation dialog */}
                 {photoExtractions.map((extraction) => {
                   // Get the index by finding this extraction in the array
-                  const idx = photoExtractions.indexOf(extraction);
+                  const photoIdx = photoExtractions.indexOf(extraction);
 
                   return derive(
                     {
@@ -907,12 +915,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       approvalState: approvalState
                     },
                     ({ pending, result, approvalState: approvalStateValue }: { pending: boolean; result: any; approvalState: Array<{ correctionText: string; applied: boolean }> }) => {
-                      const approval = approvalStateValue[idx] || { correctionText: "", applied: false };
+                      const approval = approvalStateValue[photoIdx] || { correctionText: "", applied: false };
 
                       if (pending) {
                         return (
                           <div
-                            key={idx}
+                            key={photoIdx}
                             style={{
                               marginTop: "0.75rem",
                               padding: "0.75rem",
@@ -922,7 +930,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             }}
                           >
                             <p style={{ fontSize: "0.75rem", color: "#92400e" }}>
-                              📸 Photo {idx + 1}: Analyzing...
+                              📸 Photo {photoIdx + 1}: Analyzing...
                             </p>
                           </div>
                         );
@@ -939,7 +947,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       if (approval.applied) {
                         return (
                           <div
-                            key={idx}
+                            key={photoIdx}
                             style={{
                               marginTop: "0.75rem",
                               padding: "0.5rem",
@@ -950,14 +958,14 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               color: "#065f46",
                             }}
                           >
-                            ✓ Photo {idx + 1} applied to board
+                            ✓ Photo {photoIdx + 1} applied to board
                           </div>
                         );
                       }
 
                       return (
                         <div
-                          key={idx}
+                          key={photoIdx}
                           style={{
                             marginTop: "0.75rem",
                             padding: "0.75rem",
@@ -974,7 +982,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             marginBottom: "0.75rem",
                           }}>
                             <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "#166534" }}>
-                              📸 Photo {idx + 1}: {photoType === "board" ? "Game Board" : photoType === "keycard" ? "Key Card" : "Unknown"}
+                              📸 Photo {photoIdx + 1}: {photoType === "board" ? "Game Board" : photoType === "keycard" ? "Key Card" : "Unknown"}
                             </p>
                             <span style={{
                               fontSize: "0.65rem",
@@ -1136,11 +1144,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               type="text"
                               placeholder="e.g., 'top right should be blue not red'"
                               value={approval.correctionText}
-                              onChange={(e: any) => {
-                                const currentApprovals = approvalState.get().slice();
-                                currentApprovals[idx] = { ...currentApprovals[idx], correctionText: e.target.value };
-                                approvalState.set(currentApprovals);
-                              }}
+                              onChange={updateCorrectionText({ approvalState, idx: photoIdx })}
                               style={{
                                 width: "100%",
                                 padding: "0.375rem",
@@ -1159,7 +1163,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             flexWrap: "wrap",
                           }}>
                             <ct-button
-                              onClick={applyExtractedData({ board, extraction, approvalState, idx })}
+                              onClick={applyExtractedData({ board, extraction, approvalState, idx: photoIdx })}
                               disabled={!validation.isValid}
                               style={{
                                 fontSize: "0.75rem",
@@ -1174,7 +1178,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               ✓ Approve & Apply to Board
                             </ct-button>
                             <ct-button
-                              onClick={rejectExtraction({ uploadedPhotos, idx, approvalState })}
+                              onClick={rejectExtraction({ uploadedPhotos, idx: photoIdx, approvalState })}
                               style={{
                                 fontSize: "0.75rem",
                                 padding: "0.5rem 0.75rem",
