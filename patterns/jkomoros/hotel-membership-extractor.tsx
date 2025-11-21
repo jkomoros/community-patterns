@@ -132,6 +132,242 @@ export default pattern<HotelMembershipInput>(({
     auth: auth,
   });
 
+  // ============================================================================
+  // AGENT: Hotel Membership Extractor with Tool Calling
+  // ============================================================================
+
+  // Define agent tools outside generateObject to avoid closure issues
+  const agentTools = {
+    searchGmail: patternTool(SearchGmailTool, { authCharm }),
+  };
+
+  const agentPrompt = derive(
+    [brandHistory, memberships, isScanning],
+    ([history, found, scanning]: [BrandSearchHistory[], MembershipRecord[], boolean]) => {
+      if (!scanning) return "";  // Don't run unless actively scanning
+
+      const foundBrands = history.filter((h: BrandSearchHistory) => h.status === "found").map((h: BrandSearchHistory) => h.brand);
+      const searchingBrands = history.filter((h: BrandSearchHistory) => h.status === "searching").map((h: BrandSearchHistory) => h.brand);
+      const exhaustedBrands = history.filter((h: BrandSearchHistory) => h.status === "exhausted").map((h: BrandSearchHistory) => h.brand);
+
+      // Show recent query attempts for context
+      const recentAttempts = history
+        .flatMap((h: BrandSearchHistory) => h.attempts.map((a: QueryAttempt) => `${h.brand}: "${a.query}" → ${a.emailsFound} emails, ${a.membershipsFound} memberships`))
+        .slice(-5);  // Last 5 attempts
+
+      return `Find hotel loyalty program membership numbers in my Gmail account.
+
+Current progress:
+- Memberships found: ${found.length}
+- Brands found: ${foundBrands.join(", ") || "none yet"}
+- Brands searching: ${searchingBrands.join(", ") || "none"}
+- Brands exhausted: ${exhaustedBrands.join(", ") || "none"}
+
+Recent attempts:
+${recentAttempts.length > 0 ? recentAttempts.join("\n") : "No attempts yet"}
+
+Search for memberships from these hotel brands: Marriott, Hilton, Hyatt, IHG, Accor
+
+Strategy:
+1. Use searchGmail to find emails from hotel brands
+2. Analyze email subjects/previews (you'll see @link references)
+3. Use the read tool to read promising emails
+4. Extract membership numbers from email content
+5. If query returns promotional emails, refine with subject filters
+6. Try 3-5 different queries per brand before moving to next brand
+
+When done, call finalResult with all memberships you found.`;
+    }
+  );
+
+  const agent = generateObject({
+    system: `You are a hotel loyalty program membership extractor.
+
+Your goal: Find membership numbers from hotel loyalty programs in the user's Gmail.
+
+Available tools:
+- searchGmail(query): Search Gmail, returns email @link references (NOT full content)
+- read(@link): Read full content of a specific email (built-in tool)
+
+How @links work:
+- searchGmail returns: [{"@link": "/of:abc/email/0"}, {"@link": "/of:abc/email/1"}, ...]
+- You see metadata but NOT full content
+- Use read tool to get full content: read({"@link": "/of:abc/email/0"})
+
+Search strategy:
+1. Start broad: "from:marriott.com"
+2. Analyze subjects in @link references
+3. Read promising emails (account/confirmation/welcome, not promotional)
+4. If mostly promotional: refine with "subject:(membership OR account OR number)"
+5. Try 3-5 queries per brand
+6. Extract membership numbers, program names, tiers
+
+Membership data to extract:
+- hotelBrand: "Marriott", "Hilton", etc.
+- programName: "Marriott Bonvoy", "Hilton Honors", etc.
+- membershipNumber: The actual number (typically 9-12 digits)
+- tier: "Gold", "Platinum", etc. (if mentioned)
+- sourceEmailId: Email ID where found
+- sourceEmailSubject: Email subject
+- sourceEmailDate: Email date
+- confidence: 0-100 (how confident you are this is valid)
+
+When done searching all brands, call finalResult with memberships array.`,
+
+    prompt: agentPrompt,
+
+    tools: agentTools,
+
+    model: "anthropic:claude-sonnet-4-5",
+
+    schema: {
+      type: "object",
+      properties: {
+        memberships: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              hotelBrand: { type: "string" },
+              programName: { type: "string" },
+              membershipNumber: { type: "string" },
+              tier: { type: "string" },
+              sourceEmailId: { type: "string" },
+              sourceEmailSubject: { type: "string" },
+              sourceEmailDate: { type: "string" },
+              confidence: { type: "number" },
+            },
+            required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
+          },
+        },
+        queriesAttempted: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              brand: { type: "string" },
+              query: { type: "string" },
+              emailsFound: { type: "number" },
+              emailsRead: { type: "number" },
+            },
+          },
+        },
+      },
+      required: ["memberships"],
+    },
+  });
+
+  const { result: agentResult, pending: agentPending } = agent;
+
+  // Wrap agentResult in a derived cell so we can pass it to handlers
+  // agentResult is already a reactive value, so we just need to make it accessible
+  const agentResultCell = derive([agentResult], ([result]) => result);
+
+  // Handler to save agent results and stop scanning
+  const saveAgentResults = handler<unknown, {
+    memberships: Cell<Default<MembershipRecord[], []>>;
+    scannedEmailIds: Cell<Default<string[], []>>;
+    lastScanAt: Cell<Default<number, 0>>;
+    brandHistory: Cell<Default<BrandSearchHistory[], []>>;
+    isScanning: Cell<Default<boolean, false>>;
+    agentResult: Cell<any>;
+  }>((_, state) => {
+    const result = state.agentResult.get();
+    if (!result) return;
+
+    const currentMemberships = state.memberships.get();
+    const scanned = state.scannedEmailIds.get();
+    const currentHistory = state.brandHistory.get();
+
+    // Add new memberships with unique IDs and extractedAt timestamp
+    const newMemberships = result.memberships.map((m: any) => ({
+      ...m,
+      id: `${m.hotelBrand}-${m.membershipNumber}-${Date.now()}`,
+      extractedAt: Date.now(),
+    }));
+
+    // Update memberships array
+    state.memberships.set([...currentMemberships, ...newMemberships]);
+
+    // Update scanned email IDs from queriesAttempted
+    const allEmailIds = new Set(scanned);
+    // Note: Agent doesn't track individual email IDs, so we'll just mark scan time
+
+    // Update brandHistory based on queriesAttempted
+    const updatedHistory = [...currentHistory];
+
+    if (result.queriesAttempted && Array.isArray(result.queriesAttempted)) {
+      for (const queryAttempt of result.queriesAttempted) {
+        const { brand, query, emailsFound, emailsRead } = queryAttempt;
+
+        // Find or create brand entry
+        let brandEntry = updatedHistory.find(h => h.brand === brand);
+
+        // Count how many memberships were found for this brand in this agent run
+        const membershipsForBrand = newMemberships.filter((m: MembershipRecord) => m.hotelBrand === brand).length;
+
+        const attempt: QueryAttempt = {
+          query,
+          attemptedAt: Date.now(),
+          emailsFound: emailsFound || 0,
+          membershipsFound: membershipsForBrand,
+          emailIds: {}, // Agent doesn't track individual IDs
+        };
+
+        if (brandEntry) {
+          // Update existing brand entry
+          const newAttempts = [...brandEntry.attempts, attempt];
+
+          // Determine new status
+          let newStatus: "searching" | "found" | "exhausted" = brandEntry.status;
+          if (membershipsForBrand > 0) {
+            newStatus = "found";
+          } else if (newAttempts.length >= 5) {
+            newStatus = "exhausted";
+          } else {
+            newStatus = "searching";
+          }
+
+          // Update in place
+          brandEntry.attempts = newAttempts;
+          brandEntry.status = newStatus;
+        } else {
+          // Create new brand entry
+          const newStatus: "searching" | "found" | "exhausted" =
+            membershipsForBrand > 0 ? "found" : "searching";
+
+          updatedHistory.push({
+            brand,
+            attempts: [attempt],
+            status: newStatus,
+          });
+        }
+      }
+    }
+
+    state.brandHistory.set(updatedHistory);
+    state.lastScanAt.set(Date.now());
+
+    // Stop scanning
+    state.isScanning.set(false);
+  });
+
+  // Determine when to show agent save button
+  const shouldShowAgentSaveButton = derive(
+    [isScanning, agentPending, agentResult],
+    ([scanning, pending, result]) => {
+      // Show save button when:
+      // 1. We're in scanning mode
+      // 2. Agent is complete (not pending)
+      // 3. We have agent results
+      return scanning && !pending && !!result;
+    }
+  );
+
+  // ============================================================================
+  // OLD 2-STAGE LLM (kept for backward compatibility during transition)
+  // ============================================================================
+
   // Stage 1: LLM Query Generator
   const queryGeneratorPrompt = derive(
     brandHistory,
@@ -637,7 +873,54 @@ Return empty array if no NEW memberships found.`,
                 ) : null
               )}
 
-              {/* PROMINENT Save Results Button - appears when extraction completes */}
+              {/* Agent progress status */}
+              {derive([isScanning, agentPending], ([scanning, pending]) =>
+                scanning && pending ? (
+                  <div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 8px; fontSize: 13px; textAlign: center;">
+                    🤖 Agent is searching Gmail and extracting memberships...
+                  </div>
+                ) : null
+              )}
+
+              {/* PROMINENT Agent Save Results Button - appears when agent completes */}
+              {derive(shouldShowAgentSaveButton, (show) =>
+                show ? (
+                  <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
+                    <div style="fontSize: 14px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
+                      ✅ Agent Extraction Complete!
+                    </div>
+                    <div style="fontSize: 13px; color: #047857; marginBottom: 12px; textAlign: center;">
+                      {derive(agentResult, (result) => {
+                        const count = result?.memberships?.length || 0;
+                        const queries = result?.queriesAttempted?.length || 0;
+                        if (count > 0) {
+                          return `Found ${count} membership${count !== 1 ? 's' : ''} across ${queries} search${queries !== 1 ? 'es' : ''}`;
+                        }
+                        return `Searched ${queries} quer${queries !== 1 ? 'ies' : 'y'}, no new memberships found`;
+                      })}
+                    </div>
+                    <ct-button
+                      onClick={saveAgentResults({
+                        memberships,
+                        scannedEmailIds,
+                        lastScanAt,
+                        brandHistory,
+                        isScanning,
+                        agentResult: agentResultCell,
+                      })}
+                      size="lg"
+                      style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                    >
+                      💾 Save Results & Complete
+                    </ct-button>
+                    <div style="fontSize: 11px; color: #059669; marginTop: 8px; textAlign: center; fontStyle: italic;">
+                      Click to save memberships and stop scanning
+                    </div>
+                  </div>
+                ) : null
+              )}
+
+              {/* PROMINENT Save Results Button - appears when extraction completes (OLD 2-STAGE LLM) */}
               {derive(shouldShowSaveButton, (show) =>
                 show ? (
                   <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
@@ -797,7 +1080,13 @@ Return empty array if no NEW memberships found.`,
                   (records && Array.isArray(records)) ? records.map((r: BrandSearchRecord) => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None" : "None"
                 )}</div>
 
-                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Current LLM State:</div>
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Agent State (NEW):</div>
+                <div>Agent Pending: {derive(agentPending, (p) => p ? "Yes ⏳" : "No ✓")}</div>
+                <div>Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
+                <div>Agent Memberships Found: {derive(agentResult, (r) => r?.memberships?.length || 0)}</div>
+                <div>Agent Queries Attempted: {derive(agentResult, (r) => r?.queriesAttempted?.length || 0)}</div>
+
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Old 2-Stage LLM State (DEPRECATED):</div>
                 <div>LLM Query: {derive(queryResult, (result) => result?.query || "None")}</div>
                 <div>Selected Brand: {derive(queryResult, (result) => result?.selectedBrand || "None")}</div>
                 <div>LLM Reasoning: {derive(queryResult, (result) => result?.reasoning || "None")}</div>
