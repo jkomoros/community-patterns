@@ -423,6 +423,100 @@ const agent = generateObject({
 
 ---
 
+## 🔄 MAJOR ARCHITECTURE REVISION - Framework Developer Feedback
+
+**Date:** Current session (continued)
+
+**Framework Developer Feedback Received:**
+
+> "it shouldn't do the caching thing and it can use the cell reading tools instead of the readEmail tool:
+> the tool should just be a thin wrapper around the gmail importer
+> specify the return type as second type parameter for the pattern and make emails any. this makes it so that they are outputtet as links to the llm and it can then use the read tool to read the emails"
+
+**What This Means:**
+
+### ❌ Original Approach (WRONG):
+- SearchGmailTool fetches emails, stores in cache, returns previews
+- ReadEmailTool reads from cache
+- Tools coordinate via shared emailCache cell
+- Complex state management
+
+### ✅ Correct Approach (Framework Idiomatic):
+- SearchGmailTool is **thin wrapper** around GmailImporter
+- Return emails as `any` type → framework converts to `@link` references
+- LLM sees email links: `[{"@link": "/of:abc/email/0"}, ...]`
+- LLM uses **built-in cell reading tools** to read specific emails
+- No custom ReadEmailTool needed
+- No custom caching needed
+
+### How @link System Works:
+
+1. SearchGmailTool returns emails typed as `any`
+2. Framework sees `any` type, converts cells to `@link` format
+3. LLM receives links (not full content) - context-efficient!
+4. LLM analyzes subjects/metadata from links
+5. LLM uses built-in `read` tool to read promising emails
+6. LLM extracts memberships, calls finalResult
+
+**Example Agent Flow:**
+```
+Agent: searchGmail("from:marriott.com")
+→ Returns: [{"@link": "/of:abc/email/0"}, {"@link": "/of:abc/email/1"}, ...]
+
+Agent: (analyzes subjects) Email 0 looks promising: "Your Marriott Bonvoy Account"
+
+Agent: read({"@link": "/of:abc/email/0"})  // Built-in tool!
+→ Returns: { subject: "...", content: "... membership number 123456789 ..." }
+
+Agent: Found membership! finalResult({ memberships: [...] })
+```
+
+### Major Simplifications:
+
+| Component | Old Approach | New Approach |
+|-----------|-------------|--------------|
+| SearchGmailTool | Complex: fetch + cache + previews | Simple: thin wrapper, return `any` |
+| ReadEmailTool | Custom pattern | ❌ DELETE - use built-in |
+| EmailCache | Custom FIFO cache cell | ❌ DELETE - not needed |
+| Agent tools | `{ searchGmail, readEmail }` | `{ searchGmail }` only |
+| Code complexity | High (cache coordination) | Low (leverage framework) |
+
+### Implementation Changes Required:
+
+**DELETED:**
+- ❌ EmailCache interface and cell
+- ❌ EmailPreview, EmailFull interfaces (still need MembershipRecord)
+- ❌ SearchEntry interface
+- ❌ ReadEmailTool pattern
+- ❌ All cache management logic
+
+**REWRITTEN:**
+- 🔄 SearchGmailTool → Thin wrapper, return type `any`
+
+**SIMPLIFIED:**
+- ✅ Agent setup → Only register `searchGmail` tool
+- ✅ No cache coordination needed
+
+**NEW TODO List:**
+1. Remove emailCache infrastructure
+2. Rewrite SearchGmailTool as thin wrapper (return `any`)
+3. Delete ReadEmailTool
+4. Implement agent with generateObject (only searchGmail tool)
+5. Update save handler for agent.result
+6. Wire up auto-run on auth
+7. Build UI for agent progress
+8. Test end-to-end
+
+**Why This is Better:**
+- **Simpler:** ~200 lines of cache code deleted
+- **Idiomatic:** Uses framework's @link system as designed
+- **Maintainable:** Leverage built-in tools vs custom logic
+- **Correct:** Framework dev guidance = best practices
+
+**Status:** Ready to implement revised design
+
+---
+
 ## Session Summary (Previous - Debugging & Discovery)
 
 **Session Goal:** Investigate why emails have no content and fix extraction
