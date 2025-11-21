@@ -54,9 +54,9 @@ function getInitials(name: string): string {
     .slice(0, 3); // Max 3 initials
 }
 
-// Handler to find or create voter charm
-const findOrCreateVoter = handler<
-  { detail: { message: string } },
+// Handler to create a new voter ballot charm
+const createBallot = handler<
+  {},
   {
     question: string;
     options: Cell<Option[]>;
@@ -64,33 +64,22 @@ const findOrCreateVoter = handler<
     voterCharms: Cell<VoterCharmRef[]>;
   }
 >(
-  (event, { question, options, votes, voterCharms }) => {
-    const name = event.detail?.message?.trim();
+  (_event, { question, options, votes, voterCharms }) => {
+    console.log("[Handler] Creating new voter ballot...");
 
-    if (!name) {
-      console.log("[Handler] No name provided");
-      return;
-    }
-
-    console.log(`[Handler] Finding or creating voter charm for: ${name}`);
-
-    console.log(`[Handler] Creating voter charm for ${name}...`);
-
-    // Create new voter charm with name pre-filled
+    // Create new voter charm with empty name
+    // Voter will be prompted to enter their name in the ballot
     const voterInstance = CozyPollBallot({
-      question: question,  // Already a plain value
+      question: question,
       options,
       votes,
       voterCharms,
-      myName: Cell.of(name),  // Pre-populate the name
+      myName: Cell.of(""),  // Empty name - voter will fill it in
     });
 
-    console.log(`[Handler] Navigating to voter charm...`);
-    console.log(`[Handler] Note: Use browser back button to return to lobby`);
+    console.log("[Handler] Navigating to voter ballot...");
+    console.log("[Handler] Note: Bookmark your ballot URL to return later");
 
-    // Navigate directly - this works!
-    // Note: We can't track/store voter charms during handler execution
-    // as it blocks navigation. Users should bookmark their voter URLs.
     return navigateTo(voterInstance);
   }
 );
@@ -241,7 +230,7 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
           )}
 
-          {/* Name Entry - Prominent Call to Action */}
+          {/* Create Ballot - Prominent Call to Action */}
           <div style={{
             marginBottom: "2rem",
             padding: "1.5rem",
@@ -254,16 +243,18 @@ export default pattern<ViewerInput, ViewerOutput>(
               Ready to vote?
             </div>
             <div style={{ fontSize: "0.875rem", marginBottom: "1rem", color: "#1e3a8a" }}>
-              Enter your name to create your personal ballot. Bookmark the page to return later!
+              Create your personal ballot and enter your name. Bookmark your ballot URL to return later!
             </div>
-            <ct-message-input
-              placeholder="Your name..."
-              onct-send={findOrCreateVoter({ question, options, votes, voterCharms })}
-            />
+            <ct-button
+              style="background-color: #3b82f6; color: white; font-weight: 600; padding: 0.75rem 1.5rem; font-size: 1rem; border-radius: 6px;"
+              onClick={createBallot({ question, options, votes, voterCharms })}
+            >
+              Create My Ballot
+            </ct-button>
           </div>
 
           <div style={{ padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "4px", fontSize: "0.875rem", color: "#78350f", textAlign: "center" }}>
-            <strong>Poll Lobby:</strong> Enter your name below to cast your vote. Results update in real-time.
+            <strong>Poll Lobby:</strong> Click the button above to create your personal ballot and vote. Results update in real-time.
           </div>
         </div>
       ),
