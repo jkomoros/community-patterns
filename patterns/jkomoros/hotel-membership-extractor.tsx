@@ -116,72 +116,43 @@ Return the selected brand name and the query string.`,
     },
   });
 
-  // Import emails - individual cells like substack-summarizer
+  // AGENTIC: Auto-query - derived cell that automatically uses LLM query when available
+  // This solves the computed() reactivity issue by using derive() instead
+  // derive() handles undefined cells gracefully and is a pure computation
+  const autoQuery = derive(
+    [queryResult, queryPending, isScanning, gmailFilterQuery],
+    ([result, pending, scanning, manualQuery]) => {
+      console.log("[Auto-query] Derived cell triggered:", {
+        scanning,
+        pending,
+        hasResult: !!result,
+        query: result?.query,
+        manualQuery
+      });
+
+      // During scanning workflow, use LLM-generated query when ready
+      if (scanning && !pending && result && result.query && result.query !== "done") {
+        console.log(`[Auto-query] Using LLM query: "${result.query}"`);
+        return result.query;
+      }
+
+      // Otherwise use manual query from input
+      console.log(`[Auto-query] Using manual query: "${manualQuery}"`);
+      return manualQuery;
+    }
+  );
+
+  // Import emails - using autoQuery derived cell for automatic LLM integration
   const importer = GmailImporter({
     settings: {
-      gmailFilterQuery,  // Individual cell value
-      limit,             // Individual cell value
+      gmailFilterQuery: autoQuery,  // Derived cell that auto-uses LLM query
+      limit,                        // Individual cell value
       historyId: "",
     },
     authCharm: authCharm,
   });
 
   const emails = importer.emails;
-
-  // AGENTIC: Auto-update Gmail query when LLM generates one
-  // Using computed() for side effects
-  computed(() => {
-    console.log("[Auto-fetch] Computed block triggered");
-
-    // Check if cells exist before trying to call .get()
-    if (!queryResult || !queryPending || !isScanning) {
-      console.log("[Auto-fetch] Cells not yet available");
-      return;
-    }
-
-    try {
-      // Call .get() on ALL cells to register them as dependencies
-      const result = queryResult.get();
-      const pending = queryPending.get();
-      const scanning = isScanning.get();
-
-      console.log("[Auto-fetch] Cell values:", {
-        scanning,
-        pending,
-        result: result ? { query: result.query, brand: result.selectedBrand } : null
-      });
-
-      // Only update during scanning workflow
-      if (!scanning) {
-        console.log("[Auto-fetch] Not scanning, returning early");
-        return;
-      }
-
-      // When query generation completes, update Gmail filter query
-      if (!pending && result && result.query && result.query !== "done") {
-        const currentQuery = gmailFilterQuery.get();
-        console.log(`[Auto-fetch] Ready to update! Current: "${currentQuery}", New: "${result.query}"`);
-
-        if (currentQuery !== result.query) {
-          console.log(`[Auto-fetch] Updating gmailFilterQuery from "${currentQuery}" to "${result.query}"`);
-          gmailFilterQuery.set(result.query);
-          console.log(`[Auto-fetch] ✅ Update complete!`);
-        } else {
-          console.log(`[Auto-fetch] Skipping update - query unchanged`);
-        }
-      } else {
-        console.log("[Auto-fetch] Conditions not met for update:", {
-          pending,
-          hasResult: !!result,
-          hasQuery: !!(result && result.query),
-          queryNotDone: result && result.query !== "done"
-        });
-      }
-    } catch (error) {
-      // Silently handle any remaining initialization errors
-      console.warn("[Auto-fetch] Skipping during initialization:", error);
-    }
-  });
 
   // Check if Gmail is authenticated by checking if auth cell has a valid token
   const isAuthenticated = derive([auth], ([authData]) => {
