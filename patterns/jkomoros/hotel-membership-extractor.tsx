@@ -321,12 +321,15 @@ Return empty array if no NEW memberships found.`,
 
   // Handler to reset stale scanning state
   // Note: This button only shows when shouldResetScanning is true, so we can safely reset
-  const resetScanningIfStale = handler<unknown, {
+  const resetScanningIfStale = handler((_, state: {
     isScanning: Cell<Default<boolean, false>>;
-  }>((_, state) => {
+  }) => {
     // Reset scanning flag - button only shows when it's safe to reset
     state.isScanning.set(false);
   });
+
+  // Bind the handler OUTSIDE any derive blocks to ensure isScanning remains writable
+  const boundResetHandler = resetScanningIfStale({ isScanning });
 
   // AGENTIC: Single handler to start the scan workflow
   const startScan = handler<unknown, {
@@ -369,31 +372,48 @@ Return empty array if no NEW memberships found.`,
     state.queryGeneratorInput.set(`START-${Date.now()}`);
   });
 
-  // AGENTIC: Automatically save extraction results when they arrive
-  // Use computed() to watch for extraction completion and save automatically
-  computed(() => {
-    // Watch for extraction completion
-    const extracted = extractorResult.get();
-    const queryResultData = queryResult.get();
-    const scanning = isScanning.get();
-    const pending = extractorPending.get();
+  // Determine when to show the save button
+  const shouldShowSaveButton = derive(
+    [isScanning, extractorPending, extractorResult, queryResult],
+    ([scanning, pending, extracted, queryData]) => {
+      // Show save button when:
+      // 1. We're in scanning mode
+      // 2. Extraction is complete (not pending)
+      // 3. We have extraction results
+      // 4. We have query data
+      return scanning && !pending && !!extracted && !!queryData && !!queryData.selectedBrand;
+    }
+  );
+
+  // Handler to save extraction results
+  const saveExtractionResults = handler<unknown, {
+    memberships: Cell<Default<MembershipRecord[], []>>;
+    scannedEmailIds: Cell<Default<string[], []>>;
+    lastScanAt: Cell<Default<number, 0>>;
+    brandHistory: Cell<Default<BrandSearchHistory[], []>>;
+    searchedBrands: Cell<Default<string[], []>>;
+    searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
+    unsearchedBrands: Cell<Default<string[], []>>;
+  }>((_, state) => {
+    // Get current values from state cells
+    const currentMemberships = state.memberships.get();
+    const scanned = state.scannedEmailIds.get();
+    const currentHistory = state.brandHistory.get();
+    const currentUnsearched = state.unsearchedBrands.get();
+    const currentSearched = state.searchedBrands.get();
+    const currentNotFound = state.searchedNotFound.get();
+
+    // Get extraction results (these are plain values, not cells)
+    const extracted = extractorResult;
+    const queryResultData = queryResult;
     const emailsList = emails.get();
 
-    // Only save when scanning, extraction complete, and we have results
-    if (!scanning || pending || !extracted || !queryResultData) return;
+    if (!extracted || !queryResultData || !emailsList) return;
 
     const selectedBrand = queryResultData.selectedBrand;
     const usedQuery = queryResultData.query;
 
     if (!selectedBrand || !usedQuery) return;
-
-    const currentMemberships = memberships.get();
-    const scanned = scannedEmailIds.get();
-    const currentHistory = brandHistory.get();
-    // Keep old tracking for backward compatibility
-    const currentUnsearched = unsearchedBrands.get();
-    const currentSearched = searchedBrands.get();
-    const currentNotFound = searchedNotFound.get();
 
     const extractedMemberships = extracted.memberships || [];
 
@@ -405,13 +425,13 @@ Return empty array if no NEW memberships found.`,
     }));
 
     // Update memberships array
-    memberships.set([...currentMemberships, ...newMemberships]);
+    state.memberships.set([...currentMemberships, ...newMemberships]);
 
     // Update scanned email IDs
     const emailIds = emailsList.map((e: any) => e.id);
-    scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
+    state.scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
 
-    // === NEW: Update brandHistory with this query attempt ===
+    // === Update brandHistory with this query attempt ===
 
     // Convert email IDs to object set for efficient lookups
     const emailIdsSet: { [id: string]: true } = {};
@@ -470,22 +490,22 @@ Return empty array if no NEW memberships found.`,
       ];
     }
 
-    brandHistory.set(updatedHistory);
+    state.brandHistory.set(updatedHistory);
 
     // === Keep old tracking for backward compatibility (will remove later) ===
     const newUnsearched = currentUnsearched.filter(b => b !== selectedBrand);
-    unsearchedBrands.set(newUnsearched);
+    state.unsearchedBrands.set(newUnsearched);
 
     if (newMemberships.length > 0) {
       // Found memberships - add to searchedBrands
       if (!currentSearched.includes(selectedBrand)) {
-        searchedBrands.set([...currentSearched, selectedBrand]);
+        state.searchedBrands.set([...currentSearched, selectedBrand]);
       }
     } else {
       // No memberships found - add to searchedNotFound with timestamp
       const alreadyNotFound = currentNotFound.find((r: BrandSearchRecord) => r.brand === selectedBrand);
       if (!alreadyNotFound) {
-        searchedNotFound.set([
+        state.searchedNotFound.set([
           ...currentNotFound,
           { brand: selectedBrand, searchedAt: Date.now() },
         ]);
@@ -493,10 +513,7 @@ Return empty array if no NEW memberships found.`,
     }
 
     // Update last scan timestamp
-    lastScanAt.set(Date.now());
-
-    // Note: We don't clear isScanning here - let the user click "Reset Stuck Scan" if needed
-    // Or it will auto-reset on next scan start
+    state.lastScanAt.set(Date.now());
   });
 
   // Progress status message
@@ -562,7 +579,7 @@ Return empty array if no NEW memberships found.`,
               {derive(shouldResetScanning, (shouldReset) =>
                 shouldReset ? (
                   <ct-button
-                    onClick={resetScanningIfStale({ isScanning })}
+                    onClick={boundResetHandler}
                     size="sm"
                     style="background: #ef4444; color: white;"
                   >
@@ -576,6 +593,45 @@ Return empty array if no NEW memberships found.`,
                 status ? (
                   <div style="padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; borderRadius: 8px; fontSize: 13px; textAlign: center;">
                     {status}
+                  </div>
+                ) : null
+              )}
+
+              {/* PROMINENT Save Results Button - appears when extraction completes */}
+              {derive(shouldShowSaveButton, (show) =>
+                show ? (
+                  <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
+                    <div style="fontSize: 14px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
+                      ✅ Extraction Complete!
+                    </div>
+                    <div style="fontSize: 13px; color: #047857; marginBottom: 12px; textAlign: center;">
+                      {derive(extractorResult, (result) => {
+                        const count = result?.memberships?.length || 0;
+                        const brand = queryResult?.selectedBrand || "Unknown";
+                        if (count > 0) {
+                          return `Found ${count} membership${count !== 1 ? 's' : ''} for ${brand}`;
+                        }
+                        return `No new memberships found for ${brand} (query will be refined)`;
+                      })}
+                    </div>
+                    <ct-button
+                      onClick={saveExtractionResults({
+                        memberships,
+                        scannedEmailIds,
+                        lastScanAt,
+                        brandHistory,
+                        searchedBrands,
+                        searchedNotFound,
+                        unsearchedBrands,
+                      })}
+                      size="lg"
+                      style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                    >
+                      💾 Save Results & Continue
+                    </ct-button>
+                    <div style="fontSize: 11px; color: #059669; marginTop: 8px; textAlign: center; fontStyle: italic;">
+                      Click to save and enable next query iteration
+                    </div>
                   </div>
                 ) : null
               )}
