@@ -1082,11 +1082,43 @@ Document key choices made during development:
 - Document blockers or questions
 - Update next steps
 
+**Active Usage Workflow:**
+
+**When starting work on a pattern (especially resuming):**
+1. Read the TODO file FIRST before touching code
+2. Review "Next Steps" to understand priorities
+3. Check "Technical Notes" for important context
+4. Look at "Design Decisions" to understand rationale
+
+**During development:**
+1. Update "Implementation Progress" as you complete items
+2. Add to "Technical Notes" when you discover framework quirks
+3. Document "Design Decisions" when you choose an approach
+4. Keep "Next Steps" current with what needs doing
+
+**When you hit a blocker:**
+1. Document the blocker in TODO
+2. Note what you've tried
+3. Add to "Next Steps" what needs investigation
+
+**When finishing a work session:**
+1. Mark completed tasks with `[x]`
+2. Update "Next Steps" with clear priorities
+3. Add any new learnings to "Technical Notes"
+4. Commit the TODO along with code changes
+
+**Frequency:**
+- Update TODO file **multiple times per session**
+- Don't wait until the end - update as you work
+- TODO should always reflect current state
+- Think of it as your "working memory" that persists
+
 **Benefits:**
 - Quickly resume work in next session
 - Share context with user or other developers
 - Document why certain decisions were made
 - Track pattern evolution over time
+- Never lose important context or learnings
 
 **Difference from SNAPSHOT.md:**
 - TODO files are **permanent** and checked into git
