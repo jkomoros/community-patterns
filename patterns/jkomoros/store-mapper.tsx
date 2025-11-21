@@ -701,7 +701,7 @@ export default pattern<StoreMapInput, StoreMapOutput>(
     // reset bug. When uploadedPhotos array changes, this .map() re-evaluates and creates
     // new generateObject calls, resetting all photos to "Analyzing...". Users can manually
     // delete photos using the delete button.
-    const photoExtractions = uploadedPhotos.map((photo) => {
+    const photoExtractions = uploadedPhotos.map((photo, photoIndex) => {
       const extraction = generateObject({
         system:
           'You are analyzing photos from a grocery store. Your task is to extract ALL visible aisle signs and return them as JSON.\n\nIMPORTANT: You MUST return a JSON object with an "aisles" array, even if you only see one aisle or partial information.\n\nFor each aisle sign you see:\n- Extract ONLY the aisle number (e.g., "8", "12", "5A", "5B") - DO NOT include the word "Aisle"\n- Extract each product category as a separate item in the products array\n- Include partially visible signs - do your best to read them\n\nExample output:\n{\n  "aisles": [\n    {"name": "8", "products": ["Bread", "Cereal", "Coffee"]},\n    {"name": "9", "products": ["Snacks", "Chips"]}\n  ]\n}',
@@ -744,13 +744,19 @@ export default pattern<StoreMapInput, StoreMapOutput>(
         model: "anthropic:claude-sonnet-4-5",
       });
 
+      // Debug: Track pending state changes
+      const pendingDebug = derive(extraction.pending, (pending) => {
+        console.log(`[EXTRACTION ${photoIndex}] Photo ${photo.name} pending:`, pending, `at ${new Date().toISOString()}`);
+        return pending;
+      });
+
       return {
         photo: photo, // Include photo reference for deletion
         photoName: photo.name,
         extractedAisles: derive(extraction.result, (result) => {
           // Debug: log what we're receiving (stringify to see actual data)
-          console.log(`[CHARM DEBUG] Photo ${photo.name} result:`, JSON.stringify(result, null, 2));
-          console.log(`[CHARM DEBUG] Photo ${photo.name} aisles:`, result?.aisles);
+          console.log(`[EXTRACTION ${photoIndex}] Photo ${photo.name} result:`, JSON.stringify(result, null, 2));
+          console.log(`[EXTRACTION ${photoIndex}] Photo ${photo.name} aisles:`, result?.aisles);
 
           // Ensure we always have a valid structure with aisles array
           // generateObject may return {} instead of {aisles: []} on empty results
@@ -758,7 +764,7 @@ export default pattern<StoreMapInput, StoreMapOutput>(
             aisles: (result && result.aisles) || []
           };
         }),
-        pending: extraction.pending,
+        pending: pendingDebug,
       };
     });
 
