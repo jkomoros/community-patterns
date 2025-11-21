@@ -33,11 +33,14 @@ function initializeEmptyBoard(): BoardWord[] {
 }
 
 interface CodenamesHelperInput {
-  board: Cell<Default<BoardWord[], []>>;
+  board: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
   myTeam: Cell<Default<Team, "red">>;
   setupMode: Cell<Default<boolean, true>>;
   selectedWordIndex: Cell<Default<number, 999>>;
 }
+
+// Initialize once for default
+const DEFAULT_EMPTY_BOARD = initializeEmptyBoard();
 
 interface CodenamesHelperOutput {
   board: Cell<BoardWord[]>;
@@ -284,11 +287,6 @@ const cellClick = handler<
   unknown,
   { board: Cell<BoardWord[]>; setupMode: Cell<boolean>; selectedWordIndex: Cell<number>; row: number; col: number }
 >((_event, { board, setupMode, selectedWordIndex, row, col }) => {
-  // Initialize board if empty (sync with derived initializedBoard)
-  if (board.get().length === 0) {
-    board.set(initializeEmptyBoard());
-  }
-
   const currentBoard = board.get();
 
   // Find index by position (stable identifier)
@@ -436,12 +434,6 @@ Provide the extracted information in the appropriate format.`
         },
         model: "anthropic:claude-sonnet-4-5"
       });
-    });
-
-    // Initialize board for display if empty
-    // Use derive to create a lazy-initialized version without modifying the original cell
-    const initializedBoard = derive(board, (boardData: BoardWord[]) => {
-      return boardData.length === 0 ? initializeEmptyBoard() : boardData;
     });
 
     // AI Clue Suggestions - only in Game Mode
@@ -712,95 +704,63 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             gap: "0.25rem",
             marginBottom: "1rem",
           }}>
-            {initializedBoard.map((word, index) => {
-              // Guard against undefined word entries entirely
-              if (!word || !word.position) {
-                return (
-                  <div
-                    key={index}
+            {board.map((word, index) => (
+              <div
+                key={index}
+                style={{
+                  aspectRatio: "1",
+                  border: "2px solid #000",
+                  borderRadius: "0.25rem",
+                  padding: "0.25rem",
+                  backgroundColor: word.owner === "red" ? "#dc2626"
+                    : word.owner === "blue" ? "#2563eb"
+                    : word.owner === "neutral" ? "#d4d4d8"
+                    : word.owner === "assassin" ? "#000000"
+                    : "#e5e7eb",
+                  opacity: word.state === "revealed" ? 0.5 : 1,
+                  color: (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  position: "relative",
+                  cursor: "pointer",
+                }}
+                onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
+              >
+                {/* Word Display/Input */}
+                {ifElse(
+                  setupMode,
+                  <input
+                    type="text"
+                    value={word.word}
+                    placeholder={`${word.position.row},${word.position.col}`}
+                    onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
+                    onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
                     style={{
-                      aspectRatio: "1",
-                      border: "2px solid #000",
-                      borderRadius: "0.25rem",
-                      padding: "0.25rem",
-                      backgroundColor: "#e5e7eb",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      position: "relative",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.7rem", color: "#9ca3af" }}>Error</span>
-                  </div>
-                );
-              }
-
-              // Calculate colors and opacity directly from word (which is already unwrapped)
-              const bgColor = word.owner === "red" ? "#dc2626"
-                : word.owner === "blue" ? "#2563eb"
-                : word.owner === "neutral" ? "#d4d4d8"
-                : word.owner === "assassin" ? "#000000"
-                : "#e5e7eb";
-
-              const textColor = (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white";
-
-              const cellOpacity = word.state === "revealed" ? 0.5 : 1;
-
-              return (
-                <div
-                  key={index}
-                  style={{
-                    aspectRatio: "1",
-                    border: "2px solid #000",
-                    borderRadius: "0.25rem",
-                    padding: "0.25rem",
-                    backgroundColor: bgColor,
-                    opacity: cellOpacity,
-                    color: textColor,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    position: "relative",
-                    cursor: "pointer",
-                  }}
-                  onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
-                >
-                  {/* Word Display/Input */}
-                  {ifElse(
-                    setupMode,
-                    <input
-                      type="text"
-                      value={word.word}
-                      placeholder={`${word.position.row},${word.position.col}`}
-                      onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
-                      onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
-                      style={{
-                        width: "90%",
-                        height: "80%",
-                        textAlign: "center",
-                        fontSize: "0.7rem",
-                        fontWeight: "600",
-                        textTransform: "uppercase",
-                        border: "none",
-                        background: "transparent",
-                        color: "inherit",
-                        pointerEvents: "auto",
-                      }}
-                    />,
-                    <span style={{
+                      width: "90%",
+                      height: "80%",
+                      textAlign: "center",
                       fontSize: "0.7rem",
                       fontWeight: "600",
-                      textAlign: "center",
-                      wordBreak: "break-word",
-                    }}>
-                      {word.word || "—"}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                      textTransform: "uppercase",
+                      border: "none",
+                      background: "transparent",
+                      color: "inherit",
+                      pointerEvents: "auto",
+                    }}
+                  />,
+                  <span style={{
+                    fontSize: "0.7rem",
+                    fontWeight: "600",
+                    textAlign: "center",
+                    wordBreak: "break-word",
+                  }}>
+                    {word.word || "—"}
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
 
           {/* Setup Controls */}
