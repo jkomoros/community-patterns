@@ -152,3 +152,62 @@ Steps 1, 2, 4, and 5 work perfectly. We're stuck on step 3.
 ---
 
 **Is there a recommended pattern we should use for this reactive side effect?**
+
+---
+
+## ✅ SOLUTION FOUND: Use derive() instead of computed()
+
+**Update (2025-11-21):** We found a working solution! Instead of using `computed()` for side effects, use `derive()` to create a derived cell that automatically switches between LLM-generated and manual queries.
+
+### The Working Solution
+
+```typescript
+// AGENTIC: Auto-query - derived cell that automatically uses LLM query when available
+const autoQuery = derive(
+  [queryResult, queryPending, isScanning, gmailFilterQuery],
+  ([result, pending, scanning, manualQuery]) => {
+    // During scanning workflow, use LLM-generated query when ready
+    if (scanning && !pending && result && result.query && result.query !== "done") {
+      return result.query;  // Use LLM query
+    }
+
+    // Otherwise use manual query from input
+    return manualQuery;  // Fall back to manual query
+  }
+);
+
+// Import emails - using autoQuery derived cell for automatic LLM integration
+const importer = GmailImporter({
+  settings: {
+    gmailFilterQuery: autoQuery,  // Pass derived cell instead of input cell
+    limit,
+    historyId: "",
+  },
+  authCharm: authCharm,
+});
+```
+
+### Why This Works
+
+1. **No dependency registration issues**: `derive()` handles undefined cells gracefully without runtime errors
+2. **Pure computation**: No side effects - just returns the appropriate query value
+3. **Automatic reactivity**: When `queryResult` changes, `autoQuery` automatically updates, which triggers `GmailImporter` to refetch
+4. **Clean pattern**: This is the idiomatic way to handle "conditional cell switching" in the framework
+
+### Testing Results
+
+Verified working in test-jkomoros-membership12:
+- ✅ LLM generates query: `"from:marriott.com"`
+- ✅ `autoQuery` derive() propagates it to GmailImporter
+- ✅ Gmail Filter Query field shows correct value
+- ✅ No runtime errors or reactivity issues
+- ✅ Console logs show: `[Auto-query] Using LLM query: "from:marriott.com"`
+
+### Key Insight
+
+**Don't use `computed()` for side effects.** Instead:
+- Use `derive()` to create a new derived cell that computes the desired value
+- Pass the derived cell to components that need it
+- Let reactivity handle the updates automatically
+
+This is more declarative and avoids all the dependency registration issues we encountered with `computed()`.
