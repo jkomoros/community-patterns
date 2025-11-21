@@ -1,9 +1,101 @@
 /// <cts-enable />
-import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
-// Data structures
+// ============================================================================
+// AGENT TOOLS: searchGmail and readEmail
+// ============================================================================
+
+/**
+ * SearchGmail Tool - Searches Gmail and returns email previews only
+ *
+ * MVP: Just fetch and return previews. Caching optimization comes later.
+ *
+ * Input: query string
+ * Output: array of EmailPreview (id, subject, from, date)
+ */
+export const SearchGmailTool = pattern((
+  { query, authCharm }: {
+    query: string;
+    authCharm: any;  // GmailAuth charm
+  }
+) => {
+  // Use GmailImporter to fetch emails
+  const importer = GmailImporter({
+    settings: {
+      gmailFilterQuery: Cell.of(query),
+      limit: Cell.of(20),  // Max 20 emails as per design
+      historyId: Cell.of(""),
+    },
+    authCharm,
+  });
+
+  // Convert emails to previews (metadata only, no content)
+  const previews = derive(importer.emails, (emailList) => {
+    if (!emailList || !Array.isArray(emailList)) {
+      return [];
+    }
+
+    return emailList.map((email: any) => ({
+      id: email.id,
+      subject: email.subject || "(No Subject)",
+      from: email.from || "Unknown",
+      date: email.date || new Date().toISOString(),
+      // Note: We have access to content here but don't return it (agent must call readEmail)
+      _fullContent: email.markdownContent || email.snippet || "",  // Store for cache
+    }));
+  });
+
+  return previews;
+});
+
+/**
+ * ReadEmail Tool - Returns full email content
+ *
+ * MVP: Re-fetch from previews stored in pattern state.
+ * TODO: Read from proper cache once caching is implemented.
+ *
+ * Input: emailId
+ * Output: EmailFull (with content)
+ */
+export const ReadEmailTool = pattern((
+  { emailId, recentSearches }: {
+    emailId: string;
+    recentSearches: Cell<any[]>;  // Will contain previews with _fullContent
+  }
+) => {
+  const email = derive(recentSearches, (searches) => {
+    if (!searches || !Array.isArray(searches)) {
+      return {
+        error: "No recent searches available",
+      };
+    }
+
+    // Find email in recent searches
+    for (const preview of searches) {
+      if (preview.id === emailId) {
+        return {
+          id: preview.id,
+          subject: preview.subject,
+          from: preview.from,
+          date: preview.date,
+          content: preview._fullContent || "No content available",
+        };
+      }
+    }
+
+    return {
+      error: `Email ${emailId} not found in recent searches. Please search first.`,
+    };
+  });
+
+  return email;
+});
+
+// ============================================================================
+// DATA STRUCTURES
+// ============================================================================
 interface MembershipRecord {
   id: string;
   hotelBrand: string;           // "Marriott", "Hilton", etc.
