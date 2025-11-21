@@ -379,13 +379,16 @@ Return empty array if no NEW memberships found.`,
     scannedEmailIds: Cell<Default<string[], []>>;
     lastScanAt: Cell<Default<number, 0>>;
     isScanning: Cell<Default<boolean, false>>;
+    extractorResult: Cell<any>;
+    queryResult: Cell<any>;
+    emails: Cell<any[]>;
   }>((_, state) => {
-    // Get current extraction results
-    const extracted = extractorResult.get();
-    const queryResultData = queryResult.get();
+    // Get current extraction results from state (not from closure)
+    const extracted = state.extractorResult.get();
+    const queryResultData = state.queryResult.get();
     const selectedBrand = queryResultData?.selectedBrand;
     const usedQuery = queryResultData?.query;
-    const emailsList = emails.get();
+    const emailsList = state.emails.get();
 
     const currentMemberships = state.memberships.get();
     const scanned = state.scannedEmailIds.get();
@@ -601,6 +604,9 @@ Return empty array if no NEW memberships found.`,
                       scannedEmailIds,
                       lastScanAt,
                       isScanning,
+                      extractorResult,
+                      queryResult,
+                      emails,
                     })}
                     size="lg"
                     style="background: #10b981; color: white;"
