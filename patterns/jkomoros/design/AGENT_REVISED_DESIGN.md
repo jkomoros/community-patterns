@@ -188,6 +188,37 @@ Search for hotel membership numbers in Gmail.`;
 - [ ] Update save handler to process agent.result
 - [ ] Test end-to-end workflow
 
+## Implementation Issue Discovered
+
+**Problem:** Original approach failed with "Invalid recipe" error because SearchGmailTool tried to instantiate GmailImporter inside itself (pattern-within-pattern).
+
+**Solution:** Extract Gmail API logic into helper functions that both GmailImporter and SearchGmailTool can use. See `REFACTOR_GMAIL_IMPORTER.md` for detailed design.
+
+**Approach:**
+```typescript
+// Extract helper class
+export class GmailFetcher {
+  constructor(private client: GmailClient) {}
+  async fetchByQuery(query: string, limit: number): Promise<Email[]> { ... }
+}
+
+// SearchGmailTool uses helper
+export const SearchGmailTool = pattern<...>(({ query, authCharm }) => {
+  const auth = derive(authCharm, ...);
+  return derive([auth, query], async ([a, q]): any => {
+    const client = new GmailClient(Cell.of(a));
+    const fetcher = new GmailFetcher(client);
+    return await fetcher.fetchByQuery(q, 20);
+  });
+});
+```
+
+**Benefits:**
+- No pattern-within-pattern
+- GmailImporter stays unchanged (backward compatible)
+- Simple, testable helper functions
+- Known to work with framework's async support
+
 ## Questions for Framework Dev (if needed)
 
 1. ✅ Should SearchGmailTool return `importer.emails` directly or derive it first?
@@ -198,3 +229,7 @@ Search for hotel membership numbers in Gmail.`;
 
 3. ✅ How does agent know to use read tool vs other built-in tools?
    - **Answer:** LLM sees @link format and knows it can read cells
+
+4. ❓ Can SearchGmailTool instantiate GmailImporter directly?
+   - **Answer:** No - causes "Invalid recipe" error (pattern-within-pattern not supported)
+   - **Solution:** Extract shared helper functions instead
