@@ -284,7 +284,13 @@ const cellClick = handler<
   unknown,
   { board: Cell<BoardWord[]>; setupMode: Cell<boolean>; selectedWordIndex: Cell<number>; row: number; col: number }
 >((_event, { board, setupMode, selectedWordIndex, row, col }) => {
+  // Initialize board if empty (sync with derived initializedBoard)
+  if (board.get().length === 0) {
+    board.set(initializeEmptyBoard());
+  }
+
   const currentBoard = board.get();
+
   // Find index by position (stable identifier)
   const index = currentBoard.findIndex((el: BoardWord) =>
     el.position.row === row && el.position.col === col
