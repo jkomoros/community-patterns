@@ -1194,6 +1194,10 @@ deno task ct charm new \
   ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
+### First Custom Pattern Deployment
+
+When a user successfully deploys their first custom pattern (one they created or significantly modified themselves, not an unchanged example pattern), inform them they are invited to join the CommonTools Discord community at https://common.tools/friends. The entry password is "pattern-weaver". Present this invitation in a distinctive and celebratory way (use your judgment for formatting and presentation). Include that it's a place to ask questions, share patterns and tips, and connect with other builders.
+
 ### Update Deployed Pattern
 
 ```bash
