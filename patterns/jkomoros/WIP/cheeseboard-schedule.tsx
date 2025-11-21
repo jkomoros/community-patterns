@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, fetchData, handler, lift, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI } from "commontools";
 
 /**
  * Cheeseboard Pizza Schedule with Ingredient Preferences
@@ -23,10 +23,20 @@ interface Ingredient {
   normalized: string;
 }
 
+interface IngredientWithPref extends Ingredient {
+  hasPreference: boolean;
+}
+
 interface Pizza {
   date: string;
   description: string;
   ingredients: Ingredient[];
+}
+
+interface PizzaWithPrefs {
+  date: string;
+  description: string;
+  ingredients: IngredientWithPref[];
 }
 
 interface CheeseboardScheduleInput {
@@ -203,6 +213,14 @@ const togglePreference = handler<
   }
 });
 
+const removePreference = handler<
+  unknown,
+  { preferences: Cell<IngredientPreference[]>; ingredient: string }
+>((_event, { preferences, ingredient }) => {
+  const current = preferences.get();
+  preferences.set(current.filter(p => p.ingredient !== ingredient));
+});
+
 // ============================================================================
 // PATTERN
 // ============================================================================
@@ -228,6 +246,15 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
 
     // Parse pizzas with ingredients
     const pizzaList = createPizzaList({ result });
+
+    // Create lists for liked and disliked preferences
+    const likedPrefs = computed(() => {
+      return preferences.get().filter(p => p.preference === "liked");
+    });
+
+    const dislikedPrefs = computed(() => {
+      return preferences.get().filter(p => p.preference === "disliked");
+    });
 
     return {
       [NAME]: "Cheeseboard Schedule",
@@ -257,46 +284,151 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                   {pizza.description}
                 </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                  {pizza.ingredients.map((ing) => (
-                    <span style={{
-                      padding: "0.25rem 0.5rem",
-                      backgroundColor: "#f0f0f0",
-                      borderRadius: "4px",
-                      fontSize: "0.9rem",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.25rem"
-                    }}>
-                      <span>{ing.raw}</span>
-                      <button
-                        onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "liked" })}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "0",
-                          fontSize: "1rem"
-                        }}
-                      >
-                        👍
-                      </button>
-                      <button
-                        onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "disliked" })}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "0",
-                          fontSize: "1rem"
-                        }}
-                      >
-                        👎
-                      </button>
-                    </span>
-                  ))}
+                  {pizza.ingredients.map((ing) => {
+                    // Check if this ingredient has a preference
+                    const hasPreference = computed(() => {
+                      const prefs = preferences.get();
+                      return prefs.some(p => p.ingredient === ing.normalized);
+                    });
+
+                    return (
+                      <span style={{
+                        padding: "0.25rem 0.5rem",
+                        backgroundColor: "#f0f0f0",
+                        borderRadius: "4px",
+                        fontSize: "0.9rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem"
+                      }}>
+                        <span>{ing.raw}</span>
+                        {ifElse(
+                          hasPreference,
+                          null,
+                          <>
+                            <button
+                              onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "liked" })}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "0",
+                                fontSize: "1rem"
+                              }}
+                            >
+                              👍
+                            </button>
+                            <button
+                              onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "disliked" })}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "0",
+                                fontSize: "1rem"
+                              }}
+                            >
+                              👎
+                            </button>
+                          </>
+                        )}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Preferences List */}
+          <div style={{
+            marginTop: "2rem",
+            padding: "1rem",
+            border: "1px solid #ddd",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9"
+          }}>
+            <h3 style={{ margin: "0 0 1rem 0" }}>Your Preferences</h3>
+
+            {/* Liked Ingredients */}
+            <div style={{ marginBottom: "1rem" }}>
+              <strong style={{ display: "block", marginBottom: "0.5rem" }}>Liked:</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {likedPrefs.map(pref => (
+                  <span style={{
+                    padding: "0.25rem 0.5rem",
+                    backgroundColor: "#d4edda",
+                    borderRadius: "4px",
+                    fontSize: "0.9rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    color: "#155724"
+                  }}>
+                    <span>{pref.ingredient}</span>
+                    <button
+                      onClick={removePreference({ preferences, ingredient: pref.ingredient })}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "0",
+                        fontSize: "0.9rem",
+                        color: "#721c24",
+                        fontWeight: "bold"
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                {ifElse(
+                  likedPrefs.length === 0,
+                  <span style={{ color: "#999", fontStyle: "italic" }}>No liked ingredients yet</span>,
+                  null
+                )}
+              </div>
+            </div>
+
+            {/* Disliked Ingredients */}
+            <div>
+              <strong style={{ display: "block", marginBottom: "0.5rem" }}>Disliked:</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                {dislikedPrefs.map(pref => (
+                  <span style={{
+                    padding: "0.25rem 0.5rem",
+                    backgroundColor: "#f8d7da",
+                    borderRadius: "4px",
+                    fontSize: "0.9rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    color: "#721c24"
+                  }}>
+                    <span>{pref.ingredient}</span>
+                    <button
+                      onClick={removePreference({ preferences, ingredient: pref.ingredient })}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "0",
+                        fontSize: "0.9rem",
+                        color: "#721c24",
+                        fontWeight: "bold"
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                {ifElse(
+                  dislikedPrefs.length === 0,
+                  <span style={{ color: "#999", fontStyle: "italic" }}>No disliked ingredients yet</span>,
+                  null
+                )}
+              </div>
+            </div>
           </div>
         </div>
       ),
