@@ -449,6 +449,13 @@ const removeEntrance = handler<
   }
 });
 
+const toggleEntrancesComplete = handler<
+  unknown,
+  { entrancesComplete: Cell<boolean> }
+>((_event, { entrancesComplete }) => {
+  entrancesComplete.set(!entrancesComplete.get());
+});
+
 // Copy outline to clipboard
 const copyOutline = handler<unknown, { outline: string }>(
   (_event, { outline }) => {
@@ -482,6 +489,35 @@ const deleteCorrection = handler<
   const index = current.findIndex((el) => el.equals(correction));
   if (index >= 0) {
     itemLocations.set(current.toSpliced(index, 1));
+  }
+});
+
+// Add new item location correction
+const addItemLocation = handler<
+  unknown,
+  {
+    itemLocations: Cell<ItemLocation[]>;
+    newItemName: Cell<string>;
+    newCorrectAisle: Cell<string>;
+    newIncorrectAisle: Cell<string>;
+  }
+>((_event, { itemLocations, newItemName, newCorrectAisle, newIncorrectAisle }) => {
+  const itemName = newItemName.get().trim();
+  const correctAisle = newCorrectAisle.get().trim();
+  const incorrectAisle = newIncorrectAisle.get().trim();
+
+  if (itemName && correctAisle) {
+    itemLocations.push({
+      itemName,
+      correctAisle,
+      incorrectAisle: incorrectAisle || undefined,
+      timestamp: Date.now(),
+    });
+
+    // Clear form fields
+    newItemName.set("");
+    newCorrectAisle.set("");
+    newIncorrectAisle.set("");
   }
 });
 
@@ -643,6 +679,17 @@ export default pattern<StoreMapInput, StoreMapOutput>(
     const uploadedPhotos = cell<ImageData[]>([]);
     const customDeptName = cell<string>("");
     const entranceCount = computed(() => entrances.length);
+    const entrancesComplete = cell<boolean>(false);
+
+    // Track which entrance positions are already used
+    const usedEntrancePositions = computed(() => {
+      return new Set(entrances.map(e => e.position));
+    });
+
+    // Form fields for adding item location corrections
+    const newItemName = cell<string>("");
+    const newCorrectAisle = cell<string>("");
+    const newIncorrectAisle = cell<string>("");
 
     // Track selected items for merge (key: "${photoName}-${aisleName}", value: array of selected item names)
     const selectedMergeItems = cell<Record<string, string[]>>({});
@@ -863,7 +910,7 @@ What common sections might be missing?`,
     const correctionsCount = computed(() => itemLocations.length);
 
     return {
-      [NAME]: str`🗺️ ${storeName || "Store Map"}`,
+      [NAME]: str`🗺️ ${storeName || "(Untitled map)"}`,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
           <style>{`
@@ -1029,6 +1076,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("front-left"))}
                   onClick={addEntrance({ entrances, position: "front-left", name: "Front-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1038,6 +1086,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("front-center"))}
                   onClick={addEntrance({ entrances, position: "front-center", name: "Front-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1047,6 +1096,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("front-right"))}
                   onClick={addEntrance({ entrances, position: "front-right", name: "Front-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1063,6 +1113,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("back-left"))}
                   onClick={addEntrance({ entrances, position: "back-left", name: "Back-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1072,6 +1123,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("back-center"))}
                   onClick={addEntrance({ entrances, position: "back-center", name: "Back-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1081,6 +1133,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("back-right"))}
                   onClick={addEntrance({ entrances, position: "back-right", name: "Back-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1097,6 +1150,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("left-front"))}
                   onClick={addEntrance({ entrances, position: "left-front", name: "Left-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1106,6 +1160,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("left-center"))}
                   onClick={addEntrance({ entrances, position: "left-center", name: "Left-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1115,6 +1170,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("left-back"))}
                   onClick={addEntrance({ entrances, position: "left-back", name: "Left-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1131,6 +1187,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("right-front"))}
                   onClick={addEntrance({ entrances, position: "right-front", name: "Right-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1140,6 +1197,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("right-center"))}
                   onClick={addEntrance({ entrances, position: "right-center", name: "Right-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1149,6 +1207,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
+                  disabled={derive(usedEntrancePositions, (used) => used.has("right-back"))}
                   onClick={addEntrance({ entrances, position: "right-back", name: "Right-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1156,6 +1215,28 @@ What common sections might be missing?`,
                 </ct-button>
               </div>
             </div>
+
+            {/* "No more entrances" button - show when at least one entrance added */}
+            {ifElse(
+              derive(entranceCount, (c) => c > 0),
+              <div style={{ marginTop: "1rem", display: "flex", justifyContent: "center" }}>
+                <ct-button
+                  size="sm"
+                  variant={derive(entrancesComplete, (complete) => complete ? "default" : "secondary")}
+                  onClick={toggleEntrancesComplete({ entrancesComplete })}
+                  style={{
+                    fontSize: "13px",
+                    padding: "8px 16px",
+                    minHeight: "36px",
+                  }}
+                >
+                  {derive(entrancesComplete, (complete) =>
+                    complete ? "✓ Entrances Complete" : "✓ No More Entrances"
+                  )}
+                </ct-button>
+              </div>,
+              null
+            )}
 
             {/* Show added entrances */}
             {ifElse(
@@ -1227,45 +1308,103 @@ What common sections might be missing?`,
           </div>
 
           {/* Corrections Management Section */}
-          {ifElse(
-            hasCorrections,
-            <div
+          <div
+            style={{
+              marginBottom: "2rem",
+              padding: "1rem",
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: "8px",
+            }}
+          >
+            <h3
               style={{
-                marginBottom: "2rem",
-                padding: "1rem",
-                background: "#f0fdf4",
-                border: "1px solid #86efac",
-                borderRadius: "8px",
+                margin: "0 0 0.75rem 0",
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#166534",
               }}
             >
-              <h3
-                style={{
-                  margin: "0 0 0.75rem 0",
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  color: "#166534",
-                }}
-              >
-                ✓ Aisle Corrections ({correctionsCount})
-              </h3>
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "#166534",
-                  marginBottom: "1rem",
-                }}
-              >
-                User-reported corrections for item locations:
-              </div>
+              ✓ Item Location Corrections {ifElse(
+                hasCorrections,
+                <span>({correctionsCount})</span>,
+                null
+              )}
+            </h3>
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#166534",
+                marginBottom: "1rem",
+              }}
+            >
+              Track items that are in different aisles than expected:
+            </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                }}
-              >
-                {itemLocations.map((correction: OpaqueRef<ItemLocation>) => (
+            {/* Add new correction form */}
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem",
+                background: "white",
+                border: "1px solid #86efac",
+                borderRadius: "4px",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
+                Add New Correction:
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <ct-input
+                  $value={newItemName}
+                  placeholder="Item name (e.g., coffee)"
+                  style="font-size: 13px;"
+                />
+                <ct-input
+                  $value={newCorrectAisle}
+                  placeholder="Correct aisle (e.g., Aisle 9 - Coffee & Seafood)"
+                  style="font-size: 13px;"
+                />
+                <ct-input
+                  $value={newIncorrectAisle}
+                  placeholder="Incorrect aisle (optional)"
+                  style="font-size: 13px;"
+                />
+                <ct-button
+                  size="sm"
+                  variant="default"
+                  onClick={addItemLocation({
+                    itemLocations,
+                    newItemName,
+                    newCorrectAisle,
+                    newIncorrectAisle,
+                  })}
+                  style={{
+                    fontSize: "13px",
+                    padding: "8px 16px",
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  + Add Correction
+                </ct-button>
+              </div>
+            </div>
+
+            {/* Existing corrections list */}
+            {ifElse(
+              hasCorrections,
+              <div>
+                <div style={{ fontSize: "12px", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
+                  Saved Corrections ({correctionsCount}):
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                  }}
+                >
+                  {itemLocations.map((correction: OpaqueRef<ItemLocation>) => (
                   <div
                     style={{
                       display: "flex",
@@ -1304,11 +1443,12 @@ What common sections might be missing?`,
                       × Delete
                     </ct-button>
                   </div>
-                ))}
-              </div>
-            </div>,
-            null
-          )}
+                  ))}
+                </div>
+              </div>,
+              null
+            )}
+          </div>
 
           {/* Unassigned Departments - NEW WORKFLOW! */}
           {ifElse(
