@@ -136,10 +136,10 @@ export default pattern<HotelMembershipInput>(({
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
-  // Define agent tools outside generateObject to avoid closure issues
-  const agentTools = {
+  // Define agent tools using computed to handle closure properly
+  const agentTools = computed(() => ({
     searchGmail: patternTool(SearchGmailTool, { authCharm }),
-  };
+  }));
 
   const agentPrompt = derive(
     [brandHistory, memberships, isScanning],
