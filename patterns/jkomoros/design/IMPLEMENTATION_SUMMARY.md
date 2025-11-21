@@ -1,12 +1,12 @@
 # Agent Implementation Summary
 
-## Final Solution: Client-Side Filtering
+## Final Solution: Handler-Based Dynamic Queries
 
-After multiple attempts to implement dynamic server-side Gmail queries, we settled on a **client-side filtering approach** that works within the framework's constraints.
+After extensive research and iteration, we implemented a **handler-based approach** that enables full dynamic server-side Gmail queries with side effects.
 
 ## What Was Attempted
 
-### 1. Shared Cell Architecture (Failed)
+### 1. Pattern-Based Shared Cell (Failed)
 - **Approach:** Tool updates a shared queryCell → triggers GmailImporter to fetch
 - **Why it failed:** Patterns cannot have side effects like `cell.set()`. Attempting to call `queryCell.set(query)` inside the pattern body caused "opaque value" errors.
 
@@ -18,83 +18,116 @@ After multiple attempts to implement dynamic server-side Gmail queries, we settl
 - **Approach:** Import and use GmailClient/GmailFetcher classes directly
 - **Why it failed:** Module loading errors - imported classes not available in compiled tool runtime context.
 
-## What Works: Client-Side Filtering
+### 4. Client-Side Filtering (Works but Limited)
+- **Approach:** Pre-fetch 100 emails, filter client-side by query string
+- **Why abandoned:** Too limited - agent can't try different server-side Gmail API queries
+
+## What Works: Handler-Based Dynamic Queries
 
 ### Architecture
 
 ```typescript
-// 1. Main pattern fetches broad set of hotel emails
+// 1. SearchGmailTool as HANDLER (can have side effects!)
+export const SearchGmailTool = handler<
+  { query: string },
+  {
+    queryCell: Cell<string>;
+    emailsCell: Cell<Email[]>;
+  }
+>((input, state) => {
+  // 1. Update shared query cell → triggers GmailImporter to fetch
+  state.queryCell.set(input.query);
+
+  // 2. Read current emails from shared cell
+  const emails = state.emailsCell.get();
+
+  if (!emails || !Array.isArray(emails)) {
+    return [];
+  }
+
+  // 3. Transform: metadata visible, body as @links
+  return emails.map(email => ({
+    // Metadata visible to agent
+    id: email.id,
+    subject: email.subject,
+    from: email.from,
+    date: email.date,
+    snippet: email.snippet,
+    // Body content as cells (type any) → framework converts to @links
+    markdownContent: Cell.of(email.markdownContent) as any,
+    htmlContent: Cell.of(email.htmlContent) as any,
+    plainText: Cell.of(email.plainText) as any,
+  }));
+});
+
+// 2. Main pattern creates shared cells and separate importer
+const agentQueryCell = cell<string>("");
+
 const agentGmailImporter = GmailImporter({
   settings: {
-    gmailFilterQuery: Cell.of("hotel OR marriott OR hilton OR hyatt OR ihg OR accor"),
-    limit: Cell.of(100),
+    gmailFilterQuery: agentQueryCell,  // Reactive - updates trigger fetch
+    limit: Cell.of(20),
     historyId: Cell.of(""),
   },
   authCharm,
 });
 
-// 2. SearchGmailTool receives emails and filters client-side
-export const SearchGmailTool = pattern<
-  {
-    query: string;              // DYNAMIC from agent (search term)
-    emailsCell: Cell<Email[]>;  // STATIC cell to read emails from
+// 3. Bind handler with shared cells
+const boundSearchGmail = SearchGmailTool({
+  queryCell: agentQueryCell,
+  emailsCell: agentGmailImporter.emails,
+});
+
+// 4. Register tool with proper wrapper syntax
+const agentTools = {
+  searchGmail: {
+    description: "Search Gmail with a query string...",
+    handler: boundSearchGmail,  // ← Key: wrap in { handler: ... }
   },
-  EmailPreview[]
->(({ query, emailsCell }) => {
-  const queryCell = Cell.of(query);
+};
 
-  return derive([emailsCell, queryCell], ([emails, q]: [Email[], string]): EmailPreview[] => {
-    // Filter by query (case-insensitive)
-    const filtered = emails.filter(email => {
-      const searchText = `${email.subject} ${email.from} ${email.snippet}`.toLowerCase();
-      return searchText.includes(q.toLowerCase());
-    });
-
-    // Return with metadata visible, body as @links
-    return filtered.map(email => ({
-      id: email.id,
-      subject: email.subject,
-      from: email.from,
-      date: email.date,
-      snippet: email.snippet,
-      // Body fields as type `any` → @links
-      markdownContent: Cell.of(email.markdownContent) as any,
-      htmlContent: Cell.of(email.htmlContent) as any,
-      plainText: Cell.of(email.plainText) as any,
-    }));
-  });
+// 5. Agent uses tool
+const agent = generateObject({
+  tools: agentTools,
+  // ...
 });
 ```
 
 ### Key Learnings
 
-1. **Convert dynamic inputs to cells:** When a pattern receives a plain value (like `query`), convert it to a cell with `Cell.of(query)` before using in derive.
+1. **Handlers can have side effects:** Unlike patterns, handlers can call `cell.set()` to trigger reactive updates. This is essential for tools that need to trigger data fetches.
 
-2. **Explicit type annotations:** TypeScript needs help understanding derive callbacks. Use explicit types: `([emails, q]: [Email[], string])`
+2. **Tool registration syntax matters:** Tools must be wrapped in an object with `handler` or `pattern` property:
+   ```typescript
+   tools: {
+     toolName: {
+       description: "Tool description",
+       handler: boundHandler,
+     },
+   }
+   ```
 
-3. **Array syntax for derive:** When passing cells to derive, use array syntax: `derive([emailsCell, queryCell], ([emails, q]) => ...)`
+3. **Shared cell architecture:** Create a shared cell in the main pattern, pass it to both the handler and the importer. Handler updates cell → importer reacts → handler reads results.
 
-4. **Patterns are pure:** Patterns cannot have side effects. They can only return derived computations.
+4. **Test files are invaluable:** Found definitive proof that handlers work as tools by examining `/Users/alex/Code/labs/packages/runner/test/generate-object-tools.test.ts`.
+
+5. **Email bodies as @links:** Type body fields as `any` with `Cell.of()` to make them @link references. Agent sees metadata directly but must use `read()` tool to access full content.
 
 ### Benefits
 
-✅ **Works within framework constraints:** No side effects, no pattern-within-pattern, no module loading issues
-✅ **Simple and maintainable:** Clear dataflow from broad fetch → client-side filter
-✅ **Metadata visible, body as @links:** Agent can filter emails by subject/sender without reading full content
-✅ **Framework idiomatic:** Uses standard Cell/derive patterns
+✅ **Full dynamic server-side queries:** Agent can try different Gmail API queries (e.g., "from:marriott.com", "from:hilton.com subject:membership")
+✅ **No module loading issues:** Uses existing GmailImporter, no need to import classes
+✅ **No pattern-within-pattern:** Handler just updates cells and reads results
+✅ **Metadata visible, body as @links:** Agent can filter emails efficiently before reading full content
+✅ **Framework idiomatic:** Uses handlers for side effects, cells for reactivity
 
-### Limitations
+### Current Status
 
-❌ **No dynamic server-side queries:** Agent cannot try "from:marriott.com" vs "from:hilton.com" at Gmail API level
-❌ **Limited to pre-fetched emails:** Can only filter the initial 100 emails fetched
-❌ **Less efficient for large mailboxes:** Fetches all hotel emails upfront instead of targeted queries
-
-### Future Improvements
-
-If the framework adds support for imperative actions in tools (like handlers but for patterns), we could:
-1. Update the shared cell approach to trigger dynamic fetches
-2. Allow agent to try multiple specific Gmail API queries
-3. Fetch emails on-demand rather than all upfront
+✅ Handler-based SearchGmailTool implemented
+✅ Compiles without errors
+✅ Tool registration syntax fixed (wrapper object with `handler` property)
+⏳ **Testing blocked:** Requires Gmail authentication to test agent calling the tool
+⏳ **End-to-end verification:** Need to verify dynamic queries trigger fetches and agent can read @links
 
 ## Implementation Files
 
