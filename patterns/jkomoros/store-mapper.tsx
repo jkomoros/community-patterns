@@ -11,6 +11,7 @@ import {
   ImageData,
   llm,
   NAME,
+  OpaqueCell,
   OpaqueRef,
   pattern,
   str,
@@ -430,6 +431,35 @@ const batchAddNonConflicting = handler<
   }
 });
 
+// Batch add non-conflicting aisles from ALL photos at once
+// This handler uses the computed batchAllPhotosData to know what to add
+const batchAddAllPhotosNonConflicting = handler<
+  unknown,
+  {
+    aisles: Cell<StoreAisle[]>;
+    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
+    batchData: {
+      aislesToAdd: Array<{ name: string; description: string }>;
+      photosToDelete: Array<string>; // photo names
+    };
+  }
+>((_event, { aisles, uploadedPhotos, batchData }) => {
+  // Add all non-conflicting aisles
+  batchData.aislesToAdd.forEach((aisle: { name: string; description: string }) => {
+    aisles.push(aisle);
+  });
+
+  // Delete photos that are done (no remaining merges)
+  if (batchData.photosToDelete.length > 0) {
+    const current = uploadedPhotos.get();
+    const remaining = current.filter((photoCell) => {
+      const photoName = photoCell.get().name;
+      return !batchData.photosToDelete.includes(photoName);
+    });
+    uploadedPhotos.set(remaining);
+  }
+});
+
 // Entrance handlers
 const addEntrance = handler<
   unknown,
@@ -785,6 +815,111 @@ export default pattern<StoreMapInput, StoreMapOutput>(
     // Counts for display
     const aisleCount = computed(() => aisles.length);
     const departmentCount = computed(() => specialDepartments.length);
+
+    // Compute total non-conflicting aisles across all photos
+    const totalNonConflictingAisles = computed(() => {
+      const currentAisles = aisles;
+      let totalCount = 0;
+
+      photoExtractions.forEach((extraction) => {
+        const pending = extraction.pending;
+        const extractedData = extraction.extractedAisles;
+
+        // Skip if still analyzing or no results
+        if (pending || !extractedData || !extractedData.aisles || extractedData.aisles.length === 0) {
+          return;
+        }
+
+        // Get valid aisles from this photo
+        const validAisles = extractedData.aisles.filter(
+          (a: any) => a && a.name && a.products && Array.isArray(a.products)
+        );
+
+        // Count non-conflicting aisles
+        const nonConflictCount = validAisles.filter((extracted: any) => {
+          return !currentAisles.some(
+            (existing) =>
+              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
+          );
+        }).length;
+
+        totalCount += nonConflictCount;
+      });
+
+      return totalCount;
+    });
+
+    // Compute batch data: all non-conflicting aisles to add and photos to delete
+    const batchAllPhotosData = computed(() => {
+      const currentAisles = aisles;
+      const aislesToAdd: Array<{ name: string; description: string }> = [];
+      const photosToDelete: string[] = [];
+
+      photoExtractions.forEach((extraction) => {
+        const pending = extraction.pending;
+        const extractedData = extraction.extractedAisles;
+
+        // Skip if still analyzing or no results
+        if (pending || !extractedData || !extractedData.aisles || extractedData.aisles.length === 0) {
+          return;
+        }
+
+        // Get valid aisles from this photo
+        const validAisles = extractedData.aisles.filter(
+          (a: any) => a && a.name && a.products && Array.isArray(a.products)
+        );
+
+        // Filter to only non-conflicting aisles
+        const nonConflicting = validAisles.filter((extracted: any) => {
+          return !currentAisles.some(
+            (existing) =>
+              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
+          );
+        });
+
+        // Collect aisles to add with markdown bullets
+        nonConflicting.forEach((aisle: any) => {
+          const description = aisle.products && aisle.products.length > 0
+            ? aisle.products.map((p: string) => `- ${p}`).join('\n')
+            : '';
+
+          aislesToAdd.push({
+            name: aisle.name,
+            description,
+          });
+        });
+
+        // Check if there are any conflicting aisles with new items to merge
+        const conflicting = validAisles.filter((extracted: any) => {
+          return currentAisles.some(
+            (existing) =>
+              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
+          );
+        });
+
+        // For each conflicting aisle, check if it has new items
+        const hasRemainingMerges = conflicting.some((extracted: any) => {
+          const matchingAisle = currentAisles.find(
+            (existing) =>
+              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
+          );
+          if (!matchingAisle) return false;
+
+          const analysis = analyzeOverlap(
+            matchingAisle.description || '',
+            [...(extracted.products || [])]
+          );
+          return analysis.hasNewItems;
+        });
+
+        // Mark photo for deletion if no remaining merges
+        if (!hasRemainingMerges) {
+          photosToDelete.push(extraction.photoName);
+        }
+      });
+
+      return { aislesToAdd, photosToDelete };
+    });
 
     // Boxing pattern for sorting: wrap aisles to preserve cell references
     // 1. Box the aisles
@@ -2203,6 +2338,27 @@ What common sections might be missing?`,
             >
               Upload photos of aisle signs (up to 50). Each photo will be analyzed and results shown below:
             </div>
+            {/* Batch add all button */}
+            {ifElse(
+              derive(totalNonConflictingAisles, (count) => count > 0),
+              <div style={{ marginBottom: "1rem", display: "flex", justifyContent: "center" }}>
+                <ct-button
+                  variant="default"
+                  onClick={batchAddAllPhotosNonConflicting({
+                    aisles,
+                    uploadedPhotos,
+                    batchData: batchAllPhotosData,
+                  })}
+                  style={{
+                    fontWeight: "600",
+                    padding: "8px 16px",
+                  }}
+                >
+                  + Add All {totalNonConflictingAisles} New Aisles from All Photos
+                </ct-button>
+              </div>,
+              null
+            )}
             <ct-vstack gap="4">
               {photoExtractions.map((extraction) => {
                 return (
