@@ -176,6 +176,34 @@ const createPizzaList = lift<{ result: WebReadResult }, Pizza[]>(
 );
 
 // ============================================================================
+// HANDLERS
+// ============================================================================
+
+const togglePreference = handler<
+  unknown,
+  { preferences: Cell<IngredientPreference[]>; ingredient: string; preference: "liked" | "disliked" }
+>((_event, { preferences, ingredient, preference }) => {
+  const current = preferences.get();
+  const existingIndex = current.findIndex(p => p.ingredient === ingredient);
+
+  if (existingIndex >= 0) {
+    const existing = current[existingIndex];
+    if (existing.preference === preference) {
+      // Clicking same button - remove preference
+      preferences.set(current.toSpliced(existingIndex, 1));
+    } else {
+      // Clicking opposite button - switch preference
+      const updated = [...current];
+      updated[existingIndex] = { ingredient, preference };
+      preferences.set(updated);
+    }
+  } else {
+    // New preference
+    preferences.set([...current, { ingredient, preference }]);
+  }
+});
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -234,9 +262,36 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                       padding: "0.25rem 0.5rem",
                       backgroundColor: "#f0f0f0",
                       borderRadius: "4px",
-                      fontSize: "0.9rem"
+                      fontSize: "0.9rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem"
                     }}>
-                      {ing.raw}
+                      <span>{ing.raw}</span>
+                      <button
+                        onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "liked" })}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "0",
+                          fontSize: "1rem"
+                        }}
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={togglePreference({ preferences, ingredient: ing.normalized, preference: "disliked" })}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "0",
+                          fontSize: "1rem"
+                        }}
+                      >
+                        👎
+                      </button>
                     </span>
                   ))}
                 </div>
