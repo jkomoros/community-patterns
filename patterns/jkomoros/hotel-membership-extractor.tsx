@@ -204,9 +204,12 @@ export default pattern<HotelMembershipInput>(({
     emailsCell: agentGmailImporter.emails,  // STATIC: Cell to read results from
   });
 
-  // Define agent tools
+  // Define agent tools with proper wrapper syntax
   const agentTools = {
-    searchGmail: boundSearchGmail,
+    searchGmail: {
+      description: "Search Gmail with a query string. Returns email metadata (subject, from, date, snippet) visible directly, with body content as @link references. Use the read() tool to access full email bodies.",
+      handler: boundSearchGmail,
+    },
   };
 
   const agentPrompt = derive(
