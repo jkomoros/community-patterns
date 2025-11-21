@@ -398,37 +398,10 @@ const batchAddNonConflicting = handler<
     });
   });
 
-  // Check if there are any conflicting aisles with new items to merge
-  const conflicting = extractedAisles.filter((extracted) => {
-    return currentAisles.some(
-      (existing) =>
-        existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
-    );
-  });
-
-  // For each conflicting aisle, check if it has new items
-  const hasRemainingMerges = conflicting.some((extracted) => {
-    const matchingAisle = currentAisles.find(
-      (existing) =>
-        existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
-    );
-    if (!matchingAisle) return false;
-
-    const analysis = analyzeOverlap(
-      matchingAisle.description || '',
-      [...(extracted.products || [])]
-    );
-    return analysis.hasNewItems;
-  });
-
-  // Only delete the photo if there are NO remaining merges needed
-  if (!hasRemainingMerges) {
-    const current = uploadedPhotos.get();
-    const index = current.findIndex((el) => el.equals(photo));
-    if (index >= 0) {
-      uploadedPhotos.set(current.toSpliced(index, 1));
-    }
-  }
+  // Note: We don't auto-delete photos after adding aisles anymore.
+  // This prevents the photo analysis reset bug where remaining photos
+  // would reset to "Analyzing..." when uploadedPhotos array changes.
+  // Users can manually delete photos using the delete button.
 });
 
 // Batch add non-conflicting aisles from ALL photos at once
@@ -449,15 +422,10 @@ const batchAddAllPhotosNonConflicting = handler<
     aisles.push(aisle);
   });
 
-  // Delete photos that are done (no remaining merges)
-  if (batchData.photosToDelete.length > 0) {
-    const current = uploadedPhotos.get();
-    const remaining = current.filter((photoCell) => {
-      const photoName = photoCell.get().name;
-      return !batchData.photosToDelete.includes(photoName);
-    });
-    uploadedPhotos.set(remaining);
-  }
+  // Note: We don't auto-delete photos after adding aisles anymore.
+  // This prevents the photo analysis reset bug where remaining photos
+  // would reset to "Analyzing..." when uploadedPhotos array changes.
+  // Users can manually delete photos using the delete button.
 });
 
 // Entrance handlers
@@ -725,8 +693,10 @@ export default pattern<StoreMapInput, StoreMapOutput>(
     const selectedMergeItems = cell<Record<string, string[]>>({});
 
     // Process uploaded photos
-    // NOTE: Known issue - when a photo is deleted, remaining photos reset to "Analyzing..."
-    // See PHONE-A-BERNI-store-mapper-extraction-reset.md for details
+    // Note: Photos are NOT auto-deleted after "Add All" to prevent the photo extraction
+    // reset bug. When uploadedPhotos array changes, this .map() re-evaluates and creates
+    // new generateObject calls, resetting all photos to "Analyzing...". Users can manually
+    // delete photos using the delete button.
     const photoExtractions = uploadedPhotos.map((photo) => {
       const extraction = generateObject({
         system:
@@ -849,11 +819,10 @@ export default pattern<StoreMapInput, StoreMapOutput>(
       return totalCount;
     });
 
-    // Compute batch data: all non-conflicting aisles to add and photos to delete
+    // Compute batch data: all non-conflicting aisles to add from all photos
     const batchAllPhotosData = computed(() => {
       const currentAisles = aisles;
       const aislesToAdd: Array<{ name: string; description: string }> = [];
-      const photosToDelete: string[] = [];
 
       photoExtractions.forEach((extraction) => {
         const pending = extraction.pending;
@@ -888,37 +857,9 @@ export default pattern<StoreMapInput, StoreMapOutput>(
             description,
           });
         });
-
-        // Check if there are any conflicting aisles with new items to merge
-        const conflicting = validAisles.filter((extracted: any) => {
-          return currentAisles.some(
-            (existing) =>
-              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
-          );
-        });
-
-        // For each conflicting aisle, check if it has new items
-        const hasRemainingMerges = conflicting.some((extracted: any) => {
-          const matchingAisle = currentAisles.find(
-            (existing) =>
-              existing.name.trim().toLowerCase() === extracted.name.trim().toLowerCase()
-          );
-          if (!matchingAisle) return false;
-
-          const analysis = analyzeOverlap(
-            matchingAisle.description || '',
-            [...(extracted.products || [])]
-          );
-          return analysis.hasNewItems;
-        });
-
-        // Mark photo for deletion if no remaining merges
-        if (!hasRemainingMerges) {
-          photosToDelete.push(extraction.photoName);
-        }
       });
 
-      return { aislesToAdd, photosToDelete };
+      return { aislesToAdd, photosToDelete: [] };
     });
 
     // Boxing pattern for sorting: wrap aisles to preserve cell references
