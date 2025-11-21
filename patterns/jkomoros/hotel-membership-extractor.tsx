@@ -29,72 +29,65 @@ type EmailPreview = {
 };
 
 /**
- * SearchGmail Tool - Client-side filtering of fetched emails
+ * SearchGmail Tool - Dynamic Gmail queries with server-side search
+ *
+ * ATTEMPT: Using handler approach to allow side effects (updating query cell)
  *
  * Agent sees:
  * - Email metadata (subject, from, date) directly - for filtering
  * - Body content as @link references - use read() to access
  *
  * Architecture:
- * - GmailImporter fetches broad set of emails (e.g., "hotel")
- * - Tool filters those emails client-side based on agent's query
- * - Returns filtered emails with body as @links
+ * - Tool updates shared queryCell → triggers GmailImporter to fetch
+ * - Tool reads and returns emails from shared emailsCell
+ * - Returns emails with body as @links
  *
  * Input:
- * - query: DYNAMIC from agent (search term to filter by)
- * - emailsCell: STATIC cell to read emails from
+ * - query: DYNAMIC from agent (Gmail query string)
+ * - queryCell: STATIC shared cell to update
+ * - emailsCell: STATIC cell to read results from
  *
  * Output: EmailPreview[] (with body as @links)
  */
-export const SearchGmailTool = pattern<
+export const SearchGmailTool = handler<
+  { query: string },
   {
-    query: string;              // DYNAMIC from agent
-    emailsCell: Cell<Email[]>;  // STATIC emails from importer
-  },
-  EmailPreview[]
->(
-  ({ query, emailsCell }) => {
-    // Convert query to cell to avoid closing over plain value
-    const queryCell = Cell.of(query);
-
-    // Filter and transform emails based on query
-    return derive([emailsCell, queryCell], ([emails, q]: [Email[], string]): EmailPreview[] => {
-      console.log(`[SearchGmailTool] Agent requested query: "${q}"`);
-
-      if (!emails || !Array.isArray(emails)) {
-        console.log("[SearchGmailTool] No emails available yet");
-        return [];
-      }
-
-      console.log(`[SearchGmailTool] Filtering ${emails.length} emails with query: "${q}"`);
-
-      // Client-side filter by query (case-insensitive search in subject, from, snippet)
-      const queryLower = q.toLowerCase();
-      const filtered = emails.filter(email => {
-        const searchText = `${email.subject} ${email.from} ${email.snippet}`.toLowerCase();
-        return searchText.includes(queryLower);
-      });
-
-      console.log(`[SearchGmailTool] Matched ${filtered.length} emails`);
-
-      // Transform: metadata visible, body as @links
-      return filtered.map(email => ({
-        // Metadata visible to agent
-        id: email.id,
-        threadId: email.threadId,
-        subject: email.subject,
-        from: email.from,
-        date: email.date,
-        to: email.to,
-        snippet: email.snippet,
-        // Body content as cells (type any) → framework converts to @links
-        markdownContent: Cell.of(email.markdownContent) as any,
-        htmlContent: Cell.of(email.htmlContent) as any,
-        plainText: Cell.of(email.plainText) as any,
-      }));
-    });
+    queryCell: Cell<string>;
+    emailsCell: Cell<Email[]>;
   }
-);
+>((input, state) => {
+  console.log(`[SearchGmailTool] Agent requested query: "${input.query}"`);
+
+  // 1. Update shared query cell → triggers GmailImporter to fetch
+  state.queryCell.set(input.query);
+  console.log(`[SearchGmailTool] Updated queryCell to: "${input.query}"`);
+
+  // 2. Read current emails from shared cell
+  const emails = state.emailsCell.get();
+
+  console.log(`[SearchGmailTool] Current emails in cell: ${emails?.length || 0}`);
+
+  if (!emails || !Array.isArray(emails)) {
+    console.log("[SearchGmailTool] No emails available yet");
+    return [];
+  }
+
+  // 3. Transform: metadata visible, body as @links
+  return emails.map(email => ({
+    // Metadata visible to agent
+    id: email.id,
+    threadId: email.threadId,
+    subject: email.subject,
+    from: email.from,
+    date: email.date,
+    to: email.to,
+    snippet: email.snippet,
+    // Body content as cells (type any) → framework converts to @links
+    markdownContent: Cell.of(email.markdownContent) as any,
+    htmlContent: Cell.of(email.htmlContent) as any,
+    plainText: Cell.of(email.plainText) as any,
+  }));
+});
 
 // ============================================================================
 // DATA STRUCTURES
@@ -191,23 +184,30 @@ export default pattern<HotelMembershipInput>(({
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
+  // Shared query cell for agent - tool updates this to trigger Gmail fetch
+  const agentQueryCell = cell<string>("");
+
   // Separate GmailImporter instance just for the agent (independent of old 2-stage LLM)
-  // Fetches broad set of hotel emails - agent filters client-side
+  // Uses reactive query cell - updates trigger fetches
   const agentGmailImporter = GmailImporter({
     settings: {
-      gmailFilterQuery: Cell.of("hotel OR marriott OR hilton OR hyatt OR ihg OR accor"),  // Broad query
-      limit: Cell.of(100),                // Fetch up to 100 emails
-      historyId: Cell.of(""),             // No history tracking
+      gmailFilterQuery: agentQueryCell,  // Reactive - updates trigger fetch
+      limit: Cell.of(20),                // Fetch up to 20 emails per query
+      historyId: Cell.of(""),            // No history tracking
     },
     authCharm: authCharm,
   });
 
-  // Define agent tools using computed to handle closure properly
-  const agentTools = computed(() => ({
-    searchGmail: patternTool(SearchGmailTool, {
-      emailsCell: agentGmailImporter.emails,  // STATIC: Cell to read and filter from
-    }),
-  }));
+  // Bind SearchGmailTool handler with shared cells
+  const boundSearchGmail = SearchGmailTool({
+    queryCell: agentQueryCell,              // STATIC: Shared cell to update
+    emailsCell: agentGmailImporter.emails,  // STATIC: Cell to read results from
+  });
+
+  // Define agent tools
+  const agentTools = {
+    searchGmail: boundSearchGmail,
+  };
 
   const agentPrompt = derive(
     [brandHistory, memberships, isScanning],

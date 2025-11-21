@@ -54,7 +54,7 @@ turndown.addRule("removeStyleTags", {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type Email = {
+export type Email = {
   // Unique identifier for the email
   id: string;
   // Identifier for the email thread
