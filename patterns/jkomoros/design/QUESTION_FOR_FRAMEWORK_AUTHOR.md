@@ -141,9 +141,63 @@ A way for agent tool calls to:
 3. Return that data to the agent
 4. Support dynamic parameters from the agent
 
-## Current Blocker
+## Current Status
 
-We have a handler-based implementation that compiles and deploys, but we don't know if it will actually work when the agent tries to call it. If handlers can't be used as tools, we need guidance on the correct pattern.
+✅ **Handler-based implementation complete and compiles successfully**
+✅ **Tool registration syntax fixed** (wrapper object with `handler` property)
+✅ **Research confirmed handlers can be used as tools** (found in test files)
+⏳ **Testing blocked:** Requires Gmail authentication to verify agent can call the tool
+
+The implementation should work based on test file evidence, but needs end-to-end testing with real Gmail auth to confirm.
+
+## Current Implementation (Handler-Based)
+
+```typescript
+// Handler definition
+export const SearchGmailTool = handler<
+  { query: string },
+  {
+    queryCell: Cell<string>;
+    emailsCell: Cell<Email[]>;
+  }
+>((input, state) => {
+  state.queryCell.set(input.query);  // Side effect - triggers fetch
+  const emails = state.emailsCell.get();
+
+  return emails.map(email => ({
+    // Metadata visible
+    id: email.id,
+    subject: email.subject,
+    // Body as @links
+    markdownContent: Cell.of(email.markdownContent) as any,
+  }));
+});
+
+// Main pattern setup
+const agentQueryCell = cell<string>("");
+const agentGmailImporter = GmailImporter({
+  settings: { gmailFilterQuery: agentQueryCell, limit: Cell.of(20) },
+  authCharm,
+});
+
+const boundSearchGmail = SearchGmailTool({
+  queryCell: agentQueryCell,
+  emailsCell: agentGmailImporter.emails,
+});
+
+// Tool registration (KEY FIX: wrapper object)
+const agentTools = {
+  searchGmail: {
+    description: "Search Gmail with a query string...",
+    handler: boundSearchGmail,  // ← Wrapped in { handler: ... }
+  },
+};
+
+const agent = generateObject({
+  tools: agentTools,
+  // ...
+});
+```
 
 ## Fallback
 
