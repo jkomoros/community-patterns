@@ -170,110 +170,271 @@ interface BrandSearchRecord {
 
 **Should I include any of these in v1, or keep it simple?**
 
-## Technical Approach (UPDATED)
+## Technical Approach - Agent-Based Architecture
 
-### Smart Incremental Scanning
+### 🚀 NEW DESIGN: Single Agent with Tool Calling
 
-**Key Innovation:** LLM-driven search strategy based on what we already have.
+**Radical Architecture Change:** Instead of 2-stage LLM (query generator → fetch all → extractor), use a single agentic LLM with tool calls that iteratively searches and reads emails.
 
-**Flow:**
-1. User clicks "Scan for Memberships"
-2. System asks LLM: "Pick a brand from unsearchedBrands and generate Gmail query"
-3. LLM suggests query (e.g., "from:marriott.com")
-4. System fetches emails matching that query
-5. Filter out emails we've already scanned (by email ID)
-6. LLM processes only NEW emails
-7. LLM extracts memberships, checking against existing list to avoid duplicates
-8. **Update tracking:**
-   - Add new memberships to `memberships`
-   - Move brand from `unsearchedBrands` to:
-     - `searchedBrands` (if found memberships) OR
-     - `searchedNotFound` with timestamp (if found nothing)
-   - Add email IDs to `scannedEmailIds`
+**Why This is Better:**
+- **Context-efficient**: Only reads promising emails, not ALL emails from broad queries
+- **Naturally iterative**: Agent refines queries based on what it finds
+- **Self-correcting**: If query returns promotional emails, agent tries more specific queries
+- **Transparent**: Agent's strategy visible in tool call history
+- **Flexible**: Agent can adapt strategy organically without rigid 2-stage workflow
 
-**Benefits:**
-- Incremental discovery (find one hotel at a time)
-- No duplicate work (track scanned emails)
-- Smart search (LLM knows what to look for next)
-- Cost-efficient (only scan new emails)
+### Agent Tools
+
+The agent has access to three tools:
+
+#### 1. `searchGmail(query: string)` → EmailPreview[]
+
+**Purpose:** Search Gmail and return email metadata only (NO content)
+
+**Returns:** Array of up to 20 email previews:
+```typescript
+interface EmailPreview {
+  id: string;           // Gmail message ID
+  subject: string;      // Email subject line
+  from: string;         // Sender address
+  date: string;         // Email date
+}
+```
+
+**Implementation:** Pattern tool using GmailImporter internally
+
+**Key Detail:** Returns FIFO cached results - does NOT re-fetch from Gmail on subsequent calls with same query
+
+#### 2. `readEmail(emailId: string)` → EmailFull
+
+**Purpose:** Read full content of a specific email
+
+**Returns:** Complete email data:
+```typescript
+interface EmailFull {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  content: string;      // Full markdown content
+}
+```
+
+**Implementation:** Pattern tool that reads from FIFO cache populated by `searchGmail`
+
+**Key Detail:** Does NOT hit Gmail API - reads from local cache only. If email not in cache, returns error prompting agent to search first.
+
+#### 3. `finalResult(memberships: MembershipRecord[])` → void
+
+**Purpose:** Agent calls this when done to return discovered memberships
+
+**Implementation:** Automatically provided by `generateObject` schema
+
+### FIFO Email Cache Design
+
+**Problem:** Agent may search multiple times, read same emails - don't want to hit Gmail API repeatedly
+
+**Solution:** FIFO cache of recently searched emails
+
+```typescript
+interface EmailCache {
+  entries: Map<string, EmailFull>;  // emailId → full email data
+  searchHistory: SearchEntry[];      // Recent searches
+  maxEntries: 200;                   // Keep last 200 emails
+}
+
+interface SearchEntry {
+  query: string;
+  timestamp: number;
+  emailIds: string[];   // IDs returned by this search
+}
+```
+
+**Workflow:**
+1. `searchGmail(query)` → Fetch from Gmail, add to cache, return previews
+2. Cache keeps 200 most recent emails (FIFO eviction)
+3. `readEmail(id)` → Read from cache (instant, no API call)
+4. If cache miss → Error: "Email not in cache, search first"
+
+### Agent State: brandHistory
+
+**Purpose:** Agent's working memory - NOT just the chat log
+
+**Structure:**
+```typescript
+interface BrandHistory {
+  brand: string;
+  attempts: QueryAttempt[];
+  status: "searching" | "found" | "exhausted";
+}
+
+interface QueryAttempt {
+  query: string;
+  attemptedAt: number;
+  emailsFound: number;        // How many emails returned
+  emailsRead: number;         // How many agent read full content
+  membershipsFound: number;   // How many memberships extracted
+  emailIds: string[];         // Which emails (for deduplication)
+}
+```
+
+**Why This Matters:**
+- Other patterns can inspect agent progress
+- UI can show "Tried 3 queries for Marriott, found 1 membership"
+- Agent can see its own history to avoid repeating failed queries
+- Persistent across sessions (survives page refresh)
+
+### Agent Workflow Example
+
+**Scenario:** User clicks "Login and Run" → Agent searches for Marriott membership
+
+```
+Agent starts with context:
+- brandHistory: []
+- Current brand to search: "Marriott"
+
+Agent thinks: "I should start with a broad search"
+
+TOOL CALL: searchGmail("from:marriott.com")
+RESULT: 40 emails returned (all previews with subjects)
+
+Agent analyzes subjects:
+- "Flash Sale: Caribbean Cruises 50% Off!"
+- "Triple Points This Weekend"
+- "Your Marriott Bonvoy Statement"  ← Promising!
+- ... 37 more promotional emails
+
+Agent thinks: "Most are promotional, but one looks like account email"
+
+TOOL CALL: readEmail("abc123")  # The statement email
+RESULT: Full content of statement email
+
+Agent extracts: Membership #1234567890 ✅
+
+Agent thinks: "Found one! But most emails were promotional.
+Let me try more specific query for account emails"
+
+TOOL CALL: searchGmail("from:marriott.com subject:(membership OR account OR number)")
+RESULT: 5 emails returned
+
+Agent reads 2-3 promising ones, finds same membership again (duplicate)
+
+Agent thinks: "No new memberships. I'll try one more specific query"
+
+TOOL CALL: searchGmail("from:marriott.com subject:(welcome OR confirmation)")
+RESULT: 2 emails returned
+
+Agent reads them, finds same membership again
+
+Agent thinks: "I've thoroughly searched Marriott. Moving to next brand."
+
+TOOL CALL: finalResult([
+  {
+    hotelBrand: "Marriott",
+    programName: "Marriott Bonvoy",
+    membershipNumber: "1234567890",
+    ...
+  }
+])
+
+Final brandHistory state:
+[
+  {
+    brand: "Marriott",
+    attempts: [
+      { query: "from:marriott.com", emailsFound: 40, emailsRead: 1, membershipsFound: 1 },
+      { query: "from:marriott.com subject:(...)", emailsFound: 5, emailsRead: 2, membershipsFound: 0 },
+      { query: "from:marriott.com subject:(welcome...)", emailsFound: 2, emailsRead: 2, membershipsFound: 0 }
+    ],
+    status: "found"
+  }
+]
+```
 
 ### Pattern Structure
+
 ```typescript
 interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
-  scannedEmailIds: Default<string[], []>;  // Track processed emails
-  lastScanAt: Default<number, 0>;          // Timestamp of last scan
-  suggestedQuery: Default<string, "">;     // LLM's next suggested search
+  brandHistory: Default<BrandHistory[], []>;
+  emailCache: Default<EmailCache, { entries: {}, searchHistory: [], maxEntries: 200 }>;
 }
 
 // Components:
 // 1. GmailAuth - authentication
-// 2. GmailImporter - fetch emails (dynamic query)
-// 3. LLM query generator - suggest next search based on existing memberships
-// 4. LLM extractor - process NEW emails, avoid duplicates
-// 5. Display component - show extracted memberships
+// 2. EmailCache - FIFO cache of searched emails
+// 3. searchGmail tool - pattern that uses GmailImporter + caches results
+// 4. readEmail tool - pattern that reads from cache
+// 5. Agent - generateObject with tools, iteratively searches/reads/extracts
+// 6. Display component - show extracted memberships + agent progress
 ```
 
-### LLM Prompt Strategy (UPDATED)
+### Agent System Prompt
 
-**Two-stage LLM approach:**
-
-#### Stage 1: Query Generator (UPDATED)
 ```
-Given the user's hotel membership search state, suggest the next Gmail search query.
+You are a hotel membership number extractor. Your goal is to find loyalty program
+membership numbers from the user's Gmail account.
+
+You have access to these tools:
+- searchGmail(query): Search Gmail, returns up to 20 email previews (subject, from, date)
+- readEmail(emailId): Read full content of a specific email from cache
+
+Strategy:
+1. Start with broad searches like "from:marriott.com"
+2. Analyze email subjects to identify promising emails (account/membership emails vs promotions)
+3. Read promising emails to extract membership numbers
+4. If most results are promotional, refine query with subject filters
+5. Track what you've found to avoid duplicates
+6. Try 3-5 different queries per brand before moving to next brand
+7. When done with all brands, call finalResult with all memberships found
+
+Brands to search: Marriott, Hilton, Hyatt, IHG, Accor
 
 Current state:
-- Brands with memberships found: [searchedBrands]
-- Brands searched but nothing found: [searchedNotFound with timestamps]
-- Brands not yet searched: [unsearchedBrands]
-
-Task: Pick ONE brand from unsearchedBrands and generate a Gmail query for it.
-
-Note: searchedNotFound includes timestamps showing when we last searched.
-These brands had no results before, but might have new emails since then.
-Focus on unsearchedBrands first.
-
-Suggest a Gmail query that:
-- Searches emails from that specific hotel chain
-- Uses from: filter with the hotel's domain (e.g., "from:marriott.com")
-- Is focused and specific
-
-Return ONLY the query string (e.g., "from:marriott.com")
-
-If unsearchedBrands is empty, return: "done"
+- Already found: [existing memberships]
+- Search history: [brandHistory]
 ```
 
-#### Stage 2: Membership Extractor
+### Auto-Run on Authentication
+
+**UI Flow:**
 ```
-Extract hotel loyalty program membership information from emails.
-
-IMPORTANT: Only extract NEW memberships. Do not return memberships already in this list:
-[existing membership numbers]
-
-Look for:
-- Hotel brand name (Marriott, Hilton, Hyatt, IHG, Accor, Wyndham, etc.)
-- Program name (Marriott Bonvoy, Hilton Honors, etc.)
-- Membership/account numbers (typically 9-12 digits)
-- Tier/status levels (Gold, Platinum, Diamond, etc.)
-
-Return array of JSON objects with fields:
-{
-  hotelBrand: string,
-  programName: string,
-  membershipNumber: string,
-  tier?: string,
-  confidence: number (0-100)
-}
-
-Return empty array if no NEW memberships found.
+[User lands on pattern]
+       ↓
+[Shows: "🔒 Login and Run" button]
+       ↓
+[User clicks → Triggers Gmail auth]
+       ↓
+[After successful auth → Auto-start agent]
+       ↓
+[Agent runs with tool calls, updates brandHistory in real-time]
+       ↓
+[Display: Live progress + extracted memberships]
 ```
 
-### Performance Considerations
+**Implementation:**
+- Use `derive()` to watch auth state
+- When auth succeeds, trigger `generateObject` with agent
+- Agent runs asynchronously, updates state cells as it progresses
+- UI reactively shows agent progress via brandHistory
 
-- Process emails in batches (10 at a time?)
-- Show progress indicator
-- Allow cancellation
-- Cache results to avoid re-processing
+### Performance & UX
+
+**Progress Visibility:**
+- Show agent's tool calls in real-time
+- Display current brand being searched
+- Show query attempts and results
+- "Searching Marriott... (attempt 2/5)"
+
+**Error Handling:**
+- If Gmail API fails → Show error, allow retry
+- If agent gets stuck → Timeout after 5 minutes, show partial results
+- If cache miss on readEmail → Agent sees error, knows to search first
+
+**Cost Efficiency:**
+- Agent reads ~5-10 emails per brand (not 40+ emails)
+- Only pays for content of promising emails
+- Avoids re-reading same emails (cache)
 
 ## Open Questions
 
@@ -282,66 +443,107 @@ Return empty array if no NEW memberships found.
 3. Should we validate membership number formats per brand?
 4. Integration with other patterns (e.g., store in Person charm)?
 
-## Final Approved Design
+## Final Approved Design - Agent Architecture
 
-### ✅ All Decisions Finalized
+### ✅ Agent-Based Design Finalized
 
-1. **Manual Trigger** - User clicks "Scan" button to start
-2. **Smart Brand Tracking** - Three categories:
-   - `unsearchedBrands` - Brands not yet searched (LLM picks from here)
-   - `searchedBrands` - Brands where we found memberships
-   - `searchedNotFound` - Brands searched but found nothing (with timestamp for potential re-search)
-3. **Start Small** - Launch with ONE brand (Marriott), expand later
-4. **Email Tracking** - Track scanned email IDs to avoid re-processing
-5. **No Duplicates** - LLM checks existing memberships before adding
-6. **Two-Stage LLM**:
-   - Stage 1: Generate next Gmail search query (from unsearchedBrands)
-   - Stage 2: Extract memberships from emails
-7. **UI Evolution**:
-   - Phase 1: Grouped list (simple, functional)
-   - Phase 2: Big visual cards (polished)
-   - Copy button for membership numbers
+1. **Auto-Run on Login** - "Login and Run" button authenticates and immediately starts agent
+2. **Agent with Tool Calls** - Single `generateObject` with `searchGmail`, `readEmail` tools
+3. **Context-Efficient** - Agent only reads promising emails (5-10 per brand), not all emails
+4. **FIFO Email Cache** - Prevents re-fetching from Gmail API
+5. **Smart Brand Tracking via brandHistory** - Agent records all query attempts with results
+6. **Iterative Query Refinement** - Agent tries 3-5 queries per brand, refines based on results
+7. **Transparent Progress** - UI shows agent's tool calls and progress in real-time
+8. **Start with Multiple Brands** - Marriott, Hilton, Hyatt, IHG, Accor (agent decides order)
+9. **No Duplicates** - Agent tracks memberships found to avoid re-adding
 
-### Complete Workflow
+### Complete Agent Workflow
 
 ```
-[User clicks "Scan"]
+[User clicks "🔒 Login and Run"]
        ↓
-[LLM: Pick brand from unsearchedBrands] → "from:marriott.com"
+[Gmail OAuth flow]
        ↓
-[Fetch emails matching query]
+[After auth success → Auto-start agent]
        ↓
-[Filter out scannedEmailIds]
+[Agent: generateObject with tools]
        ↓
-[LLM: Extract NEW memberships]
+┌─────────────────────────────────────────────┐
+│ Agent iteratively:                          │
+│                                             │
+│ TOOL: searchGmail("from:marriott.com")      │
+│   → 40 email previews (subjects only)       │
+│                                             │
+│ Agent analyzes subjects                     │
+│   → Identifies promotional vs account emails│
+│                                             │
+│ TOOL: readEmail("abc123")                   │
+│   → Full content from cache                 │
+│                                             │
+│ Agent extracts membership #1234567890       │
+│                                             │
+│ TOOL: searchGmail("from:marriott.com subject:(account)")│
+│   → 5 email previews                        │
+│                                             │
+│ Agent reads 2 promising ones                │
+│   → Same membership (duplicate, skip)       │
+│                                             │
+│ Agent decides: "Done with Marriott"         │
+│                                             │
+│ Repeat for: Hilton, Hyatt, IHG, Accor...    │
+│                                             │
+│ TOOL: finalResult([...memberships])         │
+└─────────────────────────────────────────────┘
        ↓
 [Update state:
- - Add memberships
- - Move brand: unsearched → searched/searchedNotFound
- - Add email IDs to scannedEmailIds]
+ - Add memberships to memberships[]
+ - Record attempts in brandHistory[]
+ - Keep email cache for potential re-runs]
        ↓
-[Display in grouped list with [Copy] buttons]
+[Display memberships + agent progress history]
 ```
 
-### Implementation Scope (Phase 1)
+### Implementation Scope (Phase 1 - Agent Version)
 
 **Core features:**
-- ✅ Gmail integration (GmailAuth + GmailImporter)
-- ✅ Smart brand tracking (unsearched/searched/notfound)
-- ✅ Two-stage LLM extraction
-- ✅ Email deduplication
+- ✅ Gmail integration (GmailAuth)
+- ✅ FIFO email cache (200 most recent emails)
+- ✅ searchGmail tool (pattern returning email previews)
+- ✅ readEmail tool (pattern reading from cache)
+- ✅ Agent with generateObject + tools
+- ✅ brandHistory tracking (all attempts + results)
+- ✅ Auto-run on authentication
+- ✅ Real-time progress display
+- ✅ Multiple brands: Marriott, Hilton, Hyatt, IHG, Accor
 - ✅ Grouped list UI with copy buttons
-- ✅ Marriott support only
 
 **Future enhancements (Phase 2+):**
 - Big visual card UI
-- Additional hotel brands (Hilton, Hyatt, IHG, etc.)
 - Export to CSV
-- Manual add/edit
+- Manual add/edit memberships
 - Direct links to hotel websites
+- "Re-scan" button to search again with fresh queries
+
+### Key Differences from Old Design
+
+| Aspect | Old Design (2-Stage LLM) | New Design (Agent) |
+|--------|--------------------------|-------------------|
+| Architecture | Query generator → Fetch all → Extractor | Single agent with tool calls |
+| Email fetching | Fetch ALL emails from query | Fetch previews, read selectively |
+| Query strategy | One query per brand | 3-5 refined queries per brand |
+| Context usage | High (all email content) | Low (only promising emails) |
+| Iteration | Manual (user clicks "Next") | Automatic (agent decides) |
+| Transparency | Hidden LLM steps | Visible tool calls |
+| Trigger | Manual "Scan" button | Auto-run on login |
 
 ## Next Steps
 
-✅ **Design approved - ready to implement!**
+✅ **Agent-based design approved - ready to implement!**
 
-Pattern will follow substack-summarizer architecture with smart brand tracking system.
+**Implementation order:**
+1. Create FIFO email cache structure
+2. Build searchGmail pattern tool (wraps GmailImporter + caches)
+3. Build readEmail pattern tool (reads from cache)
+4. Implement agent with generateObject + tools
+5. Wire up "Login and Run" auto-trigger
+6. Build UI showing agent progress + memberships

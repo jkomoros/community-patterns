@@ -17,208 +17,353 @@
 
 Development notes and work tracking for the Hotel Membership Extractor pattern.
 
-## Current Issues to Fix
+## 🚀 RADICAL ARCHITECTURE CHANGE: Agent-Based Design
 
-### 1. Gmail Auth Prominence (HIGH PRIORITY) ✅ DONE
-**Problem:** Gmail auth was hidden in a collapsed "Settings" section, but nothing works without it!
-**Solution Implemented:**
-- Large, prominent red warning box (24px padding, 3px border)
-- Clear heading: "🔒 Gmail Authentication Required"
-- Explanation text about why auth is needed
-- **Auth UI embedded directly in the warning box** - no need to dig into Settings
-- Only shows when user is NOT authenticated
-**Status:** ✅ COMPLETE - Tested and compiles successfully
+### Framework Author Recommendation
 
-### 2. Auto-Fetch Emails (HIGH PRIORITY) - NEEDS SOLUTION
-**User Requirement:** "I still want a solution to the 'user doesn't have to hit fetch emails button'"
+**OLD DESIGN (Abandoned):** 2-stage LLM approach
+- Stage 1: Query generator picks brand, generates Gmail query
+- Stage 2: Fetch ALL emails from query
+- Stage 3: Extractor processes all email content
 
-**Problem:** After LLM generates query, user must manually click "Fetch Emails" in GmailImporter
+**Problems with Old Design:**
+- ❌ Fetches ALL emails from broad queries (wastes context)
+- ❌ LLM sees promotional emails it doesn't care about
+- ❌ Can't iteratively refine queries based on results
+- ❌ High context usage, high API costs
+- ❌ Two separate LLM calls (query gen + extraction)
 
-**Current Architecture:**
-- GmailImporter is a monolithic pattern that:
-  - Manages auth state (from authCharm input)
-  - Manages settings (gmailFilterQuery, limit, historyId)
-  - Has a `googleUpdater` handler that fetches emails
-  - Exports `bgUpdater` handler (bound version of googleUpdater)
-  - Button click triggers bgUpdater handler
-- Problem: Handlers can't be called from reactive computed() blocks
-- Problem: No way to trigger fetch when query changes reactively
+**NEW DESIGN (Agent with Tools):** Single agent with `generateObject` + tool calls
+- Agent uses tools to search and read emails iteratively
+- Only reads promising emails based on subject analysis
+- Refines queries organically based on what it finds
+- Context-efficient, cost-efficient, naturally iterative
 
-**SOLUTION: Refactor GmailImporter into Composable Pieces**
+### Agent Tools
 
-**Approach: Split into 3 patterns**
-1. **GmailFetcher** (new) - Core fetch logic, reactively triggered
-   - Inputs: auth, settings (gmailFilterQuery, limit, historyId)
-   - Has a `triggerFetch` cell (string) - when changed, triggers fetch
-   - Uses computed() to watch triggerFetch cell
-   - When triggerFetch changes AND authenticated, calls internal fetch logic
-   - Outputs: emails array, updated settings (with new historyId)
-   - Key insight: Uses computed() to watch a trigger cell, not a handler
+#### Tool 1: `searchGmail(query: string)` → EmailPreview[]
+- **Purpose:** Search Gmail, return metadata ONLY (no content)
+- **Returns:** Up to 20 email previews `{ id, subject, from, date }`
+- **Implementation:** Pattern tool (via `patternTool()`)
+- **Caching:** Results cached in FIFO cache (200 emails max)
+- **Gmail API:** Only called if query not in recent cache
 
-2. **GmailFetchButton** (new) - Manual trigger UI component
-   - Inputs: auth, settings
-   - Returns: Handler that can be called to trigger fetch
-   - Simple wrapper around a button that updates a trigger cell
-   - This is what other patterns can use if they want manual control
+#### Tool 2: `readEmail(emailId: string)` → EmailFull
+- **Purpose:** Read full content of specific email
+- **Returns:** `{ id, subject, from, date, content }` (markdown)
+- **Implementation:** Pattern tool reading from FIFO cache
+- **Key:** Does NOT hit Gmail API - reads from cache only
+- **Error:** If email not in cache, returns error prompting agent to search first
 
-3. **GmailImporter** (refactored) - Backward-compatible composition
-   - Composes GmailFetcher + GmailFetchButton
-   - Maintains exact same API as current GmailImporter
-   - No breaking changes for existing users
-   - Just internally uses the new composable pieces
+#### Tool 3: `finalResult(memberships: MembershipRecord[])` → void
+- **Purpose:** Agent calls when done to return results
+- **Implementation:** Automatically provided by `generateObject` schema
+- Agent must call this to complete
 
-**How Hotel Membership Extractor Would Use This:**
+### FIFO Email Cache
+
+**Purpose:** Prevent re-fetching same emails from Gmail API
+
+**Structure:**
 ```typescript
-// Use GmailFetcher directly (not GmailImporter)
-const fetcher = GmailFetcher({
-  auth,
-  settings: {
-    gmailFilterQuery: autoQuery,  // Derived cell
-    limit,
-    historyId: "",
-  },
-  triggerFetch: derive([autoQuery, isScanning], ([query, scanning]) => {
-    // Generate unique trigger whenever query changes during scanning
-    return scanning && query ? `fetch-${query}-${Date.now()}` : "";
-  }),
-});
+interface EmailCache {
+  entries: Map<string, EmailFull>;  // emailId → full email data
+  searchHistory: SearchEntry[];      // Recent searches
+  maxEntries: 200;                   // Keep last 200 emails (FIFO eviction)
+}
 
-const emails = fetcher.emails;
+interface SearchEntry {
+  query: string;
+  timestamp: number;
+  emailIds: string[];   // IDs returned by this search
+}
 ```
 
-**Trigger Cell Pattern:**
-- GmailFetcher watches `triggerFetch` cell with computed()
-- Whenever triggerFetch changes to a non-empty string, fetch executes
-- Parent patterns can derive() a trigger value based on any reactive state
-- This is the reactive equivalent of calling a handler
+**Workflow:**
+1. Agent calls `searchGmail("from:marriott.com")`
+2. Tool checks cache: if query recent, return cached previews
+3. If not cached: fetch from Gmail, add to cache, return previews
+4. Agent analyzes subjects, decides which to read
+5. Agent calls `readEmail("abc123")`
+6. Tool reads from cache (instant, no API call)
+7. If cache miss: error "Email not in cache, search first"
 
-**Implementation Plan:**
-1. Create `gmail-fetcher.tsx` - Core reactive fetch logic
-2. Create `gmail-fetch-button.tsx` - Manual trigger UI wrapper (optional)
-3. Refactor `gmail-importer.tsx` to compose the above two
-4. Update hotel-membership-extractor to use GmailFetcher directly
-5. Test that existing GmailImporter users are unaffected
+**Why FIFO?**
+- Agent may search same brand multiple times
+- Don't want to re-fetch emails we already have
+- 200 emails is enough for ~5 brands × 40 emails each
+- Oldest emails evicted automatically
 
-**Status:** BLOCKED - Framework limitation discovered
-**Priority:** HIGH - User explicitly wants this solved, not deferred
+### Agent State: brandHistory
 
-**INVESTIGATION RESULT:** After extensive testing, automatic save using `computed()` is NOT possible in the current CommonTools framework:
+**Purpose:** Agent's working memory - persistent across sessions
 
-1. **computed()** is designed for creating reactive computed VALUES, not performing side effects
-2. Inside `computed()`, you cannot call `.set()` on cells - this causes runtime errors
-3. The framework architecture is:
-   - `derive()` / `computed()`: Pure value computations only (no side effects)
-   - `handler()`: Side effects must be triggered by explicit user actions
-
-4. **Attempted Solutions:**
-   - ✗ Using `computed()` with `.get()` on cells → Runtime error: "extractorResult.get is not a function"
-   - ✗ Using `computed()` without `.get()` → Runtime error: "isScanning.get is not a function"
-   - ✗ Using `computed()` to call `.set()` on cells → This is fundamentally not supported
-
-**CONCLUSION:** The CommonTools framework does not support automatic side effects triggered by reactive changes. The manual save button approach is the correct pattern.
-
-**RECOMMENDATION:** Keep the manual save button, OR request framework enhancement to support reactive side effects.
-
-### 3. Smarter Query Iteration (HIGH PRIORITY) - NEEDS IMPLEMENTATION
-**User Requirement:** "The LLM should see that that query was tried, and returned email but didn't get membership numbers, and see 'OK the user clearly gets marriott emails but I need to be better at finding the membership number with a more specific query'"
-
-**ROOT CAUSE DISCOVERED:** ✅ Emails DO have content! Debug logging confirmed Gmail API works perfectly.
-
-**ACTUAL PROBLEM:** The LLM query generator is too simplistic:
-- Query: `from:marriott.com` → Found 40 emails → ❌ 0 memberships
-- Why? Emails are promotional (cruises, sales, points bonuses) - NOT account/membership emails
-- Current system marks Marriott as "searched" and moves on
-- **Should instead:** Try more specific queries until finding membership emails
-
-**Current Data Model (Too Simplistic):**
+**Structure:**
 ```typescript
-searchedBrands: string[]          // Found memberships
-searchedNotFound: BrandSearchRecord[]  // No emails found
-unsearchedBrands: string[]        // Not yet tried
-```
+interface BrandHistory {
+  brand: string;
+  attempts: QueryAttempt[];
+  status: "searching" | "found" | "exhausted";
+}
 
-**Problem:** Tracks only "searched yes/no" per brand, not query history with results
-
-**REQUIRED: Enhanced Data Model with Query History:**
-```typescript
 interface QueryAttempt {
-  query: string;              // The Gmail query tried
-  attemptedAt: number;        // Timestamp
-  emailsFound: number;        // How many emails returned
+  query: string;
+  attemptedAt: number;
+  emailsFound: number;        // How many emails searchGmail returned
+  emailsRead: number;         // How many agent called readEmail on
   membershipsFound: number;   // How many memberships extracted
   emailIds: string[];         // Which emails (for deduplication)
 }
-
-interface BrandSearchHistory {
-  brand: string;
-  attempts: QueryAttempt[];   // All query attempts for this brand
-  status: "searching" | "found" | "exhausted";  // Current status
-}
-
-// Replace current tracking with:
-brandHistory: BrandSearchHistory[]
 ```
-
-**REQUIRED: Smarter LLM Query Generator Prompt:**
-
-The query generator LLM needs to see:
-1. **All previous queries tried** for each brand
-2. **Results of each query**: emails found, memberships found
-3. **What worked for other brands** (learning from success patterns)
-4. **Current brand's status**: first attempt vs. refining query
-
-**Example Query Progression:**
-```
-Marriott - Attempt 1:
-  Query: "from:marriott.com"
-  Result: 40 emails, 0 memberships (promotional content)
-
-Marriott - Attempt 2 (LLM refines based on failure):
-  Query: "from:marriott.com subject:(membership OR account OR number OR confirmation OR welcome)"
-  Result: 5 emails, 1 membership found! ✅
-
-Marriott - Status: FOUND
-
-Hilton - Attempt 1 (LLM learns from Marriott success):
-  Query: "from:hilton.com subject:(membership OR account OR honors)"
-  Result: 3 emails, 1 membership found! ✅
-```
-
-**Implementation Plan:**
-
-1. **Update Data Model (hotel-membership-extractor.tsx):**
-   - Replace `searchedBrands`, `searchedNotFound`, `unsearchedBrands`
-   - Add `brandHistory: BrandSearchHistory[]`
-   - Track query attempts with detailed results
-
-2. **Enhance Query Generator LLM:**
-   - Provide full `brandHistory` in prompt
-   - Instruct to analyze failed queries and refine
-   - Maximum 3-5 attempts per brand before marking "exhausted"
-   - Learn from successful queries for other brands
-
-3. **Update Extractor Auto-Save Handler:**
-   - Record query attempt with results in `brandHistory`
-   - Don't mark brand as "done" until memberships found OR max attempts reached
-   - If memberships found, mark status as "found"
-   - If max attempts with no success, mark as "exhausted"
-
-4. **Update Query Generator to Continue Same Brand:**
-   - Current behavior: Pick from `unsearchedBrands`
-   - New behavior:
-     - Check if any brand has status "searching" (incomplete attempts)
-     - Continue refining queries for that brand
-     - Only pick new brand when current brand status is "found" or "exhausted"
 
 **Why This Matters:**
-- Handles promotional vs. account emails correctly
-- Learns from successes across brands
-- Doesn't give up after one query
-- Maximizes membership discovery
+- Other patterns can inspect agent progress
+- UI can show "Tried 3 queries for Marriott, found 1 membership"
+- Agent sees its own history to avoid repeating failed queries
+- Survives page refresh (persisted state)
 
-**Status:** TODO - Requires data model changes and LLM prompt enhancements
-**Priority:** CRITICAL - Current system can't find memberships in practice
-**Next Step:** Update data model to track query history
+**Example brandHistory After Agent Run:**
+```typescript
+[
+  {
+    brand: "Marriott",
+    attempts: [
+      {
+        query: "from:marriott.com",
+        attemptedAt: 1234567890,
+        emailsFound: 40,
+        emailsRead: 1,
+        membershipsFound: 1,
+        emailIds: ["abc123", ...]
+      },
+      {
+        query: "from:marriott.com subject:(account OR membership)",
+        attemptedAt: 1234567900,
+        emailsFound: 5,
+        emailsRead: 2,
+        membershipsFound: 0,  // Duplicate of first
+        emailIds: ["def456", "ghi789"]
+      }
+    ],
+    status: "found"  // Found membership, done with this brand
+  },
+  {
+    brand: "Hilton",
+    attempts: [
+      {
+        query: "from:hilton.com subject:(honors OR membership)",
+        emailsFound: 3,
+        emailsRead: 2,
+        membershipsFound: 1,
+        emailIds: ["jkl012"]
+      }
+    ],
+    status: "found"
+  }
+]
+```
+
+## Current Issues to Fix - NEW PRIORITIES
+
+### ✅ COMPLETED IN PREVIOUS BRANCH
+
+1. **Gmail Auth Prominence** ✅ DONE
+   - Large prominent warning box when not authenticated
+   - Auth UI embedded directly (no hidden Settings section)
+
+2. **ReadOnlyAddressError on Reset Button** ✅ DONE
+   - Pre-bind handler outside derive() blocks
+   - Button works correctly now
+
+3. **Work Log Organization** ✅ DONE
+   - Moved to `design/todo/hotel-membership-extractor-work-log.md`
+   - Created proper folder structure
+
+### NEW PRIORITIES FOR AGENT ARCHITECTURE
+
+### 1. Implement FIFO Email Cache (HIGH PRIORITY)
+**Status:** TODO - Required foundation for tools
+
+**Task:** Create email cache structure and management
+
+**Implementation:**
+- Create `emailCache` cell with `Map<string, EmailFull>` entries
+- Track recent searches with timestamps
+- Implement FIFO eviction (keep 200 most recent)
+- Cache hit/miss tracking for debugging
+
+**Files to Create/Modify:**
+- New cache logic in hotel-membership-extractor.tsx OR
+- Separate cache pattern (if reusable)
+
+### 2. Build searchGmail Pattern Tool (HIGH PRIORITY)
+**Status:** TODO - Agent's primary search tool
+
+**Task:** Create pattern that wraps GmailImporter and caches results
+
+**Pattern Signature:**
+```typescript
+const SearchGmail = pattern((
+  { auth, query, cache }: {
+    auth: Cell<any>;
+    query: string;
+    cache: Cell<EmailCache>;
+  }
+) => {
+  // 1. Check cache for recent query
+  // 2. If cached: return previews from cache
+  // 3. If not cached:
+  //    - Use GmailImporter to fetch emails
+  //    - Add to cache
+  //    - Return previews (id, subject, from, date only)
+
+  return {
+    previews: EmailPreview[];  // Max 20
+    cached: boolean;           // Was this cached?
+  };
+});
+```
+
+**Usage in Agent:**
+```typescript
+tools: {
+  searchGmail: patternTool(SearchGmail, { auth, cache }),
+}
+```
+
+**Key Decision:** How to pass auth to patternTool?
+- Research how it's done in labs/ patterns
+- Look at suggestion.tsx and other patterns with auth
+
+### 3. Build readEmail Pattern Tool (HIGH PRIORITY)
+**Status:** TODO - Agent's email reading tool
+
+**Task:** Create pattern that reads from cache
+
+**Pattern Signature:**
+```typescript
+const ReadEmail = pattern((
+  { emailId, cache }: {
+    emailId: string;
+    cache: Cell<EmailCache>;
+  }
+) => {
+  // 1. Look up emailId in cache.entries
+  // 2. If found: return full email data
+  // 3. If not found: return error "Email not in cache, search first"
+
+  return {
+    email?: EmailFull;
+    error?: string;
+  };
+});
+```
+
+**Usage in Agent:**
+```typescript
+tools: {
+  readEmail: patternTool(ReadEmail, { cache }),
+}
+```
+
+### 4. Implement Agent with generateObject (HIGH PRIORITY)
+**Status:** TODO - Core agent logic
+
+**Task:** Create agent using `generateObject` with tools
+
+**Implementation:**
+```typescript
+const agent = generateObject({
+  system: `You are a hotel membership number extractor...
+
+  Strategy:
+  1. Start with broad searches (from:marriott.com)
+  2. Analyze subjects to identify promising emails
+  3. Read promising emails to extract memberships
+  4. Refine queries if needed (add subject filters)
+  5. Try 3-5 queries per brand
+  6. Move to next brand when done
+
+  Brands to search: Marriott, Hilton, Hyatt, IHG, Accor`,
+
+  prompt: derive([brandHistory, memberships], ([history, found]) => {
+    return `Current progress:
+    - Brands searched: ${history.map(b => b.brand).join(", ")}
+    - Memberships found: ${found.length}
+
+    Continue searching for hotel memberships.`;
+  }),
+
+  tools: {
+    searchGmail: patternTool(SearchGmail, { auth, cache }),
+    readEmail: patternTool(ReadEmail, { cache }),
+  },
+
+  model: "anthropic:claude-sonnet-4-5",
+  schema: toSchema<{ memberships: MembershipRecord[] }>(),
+});
+```
+
+### 5. Auto-Run on Authentication (HIGH PRIORITY)
+**Status:** TODO - User wants "Login and Run" button
+
+**Task:** Trigger agent automatically when user authenticates
+
+**Implementation:**
+```typescript
+// Watch auth state
+const shouldRunAgent = derive(auth, (a) => a && a.authenticated);
+
+// Trigger agent when authenticated
+const agentTrigger = derive(shouldRunAgent, (should) => {
+  return should ? `run-${Date.now()}` : "";
+});
+
+// Agent watches trigger
+const agent = generateObject({
+  ...,
+  // Only run when trigger changes to non-empty
+  prompt: derive([agentTrigger, ...], ([trigger, ...]) => {
+    if (!trigger) return ""; // Don't run
+    return "Start searching for memberships...";
+  }),
+});
+```
+
+**UI:**
+- Button: "🔒 Login and Run"
+- On click → Gmail OAuth
+- After auth → Agent starts automatically
+- Show progress in real-time
+
+### 6. UI for Agent Progress (MEDIUM PRIORITY)
+**Status:** TODO - Show agent's tool calls and progress
+
+**Task:** Display agent progress from brandHistory
+
+**UI Elements:**
+- Current brand being searched
+- Query attempts for each brand
+- Emails found/read/memberships extracted
+- Real-time tool call log
+- Final membership results
+
+**Example UI:**
+```
+🤖 Agent Progress
+
+✅ Marriott (3 queries, 1 membership found)
+  1. "from:marriott.com" → 40 emails, read 1, found 1 membership
+  2. "from:marriott.com subject:(account)" → 5 emails, read 2, duplicates
+  3. "from:marriott.com subject:(welcome)" → 2 emails, read 2, duplicates
+
+🔄 Hilton (searching...)
+  1. "from:hilton.com subject:(honors)" → 3 emails, reading...
+
+⏳ Pending: Hyatt, IHG, Accor
+
+📋 Memberships Found: 1
+```
 
 ---
 
