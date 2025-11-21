@@ -868,7 +868,18 @@ cat community-docs/superstitions/2025-01-15-types-cell-arrays.md
 
 **Location:** `patterns/$GITHUB_USER/issues/` for framework issues or pattern architecture questions
 
-**When to file an issue:**
+**IMPORTANT: File issues ONLY after exhausting all other approaches AND getting user permission.**
+
+**Prerequisites before filing:**
+1. ✅ Checked official `~/Code/labs/docs/common/` documentation
+2. ✅ Searched community-docs (blessed, folk_wisdom, superstitions)
+3. ✅ Studied similar working patterns
+4. ✅ Tried multiple different approaches (document all attempts)
+5. ✅ **Asked user if they want you to file an issue**
+
+**Never file an issue without explicit user permission!**
+
+**When to file an issue (after above prerequisites):**
 - Encountering framework behavior you don't understand
 - Pattern architecture questions that aren't answered by docs
 - Suspected framework bugs or limitations
@@ -978,17 +989,29 @@ What you want to happen:
 
 #### Workflow
 
+**CRITICAL: Issues are a last resort. Only create after exhausting all other options.**
+
 1. **Encounter framework confusion** that docs don't resolve
-2. **Try multiple approaches** (document what failed)
-3. **Check if similar issue exists** in your issues/ folder
-4. **Create new issue file** with template
-5. **Include:**
-   - Clear problem statement
-   - What you tried
-   - Code examples
-   - Error messages
-   - What you want to achieve
-6. **Commit:** `"Add issue: [brief description]"`
+2. **Exhaust recovery strategies:**
+   - Check official labs/docs/
+   - Search community-docs (all tiers)
+   - Study similar working patterns
+   - Try multiple different approaches
+   - Consider asking user for clarification first
+3. **Ask user permission:**
+   ```
+   "I've tried [list approaches]. This seems like a framework architecture question.
+   Would you like me to file an issue in patterns/$GITHUB_USER/issues/ to document
+   this for framework authors to review?"
+   ```
+4. **Only if user says yes:**
+   - Check if similar issue exists in your issues/ folder
+   - Create new issue file with template
+   - Include all failed attempts with code
+   - Document clear problem statement
+   - Commit: `"Add issue: [brief description]"`
+
+**Never file an issue proactively - always get user approval first.**
 
 **Issues are questions for framework authors, not empirical discoveries.**
 
