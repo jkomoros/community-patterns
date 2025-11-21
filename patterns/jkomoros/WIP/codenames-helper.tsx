@@ -1140,7 +1140,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                                         lineHeight: "1",
                                       }}
                                     >
-                                      {wordData ? wordData.word.substring(0, 8) : "—"}
+                                      {wordData && wordData.word ? wordData.word.substring(0, 8) : "—"}
                                     </div>
                                   );
                                 })}
