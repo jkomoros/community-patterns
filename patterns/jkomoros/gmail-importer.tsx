@@ -462,10 +462,20 @@ function getHeader(headers: any[], name: string): string {
 function messageToEmail(
   parts: any[],
 ): Email[] {
-  return parts.map((messageData) => {
+  return parts.map((messageData, index) => {
     try {
+      // DEBUG: Log raw message structure
+      console.log(`\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
+      console.log(`[messageToEmail] Message ID: ${messageData.id}`);
+      console.log(`[messageToEmail] Has payload: ${!!messageData.payload}`);
+      console.log(`[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`);
+      console.log(`[messageToEmail] Payload.parts length: ${messageData.payload?.parts?.length || 0}`);
+      console.log(`[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`);
+      console.log(`[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body?.data}`);
+      console.log(`[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`);
+
       if (!messageData.payload?.headers) {
-        console.log("Missing required message data:", messageData);
+        console.log("[messageToEmail] ERROR: Missing required message data:", messageData);
         return null;
       }
 
@@ -475,67 +485,116 @@ function messageToEmail(
       const to = getHeader(messageHeaders, "To");
       const date = getHeader(messageHeaders, "Date");
 
+      console.log(`[messageToEmail] Subject: ${subject}`);
+      console.log(`[messageToEmail] From: ${from}`);
+
       let plainText = "";
       let htmlContent = "";
 
       if (
         messageData.payload.parts && Array.isArray(messageData.payload.parts)
       ) {
+        console.log(`[messageToEmail] Processing ${messageData.payload.parts.length} parts`);
+
+        // Log structure of each part
+        messageData.payload.parts.forEach((part: any, partIndex: number) => {
+          console.log(`[messageToEmail] Part ${partIndex + 1}:`);
+          console.log(`  - mimeType: ${part.mimeType}`);
+          console.log(`  - Has body: ${!!part.body}`);
+          console.log(`  - Has body.data: ${!!part.body?.data}`);
+          console.log(`  - body.size: ${part.body?.size || 0}`);
+          console.log(`  - Has nested parts: ${!!part.parts}`);
+          console.log(`  - Nested parts length: ${part.parts?.length || 0}`);
+        });
+
         // Look for plainText part
         const textPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/plain",
         );
+        console.log(`[messageToEmail] Found text/plain part: ${!!textPart}`);
         if (textPart?.body?.data) {
           plainText = decodeBase64(textPart.body.data);
+          console.log(`[messageToEmail] Decoded plainText length: ${plainText.length}`);
+        } else {
+          console.log(`[messageToEmail] text/plain part has no body.data`);
         }
 
         // Look for HTML part
         const htmlPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/html",
         );
+        console.log(`[messageToEmail] Found text/html part: ${!!htmlPart}`);
         if (htmlPart?.body?.data) {
           htmlContent = decodeBase64(htmlPart.body.data);
+          console.log(`[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`);
+        } else {
+          console.log(`[messageToEmail] text/html part has no body.data`);
         }
 
         // Handle multipart messages - check for nested parts
         if (htmlContent === "") {
+          console.log(`[messageToEmail] No HTML found in top-level parts, checking nested parts...`);
           for (const part of messageData.payload.parts) {
             if (part.parts && Array.isArray(part.parts)) {
+              console.log(`[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`);
               const nestedHtmlPart = part.parts.find(
                 (nestedPart: any) => nestedPart.mimeType === "text/html",
               );
               if (nestedHtmlPart?.body?.data) {
                 htmlContent = decodeBase64(nestedHtmlPart.body.data);
+                console.log(`[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`);
                 break;
               }
             }
           }
         }
       } else if (messageData.payload.body?.data) {
-        // Handle single part messages
+        console.log(`[messageToEmail] Single part message`);
+        console.log(`[messageToEmail] body.size: ${messageData.payload.body.size}`);
         const bodyData = decodeBase64(messageData.payload.body.data);
+        console.log(`[messageToEmail] Decoded body length: ${bodyData.length}`);
         if (messageData.payload.mimeType === "text/html") {
           htmlContent = bodyData;
+          console.log(`[messageToEmail] Set as htmlContent`);
         } else {
           plainText = bodyData;
+          console.log(`[messageToEmail] Set as plainText`);
         }
+      } else {
+        console.log(`[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
       }
 
       // Generate markdown content from HTML or plainText
       let markdownContent = "";
+      console.log(`[messageToEmail] Converting to markdown...`);
+      console.log(`[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`);
+      console.log(`[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`);
+
       if (htmlContent) {
+        console.log(`[messageToEmail] Converting HTML to markdown...`);
         try {
           // Convert HTML to markdown using our custom converter
           markdownContent = turndown.turndown(htmlContent);
+          console.log(`[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`);
         } catch (error) {
-          console.error("Error converting HTML to markdown:", error);
+          console.error("[messageToEmail] Error converting HTML to markdown:", error);
           // Fallback to plainText if HTML conversion fails
           markdownContent = plainText;
+          console.log(`[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`);
         }
       } else {
         // Use plainText as fallback if no HTML content
+        console.log(`[messageToEmail] No HTML, using plainText as markdown`);
         markdownContent = plainText;
+        console.log(`[messageToEmail] Final markdown length: ${markdownContent.length}`);
       }
+
+      console.log(`[messageToEmail] === FINAL EMAIL CONTENT ===`);
+      console.log(`[messageToEmail] plainText: ${plainText.length} chars`);
+      console.log(`[messageToEmail] htmlContent: ${htmlContent.length} chars`);
+      console.log(`[messageToEmail] markdownContent: ${markdownContent.length} chars`);
+      console.log(`[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`);
+      console.log(`[messageToEmail] ===========================\n`);
 
       return {
         id: messageData.id,
