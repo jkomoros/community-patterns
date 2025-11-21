@@ -267,13 +267,13 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "pro
       icon: "💻 ",
     });
     options.push({
-      label: "production (api.commontools.io)",
+      label: "production (toolshed.saga-castor.ts.net)",
       value: "prod",
       icon: "🌐 ",
     });
   } else {
     options.push({
-      label: "production (api.commontools.io) (last used)",
+      label: "production (toolshed.saga-castor.ts.net) (last used)",
       value: "prod",
       icon: "🌐 ",
     });
@@ -649,7 +649,7 @@ async function deployPattern(
   labsDir: string
 ): Promise<string | null> {
   const apiUrl = isProd
-    ? "https://api.commontools.io"
+    ? "https://toolshed.saga-castor.ts.net/"
     : "http://localhost:8000";
 
   console.log("\n🚀 Deploying...");
