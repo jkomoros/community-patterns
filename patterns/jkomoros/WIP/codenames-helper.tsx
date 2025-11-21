@@ -14,20 +14,6 @@ interface BoardWord {
   state: WordState;
 }
 
-interface CodenamesHelperInput {
-  board: Cell<Default<BoardWord[], []>>;
-  myTeam: Cell<Default<Team, "red">>;
-  setupMode: Cell<Default<boolean, true>>;
-  selectedWordIndex: Cell<Default<number, 999>>;
-}
-
-interface CodenamesHelperOutput {
-  board: Cell<BoardWord[]>;
-  myTeam: Cell<Team>;
-  setupMode: Cell<boolean>;
-  selectedWordIndex: Cell<number>;
-}
-
 // ===== HELPER FUNCTIONS =====
 
 // Initialize empty 5×5 board
@@ -44,6 +30,23 @@ function initializeEmptyBoard(): BoardWord[] {
     }
   }
   return board;
+}
+
+// Default empty board
+const DEFAULT_EMPTY_BOARD = initializeEmptyBoard();
+
+interface CodenamesHelperInput {
+  board: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
+  myTeam: Cell<Default<Team, "red">>;
+  setupMode: Cell<Default<boolean, true>>;
+  selectedWordIndex: Cell<Default<number, 999>>;
+}
+
+interface CodenamesHelperOutput {
+  board: Cell<BoardWord[]>;
+  myTeam: Cell<Team>;
+  setupMode: Cell<boolean>;
+  selectedWordIndex: Cell<number>;
 }
 
 // Validation result structure
@@ -1112,6 +1115,10 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               <p style={{ fontSize: "0.7rem", fontWeight: "600", color: "#166534", marginBottom: "0.5rem" }}>
                                 Board Preview: ({result.boardWords.length} words)
                               </p>
+                              {/* Debug info */}
+                              <div style={{ fontSize: "0.5rem", color: "#666", marginBottom: "0.5rem", backgroundColor: "#f0f0f0", padding: "0.25rem" }}>
+                                First word structure: {JSON.stringify(result.boardWords[0])}
+                              </div>
                               <div style={{
                                 display: "grid",
                                 gridTemplateColumns: "repeat(5, 1fr)",
