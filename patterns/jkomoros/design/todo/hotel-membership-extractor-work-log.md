@@ -367,7 +367,78 @@ const agent = generateObject({
 
 ---
 
-## Session Summary (Current - Debugging & Discovery)
+## Session Summary (Agent Architecture Implementation - In Progress)
+
+**Session Goal:** Implement agent-based architecture with tool calling to replace 2-stage LLM
+
+**Progress Made:**
+
+###  ✅ 1. FIFO Email Cache Data Structures
+- Added EmailPreview, EmailFull, SearchEntry, EmailCache interfaces
+- Integrated emailCache into HotelMembershipInput with default state
+- Cache structure: entries map, searchHistory array, maxEntries (200)
+- Pattern compiles successfully with cache infrastructure
+- **Commit:** "Add FIFO email cache data structures"
+
+### ✅ 2. SearchGmailTool Pattern Function
+- Created SearchGmailTool pattern that wraps GmailImporter
+- Input: query string, authCharm
+- Returns: EmailPreview[] (id, subject, from, date only - NO content)
+- Fetches up to 20 emails via GmailImporter
+- Stores _fullContent internally for ReadEmailTool access
+- MVP: No persistent caching yet - optimization deferred
+- **Status:** Compiled and exported
+
+### ✅ 3. ReadEmailTool Pattern Function
+- Created ReadEmailTool pattern for reading email content
+- Input: emailId, recentSearches cell
+- Returns: EmailFull (with content) OR error
+- MVP: Reads from in-memory search results, not persistent cache
+- Error handling: Returns clear message if email not found
+- **Status:** Compiled and exported
+
+**Both Tools:** Ready to be used with `patternTool()` in generateObject
+
+### 🚧 4. Agent with generateObject - NOT YET IMPLEMENTED
+
+**Current State:**
+- Pattern still uses OLD 2-stage LLM architecture (query generator + extractor)
+- Tool patterns are defined but NOT integrated into agent workflow
+- Need to add generateObject call with tools
+
+**Next Steps:**
+1. Add generateObject call after authCharm setup
+2. Define agent system prompt (search strategy, brands to search)
+3. Wire tools using patternTool(SearchGmailTool, { ... }) and patternTool(ReadEmailTool, { ... })
+4. Figure out how to pass authCharm to SearchGmailTool via patternTool
+5. Define schema for final result (memberships array)
+6. Test agent workflow
+
+**Key Decision Needed:** How to integrate agent with existing pattern?
+- Option A: Replace entire 2-stage LLM with agent (big refactor)
+- Option B: Add agent alongside old workflow, with switch (testing)
+- Option C: Fresh start - remove old code, agent-only
+
+**Files Modified:**
+- `patterns/jkomoros/hotel-membership-extractor.tsx` - Added cache + tools
+- Work log - Updated with agent architecture specs
+
+**Commits Made:**
+1. "Hotel Membership Extractor: Radical redesign to agent architecture" (design docs)
+2. "Add FIFO email cache data structures"
+3. "Add SearchGmailTool and ReadEmailTool pattern functions"
+
+**Branch:** `jkomoros/hotel-membership-agent` (pushed to remote)
+
+**Blockers/Questions:**
+- How to pass authCharm to patternTool (research needed)
+- Should we keep old 2-stage LLM during transition?
+- How will agent update brandHistory state?
+- Need to understand patternTool parameter passing better
+
+---
+
+## Session Summary (Previous - Debugging & Discovery)
 
 **Session Goal:** Investigate why emails have no content and fix extraction
 
