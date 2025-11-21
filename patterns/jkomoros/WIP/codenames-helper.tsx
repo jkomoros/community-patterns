@@ -326,13 +326,7 @@ const initializeBoardHandler = handler<
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
   ({ board, myTeam, setupMode, selectedWordIndex }) => {
-    // Ensure board is initialized - this creates a derived cell that ensures board has data
-    const initializedBoard = derive(board, (boardData: BoardWord[]) => {
-      if (boardData.length === 0) {
-        return initializeEmptyBoard();
-      }
-      return boardData;
-    });
+    // Note: board starts empty, user must click "Create Board" or it initializes on first interaction
 
     // Image upload for board and key card
     const uploadedPhotos = cell<ImageData[]>([]);
@@ -444,7 +438,11 @@ Provide the extracted information in the appropriate format.`
       });
     });
 
-    // Note: We'll use derive() directly in JSX for board emptiness check
+    // Initialize board for display if empty
+    // Use derive to create a lazy-initialized version without modifying the original cell
+    const initializedBoard = derive(board, (boardData: BoardWord[]) => {
+      return boardData.length === 0 ? initializeEmptyBoard() : boardData;
+    });
 
     // AI Clue Suggestions - only in Game Mode
     const clueSuggestions = generateObject({
@@ -787,7 +785,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                         textTransform: "uppercase",
                         border: "none",
                         background: "transparent",
-                        color: textColor,
+                        color: "inherit",
                         pointerEvents: "auto",
                       }}
                     />,
@@ -835,7 +833,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 fontSize: "0.75rem",
                 flexWrap: "wrap",
               }}>
-                {derive(initializedBoard, (boardData: BoardWord[]) => {
+                {derive(board, (boardData: BoardWord[]) => {
                   const counts: Record<WordOwner, number> = {
                     red: 0,
                     blue: 0,
