@@ -502,8 +502,9 @@ Return empty array if no NEW memberships found.`,
   });
 
   // Determine if we should show the "Save Results" button
+  // Show whenever extraction completes, even if 0 memberships found (we need to record the attempt)
   const hasNewResults = derive([extractorResult, extractorPending, isScanning], ([result, pending, scanning]) => {
-    return scanning && !pending && result && result.memberships && result.memberships.length > 0;
+    return scanning && !pending && result && result.memberships !== undefined;
   });
 
   // Progress status message
@@ -588,7 +589,7 @@ Return empty array if no NEW memberships found.`,
               )}
 
               {/* Save Results Button (appears when extraction completes) */}
-              {derive(hasNewResults, (show) =>
+              {derive([hasNewResults, extractorResult], ([show, result]) =>
                 show ? (
                   <ct-button
                     onClick={autoSaveResults({
@@ -604,7 +605,9 @@ Return empty array if no NEW memberships found.`,
                     size="lg"
                     style="background: #10b981; color: white;"
                   >
-                    💾 Save Extracted Memberships
+                    {result && result.memberships && result.memberships.length > 0
+                      ? `💾 Save ${result.memberships.length} Membership(s)`
+                      : "💾 Save Attempt (No Memberships Found)"}
                   </ct-button>
                 ) : null
               )}
