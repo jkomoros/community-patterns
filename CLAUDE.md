@@ -729,227 +729,30 @@ Always use `deno task ct`, never just `ct` directly.
 
 ## Testing Patterns with Playwright
 
-If Playwright MCP is available, use it to test patterns in a real browser.
+**For testing patterns in the browser, use the `testing` skill.**
 
-### Navigate to Deployed Pattern
-
-```
-Use Playwright to navigate to: http://localhost:8000/my-space/CHARM-ID
-```
-
-### Test Pattern Functionality
-
-Once the page loads:
-1. Take a snapshot to see the UI: `browser_snapshot`
-2. Interact with elements: click buttons, fill inputs, check boxes
-3. Verify behavior: check that counters increment, items are added, etc.
-4. Report any issues found
-
-### Registering (First Time Only)
-
-If you see a login/registration page:
-1. Click "Register" or "Generate Passphrase"
-2. Follow the registration flow
-3. Then navigate back to the pattern URL
-
-### Testing Workflow
-
-**After deploying a new pattern:**
-```
-1. Deploy with ct charm new
-2. Note the charm ID
-3. Use Playwright to test at http://localhost:8000/space/charm-id
-4. Verify all functionality works
-5. Report to user if tests pass or if issues found
-```
-
-**After updating a pattern:**
-```
-1. Update with ct charm setsrc
-2. Use Playwright to verify changes
-3. Test that fixes work and nothing broke
-```
-
-**When Playwright unavailable:**
-- Suggest user test manually in browser
-- Provide the URL to test
-- Ask them to report any issues
-
-### Playwright Troubleshooting
-
-**If Playwright starts opening many tabs:**
-
-This can happen after user suspends/resumes their computer. The Chrome connection gets confused.
-
-**Solution:** Ask user to:
-1. Quit the Chrome instance that Playwright opened (the one with "Chrome is being controlled by automated test software" banner)
-2. Next Playwright command will open a fresh browser and work normally
-
-**Tell user:**
-```
-Playwright's browser connection got confused after your computer woke up.
-Please quit the Chrome window with the yellow "automated test software" banner,
-then I'll try again with a fresh browser.
-```
+The testing skill covers:
+- Navigating to deployed patterns
+- Testing pattern functionality with Playwright
+- Registration workflow (first time only)
+- Testing workflows for new and updated patterns
+- Playwright troubleshooting (multiple tabs issue)
 
 ---
 
 ## Git Workflow
 
-### Committing Work
+**For git operations and pull requests, use the `git-workflow` skill.**
 
-```bash
-cd ~/Code/community-patterns
+The git-workflow skill covers:
+- Committing work and pushing changes
+- Getting updates from upstream (already done in Step 1)
+- Creating pull requests to upstream
+- Update and rebase workflow before PRs
+- Fork vs direct repository workflows
+- Merge strategies and important notes
 
-git add patterns/$GITHUB_USER/pattern.tsx
-git commit -m "Add pattern: description"
-git push origin main
-```
-
-### Getting Updates (Already done in Step 1)
-
-```bash
-git fetch upstream
-git pull --rebase upstream main
-git push origin main
-```
-
-### Sharing Work Upstream (Creating Pull Requests)
-
-**IMPORTANT: Wait for user to tell you to create a PR.** Don't push or create PRs automatically.
-
-**Before creating any PR, you MUST update from main and rebase your branch:**
-
-#### Step 0: Update and Rebase Before Creating PR
-
-**Use cached repository type from workspace config:**
-
-```bash
-# Read IS_FORK from .claude-workspace (set during Step 2)
-IS_FORK=$(grep "^is_fork=" .claude-workspace | cut -d= -f2)
-
-# Determine which remote to use
-if [ "$IS_FORK" = "true" ]; then
-  echo "Working on fork - will fetch from upstream"
-  MAIN_REMOTE="upstream"
-else
-  echo "Working on main repo - will fetch from origin"
-  MAIN_REMOTE="origin"
-fi
-```
-
-**Then fetch latest main and rebase your branch:**
-
-```bash
-# Fetch latest main
-git fetch $MAIN_REMOTE
-
-# Rebase current branch on top of main
-git rebase $MAIN_REMOTE/main
-
-# If rebase succeeds, push (force-with-lease if on feature branch)
-if [ "$(git branch --show-current)" != "main" ]; then
-  git push origin $(git branch --show-current) --force-with-lease
-else
-  git push origin main
-fi
-```
-
-**If rebase has conflicts:**
-1. Show conflict files: `git status`
-2. Help resolve conflicts
-3. Continue: `git rebase --continue`
-4. Then push
-
-**Why this matters:**
-- Ensures your PR is based on the latest main
-- Avoids merge conflicts during PR review
-- Makes PR review easier
-
----
-
-#### If User Has Their Own Fork (Most Common)
-
-When user wants to contribute patterns from their fork to upstream:
-
-**Step 1: Ensure changes are committed and pushed to their fork**
-```bash
-cd ~/Code/community-patterns
-git status  # Verify all changes are committed
-git push origin main
-```
-
-**Step 2: Update and rebase (see Step 0 above)**
-
-**Step 3: Create pull request to upstream**
-```bash
-gh pr create \
-  --repo jkomoros/community-patterns \
-  --title "Add: pattern name" \
-  --body "$(cat <<'EOF'
-## Summary
-- Brief description of the pattern
-- Key features
-- Use cases
-
-## Testing
-- [x] Pattern compiles without errors
-- [x] Tested in browser at http://localhost:8000
-- [x] All features working as expected
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
-```
-
-#### If Working Directly on jkomoros/community-patterns
-
-**CRITICAL: When working directly on the upstream repository, you MUST use branches and PRs. Direct pushes to main are NOT allowed.**
-
-**Step 1: Create feature branch**
-```bash
-cd ~/Code/community-patterns
-git checkout -b username/feature-name
-```
-
-**Step 2: Commit and push branch**
-```bash
-git add patterns/$GITHUB_USER/
-git commit -m "Add: pattern name"
-git push origin username/feature-name
-```
-
-**Step 3: Update and rebase (see Step 0 above)**
-
-**Step 4: Create pull request**
-```bash
-gh pr create \
-  --title "Add: pattern name" \
-  --body "$(cat <<'EOF'
-## Summary
-- Brief description
-
-## Testing
-- [x] Tested and working
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
-```
-
-**Step 5: Merge with rebase (when approved)**
-```bash
-gh pr merge PR_NUMBER --rebase --delete-branch
-```
-
-#### Important Notes
-
-- **Always wait for user permission** before creating PRs
-- **All PRs are merged with `--rebase`** (NOT `--squash` or `--merge`)
-- This preserves individual commit history
-- Commit frequently locally, but only create PR when user asks
-- PRs will be reviewed before merging to upstream
-- After merge, everyone gets your patterns automatically on next update
+**IMPORTANT:** Always wait for user permission before creating PRs.
 
 ---
 
