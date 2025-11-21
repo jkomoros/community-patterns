@@ -155,6 +155,27 @@ function normalizeIngredient(raw: string): string {
 }
 
 /**
+ * Clean up ingredient text (remove markdown, pizza names, long descriptions)
+ */
+function cleanIngredient(raw: string): string {
+  let cleaned = raw.trim();
+
+  // Remove markdown bolding
+  cleaned = cleaned.replace(/\*\*/g, '');
+
+  // Remove pizza name prefixes (e.g., "The Cheese Board Margherita: Organic tomato")
+  cleaned = cleaned.replace(/^The Cheese Board [^:]+:\s*/i, '');
+
+  // Remove parenthetical details (e.g., "(Golden Rule Organics)")
+  cleaned = cleaned.replace(/\s*\([^)]+\)/g, '');
+
+  // Truncate "made in..." descriptions (e.g., "fresh mozzarella made in Berkeley by Belfiore")
+  cleaned = cleaned.replace(/\s+made in .*/i, '');
+
+  return cleaned.trim();
+}
+
+/**
  * Parse pizza description into individual ingredients
  */
 function parseIngredients(description: string): Ingredient[] {
@@ -162,7 +183,7 @@ function parseIngredients(description: string): Ingredient[] {
   // But be careful not to split on "and" within compound ingredients
   const parts = description
     .split(/,|\s+and\s+|\s+with\s+/)
-    .map(part => part.trim())
+    .map(part => cleanIngredient(part))
     .filter(part => part.length > 0);
 
   return parts.map(raw => ({
@@ -198,8 +219,9 @@ function getScoreEmoji(score: number): string {
 
 /**
  * Generate a consistent pastel color based on ingredient name hash
+ * Does NOT account for preferences - use computed() inline for that
  */
-function getIngredientColor(ingredient: string | undefined): string {
+function getIngredientHashColor(ingredient: string | undefined): string {
   // Fallback if ingredient is undefined
   if (!ingredient || typeof ingredient !== 'string') {
     return "#f0f0f0";
@@ -347,8 +369,19 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                       return prefs.some(p => p.ingredient === ing.normalized);
                     });
 
-                    // Compute color for this ingredient
-                    const bgColor = computed(() => getIngredientColor(ing.normalized));
+                    // Compute color for this ingredient based on preferences
+                    const bgColor = computed(() => {
+                      const prefs = preferences.get();
+                      const pref = prefs.find(p => p.ingredient === ing.normalized);
+
+                      if (pref) {
+                        // Green for liked, red for disliked (matching preference list colors)
+                        return pref.preference === "liked" ? "#d4edda" : "#f8d7da";
+                      }
+
+                      // Otherwise use hash-based color
+                      return getIngredientHashColor(ing.normalized);
+                    });
 
                     return (
                       <span style={{
