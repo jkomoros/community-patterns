@@ -196,6 +196,29 @@ function getScoreEmoji(score: number): string {
   return "🤢";
 }
 
+/**
+ * Generate a consistent pastel color based on ingredient name hash
+ */
+function getIngredientColor(ingredient: string | undefined): string {
+  // Fallback if ingredient is undefined
+  if (!ingredient || typeof ingredient !== 'string') {
+    return "#f0f0f0";
+  }
+
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < ingredient.length; i++) {
+    hash = ingredient.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  // Generate pastel colors (high lightness, medium saturation)
+  const hue = Math.abs(hash % 360);
+  const saturation = 45 + (Math.abs(hash) % 20); // 45-65%
+  const lightness = 75 + (Math.abs(hash >> 8) % 15); // 75-90%
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
 // ============================================================================
 // HANDLERS
 // ============================================================================
@@ -324,10 +347,13 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                       return prefs.some(p => p.ingredient === ing.normalized);
                     });
 
+                    // Compute color for this ingredient
+                    const bgColor = computed(() => getIngredientColor(ing.normalized));
+
                     return (
                       <span style={{
                         padding: "0.25rem 0.5rem",
-                        backgroundColor: "#f0f0f0",
+                        backgroundColor: bgColor,
                         borderRadius: "4px",
                         fontSize: "0.9rem",
                         display: "flex",
