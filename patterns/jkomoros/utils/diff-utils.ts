@@ -11,7 +11,7 @@
  *
  * Example pattern:
  * ```typescript
- * import { compareFields, computeWordDiff } from "./utils/diff-utils.tsx";
+ * import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
  *
  * // 1. Derive changes from extraction result
  * const changesPreview = derive({ extractionResult, ...currentFields }, (data) => {

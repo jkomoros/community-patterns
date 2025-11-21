@@ -84,7 +84,7 @@ This directory contains copies of the following labs patterns:
 
 For custom utilities (not from labs), use the `../utils/` directory:
 
-- `../utils/diff-utils.tsx` - Word-level diff computation for LLM extraction preview
+- `../utils/diff-utils.ts` - Word-level diff computation for LLM extraction preview
 
 ## Maintenance
 

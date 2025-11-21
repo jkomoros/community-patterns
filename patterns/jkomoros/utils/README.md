@@ -4,7 +4,7 @@ This directory contains custom utilities created for jkomoros patterns (not from
 
 ## Files
 
-### diff-utils.tsx
+### diff-utils.ts
 
 Word-level diff computation and field comparison utilities for LLM extraction preview.
 
@@ -18,7 +18,7 @@ Word-level diff computation and field comparison utilities for LLM extraction pr
 
 **Example usage:**
 ```typescript
-import { compareFields, computeWordDiff } from "./utils/diff-utils.tsx";
+import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
 
 const changes = compareFields(extractionResult, {
   name: { current: currentName, label: "Name" },
