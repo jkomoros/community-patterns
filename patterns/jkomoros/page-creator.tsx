@@ -12,6 +12,7 @@ import PromptInjectionTracker from "./prompt-injection-tracker.tsx";
 import SubstackSummarizer from "./substack-summarizer.tsx";
 import CozyPoll from "./cozy-poll.tsx";
 import RewardSpinner from "./reward-spinner.tsx";
+import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
 
 type Input = void;
 type Output = {
@@ -127,6 +128,12 @@ const createRewardSpinner = handler<void, void>((_, __) => {
   }));
 });
 
+const createCheeseboardSchedule = handler<void, void>((_, __) => {
+  return navigateTo(CheeseboardSchedule({
+    preferences: [],
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -217,6 +224,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🎰 Reward Spinner
+                </ct-button>
+
+                <ct-button
+                  onClick={createCheeseboardSchedule()}
+                  size="lg"
+                >
+                  🍕 Cheeseboard Schedule
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
