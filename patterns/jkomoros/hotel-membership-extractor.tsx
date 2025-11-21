@@ -428,11 +428,20 @@ Return empty array if no NEW memberships found.`,
           <ct-vstack style="padding: 16px; gap: 16px;">
             {/* Scan Control */}
             <ct-vstack gap={2}>
-              {/* Authentication warning */}
+              {/* PROMINENT Authentication warning when not authenticated */}
               {derive(isAuthenticated, (authenticated) =>
                 !authenticated ? (
-                  <div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 8px; fontSize: 13px; textAlign: center;">
-                    ⚠️ Please authenticate with Gmail in Settings below before scanning
+                  <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px; marginBottom: 8px;">
+                    <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
+                      🔒 Gmail Authentication Required
+                    </div>
+                    <div style="fontSize: 14px; color: #7f1d1d; textAlign: center; marginBottom: 16px; lineHeight: 1.5;">
+                      This tool scans your Gmail for hotel membership numbers.<br/>
+                      <strong>You must authenticate with Gmail before you can scan.</strong>
+                    </div>
+                    <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
+                      {authCharm}
+                    </div>
                   </div>
                 ) : null
               )}
@@ -596,6 +605,91 @@ Return empty array if no NEW memberships found.`,
                 <div>Emails Count: {derive(emails, (list) => (list && Array.isArray(list)) ? list.length : 0)}</div>
                 <div>Current Query (deprecated): {currentQuery || "None"}</div>
                 <div>Gmail Filter Query (actual): {gmailFilterQuery || "None"}</div>
+              </ct-vstack>
+            </details>
+
+            {/* Extraction Debug - Shows detailed email content for debugging */}
+            <details style="marginTop: 8px;">
+              <summary style="cursor: pointer; padding: 8px; background: #fff7ed; border: 1px solid #fb923c; borderRadius: 4px; fontSize: 12px; fontWeight: 600;">
+                🐛 Extraction Debug (Why no memberships?)
+              </summary>
+              <ct-vstack gap={3} style="padding: 12px; fontSize: 11px;">
+                {/* Show fetched emails */}
+                {derive(emails, (emailList) => {
+                  if (!emailList || !Array.isArray(emailList) || emailList.length === 0) {
+                    return (
+                      <div style="padding: 12px; background: #fee2e2; borderRadius: 4px; color: #991b1b;">
+                        ❌ No emails fetched. Make sure to click "Fetch Emails" in Gmail Settings after the query generates.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div>
+                      <div style="fontWeight: 600; marginBottom: 8px;">Fetched {emailList.length} email(s):</div>
+                      {emailList.slice(0, 5).map((email: any, index: number) => (
+                        <details style="marginBottom: 8px; padding: 8px; background: #f9fafb; borderRadius: 4px; border: 1px solid #e5e7eb;">
+                          <summary style="cursor: pointer; fontWeight: 500;">
+                            Email {index + 1}: {email.subject || "(No Subject)"}
+                          </summary>
+                          <div style="padding: 8px; fontFamily: monospace; fontSize: 10px; marginTop: 8px;">
+                            <div><strong>From:</strong> {email.from}</div>
+                            <div><strong>Date:</strong> {email.date}</div>
+                            <div><strong>Has markdownContent:</strong> {email.markdownContent ? `Yes (${email.markdownContent.length} chars)` : "No"}</div>
+                            <div><strong>Has snippet:</strong> {email.snippet ? `Yes (${email.snippet.length} chars)` : "No"}</div>
+                            <div><strong>Content preview (first 500 chars):</strong></div>
+                            <pre style="whiteSpace: pre-wrap; background: white; padding: 8px; borderRadius: 4px; maxHeight: 200px; overflowY: auto; fontSize: 9px;">
+                              {(email.markdownContent || email.snippet || "NO CONTENT").substring(0, 500)}...
+                            </pre>
+                          </div>
+                        </details>
+                      ))}
+                      {emailList.length > 5 && (
+                        <div style="color: #666; fontStyle: italic;">
+                          ...and {emailList.length - 5} more emails (showing first 5)
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Show LLM extraction result */}
+                <div style="marginTop: 16px;">
+                  <div style="fontWeight: 600; marginBottom: 8px;">LLM Extraction Result:</div>
+                  {derive(extractorResult, (result) => {
+                    if (!result) {
+                      return (
+                        <div style="padding: 8px; background: #fef3c7; borderRadius: 4px; color: #92400e;">
+                          ⏳ Extraction hasn't run yet (or is pending)
+                        </div>
+                      );
+                    }
+
+                    const memberships = result.memberships || [];
+                    if (memberships.length === 0) {
+                      return (
+                        <div style="padding: 8px; background: #fee2e2; borderRadius: 4px; color: #991b1b;">
+                          ❌ LLM returned 0 memberships. Possible issues:
+                          <ul style="marginTop: 4px; marginBottom: 0; paddingLeft: 20px;">
+                            <li>Email content doesn't contain membership numbers</li>
+                            <li>Membership numbers are in images (can't extract)</li>
+                            <li>LLM didn't recognize the format</li>
+                            <li>Check email content above to see what LLM received</li>
+                          </ul>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style="padding: 8px; background: #d1fae5; borderRadius: 4px; color: #065f46;">
+                        ✅ LLM found {memberships.length} membership(s)!
+                        <pre style="marginTop: 8px; background: white; padding: 8px; borderRadius: 4px; fontSize: 9px; overflowX: auto;">
+                          {JSON.stringify(memberships, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </div>
               </ct-vstack>
             </details>
 
