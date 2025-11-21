@@ -355,6 +355,12 @@ community-patterns/        # THIS REPO (user's fork or direct)
 - Permanent documentation checked into git
 - See "TODO Files as Working Memory" section
 
+**issues/** - Framework questions and architecture issues
+- Document complex framework problems
+- Questions for framework authors
+- Multiple failed approaches with code examples
+- See "Filing Issues" section
+
 **Example structure:**
 ```
 patterns/alice/
@@ -363,6 +369,9 @@ patterns/alice/
 │   └── todo/
 │       ├── ai-chat.md           # TODO for experimental-ai-chat pattern
 │       └── notes-app.md         # TODO for my-notes-app pattern
+├── issues/
+│   ├── ISSUE-Automatic-Side-Effects.md
+│   └── ISSUE-Reactive-Computed-Timing.md
 ├── WIP/
 │   ├── experimental-ai-chat.tsx
 │   └── testing-new-feature.tsx
@@ -855,6 +864,134 @@ cat community-docs/superstitions/2025-01-15-types-cell-arrays.md
 
 **Community docs are a safety net for edge cases, not a primary reference!**
 
+### Filing Issues
+
+**Location:** `patterns/$GITHUB_USER/issues/` for framework issues or pattern architecture questions
+
+**When to file an issue:**
+- Encountering framework behavior you don't understand
+- Pattern architecture questions that aren't answered by docs
+- Suspected framework bugs or limitations
+- Questions about "correct" way to do something
+- Edge cases that might help others
+
+**File naming:** `ISSUE-Brief-Title.md`
+
+**Example:** `ISSUE-Automatic-Side-Effects.md`, `ISSUE-Reactive-Computed-Timing.md`
+
+#### Issue Template
+
+```markdown
+# Issue: [Brief Question/Problem Title]
+
+## Summary
+
+1-2 sentence summary of the issue or question.
+
+## Use Case
+
+**Pattern:** Name of the pattern where this came up
+
+**What you're trying to accomplish:**
+- Clear description of the goal
+- Why you need this behavior
+- Context about the pattern
+
+## Current State (What Works)
+
+Show what you have working currently (if anything):
+
+```typescript
+// Code that works (even if not ideal)
+```
+
+## What We Tried (Failed Attempts)
+
+### Attempt 1: [Approach Name]
+
+```typescript
+// Code that didn't work
+```
+
+**Error:**
+```
+Exact error message
+```
+
+**Analysis:** Why you think this didn't work
+
+---
+
+### Attempt 2: [Another Approach]
+
+[Same structure]
+
+---
+
+## Questions
+
+1. **Main question about correct approach?**
+2. **Alternative approaches to consider?**
+3. **Is this even possible in current framework?**
+4. **Missing something obvious?**
+
+## Desired Behavior
+
+What you want to happen:
+1. Step 1
+2. Step 2
+3. Expected outcome
+
+## Environment
+
+- CommonTools framework (latest version)
+- Any relevant pattern features being used
+- Related patterns or components
+
+---
+
+**Any guidance on the correct approach would be greatly appreciated!**
+```
+
+#### When to File vs. When to Use Community Docs
+
+**File an issue when:**
+- ✅ You have a specific, complex problem
+- ✅ You've tried multiple approaches
+- ✅ You have code examples showing what didn't work
+- ✅ It's a framework design or architecture question
+- ✅ It might be a framework bug or limitation
+- ✅ You want framework author feedback
+
+**Use community-docs/superstitions when:**
+- ✅ You discovered a simple pattern that works
+- ✅ It's a one-line fix or small code pattern
+- ✅ You want to share empirical knowledge
+- ✅ It might help others encountering similar issues
+- ✅ You're not sure if it's the "right" way
+
+**Examples:**
+
+**Issue:** "How do I automatically trigger side effects when reactive values change?" (complex architecture question, multiple failed attempts)
+
+**Superstition:** "Use `Cell<Item[]>` not `Cell<OpaqueRef<Item>[]>` in handler signatures" (simple pattern that works)
+
+#### Workflow
+
+1. **Encounter framework confusion** that docs don't resolve
+2. **Try multiple approaches** (document what failed)
+3. **Check if similar issue exists** in your issues/ folder
+4. **Create new issue file** with template
+5. **Include:**
+   - Clear problem statement
+   - What you tried
+   - Code examples
+   - Error messages
+   - What you want to achieve
+6. **Commit:** `"Add issue: [brief description]"`
+
+**Issues are questions for framework authors, not empirical discoveries.**
+
 ### TODO Files as Working Memory
 
 **Convention:** Maintain TODO files in `patterns/$GITHUB_USER/design/todo/` to track complex pattern development.
@@ -970,6 +1107,7 @@ Working on photo gallery pattern in WIP/photo-gallery.tsx
 | Identity key | `claude.key` |
 | User's workspace | `patterns/$GITHUB_USER/` |
 | TODO files | `patterns/$GITHUB_USER/design/todo/` |
+| Framework issues | `patterns/$GITHUB_USER/issues/` |
 | Community docs | `community-docs/` |
 | Example patterns | `patterns/examples/` |
 | Development guide | `DEVELOPMENT.md` |
