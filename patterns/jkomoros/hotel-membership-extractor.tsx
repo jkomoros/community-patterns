@@ -17,18 +17,36 @@ interface MembershipRecord {
   confidence?: number;          // LLM confidence 0-100
 }
 
-interface BrandSearchRecord {
+interface QueryAttempt {
+  query: string;                // The Gmail query tried
+  attemptedAt: number;          // Timestamp
+  emailsFound: number;          // How many emails returned
+  membershipsFound: number;     // How many memberships extracted
+  emailIds: { [id: string]: true };  // Which emails (for deduplication, using object as set)
+}
+
+interface BrandSearchHistory {
   brand: string;                // Brand name (e.g., "Marriott")
-  searchedAt: number;           // Timestamp when last searched
+  attempts: QueryAttempt[];     // All query attempts for this brand
+  status: "searching" | "found" | "exhausted";  // Current status
+}
+
+// Old tracking structure (for backward compatibility during transition)
+interface BrandSearchRecord {
+  brand: string;
+  searchedAt: number;
 }
 
 interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
   scannedEmailIds: Default<string[], []>;
   lastScanAt: Default<number, 0>;
+  // New: Query history tracking per brand
+  brandHistory: Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>;
+  // Old fields kept for backward compatibility during transition
   searchedBrands: Default<string[], []>;
-  searchedNotFound: Default<BrandSearchRecord[], []>;
-  unsearchedBrands: Default<string[], ["Marriott"]>;
+  searchedNotFound: Default<BrandSearchRecord[], []>;  // Old tracking structure
+  unsearchedBrands: Default<string[], []>;
   currentQuery: Default<string, "">;
   isScanning: Default<boolean, false>;
   queryGeneratorInput: Default<string, "">;  // Trigger cell for LLM query generation
@@ -58,6 +76,7 @@ export default pattern<HotelMembershipInput>(({
   memberships,
   scannedEmailIds,
   lastScanAt,
+  brandHistory,
   searchedBrands,
   searchedNotFound,
   unsearchedBrands,
@@ -75,33 +94,51 @@ export default pattern<HotelMembershipInput>(({
 
   // Stage 1: LLM Query Generator
   const queryGeneratorPrompt = derive(
-    [unsearchedBrands, searchedBrands, searchedNotFound],
-    ([unsearched, searched, notFound]: [string[], string[], BrandSearchRecord[]]) => {
+    brandHistory,
+    (history: BrandSearchHistory[]) => {
       return JSON.stringify({
-        unsearchedBrands: unsearched,
-        searchedBrands: searched,
-        searchedNotFound: notFound,
+        brandHistory: history,
+        // Include full query history for LLM to learn from
       });
     }
   );
 
   const { result: queryResult, pending: queryPending } = generateObject({
-    system: `Given the user's hotel membership search state, suggest the next Gmail search query.
+    system: `Given the brand search history, suggest the next Gmail query to try.
 
-Task: Pick ONE brand from unsearchedBrands and generate a Gmail query for it.
+IMPORTANT: You can see the complete history of all query attempts for each brand.
+For each brand, you can see:
+- All queries tried (in the "attempts" array)
+- How many emails each query found (emailsFound)
+- How many memberships were extracted from those emails (membershipsFound)
+- Current status: "searching" (needs more attempts), "found" (success), or "exhausted" (tried enough, gave up)
 
-Note: searchedNotFound includes timestamps showing when we last searched.
-These brands had no results before, but might have new emails since then.
-Focus on unsearchedBrands first.
+Your task:
+1. Look for brands with status "searching" (not yet found membership, not exhausted)
+2. If found, analyze their previous attempts:
+   - What queries were tried?
+   - Did they find emails but no memberships? (query too broad, got promotional emails)
+   - Did they find no emails? (query too narrow or wrong domain)
+3. Refine the query to be more specific based on what you learned
+4. Maximum 5 attempts per brand - if a brand has 5+ attempts with no memberships, mark status as "exhausted"
+5. Learn from successful patterns in other brands (brands with status "found")
 
-Suggest a Gmail query that:
-- Searches emails from that specific hotel chain
-- Uses from: filter with the hotel's domain (e.g., "from:marriott.com")
-- Is focused and specific
+Example progression for Marriott:
+- Attempt 1: "from:marriott.com" → 40 emails, 0 memberships (too broad, got promotional)
+- Attempt 2: "from:marriott.com subject:(account OR membership OR confirmation)" → 5 emails, 1 membership ✅
 
-If unsearchedBrands is empty, return query "done"
+Query strategies:
+- Start broad: "from:brand.com"
+- If emails but no memberships: Add subject filters like "subject:(membership OR account OR number OR confirmation OR welcome)"
+- If no emails: Try alternate domains or sender names
+- Learn from what worked for other brands
 
-Return the selected brand name and the query string.`,
+Return:
+- selectedBrand: The brand to search next (continue "searching" brand, or start new one)
+- query: The Gmail query string
+- reasoning: Why you chose this query (for debugging)
+
+If all brands are either "found" or "exhausted", return query "done"`,
     prompt: derive([queryGeneratorPrompt, queryGeneratorInput], ([state, trigger]) =>
       trigger ? `${state}\n---TRIGGER-${trigger}---` : ""
     ),
@@ -111,6 +148,7 @@ Return the selected brand name and the query string.`,
       properties: {
         selectedBrand: { type: "string" },
         query: { type: "string" },
+        reasoning: { type: "string" },
       },
       required: ["selectedBrand", "query"],
     },
@@ -334,6 +372,7 @@ Return empty array if no NEW memberships found.`,
   // AGENTIC: Automatically save extraction results when they arrive
   const autoSaveResults = handler<unknown, {
     memberships: Cell<Default<MembershipRecord[], []>>;
+    brandHistory: Cell<Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>>;
     searchedBrands: Cell<Default<string[], []>>;
     searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
     unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
@@ -343,16 +382,20 @@ Return empty array if no NEW memberships found.`,
   }>((_, state) => {
     // Get current extraction results
     const extracted = extractorResult.get();
-    const selectedBrand = queryResult.get()?.selectedBrand;
+    const queryResultData = queryResult.get();
+    const selectedBrand = queryResultData?.selectedBrand;
+    const usedQuery = queryResultData?.query;
     const emailsList = emails.get();
 
     const currentMemberships = state.memberships.get();
     const scanned = state.scannedEmailIds.get();
+    const currentHistory = state.brandHistory.get();
+    // Keep old tracking for backward compatibility
     const currentUnsearched = state.unsearchedBrands.get();
     const currentSearched = state.searchedBrands.get();
     const currentNotFound = state.searchedNotFound.get();
 
-    if (!extracted || !selectedBrand) return;
+    if (!extracted || !selectedBrand || !usedQuery) return;
 
     const extractedMemberships = extracted.memberships || [];
 
@@ -370,7 +413,68 @@ Return empty array if no NEW memberships found.`,
     const emailIds = emailsList.map((e: any) => e.id);
     state.scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
 
-    // Update brand tracking
+    // === NEW: Update brandHistory with this query attempt ===
+
+    // Convert email IDs to object set for efficient lookups
+    const emailIdsSet: { [id: string]: true } = {};
+    emailIds.forEach((id: string) => {
+      emailIdsSet[id] = true;
+    });
+
+    // Create query attempt record
+    const attempt: QueryAttempt = {
+      query: usedQuery,
+      attemptedAt: Date.now(),
+      emailsFound: emailsList.length,
+      membershipsFound: newMemberships.length,
+      emailIds: emailIdsSet,
+    };
+
+    // Find or create brand history entry
+    let brandEntry = currentHistory.find(h => h.brand === selectedBrand);
+    let updatedHistory: BrandSearchHistory[];
+
+    if (brandEntry) {
+      // Update existing brand entry
+      const newAttempts = [...brandEntry.attempts, attempt];
+
+      // Determine new status
+      let newStatus: "searching" | "found" | "exhausted" = brandEntry.status;
+      if (newMemberships.length > 0) {
+        // Found memberships!
+        newStatus = "found";
+      } else if (newAttempts.length >= 5) {
+        // 5+ attempts with no success - mark as exhausted
+        newStatus = "exhausted";
+      } else {
+        // Keep searching
+        newStatus = "searching";
+      }
+
+      // Update the brand entry
+      updatedHistory = currentHistory.map(h =>
+        h.brand === selectedBrand
+          ? { ...h, attempts: newAttempts, status: newStatus }
+          : h
+      );
+    } else {
+      // Create new brand entry
+      const newStatus: "searching" | "found" | "exhausted" =
+        newMemberships.length > 0 ? "found" : "searching";
+
+      updatedHistory = [
+        ...currentHistory,
+        {
+          brand: selectedBrand,
+          attempts: [attempt],
+          status: newStatus,
+        },
+      ];
+    }
+
+    state.brandHistory.set(updatedHistory);
+
+    // === Keep old tracking for backward compatibility (will remove later) ===
     const newUnsearched = currentUnsearched.filter(b => b !== selectedBrand);
     state.unsearchedBrands.set(newUnsearched);
 
@@ -381,7 +485,7 @@ Return empty array if no NEW memberships found.`,
       }
     } else {
       // No memberships found - add to searchedNotFound with timestamp
-      const alreadyNotFound = currentNotFound.find(r => r.brand === selectedBrand);
+      const alreadyNotFound = currentNotFound.find((r: BrandSearchRecord) => r.brand === selectedBrand);
       if (!alreadyNotFound) {
         state.searchedNotFound.set([
           ...currentNotFound,
@@ -489,6 +593,7 @@ Return empty array if no NEW memberships found.`,
                   <ct-button
                     onClick={autoSaveResults({
                       memberships,
+                      brandHistory,
                       searchedBrands,
                       searchedNotFound,
                       unsearchedBrands,
@@ -592,17 +697,49 @@ Return empty array if no NEW memberships found.`,
                 🔧 Debug Info
               </summary>
               <ct-vstack gap={2} style="padding: 12px; fontSize: 12px; fontFamily: monospace;">
+                <div style="fontWeight: 600; marginTop: 8px; marginBottom: 4px;">Brand History (New System):</div>
+                {derive(brandHistory, (history) => {
+                  if (!history || !Array.isArray(history) || history.length === 0) {
+                    return <div style="paddingLeft: 12px; color: #999;">No history yet</div>;
+                  }
+                  return history.map((brandEntry) => (
+                    <details style="marginLeft: 12px; marginBottom: 8px; border: 1px solid #e0e0e0; borderRadius: 4px; padding: 8px; background: white;">
+                      <summary style="cursor: pointer; fontWeight: 500;">
+                        {brandEntry.brand} - Status: <span style={{
+                          color: brandEntry.status === "found" ? "#10b981" : brandEntry.status === "exhausted" ? "#ef4444" : "#f59e0b"
+                        }}>{brandEntry.status}</span> ({brandEntry.attempts.length} attempts)
+                      </summary>
+                      <div style="paddingLeft: 12px; marginTop: 8px;">
+                        {brandEntry.attempts.map((attempt, idx) => (
+                          <div style="marginBottom: 8px; paddingBottom: 8px; borderBottom: idx < brandEntry.attempts.length - 1 ? '1px solid #f3f4f6' : 'none';">
+                            <div><strong>Attempt {idx + 1}:</strong> {new Date(attempt.attemptedAt).toLocaleString()}</div>
+                            <div style="marginTop: 4px;"><strong>Query:</strong> <code style="background: #f3f4f6; padding: 2px 6px; borderRadius: 3px;">{attempt.query}</code></div>
+                            <div><strong>Results:</strong> {attempt.emailsFound} emails → {attempt.membershipsFound} memberships</div>
+                            {attempt.membershipsFound > 0 && <div style="color: #10b981; fontWeight: 600;">✅ Success!</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ));
+                })}
+
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Old Tracking (Deprecated):</div>
                 <div>Unsearched Brands: {derive(unsearchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
                 <div>Searched (Found): {derive(searchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
                 <div>Searched (Not Found): {derive(searchedNotFound, (records) =>
-                  (records && Array.isArray(records)) ? records.map(r => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None" : "None"
+                  (records && Array.isArray(records)) ? records.map((r: BrandSearchRecord) => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None" : "None"
                 )}</div>
+
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Current LLM State:</div>
                 <div>LLM Query: {derive(queryResult, (result) => result?.query || "None")}</div>
                 <div>Selected Brand: {derive(queryResult, (result) => result?.selectedBrand || "None")}</div>
+                <div>LLM Reasoning: {derive(queryResult, (result) => result?.reasoning || "None")}</div>
                 <div>Query Pending: {derive(queryPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Extractor Pending: {derive(extractorPending, (p) => p ? "Yes" : "No")}</div>
                 <div>Extracted Count: {derive(extractorResult, (result) => result?.memberships?.length || 0)}</div>
                 <div>Emails Count: {derive(emails, (list) => (list && Array.isArray(list)) ? list.length : 0)}</div>
+
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Query Values:</div>
                 <div>Current Query (deprecated): {currentQuery || "None"}</div>
                 <div>Gmail Filter Query (actual): {gmailFilterQuery || "None"}</div>
               </ct-vstack>
