@@ -732,7 +732,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 );
               }
 
-              // Calculate colors and opacity directly (word is already unwrapped)
+              // Calculate colors and opacity directly from word (which is already unwrapped)
               const bgColor = word.owner === "red" ? "#dc2626"
                 : word.owner === "blue" ? "#2563eb"
                 : word.owner === "neutral" ? "#d4d4d8"
@@ -771,6 +771,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       value={word.word}
                       placeholder={`${word.position.row},${word.position.col}`}
                       onChange={updateWord({ board, row: word.position.row, col: word.position.col })}
+                      onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
                       style={{
                         width: "90%",
                         height: "80%",
