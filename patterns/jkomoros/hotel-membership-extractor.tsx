@@ -370,35 +370,30 @@ Return empty array if no NEW memberships found.`,
   });
 
   // AGENTIC: Automatically save extraction results when they arrive
-  const autoSaveResults = handler<unknown, {
-    memberships: Cell<Default<MembershipRecord[], []>>;
-    brandHistory: Cell<Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>>;
-    searchedBrands: Cell<Default<string[], []>>;
-    searchedNotFound: Cell<Default<BrandSearchRecord[], []>>;
-    unsearchedBrands: Cell<Default<string[], ["Marriott"]>>;
-    scannedEmailIds: Cell<Default<string[], []>>;
-    lastScanAt: Cell<Default<number, 0>>;
-    isScanning: Cell<Default<boolean, false>>;
-    extractorResult: Cell<any>;
-    queryResult: Cell<any>;
-    emails: Cell<any[]>;
-  }>((_, state) => {
-    // Get current extraction results from state (not from closure)
-    const extracted = state.extractorResult.get();
-    const queryResultData = state.queryResult.get();
-    const selectedBrand = queryResultData?.selectedBrand;
-    const usedQuery = queryResultData?.query;
-    const emailsList = state.emails.get();
+  // Use computed() to watch for extraction completion and save automatically
+  computed(() => {
+    // Watch for extraction completion
+    const extracted = extractorResult.get();
+    const queryResultData = queryResult.get();
+    const scanning = isScanning.get();
+    const pending = extractorPending.get();
+    const emailsList = emails.get();
 
-    const currentMemberships = state.memberships.get();
-    const scanned = state.scannedEmailIds.get();
-    const currentHistory = state.brandHistory.get();
+    // Only save when scanning, extraction complete, and we have results
+    if (!scanning || pending || !extracted || !queryResultData) return;
+
+    const selectedBrand = queryResultData.selectedBrand;
+    const usedQuery = queryResultData.query;
+
+    if (!selectedBrand || !usedQuery) return;
+
+    const currentMemberships = memberships.get();
+    const scanned = scannedEmailIds.get();
+    const currentHistory = brandHistory.get();
     // Keep old tracking for backward compatibility
-    const currentUnsearched = state.unsearchedBrands.get();
-    const currentSearched = state.searchedBrands.get();
-    const currentNotFound = state.searchedNotFound.get();
-
-    if (!extracted || !selectedBrand || !usedQuery) return;
+    const currentUnsearched = unsearchedBrands.get();
+    const currentSearched = searchedBrands.get();
+    const currentNotFound = searchedNotFound.get();
 
     const extractedMemberships = extracted.memberships || [];
 
@@ -410,11 +405,11 @@ Return empty array if no NEW memberships found.`,
     }));
 
     // Update memberships array
-    state.memberships.set([...currentMemberships, ...newMemberships]);
+    memberships.set([...currentMemberships, ...newMemberships]);
 
     // Update scanned email IDs
     const emailIds = emailsList.map((e: any) => e.id);
-    state.scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
+    scannedEmailIds.set([...new Set([...scanned, ...emailIds])]);
 
     // === NEW: Update brandHistory with this query attempt ===
 
@@ -475,22 +470,22 @@ Return empty array if no NEW memberships found.`,
       ];
     }
 
-    state.brandHistory.set(updatedHistory);
+    brandHistory.set(updatedHistory);
 
     // === Keep old tracking for backward compatibility (will remove later) ===
     const newUnsearched = currentUnsearched.filter(b => b !== selectedBrand);
-    state.unsearchedBrands.set(newUnsearched);
+    unsearchedBrands.set(newUnsearched);
 
     if (newMemberships.length > 0) {
       // Found memberships - add to searchedBrands
       if (!currentSearched.includes(selectedBrand)) {
-        state.searchedBrands.set([...currentSearched, selectedBrand]);
+        searchedBrands.set([...currentSearched, selectedBrand]);
       }
     } else {
       // No memberships found - add to searchedNotFound with timestamp
       const alreadyNotFound = currentNotFound.find((r: BrandSearchRecord) => r.brand === selectedBrand);
       if (!alreadyNotFound) {
-        state.searchedNotFound.set([
+        searchedNotFound.set([
           ...currentNotFound,
           { brand: selectedBrand, searchedAt: Date.now() },
         ]);
@@ -498,16 +493,10 @@ Return empty array if no NEW memberships found.`,
     }
 
     // Update last scan timestamp
-    state.lastScanAt.set(Date.now());
+    lastScanAt.set(Date.now());
 
-    // Clear scanning flag
-    state.isScanning.set(false);
-  });
-
-  // Determine if we should show the "Save Results" button
-  // Show whenever extraction completes, even if 0 memberships found (we need to record the attempt)
-  const hasNewResults = derive([extractorResult, extractorPending, isScanning], ([result, pending, scanning]) => {
-    return scanning && !pending && result && result.memberships !== undefined;
+    // Note: We don't clear isScanning here - let the user click "Reset Stuck Scan" if needed
+    // Or it will auto-reset on next scan start
   });
 
   // Progress status message
@@ -588,33 +577,6 @@ Return empty array if no NEW memberships found.`,
                   <div style="padding: 12px; background: #f0f9ff; border: 1px solid #0ea5e9; borderRadius: 8px; fontSize: 13px; textAlign: center;">
                     {status}
                   </div>
-                ) : null
-              )}
-
-              {/* Save Results Button (appears when extraction completes) */}
-              {derive([hasNewResults, extractorResult], ([show, result]) =>
-                show ? (
-                  <ct-button
-                    onClick={autoSaveResults({
-                      memberships,
-                      brandHistory,
-                      searchedBrands,
-                      searchedNotFound,
-                      unsearchedBrands,
-                      scannedEmailIds,
-                      lastScanAt,
-                      isScanning,
-                      extractorResult,
-                      queryResult,
-                      emails,
-                    })}
-                    size="lg"
-                    style="background: #10b981; color: white;"
-                  >
-                    {result && result.memberships && result.memberships.length > 0
-                      ? `💾 Save ${result.memberships.length} Membership(s)`
-                      : "💾 Save Attempt (No Memberships Found)"}
-                  </ct-button>
                 ) : null
               )}
             </ct-vstack>
