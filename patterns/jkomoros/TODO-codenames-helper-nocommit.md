@@ -42,10 +42,22 @@ Working on fixing multiple UX and functionality issues in the Codenames Helper p
 - User must click "Create 5×5 Game Board" button
 - Should show empty board by default
 
-**Solution:**
-- Changed board default from `[]` to `DEFAULT_EMPTY_BOARD` (calls initializeEmptyBoard())
-- Pattern now shows empty 5×5 grid on load
-- All cells empty, unassigned, unrevealed
+**Failed Attempts:**
+1. Using `typeof DEFAULT_EMPTY_BOARD` in Default<> type - doesn't work, typeof gives TYPE not VALUE
+2. Using imperative `if (board.get().length === 0)` in pattern body - can't call .get() outside handlers/derive()
+
+**Successful Solution:**
+- Created derived cell: `const initializedBoard = derive(board, (boardData: BoardWord[]) => {...})`
+- Returns `initializeEmptyBoard()` when board is empty, otherwise returns existing board data
+- Use `initializedBoard` for all READ operations (display, color counter)
+- Use original `board` for all WRITE operations (handlers)
+- Lines changed: 324-329 (derive), 212 (board display), 332 (color counter)
+
+**Testing:**
+- Tested with Playwright in test-jkomoros-2 space
+- Board shows 5×5 grid on page load without button click
+- Color counter correctly shows "Unassigned: 25"
+- Screenshot: board-initialization-success.png
 
 ---
 

@@ -32,11 +32,8 @@ function initializeEmptyBoard(): BoardWord[] {
   return board;
 }
 
-// Default empty board
-const DEFAULT_EMPTY_BOARD = initializeEmptyBoard();
-
 interface CodenamesHelperInput {
-  board: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
+  board: Cell<Default<BoardWord[], []>>;
   myTeam: Cell<Default<Team, "red">>;
   setupMode: Cell<Default<boolean, true>>;
   selectedWordIndex: Cell<Default<number, 999>>;
@@ -323,6 +320,14 @@ const initializeBoardHandler = handler<
 
 export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
   ({ board, myTeam, setupMode, selectedWordIndex }) => {
+    // Ensure board is initialized - this creates a derived cell that ensures board has data
+    const initializedBoard = derive(board, (boardData: BoardWord[]) => {
+      if (boardData.length === 0) {
+        return initializeEmptyBoard();
+      }
+      return boardData;
+    });
+
     // Image upload for board and key card
     const uploadedPhotos = cell<ImageData[]>([]);
 
@@ -703,7 +708,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             gap: "0.25rem",
             marginBottom: "1rem",
           }}>
-            {board.map((word, index) => {
+            {initializedBoard.map((word, index) => {
               // Guard against undefined word entries entirely
               if (!word || !word.position) {
                 return (
@@ -823,7 +828,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 fontSize: "0.75rem",
                 flexWrap: "wrap",
               }}>
-                {derive(board, (boardData: BoardWord[]) => {
+                {derive(initializedBoard, (boardData: BoardWord[]) => {
                   const counts: Record<WordOwner, number> = {
                     red: 0,
                     blue: 0,
