@@ -1,42 +1,97 @@
 /// <cts-enable />
-import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, UI } from "commontools";
+import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
+
+// Import Email type for SearchGmailTool
+import type { Email } from "./gmail-importer.tsx";
 
 // ============================================================================
 // AGENT TOOL: searchGmail
 // ============================================================================
 
 /**
- * SearchGmail Tool - Thin wrapper around GmailImporter
+ * Email preview with body content as @links
+ * Agent sees metadata directly but must read() to get body content
+ */
+type EmailPreview = {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  date: string;
+  to: string;
+  snippet: string;
+  // Body fields as `any` - framework converts to @links
+  markdownContent: any;
+  htmlContent: any;
+  plainText: any;
+};
+
+/**
+ * SearchGmail Tool - Client-side filtering of fetched emails
  *
- * Returns emails as `any` type → framework converts to @link references
- * LLM uses built-in cell reading tools to read specific emails
+ * Agent sees:
+ * - Email metadata (subject, from, date) directly - for filtering
+ * - Body content as @link references - use read() to access
  *
- * Input: query string, authCharm
- * Output: any (emails as @link references)
+ * Architecture:
+ * - GmailImporter fetches broad set of emails (e.g., "hotel")
+ * - Tool filters those emails client-side based on agent's query
+ * - Returns filtered emails with body as @links
+ *
+ * Input:
+ * - query: DYNAMIC from agent (search term to filter by)
+ * - emailsCell: STATIC cell to read emails from
+ *
+ * Output: EmailPreview[] (with body as @links)
  */
 export const SearchGmailTool = pattern<
-  { query: string; authCharm: any },
-  any  // Return type `any` triggers @link conversion
+  {
+    query: string;              // DYNAMIC from agent
+    emailsCell: Cell<Email[]>;  // STATIC emails from importer
+  },
+  EmailPreview[]
 >(
-  ({ query, authCharm }) => {
-    // Thin wrapper around GmailImporter
-    const importer = GmailImporter({
-      settings: {
-        gmailFilterQuery: Cell.of(query),
-        limit: Cell.of(20),  // Max 20 emails as per design
-        historyId: Cell.of(""),
-      },
-      authCharm,
-    });
+  ({ query, emailsCell }) => {
+    // Convert query to cell to avoid closing over plain value
+    const queryCell = Cell.of(query);
 
-    // Return emails directly - framework converts to @links
-    return derive(importer.emails, (emailList): any => {
-      if (!emailList || !Array.isArray(emailList)) {
+    // Filter and transform emails based on query
+    return derive([emailsCell, queryCell], ([emails, q]: [Email[], string]): EmailPreview[] => {
+      console.log(`[SearchGmailTool] Agent requested query: "${q}"`);
+
+      if (!emails || !Array.isArray(emails)) {
+        console.log("[SearchGmailTool] No emails available yet");
         return [];
       }
-      return emailList;
+
+      console.log(`[SearchGmailTool] Filtering ${emails.length} emails with query: "${q}"`);
+
+      // Client-side filter by query (case-insensitive search in subject, from, snippet)
+      const queryLower = q.toLowerCase();
+      const filtered = emails.filter(email => {
+        const searchText = `${email.subject} ${email.from} ${email.snippet}`.toLowerCase();
+        return searchText.includes(queryLower);
+      });
+
+      console.log(`[SearchGmailTool] Matched ${filtered.length} emails`);
+
+      // Transform: metadata visible, body as @links
+      return filtered.map(email => ({
+        // Metadata visible to agent
+        id: email.id,
+        threadId: email.threadId,
+        subject: email.subject,
+        from: email.from,
+        date: email.date,
+        to: email.to,
+        snippet: email.snippet,
+        // Body content as cells (type any) → framework converts to @links
+        markdownContent: Cell.of(email.markdownContent) as any,
+        htmlContent: Cell.of(email.htmlContent) as any,
+        plainText: Cell.of(email.plainText) as any,
+      }));
     });
   }
 );
@@ -136,9 +191,22 @@ export default pattern<HotelMembershipInput>(({
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
+  // Separate GmailImporter instance just for the agent (independent of old 2-stage LLM)
+  // Fetches broad set of hotel emails - agent filters client-side
+  const agentGmailImporter = GmailImporter({
+    settings: {
+      gmailFilterQuery: Cell.of("hotel OR marriott OR hilton OR hyatt OR ihg OR accor"),  // Broad query
+      limit: Cell.of(100),                // Fetch up to 100 emails
+      historyId: Cell.of(""),             // No history tracking
+    },
+    authCharm: authCharm,
+  });
+
   // Define agent tools using computed to handle closure properly
   const agentTools = computed(() => ({
-    searchGmail: patternTool(SearchGmailTool, { authCharm }),
+    searchGmail: patternTool(SearchGmailTool, {
+      emailsCell: agentGmailImporter.emails,  // STATIC: Cell to read and filter from
+    }),
   }));
 
   const agentPrompt = derive(
