@@ -37,12 +37,42 @@ interface BrandSearchRecord {
   searchedAt: number;
 }
 
+// FIFO Email Cache for agent architecture
+interface EmailPreview {
+  id: string;           // Gmail message ID
+  subject: string;      // Email subject line
+  from: string;         // Sender address
+  date: string;         // Email date
+}
+
+interface EmailFull extends EmailPreview {
+  content: string;      // Full markdown content
+}
+
+interface SearchEntry {
+  query: string;
+  timestamp: number;
+  emailIds: string[];   // IDs returned by this search
+}
+
+interface EmailCache {
+  entries: { [emailId: string]: EmailFull };  // emailId → full email data
+  searchHistory: SearchEntry[];                // Recent searches
+  maxEntries: number;                          // Keep last 200 emails (FIFO eviction)
+}
+
 interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
   scannedEmailIds: Default<string[], []>;
   lastScanAt: Default<number, 0>;
   // New: Query history tracking per brand
   brandHistory: Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>;
+  // New: FIFO email cache for agent architecture
+  emailCache: Default<EmailCache, {
+    entries: {};
+    searchHistory: [];
+    maxEntries: 200;
+  }>;
   // Old fields kept for backward compatibility during transition
   searchedBrands: Default<string[], []>;
   searchedNotFound: Default<BrandSearchRecord[], []>;  // Old tracking structure
@@ -77,6 +107,7 @@ export default pattern<HotelMembershipInput>(({
   scannedEmailIds,
   lastScanAt,
   brandHistory,
+  emailCache,
   searchedBrands,
   searchedNotFound,
   unsearchedBrands,
