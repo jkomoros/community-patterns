@@ -350,6 +350,10 @@ chmod 600 claude.key
 ```
 patterns/YOUR-USERNAME/
 ├── README.md              # Your notes and pattern index
+├── design/                # Development documentation
+│   └── todo/              # TODO files for patterns
+│       ├── feature-x.md   # Tracks progress on feature-x pattern
+│       └── notes-app.md   # Design decisions for notes-app
 ├── WIP/                   # Work-in-progress patterns
 │   ├── feature-x.tsx      # Actively developing
 │   └── experiment-y.tsx   # Testing ideas
@@ -437,6 +441,78 @@ patterns/YOUR-USERNAME/
 └── advanced/
     └── llm-integration.tsx
 ```
+
+### Using TODO Files as Working Memory
+
+For complex patterns, maintain a TODO file to track progress and design decisions.
+
+**Location:** `patterns/YOUR-USERNAME/design/todo/pattern-name.md`
+
+**Example:** `patterns/jkomoros/design/todo/cheeseboard-schedule.md`
+
+**When to create:**
+- Pattern has multiple features or phases
+- Development spans multiple sessions
+- Design decisions need documentation
+- Pattern involves research or experimentation
+
+**What to include:**
+- **Requirements** - List of features to implement
+- **Design Decisions** - Why you chose approach X over Y
+- **Implementation Progress** - Checklist of completed/pending work
+- **Technical Notes** - Framework quirks, edge cases, performance considerations
+- **Testing Notes** - Test scenarios, known issues, compatibility notes
+- **Next Steps** - Clear priorities for future sessions
+
+**Example TODO file structure:**
+```markdown
+# Cheeseboard Schedule - Development TODO
+
+## Overview
+Fetches Cheeseboard pizza schedule, tracks ingredient preferences, ranks pizzas
+
+## Implementation Progress
+- [x] Basic web fetch and parsing
+- [x] Ingredient extraction and cleaning
+- [x] Thumbs up/down UI
+- [x] Preference storage
+- [x] Pizza ranking with scores
+- [ ] Advanced filtering options
+- [ ] Export preferences to other patterns
+
+## Design Decisions
+- Using hash-based colors for neutral ingredients (distinctive but consistent)
+- Bold green/red for liked/disliked (high visibility)
+- Kept chronological order rather than sorting by score (easier to plan visits)
+
+## Technical Notes
+- fetchData works with /api/agent-tools/web-read endpoint
+- Ingredient normalization handles plurals, synonyms, accents
+- computed() for reactive scoring - updates automatically
+- ifElse() for conditional rendering (ternaries don't work with elements)
+
+## Next Steps
+- Add date filtering (show only upcoming pizzas)
+- Export ranked pizza list for calendar integration
+```
+
+**Benefits:**
+- Resume work quickly in next session
+- Share context with collaborators
+- Document why decisions were made
+- Track pattern evolution over time
+
+**Update as you go:**
+- Mark tasks complete: `- [x] Feature implemented`
+- Add new learnings and decisions
+- Document blockers or questions
+- Keep next steps current
+
+**Difference from SNAPSHOT.md:**
+- TODO files are **permanent** (checked into git)
+- SNAPSHOT.md is **temporary** (delete after reading)
+- TODO documents full development journey
+- SNAPSHOT captures immediate session state
 
 ---
 
