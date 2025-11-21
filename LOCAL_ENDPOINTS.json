@@ -1,0 +1,16 @@
+{
+  "patterns": [
+    {
+      "name": "Reward Spinner",
+      "path": "community-patterns-2/patterns/jkomoros/reward-spinner.tsx",
+      "icon": "🎰",
+      "description": "A fun reward spinner for making decisions"
+    },
+    {
+      "name": "Group Voter",
+      "path": "community-patterns-2/patterns/jkomoros/WIP/group-voter.tsx",
+      "icon": "🗳️",
+      "description": "Group voting system with charm architecture (WIP)"
+    }
+  ]
+}

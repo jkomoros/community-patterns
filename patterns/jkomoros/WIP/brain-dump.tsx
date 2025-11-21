@@ -9,7 +9,7 @@ import {
   ifElse,
   NAME,
   navigateTo,
-  pattern,
+  recipe,
   UI,
 } from "commontools";
 
@@ -117,7 +117,12 @@ interface BrainDumpInput {
   title?: Cell<Default<string, "Brain Dump">>;
 }
 
-export default pattern<BrainDumpInput>(
+interface BrainDumpOutput {
+  transcriptions: Default<TranscriptionEntry[], []>;
+}
+
+export default recipe<BrainDumpInput, BrainDumpOutput>(
+  "Brain Dump",
   ({ title }) => {
     // State
     const transcriptions = cell<TranscriptionEntry[]>([]);
