@@ -681,10 +681,10 @@ export default pattern<StoreMapInput, StoreMapOutput>(
     const entranceCount = computed(() => entrances.length);
     const entrancesComplete = cell<boolean>(false);
 
-    // Track which entrance positions are already used
-    const usedEntrancePositions = computed(() => {
-      return new Set(entrances.map(e => e.position));
-    });
+    // Helper to check if an entrance position is already used
+    const isEntranceUsed = (position: WallPosition) => {
+      return derive(entrances, (ents) => ents.some(e => e.position === position));
+    };
 
     // Form fields for adding item location corrections
     const newItemName = cell<string>("");
@@ -910,7 +910,7 @@ What common sections might be missing?`,
     const correctionsCount = computed(() => itemLocations.length);
 
     return {
-      [NAME]: str`🗺️ ${storeName || "(Untitled map)"}`,
+      [NAME]: str`🗺️ ${derive(storeName, (name) => name || "(Untitled map)")}`,
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
           <style>{`
@@ -1076,7 +1076,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("front-left"))}
+                  disabled={isEntranceUsed("front-left")}
                   onClick={addEntrance({ entrances, position: "front-left", name: "Front-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1086,7 +1086,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("front-center"))}
+                  disabled={isEntranceUsed("front-center")}
                   onClick={addEntrance({ entrances, position: "front-center", name: "Front-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1096,7 +1096,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("front-right"))}
+                  disabled={isEntranceUsed("front-right")}
                   onClick={addEntrance({ entrances, position: "front-right", name: "Front-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1113,7 +1113,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("back-left"))}
+                  disabled={isEntranceUsed("back-left")}
                   onClick={addEntrance({ entrances, position: "back-left", name: "Back-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1123,7 +1123,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("back-center"))}
+                  disabled={isEntranceUsed("back-center")}
                   onClick={addEntrance({ entrances, position: "back-center", name: "Back-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1133,7 +1133,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("back-right"))}
+                  disabled={isEntranceUsed("back-right")}
                   onClick={addEntrance({ entrances, position: "back-right", name: "Back-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1150,7 +1150,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("left-front"))}
+                  disabled={isEntranceUsed("left-front")}
                   onClick={addEntrance({ entrances, position: "left-front", name: "Left-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1160,7 +1160,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("left-center"))}
+                  disabled={isEntranceUsed("left-center")}
                   onClick={addEntrance({ entrances, position: "left-center", name: "Left-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1170,7 +1170,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("left-back"))}
+                  disabled={isEntranceUsed("left-back")}
                   onClick={addEntrance({ entrances, position: "left-back", name: "Left-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1187,7 +1187,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("right-front"))}
+                  disabled={isEntranceUsed("right-front")}
                   onClick={addEntrance({ entrances, position: "right-front", name: "Right-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1197,7 +1197,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("right-center"))}
+                  disabled={isEntranceUsed("right-center")}
                   onClick={addEntrance({ entrances, position: "right-center", name: "Right-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1207,7 +1207,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={derive(usedEntrancePositions, (used) => used.has("right-back"))}
+                  disabled={isEntranceUsed("right-back")}
                   onClick={addEntrance({ entrances, position: "right-back", name: "Right-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
