@@ -348,10 +348,21 @@ community-patterns/        # THIS REPO (user's fork or direct)
 - Ready for use or sharing
 - Well-documented
 
+**design/todo/** - Development documentation
+- TODO files for complex patterns
+- Track design decisions, progress, and context
+- Named to match pattern files (e.g., `pattern-name.md`)
+- Permanent documentation checked into git
+- See "TODO Files as Working Memory" section
+
 **Example structure:**
 ```
 patterns/alice/
 ├── README.md
+├── design/
+│   └── todo/
+│       ├── ai-chat.md           # TODO for experimental-ai-chat pattern
+│       └── notes-app.md         # TODO for my-notes-app pattern
 ├── WIP/
 │   ├── experimental-ai-chat.tsx
 │   └── testing-new-feature.tsx
@@ -666,6 +677,85 @@ If Steps 1-3 don't resolve the issue:
 3. Ask user for clarification or guidance
 4. Consider if this is a framework limitation vs implementation issue
 
+### TODO Files as Working Memory
+
+**Convention:** Maintain TODO files in `patterns/$GITHUB_USER/design/todo/` to track complex pattern development.
+
+**Purpose:**
+- Act as persistent working memory across sessions
+- Document design decisions and rationale
+- Track implementation progress and next steps
+- Preserve context for future reference
+- Help other developers understand the pattern evolution
+
+**When to create a TODO file:**
+- Starting a complex pattern with multiple features
+- Pattern requires research or design decisions
+- Multi-session development work
+- Experimental features with unclear requirements
+- Pattern needs documentation of architecture/choices
+
+**File naming:** `pattern-name.md` (matches the pattern file name)
+
+**Example:** `patterns/jkomoros/design/todo/cheeseboard-schedule.md`
+
+**What to include:**
+```markdown
+# Pattern Name - Development TODO
+
+## Overview
+Brief description of what the pattern does
+
+## Requirements
+- List of features to implement
+- User stories or use cases
+
+## Design Decisions
+Document key choices made during development:
+- Why you chose approach X over Y
+- Trade-offs considered
+- Framework features used and why
+
+## Implementation Progress
+- [x] Basic structure and data fetching
+- [x] Ingredient parsing
+- [ ] Advanced filtering features
+- [ ] Performance optimization
+
+## Technical Notes
+- Important findings during development
+- Framework quirks or workarounds
+- Performance considerations
+- Edge cases to handle
+
+## Testing Notes
+- Test scenarios covered
+- Known issues or limitations
+- Browser compatibility notes
+
+## Next Steps
+- Clear list of what needs to be done next
+- Priorities for future sessions
+```
+
+**Update as you go:**
+- Mark tasks complete when done: `- [x] Feature implemented`
+- Add new learnings and decisions
+- Document blockers or questions
+- Update next steps
+
+**Benefits:**
+- Quickly resume work in next session
+- Share context with user or other developers
+- Document why certain decisions were made
+- Track pattern evolution over time
+
+**Difference from SNAPSHOT.md:**
+- TODO files are **permanent** and checked into git
+- SNAPSHOT.md is **temporary** and should be deleted after reading
+- TODO files document the pattern's full development journey
+- SNAPSHOT.md captures immediate session state
+
 ### Snapshot Capability
 
 When asked to "snapshot yourself", create a `SNAPSHOT.md` file containing:
@@ -701,6 +791,7 @@ Working on photo gallery pattern in WIP/photo-gallery.tsx
 | Workspace config | `.claude-workspace` |
 | Identity key | `claude.key` |
 | User's workspace | `patterns/$GITHUB_USER/` |
+| TODO files | `patterns/$GITHUB_USER/design/todo/` |
 | Example patterns | `patterns/examples/` |
 | Development guide | `DEVELOPMENT.md` |
 | Setup guide | `GETTING_STARTED.md` |
