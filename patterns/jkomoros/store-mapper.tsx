@@ -303,11 +303,11 @@ const mergeExtractedAisle = handler<
     newItems: string[];
     selectedMergeItems: Cell<Record<string, string[]>>;
     selectionKey: string;
-    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
+    hiddenPhotoIds: Cell<Set<string>>;
     photo: Cell<ImageData>;
     extractedAisles: Array<{ name: string; products: readonly string[] }>;
   }
->((_event, { aisles, existingAisle, newItems, selectedMergeItems, selectionKey, uploadedPhotos, photo, extractedAisles }) => {
+>((_event, { aisles, existingAisle, newItems, selectedMergeItems, selectionKey, hiddenPhotoIds, photo, extractedAisles }) => {
   const currentData = existingAisle.get();
   const existingDesc = currentData.description || '';
 
@@ -356,13 +356,13 @@ const mergeExtractedAisle = handler<
     return analysis.hasNewItems;
   });
 
-  // Delete photo if no more merges are needed
+  // Hide photo if no more merges are needed
   if (!hasRemainingMerges) {
-    const current = uploadedPhotos.get();
-    const index = current.findIndex((el) => el.equals(photo));
-    if (index >= 0) {
-      uploadedPhotos.set(current.toSpliced(index, 1));
-    }
+    const photoData = photo.get();
+    const currentHidden = hiddenPhotoIds.get();
+    const newHidden = new Set(currentHidden);
+    newHidden.add(photoData.id);
+    hiddenPhotoIds.set(newHidden);
   }
 });
 
@@ -469,13 +469,16 @@ const copyOutline = handler<unknown, { outline: string }>(
 // Delete photo handler
 const deletePhoto = handler<
   unknown,
-  { uploadedPhotos: Cell<Array<Cell<ImageData>>>; photo: Cell<ImageData> }
->((_event, { uploadedPhotos, photo }) => {
-  const current = uploadedPhotos.get();
-  const index = current.findIndex((el) => el.equals(photo));
-  if (index >= 0) {
-    uploadedPhotos.set(current.toSpliced(index, 1));
-  }
+  { hiddenPhotoIds: Cell<Set<string>>; photo: Cell<ImageData> }
+>((_event, { hiddenPhotoIds, photo }) => {
+  // Instead of splicing the array (which shifts indices and breaks map identity),
+  // just mark the photo as hidden. This preserves array indices and keeps
+  // extraction state intact for remaining photos.
+  const photoData = photo.get();
+  const currentHidden = hiddenPhotoIds.get();
+  const newHidden = new Set(currentHidden);
+  newHidden.add(photoData.id);
+  hiddenPhotoIds.set(newHidden);
 });
 
 // Delete correction handler
@@ -675,6 +678,7 @@ function analyzeOverlap(existingDesc: string, suggestedProducts: string[]): Over
 export default pattern<StoreMapInput, StoreMapOutput>(
   ({ storeName, aisles, specialDepartments, unassignedDepartments, entrances, notInStore, inCenterAisles, itemLocations }) => {
     const uploadedPhotos = cell<ImageData[]>([]);
+    const hiddenPhotoIds = cell<Set<string>>(new Set()); // Track deleted photos without splicing array
     const customDeptName = cell<string>("");
     const entranceCount = computed(() => entrances.length);
     const entrancesComplete = cell<boolean>(false);
@@ -2302,7 +2306,13 @@ What common sections might be missing?`,
             )}
             <ct-vstack gap="4">
               {photoExtractions.map((extraction) => {
-                return (
+                // Check if this photo is hidden
+                const photoId = extraction.photo.id;
+                const isHidden = computed(() => hiddenPhotoIds.get().has(photoId));
+
+                return ifElse(
+                  isHidden,
+                  null, // Don't render if hidden
                   <div
                     style={{
                       padding: "0.75rem",
@@ -2326,7 +2336,7 @@ What common sections might be missing?`,
                       <ct-button
                         size="sm"
                         variant="destructive"
-                        onClick={deletePhoto({ uploadedPhotos, photo: extraction.photo })}
+                        onClick={deletePhoto({ hiddenPhotoIds, photo: extraction.photo })}
                         style={{
                           fontSize: "11px",
                           padding: "2px 6px",
@@ -2535,7 +2545,7 @@ What common sections might be missing?`,
                                                 newItems: overlapAnalysis.newItems.filter(item => item),
                                                 selectedMergeItems,
                                                 selectionKey: `${extraction.photoName}-${extractedAisle.name}`,
-                                                uploadedPhotos,
+                                                hiddenPhotoIds,
                                                 photo: extraction.photo,
                                                 extractedAisles: validAisles,
                                               })}
@@ -2599,7 +2609,8 @@ What common sections might be missing?`,
                     }
                   )}
                   </div>
-                );
+                )
+              ); // Close ifElse
             })}
             </ct-vstack>
           </div>
