@@ -185,6 +185,17 @@ const createPizzaList = lift<{ result: WebReadResult }, Pizza[]>(
   }
 );
 
+/**
+ * Get emoji for pizza score
+ */
+function getScoreEmoji(score: number): string {
+  if (score >= 4) return "😍";
+  if (score >= 2) return "😊";
+  if (score >= 0) return "😐";
+  if (score >= -2) return "😕";
+  return "🤢";
+}
+
 // ============================================================================
 // HANDLERS
 // ============================================================================
@@ -272,14 +283,36 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
           </p>
 
           <div style={{ marginTop: "1.5rem" }}>
-            {pizzaList.map((pizza) => (
-              <div style={{
-                marginBottom: "1.5rem",
-                padding: "1rem",
-                border: "1px solid #ddd",
-                borderRadius: "8px"
-              }}>
-                <h3 style={{ margin: "0 0 0.5rem 0" }}>{pizza.date}</h3>
+            {pizzaList.map((pizza) => {
+              // Calculate score for this pizza
+              const score = computed(() => {
+                const prefs = preferences.get();
+                const likedSet = new Set(prefs.filter(p => p.preference === "liked").map(p => p.ingredient));
+                const dislikedSet = new Set(prefs.filter(p => p.preference === "disliked").map(p => p.ingredient));
+
+                let total = 0;
+                for (const ing of pizza.ingredients) {
+                  if (likedSet.has(ing.normalized)) total += 1;
+                  if (dislikedSet.has(ing.normalized)) total -= 2;
+                }
+                return total;
+              });
+
+              const emoji = computed(() => getScoreEmoji(score));
+
+              return (
+                <div style={{
+                  marginBottom: "1.5rem",
+                  padding: "1rem",
+                  border: "1px solid #ddd",
+                  borderRadius: "8px"
+                }}>
+                  <h3 style={{ margin: "0 0 0.5rem 0" }}>
+                    {pizza.date}
+                    <span style={{ marginLeft: "0.5rem", fontSize: "1.2rem" }}>
+                      {emoji} ({score >= 0 ? "+" : ""}{score})
+                    </span>
+                  </h3>
                 <p style={{ margin: "0 0 0.5rem 0", color: "#666" }}>
                   {pizza.description}
                 </p>
@@ -337,7 +370,8 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Preferences List */}
