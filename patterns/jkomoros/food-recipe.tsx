@@ -572,10 +572,12 @@ const applyExtractedData = handler<
 // LLM Timing Suggestion Handlers
 const triggerTimingSuggestion = handler<
   Record<string, never>,
-  { stepGroups: StepGroup[]; timingSuggestionTrigger: Cell<string> }
+  { stepGroups: Cell<Array<Cell<StepGroup>>>; timingSuggestionTrigger: Cell<string> }
 >(
   (_, { stepGroups, timingSuggestionTrigger }) => {
-    timingSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---TIMING-${Date.now()}---`);
+    // Unwrap cells before serializing
+    const groups = stepGroups.get().map(g => g.get ? g.get() : g);
+    timingSuggestionTrigger.set(`${JSON.stringify(groups)}\n---TIMING-${Date.now()}---`);
   },
 );
 
@@ -624,10 +626,12 @@ const applyTimingSuggestions = handler<
 // LLM Wait Time Suggestion Handlers
 const triggerWaitTimeSuggestion = handler<
   Record<string, never>,
-  { stepGroups: StepGroup[]; waitTimeSuggestionTrigger: Cell<string> }
+  { stepGroups: Cell<Array<Cell<StepGroup>>>; waitTimeSuggestionTrigger: Cell<string> }
 >(
   (_, { stepGroups, waitTimeSuggestionTrigger }) => {
-    waitTimeSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---WAIT-${Date.now()}---`);
+    // Unwrap cells before serializing
+    const groups = stepGroups.get().map(g => g.get ? g.get() : g);
+    waitTimeSuggestionTrigger.set(`${JSON.stringify(groups)}\n---WAIT-${Date.now()}---`);
   },
 );
 
@@ -1024,13 +1028,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
       // Match suggestions to existing groups by ID and apply
       suggestions.stepGroups.forEach((suggestion: any) => {
         const groupIndex = currentGroups.findIndex((g: any) => {
+          if (!g) return false; // Skip undefined elements
           const groupData = (g.get ? g.get() : g) as StepGroup;
+          if (!groupData) return false; // Skip if get() returns undefined
           return groupData.id === suggestion.id;
         });
 
         if (groupIndex >= 0) {
           const group = currentGroups[groupIndex];
+          if (!group) return; // Skip if group is undefined
           const groupData = (group.get ? group.get() : group) as StepGroup;
+          if (!groupData) return; // Skip if groupData is undefined
 
           // Apply timing suggestions
           if ((group as any).set) {
@@ -1055,13 +1063,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
       // Match suggestions to existing groups by ID and apply
       suggestions.stepGroups.forEach((suggestion: any) => {
         const groupIndex = currentGroups.findIndex((g: any) => {
+          if (!g) return false; // Skip undefined elements
           const groupData = (g.get ? g.get() : g) as StepGroup;
+          if (!groupData) return false; // Skip if get() returns undefined
           return groupData.id === suggestion.id;
         });
 
         if (groupIndex >= 0) {
           const group = currentGroups[groupIndex];
+          if (!group) return; // Skip if group is undefined
           const groupData = (group.get ? group.get() : group) as StepGroup;
+          if (!groupData) return; // Skip if groupData is undefined
 
           // Apply wait time suggestion
           if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
