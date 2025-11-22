@@ -4,6 +4,7 @@ import {
   Cell,
   Default,
   derive,
+  generateObject,
   handler,
   ifElse,
   NAME,
@@ -179,6 +180,93 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     const ovenCount = derive(ovens, (list) => list.length);
     const profileCount = derive(dietaryProfiles, (list) => list.length);
     const recipeCount = derive(recipes, (list) => list.length);
+
+    // Meal Balance Analysis
+    const analysisPrompt = derive(
+      { recipes, guestCount, dietaryProfiles },
+      ({ recipes: recipeList, guestCount: guests, dietaryProfiles: profiles }) => {
+        if (!recipeList || recipeList.length === 0) {
+          return "No recipes to analyze";
+        }
+
+        const recipesSummary = recipeList
+          .map((r) => `- ${r.name} (${r.category}, ${r.servings} servings)`)
+          .join("\n");
+
+        const dietaryRequirements = profiles
+          .flatMap((p) => p.requirements)
+          .filter((req, idx, arr) => arr.indexOf(req) === idx); // unique
+
+        return `Analyze this meal menu for balance and dietary compatibility:
+
+Guest Count: ${guests}
+Dietary Requirements: ${dietaryRequirements.join(", ") || "none specified"}
+
+Recipes:
+${recipesSummary}
+
+Provide:
+1. Category breakdown (how many mains, sides, desserts, etc.)
+2. Total servings vs guest count analysis
+3. Dietary compatibility warnings for guests with requirements
+4. Menu balance suggestions (missing categories, too much/little of something)`;
+      },
+    );
+
+    const { result: mealAnalysis, pending: analysisPending } = generateObject({
+      system: `You are a meal planning expert. Analyze menus for balance, portion sizing, and dietary compatibility.
+
+When analyzing:
+- Consider standard meal structure (appetizer, main, sides, dessert)
+- Check if servings are appropriate for guest count (typically 1-1.5 servings per guest per dish category)
+- Identify dietary compatibility issues (e.g., no vegan main for vegan guests)
+- Suggest improvements for balance and variety
+
+Be concise and practical in your analysis.`,
+      prompt: analysisPrompt,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          categoryBreakdown: {
+            type: "object",
+            additionalProperties: { type: "number" },
+            description: "Count of dishes per category (main, side, dessert, etc.)",
+          },
+          servingsAnalysis: {
+            type: "string",
+            description: "Analysis of total servings vs guest count",
+          },
+          dietaryWarnings: {
+            type: "array",
+            items: { type: "string" },
+            description: "Warnings about dietary compatibility issues",
+          },
+          suggestions: {
+            type: "array",
+            items: { type: "string" },
+            description: "Suggestions for improving menu balance",
+          },
+        },
+        required: [
+          "categoryBreakdown",
+          "servingsAnalysis",
+          "dietaryWarnings",
+          "suggestions",
+        ],
+      },
+    });
+
+    const analysisResult = derive(
+      mealAnalysis,
+      (result) =>
+        result || {
+          categoryBreakdown: {},
+          servingsAnalysis: "",
+          dietaryWarnings: [],
+          suggestions: [],
+        },
+    );
 
     return {
       [NAME]: str`🍽️ ${displayName}`,
@@ -400,17 +488,140 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
             </ct-vstack>
           </ct-card>
 
-          {/* Recipes Section (Placeholder) */}
+          {/* Recipes Section */}
           <ct-card>
             <ct-vstack gap={2} style="padding: 12px;">
               <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
                 Recipes ({recipeCount})
               </h3>
-              <div style={{ fontSize: "14px", color: "#666", fontStyle: "italic" }}>
-                @ reference food-recipe patterns here (coming soon)
-              </div>
+              {ifElse(
+                derive(recipes, (list) => list.length === 0),
+                <div style={{ fontSize: "14px", color: "#666", fontStyle: "italic" }}>
+                  @ reference food-recipe patterns to add them to your meal
+                </div>,
+                <ct-vstack gap={1}>
+                  {recipes.map((recipe) => (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "6px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: "600", fontSize: "14px" }}>
+                          {recipe.name}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#666" }}>
+                          {recipe.category} • {recipe.servings} servings
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </ct-vstack>,
+              )}
             </ct-vstack>
           </ct-card>
+
+          {/* Meal Balance Analysis */}
+          {ifElse(
+            derive(recipes, (list) => list.length > 0),
+            <ct-card>
+              <ct-vstack gap={2} style="padding: 12px;">
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+                  📊 Meal Balance Analysis
+                </h3>
+
+                {ifElse(
+                  analysisPending,
+                  <div style={{ fontSize: "14px", color: "#666", fontStyle: "italic" }}>
+                    Analyzing menu...
+                  </div>,
+                  <ct-vstack gap={2}>
+                    {/* Category Breakdown */}
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
+                        Categories:
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {Object.entries(
+                          derive(analysisResult, (r) => r.categoryBreakdown),
+                        ).map(([category, count]) => (
+                          <div
+                            style={{
+                              padding: "4px 10px",
+                              background: "#e0f2fe",
+                              borderRadius: "12px",
+                              fontSize: "13px",
+                            }}
+                          >
+                            {category}: {count}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Servings Analysis */}
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
+                        Portions:
+                      </div>
+                      <div style={{ fontSize: "14px", color: "#444" }}>
+                        {derive(analysisResult, (r) => r.servingsAnalysis)}
+                      </div>
+                    </div>
+
+                    {/* Dietary Warnings */}
+                    {ifElse(
+                      derive(
+                        analysisResult,
+                        (r) => r.dietaryWarnings && r.dietaryWarnings.length > 0,
+                      ),
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#dc2626" }}>
+                          ⚠️ Dietary Warnings:
+                        </div>
+                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#dc2626" }}>
+                          {derive(analysisResult, (r) => r.dietaryWarnings).map(
+                            (warning: string) => (
+                              <li>{warning}</li>
+                            ),
+                          )}
+                        </ul>
+                      </div>,
+                      null,
+                    )}
+
+                    {/* Suggestions */}
+                    {ifElse(
+                      derive(
+                        analysisResult,
+                        (r) => r.suggestions && r.suggestions.length > 0,
+                      ),
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#059669" }}>
+                          💡 Suggestions:
+                        </div>
+                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#059669" }}>
+                          {derive(analysisResult, (r) => r.suggestions).map(
+                            (suggestion: string) => (
+                              <li>{suggestion}</li>
+                            ),
+                          )}
+                        </ul>
+                      </div>,
+                      null,
+                    )}
+                  </ct-vstack>,
+                )}
+              </ct-vstack>
+            </ct-card>,
+            null,
+          )}
 
           {/* Notes */}
           <ct-card>
@@ -433,7 +644,6 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
                 Coming Soon:
               </div>
               <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#166534" }}>
-                <li>Meal balance analysis (categories, portions, dietary compatibility)</li>
                 <li>Oven timeline visualization</li>
                 <li>Production schedule generator</li>
                 <li>Conflict detection and optimization</li>
