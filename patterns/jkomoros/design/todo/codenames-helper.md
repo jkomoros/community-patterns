@@ -136,8 +136,9 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 ---
 
 ### 9. Colors Not Applied from AI Extraction (REACTIVE DISPLAY)
-**Status:** 🔴 BLOCKED - Framework Limitation
+**Status:** 🔴 BLOCKED - Framework Limitation CONFIRMED
 **Priority:** HIGH
+**Last Updated:** 2025-11-21
 
 **Problem:**
 - applyExtractedData handler correctly sets colors in board data
@@ -150,14 +151,20 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 - Board rendering uses direct `board.map()` with inline ternaries
 
 **Attempts Made:**
-1. derive() for pre-computed styles → board disappeared
+1. derive() for pre-computed styles → not reactive
 2. const variables inside .map() → not reactive
-3. inline ternaries with board.map() → not reactive (current)
-4. wrapping entire board in derive() → frame mismatch error
+3. inline ternaries with board.map() → not reactive (current working code)
+4. wrapping entire board in derive() → **Frame mismatch error** (CONFIRMED on 2025-11-21)
+
+**Confirmed on 2025-11-21:**
+- Attempted `derive(board, (boardData) => boardData.map(...JSX...))` to render entire cell JSX
+- Results in "Frame mismatch" error on both `charm setsrc` and `charm new`
+- Error occurs even on fresh test space (test-jkomoros-23)
+- This confirms approach #4 is not viable
 
 **Current Code:**
-- Lines 707-763: board.map() with inline ternary for backgroundColor
-- Line 796: derive() wrapper for counter (WORKS correctly)
+- Lines 774-830: board.map() with inline ternary for backgroundColor
+- Line 848: derive() wrapper for counter (WORKS correctly)
 
 **Issue Documented:**
 - Full details in `patterns/jkomoros/issues/REACTIVE_ARRAY_STYLING_ISSUE.md`
@@ -165,10 +172,13 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 - Awaiting framework guidance on correct reactive array pattern
 
 **Testing:**
-- Deployed to test-jkomoros-21
+- Deployed to test-jkomoros-22
 - Clicked cell 0,0, assigned red color
 - Counter updated: "Red: 1, Unassigned: 24" ✓
 - Cell background remained gray ✗
+
+**Conclusion:**
+All attempted reactive approaches either don't work or cause framework errors. This is a genuine framework limitation requiring upstream fixes.
 
 ---
 
