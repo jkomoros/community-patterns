@@ -423,7 +423,58 @@ Provide the extracted information in the appropriate format.`
             }
           ];
         }),
-        schema: toSchema<PhotoExtractionResult>()
+        // TODO: Replace with toSchema<PhotoExtractionResult>() once framework supports nested type arrays
+        // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
+        schema: {
+          type: "object",
+          properties: {
+            photoType: {
+              type: "string",
+              enum: ["board", "keycard", "unknown"],
+              description: "Type of photo: board (game board), keycard (key card), or unknown"
+            },
+            boardWords: {
+              type: "array",
+              description: "Extracted words from board photo (25 words in 5×5 grid)",
+              items: {
+                type: "object",
+                properties: {
+                  word: { type: "string", description: "The word on the card (UPPERCASE)" },
+                  row: { type: "number", description: "Row position (0-4)" },
+                  col: { type: "number", description: "Column position (0-4)" }
+                },
+                required: ["word", "row", "col"]
+              }
+            },
+            keyCardColors: {
+              type: "array",
+              description: "Extracted color assignments from key card photo",
+              items: {
+                type: "object",
+                properties: {
+                  row: { type: "number", description: "Row position (0-4)" },
+                  col: { type: "number", description: "Column position (0-4)" },
+                  color: {
+                    type: "string",
+                    enum: ["red", "blue", "neutral", "assassin"],
+                    description: "Color/team assignment"
+                  }
+                },
+                required: ["row", "col", "color"]
+              }
+            },
+            confidence: {
+              type: "string",
+              enum: ["high", "medium", "low"],
+              description: "Confidence level of the extraction"
+            },
+            notes: {
+              type: "string",
+              description: "Additional notes or observations about the extraction"
+            }
+          },
+          required: ["photoType"]
+        }
       });
     });
 
@@ -474,7 +525,41 @@ ${assassinWords.join(", ")}
 
 Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
       }),
-      schema: toSchema<ClueSuggestionsResult>()
+      // TODO: Replace with toSchema<ClueSuggestionsResult>() once framework supports nested type arrays
+      // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
+      schema: {
+        type: "object",
+        properties: {
+          clues: {
+            type: "array",
+            description: "Array of clue suggestions for the spymaster",
+            items: {
+              type: "object",
+              properties: {
+                clue: {
+                  type: "string",
+                  description: "The one-word clue (no hyphens, spaces, or compound words)"
+                },
+                number: {
+                  type: "number",
+                  description: "Number of words this clue connects (typically 2-4)"
+                },
+                targetWords: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "List of target words this clue is meant to connect"
+                },
+                reasoning: {
+                  type: "string",
+                  description: "Explanation of why this clue connects these words"
+                }
+              },
+              required: ["clue", "number", "targetWords", "reasoning"]
+            }
+          }
+        },
+        required: ["clues"]
+      }
     });
 
     return {
