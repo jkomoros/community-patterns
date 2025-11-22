@@ -48,9 +48,25 @@ interface Ingredient {
 }
 
 interface RecipeStep {
-  order: number;
   description: string;
+}
+
+interface StepGroup {
+  id: string;
+  name: string;
+  nightsBeforeServing?: number;
+  minutesBeforeServing?: number;
   duration?: number; // minutes
+  maxWaitMinutes?: number;
+  requiresOven?: {
+    temperature: number;
+    duration: number;
+    racksNeeded?: {
+      heightSlots: number; // 1 for cookie sheet, 2 for casserole, 5 for turkey, etc.
+      width: "full" | "half"; // full rack width or half rack
+    };
+  };
+  steps: RecipeStep[];
 }
 
 interface RecipeInput {
@@ -62,7 +78,7 @@ interface RecipeInput {
   prepTime: Default<number, 0>; // minutes
   cookTime: Default<number, 0>; // minutes
   ingredients: Default<Ingredient[], []>;
-  steps: Default<RecipeStep[], []>;
+  stepGroups: Default<StepGroup[], []>;
   tags: Default<string[], []>;
   notes: Default<string, "">;
   source: Default<string, "">;
@@ -135,26 +151,55 @@ const removeIngredient = handler<
   }
 });
 
-// Step handlers
-const addStep = handler<unknown, { steps: Cell<RecipeStep[]> }>(
-  (_event, { steps }) => {
-    const currentSteps = steps.get();
-    steps.push({
-      order: currentSteps.length + 1,
-      description: "",
+// Step Group handlers
+const addStepGroup = handler<unknown, { stepGroups: Cell<StepGroup[]> }>(
+  (_event, { stepGroups }) => {
+    stepGroups.push({
+      id: `group-${Date.now()}`,
+      name: "New Step Group",
+      minutesBeforeServing: 0,
+      steps: [],
     });
   },
 );
 
-const removeStep = handler<
+const removeStepGroup = handler<
   unknown,
-  { steps: Cell<Array<Cell<RecipeStep>>>; step: Cell<RecipeStep> }
->((_event, { steps, step }) => {
-  const currentSteps = steps.get();
-  const index = currentSteps.findIndex((el) => step.equals(el));
-  if (index >= 0) {
-    steps.set(currentSteps.toSpliced(index, 1));
+  {
+    stepGroups: Cell<Array<Cell<StepGroup>>>;
+    stepGroup: Cell<StepGroup>;
   }
+>((_event, { stepGroups, stepGroup }) => {
+  const currentGroups = stepGroups.get();
+  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
+  if (index >= 0) {
+    stepGroups.set(currentGroups.toSpliced(index, 1));
+  }
+});
+
+const addStepToGroup = handler<
+  unknown,
+  { stepGroup: Cell<StepGroup> }
+>((_event, { stepGroup }) => {
+  const group = stepGroup.get();
+  stepGroup.set({
+    ...group,
+    steps: [...group.steps, { description: "" }],
+  });
+});
+
+const removeStepFromGroup = handler<
+  unknown,
+  {
+    stepGroup: Cell<StepGroup>;
+    stepIndex: number;
+  }
+>((_event, { stepGroup, stepIndex }) => {
+  const group = stepGroup.get();
+  stepGroup.set({
+    ...group,
+    steps: group.steps.filter((_, idx) => idx !== stepIndex),
+  });
 });
 
 // Tag handlers
@@ -223,6 +268,18 @@ const scaleRecipe = handler<
   });
 });
 
+// Image Upload Handler
+const handleImageUpload = handler<
+  { detail: { text: string } },
+  { notes: Cell<string> }
+>(({ detail }, { notes }) => {
+  const currentNotes = notes.get();
+  const newNotes = currentNotes
+    ? `${currentNotes}\n\n---\n\n${detail.text}`
+    : detail.text;
+  notes.set(newNotes);
+});
+
 // LLM Extraction Handlers
 const triggerExtraction = handler<
   Record<string, never>,
@@ -253,7 +310,7 @@ const applyExtractedData = handler<
     prepTime: Cell<number>;
     cookTime: Cell<number>;
     ingredients: Cell<Ingredient[]>;
-    steps: Cell<RecipeStep[]>;
+    stepGroups: Cell<StepGroup[]>;
     tags: Cell<string[]>;
     source: Cell<string>;
     notes: Cell<string>;
@@ -270,7 +327,7 @@ const applyExtractedData = handler<
       prepTime,
       cookTime,
       ingredients,
-      steps,
+      stepGroups,
       tags,
       source,
       notes,
@@ -289,8 +346,6 @@ const applyExtractedData = handler<
 
     // Apply ingredients - use .push() which auto-wraps in cells
     if (data.ingredients && Array.isArray(data.ingredients)) {
-      const currentLength = ingredients.get().length;
-      const nextOrder = currentLength + 1;
       data.ingredients.forEach((ing: any) => {
         ingredients.push({
           item: ing.item || "",
@@ -300,15 +355,18 @@ const applyExtractedData = handler<
       });
     }
 
-    // Apply steps - use .push() which auto-wraps in cells
-    if (data.steps && Array.isArray(data.steps)) {
-      const currentLength = steps.get().length;
-      const nextOrder = currentLength + 1;
-      data.steps.forEach((step: any, idx: number) => {
-        steps.push({
-          order: nextOrder + idx,
-          description: step.description || step,
-          duration: step.duration,
+    // Apply step groups - use .push() which auto-wraps in cells
+    if (data.stepGroups && Array.isArray(data.stepGroups)) {
+      data.stepGroups.forEach((group: any) => {
+        stepGroups.push({
+          id: group.id || `group-${Date.now()}-${Math.random()}`,
+          name: group.name || "Step Group",
+          nightsBeforeServing: group.nightsBeforeServing,
+          minutesBeforeServing: group.minutesBeforeServing,
+          duration: group.duration,
+          maxWaitMinutes: group.maxWaitMinutes,
+          requiresOven: group.requiresOven,
+          steps: group.steps || [],
         });
       });
     }
@@ -343,7 +401,7 @@ export default pattern<RecipeInput, RecipeOutput>(
     prepTime,
     cookTime,
     ingredients,
-    steps,
+    stepGroups,
     tags,
     notes,
     source,
@@ -362,9 +420,9 @@ export default pattern<RecipeInput, RecipeOutput>(
     );
 
     const ingredientCount = derive(ingredients, (list) => list.length);
-    const stepCount = derive(steps, (list) => list.length);
+    const stepGroupCount = derive(stepGroups, (list) => list.length);
     const hasIngredients = derive(ingredientCount, (count) => count > 0);
-    const hasSteps = derive(stepCount, (count) => count > 0);
+    const hasStepGroups = derive(stepGroupCount, (count) => count > 0);
     const hasTags = derive(tags, (list) => list.length > 0);
 
     const displayName = derive(
@@ -394,11 +452,22 @@ Extract the following fields if present:
 - cookTime: Cooking time in minutes (as a number)
 - source: Where the recipe came from (URL, book, person)
 - ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
-- steps: Array of instruction steps. Each can be a string or {description, duration} if time is mentioned.
+- stepGroups: Organize steps into logical groups based on timing:
+  * Group similar prep/cooking phases together
+  * Assign timing: use nightsBeforeServing (1, 2) for overnight tasks, minutesBeforeServing (e.g. 240, 60, 30, 0) for day-of timing
+  * Each group should have ONE of nightsBeforeServing OR minutesBeforeServing, not both
+  * Estimate duration for each group
+  * Identify oven requirements (temperature, duration, and racksNeeded):
+    - temperature: oven temp in Fahrenheit
+    - duration: time in oven in minutes
+    - racksNeeded.heightSlots: 1 for thin items (cookie sheet), 2 for medium (casserole), 5 for tall items (turkey)
+    - racksNeeded.width: "full" for full rack width, "half" for half rack
+  * Common group names: "Night Before", "Prep", "Cooking", "Finishing Touches"
+  * Most recipes will have 2-5 groups
 - tags: Array of relevant tags (e.g., ["vegetarian", "quick", "dessert"])
 - remainingNotes: Any text from the notes that was NOT extracted into structured fields (e.g., personal comments, modifications, tips). If everything was extracted, return an empty string.
 
-Return only the fields you can confidently extract. Be thorough with ingredients and steps. For remainingNotes, preserve any content that doesn't fit into the structured fields.`,
+Return only the fields you can confidently extract. Be thorough with ingredients and step groups. For remainingNotes, preserve any content that doesn't fit into the structured fields.`,
         prompt: extractTrigger,
         model: "anthropic:claude-sonnet-4-5",
         schema: {
@@ -422,13 +491,40 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                 },
               },
             },
-            steps: {
+            stepGroups: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  description: { type: "string" },
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  nightsBeforeServing: { type: "number" },
+                  minutesBeforeServing: { type: "number" },
                   duration: { type: "number" },
+                  maxWaitMinutes: { type: "number" },
+                  requiresOven: {
+                    type: "object",
+                    properties: {
+                      temperature: { type: "number" },
+                      duration: { type: "number" },
+                      racksNeeded: {
+                        type: "object",
+                        properties: {
+                          heightSlots: { type: "number" },
+                          width: { type: "string", enum: ["full", "half"] },
+                        },
+                      },
+                    },
+                  },
+                  steps: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        description: { type: "string" },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -494,6 +590,43 @@ Return only the fields you can confidently extract. Be thorough with ingredients
               {totalTime} min total
             </div>
           </div>
+
+          {/* Recipe Input Section - Notes with Image Upload */}
+          <ct-card>
+            <ct-vstack gap={2} style="padding: 12px;">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <ct-image-input
+                    onct-upload={handleImageUpload({ notes })}
+                  >
+                    Upload Image
+                  </ct-image-input>
+                  <ct-button
+                    onClick={triggerExtraction({ notes, extractTrigger })}
+                    disabled={extractionPending}
+                  >
+                    {extractionPending
+                      ? "Extracting..."
+                      : "Extract Recipe Data"}
+                  </ct-button>
+                </div>
+              </div>
+              <ct-code-editor
+                $value={notes}
+                $mentionable={mentionable}
+                $mentioned={mentioned}
+                onbacklink-click={handleCharmLinkClick({})}
+                onbacklink-create={handleNewBacklink({ mentionable })}
+                language="text/markdown"
+                theme="light"
+                wordWrap
+                tabIndent
+                placeholder="Paste a recipe here, upload an image, then click 'Extract Recipe Data' to auto-fill fields..."
+                style="min-height: 150px;"
+              />
+            </ct-vstack>
+          </ct-card>
 
           {/* Scaling Controls */}
           <ct-card>
@@ -653,62 +786,66 @@ Return only the fields you can confidently extract. Be thorough with ingredients
             </ct-vstack>
           </ct-card>
 
-          {/* Steps Section */}
+          {/* Step Groups Section */}
           <ct-card>
             <ct-vstack gap={2} style="padding: 12px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px" }}>Instructions ({stepCount})</h3>
-                <ct-button onClick={addStep({ steps })}>
-                  + Add Step
+                <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
+                <ct-button onClick={addStepGroup({ stepGroups })}>
+                  + Add Group
                 </ct-button>
               </div>
 
               <ct-vstack gap={2}>
-                  {steps.map((step, index) => (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "auto 1fr auto auto",
-                        gap: "8px",
-                        alignItems: "start",
-                        padding: "12px",
-                        border: "1px solid #eee",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontWeight: "bold",
-                          color: "#666",
-                          minWidth: "24px",
-                        }}
-                      >
-                        {index + 1}.
-                      </div>
-                      <ct-input
-                        $value={step.description}
-                        placeholder="Describe this step..."
-                        style="flex: 1."
-                      />
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                {stepGroups.map((stepGroup) => (
+                  <ct-card style={{ padding: "12px", background: "#f9fafb" }}>
+                    <ct-vstack gap={2}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <ct-input
-                          type="number"
-                          $value={step.duration}
-                          placeholder="min"
-                          min="0"
-                          style="width: 60px;"
+                          $value={stepGroup.name}
+                          placeholder="Group name (e.g., Prep, Cooking)"
+                          style="flex: 1; marginRight: 8px; fontWeight: 600;"
                         />
-                        <span style={{ fontSize: "12px", color: "#999" }}>min</span>
+                        <ct-button
+                          onClick={removeStepGroup({ stepGroups, stepGroup })}
+                          style={{ padding: "4px 8px", fontSize: "18px" }}
+                        >
+                          × Remove Group
+                        </ct-button>
                       </div>
+
+                      <ct-vstack gap={1}>
+                        {stepGroup.steps.map((step, index) => (
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <span style={{ fontWeight: "bold", color: "#666", minWidth: "20px" }}>
+                              {index + 1}.
+                            </span>
+                            <ct-input
+                              $value={step.description}
+                              placeholder="Step description..."
+                              style="flex: 1;"
+                            />
+                            <ct-button
+                              onClick={removeStepFromGroup({ stepGroup, stepIndex: index })}
+                              style={{ padding: "4px 8px", fontSize: "18px" }}
+                            >
+                              ×
+                            </ct-button>
+                          </div>
+                        ))}
+                      </ct-vstack>
+
                       <ct-button
-                        onClick={removeStep({ steps, step })}
-                        style={{ padding: "4px 8px", fontSize: "18px" }}
+                        onClick={addStepToGroup({ stepGroup })}
+                        variant="secondary"
+                        style={{ alignSelf: "flex-start" }}
                       >
-                        ×
+                        + Add Step to Group
                       </ct-button>
-                    </div>
-                  ))}
-                </ct-vstack>
+                    </ct-vstack>
+                  </ct-card>
+                ))}
+              </ct-vstack>
             </ct-vstack>
           </ct-card>
 
@@ -750,36 +887,6 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                 placeholder="Add tag (e.g., vegetarian, quick, dessert)..."
                 appearance="rounded"
                 onct-send={addTag({ tags })}
-              />
-            </ct-vstack>
-          </ct-card>
-
-          {/* Notes Section */}
-          <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "14px" }}>Notes</h3>
-                <ct-button
-                  onClick={triggerExtraction({ notes, extractTrigger })}
-                  disabled={extractionPending}
-                >
-                  {extractionPending
-                    ? "Extracting..."
-                    : "Extract Recipe Data"}
-                </ct-button>
-              </div>
-              <ct-code-editor
-                $value={notes}
-                $mentionable={mentionable}
-                $mentioned={mentioned}
-                onbacklink-click={handleCharmLinkClick({})}
-                onbacklink-create={handleNewBacklink({ mentionable })}
-                language="text/markdown"
-                theme="light"
-                wordWrap
-                tabIndent
-                placeholder="Paste a recipe here and click 'Extract Recipe Data' to auto-fill fields..."
-                style="min-height: 150px;"
               />
             </ct-vstack>
           </ct-card>
@@ -907,7 +1014,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                   {derive(extractionResult, (result) => {
                     const hasComplexFields =
                       (result?.ingredients && result.ingredients.length > 0) ||
-                      (result?.steps && result.steps.length > 0) ||
+                      (result?.stepGroups && result.stepGroups.length > 0) ||
                       (result?.tags && result.tags.length > 0);
 
                     return hasComplexFields ? (
@@ -921,8 +1028,8 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                       }}>
                         {result?.ingredients && result.ingredients.length > 0 ?
                           `✓ ${result.ingredients.length} ingredient(s) ` : ""}
-                        {result?.steps && result.steps.length > 0 ?
-                          `✓ ${result.steps.length} step(s) ` : ""}
+                        {result?.stepGroups && result.stepGroups.length > 0 ?
+                          `✓ ${result.stepGroups.length} step group(s) ` : ""}
                         {result?.tags && result.tags.length > 0 ?
                           `✓ ${result.tags.length} tag(s) ` : ""}
                         will be added
@@ -952,7 +1059,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                       prepTime,
                       cookTime,
                       ingredients,
-                      steps,
+                      stepGroups,
                       tags,
                       source,
                       notes,
@@ -976,7 +1083,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
       prepTime,
       cookTime,
       ingredients,
-      steps,
+      stepGroups,
       tags,
       notes,
       source,
@@ -993,15 +1100,24 @@ Return only the fields you can confidently extract. Be thorough with ingredients
         { ingredients }
       ),
       getInstructions: patternTool(
-        ({ steps }: { steps: RecipeStep[] }) => {
-          return derive(steps, (stepList) => {
-            if (!stepList || stepList.length === 0) return "No instructions";
-            return stepList.map((step) =>
-              `${step.order}. ${step.description}${step.duration ? ` (${step.duration} min)` : ""}`
-            ).join("\n");
+        ({ stepGroups }: { stepGroups: StepGroup[] }) => {
+          return derive(stepGroups, (groups) => {
+            if (!groups || groups.length === 0) return "No instructions";
+            return groups.map((group) => {
+              const timing = group.nightsBeforeServing
+                ? `${group.nightsBeforeServing} night(s) before`
+                : group.minutesBeforeServing !== undefined
+                ? `${group.minutesBeforeServing} min before serving`
+                : "no timing specified";
+              const duration = group.duration ? ` (${group.duration} min)` : "";
+              const steps = group.steps.map((step, idx) =>
+                `  ${idx + 1}. ${step.description}`
+              ).join("\n");
+              return `${group.name} [${timing}]${duration}:\n${steps}`;
+            }).join("\n\n");
           });
         },
-        { steps }
+        { stepGroups }
       ),
       getRecipeSummary: patternTool(
         ({ name, cuisine, servings, prepTime, cookTime }: {
