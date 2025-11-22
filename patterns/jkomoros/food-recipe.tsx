@@ -20,6 +20,7 @@ import {
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
 import RecipeAnalyzer from "./recipe-analyzer.tsx";
+import FoodRecipeViewer from "./food-recipe-viewer.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
@@ -635,6 +636,17 @@ const triggerWaitTimeSuggestion = handler<
   },
 );
 
+// Create Cooking View Handler
+// Note: This handler doesn't need any state parameters.
+// The viewer will be created with sourceRecipeRef=null initially,
+// and the user can set it manually after creation if needed.
+const createCookingView = handler<Record<string, never>, Record<string, never>>(
+  () => {
+    const viewer = FoodRecipeViewer({ sourceRecipeRef: null });
+    return navigateTo(viewer);
+  },
+);
+
 const applyWaitTimeSuggestions = handler<
   Record<string, never>,
   {
@@ -1030,8 +1042,16 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
-            <div style={{ fontSize: "13px", color: "#666" }}>
-              {totalTime} min total
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <ct-button
+                onClick={createCookingView({})}
+                variant="secondary"
+              >
+                👨‍🍳 Create Cooking View
+              </ct-button>
+              <div style={{ fontSize: "13px", color: "#666" }}>
+                {totalTime} min total
+              </div>
             </div>
           </div>
 
