@@ -197,6 +197,40 @@ const removeStepGroup = handler<
   }
 });
 
+const moveGroupUp = handler<
+  unknown,
+  {
+    stepGroups: Cell<Array<Cell<StepGroup>>>;
+    stepGroup: Cell<StepGroup>;
+  }
+>((_event, { stepGroups, stepGroup }) => {
+  const currentGroups = stepGroups.get();
+  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
+  if (index <= 0) return; // Can't move first group up
+
+  // Swap with previous group
+  const newGroups = [...currentGroups];
+  [newGroups[index - 1], newGroups[index]] = [newGroups[index], newGroups[index - 1]];
+  stepGroups.set(newGroups);
+});
+
+const moveGroupDown = handler<
+  unknown,
+  {
+    stepGroups: Cell<Array<Cell<StepGroup>>>;
+    stepGroup: Cell<StepGroup>;
+  }
+>((_event, { stepGroups, stepGroup }) => {
+  const currentGroups = stepGroups.get();
+  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
+  if (index < 0 || index >= currentGroups.length - 1) return; // Can't move last group down
+
+  // Swap with next group
+  const newGroups = [...currentGroups];
+  [newGroups[index], newGroups[index + 1]] = [newGroups[index + 1], newGroups[index]];
+  stepGroups.set(newGroups);
+});
+
 const addStepToGroup = handler<
   unknown,
   { stepGroup: Cell<StepGroup> }
@@ -219,6 +253,42 @@ const removeStepFromGroup = handler<
   stepGroup.set({
     ...group,
     steps: group.steps.filter((_, idx) => idx !== stepIndex),
+  });
+});
+
+const moveStepUp = handler<
+  unknown,
+  {
+    stepGroup: Cell<StepGroup>;
+    stepIndex: number;
+  }
+>((_event, { stepGroup, stepIndex }) => {
+  if (stepIndex === 0) return; // Can't move first step up
+  const group = stepGroup.get();
+  const steps = [...group.steps];
+  // Swap with previous step
+  [steps[stepIndex - 1], steps[stepIndex]] = [steps[stepIndex], steps[stepIndex - 1]];
+  stepGroup.set({
+    ...group,
+    steps,
+  });
+});
+
+const moveStepDown = handler<
+  unknown,
+  {
+    stepGroup: Cell<StepGroup>;
+    stepIndex: number;
+  }
+>((_event, { stepGroup, stepIndex }) => {
+  const group = stepGroup.get();
+  if (stepIndex >= group.steps.length - 1) return; // Can't move last step down
+  const steps = [...group.steps];
+  // Swap with next step
+  [steps[stepIndex], steps[stepIndex + 1]] = [steps[stepIndex + 1], steps[stepIndex]];
+  stepGroup.set({
+    ...group,
+    steps,
   });
 });
 
@@ -980,14 +1050,30 @@ Return only the fields you can confidently extract. Be thorough with ingredients
               </div>
 
               <ct-vstack gap={2}>
-                {stepGroups.map((stepGroup) => (
+                {stepGroups.map((stepGroup, groupIndex) => (
                   <ct-card style={{ padding: "12px", background: "#f9fafb" }}>
                     <ct-vstack gap={2}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <ct-button
+                            onClick={moveGroupUp({ stepGroups, stepGroup })}
+                            disabled={groupIndex === 0}
+                            style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                          >
+                            ↑
+                          </ct-button>
+                          <ct-button
+                            onClick={moveGroupDown({ stepGroups, stepGroup })}
+                            disabled={derive(stepGroups, (groups) => groupIndex >= groups.length - 1)}
+                            style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                          >
+                            ↓
+                          </ct-button>
+                        </div>
                         <ct-input
                           $value={stepGroup.name}
                           placeholder="Group name (e.g., Prep, Cooking)"
-                          style="flex: 1; marginRight: 8px; fontWeight: 600;"
+                          style="flex: 1; fontWeight: 600;"
                         />
                         <ct-button
                           onClick={removeStepGroup({ stepGroups, stepGroup })}
@@ -1137,6 +1223,22 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                             <span style={{ fontWeight: "bold", color: "#666", minWidth: "20px" }}>
                               {index + 1}.
                             </span>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <ct-button
+                                onClick={moveStepUp({ stepGroup, stepIndex: index })}
+                                disabled={index === 0}
+                                style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                              >
+                                ↑
+                              </ct-button>
+                              <ct-button
+                                onClick={moveStepDown({ stepGroup, stepIndex: index })}
+                                disabled={derive(stepGroup, (g) => index >= g.steps.length - 1)}
+                                style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
+                              >
+                                ↓
+                              </ct-button>
+                            </div>
                             <ct-input
                               $value={step.description}
                               placeholder="Step description..."
