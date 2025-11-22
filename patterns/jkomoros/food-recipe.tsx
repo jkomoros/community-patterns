@@ -168,6 +168,16 @@ const addStepGroup = handler<unknown, { stepGroups: Cell<StepGroup[]> }>(
       id: `group-${Date.now()}`,
       name: "New Step Group",
       minutesBeforeServing: 0,
+      duration: 0,
+      maxWaitMinutes: 0,
+      requiresOven: {
+        temperature: 0,
+        duration: 0,
+        racksNeeded: {
+          heightSlots: 1,
+          width: "full",
+        },
+      },
       steps: [],
     });
   },
@@ -209,6 +219,77 @@ const removeStepFromGroup = handler<
   stepGroup.set({
     ...group,
     steps: group.steps.filter((_, idx) => idx !== stepIndex),
+  });
+});
+
+// Oven requirements update handler
+const updateOvenTemp = handler<
+  { detail: { value: string } },
+  { stepGroup: Cell<StepGroup> }
+>(({ detail }, { stepGroup }) => {
+  const group = stepGroup.get();
+  const temp = detail.value ? parseInt(detail.value, 10) : 0;
+  stepGroup.set({
+    ...group,
+    requiresOven: {
+      temperature: temp,
+      duration: group.requiresOven?.duration ?? 0,
+      racksNeeded: group.requiresOven?.racksNeeded ?? { heightSlots: 1, width: "full" },
+    },
+  });
+});
+
+const updateOvenDuration = handler<
+  { detail: { value: string } },
+  { stepGroup: Cell<StepGroup> }
+>(({ detail }, { stepGroup }) => {
+  const group = stepGroup.get();
+  const duration = detail.value ? parseInt(detail.value, 10) : 0;
+  stepGroup.set({
+    ...group,
+    requiresOven: {
+      temperature: group.requiresOven?.temperature ?? 0,
+      duration,
+      racksNeeded: group.requiresOven?.racksNeeded ?? { heightSlots: 1, width: "full" },
+    },
+  });
+});
+
+const updateOvenHeightSlots = handler<
+  { detail: { value: string } },
+  { stepGroup: Cell<StepGroup> }
+>(({ detail }, { stepGroup }) => {
+  const group = stepGroup.get();
+  const heightSlots = detail.value ? parseInt(detail.value, 10) : 1;
+  stepGroup.set({
+    ...group,
+    requiresOven: {
+      temperature: group.requiresOven?.temperature ?? 0,
+      duration: group.requiresOven?.duration ?? 0,
+      racksNeeded: {
+        heightSlots,
+        width: group.requiresOven?.racksNeeded?.width ?? "full",
+      },
+    },
+  });
+});
+
+const updateOvenRackWidth = handler<
+  { detail: { value: string } },
+  { stepGroup: Cell<StepGroup> }
+>(({ detail }, { stepGroup }) => {
+  const group = stepGroup.get();
+  const width = detail.value as "full" | "half" || "full";
+  stepGroup.set({
+    ...group,
+    requiresOven: {
+      temperature: group.requiresOven?.temperature ?? 0,
+      duration: group.requiresOven?.duration ?? 0,
+      racksNeeded: {
+        heightSlots: group.requiresOven?.racksNeeded?.heightSlots ?? 1,
+        width,
+      },
+    },
   });
 });
 
@@ -914,6 +995,140 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                         >
                           × Remove Group
                         </ct-button>
+                      </div>
+
+                      {/* Timing Metadata */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: "8px",
+                        padding: "8px",
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "4px",
+                      }}>
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Timing
+                          </label>
+                          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                            <ct-input
+                              type="number"
+                              $value={str`${stepGroup.nightsBeforeServing}`}
+                              min="0"
+                              placeholder="Nights"
+                              style="flex: 1; fontSize: 13px;"
+                            />
+                            <span style={{ fontSize: "11px", color: "#999" }}>nights OR</span>
+                            <ct-input
+                              type="number"
+                              $value={str`${stepGroup.minutesBeforeServing}`}
+                              min="0"
+                              placeholder="Minutes"
+                              style="flex: 1; fontSize: 13px;"
+                            />
+                            <span style={{ fontSize: "11px", color: "#999" }}>min before</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Duration (min)
+                          </label>
+                          <ct-input
+                            type="number"
+                            $value={str`${stepGroup.duration}`}
+                            min="0"
+                            placeholder="How long this takes"
+                            style="fontSize: 13px;"
+                          />
+                        </div>
+
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Max Wait Time (min)
+                          </label>
+                          <ct-input
+                            type="number"
+                            $value={str`${stepGroup.maxWaitMinutes}`}
+                            min="0"
+                            placeholder="How long this can wait"
+                            style="fontSize: 13px;"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Oven Requirements */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                        gap: "8px",
+                        padding: "8px",
+                        background: "#fff3cd",
+                        border: "1px solid #ffc107",
+                        borderRadius: "4px",
+                      }}>
+                        <div style={{ gridColumn: "1 / -1", fontSize: "12px", fontWeight: "600", color: "#856404", marginBottom: "4px" }}>
+                          🔥 Oven Requirements (optional)
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Temp (°F)
+                          </label>
+                          <ct-input
+                            type="number"
+                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.temperature ?? "")}`}
+                            onct-change={updateOvenTemp({ stepGroup })}
+                            min="0"
+                            placeholder="350"
+                            style="fontSize: 13px;"
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Duration (min)
+                          </label>
+                          <ct-input
+                            type="number"
+                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.duration ?? "")}`}
+                            onct-change={updateOvenDuration({ stepGroup })}
+                            min="0"
+                            placeholder="30"
+                            style="fontSize: 13px;"
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Height Slots
+                          </label>
+                          <ct-input
+                            type="number"
+                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.racksNeeded?.heightSlots ?? "")}`}
+                            onct-change={updateOvenHeightSlots({ stepGroup })}
+                            min="1"
+                            placeholder="1-5"
+                            style="fontSize: 13px;"
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
+                            Rack Width
+                          </label>
+                          <ct-select
+                            $value={derive(stepGroup, (g) => g.requiresOven?.racksNeeded?.width ?? "")}
+                            onct-change={updateOvenRackWidth({ stepGroup })}
+                            items={[
+                              { label: "---", value: "" },
+                              { label: "Full", value: "full" },
+                              { label: "Half", value: "half" },
+                            ]}
+                            style="fontSize: 13px;"
+                          />
+                        </div>
                       </div>
 
                       <ct-vstack gap={1}>
