@@ -50,25 +50,22 @@ export const SearchGmailTool = recipe<
   { query: string; authCharm: any },
   EmailPreview[]
 >(({ query, authCharm }) => {
-  // Create importer - use derive to avoid directly accessing opaque authCharm
-  const importer = derive([query, authCharm], ([q, auth]) => {
-    console.log(`[SearchGmailTool] Creating importer for query: "${q}"`);
-
-    return GmailImporter({
-      settings: {
-        gmailFilterQuery: Cell.of(q),
-        limit: Cell.of(20),
-        historyId: Cell.of(""),
-      },
-      authCharm: auth,
-    });
+  // Create importer directly with reactive query cell
+  // Each recipe invocation gets its own importer instance
+  const importer = GmailImporter({
+    settings: {
+      gmailFilterQuery: query,  // Pass query cell directly (reactive)
+      limit: Cell.of(20),
+      historyId: Cell.of(""),
+    },
+    authCharm,  // Pass authCharm directly (reactive)
   });
 
   // Transform emails from importer - returns reactive value
-  return derive([importer], ([imp]) => {
-    const emailsList = derive(imp.emails, e => e);
+  // Agent framework waits for this cell to populate
+  return derive(importer.emails, (emailsList) => {
     const count = emailsList?.length || 0;
-    console.log(`[SearchGmailTool] Query returned ${count} emails`);
+    console.log(`[SearchGmailTool] Returning ${count} emails`);
 
     if (!emailsList || !Array.isArray(emailsList)) return [];
 
