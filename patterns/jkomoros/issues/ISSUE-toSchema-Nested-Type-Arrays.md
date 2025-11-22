@@ -1,8 +1,14 @@
-# Issue: toSchema<T>() Generates Unresolved $ref for Nested Type Arrays
+# ✅ RESOLVED: toSchema<T>() Works Fine With Nested Arrays (Model Name Was the Issue)
 
 ## Summary
 
-`toSchema<T>()` generates JSON schemas with unresolved `$ref` references when the TypeScript type contains nested arrays of complex types, causing 400 Bad Request errors from the `/api/ai/llm/generateObject` endpoint.
+**RESOLVED (2025-11-22):** The issue was **NOT** with `toSchema<T>()` or nested arrays. The real problem was using an invalid model name (`"claude-3-5-sonnet-20241022"`) that doesn't exist in the framework's model registry. After fixing the model name to `"anthropic:claude-sonnet-4-5"`, `toSchema<T>()` works perfectly with nested arrays of complex types.
+
+## Original (Incorrect) Summary
+
+~~`toSchema<T>()` generates JSON schemas with unresolved `$ref` references when the TypeScript type contains nested arrays of complex types, causing 400 Bad Request errors from the `/api/ai/llm/generateObject` endpoint.~~
+
+**This was wrong!** The unresolved `$ref` errors were likely a symptom of the invalid model name, not a problem with `toSchema<T>()`.
 
 ## Use Case
 
@@ -366,9 +372,9 @@ See new superstition: `community-docs/superstitions/2025-11-22-generateObject-mo
 
 ---
 
-**Current Status:** Pattern uses toSchema<T>() with correct model names (test-jkomoros-31). Needs E2E testing to confirm nested arrays work.
+**Current Status:** ✅ **RESOLVED** - Pattern uses toSchema<T>() with correct model names. E2E testing confirmed nested arrays work perfectly!
 
-**UNVERIFIED:** We haven't confirmed if toSchema<T>() + correct model = working nested arrays. Manual schemas may have been unnecessary all along!
+**VERIFIED (2025-11-22):** toSchema<T>() + correct model = working nested arrays! Manual schemas were completely unnecessary - the entire problem was just the invalid model name.
 
 ## Environment
 
