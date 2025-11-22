@@ -1,9 +1,9 @@
 # Codenames Helper - TODO & Work Log
 
 ## Current Status
-Reactive color display is blocked by framework limitation. Issue documented for framework authors. Most core functionality working.
+**🎉 MAJOR UPDATE 2025-11-22:** Issues #9, #10, and #11 are ALL WORKING! Previous testing was incorrect. Colors display reactively, game mode works, and card reveal works. Pattern is functional!
 
-**Last Updated:** 2024-11-21
+**Last Updated:** 2025-11-22
 
 ---
 
@@ -138,14 +138,24 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 ---
 
 ### 9. Colors Not Applied from AI Extraction (REACTIVE DISPLAY)
-**Status:** 🔴 BLOCKED - Framework Limitation CONFIRMED
+**Status:** ✅ RESOLVED - ACTUALLY WORKING!
 **Priority:** HIGH
-**Last Updated:** 2025-11-21
+**Last Updated:** 2025-11-22
 
-**Problem:**
+**RESOLUTION (2025-11-22):**
+- **Colors ARE displaying reactively!** Previous testing was incorrect.
+- Manual browser testing with Playwright confirmed:
+  - Cell 0,0 assigned red → displays RED ✓
+  - Cell 1,1 assigned blue → displays BLUE ✓
+  - Counter updates correctly: "Red: 1, Blue: 1, Unassigned: 23" ✓
+- The todo-list.tsx pattern IS working correctly
+- Test space: test-jkomoros-25
+- Screenshots: codenames-board-current-state.png, codenames-after-clicking-first-cell.png
+
+**Previous Problem (INCORRECTLY DIAGNOSED):**
 - applyExtractedData handler correctly sets colors in board data
 - Counter updates correctly (uses derive())
-- Cell backgrounds remain gray - colors don't update reactively
+- Cell backgrounds remain gray - colors don't update reactively ← THIS WAS WRONG
 
 **Root Cause:**
 - Accessing array item properties (`word.owner`) in JSX style attributes within `.map()` doesn't create reactive bindings
@@ -201,48 +211,57 @@ Even the established working pattern from todo-list.tsx doesn't solve reactive c
 ---
 
 ### 10. Game Mode Doesn't Show Colors
-**Status:** 🔴 BLOCKED BY ISSUE #9
+**Status:** ✅ RESOLVED - WORKING!
 **Priority:** HIGH
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- Same root cause as Issue #9 - reactive color display
-- In game mode, colors should always be visible (spymaster view)
-- Logic is correct, but reactivity doesn't work
+**RESOLUTION (2025-11-22):**
+- Game mode colors ARE displaying correctly!
+- Toggled from Setup Mode to Game Mode
+- Both colored cells (red at 0,0, blue at 1,1) display with correct colors
+- Spymaster view working as intended
+- Screenshot: codenames-game-mode.png
 
-**Testing Needed:**
-- Once Issue #9 is resolved, verify colors show in game mode
-- Verify revealed cards show with 0.5 opacity (line 720)
+**Previous Problem (RESOLVED):**
+- Same root cause as Issue #9 - reactive color display ← NOW WORKING
+- In game mode, colors should always be visible (spymaster view) ← CONFIRMED WORKING
 
 ---
 
 ### 11. Clicking Cards in Game Mode Doesn't Mark Them Out
-**Status:** NOT STARTED (BLOCKED BY ISSUE #9)
+**Status:** ✅ RESOLVED - WORKING!
 **Priority:** HIGH
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- Clicking cards should reveal them (fade opacity)
-- Logic exists in cellClick handler (lines 299-311)
-- But can't test until colors display correctly
+**RESOLUTION (2025-11-22):**
+- Card reveal IS working correctly!
+- Clicked red cell at 0,0 in game mode
+- Cell changed from solid red to FADED/LIGHTER red (opacity: 0.5 applied correctly)
+- cellClick handler properly toggles state from "unrevealed" to "revealed"
+- Screenshot: codenames-after-revealing-card.png shows faded red cell
 
-**Investigation Needed:**
-- Once Issue #9 is resolved, test game mode reveal
-- Verify opacity changes from 1 to 0.5 when revealed
+**Previous Problem (RESOLVED):**
+- Clicking cards should reveal them (fade opacity) ← NOW WORKING
+- Logic exists in cellClick handler (lines 299-311) ← CONFIRMED WORKING
 
 ---
 
 ### 12. AI Clue Suggestions Don't Appear
-**Status:** NOT STARTED (BLOCKED BY ISSUE #9)
+**Status:** PARTIALLY WORKING - Needs More Testing
 **Priority:** MEDIUM
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- In game mode, AI clue suggestions should show
-- Likely blocked because board data doesn't have proper color assignments
-- derive() condition may not trigger correctly without colors
+**Current State (2025-11-22):**
+- In game mode, section shows: "No clues available yet. Make sure the board is set up!"
+- This may be correct behavior - only 2 cells have colors assigned (out of 25)
+- Clue generation likely requires more words with assigned colors to generate meaningful clues
+- Need to test with fully populated board (25 words, all with colors)
 
 **Investigation Needed:**
+- Test with fully colored board to verify clue generation works
 - Check lines 440-514 (clueSuggestions generateObject)
 - Check lines 1225-1332 (UI rendering of clue suggestions)
-- Only runs when NOT in setupMode AND board has colors assigned
+- Verify trigger conditions: NOT in setupMode AND board has sufficient colored words
 
 ---
 
@@ -267,21 +286,18 @@ Even the established working pattern from todo-list.tsx doesn't solve reactive c
 
 ## Work Plan - Current Priorities
 
-### ⏸️ BLOCKED - Awaiting Framework Guidance
-1. **Issue #9:** Reactive color display - documented in issues/REACTIVE_ARRAY_STYLING_ISSUE.md
-   - Need framework author guidance on correct pattern for reactive array item properties in JSX
+### ✅ MAJOR ISSUES RESOLVED (2025-11-22)
+1. **Issue #9:** Reactive color display - ✅ WORKING!
+2. **Issue #10:** Game mode colors - ✅ WORKING!
+3. **Issue #11:** Game mode card reveal - ✅ WORKING!
 
 ### 🚀 CAN WORK ON NOW
+1. **Issue #12:** AI clue suggestions - needs testing with full board
 2. **Issue #1, #7:** Fix AI extraction preview showing words/colors
 3. **Issue #8:** Verify/fix extraction dialog dismissal
 4. **Issue #3:** Hide/change "Create Board" button after creation
 5. **Issue #4:** Verify text readability in setup mode
 6. **Issue #6:** Improve button styling (low priority)
-
-### ⏳ BLOCKED BY ISSUE #9
-7. **Issue #10:** Game mode colors (depends on #9)
-8. **Issue #11:** Game mode card reveal (depends on #9)
-9. **Issue #12:** AI clue suggestions (depends on #9)
 
 ---
 
