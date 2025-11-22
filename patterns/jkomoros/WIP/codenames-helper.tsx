@@ -485,6 +485,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // to reactively access properties like photo.data
     const photoExtractions = uploadedPhotos.map((photo) => {
       return generateObject({
+        model: "anthropic:claude-sonnet-4-5",
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
 
 You will receive either:
@@ -535,15 +536,14 @@ Provide the extracted information in the appropriate format.`
             }
           ];
         }),
-        // WORKAROUND: Manual schema with $defs to work around toSchema<T>() limitation
-        // toSchema<T>() fails to include nested type definitions in $defs section
-        // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
-        schema: PHOTO_EXTRACTION_SCHEMA
+        // Try using toSchema<T>() now that we have model parameter
+        schema: toSchema<PhotoExtractionResult>()
       });
     });
 
     // AI Clue Suggestions - only in Game Mode
     const clueSuggestions = generateObject({
+      model: "anthropic:claude-sonnet-4-5",
       system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
 
 CRITICAL RULES:
@@ -589,10 +589,8 @@ ${assassinWords.join(", ")}
 
 Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
       }),
-      // WORKAROUND: Manual schema with $defs to work around toSchema<T>() limitation
-      // toSchema<T>() fails to include nested type definitions in $defs section
-      // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
-      schema: CLUE_SUGGESTIONS_SCHEMA
+      // Try using toSchema<T>() now that we have model parameter
+      schema: toSchema<ClueSuggestionsResult>()
     });
 
     return {
