@@ -637,12 +637,10 @@ const triggerWaitTimeSuggestion = handler<
 );
 
 // Create Cooking View Handler
-// Note: This handler doesn't need any state parameters.
-// The viewer will be created with sourceRecipeRef=null initially,
-// and the user can set it manually after creation if needed.
+// Note: Creates viewer with sourceRecipeRef=null - user will need to manually link it
 const createCookingView = handler<Record<string, never>, Record<string, never>>(
   () => {
-    const viewer = FoodRecipeViewer({ sourceRecipeRef: null });
+    const viewer = FoodRecipeViewer({});
     return navigateTo(viewer);
   },
 );
@@ -1042,16 +1040,8 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <ct-button
-                onClick={createCookingView({})}
-                variant="secondary"
-              >
-                👨‍🍳 Create Cooking View
-              </ct-button>
-              <div style={{ fontSize: "13px", color: "#666" }}>
-                {totalTime} min total
-              </div>
+            <div style={{ fontSize: "13px", color: "#666" }}>
+              {totalTime} min total
             </div>
           </div>
 
