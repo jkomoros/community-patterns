@@ -506,11 +506,52 @@ const handleImageUpload = handler<
 - [ ] Test with complex recipe (multiple groups)
 - [ ] Commit and push
 
-### Phase 3: LLM Timing Tools (Third PR)
-- [ ] Add "Organize by Timing" button + LLM tool
-- [ ] Add "Suggest Wait Times" button + LLM tool
-- [ ] Test timing suggestions
-- [ ] Commit and push
+### Phase 3: LLM Timing Tools (Third PR) ✅ COMPLETED
+- [x] Add "Organize by Timing" button + LLM tool
+- [x] Add "Suggest Wait Times" button + LLM tool
+- [x] Test timing suggestions - LLM generates suggestions correctly
+- [x] Investigate auto-apply - **FOUND ROOT CAUSE: derives cannot mutate cells**
+- [x] Commit findings and cleanup
+- [x] Add Apply button UI for timing suggestions (similar to extraction modal)
+- [x] Add Apply button UI for wait time suggestions
+- [x] Test both modals in Playwright - verified working
+- [x] Commit and push complete solution
+
+**Implementation Status (2025-11-22) - COMPLETE**:
+
+**Working Solution**:
+- Implemented modal UI with Apply/Cancel buttons for timing and wait time suggestions (commit ca0aa90)
+- Modals appear automatically when LLM completes analysis
+- Show diff view (current → suggested values) for each step group
+- Apply button calls `applyTimingSuggestions` or `applyWaitTimeSuggestions` handlers
+- Cancel button dismisses modal without applying changes
+- Tested successfully in Playwright - both modals work correctly
+
+**Technical Implementation**:
+- Fixed cell serialization bug in trigger handlers (lines 565-628)
+  - Unwrap Cells before JSON.stringify: `stepGroups.get().map(g => g.get ? g.get() : g)`
+  - LLM now receives correct JSON data
+- Timing suggestions modal (lines 1733-1849)
+  - Shows nightsBeforeServing, minutesBeforeServing, duration with diff view
+  - Uses derive() to access both stepGroups and timingSuggestions reactively
+  - Cancel handler clears timingSuggestions cell to hide modal
+- Wait time suggestions modal (lines 1851-1933)
+  - Shows maxWaitMinutes with diff view
+  - Same reactive pattern as timing modal
+- Both handlers properly mutate cells (lines 576-667)
+
+**CRITICAL FINDING - Why Auto-Apply Failed**:
+- Attempted to use `derive()` for auto-apply (commit 7a4d6f1)
+- **Root cause**: Derives are READ-ONLY - they cannot call `.set()` on cells
+- Console logs confirmed: `group has .set? undefined undefined`
+- Calling `.set()` in a derive silently fails
+- Solution: Use handlers (which CAN mutate) with Apply button UI
+
+**Key Learning**:
+- CommonTools pattern: derives are pure (read-only), handlers can mutate
+- Always use handlers for `.set()` operations, never derives
+- This is a fundamental constraint of the reactive system
+- Modal + handler pattern works well for user-approved mutations
 
 ### Phase 4: Viewer Pattern (Fourth PR)
 - [ ] Create food-recipe-viewer.tsx
