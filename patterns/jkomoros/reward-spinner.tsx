@@ -123,10 +123,8 @@ const spin = handler<
       }
     }
 
-    // Update the final emoji after building sequence
-    currentEmoji.set(finalEmoji);
-
-    // Set the sequence to trigger animation
+    // Set the sequence to trigger animation BEFORE updating currentEmoji
+    // This prevents visual hitch where final emoji flashes before animation starts
     spinSequence.set(sequence);
     spinCount.set(spinCount.get() + 1);
 
@@ -138,6 +136,9 @@ const spin = handler<
       result: finalEmoji,
     };
     spinHistory.set([...history, newRecord]);
+
+    // Update the final emoji AFTER setting animation state
+    currentEmoji.set(finalEmoji);
   }
 );
 
@@ -194,8 +195,11 @@ export default pattern<SpinnerInput, SpinnerOutput>(
       return timeSinceLastSpin < 10000; // 10 seconds
     });
 
-    // Calculate payout percentages and convert to emoji dots (poor man's progress bars)
-    const payoutDots = computed(() => {
+    // Compute which payout animation variant to show (toggles to restart animation)
+    const showPayoutAnimationVariant0 = computed(() => payoutAnimationCount.get() % 2 === 0);
+
+    // Calculate payout display as a computed JSX element (avoids mapping over computed array)
+    const payoutDisplay = computed(() => {
       const gen = generosity.get();
       const [weightThreeBeans, weightOneBean, hugWeight] = calculatePrizeWeights(gen);
       const totalWeight = weightThreeBeans + weightOneBean + hugWeight;
@@ -209,11 +213,29 @@ export default pattern<SpinnerInput, SpinnerOutput>(
       const oneBeanDots = Math.round(oneBeanPct / 10);
       const hugDots = Math.round(hugPct / 10);
 
-      return [
+      const prizes = [
         { emoji: "🍬🍬🍬", dots: "🟢".repeat(threeBeansDots), percent: threeBeansPct },
         { emoji: "🍬", dots: "🟢".repeat(oneBeanDots), percent: oneBeanPct },
         { emoji: "🤗", dots: "🔴".repeat(hugDots), percent: hugPct },
       ];
+
+      return prizes.map((prize, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "10px",
+          }}
+        >
+          <span style={{ fontSize: "14px", minWidth: "42px", textAlign: "right" }}>{prize.emoji}</span>
+          <span style={{ fontSize: "12px", letterSpacing: "1px" }}>{prize.dots}</span>
+          <span style={{ fontSize: "9px", minWidth: "30px" }}>
+            {prize.percent}%
+          </span>
+        </div>
+      ));
     });
 
     // Check if current emoji is three candies (for special rendering)
@@ -612,7 +634,21 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                 transform: translateY(-3000px);
               }
             }
-            @keyframes payoutFade {
+            @keyframes payoutFade0 {
+              0% {
+                transform: translateY(0);
+                opacity: 1;
+              }
+              85% {
+                transform: translateY(0);
+                opacity: 1;
+              }
+              100% {
+                transform: translateY(-10px);
+                opacity: 0;
+              }
+            }
+            @keyframes payoutFade1 {
               0% {
                 transform: translateY(0);
                 opacity: 1;
@@ -645,37 +681,21 @@ export default pattern<SpinnerInput, SpinnerOutput>(
             }}
           >
             {/* Payout visualization - auto-fades after 3s */}
-            {payoutAnimationCount.get() % 2 === 0 ? (
+            {showPayoutAnimationVariant0 ? (
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
                   gap: "3px",
                   marginBottom: "6px",
-                  animation: "payoutFade 3.5s ease-out forwards",
+                  animation: "payoutFade0 3.5s ease-out forwards",
                   backgroundColor: "rgba(255, 255, 255, 0.6)",
                   padding: "6px 10px",
                   borderRadius: "3px",
                   backdropFilter: "blur(4px)",
                 }}
               >
-                {payoutDots.map((prize, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "10px",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", minWidth: "42px", textAlign: "right" }}>{prize.emoji}</span>
-                    <span style={{ fontSize: "12px", letterSpacing: "1px" }}>{ prize.dots}</span>
-                    <span style={{ fontSize: "9px", minWidth: "30px" }}>
-                      {prize.percent}%
-                    </span>
-                  </div>
-                ))}
+                {payoutDisplay}
               </div>
             ) : (
               <div
@@ -684,30 +704,14 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                   flexDirection: "column",
                   gap: "3px",
                   marginBottom: "6px",
-                  animation: "payoutFade 3.5s ease-out forwards",
+                  animation: "payoutFade1 3.5s ease-out forwards",
                   backgroundColor: "rgba(255, 255, 255, 0.6)",
                   padding: "6px 10px",
                   borderRadius: "3px",
                   backdropFilter: "blur(4px)",
                 }}
               >
-                {payoutDots.map((prize, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      fontSize: "10px",
-                    }}
-                  >
-                    <span style={{ fontSize: "14px", minWidth: "42px", textAlign: "right" }}>{prize.emoji}</span>
-                    <span style={{ fontSize: "12px", letterSpacing: "1px" }}>{ prize.dots}</span>
-                    <span style={{ fontSize: "9px", minWidth: "30px" }}>
-                      {prize.percent}%
-                    </span>
-                  </div>
-                ))}
+                {payoutDisplay}
               </div>
             )}
 
