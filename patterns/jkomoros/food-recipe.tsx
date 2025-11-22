@@ -792,9 +792,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     return {
       [NAME]: str`🍳 ${displayName}`,
       [UI]: (
-        <ct-vstack gap={2} style="padding: 12px; max-width: 800px;">
+        <ct-vstack gap={1} style="padding: 12px; max-width: 800px;">
           {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
             <div style={{ fontSize: "13px", color: "#666" }}>
               {totalTime} min total
@@ -803,7 +803,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Recipe Input Section - Notes with Image Upload */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
+            <ct-vstack gap={1} style="padding: 10px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -840,7 +840,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Scaling Controls */}
           <ct-card>
-            <div style={{ padding: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ padding: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
               <strong style={{ fontSize: "14px" }}>Scale Recipe:</strong>
               <ct-button
                 onClick={scaleRecipe({ servings, ingredients, scaleFactor: 0.5 })}
@@ -865,8 +865,8 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Basic Info Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "14px" }}>Basic Info</h3>
+            <ct-vstack gap={1} style="padding: 10px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Basic Info</h3>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
@@ -994,7 +994,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Ingredients Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
+            <ct-vstack gap={1} style="padding: 10px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Ingredients ({ingredientCount})</h3>
                 <ct-button onClick={addIngredient({ ingredients })}>
@@ -1002,7 +1002,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                 </ct-button>
               </div>
 
-              <ct-vstack gap={2}>
+              <ct-vstack gap={1}>
                 {ingredients.map((ingredient) => (
                   <div
                     style={{
@@ -1041,7 +1041,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Step Groups Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
+            <ct-vstack gap={1} style="padding: 10px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
                 <ct-button onClick={addStepGroup({ stepGroups })}>
@@ -1049,10 +1049,10 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                 </ct-button>
               </div>
 
-              <ct-vstack gap={2}>
+              <ct-vstack gap={1}>
                 {stepGroups.map((stepGroup, groupIndex) => (
-                  <ct-card style={{ padding: "12px", background: "#f9fafb" }}>
-                    <ct-vstack gap={2}>
+                  <ct-card style={{ padding: "10px", background: "#f9fafb" }}>
+                    <ct-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <ct-button
@@ -1270,8 +1270,8 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Tags Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "14px" }}>Tags</h3>
+            <ct-vstack gap={1} style="padding: 10px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Tags</h3>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
                   {tags.map((tag) => (
@@ -1312,8 +1312,8 @@ Return only the fields you can confidently extract. Be thorough with ingredients
 
           {/* Source Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 6px 0", fontSize: "14px" }}>Source</h3>
+            <ct-vstack gap={1} style="padding: 10px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Source</h3>
               <ct-input
                 $value={source}
                 placeholder="Where did this recipe come from? (URL, book, person)"
@@ -1336,9 +1336,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
               zIndex: "1000",
               boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
             }}>
-              <ct-vstack gap={2} style="padding: 16px;">
-                <h3 style={{ margin: "0 0 8px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
-                <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#666" }}>
+              <ct-vstack gap={1} style="padding: 12px;">
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
+                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
                   The following changes will be applied to your recipe:
                 </p>
 
