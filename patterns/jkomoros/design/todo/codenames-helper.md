@@ -1,13 +1,18 @@
 # Codenames Helper - TODO & Work Log
 
 ## Current Status
-**🎉 MAJOR UPDATE 2025-11-22:** Issues #1, #7, #8, #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
-- Issues #9, #10, #11: Previous testing was incorrect - colors, game mode, and card reveal all work correctly
-- Issue #12: Fixed Cell unwrapping bug in AI clue generation - derive() with object parameter requires manual .get() calls
-- Issues #1, #7: Fixed Cell unwrapping bug in AI extraction preview - same root cause as Issue #12
-- Issue #8: Extraction dialog behavior verified as working correctly - shows compact confirmation message
+**🎉 MAJOR UPDATE 2025-11-22:** ALL CORE ISSUES RESOLVED! Pattern fully functional!
+- Issues #1, #7, #8, #9, #10, #11, #12: ALL FIXED ✅
+- **NEW: Issue #13 - Invalid Model Name:** FIXED ✅
+  - Root cause: Used `"claude-3-5-sonnet-20241022"` (invalid) instead of `"anthropic:claude-sonnet-4-5"`
+  - This was blocking all generateObject() calls with 400 errors
+  - Fixed in lines 488 and 546
+  - End-to-end testing confirms: toSchema<T>() works perfectly with nested arrays!
+  - Manual JSON schemas workaround was unnecessary
+- Previous Cell unwrapping bugs all resolved
+- Colors, game mode, card reveal all working correctly
 
-**Last Updated:** 2025-11-22 (Latest)
+**Last Updated:** 2025-11-22 (Latest - Model Name Fix)
 
 ---
 
@@ -326,6 +331,48 @@ prompt: derive({ board, setupMode, myTeam }, (values) => {
 - generateObject configured correctly (lines 440-514) with Claude Sonnet 4.5
 - UI rendering correct (lines 850-957)
 
+### 13. generateObject() Failing with 400 Bad Request
+**Status:** ✅ FIXED - Invalid Model Name
+**Priority:** CRITICAL
+**Last Updated:** 2025-11-22
+
+**RESOLUTION (2025-11-22):**
+- **ROOT CAUSE:** Invalid model name not in framework's MODELS registry
+- Used: `"claude-3-5-sonnet-20241022"` ❌
+- Should use: `"anthropic:claude-sonnet-4-5"` ✅
+- This caused cryptic error: `Cannot read properties of undefined (reading 'model')`
+- All generateObject() calls were failing with 400 Bad Request
+
+**THE FIX:**
+- Line 488: Photo extraction generateObject() - changed model name
+- Line 546: Clue suggestions generateObject() - changed model name
+- Both now use `"anthropic:claude-sonnet-4-5"`
+
+**Testing:**
+- End-to-end testing with Playwright confirmed:
+  - POST to `/api/ai/llm/generateObject` returns 200 OK ✅
+  - No "Unresolved $ref" errors in console ✅
+  - toSchema<T>() works perfectly with nested arrays (BoardWordData[], ClueIdea[]) ✅
+  - Pattern executes successfully in Game Mode ✅
+
+**Key Learning:**
+- Manual JSON schemas with $defs were UNNECESSARY
+- The entire problem was just one wrong string
+- toSchema<T>() fully supports nested arrays and complex types
+- Always verify model names against the registry in `~/Code/labs/packages/toolshed/routes/ai/llm/models.ts`
+
+**Valid Anthropic Model Names:**
+- `"anthropic:claude-opus-4-1"`
+- `"anthropic:claude-sonnet-4-0"`
+- `"anthropic:claude-sonnet-4-5"` ← What we use
+- `"anthropic:claude-haiku-4-5"`
+- Or aliases: `"sonnet-4-5"`, `"opus-4-1"`, etc.
+
+**Documentation:**
+- Superstition created: `community-docs/superstitions/2025-11-22-generateObject-model-names.md`
+- Issue doc updated: `patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md`
+- Marked as RESOLVED with verification
+
 ---
 
 ## Clarifying Questions - ANSWERED
@@ -359,8 +406,15 @@ prompt: derive({ board, setupMode, myTeam }, (values) => {
 7. **Issue #8:** Extraction dialog dismissal - ✅ WORKING CORRECTLY (compact confirmation)
 
 ### 🚀 REMAINING POLISH TASKS (All Low Priority)
-1. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
-2. **Issue #6:** Improve button styling (low priority)
+1. **Issue #3:** Hide/change "Create Board" button after creation ✅ ALREADY COMPLETED
+2. **Issue #6:** Improve button styling (optional polish)
+
+### ✅ PATTERN IS FULLY FUNCTIONAL
+- All core features working
+- AI photo extraction ready
+- AI clue generation ready
+- Game mechanics complete
+- Only optional styling improvements remain
 
 ---
 
