@@ -15,6 +15,11 @@ import {
   wish,
 } from "commontools";
 
+// Helper for wish with proper typing
+function schemaifyWish<T>(path: string) {
+  return wish<T>(path);
+}
+
 // Oven configuration
 interface OvenConfig {
   rackPositions: number; // 3-7 vertical positions
@@ -301,7 +306,7 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     notes,
   }) => {
     // Get mentionable charms for @ references
-    const mentionable = wish<any[]>("#mentionable");
+    const mentionable = schemaifyWish<any[]>("#mentionable");
 
     const displayName = derive(
       mealName,
