@@ -369,6 +369,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     }>>([]);
 
     // AI extraction for each uploaded photo
+    // Note: uploadedPhotos.map() returns reactive values, but we still need derive()
+    // to reactively access properties like photo.data
     const photoExtractions = uploadedPhotos.map((photo) => {
       return generateObject<PhotoExtractionResult>({
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
@@ -388,12 +390,14 @@ If the user provides a correction, apply it to your previous extraction. The use
 - "second row, third column" = row 1, col 2
 Parse these descriptions and update the extraction accordingly.`,
 
+        // Use derive() to access photo properties reactively
         prompt: derive(photo, (p) => {
-          if (!p || !p.data) {
-            // Return a text-only prompt to avoid hanging with empty array
-            return "Waiting for image data to be uploaded...";
+          // Check if data is available
+          if (!p?.data) {
+            return "Waiting for image data...";
           }
 
+          // Return the multipart prompt
           return [
             { type: "image" as const, image: p.data },
             {
@@ -960,9 +964,8 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 />
 
                 {/* Display extraction results with confirmation dialog */}
-                {photoExtractions.map((extraction) => {
-                  // Get the index by finding this extraction in the array
-                  const photoIdx = photoExtractions.indexOf(extraction);
+                {photoExtractions.map((extraction, photoIdx) => {
+                  // Use photoIdx directly from .map() parameter
 
                   return derive(
                     {
