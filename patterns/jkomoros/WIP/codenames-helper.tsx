@@ -14,6 +14,39 @@ interface BoardWord {
   state: WordState;
 }
 
+// TypeScript interfaces for AI extraction
+interface BoardWordData {
+  word: string;
+  row: number;
+  col: number;
+}
+
+interface KeyCardColorData {
+  row: number;
+  col: number;
+  color: "red" | "blue" | "neutral" | "assassin";
+}
+
+interface PhotoExtractionResult {
+  photoType: "board" | "keycard" | "unknown";
+  boardWords?: BoardWordData[];
+  keyCardColors?: KeyCardColorData[];
+  confidence?: "high" | "medium" | "low";
+  notes?: string;
+}
+
+// TypeScript interfaces for AI clue suggestions
+interface ClueIdea {
+  clue: string;
+  number: number;
+  targetWords: string[];
+  reasoning: string;
+}
+
+interface ClueSuggestionsResult {
+  clues: ClueIdea[];
+}
+
 // ===== HELPER FUNCTIONS =====
 
 // Initialize empty 5×5 board
@@ -336,9 +369,8 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     }>>([]);
 
     // AI extraction for each uploaded photo
-    // Note: We can't easily track idx in map, so we'll get correction text dynamically in prompt
     const photoExtractions = uploadedPhotos.map((photo) => {
-      return generateObject({
+      return generateObject<PhotoExtractionResult>({
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
 
 You will receive either:
@@ -357,7 +389,10 @@ If the user provides a correction, apply it to your previous extraction. The use
 Parse these descriptions and update the extraction accordingly.`,
 
         prompt: derive(photo, (p) => {
-          if (!p || !p.data) return [];
+          if (!p || !p.data) {
+            // Return a text-only prompt to avoid hanging with empty array
+            return "Waiting for image data to be uploaded...";
+          }
 
           return [
             { type: "image" as const, image: p.data },
@@ -383,61 +418,12 @@ If it's a KEY CARD photo:
 Provide the extracted information in the appropriate format.`
             }
           ];
-        }),
-
-        schema: {
-          type: "object",
-          properties: {
-            photoType: {
-              type: "string",
-              enum: ["board", "keycard", "unknown"],
-              description: "Type of photo detected"
-            },
-            boardWords: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  word: { type: "string", description: "The word in uppercase" },
-                  row: { type: "number", description: "Row position (0-4)" },
-                  col: { type: "number", description: "Column position (0-4)" }
-                }
-              },
-              description: "For board photos: all 25 words with positions"
-            },
-            keyCardColors: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  row: { type: "number", description: "Row position (0-4)" },
-                  col: { type: "number", description: "Column position (0-4)" },
-                  color: {
-                    type: "string",
-                    enum: ["red", "blue", "neutral", "assassin"],
-                    description: "Color assignment"
-                  }
-                }
-              },
-              description: "For keycard photos: color for each position"
-            },
-            confidence: {
-              type: "string",
-              enum: ["high", "medium", "low"],
-              description: "Confidence level in the extraction"
-            },
-            notes: {
-              type: "string",
-              description: "Any issues or uncertainties in the extraction"
-            }
-          }
-        },
-        model: "anthropic:claude-sonnet-4-5"
+        })
       });
     });
 
     // AI Clue Suggestions - only in Game Mode
-    const clueSuggestions = generateObject({
+    const clueSuggestions = generateObject<ClueSuggestionsResult>({
       system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
 
 CRITICAL RULES:
@@ -482,39 +468,7 @@ ASSASSIN WORD (CRITICAL - NEVER hint at this):
 ${assassinWords.join(", ")}
 
 Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
-      }),
-
-      schema: {
-        type: "object",
-        properties: {
-          clues: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                clue: {
-                  type: "string",
-                  description: "The one-word clue"
-                },
-                number: {
-                  type: "number",
-                  description: "How many words this clue connects (2-4)"
-                },
-                targetWords: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Which of your team's words this clue connects"
-                },
-                reasoning: {
-                  type: "string",
-                  description: "Brief explanation of the connection"
-                }
-              }
-            }
-          }
-        }
-      },
-      model: "anthropic:claude-sonnet-4-5"
+      })
     });
 
     return {
