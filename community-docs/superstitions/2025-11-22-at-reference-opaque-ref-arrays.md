@@ -157,11 +157,18 @@ The issue is NOT with the pattern implementation - it's with the space setup!
 
 The BacklinksIndex pattern should be automatically created in production spaces. For development/testing:
 
-1. Check if BacklinksIndex exists in your space
-2. If missing, create an instance of the BacklinksIndex pattern
-3. Set it as `defaultPattern.backlinksIndex` in your space configuration
+**SOLUTION CONFIRMED:** Simply **refresh the page** after creating patterns in a new development space.
 
-Note: This is usually handled automatically by the framework in production environments. The issue primarily affects development/test spaces that were created without proper initialization.
+- BacklinksIndex is created automatically but requires a page refresh to populate
+- After refresh, `wish("#mentionable")` correctly returns all charms in the space
+- This is a known behavior in dev environments
+
+**Testing confirmed (2025-11-22):**
+- Before refresh: `mentionable.get()` returns empty array (length: 0)
+- After refresh: @ mention dropdown appears with all 5 charms in test-meal-v3 space
+- @ mentions work perfectly in both chatbot.tsx and meal-orchestrator.tsx patterns
+
+Note: This is usually handled automatically by the framework in production environments. The refresh requirement primarily affects development/test spaces during initial setup.
 
 ## Related Patterns
 
