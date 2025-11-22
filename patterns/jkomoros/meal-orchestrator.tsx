@@ -105,6 +105,16 @@ interface MealOrchestratorInput {
 
 interface MealOrchestratorOutput extends MealOrchestratorInput {}
 
+// Oven timeline event for visualization
+interface OvenTimelineEvent {
+  recipeName: string;
+  stepGroupName: string;
+  startMinutesBeforeServing: number;
+  endMinutesBeforeServing: number;
+  temperature: number;
+  racksNeeded: { heightSlots: number; width: "full" | "half" };
+}
+
 // Handlers for oven configuration
 const addOven = handler<unknown, { ovens: Cell<OvenConfig[]> }>(
   (_event, { ovens }) => {
@@ -397,15 +407,6 @@ Be concise and practical in your analysis.`,
     );
 
     // Oven Timeline Calculation
-    interface OvenTimelineEvent {
-      recipeName: string;
-      stepGroupName: string;
-      startMinutesBeforeServing: number;
-      endMinutesBeforeServing: number;
-      temperature: number;
-      racksNeeded: { heightSlots: number; width: "full" | "half" };
-    }
-
     const ovenTimeline = derive(
       { recipes, mealTime },
       ({ recipes: recipeList, mealTime: servingTime }) => {
@@ -992,7 +993,7 @@ Be concise and practical in your analysis.`,
                     };
 
                     return (
-                      <ct-vstack gap={0.5}>
+                      <ct-vstack gap={1}>
                         {/* Time axis */}
                         <div
                           style={{
