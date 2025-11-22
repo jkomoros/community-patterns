@@ -3,8 +3,8 @@ import {
   Default,
   derive,
   generateObject,
-  OpaqueRef,
   pattern,
+  UI,
 } from "commontools";
 
 interface Ingredient {
@@ -13,19 +13,7 @@ interface Ingredient {
   unit: string;
 }
 
-// Food recipe interface (what we expect from food-recipe.tsx)
-interface FoodRecipe {
-  name: string;
-  ingredients: Ingredient[];
-  category: string;
-  tags: string[];
-}
-
 interface RecipeAnalyzerInput {
-  // Option 1: Pass a food-recipe reference
-  recipe: Default<OpaqueRef<FoodRecipe> | null, null>;
-
-  // Option 2: Or pass fields directly for standalone use
   recipeName: Default<string, "">;
   ingredients: Default<Ingredient[], []>;
   category: Default<string, "">;
@@ -73,48 +61,10 @@ List 5-10 main ingredients that define the dish. Focus on:
 These are used for custom "no-X" matching (e.g., "no-mushrooms", "no-cilantro").`;
 
 export default pattern<RecipeAnalyzerInput, RecipeAnalyzerOutput>(
-  ({ recipe, recipeName, ingredients, category, tags }) => {
-    // Derive values from recipe ref OR direct inputs
-    const effectiveName = derive(
-      { recipe, recipeName },
-      ({ recipe: r, recipeName: direct }) => {
-        if (r) return r.name;
-        return direct;
-      },
-    );
-
-    const effectiveIngredients = derive(
-      { recipe, ingredients },
-      ({ recipe: r, ingredients: direct }) => {
-        if (r) return r.ingredients;
-        return direct;
-      },
-    );
-
-    const effectiveCategory = derive(
-      { recipe, category },
-      ({ recipe: r, category: direct }) => {
-        if (r) return r.category;
-        return direct;
-      },
-    );
-
-    const effectiveTags = derive(
-      { recipe, tags },
-      ({ recipe: r, tags: direct }) => {
-        if (r) return r.tags;
-        return direct;
-      },
-    );
-
+  ({ recipeName, ingredients, category, tags }) => {
     // Trigger re-analysis when ingredients change
     const analysisPrompt = derive(
-      {
-        name: effectiveName,
-        ingredients: effectiveIngredients,
-        category: effectiveCategory,
-        tags: effectiveTags,
-      },
+      { name: recipeName, ingredients, category, tags },
       ({ name, ingredients: ings, category: cat, tags: tagList }) => {
         if (!ings || ings.length === 0) {
           return "No ingredients to analyze";
@@ -131,7 +81,7 @@ ${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
       },
     );
 
-    const { result: analysis, pending } = generateObject({
+    const { result: analysis } = generateObject({
       system: SYSTEM_PROMPT,
       prompt: analysisPrompt,
       model: "anthropic:claude-sonnet-4-5",
@@ -181,6 +131,66 @@ ${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
     );
 
     return {
+      [UI]: (
+        <div style={{ padding: "8px" }}>
+          <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
+          {derive(dietaryCompatibility, (dc) => {
+            if (dc.compatible.length === 0 && dc.incompatible.length === 0) {
+              return <div style={{ fontStyle: "italic", color: "#666" }}>
+                Add ingredients to see dietary analysis
+              </div>;
+            }
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {dc.compatible.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                      ✓ Compatible:
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                      {dc.compatible.map((tag: string) => (
+                        <span style={{
+                          padding: "2px 8px",
+                          background: "#d1fae5",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {dc.warnings.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                      ⚠️ Warnings:
+                    </div>
+                    <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+                      {dc.warnings.map((warning: string) => (
+                        <li>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {dc.primaryIngredients.length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                      Main Ingredients:
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#666" }}>
+                      {dc.primaryIngredients.join(", ")}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ),
       dietaryCompatibility,
     };
   },
