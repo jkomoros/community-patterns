@@ -76,6 +76,9 @@ interface MealOrchestratorInput {
   // Dietary requirements
   dietaryProfiles: Default<GuestDietaryProfile[], []>;
 
+  // Rough Planning (for early-stage brainstorming)
+  planningNotes: Default<string, "">;  // Free-form text for rough ideas
+
   // Recipes (@ references)
   recipes: Default<OpaqueRef<FoodRecipe>[], []>;
 
@@ -217,6 +220,7 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     ovens,
     stovetopBurners,
     dietaryProfiles,
+    planningNotes,
     recipes,
     notes,
   }) => {
@@ -539,6 +543,27 @@ Be concise and practical in your analysis.`,
             </ct-vstack>
           </ct-card>
 
+          {/* Planning Notes Section */}
+          <ct-card>
+            <ct-vstack gap={1} style="padding: 8px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+                📝 Planning Notes
+              </h3>
+              <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
+                Free-form brainstorming space for rough ideas and menu thoughts.
+              </div>
+              <ct-code-editor
+                $value={planningNotes}
+                language="text/markdown"
+                theme="light"
+                wordWrap
+                tabIndent
+                placeholder="Jot down ideas for the meal... (future: 'Extract Items' button will use LLM to pull out recipes and dietary requirements)"
+                style="min-height: 120px;"
+              />
+            </ct-vstack>
+          </ct-card>
+
           {/* Recipes Section */}
           <ct-card>
             <ct-vstack gap={1} style="padding: 8px;">
@@ -723,6 +748,7 @@ Be concise and practical in your analysis.`,
       ovens,
       stovetopBurners,
       dietaryProfiles,
+      planningNotes,
       recipes,
       notes,
     };
