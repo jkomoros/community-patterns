@@ -553,27 +553,45 @@ const handleImageUpload = handler<
 - This is a fundamental constraint of the reactive system
 - Modal + handler pattern works well for user-approved mutations
 
-### Phase 4: Viewer Pattern (Fourth PR) - IN PROGRESS
+### Phase 4: Viewer Pattern (Fourth PR) - PARTIALLY COMPLETE
 - [x] Create food-recipe-viewer.tsx
 - [x] Implement completion tracking (boxing pattern with arrays)
-- [x] Add "Create Cooking View" button to food-recipe
 - [x] Deploy viewer pattern (charm ID: baedreiety5mgwt2rgtrtysd7ab6xj5sf42f2ewgfoysksl6zycfaticbsi)
-- [x] Commit and push Phase 4 WIP (commit c6c2da5)
-- [ ] Implement sourceRecipeRef linking in createCookingView handler
-- [ ] Deploy updated food-recipe pattern
-- [ ] Test viewer creation from recipe button
-- [ ] Test navigation between recipe and viewer
-- [ ] Test viewer with live updates
-- [ ] Final commit and push
+- [x] Commit and push Phase 4 (commits c6c2da5, 596db3c, aeef4c4)
+- [x] Viewer pattern fully functional (navigation, completion tracking, timing display)
+- [ ] **BLOCKED**: "Create Cooking View" button removed due to self-reference issue
+- [ ] **BLOCKED**: Cannot link viewer to recipe on creation
+- [ ] **TODO**: Research CommonTools self-reference pattern OR add manual linking UI
 
-**Implementation Notes (2025-11-22)**:
-- Viewer uses `wish()` to read recipe data from sourceRecipeRef
-- Completion tracking uses arrays: `StepCompletion[]` and `GroupCompletion[]`
+**Implementation Status (2025-11-22) - PARTIALLY COMPLETE**:
+
+**What Works**:
+- Viewer pattern created and deployed successfully
+- Uses `wish()` to read recipe data from sourceRecipeRef
+- Completion tracking with arrays: `StepCompletion[]` and `GroupCompletion[]`
 - Group checkbox toggles all steps in that group
 - Navigation back to recipe with "← Back to Recipe" button
-- **Current blocker**: Need to pass self-reference from food-recipe to viewer
-  - Handler currently creates viewer with `sourceRecipeRef: null`
-  - Need to investigate CommonTools pattern for self-reference
+- Timing information display (nights/hours/minutes before serving)
+- All viewer UI features functional
+
+**Blocking Issue - Self-Reference**:
+Cannot pass current recipe charm reference to viewer on creation. Attempted:
+1. Handler with `RecipeOutput` state - handler doesn't receive pattern's full output
+2. Pattern return with `self` field - would create circular reference
+3. Empty viewer creation `FoodRecipeViewer({})` - TypeScript requires Opaque params
+4. Passing `null` - Type error: missing required fields
+
+**Root Cause**: No built-in way in CommonTools to get "self" reference from within pattern
+
+**Potential Solutions**:
+1. Research CommonTools docs/examples for self-reference pattern
+2. Add manual linking UI to viewer (user pastes recipe URL/charm ID)
+3. Use global #mentionable system to find recipes
+4. Ask CommonTools community for guidance
+5. Defer viewer-recipe linking to Phase 5
+
+**Current Workaround**: Viewer can be deployed standalone and works correctly if sourceRecipeRef
+is manually set (would need manual linking UI added to viewer)
 
 ### Phase 5: Polish & Future Enhancements
 - [ ] Add parallel group support (parallelGroup field)
