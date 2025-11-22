@@ -111,6 +111,16 @@ export default pattern<MyInput>(({ recipes }) => {
 3. Is there a way to filter which charms appear in the @ mention suggestions?
 4. Does the `.equals()` method work reliably for all OpaqueRef types?
 
+## Known Issues (2025-11-22)
+
+**@ Mention dropdown not appearing**: While the pattern compiles and deploys successfully with the above implementation, the @ mention suggestion dropdown does not appear when typing "@" in the `ct-prompt-input` field. Tested in meal-orchestrator.tsx with food-recipe.tsx charms present in the same space. The input field renders correctly and accepts text, but no mention suggestions are shown.
+
+Possible causes to investigate:
+- `wish("#mentionable")` may be returning undefined or empty array
+- `ct-prompt-input` may require additional configuration
+- There may be a framework version incompatibility
+- The feature may require additional setup not present in the test environment
+
 ## Related Patterns
 
 - `note.tsx` - Full implementation with backlinks
