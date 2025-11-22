@@ -1,30 +1,44 @@
 # Codenames Helper - TODO & Work Log
 
 ## Current Status
-**🎉 MAJOR UPDATE 2025-11-22:** Issues #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
+**🎉 MAJOR UPDATE 2025-11-22:** Issues #1, #7, #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
 - Issues #9, #10, #11: Previous testing was incorrect - colors, game mode, and card reveal all work correctly
 - Issue #12: Fixed Cell unwrapping bug in AI clue generation - derive() with object parameter requires manual .get() calls
+- Issues #1, #7: Fixed Cell unwrapping bug in AI extraction preview - same root cause as Issue #12
 
-**Last Updated:** 2025-11-22
+**Last Updated:** 2025-11-22 (Later)
 
 ---
 
 ## Issues - Current State
 
 ### 1. Board Preview Shows Dashes Instead of Words
-**Status:** NOT STARTED (LOWER PRIORITY)
+**Status:** ✅ FIXED - Cell Unwrapping Issue
 **Priority:** MEDIUM
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- When AI extracts board words from uploaded image, preview shows "—" for all 25 cells
-- Text says "Board Preview: (25 words)" so data exists
-- Preview uses: `result.boardWords.find((w: any) => w.row === row && w.col === col)`
-- The `applyExtractedData` handler successfully uses the same data structure
+**RESOLUTION (2025-11-22):**
+- **ROOT CAUSE:** Same Cell unwrapping issue as Issue #12!
+- The derive() at lines 986-992 passes object parameter: `{ pending, result, approvalState }`
+- Framework doesn't unwrap these Cell values - `result` was a CellImpl object
+- Accessing `result.boardWords` on a Cell object returns undefined, showing dashes
 
-**Next Steps:**
-- Check the actual structure of result.boardWords[0] in UI
-- Compare with how applyExtractedData accesses the data
-- May be reactive rendering timing issue
+**THE FIX (Lines 992-996):**
+```typescript
+return derive({ pending, result, approvalState }, (values) => {
+  // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+  const pending = (values.pending as any).get ? (values.pending as any).get() : values.pending;
+  const result = (values.result as any).get ? (values.result as any).get() : values.result;
+  const approvalStateValue = (values.approvalState as any).get ? (values.approvalState as any).get() : values.approvalState;
+
+  // Now result.boardWords works correctly
+});
+```
+
+**Key Learning:**
+- This is the SECOND instance of this derive() behavior in the same pattern
+- Both AI clue generation (Issue #12) and AI extraction preview had the same bug
+- Community superstition document created to track this framework behavior
 
 ---
 
@@ -118,16 +132,18 @@
 ---
 
 ### 7. Preview Doesn't Show Words or Colors
-**Status:** NOT STARTED (LOWER PRIORITY)
+**Status:** ✅ FIXED - Cell Unwrapping Issue
 **Priority:** MEDIUM
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- Board preview: words show as dashes (see Issue #1)
-- Key card preview: colors should show in 5×5 grid
+**RESOLUTION (2025-11-22):**
+- Board preview: Fixed with Issue #1 - Cell unwrapping bug ✅
+- Key card preview: Should work with same fix applied (lines 1115-1148) ✅
 
-**Investigation Needed:**
-- Board preview: see Issue #1
-- Key card preview: Check lines 1046-1079
+**THE FIX:**
+- Same derive() object parameter Cell unwrapping issue as Issues #1 and #12
+- Applied manual .get() calls to unwrap pending, result, and approvalState
+- Now both board words preview and key card colors preview should display correctly
 
 ---
 
@@ -329,12 +345,12 @@ prompt: derive({ board, setupMode, myTeam }, (values) => {
 3. **Issue #11:** Game mode card reveal - ✅ WORKING!
 4. **Issue #4:** Card text readability - ✅ NO ISSUE (verified excellent)
 5. **Issue #12:** AI clue suggestions - ✅ FIXED (Cell unwrapping bug)
+6. **Issue #1, #7:** AI extraction preview - ✅ FIXED (Cell unwrapping bug)
 
 ### 🚀 REMAINING POLISH TASKS (All Low-Medium Priority)
-1. **Issue #1, #7:** Fix AI extraction preview showing words/colors
-2. **Issue #8:** Verify/fix extraction dialog dismissal
-3. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
-4. **Issue #6:** Improve button styling (low priority)
+1. **Issue #8:** Verify/fix extraction dialog dismissal
+2. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
+3. **Issue #6:** Improve button styling (low priority)
 
 ---
 
