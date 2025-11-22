@@ -989,7 +989,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       result: extraction.result,
                       approvalState: approvalState
                     },
-                    ({ pending, result, approvalState: approvalStateValue }: { pending: boolean; result: any; approvalState: Array<{ correctionText: string; applied: boolean }> }) => {
+                    (values) => {
+                      // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+                      const pending = (values.pending as any).get ? (values.pending as any).get() : values.pending;
+                      const result = (values.result as any).get ? (values.result as any).get() : values.result;
+                      const approvalStateValue = (values.approvalState as any).get ? (values.approvalState as any).get() : values.approvalState;
+
                       const approval = approvalStateValue[photoIdx] || { correctionText: "", applied: false };
 
                       if (pending) {
