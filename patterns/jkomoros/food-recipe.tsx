@@ -1060,7 +1060,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
             <div style={{ padding: "8px" }}>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
               {derive(analyzer.dietaryCompatibility, (dc) => {
-                if (dc.compatible.length === 0 && dc.incompatible.length === 0) {
+                if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
                   return <div style={{ fontStyle: "italic", color: "#666" }}>
                     Add ingredients to see dietary analysis
                   </div>;
