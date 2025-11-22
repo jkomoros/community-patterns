@@ -35,17 +35,6 @@ interface PhotoExtractionResult {
   notes?: string;
 }
 
-// Flattened version for schema (no nested arrays)
-interface PhotoExtractionResultFlat {
-  photoType: "board" | "keycard" | "unknown";
-  // For board: JSON string containing array of {word, row, col}
-  boardWordsJson?: string;
-  // For keycard: JSON string containing array of {row, col, color}
-  keyCardColorsJson?: string;
-  confidence?: "high" | "medium" | "low";
-  notes?: string;
-}
-
 // TypeScript interfaces for AI clue suggestions
 interface ClueIdea {
   clue: string;
@@ -58,11 +47,116 @@ interface ClueSuggestionsResult {
   clues: ClueIdea[];
 }
 
-// Flattened version for schema (no nested arrays)
-interface ClueSuggestionsResultFlat {
-  // JSON string containing array of clue objects
-  cluesJson: string;
-}
+// MANUAL JSON SCHEMAS with $defs - workaround for toSchema<T>() limitation
+// toSchema<T>() fails to generate complete schemas with nested arrays
+// See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
+
+const PHOTO_EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    photoType: {
+      type: "string",
+      enum: ["board", "keycard", "unknown"],
+      description: "Type of photo: board (game board), keycard (key card), or unknown"
+    },
+    boardWords: {
+      type: "array",
+      description: "Array of 25 words from the game board (5×5 grid)",
+      items: { $ref: "#/$defs/BoardWordData" }
+    },
+    keyCardColors: {
+      type: "array",
+      description: "Array of 25 color assignments from the key card (5×5 grid)",
+      items: { $ref: "#/$defs/KeyCardColorData" }
+    },
+    confidence: {
+      type: "string",
+      enum: ["high", "medium", "low"],
+      description: "Confidence level of the extraction"
+    },
+    notes: {
+      type: "string",
+      description: "Additional notes or observations about the extraction"
+    }
+  },
+  required: ["photoType"],
+  $defs: {
+    BoardWordData: {
+      type: "object",
+      properties: {
+        word: {
+          type: "string",
+          description: "The word on the card (uppercase)"
+        },
+        row: {
+          type: "number",
+          description: "Row position (0-4, top to bottom)"
+        },
+        col: {
+          type: "number",
+          description: "Column position (0-4, left to right)"
+        }
+      },
+      required: ["word", "row", "col"]
+    },
+    KeyCardColorData: {
+      type: "object",
+      properties: {
+        row: {
+          type: "number",
+          description: "Row position (0-4, top to bottom)"
+        },
+        col: {
+          type: "number",
+          description: "Column position (0-4, left to right)"
+        },
+        color: {
+          type: "string",
+          enum: ["red", "blue", "neutral", "assassin"],
+          description: "Color/team assignment for this position"
+        }
+      },
+      required: ["row", "col", "color"]
+    }
+  }
+} as const;
+
+const CLUE_SUGGESTIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    clues: {
+      type: "array",
+      description: "Array of 3 clue suggestions for the spymaster",
+      items: { $ref: "#/$defs/ClueIdea" }
+    }
+  },
+  required: ["clues"],
+  $defs: {
+    ClueIdea: {
+      type: "object",
+      properties: {
+        clue: {
+          type: "string",
+          description: "The one-word clue (no hyphens, spaces, or compound words)"
+        },
+        number: {
+          type: "number",
+          description: "Number of words this clue connects (typically 2-4)"
+        },
+        targetWords: {
+          type: "array",
+          items: { type: "string" },
+          description: "List of target words this clue is meant to connect"
+        },
+        reasoning: {
+          type: "string",
+          description: "Explanation of why this clue connects these words"
+        }
+      },
+      required: ["clue", "number", "targetWords", "reasoning"]
+    }
+  }
+} as const;
 
 // ===== HELPER FUNCTIONS =====
 
@@ -185,44 +279,6 @@ function validateExtraction(result: any): ValidationResult {
   };
 }
 
-// Convert flat result (with JSON strings) back to nested structure
-function convertFlatResult(flatResult: PhotoExtractionResultFlat | null): PhotoExtractionResult | null {
-  if (!flatResult) return null;
-
-  try {
-    const converted: PhotoExtractionResult = {
-      photoType: flatResult.photoType,
-      confidence: flatResult.confidence,
-      notes: flatResult.notes
-    };
-
-    if (flatResult.boardWordsJson) {
-      converted.boardWords = JSON.parse(flatResult.boardWordsJson);
-    }
-
-    if (flatResult.keyCardColorsJson) {
-      converted.keyCardColors = JSON.parse(flatResult.keyCardColorsJson);
-    }
-
-    return converted;
-  } catch (e) {
-    console.error("Failed to parse JSON from AI response:", e, flatResult);
-    return null;
-  }
-}
-
-// Convert flat clue suggestions result back to nested structure
-function convertFlatClueResult(flatResult: ClueSuggestionsResultFlat | null): ClueSuggestionsResult | null {
-  if (!flatResult) return null;
-
-  try {
-    const clues = JSON.parse(flatResult.cluesJson);
-    return { clues };
-  } catch (e) {
-    console.error("Failed to parse clues JSON from AI response:", e, flatResult);
-    return null;
-  }
-}
 
 // Get color for word based on owner
 function getWordColor(owner: WordOwner): string {
@@ -428,7 +484,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // Note: uploadedPhotos.map() returns reactive values, but we still need derive()
     // to reactively access properties like photo.data
     const photoExtractions = uploadedPhotos.map((photo) => {
-      const flatExtraction = generateObject({
+      return generateObject({
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
 
 You will receive either:
@@ -466,7 +522,6 @@ If it's a BOARD photo:
 - Extract all 25 words in their exact grid positions (row 0-4, col 0-4)
 - Start from top-left (0,0) and go row by row
 - Keep words in UPPERCASE
-- Return the data as a JSON string in the boardWordsJson field
 
 If it's a KEY CARD photo:
 - The key card shows colored squares representing the word assignments
@@ -475,55 +530,20 @@ If it's a KEY CARD photo:
 - Red and blue squares indicate team words
 - Beige/tan squares indicate neutral words
 - Black square indicates the assassin
-- Return the data as a JSON string in the keyCardColorsJson field
 
 Provide the extracted information in the appropriate format.`
             }
           ];
         }),
-        // TODO: Replace with toSchema<PhotoExtractionResult>() once framework supports nested type arrays
+        // WORKAROUND: Manual schema with $defs to work around toSchema<T>() limitation
+        // toSchema<T>() fails to include nested type definitions in $defs section
         // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
-        // WORKAROUND: Using flattened schema with JSON strings instead of nested arrays
-        schema: {
-          type: "object",
-          properties: {
-            photoType: {
-              type: "string",
-              enum: ["board", "keycard", "unknown"],
-              description: "Type of photo: board (game board), keycard (key card), or unknown"
-            },
-            boardWordsJson: {
-              type: "string",
-              description: "JSON string containing array of board words. Each word is {word: string, row: number (0-4), col: number (0-4)}. Example: '[{\"word\":\"APPLE\",\"row\":0,\"col\":0},{\"word\":\"TREE\",\"row\":0,\"col\":1}]'"
-            },
-            keyCardColorsJson: {
-              type: "string",
-              description: "JSON string containing array of color assignments. Each assignment is {row: number (0-4), col: number (0-4), color: 'red'|'blue'|'neutral'|'assassin'}. Example: '[{\"row\":0,\"col\":0,\"color\":\"red\"},{\"row\":0,\"col\":1,\"color\":\"blue\"}]'"
-            },
-            confidence: {
-              type: "string",
-              enum: ["high", "medium", "low"],
-              description: "Confidence level of the extraction"
-            },
-            notes: {
-              type: "string",
-              description: "Additional notes or observations about the extraction"
-            }
-          },
-          required: ["photoType"]
-        }
+        schema: PHOTO_EXTRACTION_SCHEMA
       });
-
-      // Convert flat result (with JSON strings) to nested structure
-      return {
-        pending: flatExtraction.pending,
-        error: flatExtraction.error,
-        result: derive(flatExtraction.result, convertFlatResult)
-      };
     });
 
     // AI Clue Suggestions - only in Game Mode
-    const flatClueSuggestions = generateObject({
+    const clueSuggestions = generateObject({
       system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
 
 CRITICAL RULES:
@@ -567,29 +587,13 @@ ${neutralWords.join(", ")}
 ASSASSIN WORD (CRITICAL - NEVER hint at this):
 ${assassinWords.join(", ")}
 
-Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words. Return them as a JSON string in the cluesJson field.`;
+Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
       }),
-      // TODO: Replace with toSchema<ClueSuggestionsResult>() once framework supports nested type arrays
+      // WORKAROUND: Manual schema with $defs to work around toSchema<T>() limitation
+      // toSchema<T>() fails to include nested type definitions in $defs section
       // See: patterns/jkomoros/issues/ISSUE-toSchema-Nested-Type-Arrays.md
-      // WORKAROUND: Using flattened schema with JSON string instead of nested array
-      schema: {
-        type: "object",
-        properties: {
-          cluesJson: {
-            type: "string",
-            description: "JSON string containing array of clue objects. Each clue is {clue: string, number: number, targetWords: string[], reasoning: string}. Example: '[{\"clue\":\"OCEAN\",\"number\":3,\"targetWords\":[\"WAVE\",\"FISH\",\"BLUE\"],\"reasoning\":\"All related to ocean\"}]'"
-          }
-        },
-        required: ["cluesJson"]
-      }
+      schema: CLUE_SUGGESTIONS_SCHEMA
     });
-
-    // Convert flat clue suggestions to nested structure
-    const clueSuggestions = {
-      pending: flatClueSuggestions.pending,
-      error: flatClueSuggestions.error,
-      result: derive(flatClueSuggestions.result, convertFlatClueResult)
-    };
 
     return {
       [NAME]: "Codenames Helper",
