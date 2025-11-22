@@ -569,6 +569,107 @@ const applyExtractedData = handler<
   },
 );
 
+// LLM Timing Suggestion Handlers
+const triggerTimingSuggestion = handler<
+  Record<string, never>,
+  { stepGroups: StepGroup[]; timingSuggestionTrigger: Cell<string> }
+>(
+  (_, { stepGroups, timingSuggestionTrigger }) => {
+    timingSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---TIMING-${Date.now()}---`);
+  },
+);
+
+const applyTimingSuggestions = handler<
+  Record<string, never>,
+  {
+    timingSuggestions: Cell<any>;
+    stepGroups: Cell<Array<Cell<StepGroup>>>;
+  }
+>(
+  (_, { timingSuggestions, stepGroups }) => {
+    const suggestions = timingSuggestions.get();
+    if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
+
+    const currentGroups = stepGroups.get();
+
+    // Match suggestions to existing groups by ID
+    suggestions.stepGroups.forEach((suggestion: any) => {
+      const groupIndex = currentGroups.findIndex(g => {
+        const groupData = (g.get ? g.get() : g) as StepGroup;
+        return groupData.id === suggestion.id;
+      });
+
+      if (groupIndex >= 0) {
+        const group = currentGroups[groupIndex];
+        const groupData = (group.get ? group.get() : group) as StepGroup;
+
+        // Apply timing suggestions
+        if ((group as any).set) {
+          (group as any).set({
+            ...groupData,
+            nightsBeforeServing: suggestion.nightsBeforeServing,
+            minutesBeforeServing: suggestion.minutesBeforeServing,
+            duration: suggestion.duration ?? groupData.duration,
+            requiresOven: suggestion.requiresOven ?? groupData.requiresOven,
+          });
+        }
+      }
+    });
+
+    // Clear suggestions
+    timingSuggestions.set(null);
+  },
+);
+
+// LLM Wait Time Suggestion Handlers
+const triggerWaitTimeSuggestion = handler<
+  Record<string, never>,
+  { stepGroups: StepGroup[]; waitTimeSuggestionTrigger: Cell<string> }
+>(
+  (_, { stepGroups, waitTimeSuggestionTrigger }) => {
+    waitTimeSuggestionTrigger.set(`${JSON.stringify(stepGroups)}\n---WAIT-${Date.now()}---`);
+  },
+);
+
+const applyWaitTimeSuggestions = handler<
+  Record<string, never>,
+  {
+    waitTimeSuggestions: Cell<any>;
+    stepGroups: Cell<Array<Cell<StepGroup>>>;
+  }
+>(
+  (_, { waitTimeSuggestions, stepGroups }) => {
+    const suggestions = waitTimeSuggestions.get();
+    if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
+
+    const currentGroups = stepGroups.get();
+
+    // Match suggestions to existing groups by ID
+    suggestions.stepGroups.forEach((suggestion: any) => {
+      const groupIndex = currentGroups.findIndex(g => {
+        const groupData = (g.get ? g.get() : g) as StepGroup;
+        return groupData.id === suggestion.id;
+      });
+
+      if (groupIndex >= 0) {
+        const group = currentGroups[groupIndex];
+        const groupData = (group.get ? group.get() : group) as StepGroup;
+
+        // Apply wait time suggestion
+        if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
+          (group as any).set({
+            ...groupData,
+            maxWaitMinutes: suggestion.maxWaitMinutes,
+          });
+        }
+      }
+    });
+
+    // Clear suggestions
+    waitTimeSuggestions.set(null);
+  },
+);
+
 export default pattern<RecipeInput, RecipeOutput>(
   ({
     name,
@@ -804,6 +905,174 @@ Return only the fields you can confidently extract. Be thorough with ingredients
       changesPreview,
       (changes) => changes.length > 0,
     );
+
+    // LLM Timing Suggestion state
+    const timingSuggestionTrigger = cell<string>("");
+
+    const { result: timingSuggestions, pending: timingSuggestionPending } =
+      generateObject({
+        system:
+          `You are a recipe timing assistant. Analyze recipe step groups and suggest optimal timing organization.
+
+For each step group, analyze the steps and suggest:
+- nightsBeforeServing: For tasks that need to happen days before (1, 2, etc.) - use this for overnight marinades, dough rising, etc.
+- minutesBeforeServing: For day-of timing (e.g., 240, 120, 60, 30, 0) - use this for prep and cooking on serving day
+- duration: How long this group of steps takes to complete (in minutes)
+- requiresOven: If oven is needed, specify temperature (°F), duration (minutes), and rack requirements (heightSlots: 1-5, width: "full" or "half")
+
+IMPORTANT: Each group should have EITHER nightsBeforeServing OR minutesBeforeServing, not both.
+
+Guidelines:
+- Use nightsBeforeServing for: marinades, dough rising overnight, curing, long refrigeration
+- Use minutesBeforeServing=0 for: final plating, last-minute garnishes, serving
+- Use minutesBeforeServing=30-60 for: final cooking, reheating
+- Use minutesBeforeServing=120-240 for: main prep work
+- Consider natural workflow: prep → cook → finish
+- Duration should reflect active + passive time for that group
+- Suggest logical reordering if current order doesn't make sense
+
+Return suggestions for ALL groups with their IDs preserved.`,
+        prompt: timingSuggestionTrigger,
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            stepGroups: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  nightsBeforeServing: { type: "number" },
+                  minutesBeforeServing: { type: "number" },
+                  duration: { type: "number" },
+                  requiresOven: {
+                    type: "object",
+                    properties: {
+                      temperature: { type: "number" },
+                      duration: { type: "number" },
+                      racksNeeded: {
+                        type: "object",
+                        properties: {
+                          heightSlots: { type: "number" },
+                          width: { type: "string", enum: ["full", "half"] },
+                        },
+                      },
+                    },
+                  },
+                },
+                required: ["id"],
+              },
+            },
+          },
+        },
+      });
+
+    // LLM Wait Time Suggestion state
+    const waitTimeSuggestionTrigger = cell<string>("");
+
+    const { result: waitTimeSuggestions, pending: waitTimeSuggestionPending } =
+      generateObject({
+        system:
+          `You are a recipe timing assistant. Analyze recipe step groups and suggest maximum wait times.
+
+For each step group, analyze the steps and suggest maxWaitMinutes - how long the output of this step group can wait before the next step without losing quality.
+
+Examples:
+- Dough rising: maxWaitMinutes could be 60-120 (can wait a bit, but will overproof)
+- Cooked pasta: maxWaitMinutes = 5-10 (gets sticky quickly)
+- Roasted vegetables: maxWaitMinutes = 30-60 (stays warm and good)
+- Sautéed items: maxWaitMinutes = 10-15 (best served immediately)
+- Cold salads: maxWaitMinutes = 120-240 (can wait longer)
+- Baked items cooling: maxWaitMinutes = 0 (proceed immediately to next step)
+- Marinated items: maxWaitMinutes = 0 (proceed to cooking when ready)
+- Final plating: maxWaitMinutes = 5-15 (serve quickly)
+
+Consider:
+- Temperature sensitivity (hot items cool, cold items warm)
+- Texture changes (crispy becomes soggy, liquids absorb)
+- Food safety (dairy, meat, seafood have shorter wait times)
+- Chemical processes (oxidation, enzymatic browning)
+
+Return suggestions for ALL groups with their IDs preserved.`,
+        prompt: waitTimeSuggestionTrigger,
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            stepGroups: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  maxWaitMinutes: { type: "number" },
+                },
+                required: ["id", "maxWaitMinutes"],
+              },
+            },
+          },
+        },
+      });
+
+    // Auto-apply timing suggestions when available
+    derive({ timingSuggestions, stepGroups }, ({ timingSuggestions: suggestions, stepGroups: groups }) => {
+      if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
+
+      const currentGroups = groups;
+
+      // Match suggestions to existing groups by ID and apply
+      suggestions.stepGroups.forEach((suggestion: any) => {
+        const groupIndex = currentGroups.findIndex((g: any) => {
+          const groupData = (g.get ? g.get() : g) as StepGroup;
+          return groupData.id === suggestion.id;
+        });
+
+        if (groupIndex >= 0) {
+          const group = currentGroups[groupIndex];
+          const groupData = (group.get ? group.get() : group) as StepGroup;
+
+          // Apply timing suggestions
+          if ((group as any).set) {
+            (group as any).set({
+              ...groupData,
+              nightsBeforeServing: suggestion.nightsBeforeServing,
+              minutesBeforeServing: suggestion.minutesBeforeServing,
+              duration: suggestion.duration ?? groupData.duration,
+              requiresOven: suggestion.requiresOven ?? groupData.requiresOven,
+            });
+          }
+        }
+      });
+    });
+
+    // Auto-apply wait time suggestions when available
+    derive({ waitTimeSuggestions, stepGroups }, ({ waitTimeSuggestions: suggestions, stepGroups: groups }) => {
+      if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
+
+      const currentGroups = groups;
+
+      // Match suggestions to existing groups by ID and apply
+      suggestions.stepGroups.forEach((suggestion: any) => {
+        const groupIndex = currentGroups.findIndex((g: any) => {
+          const groupData = (g.get ? g.get() : g) as StepGroup;
+          return groupData.id === suggestion.id;
+        });
+
+        if (groupIndex >= 0) {
+          const group = currentGroups[groupIndex];
+          const groupData = (group.get ? group.get() : group) as StepGroup;
+
+          // Apply wait time suggestion
+          if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
+            (group as any).set({
+              ...groupData,
+              maxWaitMinutes: suggestion.maxWaitMinutes,
+            });
+          }
+        }
+      });
+    });
 
     return {
       [NAME]: str`🍳 ${displayName}`,
@@ -1120,11 +1389,27 @@ Return only the fields you can confidently extract. Be thorough with ingredients
           {/* Step Groups Section */}
           <ct-card>
             <ct-vstack gap={1} style="padding: 10px;">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
-                <ct-button onClick={addStepGroup({ stepGroups })}>
-                  + Add Group
-                </ct-button>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <ct-button
+                    onClick={triggerTimingSuggestion({ stepGroups, timingSuggestionTrigger })}
+                    disabled={derive(stepGroups, (groups) => groups.length === 0) || timingSuggestionPending}
+                    variant="secondary"
+                  >
+                    {timingSuggestionPending ? "Analyzing..." : "Organize by Timing"}
+                  </ct-button>
+                  <ct-button
+                    onClick={triggerWaitTimeSuggestion({ stepGroups, waitTimeSuggestionTrigger })}
+                    disabled={derive(stepGroups, (groups) => groups.length === 0) || waitTimeSuggestionPending}
+                    variant="secondary"
+                  >
+                    {waitTimeSuggestionPending ? "Analyzing..." : "Suggest Wait Times"}
+                  </ct-button>
+                  <ct-button onClick={addStepGroup({ stepGroups })}>
+                    + Add Group
+                  </ct-button>
+                </div>
               </div>
 
               <ct-vstack gap={1}>
