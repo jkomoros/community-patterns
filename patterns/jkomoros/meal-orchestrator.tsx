@@ -60,6 +60,23 @@ interface FoodRecipe {
   }>;
 }
 
+// Prepared food interface (from prepared-food.tsx)
+interface PreparedFood {
+  name: string;
+  servings: number;
+  category: string;
+  description: string;
+  source: string;
+  prepTime: number;
+  requiresReheating: boolean;
+  dietaryCompatibility: {
+    compatible: string[];
+    incompatible: string[];
+    warnings: string[];
+    primaryIngredients: string[];
+  };
+}
+
 interface MealOrchestratorInput {
   mealName: Default<string, "">;
   mealDate: Default<string, "">; // ISO date: "2024-11-28"
@@ -81,6 +98,7 @@ interface MealOrchestratorInput {
 
   // Recipes (@ references)
   recipes: Default<OpaqueRef<FoodRecipe>[], []>;
+  preparedFoods: Default<OpaqueRef<PreparedFood>[], []>;
 
   notes: Default<string, "">;
 }
@@ -211,6 +229,53 @@ const addRecipeMentions = handler<
   }
 });
 
+// Handler for removing prepared foods
+const removePreparedFood = handler<
+  unknown,
+  {
+    preparedFoods: Cell<Array<Cell<OpaqueRef<PreparedFood>>>>;
+    preparedFood: Cell<OpaqueRef<PreparedFood>>;
+  }
+>((_event, { preparedFoods, preparedFood }) => {
+  const currentFoods = preparedFoods.get();
+  const index = currentFoods.findIndex((el) => preparedFood.equals(el));
+  if (index >= 0) {
+    preparedFoods.set(currentFoods.toSpliced(index, 1));
+  }
+});
+
+// Handler for adding prepared foods via @ mentions
+const addPreparedFoodMentions = handler<
+  {
+    detail: {
+      text: string;
+      mentions: Array<any>;
+    };
+  },
+  {
+    preparedFoods: Cell<OpaqueRef<PreparedFood>[]>;
+  }
+>(({ detail }, { preparedFoods }) => {
+  const { mentions } = detail;
+
+  if (mentions && mentions.length > 0) {
+    const currentFoods = preparedFoods.get();
+    const newFoods = mentions.filter((mention: any) => {
+      // Only add if not already in the list
+      return !currentFoods.some((existing) => {
+        if (typeof existing === 'object' && 'equals' in existing) {
+          return (existing as any).equals(mention);
+        }
+        return false;
+      });
+    });
+
+    if (newFoods.length > 0) {
+      preparedFoods.set([...currentFoods, ...newFoods]);
+    }
+  }
+});
+
 export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   ({
     mealName,
@@ -222,6 +287,7 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     dietaryProfiles,
     planningNotes,
     recipes,
+    preparedFoods,
     notes,
   }) => {
     // Get mentionable charms for @ references
@@ -235,18 +301,25 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     const ovenCount = derive(ovens, (list) => list.length);
     const profileCount = derive(dietaryProfiles, (list) => list.length);
     const recipeCount = derive(recipes, (list) => list.length);
+    const preparedFoodCount = derive(preparedFoods, (list) => list.length);
 
     // Meal Balance Analysis
     const analysisPrompt = derive(
-      { recipes, guestCount, dietaryProfiles },
-      ({ recipes: recipeList, guestCount: guests, dietaryProfiles: profiles }) => {
-        if (!recipeList || recipeList.length === 0) {
-          return "No recipes to analyze";
+      { recipes, preparedFoods, guestCount, dietaryProfiles },
+      ({ recipes: recipeList, preparedFoods: preparedList, guestCount: guests, dietaryProfiles: profiles }) => {
+        if ((!recipeList || recipeList.length === 0) && (!preparedList || preparedList.length === 0)) {
+          return "No items to analyze";
         }
 
-        const recipesSummary = recipeList
-          .map((r) => `- ${r.name} (${r.category}, ${r.servings} servings)`)
+        const recipesSummary = (recipeList || [])
+          .map((r) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
           .join("\n");
+
+        const preparedSummary = (preparedList || [])
+          .map((p) => `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`)
+          .join("\n");
+
+        const allItems = [recipesSummary, preparedSummary].filter(Boolean).join("\n");
 
         const dietaryRequirements = profiles
           .flatMap((p) => p.requirements)
@@ -257,8 +330,8 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 Guest Count: ${guests}
 Dietary Requirements: ${dietaryRequirements.join(", ") || "none specified"}
 
-Recipes:
-${recipesSummary}
+Menu Items:
+${allItems}
 
 Provide:
 1. Category breakdown (how many mains, sides, desserts, etc.)
@@ -616,9 +689,61 @@ Be concise and practical in your analysis.`,
             </ct-vstack>
           </ct-card>
 
+          {/* Prepared Foods Section */}
+          <ct-card>
+            <ct-vstack gap={1} style="padding: 8px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+                🛒 Prepared/Store-Bought ({preparedFoodCount})
+              </h3>
+
+              {/* Input for adding prepared foods via @ mentions */}
+              <ct-prompt-input
+                placeholder="@ mention prepared foods to add them..."
+                $mentionable={mentionable}
+                onct-send={addPreparedFoodMentions({ preparedFoods })}
+              />
+
+              {/* List of added prepared foods */}
+              {ifElse(
+                derive(preparedFoods, (list) => list.length > 0),
+                <ct-vstack gap={1} style="margin-top: 8px;">
+                  {preparedFoods.map((preparedFood) => (
+                    <div
+                      style={{
+                        padding: "6px 8px",
+                        background: "#fef3c7",
+                        border: "1px solid #fde68a",
+                        borderRadius: "4px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: "600", fontSize: "14px" }}>
+                          {preparedFood.name}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#666" }}>
+                          {preparedFood.category} • {preparedFood.servings} servings • {preparedFood.source}
+                        </div>
+                      </div>
+                      <ct-button
+                        onClick={removePreparedFood({ preparedFoods, preparedFood })}
+                        style={{ padding: "2px 6px", fontSize: "16px" }}
+                      >
+                        ×
+                      </ct-button>
+                    </div>
+                  ))}
+                </ct-vstack>,
+                null,
+              )}
+            </ct-vstack>
+          </ct-card>
+
           {/* Meal Balance Analysis */}
           {ifElse(
-            derive(recipes, (list) => list.length > 0),
+            derive({ recipes, preparedFoods }, ({ recipes: r, preparedFoods: p }) => (r.length + p.length) > 0),
             <ct-card>
               <ct-vstack gap={1} style="padding: 8px;">
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
@@ -750,6 +875,7 @@ Be concise and practical in your analysis.`,
       dietaryProfiles,
       planningNotes,
       recipes,
+      preparedFoods,
       notes,
     };
   },
