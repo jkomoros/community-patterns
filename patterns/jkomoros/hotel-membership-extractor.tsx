@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, UI } from "commontools";
+import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, recipe, UI } from "commontools";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -31,62 +31,61 @@ type EmailPreview = {
 /**
  * SearchGmail Tool - Dynamic Gmail queries with server-side search
  *
- * ATTEMPT: Using handler approach to allow side effects (updating query cell)
+ * Recipe-based approach: Each tool call instantiates its own GmailImporter
+ * with the specific query. Returns reactive emails cell that agent waits for.
+ *
+ * This matches the pattern used by searchWeb/readWebpage in common-tools.tsx:
+ * - Recipe takes query as input
+ * - Creates async operation (GmailImporter fetch)
+ * - Returns reactive result
+ * - Agent framework waits for result to resolve
  *
  * Agent sees:
  * - Email metadata (subject, from, date) directly - for filtering
  * - Body content as @link references - use read() to access
  *
- * Architecture:
- * - Tool updates shared queryCell → triggers GmailImporter to fetch
- * - Tool reads and returns emails from shared emailsCell
- * - Returns emails with body as @links
- *
- * Input:
- * - query: DYNAMIC from agent (Gmail query string)
- * - queryCell: STATIC shared cell to update
- * - emailsCell: STATIC cell to read results from
- *
- * Output: EmailPreview[] (with body as @links)
+ * Output: EmailPreview[] (reactive, with body as @links)
  */
-export const SearchGmailTool = handler<
-  { query: string },
-  {
-    queryCell: Cell<string>;
-    emailsCell: Cell<Email[]>;
-  }
->((input, state) => {
-  console.log(`[SearchGmailTool] Agent requested query: "${input.query}"`);
+export const SearchGmailTool = recipe<
+  { query: string; authCharm: any },
+  EmailPreview[]
+>(({ query, authCharm }) => {
+  // Create importer - use derive to avoid directly accessing opaque authCharm
+  const importer = derive([query, authCharm], ([q, auth]) => {
+    console.log(`[SearchGmailTool] Creating importer for query: "${q}"`);
 
-  // 1. Update shared query cell → triggers GmailImporter to fetch
-  state.queryCell.set(input.query);
-  console.log(`[SearchGmailTool] Updated queryCell to: "${input.query}"`);
+    return GmailImporter({
+      settings: {
+        gmailFilterQuery: Cell.of(q),
+        limit: Cell.of(20),
+        historyId: Cell.of(""),
+      },
+      authCharm: auth,
+    });
+  });
 
-  // 2. Read current emails from shared cell
-  const emails = state.emailsCell.get();
+  // Transform emails from importer - returns reactive value
+  return derive([importer], ([imp]) => {
+    const emailsList = derive(imp.emails, e => e);
+    const count = emailsList?.length || 0;
+    console.log(`[SearchGmailTool] Query returned ${count} emails`);
 
-  console.log(`[SearchGmailTool] Current emails in cell: ${emails?.length || 0}`);
+    if (!emailsList || !Array.isArray(emailsList)) return [];
 
-  if (!emails || !Array.isArray(emails)) {
-    console.log("[SearchGmailTool] No emails available yet");
-    return [];
-  }
-
-  // 3. Transform: metadata visible, body as @links
-  return emails.map(email => ({
-    // Metadata visible to agent
-    id: email.id,
-    threadId: email.threadId,
-    subject: email.subject,
-    from: email.from,
-    date: email.date,
-    to: email.to,
-    snippet: email.snippet,
-    // Body content as cells (type any) → framework converts to @links
-    markdownContent: Cell.of(email.markdownContent) as any,
-    htmlContent: Cell.of(email.htmlContent) as any,
-    plainText: Cell.of(email.plainText) as any,
-  }));
+    return emailsList.map((email: Email) => ({
+      id: email.id,
+      threadId: email.threadId,
+      subject: email.subject,
+      from: email.from,
+      date: email.date,
+      to: email.to,
+      snippet: email.snippet,
+      // Body content as cells (type any) → framework converts to @links
+      markdownContent: Cell.of(email.markdownContent) as any,
+      htmlContent: Cell.of(email.htmlContent) as any,
+      plainText: Cell.of(email.plainText) as any,
+    }));
+  });
 });
 
 // ============================================================================
@@ -184,31 +183,14 @@ export default pattern<HotelMembershipInput>(({
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
-  // Shared query cell for agent - tool updates this to trigger Gmail fetch
-  const agentQueryCell = cell<string>("");
-
-  // Separate GmailImporter instance just for the agent (independent of old 2-stage LLM)
-  // Uses reactive query cell - updates trigger fetches
-  const agentGmailImporter = GmailImporter({
-    settings: {
-      gmailFilterQuery: agentQueryCell,  // Reactive - updates trigger fetch
-      limit: Cell.of(20),                // Fetch up to 20 emails per query
-      historyId: Cell.of(""),            // No history tracking
-    },
-    authCharm: authCharm,
-  });
-
-  // Bind SearchGmailTool handler with shared cells
-  const boundSearchGmail = SearchGmailTool({
-    queryCell: agentQueryCell,              // STATIC: Shared cell to update
-    emailsCell: agentGmailImporter.emails,  // STATIC: Cell to read results from
-  });
-
-  // Define agent tools with proper wrapper syntax
+  // Register SearchGmailTool as a pattern directly
+  // The recipe needs both query (from agent) and authCharm (from context)
+  // Register as { pattern, args } to provide authCharm
   const agentTools = {
     searchGmail: {
       description: "Search Gmail with a query string. Returns email metadata (subject, from, date, snippet) visible directly, with body content as @link references. Use the read() tool to access full email bodies.",
-      handler: boundSearchGmail,
+      pattern: SearchGmailTool,
+      args: { authCharm },  // Provide authCharm as static arg, agent provides query
     },
   };
 
