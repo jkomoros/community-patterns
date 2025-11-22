@@ -155,18 +155,32 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 **Attempts Made:**
 1. derive() for pre-computed styles → not reactive
 2. const variables inside .map() → not reactive
-3. inline ternaries with board.map() → not reactive (current working code)
+3. inline ternaries with board.map() → not reactive
 4. wrapping entire board in derive() → **Frame mismatch error** (CONFIRMED on 2025-11-21)
+5. **todo-list.tsx pattern: direct property access in style ternary → STILL NOT REACTIVE** (2025-11-21)
+
+**Attempt #5 Details (Following todo-list.tsx Pattern):**
+- Studied working todo-list.tsx pattern: `style={item.done ? {...} : {}}`
+- Applied same pattern: moved ternary DIRECTLY into style attribute (no intermediate const)
+- Code structure: `style={word.owner === "red" ? {backgroundColor: "#dc2626", ...} : word.owner === "blue" ? {...} : ...}`
+- Deployed to test-jkomoros-25 (fresh space)
+- **Result**: Board renders, counter updates, but colors STILL don't display
+- Cell element gets new ref (proves re-render), but background stays gray
+- **Lines**: 707-793 in current code
+
+**Key Difference from todo-list.tsx:**
+- todo-list.tsx: `item.done` is a top-level property accessed in simple array map
+- codenames-helper: `word.owner` is a property within nested objects in Cell<BoardWord[]>
+- Framework appears to track simple property changes but NOT nested object properties in reactive arrays
 
 **Confirmed on 2025-11-21:**
-- Attempted `derive(board, (boardData) => boardData.map(...JSX...))` to render entire cell JSX
-- Results in "Frame mismatch" error on both `charm setsrc` and `charm new`
-- Error occurs even on fresh test space (test-jkomoros-23)
-- This confirms approach #4 is not viable
+- Attempt #4: `derive(board, (boardData) => boardData.map(...JSX...))` → Frame mismatch error
+- Attempt #5: Direct style ternary (todo-list pattern) → Compiles but not reactive
+- All test spaces: test-jkomoros-22, 23, 24, 25
 
 **Current Code:**
-- Lines 774-830: board.map() with inline ternary for backgroundColor
-- Line 848: derive() wrapper for counter (WORKS correctly)
+- Lines 707-793: board.map() with direct style ternary (following todo-list.tsx pattern exactly)
+- Line 161: derive() wrapper for counter (WORKS correctly)
 
 **Issue Documented:**
 - Full details in `patterns/jkomoros/issues/REACTIVE_ARRAY_STYLING_ISSUE.md`
@@ -174,13 +188,15 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 - Awaiting framework guidance on correct reactive array pattern
 
 **Testing:**
-- Deployed to test-jkomoros-22
+- Deployed to test-jkomoros-25 (fresh space with attempt #5 code)
+- Created board with 25 cells
 - Clicked cell 0,0, assigned red color
 - Counter updated: "Red: 1, Unassigned: 24" ✓
-- Cell background remained gray ✗
+- Cell got new ref (e140, proving re-render) ✓
+- Cell background remained gray (no visual color change) ✗
 
 **Conclusion:**
-All attempted reactive approaches either don't work or cause framework errors. This is a genuine framework limitation requiring upstream fixes.
+Even the established working pattern from todo-list.tsx doesn't solve reactive color display for array item properties. All attempted reactive approaches either don't work or cause framework errors. This is a genuine framework limitation requiring upstream fixes.
 
 ---
 

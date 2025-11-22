@@ -684,26 +684,18 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             </ct-button>
           </div>
 
-          {/* Initialize Board Button - only show if board is empty */}
-          {derive(board, (boardData: BoardWord[]) => {
-            // Check if board has any non-empty words
-            const hasWords = boardData.some((word: BoardWord) => word.word.trim() !== "");
-            if (hasWords) return null;  // Hide button if board has words
-
-            return (
-              <div style={{
-                marginBottom: "1rem",
-                textAlign: "center",
-              }}>
-                <ct-button
-                  onClick={initializeBoardHandler({ board, setupMode })}
-                  className="btn-initialize"
-                >
-                  Create 5×5 Game Board
-                </ct-button>
-              </div>
-            );
-          })}
+          {/* Initialize Board Button */}
+          <div style={{
+            marginBottom: "1rem",
+            textAlign: "center",
+          }}>
+            <ct-button
+              onClick={initializeBoardHandler({ board, setupMode })}
+              className="btn-initialize"
+            >
+              Create 5×5 Game Board
+            </ct-button>
+          </div>
 
           {/* Board Display */}
           <div style={{
@@ -712,30 +704,93 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             gap: "0.25rem",
             marginBottom: "1rem",
           }}>
-            {board.map((word, index) => (
-              <div
-                key={index}
-                style={{
-                  aspectRatio: "1",
-                  border: "2px solid #000",
-                  borderRadius: "0.25rem",
-                  padding: "0.25rem",
-                  backgroundColor: word.owner === "red" ? "#dc2626"
-                    : word.owner === "blue" ? "#2563eb"
-                    : word.owner === "neutral" ? "#d4d4d8"
-                    : word.owner === "assassin" ? "#000000"
-                    : "#e5e7eb",
-                  opacity: word.state === "revealed" ? 0.5 : 1,
-                  color: (word.owner === "neutral" || word.owner === "unassigned") ? "black" : "white",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  position: "relative",
-                  cursor: "pointer",
-                }}
-                onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
-              >
+            {board.map((word, index) => {
+              return (
+                <div
+                  key={index}
+                  style={
+                    word.owner === "red"
+                      ? {
+                          aspectRatio: "1",
+                          border: "2px solid #000",
+                          borderRadius: "0.25rem",
+                          padding: "0.25rem",
+                          backgroundColor: "#dc2626",
+                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          color: "white",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          position: "relative",
+                          cursor: "pointer",
+                        }
+                      : word.owner === "blue"
+                      ? {
+                          aspectRatio: "1",
+                          border: "2px solid #000",
+                          borderRadius: "0.25rem",
+                          padding: "0.25rem",
+                          backgroundColor: "#2563eb",
+                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          color: "white",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          position: "relative",
+                          cursor: "pointer",
+                        }
+                      : word.owner === "neutral"
+                      ? {
+                          aspectRatio: "1",
+                          border: "2px solid #000",
+                          borderRadius: "0.25rem",
+                          padding: "0.25rem",
+                          backgroundColor: "#d4d4d8",
+                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          color: "black",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          position: "relative",
+                          cursor: "pointer",
+                        }
+                      : word.owner === "assassin"
+                      ? {
+                          aspectRatio: "1",
+                          border: "2px solid #000",
+                          borderRadius: "0.25rem",
+                          padding: "0.25rem",
+                          backgroundColor: "#000000",
+                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          color: "white",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          position: "relative",
+                          cursor: "pointer",
+                        }
+                      : {
+                          aspectRatio: "1",
+                          border: "2px solid #000",
+                          borderRadius: "0.25rem",
+                          padding: "0.25rem",
+                          backgroundColor: "#e5e7eb",
+                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          color: "black",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          position: "relative",
+                          cursor: "pointer",
+                        }
+                  }
+                  onClick={cellClick({ board, setupMode, selectedWordIndex, row: word.position.row, col: word.position.col })}
+                >
                 {/* Word Display/Input */}
                 {ifElse(
                   setupMode,
@@ -767,8 +822,9 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                     {word.word || "—"}
                   </span>
                 )}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           {/* Setup Controls */}
