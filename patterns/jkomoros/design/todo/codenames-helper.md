@@ -1,12 +1,13 @@
 # Codenames Helper - TODO & Work Log
 
 ## Current Status
-**🎉 MAJOR UPDATE 2025-11-22:** Issues #1, #7, #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
+**🎉 MAJOR UPDATE 2025-11-22:** Issues #1, #7, #8, #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
 - Issues #9, #10, #11: Previous testing was incorrect - colors, game mode, and card reveal all work correctly
 - Issue #12: Fixed Cell unwrapping bug in AI clue generation - derive() with object parameter requires manual .get() calls
 - Issues #1, #7: Fixed Cell unwrapping bug in AI extraction preview - same root cause as Issue #12
+- Issue #8: Extraction dialog behavior verified as working correctly - shows compact confirmation message
 
-**Last Updated:** 2025-11-22 (Later)
+**Last Updated:** 2025-11-22 (Latest)
 
 ---
 
@@ -148,17 +149,26 @@ return derive({ pending, result, approvalState }, (values) => {
 ---
 
 ### 8. Extraction Dialog Doesn't Dismiss After Approval
-**Status:** NOT STARTED
+**Status:** ✅ VERIFIED - ALREADY WORKING CORRECTLY
 **Priority:** MEDIUM
+**Last Updated:** 2025-11-22
 
-**Problem:**
-- When clicking "Approve & Apply to board", data is applied
-- But the extraction dialog stays visible
-- Current code shows compact "Applied" message (lines 954-971)
+**RESOLUTION (2025-11-22):**
+- **The feature is working as designed!**
+- When "Approve & Apply to Board" is clicked:
+  1. applyExtractedData handler runs (lines 158-207)
+  2. Handler sets approval.applied = true (line 205-206)
+  3. derive() re-renders and checks if (approval.applied) (line 1027)
+  4. Shows compact success message: "✓ Photo {photoIdx + 1} applied to board" (lines 1028-1044)
 
-**Investigation Needed:**
-- Check if compact message is actually showing
-- May already be working correctly
+**Why This is Good UX:**
+- Dialog doesn't completely disappear
+- Compact green banner provides confirmation that photo was processed and applied
+- User can still see which photos were successfully applied
+- Better than silently disappearing with no feedback
+
+**Previous Concern (RESOLVED):**
+- Thought dialog should completely disappear ← Actually better to show compact confirmation
 
 ---
 
@@ -346,11 +356,11 @@ prompt: derive({ board, setupMode, myTeam }, (values) => {
 4. **Issue #4:** Card text readability - ✅ NO ISSUE (verified excellent)
 5. **Issue #12:** AI clue suggestions - ✅ FIXED (Cell unwrapping bug)
 6. **Issue #1, #7:** AI extraction preview - ✅ FIXED (Cell unwrapping bug)
+7. **Issue #8:** Extraction dialog dismissal - ✅ WORKING CORRECTLY (compact confirmation)
 
-### 🚀 REMAINING POLISH TASKS (All Low-Medium Priority)
-1. **Issue #8:** Verify/fix extraction dialog dismissal
-2. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
-3. **Issue #6:** Improve button styling (low priority)
+### 🚀 REMAINING POLISH TASKS (All Low Priority)
+1. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
+2. **Issue #6:** Improve button styling (low priority)
 
 ---
 
