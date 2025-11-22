@@ -104,11 +104,23 @@ interface RecipeInput {
   difficulty: Default<"easy" | "medium" | "hard", "medium">;
   prepTime: Default<number, 0>; // minutes - KEEP for summary
   cookTime: Default<number, 0>; // minutes - KEEP for summary
+  restTime: Default<number, 0>; // minutes - Time to rest after cooking before serving (ADDED for thanksgiving-planner)
+  holdTime: Default<number, 0>; // minutes - Time dish can wait while maintaining quality (ADDED for thanksgiving-planner)
+  category: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">; // ADDED for thanksgiving-planner meal planning
   ingredients: Default<Ingredient[], []>; // No change
   stepGroups: Default<StepGroup[], []>; // NEW - replaces steps
   tags: Default<string[], []>;
   notes: Default<string, "">;
   source: Default<string, "">;
+}
+
+interface RecipeOutput extends RecipeInput {
+  // Derived field for meal planning (ADDED for thanksgiving-planner)
+  ovenRequirements: {
+    needsOven: boolean; // Whether any step group requires oven
+    temps: number[]; // All unique oven temperatures needed (sorted)
+    tempChanges: boolean; // Whether temperature changes during cooking (more than one temp)
+  };
 }
 ```
 
@@ -470,17 +482,19 @@ const handleImageUpload = handler<
 
 ## Implementation Phases
 
-### Phase 1: Data Model + Basic UI (First PR)
-- [ ] Create design doc (this file)
-- [ ] Create feature branch
-- [ ] Update data model (StepGroup interface)
-- [ ] Add migration logic for old recipes
-- [ ] Update UI - move notes to top
-- [ ] Add image upload to notes section
-- [ ] Update step section to show groups (basic)
-- [ ] Update LLM extraction to handle stepGroups
-- [ ] Test with simple recipe
-- [ ] Commit and push
+### Phase 1: Data Model + Basic UI ✅ COMPLETED
+- [x] Create design doc (this file)
+- [x] Create feature branch
+- [x] Update data model (StepGroup interface)
+- [x] Add migration logic for old recipes
+- [x] Update UI - move notes to top
+- [x] Add image upload to notes section
+- [x] Update step section to show groups (basic)
+- [x] Update LLM extraction to handle stepGroups
+- [x] Test with simple recipe
+- [x] Commit and push
+
+**Additional fields added (2025-11-22)**: Added `restTime`, `holdTime`, `category` input fields and `ovenRequirements` derived output field as requested by thanksgiving-planner pattern for meal scheduling and oven coordination.
 
 ### Phase 2: Step Group Management (Second PR)
 - [ ] Add group creation/deletion UI
@@ -530,6 +544,10 @@ The thanksgiving-planner pattern will:
 - ✅ Oven requirements (temp, duration)
 - ✅ Duration estimates per group
 - ✅ Max wait times between groups
+- ✅ Rest time (time to rest after cooking)
+- ✅ Hold time (time dish can wait while maintaining quality)
+- ✅ Category (for meal planning and course organization)
+- ✅ Derived ovenRequirements (needsOven, temps, tempChanges)
 
 ### Boxing Pattern for Completion Tracking
 Need to test if we can extend live-linked recipe data with completion flags:
