@@ -1807,6 +1807,216 @@ Return suggestions for ALL groups with their IDs preserved.`,
             </ct-card>,
             <div />
           )}
+
+          {/* Timing Suggestions Modal */}
+          {ifElse(
+            derive(timingSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            <ct-card style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "600px",
+              maxWidth: "90vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              zIndex: "1000",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+            }}>
+              <ct-vstack gap={1} style="padding: 12px;">
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Timing Suggestions</h3>
+                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
+                  The following timing changes will be applied to your step groups:
+                </p>
+
+                <ct-vstack gap={2}>
+                  {derive({ timingSuggestions, stepGroups }, ({ timingSuggestions: result, stepGroups: groups }) =>
+                    result?.stepGroups?.map((suggestion: any) => {
+                      const currentGroupCell = groups.find((g: any) => {
+                        const groupData = (g.get ? g.get() : g) as StepGroup;
+                        return groupData.id === suggestion.id;
+                      });
+                      const currentData: StepGroup | null = currentGroupCell
+                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
+                        : null;
+
+                      return (
+                        <div style={{
+                          padding: "8px 10px",
+                          background: "#f9fafb",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "4px",
+                        }}>
+                          <ct-vstack gap={1}>
+                            <strong style={{ fontSize: "13px" }}>
+                              {currentData?.name || suggestion.id}
+                            </strong>
+                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
+                              {suggestion.nightsBeforeServing !== undefined && (
+                                <div>
+                                  <span style={{ color: "#666" }}>Nights before:</span>{" "}
+                                  <span style={{
+                                    color: "#dc2626",
+                                    textDecoration: "line-through",
+                                    marginRight: "6px",
+                                  }}>
+                                    {currentData?.nightsBeforeServing ?? "(none)"}
+                                  </span>
+                                  <span style={{ color: "#16a34a" }}>
+                                    {suggestion.nightsBeforeServing}
+                                  </span>
+                                </div>
+                              )}
+                              {suggestion.minutesBeforeServing !== undefined && (
+                                <div>
+                                  <span style={{ color: "#666" }}>Minutes before:</span>{" "}
+                                  <span style={{
+                                    color: "#dc2626",
+                                    textDecoration: "line-through",
+                                    marginRight: "6px",
+                                  }}>
+                                    {currentData?.minutesBeforeServing ?? "(none)"}
+                                  </span>
+                                  <span style={{ color: "#16a34a" }}>
+                                    {suggestion.minutesBeforeServing}
+                                  </span>
+                                </div>
+                              )}
+                              {suggestion.duration !== undefined && (
+                                <div>
+                                  <span style={{ color: "#666" }}>Duration:</span>{" "}
+                                  <span style={{
+                                    color: "#dc2626",
+                                    textDecoration: "line-through",
+                                    marginRight: "6px",
+                                  }}>
+                                    {currentData?.duration ?? "(none)"}
+                                  </span>
+                                  <span style={{ color: "#16a34a" }}>
+                                    {suggestion.duration} min
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </ct-vstack>
+                        </div>
+                      );
+                    })
+                  )}
+                </ct-vstack>
+
+                <div style={{
+                  display: "flex",
+                  gap: "12px",
+                  justifyContent: "flex-end",
+                  marginTop: "1rem",
+                }}>
+                  <ct-button
+                    onClick={handler<Record<string, never>, { timingSuggestions: Cell<any> }>(
+                      (_, { timingSuggestions }) => timingSuggestions.set(null)
+                    )({ timingSuggestions })}
+                  >
+                    Cancel
+                  </ct-button>
+                  <ct-button
+                    onClick={applyTimingSuggestions({ timingSuggestions, stepGroups })}
+                    style={{ backgroundColor: "#2563eb", color: "white" }}
+                  >
+                    Apply
+                  </ct-button>
+                </div>
+              </ct-vstack>
+            </ct-card>,
+            <div />
+          )}
+
+          {/* Wait Time Suggestions Modal */}
+          {ifElse(
+            derive(waitTimeSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            <ct-card style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "600px",
+              maxWidth: "90vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              zIndex: "1000",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+            }}>
+              <ct-vstack gap={1} style="padding: 12px;">
+                <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Wait Time Suggestions</h3>
+                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
+                  The following wait time changes will be applied to your step groups:
+                </p>
+
+                <ct-vstack gap={2}>
+                  {derive({ waitTimeSuggestions, stepGroups }, ({ waitTimeSuggestions: result, stepGroups: groups }) =>
+                    result?.stepGroups?.map((suggestion: any) => {
+                      const currentGroupCell = groups.find((g: any) => {
+                        const groupData = (g.get ? g.get() : g) as StepGroup;
+                        return groupData.id === suggestion.id;
+                      });
+                      const currentData: StepGroup | null = currentGroupCell
+                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
+                        : null;
+
+                      return (
+                        <div style={{
+                          padding: "8px 10px",
+                          background: "#f9fafb",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "4px",
+                        }}>
+                          <ct-vstack gap={1}>
+                            <strong style={{ fontSize: "13px" }}>
+                              {currentData?.name || suggestion.id}
+                            </strong>
+                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
+                              <span style={{ color: "#666" }}>Max wait time:</span>{" "}
+                              <span style={{
+                                color: "#dc2626",
+                                textDecoration: "line-through",
+                                marginRight: "6px",
+                              }}>
+                                {currentData?.maxWaitMinutes ?? "(none)"}
+                              </span>
+                              <span style={{ color: "#16a34a" }}>
+                                {suggestion.maxWaitMinutes} min
+                              </span>
+                            </div>
+                          </ct-vstack>
+                        </div>
+                      );
+                    })
+                  )}
+                </ct-vstack>
+
+                <div style={{
+                  display: "flex",
+                  gap: "12px",
+                  justifyContent: "flex-end",
+                  marginTop: "1rem",
+                }}>
+                  <ct-button
+                    onClick={handler<Record<string, never>, { waitTimeSuggestions: Cell<any> }>(
+                      (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
+                    )({ waitTimeSuggestions })}
+                  >
+                    Cancel
+                  </ct-button>
+                  <ct-button
+                    onClick={applyWaitTimeSuggestions({ waitTimeSuggestions, stepGroups })}
+                    style={{ backgroundColor: "#2563eb", color: "white" }}
+                  >
+                    Apply
+                  </ct-button>
+                </div>
+              </ct-vstack>
+            </ct-card>,
+            <div />
+          )}
         </ct-vstack>
       ),
       name,
