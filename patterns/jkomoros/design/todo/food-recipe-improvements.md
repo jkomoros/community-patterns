@@ -37,7 +37,7 @@ This document outlines major improvements to the food-recipe pattern:
 - Completion tracking: try boxing pattern, fall back to name->boolean map
 
 ### Image Import
-- Use `ct-image-upload` component
+- Use `ct-image-input` component
 - Transcribes to text, populates notes field
 - Existing extraction flow handles the rest
 - PDF support: future enhancement (likely requires special handling)
@@ -84,6 +84,10 @@ interface StepGroup {
   requiresOven?: {
     temperature: number; // degrees F
     duration: number; // minutes in oven
+    racksNeeded?: {
+      heightSlots: number; // 1 for cookie sheet, 2 for casserole, 5 for turkey, etc.
+      width: "full" | "half"; // full rack width or half rack
+    };
   };
 
   // Future: for parallel execution
@@ -143,11 +147,11 @@ interface RecipeInput {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <h3>Recipe Input</h3>
       <div style={{ display: "flex", gap: "8px" }}>
-        <ct-image-upload
+        <ct-image-input
           onupload={handleImageUpload({ notes })}
         >
           Upload Image
-        </ct-image-upload>
+        </ct-image-input>
         <ct-button onClick={triggerExtraction(...)}>
           Extract Recipe Data
         </ct-button>
@@ -318,7 +322,14 @@ schema: {
             type: "object",
             properties: {
               temperature: { type: "number" },
-              duration: { type: "number" }
+              duration: { type: "number" },
+              racksNeeded: {
+                type: "object",
+                properties: {
+                  heightSlots: { type: "number" },
+                  width: { type: "string", enum: ["full", "half"] }
+                }
+              }
             }
           },
           steps: {
@@ -349,7 +360,11 @@ Extract the following fields if present:
   * Assign timing: use nightsBeforeServing (1, 2) for overnight tasks,
     minutesBeforeServing (e.g. 240, 60, 30, 0) for day-of timing
   * Estimate duration for each group
-  * Identify oven requirements (temperature and duration)
+  * Identify oven requirements (temperature, duration, and racksNeeded):
+    - temperature: oven temp in Fahrenheit
+    - duration: time in oven in minutes
+    - racksNeeded.heightSlots: 1 for thin items (cookie sheet), 2 for medium (casserole), 5 for tall items (turkey)
+    - racksNeeded.width: "full" for full rack width, "half" for half rack
   * Common group names: "Night Before", "Prep", "Cooking", "Finishing"
   * Most recipes will have 2-5 groups
 - remainingNotes: Any text that was NOT extracted into structured fields
@@ -419,12 +434,12 @@ const { result: waitTimeSuggestion } = generateObject({
 
 ### Phase 1: Image Import (Implement First)
 
-**Component**: `ct-image-upload`
+**Component**: `ct-image-input`
 
 **Flow**:
 1. User clicks "Upload Image" button in Notes section
 2. File picker opens, user selects image
-3. Image is transcribed to text (happens automatically with ct-image-upload)
+3. Image is transcribed to text (happens automatically with ct-image-input)
 4. Transcribed text is inserted into notes field
 5. User clicks "Extract Recipe Data" to run existing extraction
 
@@ -631,7 +646,11 @@ This example shows how the new data model represents a complex recipe:
       "maxWaitMinutes": 0,
       "requiresOven": {
         "temperature": 325,
-        "duration": 180
+        "duration": 180,
+        "racksNeeded": {
+          "heightSlots": 5,
+          "width": "full"
+        }
       },
       "steps": [
         { "description": "Remove turkey from brine, pat dry" },
