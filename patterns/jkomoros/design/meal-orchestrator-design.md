@@ -59,6 +59,10 @@ interface MealOrchestratorInput {
   mealTime: Default<string, "">;  // 24hr time: "18:00"
   guestCount: Default<number, 4>;
 
+  // Rough Planning (for early-stage brainstorming)
+  planningNotes: Default<string, "">;  // Free-form text for rough ideas
+                                        // Future: "Extract Items" button with LLM
+
   // Equipment
   ovens: Default<OvenConfig[], [{
     rackPositions: 5,
@@ -69,10 +73,11 @@ interface MealOrchestratorInput {
   // Dietary Requirements
   dietaryProfiles: Default<GuestDietaryProfile[], []>;
 
-  // Recipes
-  recipes: Default<OpaqueRef<Recipe>[], []>;  // @ referenced food-recipes
+  // Food Items
+  recipes: Default<OpaqueRef<FoodRecipe>[], []>;        // @ referenced recipes
+  preparedFoods: Default<OpaqueRef<PreparedFood>[], []>; // @ referenced prepared foods
 
-  notes: Default<string, "">;
+  notes: Default<string, "">;  // General notes about the meal
 }
 ```
 
@@ -156,9 +161,125 @@ interface RecipeAnalyzerOutput {
 
 **Implementation:** Uses `generateObject` with comprehensive dietary tag list to analyze ingredients and generate compatibility data.
 
+### 4. prepared-food.tsx (New Pattern)
+
+**Purpose:** Lightweight pattern for prepared/purchased items that don't need recipes
+
+**Use cases:**
+- Store-bought items (rotisserie chicken from Costco, prepared salad, bakery bread)
+- Guest contributions (Aunt Mary is bringing her famous pie, fully cooked)
+- Restaurant takeout (catered appetizers, delivered sides)
+- Items that don't need cooking (cheese platter, fruit tray, drinks)
+
+**Design Philosophy:**
+- Export same interface shape as `food-recipe` (or compatible subset) so meal-orchestrator can @ reference both uniformly
+- Much simpler inputs - no cooking instructions, stepGroups, or detailed prep
+- Still provides serving size info and dietary compatibility for meal balance analysis
+- No scheduling needed (already done or trivial)
+
+```typescript
+interface PreparedFoodInput {
+  // Basic Info
+  name: Default<string, "">;
+  servings: Default<number, 4>;
+  category: Default<string, "other">;  // Same categories as food-recipe
+
+  // Dietary Info (user-specified since no ingredients to analyze)
+  dietaryTags: Default<string[], []>;  // "vegan", "gluten-free", "nut-free", etc.
+  primaryIngredients: Default<string[], []>;  // "chicken", "lettuce", "tomatoes" for general awareness
+
+  // Source/Context
+  description: Default<string, "">;  // "Costco rotisserie chicken", "Aunt Mary's famous pie"
+  source: Default<string, "">;       // "Costco", "Aunt Mary", "Whole Foods", "Olive Garden"
+
+  // Optional: If it needs minimal work
+  prepTime: Default<number, 0>;    // e.g., 5 min to plate/reheat
+  requiresReheating: Default<boolean, false>;
+
+  tags: Default<string[], []>;
+}
+
+interface PreparedFoodOutput extends PreparedFoodInput {
+  // Export compatible interface for meal-orchestrator
+  // Since no cooking, no stepGroups, ovenRequirements, etc.
+
+  // Provide dietary compatibility for consistency with food-recipe
+  dietaryCompatibility: {
+    compatible: string[];      // Based on dietaryTags user provided
+    incompatible: string[];    // Inferred inverse
+    warnings: string[];        // e.g., "User-specified tags only - not analyzed"
+    primaryIngredients: string[];  // Pass through from input
+  };
+}
+```
+
+**Key Design Decisions:**
+
+1. **Why separate pattern vs. adding to meal-orchestrator?**
+   - Reusable: Other patterns might want to reference prepared foods
+   - @ mention uniformity: Can reference recipes AND prepared foods the same way
+   - Cleaner separation: meal-orchestrator doesn't need complex "is this a recipe or prepared food?" logic
+   - Pattern composition: Follows CommonTools philosophy
+
+2. **Why not just a "simple mode" in food-recipe?**
+   - Too much UI clutter in food-recipe for a prepared food
+   - Different mental model: "I'm adding a recipe" vs. "I'm adding a store-bought item"
+   - Simpler pattern loads faster, easier to use
+
+3. **Interface compatibility:**
+   - Both export: name, servings, category, dietaryCompatibility
+   - meal-orchestrator can treat them uniformly for meal balance analysis
+   - Only food-recipe has stepGroups/scheduling info (prepared foods skip scheduling)
+
+**Implementation Notes:**
+- No LLM needed (user provides tags directly)
+- Simple, fast UI - just a form
+- Could add optional photo like food-recipe
+- Maybe preset buttons: "From Store", "Guest Bringing", "Restaurant Takeout"
+
 ---
 
 ## UI Components
+
+### 0. Planning Notes Section (Early Planning Phase)
+
+**Purpose:** Free-form brainstorming area for early meal planning
+
+**Display:**
+```
+┌─────────────────────────────────────────────────┐
+│  📝 Planning Notes                              │
+│  ┌──────────────────────────────────────────┐  │
+│  │ turkey - 12lb from whole foods           │  │
+│  │ mashed potatoes - make fresh             │  │
+│  │ aunt mary bringing her famous pie        │  │
+│  │ costco rotisserie chicken as backup      │  │
+│  │ green salad from trader joes             │  │
+│  │ need gluten free options for sarah       │  │
+│  │                                           │  │
+│  └──────────────────────────────────────────┘  │
+│                                                  │
+│  [Future: 🤖 Extract Items]  ← Coming soon      │
+│                                                  │
+│  Tip: Jot down rough ideas here. Later you can  │
+│  convert them to recipes or prepared foods.     │
+└─────────────────────────────────────────────────┘
+```
+
+**Features:**
+- Large text area for unstructured notes
+- Appears at top of meal-orchestrator UI
+- Collapsible (can hide once planning is done)
+- Persisted with meal plan
+
+**Future Enhancement:**
+- "Extract Items" button that uses LLM to parse notes
+- Creates food-recipe stubs OR prepared-food entries automatically
+- Example parsing:
+  - "turkey - 12lb from whole foods" → Create prepared-food: "Turkey (12 lb)", source: "Whole Foods", category: "main"
+  - "mashed potatoes - make fresh" → Suggest @ mentioning existing recipe or create new food-recipe
+  - "aunt mary bringing her famous pie" → Create prepared-food: "Aunt Mary's Pie", source: "Aunt Mary", description: "Guest bringing"
+  - "need gluten free options for sarah" → Add dietary profile for "Sarah" with "gluten-free" requirement
 
 ### 1. Oven Timeline Visualization
 
@@ -385,10 +506,18 @@ For initial version, use simpler heuristics:
   - Export `dietaryCompatibility` output
   - Add optional UI card to display results
 
+- [ ] Create `prepared-food.tsx`
+  - Lightweight pattern for store-bought/guest-brought items
+  - Export compatible interface shape with food-recipe
+  - Simple form UI (no cooking instructions needed)
+  - Manual dietary tag input (no LLM analysis)
+
 - [ ] Create `meal-orchestrator.tsx` skeleton
   - Define input schema
   - Basic UI layout (sections for inputs)
+  - Planning notes field (large text area for rough brainstorming)
   - Recipe @ reference system
+  - Prepared food @ reference system
 
 ### Phase 2: Analysis Features (Week 3)
 **Goal:** Non-scheduling features working
@@ -533,16 +662,27 @@ For initial version, use simpler heuristics:
 
 ## Open Questions / Future Work
 
-1. **Multi-day events**: Wedding weekends, meal prep sessions
-2. **Scaling recipes**: Auto-scale to guest count
-3. **Shopping lists**: Aggregate ingredients across recipes
-4. **Equipment presets**: Save kitchen configuration
-5. **Recipe substitutions**: "Swap for gluten-free version"
-6. **Interactive rescheduling**: Drag timeline blocks to adjust
-7. **Real-time timers**: Browser notifications (needs timer support)
-8. **Collaboration**: Multiple people coordinating
-9. **Historical data**: Learn from past events
-10. **AI suggestions**: "This schedule is ambitious - consider starting earlier"
+1. **LLM Extraction from Planning Notes**: Add "Extract Items" button that uses LLM to parse rough planning notes (e.g., "turkey, mashed potatoes, aunt mary bringing pie, costco salad") and automatically create food-recipe or prepared-food references. Saves time in early planning phases.
+
+2. **Multi-day events**: Wedding weekends, meal prep sessions
+
+3. **Scaling recipes**: Auto-scale to guest count based on servings analysis
+
+4. **Shopping lists**: Aggregate ingredients across recipes, organize by store section
+
+5. **Equipment presets**: Save kitchen configuration (e.g., "My Kitchen", "Mom's Kitchen")
+
+6. **Recipe substitutions**: "Swap for gluten-free version" - suggest alternatives
+
+7. **Interactive rescheduling**: Drag timeline blocks to adjust schedule manually
+
+8. **Real-time timers**: Browser notifications (needs timer support in framework)
+
+9. **Collaboration**: Multiple people coordinating (shared spaces, task assignment)
+
+10. **Historical data**: Learn from past events, estimate actual times vs. planned
+
+11. **AI suggestions**: "This schedule is ambitious - consider starting earlier", "You'll need 2 ovens for this menu"
 
 ---
 
