@@ -77,6 +77,9 @@ interface RecipeInput {
   difficulty: Default<"easy" | "medium" | "hard", "medium">;
   prepTime: Default<number, 0>; // minutes
   cookTime: Default<number, 0>; // minutes
+  restTime: Default<number, 0>; // Minutes to rest after cooking before serving
+  holdTime: Default<number, 0>; // Minutes dish can wait while maintaining quality
+  category: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">;
   ingredients: Default<Ingredient[], []>;
   stepGroups: Default<StepGroup[], []>;
   tags: Default<string[], []>;
@@ -84,7 +87,14 @@ interface RecipeInput {
   source: Default<string, "">;
 }
 
-interface RecipeOutput extends RecipeInput {}
+interface RecipeOutput extends RecipeInput {
+  // Derived for meal planning
+  ovenRequirements: {
+    needsOven: boolean;
+    temps: number[]; // All unique oven temps needed
+    tempChanges: boolean; // Whether temp changes during cooking
+  };
+}
 
 // Handler for charm link clicks
 const handleCharmLinkClick = handler<
@@ -309,6 +319,9 @@ const applyExtractedData = handler<
     difficulty: Cell<"easy" | "medium" | "hard">;
     prepTime: Cell<number>;
     cookTime: Cell<number>;
+    restTime: Cell<number>;
+    holdTime: Cell<number>;
+    category: Cell<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other">;
     ingredients: Cell<Ingredient[]>;
     stepGroups: Cell<StepGroup[]>;
     tags: Cell<string[]>;
@@ -326,6 +339,9 @@ const applyExtractedData = handler<
       difficulty,
       prepTime,
       cookTime,
+      restTime,
+      holdTime,
+      category,
       ingredients,
       stepGroups,
       tags,
@@ -342,6 +358,9 @@ const applyExtractedData = handler<
     if (data.difficulty) difficulty.set(data.difficulty);
     if (data.prepTime) prepTime.set(data.prepTime);
     if (data.cookTime) cookTime.set(data.cookTime);
+    if (data.restTime) restTime.set(data.restTime);
+    if (data.holdTime) holdTime.set(data.holdTime);
+    if (data.category) category.set(data.category);
     if (data.source) source.set(data.source);
 
     // Apply ingredients - use .push() which auto-wraps in cells
@@ -400,6 +419,9 @@ export default pattern<RecipeInput, RecipeOutput>(
     difficulty,
     prepTime,
     cookTime,
+    restTime,
+    holdTime,
+    category,
     ingredients,
     stepGroups,
     tags,
@@ -415,8 +437,8 @@ export default pattern<RecipeInput, RecipeOutput>(
 
     // Computed values
     const totalTime = derive(
-      [prepTime, cookTime],
-      ([prep, cook]) => prep + cook,
+      [prepTime, cookTime, restTime],
+      ([prep, cook, rest]) => prep + cook + rest,
     );
 
     const ingredientCount = derive(ingredients, (list) => list.length);
@@ -435,6 +457,28 @@ export default pattern<RecipeInput, RecipeOutput>(
       list.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join("\n"),
     );
 
+    // Derive oven requirements for meal planning
+    const ovenRequirements = derive(stepGroups, (groups) => {
+      const temps: number[] = [];
+      let needsOven = false;
+
+      groups.forEach((group) => {
+        if (group.requiresOven) {
+          needsOven = true;
+          const temp = group.requiresOven.temperature;
+          if (!temps.includes(temp)) {
+            temps.push(temp);
+          }
+        }
+      });
+
+      return {
+        needsOven,
+        temps: temps.sort((a, b) => a - b),
+        tempChanges: temps.length > 1,
+      };
+    });
+
     // LLM Extraction state
     const extractTrigger = cell<string>("");
 
@@ -450,6 +494,9 @@ Extract the following fields if present:
 - difficulty: One of "easy", "medium", or "hard"
 - prepTime: Preparation time in minutes (as a number)
 - cookTime: Cooking time in minutes (as a number)
+- restTime: Time to rest after cooking before serving in minutes (as a number)
+- holdTime: Time dish can wait while maintaining quality in minutes (as a number)
+- category: Type of dish - one of "appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", or "other"
 - source: Where the recipe came from (URL, book, person)
 - ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
 - stepGroups: Organize steps into logical groups based on timing:
@@ -479,6 +526,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
             difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
             prepTime: { type: "number" },
             cookTime: { type: "number" },
+            restTime: { type: "number" },
+            holdTime: { type: "number" },
+            category: { type: "string", enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"] },
             source: { type: "string" },
             ingredients: {
               type: "array",
@@ -547,6 +597,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
         difficulty,
         prepTime,
         cookTime,
+        restTime,
+        holdTime,
+        category,
         source,
         notes,
       },
@@ -558,6 +611,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
         difficulty: currentDifficulty,
         prepTime: currentPrepTime,
         cookTime: currentCookTime,
+        restTime: currentRestTime,
+        holdTime: currentHoldTime,
+        category: currentCategory,
         source: currentSource,
         notes: currentNotes,
       }) => {
@@ -568,6 +624,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
           difficulty: { current: currentDifficulty, label: "Difficulty" },
           prepTime: { current: String(currentPrepTime), label: "Prep Time (min)" },
           cookTime: { current: String(currentCookTime), label: "Cook Time (min)" },
+          restTime: { current: String(currentRestTime), label: "Rest Time (min)" },
+          holdTime: { current: String(currentHoldTime), label: "Hold Time (min)" },
+          category: { current: currentCategory, label: "Category" },
           source: { current: currentSource, label: "Source" },
           remainingNotes: { current: currentNotes, label: "Notes" },
         });
@@ -733,6 +792,49 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                     type="number"
                     $value={str`${cookTime}`}
                     min="0"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                    Rest Time (min)
+                  </label>
+                  <ct-input
+                    type="number"
+                    $value={str`${restTime}`}
+                    min="0"
+                    placeholder="Time to rest after cooking"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                    Hold Time (min)
+                  </label>
+                  <ct-input
+                    type="number"
+                    $value={str`${holdTime}`}
+                    min="0"
+                    placeholder="Time dish can wait"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
+                    Category
+                  </label>
+                  <ct-select
+                    $value={category}
+                    items={[
+                      { label: "Appetizer", value: "appetizer" },
+                      { label: "Main", value: "main" },
+                      { label: "Side", value: "side" },
+                      { label: "Starch", value: "starch" },
+                      { label: "Vegetable", value: "vegetable" },
+                      { label: "Dessert", value: "dessert" },
+                      { label: "Bread", value: "bread" },
+                      { label: "Other", value: "other" },
+                    ]}
                   />
                 </div>
               </div>
@@ -1058,6 +1160,9 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                       difficulty,
                       prepTime,
                       cookTime,
+                      restTime,
+                      holdTime,
+                      category,
                       ingredients,
                       stepGroups,
                       tags,
@@ -1082,11 +1187,15 @@ Return only the fields you can confidently extract. Be thorough with ingredients
       difficulty,
       prepTime,
       cookTime,
+      restTime,
+      holdTime,
+      category,
       ingredients,
       stepGroups,
       tags,
       notes,
       source,
+      ovenRequirements,
       // Pattern tools for omnibot
       getIngredientsList: patternTool(
         ({ ingredients }: { ingredients: Ingredient[] }) => {
