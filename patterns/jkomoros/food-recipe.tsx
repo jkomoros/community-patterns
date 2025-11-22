@@ -1019,72 +1019,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
         },
       });
 
-    // Auto-apply timing suggestions when available
-    derive({ timingSuggestions, stepGroups }, ({ timingSuggestions: suggestions, stepGroups: groups }) => {
-      if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
-
-      const currentGroups = groups;
-
-      // Match suggestions to existing groups by ID and apply
-      suggestions.stepGroups.forEach((suggestion: any) => {
-        const groupIndex = currentGroups.findIndex((g: any) => {
-          if (!g) return false; // Skip undefined elements
-          const groupData = (g.get ? g.get() : g) as StepGroup;
-          if (!groupData) return false; // Skip if get() returns undefined
-          return groupData.id === suggestion.id;
-        });
-
-        if (groupIndex >= 0) {
-          const group = currentGroups[groupIndex];
-          if (!group) return; // Skip if group is undefined
-          const groupData = (group.get ? group.get() : group) as StepGroup;
-          if (!groupData) return; // Skip if groupData is undefined
-
-          // Apply timing suggestions
-          if ((group as any).set) {
-            (group as any).set({
-              ...groupData,
-              nightsBeforeServing: suggestion.nightsBeforeServing,
-              minutesBeforeServing: suggestion.minutesBeforeServing,
-              duration: suggestion.duration ?? groupData.duration,
-              requiresOven: suggestion.requiresOven ?? groupData.requiresOven,
-            });
-          }
-        }
-      });
-    });
-
-    // Auto-apply wait time suggestions when available
-    derive({ waitTimeSuggestions, stepGroups }, ({ waitTimeSuggestions: suggestions, stepGroups: groups }) => {
-      if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
-
-      const currentGroups = groups;
-
-      // Match suggestions to existing groups by ID and apply
-      suggestions.stepGroups.forEach((suggestion: any) => {
-        const groupIndex = currentGroups.findIndex((g: any) => {
-          if (!g) return false; // Skip undefined elements
-          const groupData = (g.get ? g.get() : g) as StepGroup;
-          if (!groupData) return false; // Skip if get() returns undefined
-          return groupData.id === suggestion.id;
-        });
-
-        if (groupIndex >= 0) {
-          const group = currentGroups[groupIndex];
-          if (!group) return; // Skip if group is undefined
-          const groupData = (group.get ? group.get() : group) as StepGroup;
-          if (!groupData) return; // Skip if groupData is undefined
-
-          // Apply wait time suggestion
-          if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
-            (group as any).set({
-              ...groupData,
-              maxWaitMinutes: suggestion.maxWaitMinutes,
-            });
-          }
-        }
-      });
-    });
+    // NOTE: Auto-apply derives were removed because derives cannot mutate cells (no .set() method available).
+    // Use the "Apply" buttons with the applyTimingSuggestions and applyWaitTimeSuggestions handlers instead.
+    // These handlers work correctly because handlers CAN call .set() on cells.
 
     return {
       [NAME]: str`🍳 ${displayName}`,
