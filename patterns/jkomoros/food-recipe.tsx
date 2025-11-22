@@ -19,6 +19,7 @@ import {
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
+import RecipeAnalyzer from "./recipe-analyzer.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
@@ -93,6 +94,13 @@ interface RecipeOutput extends RecipeInput {
     needsOven: boolean;
     temps: number[]; // All unique oven temps needed
     tempChanges: boolean; // Whether temp changes during cooking
+  };
+  // Dietary compatibility analysis
+  dietaryCompatibility: {
+    compatible: string[];
+    incompatible: string[];
+    warnings: string[];
+    primaryIngredients: string[];
   };
 }
 
@@ -630,6 +638,14 @@ export default pattern<RecipeInput, RecipeOutput>(
       };
     });
 
+    // Dietary analysis
+    const analyzer = RecipeAnalyzer({
+      recipeName: name,
+      ingredients,
+      category,
+      tags,
+    });
+
     // LLM Extraction state
     const extractTrigger = cell<string>("");
 
@@ -1037,6 +1053,68 @@ Return only the fields you can confidently extract. Be thorough with ingredients
                 ))}
               </ct-vstack>
             </ct-vstack>
+          </ct-card>
+
+          {/* Dietary Analysis Section */}
+          <ct-card>
+            <div style={{ padding: "8px" }}>
+              <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
+              {derive(analyzer.dietaryCompatibility, (dc) => {
+                if (dc.compatible.length === 0 && dc.incompatible.length === 0) {
+                  return <div style={{ fontStyle: "italic", color: "#666" }}>
+                    Add ingredients to see dietary analysis
+                  </div>;
+                }
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {dc.compatible.length > 0 && (
+                      <div>
+                        <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                          ✓ Compatible:
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          {dc.compatible.map((tag: string) => (
+                            <span style={{
+                              padding: "2px 8px",
+                              background: "#d1fae5",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                            }}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {dc.warnings.length > 0 && (
+                      <div>
+                        <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                          ⚠️ Warnings:
+                        </div>
+                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+                          {dc.warnings.map((warning: string) => (
+                            <li>{warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {dc.primaryIngredients.length > 0 && (
+                      <div>
+                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                          Main Ingredients:
+                        </div>
+                        <div style={{ fontSize: "13px", color: "#666" }}>
+                          {dc.primaryIngredients.join(", ")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </ct-card>
 
           {/* Step Groups Section */}
@@ -1513,6 +1591,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
       notes,
       source,
       ovenRequirements,
+      dietaryCompatibility: analyzer.dietaryCompatibility,
       // Pattern tools for omnibot
       getIngredientsList: patternTool(
         ({ ingredients }: { ingredients: Ingredient[] }) => {
