@@ -396,6 +396,97 @@ Be concise and practical in your analysis.`,
         },
     );
 
+    // Oven Timeline Calculation
+    interface OvenTimelineEvent {
+      recipeName: string;
+      stepGroupName: string;
+      startMinutesBeforeServing: number;
+      endMinutesBeforeServing: number;
+      temperature: number;
+      racksNeeded: { heightSlots: number; width: "full" | "half" };
+    }
+
+    const ovenTimeline = derive(
+      { recipes, mealTime },
+      ({ recipes: recipeList, mealTime: servingTime }) => {
+        if (!recipeList || recipeList.length === 0 || !servingTime) {
+          return { events: [], conflicts: [], hasData: false };
+        }
+
+        const events: OvenTimelineEvent[] = [];
+
+        // Extract all oven events from recipes
+        recipeList.forEach((recipe) => {
+          if (recipe.stepGroups) {
+            recipe.stepGroups.forEach((stepGroup) => {
+              if (stepGroup.requiresOven) {
+                const startMinutes = stepGroup.minutesBeforeServing || 0;
+                const duration = stepGroup.requiresOven.duration || 0;
+                const endMinutes = startMinutes - duration; // Earlier time (more minutes before)
+
+                events.push({
+                  recipeName: recipe.name,
+                  stepGroupName: stepGroup.name,
+                  startMinutesBeforeServing: startMinutes,
+                  endMinutesBeforeServing: endMinutes,
+                  temperature: stepGroup.requiresOven.temperature,
+                  racksNeeded: stepGroup.requiresOven.racksNeeded || {
+                    heightSlots: 1,
+                    width: "full",
+                  },
+                });
+              }
+            });
+          }
+        });
+
+        // Sort events by start time (descending - furthest from serving time first)
+        events.sort((a, b) => b.startMinutesBeforeServing - a.startMinutesBeforeServing);
+
+        // Detect conflicts
+        interface Conflict {
+          time: number;
+          reason: string;
+          affectedRecipes: string[];
+        }
+        const conflicts: Conflict[] = [];
+
+        // Check for time overlaps
+        for (let i = 0; i < events.length; i++) {
+          for (let j = i + 1; j < events.length; j++) {
+            const eventA = events[i];
+            const eventB = events[j];
+
+            // Check if time ranges overlap
+            const aStart = eventA.startMinutesBeforeServing;
+            const aEnd = eventA.endMinutesBeforeServing;
+            const bStart = eventB.startMinutesBeforeServing;
+            const bEnd = eventB.endMinutesBeforeServing;
+
+            const overlaps = (aStart >= bEnd && aEnd <= bStart);
+
+            if (overlaps) {
+              // Check if temperatures are compatible (within 25°F)
+              const tempDiff = Math.abs(eventA.temperature - eventB.temperature);
+              if (tempDiff > 25) {
+                conflicts.push({
+                  time: Math.max(aStart, bStart),
+                  reason: `Temperature conflict: ${eventA.temperature}°F vs ${eventB.temperature}°F`,
+                  affectedRecipes: [eventA.recipeName, eventB.recipeName],
+                });
+              }
+            }
+          }
+        }
+
+        return {
+          events,
+          conflicts,
+          hasData: events.length > 0,
+        };
+      },
+    );
+
     return {
       [NAME]: str`🍽️ ${displayName}`,
       [UI]: (
@@ -837,6 +928,208 @@ Be concise and practical in your analysis.`,
             null,
           )}
 
+          {/* Oven Timeline Visualization */}
+          {ifElse(
+            derive(ovenTimeline, (timeline) => timeline.hasData),
+            <ct-card>
+              <ct-vstack gap={1} style="padding: 8px;">
+                <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
+                  🔥 Oven Timeline
+                </h3>
+
+                {/* Conflicts Warning */}
+                {ifElse(
+                  derive(ovenTimeline, (timeline) => timeline.conflicts.length > 0),
+                  <div
+                    style={{
+                      padding: "8px",
+                      background: "#fef2f2",
+                      border: "1px solid #fca5a5",
+                      borderRadius: "4px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                      ⚠️ Conflicts Detected
+                    </div>
+                    <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "12px", color: "#dc2626" }}>
+                      {derive(ovenTimeline, (timeline) => timeline.conflicts).map(
+                        (conflict: any) => (
+                          <li>
+                            {conflict.reason} ({conflict.affectedRecipes.join(", ")})
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </div>,
+                  null,
+                )}
+
+                {/* Timeline visualization */}
+                <div style={{ position: "relative", marginTop: "8px" }}>
+                  {/* Helper function to format time */}
+                  {derive(ovenTimeline, (timeline) => {
+                    if (!timeline.hasData) return null;
+
+                    // Find the time range
+                    const maxMinutes = Math.max(
+                      ...timeline.events.map((e: OvenTimelineEvent) => e.startMinutesBeforeServing),
+                    );
+                    const minMinutes = Math.min(
+                      ...timeline.events.map((e: OvenTimelineEvent) => e.endMinutesBeforeServing),
+                    );
+
+                    const timeRange = maxMinutes - minMinutes;
+                    const pixelWidth = 700;
+
+                    const formatTime = (minutesBefore: number) => {
+                      if (minutesBefore === 0) return "Serving";
+                      const hours = Math.floor(minutesBefore / 60);
+                      const mins = minutesBefore % 60;
+                      if (hours > 0 && mins > 0) return `-${hours}h ${mins}m`;
+                      if (hours > 0) return `-${hours}h`;
+                      return `-${mins}m`;
+                    };
+
+                    return (
+                      <ct-vstack gap={0.5}>
+                        {/* Time axis */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: "11px",
+                            color: "#666",
+                            marginBottom: "4px",
+                            paddingLeft: "150px",
+                          }}
+                        >
+                          <span>{formatTime(maxMinutes)}</span>
+                          <span>{formatTime(Math.floor((maxMinutes + minMinutes) / 2))}</span>
+                          <span>{formatTime(minMinutes)}</span>
+                        </div>
+
+                        {/* Events */}
+                        {timeline.events.map((event: OvenTimelineEvent, index: number) => {
+                          const startPos = ((maxMinutes - event.startMinutesBeforeServing) / timeRange) * pixelWidth;
+                          const duration = event.startMinutesBeforeServing - event.endMinutesBeforeServing;
+                          const width = (duration / timeRange) * pixelWidth;
+
+                          // Check if this event has conflicts
+                          const hasConflict = timeline.conflicts.some(
+                            (c: any) => c.affectedRecipes.includes(event.recipeName),
+                          );
+
+                          return (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "2px",
+                              }}
+                            >
+                              {/* Recipe label */}
+                              <div
+                                style={{
+                                  width: "140px",
+                                  fontSize: "12px",
+                                  fontWeight: "500",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                                title={`${event.recipeName} - ${event.stepGroupName}`}
+                              >
+                                {event.recipeName}
+                              </div>
+
+                              {/* Timeline bar container */}
+                              <div
+                                style={{
+                                  position: "relative",
+                                  height: "28px",
+                                  width: `${pixelWidth}px`,
+                                  background: "#f3f4f6",
+                                  borderRadius: "2px",
+                                }}
+                              >
+                                {/* Event bar */}
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    left: `${startPos}px`,
+                                    width: `${width}px`,
+                                    height: "100%",
+                                    background: hasConflict
+                                      ? "linear-gradient(90deg, #fca5a5, #f87171)"
+                                      : "linear-gradient(90deg, #93c5fd, #60a5fa)",
+                                    borderRadius: "2px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontSize: "11px",
+                                    fontWeight: "600",
+                                    color: "#fff",
+                                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                                  }}
+                                  title={`${event.stepGroupName}: ${event.temperature}°F for ${duration} min`}
+                                >
+                                  {event.temperature}°F
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Legend */}
+                        <div
+                          style={{
+                            marginTop: "12px",
+                            padding: "8px",
+                            background: "#f9fafb",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            color: "#666",
+                          }}
+                        >
+                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                            Timeline shows when each recipe uses the oven
+                          </div>
+                          <div style={{ display: "flex", gap: "16px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <div
+                                style={{
+                                  width: "16px",
+                                  height: "16px",
+                                  background: "linear-gradient(90deg, #93c5fd, #60a5fa)",
+                                  borderRadius: "2px",
+                                }}
+                              />
+                              <span>Normal</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                              <div
+                                style={{
+                                  width: "16px",
+                                  height: "16px",
+                                  background: "linear-gradient(90deg, #fca5a5, #f87171)",
+                                  borderRadius: "2px",
+                                }}
+                              />
+                              <span>Conflict</span>
+                            </div>
+                          </div>
+                        </div>
+                      </ct-vstack>
+                    );
+                  })}
+                </div>
+              </ct-vstack>
+            </ct-card>,
+            null,
+          )}
+
           {/* Notes */}
           <ct-card>
             <ct-vstack gap={1} style="padding: 8px;">
@@ -858,9 +1151,9 @@ Be concise and practical in your analysis.`,
                 Coming Soon:
               </div>
               <ul style={{ margin: "0", paddingLeft: "16px", fontSize: "12px", color: "#166534" }}>
-                <li>Oven timeline visualization</li>
-                <li>Production schedule generator</li>
-                <li>Conflict detection and optimization</li>
+                <li>Production schedule generator (detailed step-by-step timeline)</li>
+                <li>Smart conflict resolution suggestions</li>
+                <li>Stovetop burner timeline</li>
               </ul>
             </div>
           </ct-card>
