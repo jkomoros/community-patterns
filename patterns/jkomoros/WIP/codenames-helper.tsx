@@ -684,18 +684,26 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             </ct-button>
           </div>
 
-          {/* Initialize Board Button */}
-          <div style={{
-            marginBottom: "1rem",
-            textAlign: "center",
-          }}>
-            <ct-button
-              onClick={initializeBoardHandler({ board, setupMode })}
-              className="btn-initialize"
-            >
-              Create 5×5 Game Board
-            </ct-button>
-          </div>
+          {/* Initialize Board Button - only show if board is empty */}
+          {derive(board, (boardData: BoardWord[]) => {
+            // Check if board has any non-empty words
+            const hasWords = boardData.some((word: BoardWord) => word.word.trim() !== "");
+            if (hasWords) return null;  // Hide button if board has words
+
+            return (
+              <div style={{
+                marginBottom: "1rem",
+                textAlign: "center",
+              }}>
+                <ct-button
+                  onClick={initializeBoardHandler({ board, setupMode })}
+                  className="btn-initialize"
+                >
+                  Create 5×5 Game Board
+                </ct-button>
+              </div>
+            );
+          })}
 
           {/* Board Display */}
           <div style={{
