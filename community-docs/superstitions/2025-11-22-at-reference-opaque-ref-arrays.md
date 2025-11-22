@@ -134,18 +134,34 @@ export default pattern<MyInput>(({ recipes }) => {
 - Redeployed and tested typing "@mashed" - still no dropdown appears
 - Confirmed chatbot.tsx uses identical pattern but works correctly
 
-**Conclusion:** ct-prompt-input @ mention functionality appears to not be working in our test environment, despite matching the implementation patterns from working examples (chatbot.tsx). This may indicate:
-1. A framework version mismatch
-2. Missing setup/configuration in the space
-3. A requirement for BacklinksIndex pattern to be present
-4. Different behavior in local dev vs production
+**ROOT CAUSE FOUND (2025-11-22 evening):**
 
-Recommend consulting framework authors for guidance on proper @ mention/wikilink implementation.
+The issue is NOT with the pattern implementation - it's with the space setup!
 
-**Alternative approaches to try:**
-- Use ct-code-editor instead of ct-prompt-input (note.tsx uses this)
-- Check if there's a specific event format or setup needed
-- Investigate if mentions need to be parsed from text manually
+**The Problem:** `wish("#mentionable")` returns an empty array because the space does not have a BacklinksIndex pattern configured.
+
+**How @ mentions work:**
+1. `wish("#mentionable")` resolves to `space.defaultPattern.backlinksIndex.mentionable`
+2. The BacklinksIndex pattern (from `backlinks-index.tsx`) populates this list
+3. Without BacklinksIndex, the mentionable array is empty, so no dropdown appears
+
+**The Solution:** The space needs a BacklinksIndex pattern instance. This is typically created automatically in production spaces but was missing in our `test-meal-v3` development space.
+
+**Evidence:**
+- Browser console inspection: `promptInput.mentionable.get()` returned empty array (length: 0)
+- Checked `wish.ts` source: `#mentionable` maps to `["defaultPattern", "backlinksIndex", "mentionable"]`
+- Both chatbot.tsx and meal-orchestrator patterns are correctly implemented
+- The @ mention UI code works perfectly - it just has no data to show
+
+**How to Fix:**
+
+The BacklinksIndex pattern should be automatically created in production spaces. For development/testing:
+
+1. Check if BacklinksIndex exists in your space
+2. If missing, create an instance of the BacklinksIndex pattern
+3. Set it as `defaultPattern.backlinksIndex` in your space configuration
+
+Note: This is usually handled automatically by the framework in production environments. The issue primarily affects development/test spaces that were created without proper initialization.
 
 ## Related Patterns
 
