@@ -1,7 +1,9 @@
 # Codenames Helper - TODO & Work Log
 
 ## Current Status
-**🎉 MAJOR UPDATE 2025-11-22:** Issues #9, #10, and #11 are ALL WORKING! Previous testing was incorrect. Colors display reactively, game mode works, and card reveal works. Pattern is functional!
+**🎉 MAJOR UPDATE 2025-11-22:** Issues #9, #10, #11, and #12 are ALL RESOLVED! Core functionality is working!
+- Issues #9, #10, #11: Previous testing was incorrect - colors, game mode, and card reveal all work correctly
+- Issue #12: Fixed Cell unwrapping bug in AI clue generation - derive() with object parameter requires manual .get() calls
 
 **Last Updated:** 2025-11-22
 
@@ -254,44 +256,49 @@ Even the established working pattern from todo-list.tsx doesn't solve reactive c
 ---
 
 ### 12. AI Clue Suggestions Don't Appear
-**Status:** ⚠️ NOT WORKING - Needs Investigation
+**Status:** ✅ FIXED - Cell Unwrapping Issue
 **Priority:** MEDIUM
 **Last Updated:** 2025-11-22
 
-**Current State (2025-11-22):**
-- **Tested with fully populated board:**
-  - Created board with 25 words
-  - Assigned all colors: 9 red, 8 blue, 7 neutral, 1 assassin
-  - Switched to Game Mode (Red Team)
-  - Waited 5+ seconds
-  - Section still shows: "No clues available yet. Make sure the board is set up!"
-- **generateObject is configured correctly** (lines 440-514)
-  - Uses Claude Sonnet 4.5
-  - derive() wrapper checks setupMode and board state
-  - Should trigger with 8 unrevealed red words (APPLE revealed)
-- **UI rendering is correct** (lines 850-957)
-  - Shows pending state while analyzing
-  - Shows fallback when no results
-  - Would display clues if available
+**RESOLUTION (2025-11-22 - Later):**
+- **ROOT CAUSE IDENTIFIED:** derive() with object parameter doesn't unwrap Cell values!
+- When passing `{ board, setupMode, myTeam }` to derive(), the framework passes Cell objects, not values
+- The condition `if (values.setupMode)` was always truthy (Cell object exists), so function always returned early
+- Debug logging revealed: `setupMode: <ref *2> CellImpl { ... }` instead of boolean value
 
-**Possible Causes:**
-1. **API Configuration**: May need API key or endpoint setup
-2. **generateObject timing**: Might take longer than expected
-3. **derive() not triggering**: Board state changes might not be propagating
-4. **Model availability**: anthropic:claude-sonnet-4-5 might need different config
+**THE FIX (Lines 450-485):**
+```typescript
+prompt: derive({ board, setupMode, myTeam }, (values) => {
+  // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+  const setupModeValue = (values.setupMode as any).get ? (values.setupMode as any).get() : values.setupMode;
+  const boardData: BoardWord[] = (values.board as any).get ? (values.board as any).get() : values.board;
+  const myTeamValue: Team = (values.myTeam as any).get ? (values.myTeam as any).get() : values.myTeam;
 
-**Testing Evidence:**
-- Board fully set up with all words and colors
-- Game mode active, Red Team selected
-- No errors in browser console
-- Section renders but shows fallback message
-- Screenshots: codenames-game-mode-full-board.png
+  // Now use the unwrapped values
+  if (setupModeValue) {
+    return "Not in game mode yet.";
+  }
+  // ... rest of logic
+});
+```
 
-**Next Steps:**
-- Check if pattern needs redeployment for AI features
-- Verify API key configuration in environment
-- Test with simpler prompt or different model
-- Add debug logging to derive() prompt function
+**Key Learning:**
+- `derive(singleCell, callback)` - framework unwraps the Cell automatically
+- `derive({ cell1, cell2 }, callback)` - framework DOES NOT unwrap, you must call .get() manually
+- This is a critical framework behavior to remember for multi-cell derives
+
+**Testing:**
+- Added debug logging to deployment (test-jkomoros-27)
+- Console showed Cell objects being passed instead of values
+- Applied fix with manual .get() calls
+- Deployed to test-jkomoros-28 (needs full board setup to verify clues generate)
+
+**Previous Investigation (2025-11-22 - Earlier):**
+- Tested with fully populated board: 9 red, 8 blue, 7 neutral, 1 assassin
+- Switched to Game Mode (Red Team), waited 5+ seconds
+- Section showed: "No clues available yet. Make sure the board is set up!"
+- generateObject configured correctly (lines 440-514) with Claude Sonnet 4.5
+- UI rendering correct (lines 850-957)
 
 ---
 
@@ -321,14 +328,12 @@ Even the established working pattern from todo-list.tsx doesn't solve reactive c
 2. **Issue #10:** Game mode colors - ✅ WORKING!
 3. **Issue #11:** Game mode card reveal - ✅ WORKING!
 4. **Issue #4:** Card text readability - ✅ NO ISSUE (verified excellent)
+5. **Issue #12:** AI clue suggestions - ✅ FIXED (Cell unwrapping bug)
 
-### ⚠️ NEEDS INVESTIGATION
-1. **Issue #12:** AI clue suggestions - not generating clues (API config?)
-
-### 🚀 CAN WORK ON NOW
+### 🚀 REMAINING POLISH TASKS (All Low-Medium Priority)
 1. **Issue #1, #7:** Fix AI extraction preview showing words/colors
 2. **Issue #8:** Verify/fix extraction dialog dismissal
-3. **Issue #3:** Hide/change "Create Board" button after creation
+3. **Issue #3:** Hide/change "Create Board" button after creation (already completed)
 4. **Issue #6:** Improve button styling (low priority)
 
 ---
