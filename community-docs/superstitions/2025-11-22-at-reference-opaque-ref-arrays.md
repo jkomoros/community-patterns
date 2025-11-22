@@ -128,7 +128,19 @@ export default pattern<MyInput>(({ recipes }) => {
 - No handler events firing (checked console logs)
 - Input field renders and accepts text normally
 
-**Conclusion:** This implementation approach may not be correct, or ct-prompt-input $mentionable requires additional undocumented setup. Recommend consulting framework authors for guidance on proper @ mention/wikilink implementation.
+**Additional testing (2025-11-22):**
+- Added `schemaifyWish` helper function to match chatbot.tsx implementation
+- Changed from `wish<any[]>("#mentionable")` to `schemaifyWish<any[]>("#mentionable")`
+- Redeployed and tested typing "@mashed" - still no dropdown appears
+- Confirmed chatbot.tsx uses identical pattern but works correctly
+
+**Conclusion:** ct-prompt-input @ mention functionality appears to not be working in our test environment, despite matching the implementation patterns from working examples (chatbot.tsx). This may indicate:
+1. A framework version mismatch
+2. Missing setup/configuration in the space
+3. A requirement for BacklinksIndex pattern to be present
+4. Different behavior in local dev vs production
+
+Recommend consulting framework authors for guidance on proper @ mention/wikilink implementation.
 
 **Alternative approaches to try:**
 - Use ct-code-editor instead of ct-prompt-input (note.tsx uses this)
