@@ -113,13 +113,27 @@ export default pattern<MyInput>(({ recipes }) => {
 
 ## Known Issues (2025-11-22)
 
-**@ Mention dropdown not appearing**: While the pattern compiles and deploys successfully with the above implementation, the @ mention suggestion dropdown does not appear when typing "@" in the `ct-prompt-input` field. Tested in meal-orchestrator.tsx with food-recipe.tsx charms present in the same space. The input field renders correctly and accepts text, but no mention suggestions are shown.
+**@ Mention feature not working**: The implementation above compiles and deploys successfully, but @ mentions do not work in practice:
 
-Possible causes to investigate:
-- `wish("#mentionable")` may be returning undefined or empty array
-- `ct-prompt-input` may require additional configuration
-- There may be a framework version incompatibility
-- The feature may require additional setup not present in the test environment
+**What was tested:**
+- Typing "@" in ct-prompt-input - no dropdown appears
+- Typing "[[" (wiki-link syntax) - no dropdown appears
+- Manually typing "[[Mashed Potatoes]]" and clicking Send - handler does not fire, no console events
+- Recipe count stays at 0, no changes detected
+
+**Technical details:**
+- Pattern: meal-orchestrator.tsx deployed to test-meal-v3
+- Test recipe: "🍳 Mashed Potatoes" confirmed present in same space
+- No errors in console
+- No handler events firing (checked console logs)
+- Input field renders and accepts text normally
+
+**Conclusion:** This implementation approach may not be correct, or ct-prompt-input $mentionable requires additional undocumented setup. Recommend consulting framework authors for guidance on proper @ mention/wikilink implementation.
+
+**Alternative approaches to try:**
+- Use ct-code-editor instead of ct-prompt-input (note.tsx uses this)
+- Check if there's a specific event format or setup needed
+- Investigate if mentions need to be parsed from text manually
 
 ## Related Patterns
 
