@@ -553,13 +553,27 @@ const handleImageUpload = handler<
 - This is a fundamental constraint of the reactive system
 - Modal + handler pattern works well for user-approved mutations
 
-### Phase 4: Viewer Pattern (Fourth PR)
-- [ ] Create food-recipe-viewer.tsx
-- [ ] Implement completion tracking (boxing pattern)
-- [ ] Add "Create Cooking View" button to food-recipe
-- [ ] Add navigation between recipe and viewer
+### Phase 4: Viewer Pattern (Fourth PR) - IN PROGRESS
+- [x] Create food-recipe-viewer.tsx
+- [x] Implement completion tracking (boxing pattern with arrays)
+- [x] Add "Create Cooking View" button to food-recipe
+- [x] Deploy viewer pattern (charm ID: baedreiety5mgwt2rgtrtysd7ab6xj5sf42f2ewgfoysksl6zycfaticbsi)
+- [x] Commit and push Phase 4 WIP (commit c6c2da5)
+- [ ] Implement sourceRecipeRef linking in createCookingView handler
+- [ ] Deploy updated food-recipe pattern
+- [ ] Test viewer creation from recipe button
+- [ ] Test navigation between recipe and viewer
 - [ ] Test viewer with live updates
-- [ ] Commit and push
+- [ ] Final commit and push
+
+**Implementation Notes (2025-11-22)**:
+- Viewer uses `wish()` to read recipe data from sourceRecipeRef
+- Completion tracking uses arrays: `StepCompletion[]` and `GroupCompletion[]`
+- Group checkbox toggles all steps in that group
+- Navigation back to recipe with "← Back to Recipe" button
+- **Current blocker**: Need to pass self-reference from food-recipe to viewer
+  - Handler currently creates viewer with `sourceRecipeRef: null`
+  - Need to investigate CommonTools pattern for self-reference
 
 ### Phase 5: Polish & Future Enhancements
 - [ ] Add parallel group support (parallelGroup field)
