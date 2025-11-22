@@ -688,18 +688,45 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             </ct-button>
           </div>
 
-          {/* Initialize Board Button */}
-          <div style={{
-            marginBottom: "1rem",
-            textAlign: "center",
-          }}>
-            <ct-button
-              onClick={initializeBoardHandler({ board, setupMode })}
-              className="btn-initialize"
-            >
-              Create 5×5 Game Board
-            </ct-button>
-          </div>
+          {/* Initialize Board Button - only show if board is empty */}
+          {derive(board, (boardData) => {
+            // Check if board is initialized and is an array
+            if (!boardData || !Array.isArray(boardData) || boardData.length === 0) {
+              // Board not initialized or empty, show the button
+              return (
+                <div style={{
+                  marginBottom: "1rem",
+                  textAlign: "center",
+                }}>
+                  <ct-button
+                    onClick={initializeBoardHandler({ board, setupMode })}
+                    className="btn-initialize"
+                  >
+                    Create 5×5 Game Board
+                  </ct-button>
+                </div>
+              );
+            }
+
+            // Board exists, check if it has content
+            const hasContent = boardData.some((word) => word.word.trim() !== "");
+            if (hasContent) return null;
+
+            // Board exists but is empty, show the button
+            return (
+              <div style={{
+                marginBottom: "1rem",
+                textAlign: "center",
+              }}>
+                <ct-button
+                  onClick={initializeBoardHandler({ board, setupMode })}
+                  className="btn-initialize"
+                >
+                  Create 5×5 Game Board
+                </ct-button>
+              </div>
+            );
+          })}
 
           {/* Board Display */}
           <div style={{
@@ -720,7 +747,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           borderRadius: "0.25rem",
                           padding: "0.25rem",
                           backgroundColor: "#dc2626",
-                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          opacity: word.state === "revealed" ? 0.2 : 1,
                           color: "white",
                           display: "flex",
                           flexDirection: "column",
@@ -736,7 +763,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           borderRadius: "0.25rem",
                           padding: "0.25rem",
                           backgroundColor: "#2563eb",
-                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          opacity: word.state === "revealed" ? 0.2 : 1,
                           color: "white",
                           display: "flex",
                           flexDirection: "column",
@@ -752,7 +779,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           borderRadius: "0.25rem",
                           padding: "0.25rem",
                           backgroundColor: "#d4d4d8",
-                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          opacity: word.state === "revealed" ? 0.2 : 1,
                           color: "black",
                           display: "flex",
                           flexDirection: "column",
@@ -768,7 +795,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           borderRadius: "0.25rem",
                           padding: "0.25rem",
                           backgroundColor: "#000000",
-                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          opacity: word.state === "revealed" ? 0.2 : 1,
                           color: "white",
                           display: "flex",
                           flexDirection: "column",
@@ -783,7 +810,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           borderRadius: "0.25rem",
                           padding: "0.25rem",
                           backgroundColor: "#e5e7eb",
-                          opacity: word.state === "revealed" ? 0.5 : 1,
+                          opacity: word.state === "revealed" ? 0.2 : 1,
                           color: "black",
                           display: "flex",
                           flexDirection: "column",
@@ -1403,6 +1430,21 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               })}
             </div>
           )}
+
+          {/* Reset Board Button - always visible at bottom */}
+          <div style={{
+            marginTop: "1.5rem",
+            textAlign: "center",
+            paddingTop: "1rem",
+            borderTop: "2px solid #e5e7eb",
+          }}>
+            <ct-button
+              onClick={initializeBoardHandler({ board, setupMode })}
+              className="btn-reset"
+            >
+              Reset Board
+            </ct-button>
+          </div>
         </div>
       ),
       board,
