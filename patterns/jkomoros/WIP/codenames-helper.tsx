@@ -448,11 +448,15 @@ CRITICAL RULES:
 5. Be creative with connections (synonyms, categories, rhymes, cultural references)`,
 
       prompt: derive({ board, setupMode, myTeam }, (values) => {
-        // Only run in Game Mode
-        if (values.setupMode) return "Not in game mode yet.";
+        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+        const setupModeValue = (values.setupMode as any).get ? (values.setupMode as any).get() : values.setupMode;
+        const boardData: BoardWord[] = (values.board as any).get ? (values.board as any).get() : values.board;
+        const myTeamValue: Team = (values.myTeam as any).get ? (values.myTeam as any).get() : values.myTeam;
 
-        const boardData: BoardWord[] = values.board as any;
-        const myTeamValue: Team = values.myTeam as any;
+        // Only run in Game Mode
+        if (setupModeValue) {
+          return "Not in game mode yet.";
+        }
 
         // Get unrevealed words by team
         const myWords = boardData.filter((w: BoardWord) => w.owner === myTeamValue && w.state === "unrevealed").map((w: BoardWord) => w.word);
