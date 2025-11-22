@@ -64,12 +64,19 @@ interface TranscriptionEntry {
 const handleTranscriptionComplete = handler<
   { detail: { transcription: TranscriptionData } },
   { transcriptions: Cell<TranscriptionEntry[]> }
->(({ detail }, { transcriptions }) => {
+>((event, { transcriptions }) => {
+  console.log("[brain-dump] Handler called with event:", event);
+
+  if (!event?.detail?.transcription) {
+    console.error("[brain-dump] No transcription in event detail:", event);
+    return;
+  }
+
   const entry: TranscriptionEntry = {
-    id: detail.transcription.id,
-    text: detail.transcription.text,
-    duration: detail.transcription.duration,
-    timestamp: detail.transcription.timestamp,
+    id: event.detail.transcription.id,
+    text: event.detail.transcription.text,
+    duration: event.detail.transcription.duration,
+    timestamp: event.detail.transcription.timestamp,
     status: "processing",
   };
 
@@ -142,96 +149,8 @@ export default recipe<BrainDumpInput, BrainDumpOutput>(
       transcriptions.get().filter((t) => t.status === "processed")
     );
 
-    // Process each transcription with Suggestion
-    // Note: We need to create suggestions for entries marked as "processing"
-    const entriesWithSuggestions = transcriptions.map((entry) => {
-      // Only process entries in "processing" status
-      if (entry.status !== "processing") {
-        return { entry, suggestion: null };
-      }
-
-      const situation = `User spoke: "${entry.text}"
-
-Your task: Route this voice input to appropriate patterns in the user's space.
-
-Guidelines:
-- If it mentions shopping/groceries: add items to shopping list
-- If it's a task/todo: add to todo list
-- If it's a note/thought: create a new note
-- If it contains multiple intents: split into multiple actions
-- If unclear what to do: return error so user can handle manually
-
-Use listPatternIndex to see available patterns.
-Use fetchAndRunPattern to instantiate or find patterns.
-Use navigateToPattern if you want to show the result.
-
-Return a cell reference to the pattern you created or modified.`;
-
-      const suggestion = Suggestion({
-        situation,
-        context: {
-          transcriptionText: entry.text,
-          timestamp: entry.timestamp,
-        },
-      });
-
-      // Watch for completion and update the transcriptions cell
-      derive(suggestion, (result) => {
-        if (!result) return; // Still pending
-
-        const current = transcriptions.get();
-        const index = current.findIndex((e) => e.id === entry.id);
-        if (index < 0) return;
-
-        const updated = [...current];
-
-        if (result.cell) {
-          // Success!
-          console.log("[brain-dump] Suggestion succeeded for:", entry.text);
-          updated[index] = {
-            ...updated[index],
-            status: "processed",
-            processingResult: {
-              actions: [
-                {
-                  type: "created",
-                  targetPattern: "Pattern",
-                  targetCell: result.cell,
-                  description: "Processed successfully",
-                },
-              ],
-            },
-          };
-        } else if (result.error) {
-          // Failed
-          console.log("[brain-dump] Suggestion failed:", result.error);
-          updated[index] = {
-            ...updated[index],
-            status: "needs-attention",
-            processingResult: {
-              actions: [],
-              error: result.error,
-            },
-          };
-        } else {
-          // Ambiguous or couldn't process
-          console.log("[brain-dump] Suggestion ambiguous for:", entry.text);
-          updated[index] = {
-            ...updated[index],
-            status: "needs-attention",
-            processingResult: {
-              actions: [],
-              error: "Could not process automatically",
-              suggestionCell: result.cell,
-            },
-          };
-        }
-
-        transcriptions.set(updated);
-      });
-
-      return { entry, suggestion };
-    });
+    // Note: Suggestion processing will be added in a future iteration
+    // For now, entries remain in "processing" status
 
     // ========================================================================
     // UI Components
@@ -411,9 +330,58 @@ Return a cell reference to the pattern you created or modified.`;
                   <h3 style={{ marginTop: 0, marginBottom: "1rem", fontSize: "18px" }}>
                     📋 To Process ({derive(unprocessed, (u) => u.length)})
                   </h3>
-                  {derive(unprocessed, (u) => u.map((entry) =>
-                    <TranscriptionEntryView entry={entry} />
-                  ))}
+                  {derive(unprocessed, (u) => u.map((entry) => {
+                    const statusIcon = {
+                      unprocessed: "⏳",
+                      processing: "🔄",
+                      processed: "✅",
+                      "needs-attention": "⚠️",
+                    }[entry.status];
+
+                    const timestamp = new Date(entry.timestamp).toLocaleString();
+
+                    return (
+                      <div
+                        style={{
+                          padding: "1rem",
+                          background: "white",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                          marginBottom: "0.75rem",
+                        }}
+                      >
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                          <span style={{ fontSize: "18px" }}>{statusIcon}</span>
+                          <small style={{ color: "#6b7280", fontSize: "12px" }}>
+                            {timestamp}
+                          </small>
+                        </div>
+
+                        <p style={{ margin: "0.5rem 0", fontSize: "15px", lineHeight: "1.5" }}>
+                          {entry.text}
+                        </p>
+
+                        <small style={{ color: "#9ca3af", fontSize: "11px" }}>
+                          {entry.duration.toFixed(1)}s
+                        </small>
+
+                        {entry.status === "processing" && (
+                          <div
+                            style={{
+                              marginTop: "0.75rem",
+                              padding: "0.5rem",
+                              background: "#eff6ff",
+                              borderRadius: "6px",
+                              fontSize: "13px",
+                              color: "#2563eb",
+                            }}
+                          >
+                            🤖 Processing with AI...
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }))}
                 </div>
               </ct-card>,
               null
