@@ -12,6 +12,7 @@ import {
   pattern,
   str,
   UI,
+  wish,
 } from "commontools";
 
 // Oven configuration
@@ -175,6 +176,38 @@ const removeRecipe = handler<
   }
 });
 
+// Handler for adding recipes via @ mentions
+const addRecipeMentions = handler<
+  {
+    detail: {
+      text: string;
+      mentions: Array<any>;
+    };
+  },
+  {
+    recipes: Cell<OpaqueRef<FoodRecipe>[]>;
+  }
+>(({ detail }, { recipes }) => {
+  const { mentions } = detail;
+
+  if (mentions && mentions.length > 0) {
+    const currentRecipes = recipes.get();
+    const newRecipes = mentions.filter((mention: any) => {
+      // Only add if not already in the list
+      return !currentRecipes.some((existing) => {
+        if (typeof existing === 'object' && 'equals' in existing) {
+          return (existing as any).equals(mention);
+        }
+        return false;
+      });
+    });
+
+    if (newRecipes.length > 0) {
+      recipes.set([...currentRecipes, ...newRecipes]);
+    }
+  }
+});
+
 export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   ({
     mealName,
@@ -187,6 +220,9 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     recipes,
     notes,
   }) => {
+    // Get mentionable charms for @ references
+    const mentionable = wish<any[]>("#mentionable");
+
     const displayName = derive(
       mealName,
       (name) => name.trim() || "Untitled Meal",
@@ -509,12 +545,18 @@ Be concise and practical in your analysis.`,
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Recipes ({recipeCount})
               </h3>
+
+              {/* Input for adding recipes via @ mentions */}
+              <ct-prompt-input
+                placeholder="@ mention recipes to add them..."
+                $mentionable={mentionable}
+                onct-send={addRecipeMentions({ recipes })}
+              />
+
+              {/* List of added recipes */}
               {ifElse(
-                derive(recipes, (list) => list.length === 0),
-                <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>
-                  @ reference food-recipe patterns to add them to your meal
-                </div>,
-                <ct-vstack gap={1}>
+                derive(recipes, (list) => list.length > 0),
+                <ct-vstack gap={1} style="margin-top: 8px;">
                   {recipes.map((recipe) => (
                     <div
                       style={{
@@ -544,6 +586,7 @@ Be concise and practical in your analysis.`,
                     </div>
                   ))}
                 </ct-vstack>,
+                null,
               )}
             </ct-vstack>
           </ct-card>
