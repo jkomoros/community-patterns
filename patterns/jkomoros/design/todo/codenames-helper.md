@@ -43,17 +43,19 @@ Reactive color display is blocked by framework limitation. Issue documented for 
 ---
 
 ### 3. "Create 5×5 Game Board" Button Persists After Creation
-**Status:** NOT STARTED
+**Status:** ✅ COMPLETED
 **Priority:** LOW
+**Completed:** 2025-11-21
 
-**Problem:**
-- After creating a board, the button still shows
-- Should probably hide after board exists or change to "Reset Board"
+**Solution Applied:**
+- Button now hides automatically when board has any words
+- Uses `derive(board, ...)` to check if board.some(word => word.word.trim() !== "")
+- Returns null (hidden) if board has words, otherwise shows button
+- Lines: 688-706
 
-**Questions for User:**
-- Should this button hide after board creation?
-- Or change to "Reset Board" / "New Board"?
-- If reset, should it warn about losing current data?
+**Testing Needed:**
+- Deploy and verify button disappears after typing first word
+- Verify button works correctly on fresh board
 
 ---
 
