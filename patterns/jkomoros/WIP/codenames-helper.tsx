@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { cell, Cell, Default, derive, generateObject, handler, ifElse, ImageData, NAME, pattern, UI } from "commontools";
+import { cell, Cell, Default, derive, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -372,7 +372,7 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // Note: uploadedPhotos.map() returns reactive values, but we still need derive()
     // to reactively access properties like photo.data
     const photoExtractions = uploadedPhotos.map((photo) => {
-      return generateObject<PhotoExtractionResult>({
+      return generateObject({
         system: `You are an image analysis assistant for a Codenames board game. Your job is to analyze photos and extract information.
 
 You will receive either:
@@ -422,12 +422,13 @@ If it's a KEY CARD photo:
 Provide the extracted information in the appropriate format.`
             }
           ];
-        })
+        }),
+        schema: toSchema<PhotoExtractionResult>()
       });
     });
 
     // AI Clue Suggestions - only in Game Mode
-    const clueSuggestions = generateObject<ClueSuggestionsResult>({
+    const clueSuggestions = generateObject({
       system: `You are a Codenames spymaster assistant. Your job is to suggest clever clues that connect multiple words of the same team.
 
 CRITICAL RULES:
@@ -472,7 +473,8 @@ ASSASSIN WORD (CRITICAL - NEVER hint at this):
 ${assassinWords.join(", ")}
 
 Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoiding all other words.`;
-      })
+      }),
+      schema: toSchema<ClueSuggestionsResult>()
     });
 
     return {
