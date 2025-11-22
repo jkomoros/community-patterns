@@ -241,55 +241,20 @@ export default recipe<BrainDumpInput, BrainDumpOutput>(
                   {ifElse(
                     showProcessed,
                     <div>
-                      {derive({ processed }, ({ processed: p }) => p.map((entry) => {
-                        const statusIcon = "✅";
-                        const timestamp = new Date(entry.timestamp).toLocaleString();
-
-                        return (
-                          <div
-                            style={{
-                              padding: "1rem",
-                              background: "white",
-                              border: "1px solid #e5e7eb",
-                              borderRadius: "8px",
-                              marginBottom: "0.75rem",
-                            }}
-                          >
-                            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                              <span style={{ fontSize: "18px" }}>{statusIcon}</span>
-                              <small style={{ color: "#6b7280", fontSize: "12px" }}>
-                                {timestamp}
-                              </small>
-                            </div>
-
-                            <p style={{ margin: "0.5rem 0", fontSize: "15px", lineHeight: "1.5" }}>
-                              {entry.text}
-                            </p>
-
-                            <small style={{ color: "#9ca3af", fontSize: "11px" }}>
-                              {entry.duration.toFixed(1)}s
-                            </small>
-
-                            {entry.processingResult && entry.processingResult.actions.length > 0 && (
-                              <div style={{ marginTop: "0.75rem" }}>
-                                {entry.processingResult.actions.map((action) => (
-                                  <div
-                                    style={{
-                                      padding: "0.5rem",
-                                      background: "#f0fdf4",
-                                      borderRadius: "6px",
-                                      fontSize: "13px",
-                                      color: "#16a34a",
-                                    }}
-                                  >
-                                    {action.description}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }))}
+                      {derive(processed, (p) => p.map((entry) => (
+                        <div
+                          style={{
+                            padding: "1rem",
+                            background: "white",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                            marginBottom: "0.75rem",
+                          }}
+                        >
+                          <p>{entry.text}</p>
+                          <small>{entry.duration.toFixed(1)}s</small>
+                        </div>
+                      )))}
                     </div>,
                     null
                   )}
