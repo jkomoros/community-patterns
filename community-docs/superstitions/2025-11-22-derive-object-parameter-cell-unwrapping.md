@@ -3,7 +3,9 @@
 **Date:** 2025-11-22
 **Author:** jkomoros
 **Pattern:** codenames-helper
-**Status:** Superstition (single observation)
+**Status:** ⬆️ PROMOTED TO FOLK WISDOM (2025-11-22)
+
+**NOTE:** This superstition has been promoted to folk_wisdom after confirming the same behavior in two independent contexts. See: `community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md`
 
 ## Summary
 
