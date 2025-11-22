@@ -117,6 +117,8 @@ claude
 
 **When Claude launches, say:** "Help me get started"
 
+**Note:** Claude will request permissions for various operations (reading files, running commands, etc.). These prompts are normal and expected - approve them to allow Claude to help you set up your environment.
+
 Claude will help you:
 - Get your API keys (Anthropic required, others optional)
 - Create `.env` file with your API keys

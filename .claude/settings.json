@@ -93,7 +93,16 @@
       "Bash(cd \"$PARENT_DIR*)",
       "Bash(cd -)",
       "Bash([ -d * ])",
-      "Bash(test -d *)"
+      "Bash(test -d *)",
+      "SlashCommand:/session-startup",
+      "SlashCommand:/deployment",
+      "SlashCommand:/testing",
+      "SlashCommand:/pattern-development",
+      "SlashCommand:/recovery-strategies",
+      "SlashCommand:/community-docs",
+      "SlashCommand:/issue-filing",
+      "SlashCommand:/todo-files",
+      "SlashCommand:/git-workflow"
     ],
     "deny": []
   }
