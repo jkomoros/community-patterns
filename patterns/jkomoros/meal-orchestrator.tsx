@@ -160,6 +160,21 @@ const removeDietaryRequirement = handler<
   });
 });
 
+// Handler for removing recipes
+const removeRecipe = handler<
+  unknown,
+  {
+    recipes: Cell<Array<Cell<OpaqueRef<FoodRecipe>>>>;
+    recipe: Cell<OpaqueRef<FoodRecipe>>;
+  }
+>((_event, { recipes, recipe }) => {
+  const currentRecipes = recipes.get();
+  const index = currentRecipes.findIndex((el) => recipe.equals(el));
+  if (index >= 0) {
+    recipes.set(currentRecipes.toSpliced(index, 1));
+  }
+});
+
 export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   ({
     mealName,
@@ -271,25 +286,25 @@ Be concise and practical in your analysis.`,
     return {
       [NAME]: str`🍽️ ${displayName}`,
       [UI]: (
-        <ct-vstack gap={2} style="padding: 12px; max-width: 900px;">
+        <ct-vstack gap={1} style="padding: 8px; max-width: 900px;">
           {/* Header */}
-          <div style={{ marginBottom: "8px" }}>
-            <h1 style={{ margin: "0 0 4px 0", fontSize: "24px", fontWeight: "700" }}>
+          <div style={{ marginBottom: "4px" }}>
+            <h1 style={{ margin: "0 0 2px 0", fontSize: "20px", fontWeight: "700" }}>
               {displayName}
             </h1>
-            <div style={{ fontSize: "14px", color: "#666" }}>
+            <div style={{ fontSize: "13px", color: "#666" }}>
               Plan multi-recipe meals with equipment scheduling and dietary analysis
             </div>
           </div>
 
           {/* Event Information */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+            <ct-vstack gap={1} style="padding: 8px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Event Information
               </h3>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
                 <div>
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Meal Name
@@ -338,9 +353,9 @@ Be concise and practical in your analysis.`,
 
           {/* Equipment Configuration */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
+            <ct-vstack gap={1} style="padding: 8px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600" }}>
+                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Equipment ({ovenCount} ovens)
                 </h3>
                 <ct-button onClick={addOven({ ovens })}>
@@ -348,17 +363,17 @@ Be concise and practical in your analysis.`,
                 </ct-button>
               </div>
 
-              <ct-vstack gap={2}>
+              <ct-vstack gap={1}>
                 {ovens.map((oven, index) => (
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns: "auto 1fr 1fr auto",
-                      gap: "12px",
+                      gap: "8px",
                       alignItems: "center",
-                      padding: "12px",
+                      padding: "8px",
                       border: "1px solid #e5e7eb",
-                      borderRadius: "6px",
+                      borderRadius: "4px",
                       background: "#f9fafb",
                     }}
                   >
@@ -414,9 +429,9 @@ Be concise and practical in your analysis.`,
 
           {/* Dietary Requirements */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
+            <ct-vstack gap={1} style="padding: 8px;">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600" }}>
+                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Dietary Requirements ({profileCount} guests)
                 </h3>
                 <ct-button onClick={addDietaryProfile({ dietaryProfiles })}>
@@ -424,10 +439,10 @@ Be concise and practical in your analysis.`,
                 </ct-button>
               </div>
 
-              <ct-vstack gap={2}>
+              <ct-vstack gap={1}>
                 {dietaryProfiles.map((profile, index) => (
-                  <ct-card style={{ padding: "12px", background: "#f9fafb" }}>
-                    <ct-vstack gap={2}>
+                  <ct-card style={{ padding: "8px", background: "#f9fafb" }}>
+                    <ct-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <ct-input
                           $value={profile.guestName}
@@ -490,23 +505,23 @@ Be concise and practical in your analysis.`,
 
           {/* Recipes Section */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+            <ct-vstack gap={1} style="padding: 8px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Recipes ({recipeCount})
               </h3>
               {ifElse(
                 derive(recipes, (list) => list.length === 0),
-                <div style={{ fontSize: "14px", color: "#666", fontStyle: "italic" }}>
+                <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>
                   @ reference food-recipe patterns to add them to your meal
                 </div>,
                 <ct-vstack gap={1}>
                   {recipes.map((recipe) => (
                     <div
                       style={{
-                        padding: "8px 12px",
+                        padding: "6px 8px",
                         background: "#f9fafb",
                         border: "1px solid #e5e7eb",
-                        borderRadius: "6px",
+                        borderRadius: "4px",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
@@ -520,6 +535,12 @@ Be concise and practical in your analysis.`,
                           {recipe.category} • {recipe.servings} servings
                         </div>
                       </div>
+                      <ct-button
+                        onClick={removeRecipe({ recipes, recipe })}
+                        style={{ padding: "2px 6px", fontSize: "16px" }}
+                      >
+                        ×
+                      </ct-button>
                     </div>
                   ))}
                 </ct-vstack>,
@@ -531,17 +552,17 @@ Be concise and practical in your analysis.`,
           {ifElse(
             derive(recipes, (list) => list.length > 0),
             <ct-card>
-              <ct-vstack gap={2} style="padding: 12px;">
-                <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+              <ct-vstack gap={1} style="padding: 8px;">
+                <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                   📊 Meal Balance Analysis
                 </h3>
 
                 {ifElse(
                   analysisPending,
-                  <div style={{ fontSize: "14px", color: "#666", fontStyle: "italic" }}>
+                  <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>
                     Analyzing menu...
                   </div>,
-                  <ct-vstack gap={2}>
+                  <ct-vstack gap={1}>
                     {/* Category Breakdown */}
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
@@ -625,8 +646,8 @@ Be concise and practical in your analysis.`,
 
           {/* Notes */}
           <ct-card>
-            <ct-vstack gap={2} style="padding: 12px;">
-              <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+            <ct-vstack gap={1} style="padding: 8px;">
+              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Notes
               </h3>
               <ct-input
@@ -639,11 +660,11 @@ Be concise and practical in your analysis.`,
 
           {/* Placeholder sections for future features */}
           <ct-card style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
-            <div style={{ padding: "16px" }}>
-              <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "8px", color: "#166534" }}>
+            <div style={{ padding: "8px" }}>
+              <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px", color: "#166534" }}>
                 Coming Soon:
               </div>
-              <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#166534" }}>
+              <ul style={{ margin: "0", paddingLeft: "16px", fontSize: "12px", color: "#166534" }}>
                 <li>Oven timeline visualization</li>
                 <li>Production schedule generator</li>
                 <li>Conflict detection and optimization</li>
