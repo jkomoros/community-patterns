@@ -1,4 +1,41 @@
 /// <cts-enable />
+/**
+ * PDF UPLOAD SUPPORT - Investigation Results (2025-11-23)
+ *
+ * Goal: Test if Claude vision API can extract recipes from PDF data URLs
+ *
+ * Current Status: BLOCKED - Unable to test due to build system issues
+ *
+ * What we learned:
+ * 1. ct-image-input currently only accepts images (accept="image/*")
+ * 2. Event handling was initially wrong:
+ *    - ct-image-input fires: ct-change event with {images: ImageData[]}
+ *    - Pattern was listening for: onct-upload with {text: string}
+ *    - Fixed in handleImageUpload handler (lines 454-469)
+ * 3. To support PDFs, ct-image-input would need:
+ *    - accept="image/*,application/pdf" attribute
+ *    - _processFile method updated to skip Image() validation for PDFs
+ *    - Already has type field in ImageData interface to distinguish file types
+ * 4. Build system challenge:
+ *    - ct-image-input is in labs/packages/ui
+ *    - Component changes require running: deno task bundle
+ *    - Bundle task failed with missing 'source-map-support' dependency
+ *    - Even after clearing caches and restarting dev servers, old component persisted
+ * 5. Browser caching was extremely aggressive:
+ *    - Hard refreshes, cache clearing, new browser contexts all failed
+ *    - Component templates appear to be cached separately from JavaScript bundles
+ *
+ * Next steps to continue investigation:
+ * 1. Fix labs UI bundle task dependency issue
+ * 2. Successfully bundle updated ct-image-input with PDF support
+ * 3. Verify component loads with updated accept attribute
+ * 4. Upload PDF and test if Claude vision API can extract text from PDF data URLs
+ * 5. If successful, consider PR to labs repo for ct-image-input PDF support
+ *
+ * Alternative approach:
+ * - Use separate PDF library to extract text from PDF before sending to Claude
+ * - Avoid relying on vision API's native PDF support (if it exists)
+ */
 import {
   cell,
   Cell,
@@ -51,6 +88,18 @@ interface Ingredient {
 
 interface RecipeStep {
   description: string;
+}
+
+interface ImageData {
+  id: string;
+  name: string;
+  url: string;
+  data: string;
+  timestamp: number;
+  width?: number;
+  height?: number;
+  size: number;
+  type: string;
 }
 
 interface StepGroup {
@@ -440,13 +489,19 @@ const scaleRecipe = handler<
 
 // Image Upload Handler
 const handleImageUpload = handler<
-  { detail: { text: string } },
+  { detail: { images: ImageData[] } },
   { notes: Cell<string> }
 >(({ detail }, { notes }) => {
+  if (!detail.images || detail.images.length === 0) return;
+
+  // Get the most recently uploaded image's data URL
+  const mostRecentImage = detail.images[detail.images.length - 1];
+  const dataUrl = mostRecentImage.data;
+
   const currentNotes = notes.get();
   const newNotes = currentNotes
-    ? `${currentNotes}\n\n---\n\n${detail.text}`
-    : detail.text;
+    ? `${currentNotes}\n\n---\n\n${dataUrl}`
+    : dataUrl;
   notes.set(newNotes);
 });
 
@@ -640,18 +695,19 @@ const triggerWaitTimeSuggestion = handler<
 const createCookingView = handler<
   Record<string, never>,
   {
-    name: string;
-    servings: number;
-    ingredients: Ingredient[];
-    stepGroups: StepGroup[];
+    name: Cell<string>;
+    servings: Cell<number>;
+    ingredients: Cell<Ingredient[]>;
+    stepGroups: Cell<StepGroup[]>;
   }
 >((_event, { name, servings, ingredients, stepGroups }) => {
-  // Create viewer with recipe data and empty completion tracking
+  // Unwrap cells before passing to viewer
+  // Spread arrays to convert from readonly to mutable
   const viewer = FoodRecipeViewer({
-    recipeName: name,
-    recipeServings: servings,
-    recipeIngredients: ingredients as Ingredient[],
-    recipeStepGroups: stepGroups as StepGroup[],
+    recipeName: name.get(),
+    recipeServings: servings.get(),
+    recipeIngredients: [...ingredients.get()],
+    recipeStepGroups: [...stepGroups.get()],
     completedSteps: [],
     completedGroups: [],
   });
@@ -1073,7 +1129,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <ct-image-input
-                    onct-upload={handleImageUpload({ notes })}
+                    onct-change={handleImageUpload({ notes })}
                   >
                     Upload Image
                   </ct-image-input>
@@ -1308,61 +1364,70 @@ Return suggestions for ALL groups with their IDs preserved.`,
           <ct-card>
             <div>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
-              {derive(analyzer.dietaryCompatibility, (dc) => {
-                if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
-                  return <div style={{ fontStyle: "italic", color: "#666" }}>
-                    Add ingredients to see dietary analysis
-                  </div>;
+              {derive(
+                { pending: analyzer.analysisPending, dc: analyzer.dietaryCompatibility },
+                ({ pending, dc }) => {
+                  if (pending) {
+                    return <div style={{ fontStyle: "italic", color: "#666" }}>
+                      Analyzing dietary compatibility...
+                    </div>;
+                  }
+
+                  if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
+                    return <div style={{ fontStyle: "italic", color: "#666" }}>
+                      Add ingredients to see dietary analysis
+                    </div>;
+                  }
+
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {dc.compatible.length > 0 && (
+                        <div>
+                          <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                            ✓ Compatible:
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {dc.compatible.map((tag: string) => (
+                              <span style={{
+                                padding: "2px 8px",
+                                background: "#d1fae5",
+                                borderRadius: "12px",
+                                fontSize: "12px",
+                              }}>
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {dc.warnings.length > 0 && (
+                        <div>
+                          <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                            ⚠️ Warnings:
+                          </div>
+                          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+                            {dc.warnings.map((warning: string) => (
+                              <li>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {dc.primaryIngredients.length > 0 && (
+                        <div>
+                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                            Main Ingredients:
+                          </div>
+                          <div style={{ fontSize: "13px", color: "#666" }}>
+                            {dc.primaryIngredients.join(", ")}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
                 }
-
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {dc.compatible.length > 0 && (
-                      <div>
-                        <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
-                          ✓ Compatible:
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                          {dc.compatible.map((tag: string) => (
-                            <span style={{
-                              padding: "2px 8px",
-                              background: "#d1fae5",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                            }}>
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {dc.warnings.length > 0 && (
-                      <div>
-                        <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
-                          ⚠️ Warnings:
-                        </div>
-                        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
-                          {dc.warnings.map((warning: string) => (
-                            <li>{warning}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {dc.primaryIngredients.length > 0 && (
-                      <div>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Main Ingredients:
-                        </div>
-                        <div style={{ fontSize: "13px", color: "#666" }}>
-                          {dc.primaryIngredients.join(", ")}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              )}
             </div>
           </ct-card>
 
@@ -1772,31 +1837,80 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     </div>
                   ))}
 
-                  {/* Show info about complex fields if extracted */}
+                  {/* Show detailed info about complex fields if extracted */}
                   {derive(extractionResult, (result) => {
-                    const hasComplexFields =
-                      (result?.ingredients && result.ingredients.length > 0) ||
-                      (result?.stepGroups && result.stepGroups.length > 0) ||
-                      (result?.tags && result.tags.length > 0);
+                    if (!result) return null;
 
-                    return hasComplexFields ? (
-                      <div style={{
-                        padding: "6px 10px",
-                        background: "#eff6ff",
-                        border: "1px solid #bfdbfe",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        color: "#1e40af",
-                      }}>
-                        {result?.ingredients && result.ingredients.length > 0 ?
-                          `✓ ${result.ingredients.length} ingredient(s) ` : ""}
-                        {result?.stepGroups && result.stepGroups.length > 0 ?
-                          `✓ ${result.stepGroups.length} step group(s) ` : ""}
-                        {result?.tags && result.tags.length > 0 ?
-                          `✓ ${result.tags.length} tag(s) ` : ""}
-                        will be added
-                      </div>
-                    ) : null;
+                    return (
+                      <ct-vstack gap={2}>
+                        {/* Ingredients */}
+                        {result?.ingredients && result.ingredients.length > 0 && (
+                          <div style={{
+                            padding: "6px 10px",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            color: "#1e40af",
+                          }}>
+                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                              ✓ {result.ingredients.length} ingredient(s) will be added
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Step Groups - Show Full Details */}
+                        {result?.stepGroups && result.stepGroups.length > 0 && (
+                          <div style={{
+                            padding: "6px 10px",
+                            background: "#f0fdf4",
+                            border: "1px solid #86efac",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                          }}>
+                            <div style={{ fontWeight: "600", color: "#166534", marginBottom: "6px" }}>
+                              ✓ {result.stepGroups.length} step group(s) will be added:
+                            </div>
+                            {result.stepGroups.map((group: any, index: number) => (
+                              <div style={{
+                                marginBottom: index < result.stepGroups.length - 1 ? "8px" : "0",
+                                paddingLeft: "8px",
+                                borderLeft: "2px solid #86efac",
+                              }}>
+                                <div style={{ fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
+                                  {group.name || `Group ${index + 1}`}
+                                </div>
+                                {group.steps && group.steps.length > 0 && (
+                                  <ul style={{ margin: "4px 0 0 0", paddingLeft: "20px", color: "#166534" }}>
+                                    {group.steps.map((step: any, stepIndex: number) => (
+                                      <li style={{ marginBottom: "2px" }}>
+                                        {step.description}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Tags */}
+                        {result?.tags && result.tags.length > 0 && (
+                          <div style={{
+                            padding: "6px 10px",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            color: "#1e40af",
+                          }}>
+                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                              ✓ {result.tags.length} tag(s) will be added
+                            </div>
+                          </div>
+                        )}
+                      </ct-vstack>
+                    );
                   })}
                 </ct-vstack>
 

@@ -27,6 +27,7 @@ interface RecipeAnalyzerOutput {
     warnings: string[];
     primaryIngredients: string[];
   };
+  analysisPending: boolean;
 }
 
 const SYSTEM_PROMPT = `You are a dietary compatibility analyzer for recipes.
@@ -81,7 +82,7 @@ ${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
       },
     );
 
-    const { result: analysis } = generateObject({
+    const { result: analysis, pending } = generateObject({
       system: SYSTEM_PROMPT,
       prompt: analysisPrompt,
       model: "anthropic:claude-sonnet-4-5",
@@ -192,6 +193,7 @@ ${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
         </div>
       ),
       dietaryCompatibility,
+      analysisPending: pending,
     };
   },
 );
