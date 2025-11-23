@@ -947,7 +947,7 @@ Return your analysis for each article.`,
 
               {/* Statistics */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Statistics</h3>
                   <div style={{ fontSize: "13px", color: "#666" }}>
                     <div>📧 {emailCount} total emails</div>
@@ -965,7 +965,7 @@ Return your analysis for each article.`,
 
               {/* Process Button */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Actions</h3>
                   <ct-button
                     onClick={startProcessing({ parsedArticles, isProcessing, processingStatus, linkExtractionTrigger })}
@@ -992,7 +992,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(parsedArticles, (articles) => articles.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
                       New Articles to Process ({newArticleCount})
                     </h3>
@@ -1028,7 +1028,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(linkExtractionResult, (result) => result?.articles?.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                       <h3 style={{ margin: "0", fontSize: "14px" }}>
                         Extracted Security Report Links
@@ -1092,7 +1092,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(reportSummarizationResult, (result) => result?.reports?.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                       <h3 style={{ margin: "0", fontSize: "14px" }}>
                         Summarized Security Reports
@@ -1113,7 +1113,7 @@ Return your analysis for each article.`,
 
               {/* Gmail Importer (for debugging/setup) */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>Gmail Setup</h3>
                   <ct-render $cell={importer} />
                 </div>
@@ -1121,7 +1121,7 @@ Return your analysis for each article.`,
 
               {/* Reports List (empty for now) */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
                     Tracked Reports ({reportCount})
                   </h3>
@@ -1175,7 +1175,7 @@ Return your analysis for each article.`,
                             borderLeft: report.isRead ? "none" : "4px solid #3b82f6",
                           }}
                         >
-                          <div style={{ padding: "12px" }}>
+                          <div>
                             {/* Header Row */}
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px", marginBottom: "8px" }}>
                               <div style={{ flex: 1 }}>
@@ -1302,7 +1302,7 @@ Return your analysis for each article.`,
               {/* Import/Export */}
               {reportCount > 0 ? (
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
                       Export / Import Reports
                     </h3>

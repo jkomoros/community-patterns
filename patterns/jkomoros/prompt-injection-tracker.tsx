@@ -943,7 +943,7 @@ Return your analysis for each article.`,
 
               {/* Statistics */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <details>
                     <summary style={{
                       cursor: "pointer",
@@ -975,7 +975,7 @@ Return your analysis for each article.`,
 
               {/* Process Button */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <details>
                     <summary style={{
                       cursor: "pointer",
@@ -1018,7 +1018,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(parsedArticles, (articles) => articles.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <details>
                       <summary style={{
                         cursor: "pointer",
@@ -1067,7 +1067,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(linkExtractionResult, (result) => result?.articles?.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <details>
                       <summary style={{
                         cursor: "pointer",
@@ -1145,7 +1145,7 @@ Return your analysis for each article.`,
               {ifElse(
                 derive(reportSummarizationResult, (result) => result?.reports?.length > 0),
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <details>
                       <summary style={{
                         cursor: "pointer",
@@ -1180,7 +1180,7 @@ Return your analysis for each article.`,
 
               {/* Gmail Importer (for debugging/setup) */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <details>
                     <summary style={{
                       cursor: "pointer",
@@ -1205,7 +1205,7 @@ Return your analysis for each article.`,
 
               {/* Reports List */}
               <ct-card>
-                <div style={{ padding: "12px" }}>
+                <div>
                   <h3 style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
                     Tracked Reports ({reportCount})
                   </h3>
@@ -1261,7 +1261,7 @@ Return your analysis for each article.`,
                             borderLeft: report.isRead ? "none" : "4px solid #3b82f6",
                           }}
                         >
-                          <div style={{ padding: "12px" }}>
+                          <div>
                             {/* Header Row */}
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "8px", marginBottom: "8px" }}>
                               <div style={{ flex: 1 }}>
@@ -1388,7 +1388,7 @@ Return your analysis for each article.`,
               {/* Import/Export */}
               {reportCount > 0 ? (
                 <ct-card>
-                  <div style={{ padding: "12px" }}>
+                  <div>
                     <details>
                       <summary style={{
                         cursor: "pointer",
