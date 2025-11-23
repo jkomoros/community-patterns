@@ -216,6 +216,8 @@ const removeRecipe = handler<
 const addRecipeMention = handler<
   {
     detail: {
+      text: string;
+      charmId: any;
       charm: Cell<any>;
       navigate: boolean;
     };
@@ -224,6 +226,7 @@ const addRecipeMention = handler<
     recipes: Cell<OpaqueRef<FoodRecipe>[]>;
   }
 >(({ detail }, { recipes }) => {
+  console.log("addRecipeMention fired:", detail.text, detail.charmId);
   const { charm, navigate } = detail;
 
   // Don't add if user is navigating to the charm
@@ -265,6 +268,8 @@ const removePreparedFood = handler<
 const addPreparedFoodMention = handler<
   {
     detail: {
+      text: string;
+      charmId: any;
       charm: Cell<any>;
       navigate: boolean;
     };
@@ -273,6 +278,7 @@ const addPreparedFoodMention = handler<
     preparedFoods: Cell<OpaqueRef<PreparedFood>[]>;
   }
 >(({ detail }, { preparedFoods }) => {
+  console.log("addPreparedFoodMention fired:", detail.text, detail.charmId);
   const { charm, navigate } = detail;
 
   // Don't add if user is navigating to the charm
