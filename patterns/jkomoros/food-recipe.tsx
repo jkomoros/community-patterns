@@ -1394,7 +1394,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
               <ct-vstack gap={1}>
                 {stepGroups.map((stepGroup, groupIndex) => (
-                  <ct-card style={{ padding: "10px", background: "#f9fafb" }}>
+                  <ct-card style={{ background: "#f9fafb" }}>
                     <ct-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
