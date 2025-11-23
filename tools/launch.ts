@@ -642,6 +642,96 @@ async function getLabsDir(config: Config): Promise<string> {
   }
 }
 
+async function openInBrowser(url: string): Promise<void> {
+  // Detect platform and use appropriate command
+  const platform = Deno.build.os;
+  let command: string[];
+
+  switch (platform) {
+    case "darwin":
+      command = ["open", url];
+      break;
+    case "linux":
+      command = ["xdg-open", url];
+      break;
+    case "windows":
+      command = ["cmd", "/c", "start", url];
+      break;
+    default:
+      console.log(`⚠️  Unknown platform: ${platform}`);
+      return;
+  }
+
+  try {
+    await new Deno.Command(command[0], {
+      args: command.slice(1),
+      stdout: "null",
+      stderr: "null",
+    }).output();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`⚠️  Could not open browser: ${message}`);
+  }
+}
+
+async function promptOpenBrowser(url: string): Promise<void> {
+  console.log("Press Enter to open in browser, or Q to quit...");
+  console.log("(Auto-closing in 5 seconds)");
+
+  // Set up raw mode to capture single keypress
+  Deno.stdin.setRaw(true);
+
+  // Set up timeout
+  const timeoutId = setTimeout(() => {
+    Deno.stdin.setRaw(false);
+    console.log("\n👋 Timed out, closing...\n");
+    Deno.exit(0);
+  }, 5000);
+
+  try {
+    const buf = new Uint8Array(1);
+    const n = await Deno.stdin.read(buf);
+
+    // Clear timeout
+    clearTimeout(timeoutId);
+    Deno.stdin.setRaw(false);
+
+    if (n === null) {
+      console.log("\n👋 Closing...\n");
+      return;
+    }
+
+    const key = buf[0];
+
+    // Check for Enter (0x0d or 0x0a)
+    if (key === 0x0d || key === 0x0a) {
+      console.log("\n🌐 Opening in browser...\n");
+      await openInBrowser(url);
+      return;
+    }
+
+    // Check for 'q' or 'Q' (0x71 or 0x51)
+    if (key === 0x71 || key === 0x51) {
+      console.log("\n👋 Closing without opening browser...\n");
+      return;
+    }
+
+    // Check for Ctrl-C (0x03)
+    if (key === 0x03) {
+      console.log("\n👋 Cancelled\n");
+      Deno.exit(0);
+    }
+
+    // Any other key - just quit
+    console.log("\n👋 Closing...\n");
+  } catch (error) {
+    clearTimeout(timeoutId);
+    Deno.stdin.setRaw(false);
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`⚠️  Error reading input: ${message}`);
+  }
+}
+
 async function deployPattern(
   patternPath: string,
   space: string,
@@ -713,6 +803,10 @@ async function deployPattern(
       const fullUrl = `${apiUrl}/${space}/${charmId}`;
       console.log("\n✅ Deployed successfully!");
       console.log(`\n🔗 ${fullUrl}\n`);
+
+      // Prompt to open in browser
+      await promptOpenBrowser(fullUrl);
+
       return charmId;
     } else {
       // Could not extract charm ID - just show space URL
