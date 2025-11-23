@@ -1,17 +1,13 @@
 /// <cts-enable />
 import {
-  cell,
   Cell,
   Default,
   derive,
   handler,
   NAME,
-  navigateTo,
-  type Opaque,
   pattern,
   str,
   UI,
-  wish,
 } from "commontools";
 
 // Import types from food-recipe (these should match exactly)
@@ -56,37 +52,18 @@ interface GroupCompletion {
 }
 
 interface ViewerInput {
-  // Link to source recipe pattern
-  sourceRecipeRef: Default<Opaque<any>, null>;
+  // Recipe data passed in as cells from the source recipe
+  recipeName: Default<string, "">;
+  recipeServings: Default<number, 4>;
+  recipeIngredients: Default<Ingredient[], []>;
+  recipeStepGroups: Default<StepGroup[], []>;
 
   // Completion tracking (not linked to source)
   completedSteps: Default<StepCompletion[], []>;
   completedGroups: Default<GroupCompletion[], []>;
 }
 
-interface ViewerOutput extends ViewerInput {
-  // Derived from source recipe
-  recipeName: string;
-  recipeServings: number;
-  recipeIngredients: Ingredient[];
-  recipeStepGroups: StepGroup[];
-}
-
-// Helper function to create schemaified wish
-function schemaifyWish<T>(path: string, def: T) {
-  return derive(wish<T>(path) as T, (i) => i ?? def);
-}
-
-// Handler to navigate back to source recipe
-const navigateToRecipe = handler<
-  Record<string, never>,
-  { sourceRecipeRef: Cell<Opaque<any> | null> }
->((_event, { sourceRecipeRef }) => {
-  const recipeRef = sourceRecipeRef.get();
-  if (recipeRef) {
-    return navigateTo(recipeRef);
-  }
-});
+interface ViewerOutput extends ViewerInput {}
 
 // Handler to toggle step completion
 const toggleStepCompletion = handler<
@@ -148,21 +125,8 @@ const toggleGroupCompletion = handler<
 });
 
 export default pattern<ViewerInput, ViewerOutput>(
-  ({ sourceRecipeRef, completedSteps, completedGroups }) => {
-    // Access source recipe data via wish
-    // We need to use derive to construct the wish paths from the opaque ref
-    const recipeName = derive(sourceRecipeRef, (ref) =>
-      ref ? schemaifyWish<string>(`${ref}#name`, "") : ""
-    );
-    const recipeServings = derive(sourceRecipeRef, (ref) =>
-      ref ? schemaifyWish<number>(`${ref}#servings`, 4) : 4
-    );
-    const recipeIngredients = derive(sourceRecipeRef, (ref) =>
-      ref ? schemaifyWish<Ingredient[]>(`${ref}#ingredients`, []) : []
-    );
-    const recipeStepGroups = derive(sourceRecipeRef, (ref) =>
-      ref ? schemaifyWish<StepGroup[]>(`${ref}#stepGroups`, []) : []
-    );
+  ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
+    // Recipe data is passed in directly as cells from the source recipe
 
     const displayName = derive(
       recipeName,
@@ -213,12 +177,6 @@ export default pattern<ViewerInput, ViewerOutput>(
             <h1 style={{ margin: "0", fontSize: "20px" }}>
               👨‍🍳 {displayName}
             </h1>
-            <ct-button
-              onClick={navigateToRecipe({ sourceRecipeRef })}
-              variant="secondary"
-            >
-              ← Edit Recipe
-            </ct-button>
           </div>
 
           <p style={{ margin: "4px 0", fontSize: "14px", color: "#666" }}>
@@ -428,13 +386,12 @@ export default pattern<ViewerInput, ViewerOutput>(
           </ct-vstack>
         </ct-vstack>
       ),
-      sourceRecipeRef,
-      completedSteps,
-      completedGroups,
       recipeName,
       recipeServings,
       recipeIngredients,
       recipeStepGroups,
+      completedSteps,
+      completedGroups,
     };
   }
 );

@@ -637,13 +637,26 @@ const triggerWaitTimeSuggestion = handler<
 );
 
 // Create Cooking View Handler
-// Note: Creates viewer with sourceRecipeRef=null - user will need to manually link it
-const createCookingView = handler<Record<string, never>, Record<string, never>>(
-  () => {
-    const viewer = FoodRecipeViewer({});
-    return navigateTo(viewer);
-  },
-);
+const createCookingView = handler<
+  Record<string, never>,
+  {
+    name: string;
+    servings: number;
+    ingredients: Ingredient[];
+    stepGroups: StepGroup[];
+  }
+>((_event, { name, servings, ingredients, stepGroups }) => {
+  // Create viewer with recipe data and empty completion tracking
+  const viewer = FoodRecipeViewer({
+    recipeName: name,
+    recipeServings: servings,
+    recipeIngredients: ingredients as Ingredient[],
+    recipeStepGroups: stepGroups as StepGroup[],
+    completedSteps: [],
+    completedGroups: [],
+  });
+  return navigateTo(viewer);
+});
 
 const applyWaitTimeSuggestions = handler<
   Record<string, never>,
@@ -1040,8 +1053,16 @@ Return suggestions for ALL groups with their IDs preserved.`,
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
-            <div style={{ fontSize: "13px", color: "#666" }}>
-              {totalTime} min total
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <ct-button
+                onClick={createCookingView({ name, servings, ingredients, stepGroups })}
+                variant="secondary"
+              >
+                👨‍🍳 Create Cooking View
+              </ct-button>
+              <div style={{ fontSize: "13px", color: "#666" }}>
+                {totalTime} min total
+              </div>
             </div>
           </div>
 
