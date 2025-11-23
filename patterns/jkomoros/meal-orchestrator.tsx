@@ -455,7 +455,7 @@ Be concise and practical in your analysis.`,
 
           {/* Event Information */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Event Information
               </h3>
@@ -509,7 +509,7 @@ Be concise and practical in your analysis.`,
 
           {/* Equipment Configuration */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Equipment ({ovenCount} ovens)
@@ -585,7 +585,7 @@ Be concise and practical in your analysis.`,
 
           {/* Dietary Requirements */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Dietary Requirements ({profileCount} guests)
@@ -597,7 +597,7 @@ Be concise and practical in your analysis.`,
 
               <ct-vstack gap={1}>
                 {dietaryProfiles.map((profile, index) => (
-                  <ct-card style={{ padding: "8px", background: "#f9fafb" }}>
+                  <ct-card style={{ background: "#f9fafb" }}>
                     <ct-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <ct-input
@@ -661,7 +661,7 @@ Be concise and practical in your analysis.`,
 
           {/* Planning Notes Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 📝 Planning Notes
               </h3>
@@ -678,7 +678,7 @@ Be concise and practical in your analysis.`,
 
           {/* Recipes Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Recipes ({recipeCount})
               </h3>
@@ -735,7 +735,7 @@ Be concise and practical in your analysis.`,
 
           {/* Prepared Foods Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 🛒 Prepared/Store-Bought ({preparedFoodCount})
               </h3>
@@ -794,7 +794,7 @@ Be concise and practical in your analysis.`,
           {ifElse(
             derive({ recipes, preparedFoods }, ({ recipes: r, preparedFoods: p }) => (r.length + p.length) > 0),
             <ct-card>
-              <ct-vstack gap={1} style="padding: 8px;">
+              <ct-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                   📊 Meal Balance Analysis
                 </h3>
@@ -890,7 +890,7 @@ Be concise and practical in your analysis.`,
           {ifElse(
             derive(ovenTimeline, (timeline) => timeline.hasData),
             <ct-card>
-              <ct-vstack gap={1} style="padding: 8px;">
+              <ct-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                   🔥 Oven Timeline
                 </h3>
@@ -1090,7 +1090,7 @@ Be concise and practical in your analysis.`,
 
           {/* Notes */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Notes
               </h3>

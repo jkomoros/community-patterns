@@ -185,7 +185,7 @@ export default pattern<ViewerInput, ViewerOutput>(
 
           {/* Ingredients Section (Read-only) */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 8px 0", fontSize: "16px" }}>
                 Ingredients
               </h3>
@@ -231,7 +231,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                     const groupCompleted = isGroupCompleted(group.id);
 
                     return (
-                      <ct-card style={{ padding: "12px" }}>
+                      <ct-card>
                         <ct-vstack gap={1}>
                           {/* Group header with checkbox */}
                           <div
@@ -368,7 +368,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                     );
                   })
                 : (
-                    <ct-card style={{ padding: "16px" }}>
+                    <ct-card>
                       <p
                         style={{
                           margin: "0",
