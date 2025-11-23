@@ -553,45 +553,77 @@ const handleImageUpload = handler<
 - This is a fundamental constraint of the reactive system
 - Modal + handler pattern works well for user-approved mutations
 
-### Phase 4: Viewer Pattern (Fourth PR) - PARTIALLY COMPLETE
+### Phase 4: Viewer Pattern (Fourth PR) ✅ COMPLETED
 - [x] Create food-recipe-viewer.tsx
 - [x] Implement completion tracking (boxing pattern with arrays)
-- [x] Deploy viewer pattern (charm ID: baedreiety5mgwt2rgtrtysd7ab6xj5sf42f2ewgfoysksl6zycfaticbsi)
-- [x] Commit and push Phase 4 (commits c6c2da5, 596db3c, aeef4c4)
-- [x] Viewer pattern fully functional (navigation, completion tracking, timing display)
-- [ ] **BLOCKED**: "Create Cooking View" button removed due to self-reference issue
-- [ ] **BLOCKED**: Cannot link viewer to recipe on creation
-- [ ] **TODO**: Research CommonTools self-reference pattern OR add manual linking UI
+- [x] Deploy viewer pattern (charm ID: baedreig4xgcptx2xgrppho3xsgkvhuqxgctbvojtxde5xtbc27wp3aui7y)
+- [x] Commit and push Phase 4 (commit 49b5132)
+- [x] Viewer pattern fully functional (completion tracking, timing display)
+- [x] **UNBLOCKED**: Solved self-reference issue with cell-based data passing
+- [x] "Create Cooking View" button working correctly
+- [x] Viewer receives recipe data on creation and displays properly
+- [x] Tested in Playwright - button creates viewer and navigates successfully
 
-**Implementation Status (2025-11-22) - PARTIALLY COMPLETE**:
+**Implementation Status (2025-11-22) - COMPLETE**:
+
+**Final Solution - Cell-Based Data Passing**:
+Instead of passing an Opaque reference to the whole charm, we pass individual cells from the
+recipe pattern as inputs to the viewer pattern. This is the correct CommonTools pattern for
+sharing data between patterns.
+
+**Viewer Interface (Redesigned)**:
+```typescript
+interface ViewerInput {
+  // Recipe data passed in as cells from the source recipe
+  recipeName: Default<string, "">;
+  recipeServings: Default<number, 4>;
+  recipeIngredients: Default<Ingredient[], []>;
+  recipeStepGroups: Default<StepGroup[], []>;
+
+  // Completion tracking (not linked to source)
+  completedSteps: Default<StepCompletion[], []>;
+  completedGroups: Default<GroupCompletion[], []>;
+}
+```
+
+**Recipe Handler (Creates Viewer)**:
+```typescript
+const createCookingView = handler<
+  Record<string, never>,
+  { name: string; servings: number; ingredients: Ingredient[]; stepGroups: StepGroup[]; }
+>((_event, { name, servings, ingredients, stepGroups }) => {
+  const viewer = FoodRecipeViewer({
+    recipeName: name,
+    recipeServings: servings,
+    recipeIngredients: ingredients as Ingredient[],
+    recipeStepGroups: stepGroups as StepGroup[],
+    completedSteps: [],
+    completedGroups: [],
+  });
+  return navigateTo(viewer);
+});
+```
 
 **What Works**:
-- Viewer pattern created and deployed successfully
-- Uses `wish()` to read recipe data from sourceRecipeRef
-- Completion tracking with arrays: `StepCompletion[]` and `GroupCompletion[]`
+- Button in recipe creates viewer with recipe data
+- Viewer displays recipe name, servings, ingredients, step groups
+- Completion tracking with checkboxes (individual steps and whole groups)
 - Group checkbox toggles all steps in that group
-- Navigation back to recipe with "← Back to Recipe" button
 - Timing information display (nights/hours/minutes before serving)
-- All viewer UI features functional
+- Oven requirements display
+- Empty states for recipes without ingredients or step groups
+- Navigation occurs automatically after viewer creation
 
-**Blocking Issue - Self-Reference**:
-Cannot pass current recipe charm reference to viewer on creation. Attempted:
-1. Handler with `RecipeOutput` state - handler doesn't receive pattern's full output
-2. Pattern return with `self` field - would create circular reference
-3. Empty viewer creation `FoodRecipeViewer({})` - TypeScript requires Opaque params
-4. Passing `null` - Type error: missing required fields
+**Trade-offs**:
+- Viewer is NOT live-linked to source recipe (displays snapshot of data at creation time)
+- No "← Edit Recipe" button (no sourceRecipeRef available)
+- If recipe changes, need to create new viewer to see updates
+- This is acceptable for Phase 4 - future enhancement could explore live-linking
 
-**Root Cause**: No built-in way in CommonTools to get "self" reference from within pattern
-
-**Potential Solutions**:
-1. Research CommonTools docs/examples for self-reference pattern
-2. Add manual linking UI to viewer (user pastes recipe URL/charm ID)
-3. Use global #mentionable system to find recipes
-4. Ask CommonTools community for guidance
-5. Defer viewer-recipe linking to Phase 5
-
-**Current Workaround**: Viewer can be deployed standalone and works correctly if sourceRecipeRef
-is manually set (would need manual linking UI added to viewer)
+**Key Learning**:
+The correct pattern in CommonTools is to pass specific cells from one pattern as inputs to
+another pattern, not to try to pass whole charm references. Handlers receive the pattern's
+state fields and can pass them to newly instantiated patterns via constructor parameters.
 
 ### Phase 5: Polish & Future Enhancements
 - [ ] Add parallel group support (parallelGroup field)
