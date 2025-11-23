@@ -1068,7 +1068,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Recipe Input Section - Notes with Image Upload */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1105,7 +1105,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Scaling Controls */}
           <ct-card>
-            <div style={{ padding: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <strong style={{ fontSize: "14px" }}>Scale Recipe:</strong>
               <ct-button
                 onClick={scaleRecipe({ servings, ingredients, scaleFactor: 0.5 })}
@@ -1130,7 +1130,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Basic Info Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Basic Info</h3>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -1259,7 +1259,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Ingredients Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Ingredients ({ingredientCount})</h3>
                 <ct-button onClick={addIngredient({ ingredients })}>
@@ -1306,7 +1306,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Dietary Analysis Section */}
           <ct-card>
-            <div style={{ padding: "8px" }}>
+            <div>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
               {derive(analyzer.dietaryCompatibility, (dc) => {
                 if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
@@ -1368,7 +1368,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Step Groups Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
@@ -1613,7 +1613,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Tags Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Tags</h3>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
@@ -1655,7 +1655,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Source Section */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 10px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Source</h3>
               <ct-input
                 $value={source}

@@ -159,7 +159,7 @@ export default pattern<PreparedFoodInput, PreparedFoodOutput>(
 
           {/* Basic Info */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Basic Info
               </h3>
@@ -230,7 +230,7 @@ export default pattern<PreparedFoodInput, PreparedFoodOutput>(
 
           {/* Dietary Tags */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Dietary Compatibility
               </h3>
@@ -305,7 +305,7 @@ export default pattern<PreparedFoodInput, PreparedFoodOutput>(
 
           {/* Primary Ingredients */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Main Ingredients
               </h3>
@@ -356,7 +356,7 @@ export default pattern<PreparedFoodInput, PreparedFoodOutput>(
 
           {/* Prep Details */}
           <ct-card>
-            <ct-vstack gap={1} style="padding: 8px;">
+            <ct-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Prep Details (Optional)
               </h3>
