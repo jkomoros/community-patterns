@@ -38,12 +38,28 @@ ct-code-editor uses **wiki-link syntax** `[[` (double square brackets), not "@" 
 
 ## Testing Observations
 
-**Test date:** 2025-11-22
+### Initial Test (2025-11-22 morning)
 **Pattern:** meal-orchestrator.tsx in test-meal-v3 space
 
 1. Typed `@` → No dropdown appeared ❌
 2. Typed `[[` → Dropdown with 8 mentionable items appeared ✓
 3. Selected "🍳 Mashed Potatoes" → Link inserted: `[[🍳 Mashed Potatoes(baedreiajkspjaadawhjxigtgu2etvm6hsmmyjez2ifguejrtv5nxmmueuq)]]` ✓
+
+### Comprehensive Test (2025-11-22 evening)
+**Pattern:** meal-orchestrator.tsx in test-meal-handler space
+**Charm ID:** baedreidwyh6jagmjmpfd6auxkf5vs2kguzojr6ovaepqm3hzvp6wbsles4
+
+**`[[` Syntax: ✅ WORKS**
+1. Typed `[[` → Completions dropdown appeared immediately ✓
+2. Dropdown showed 2 items: "🍽️ Untitled Meal" and "DefaultCharmList (2)" ✓
+3. Selected item → Wiki link inserted: `[[🍽️ Untitled Meal(baedreidwyh6jagmjmpfd6auxkf5vs2kguzojr6ovaepqm3hzvp6wbsles4)]]` ✓
+
+**`onbacklink-create` Handler: ❌ DOES NOT FIRE**
+1. Handler added with console.log statement ✓
+2. Wiki link inserted via dropdown ✓
+3. No console.log output - handler did NOT fire ❌
+4. Counter stayed at "Recipes (0)" - no state update ❌
+5. Clicked outside editor to blur - still no handler execution ❌
 
 ## Key Points
 
@@ -62,19 +78,33 @@ ct-code-editor uses **wiki-link syntax** `[[` (double square brackets), not "@" 
 
 ## onbacklink-create Event
 
-**Note:** The `onbacklink-create` event should fire when the wiki link is created, providing:
+**Expected signature:**
 ```typescript
 {
   detail: {
-    charm: Cell<any>;      // The referenced charm as a Cell
-    navigate: boolean;     // Whether user wants to navigate to it
     text: string;          // The display text
     charmId: any;          // The charm ID
+    charm: Cell<any>;      // The referenced charm as a Cell
+    navigate: boolean;     // Whether user wants to navigate to it
   }
 }
 ```
 
-**Testing observation:** In initial test, typing `[[` and selecting an item inserted the wiki link text, but the count didn't update immediately, suggesting the event may fire asynchronously or require additional user action.
+**⚠️ CRITICAL FINDING:** The `onbacklink-create` event **does NOT fire** when wiki links are inserted via the completions dropdown.
+
+**Evidence:**
+- Handler with console.log added to pattern ✓
+- Wiki link successfully inserted into editor ✓
+- No console output when link created ❌
+- No state updates triggered ❌
+- Blurring editor doesn't trigger handler ❌
+
+**Hypothesis:** The event may only fire when:
+- User clicks on an existing wiki link in the editor
+- User performs some other action (Cmd+Click, etc.)
+- A different event type is needed for dropdown selections
+
+**Working reference:** `note.tsx` uses identical handler signature and bindings, but may have different usage pattern.
 
 ## Related Patterns
 
@@ -84,7 +114,10 @@ ct-code-editor uses **wiki-link syntax** `[[` (double square brackets), not "@" 
 
 ## Questions / Needs Confirmation
 
-1. Does `onbacklink-create` fire when the wiki link is inserted, or when it's "completed" (e.g., clicking outside)?
-2. Is there a way to customize the trigger characters for ct-code-editor?
-3. Should placeholder text say "Type [[ to mention" instead of "@ mention" to avoid confusion?
-4. Can ct-code-editor support both `[[` and `@` triggers simultaneously?
+1. **When does `onbacklink-create` actually fire?** Not on dropdown selection. On click? On some other action?
+2. **Is there a different event for dropdown completions?** Maybe `onchange` or a custom event?
+3. **How does `note.tsx` actually use the handler?** Does it work differently than expected?
+4. **Should we parse wiki links from `$value` changes instead?** Would that be more reliable?
+5. Is there a way to customize the trigger characters for ct-code-editor?
+6. Should placeholder text say "Type [[ to mention" instead of "@ mention" to avoid confusion?
+7. Can ct-code-editor support both `[[` and `@` triggers simultaneously?

@@ -2,6 +2,7 @@
 import {
   cell,
   Cell,
+  computed,
   Default,
   derive,
   generateObject,
@@ -212,43 +213,6 @@ const removeRecipe = handler<
   }
 });
 
-// Handler for adding recipes via @ mentions using ct-code-editor's onbacklink-create event
-const addRecipeMention = handler<
-  {
-    detail: {
-      text: string;
-      charmId: any;
-      charm: Cell<any>;
-      navigate: boolean;
-    };
-  },
-  {
-    recipes: Cell<OpaqueRef<FoodRecipe>[]>;
-  }
->(({ detail }, { recipes }) => {
-  console.log("addRecipeMention fired:", detail.text, detail.charmId);
-  const { charm, navigate } = detail;
-
-  // Don't add if user is navigating to the charm
-  if (navigate) return;
-
-  if (!charm) return;
-
-  const currentRecipes = recipes.get();
-
-  // Check if not already in the list
-  const isDuplicate = currentRecipes.some((existing: any) => {
-    if (typeof existing === 'object' && 'equals' in existing) {
-      return existing.equals(charm);
-    }
-    return false;
-  });
-
-  if (!isDuplicate) {
-    recipes.set([...currentRecipes, charm as any]);
-  }
-});
-
 // Handler for removing prepared foods
 const removePreparedFood = handler<
   unknown,
@@ -261,43 +225,6 @@ const removePreparedFood = handler<
   const index = currentFoods.findIndex((el) => preparedFood.equals(el));
   if (index >= 0) {
     preparedFoods.set(currentFoods.toSpliced(index, 1));
-  }
-});
-
-// Handler for adding prepared foods via @ mentions using ct-code-editor's onbacklink-create event
-const addPreparedFoodMention = handler<
-  {
-    detail: {
-      text: string;
-      charmId: any;
-      charm: Cell<any>;
-      navigate: boolean;
-    };
-  },
-  {
-    preparedFoods: Cell<OpaqueRef<PreparedFood>[]>;
-  }
->(({ detail }, { preparedFoods }) => {
-  console.log("addPreparedFoodMention fired:", detail.text, detail.charmId);
-  const { charm, navigate } = detail;
-
-  // Don't add if user is navigating to the charm
-  if (navigate) return;
-
-  if (!charm) return;
-
-  const currentFoods = preparedFoods.get();
-
-  // Check if not already in the list
-  const isDuplicate = currentFoods.some((existing: any) => {
-    if (typeof existing === 'object' && 'equals' in existing) {
-      return existing.equals(charm);
-    }
-    return false;
-  });
-
-  if (!isDuplicate) {
-    preparedFoods.set([...currentFoods, charm as any]);
   }
 });
 
@@ -318,7 +245,8 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     // Get mentionable charms for @ references
     const mentionable = schemaifyWish<any[]>("#mentionable");
 
-    // Cells for ct-code-editor inputs
+    // Cells for ct-code-editor inputs and outputs
+    // $mentioned is automatically populated by ct-code-editor with charm references
     const recipeInputText = cell<string>("");
     const recipeMentioned = cell<any[]>([]);
     const preparedFoodInputText = cell<string>("");
@@ -331,30 +259,33 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
     const ovenCount = derive(ovens, (list) => list.length);
     const profileCount = derive(dietaryProfiles, (list) => list.length);
-    const recipeCount = derive(recipes, (list) => list.length);
-    const preparedFoodCount = derive(preparedFoods, (list) => list.length);
+    const recipeCount = computed(() => recipeMentioned.get().length);
+    const preparedFoodCount = computed(() => preparedFoodMentioned.get().length);
 
     // Meal Balance Analysis
     const analysisPrompt = derive(
-      { recipes, preparedFoods, guestCount, dietaryProfiles },
-      ({ recipes: recipeList, preparedFoods: preparedList, guestCount: guests, dietaryProfiles: profiles }) => {
-        if ((!recipeList || recipeList.length === 0) && (!preparedList || preparedList.length === 0)) {
-          return "No items to analyze";
-        }
+      { guestCount, dietaryProfiles },
+      ({ guestCount: guests, dietaryProfiles: profiles }) => {
+        const recipeList = recipeMentioned.get();
+        const preparedList = preparedFoodMentioned.get();
 
-        const recipesSummary = (recipeList || [])
-          .map((r) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
-          .join("\n");
+      if ((!recipeList || recipeList.length === 0) && (!preparedList || preparedList.length === 0)) {
+        return "No items to analyze";
+      }
 
-        const preparedSummary = (preparedList || [])
-          .map((p) => `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`)
-          .join("\n");
+      const recipesSummary = (recipeList || [])
+        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
+        .join("\n");
 
-        const allItems = [recipesSummary, preparedSummary].filter(Boolean).join("\n");
+      const preparedSummary = (preparedList || [])
+        .map((p: any) => `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`)
+        .join("\n");
 
-        const dietaryRequirements = profiles
-          .flatMap((p) => p.requirements)
-          .filter((req, idx, arr) => arr.indexOf(req) === idx); // unique
+      const allItems = [recipesSummary, preparedSummary].filter(Boolean).join("\n");
+
+      const dietaryRequirements = profiles
+        .flatMap((p: any) => p.requirements)
+        .filter((req: any, idx: number, arr: any[]) => arr.indexOf(req) === idx); // unique
 
         return `Analyze this meal menu for balance and dietary compatibility:
 
@@ -428,19 +359,19 @@ Be concise and practical in your analysis.`,
     );
 
     // Oven Timeline Calculation
-    const ovenTimeline = derive(
-      { recipes, mealTime },
-      ({ recipes: recipeList, mealTime: servingTime }) => {
-        if (!recipeList || recipeList.length === 0 || !servingTime) {
-          return { events: [], conflicts: [], hasData: false };
-        }
+    const ovenTimeline = derive(mealTime, (servingTime) => {
+      const recipeList = recipeMentioned.get();
 
-        const events: OvenTimelineEvent[] = [];
+      if (!recipeList || recipeList.length === 0 || !servingTime) {
+        return { events: [], conflicts: [], hasData: false };
+      }
 
-        // Extract all oven events from recipes
-        recipeList.forEach((recipe) => {
-          if (recipe.stepGroups) {
-            recipe.stepGroups.forEach((stepGroup) => {
+      const events: OvenTimelineEvent[] = [];
+
+      // Extract all oven events from recipes
+      recipeList.forEach((recipe: any) => {
+        if (recipe.stepGroups) {
+          recipe.stepGroups.forEach((stepGroup: any) => {
               if (stepGroup.requiresOven) {
                 const startMinutes = stepGroup.minutesBeforeServing || 0;
                 const duration = stepGroup.requiresOven.duration || 0;
@@ -501,13 +432,12 @@ Be concise and practical in your analysis.`,
           }
         }
 
-        return {
-          events,
-          conflicts,
-          hasData: events.length > 0,
-        };
-      },
-    );
+      return {
+        events,
+        conflicts,
+        hasData: events.length > 0,
+      };
+    });
 
     return {
       [NAME]: str`🍽️ ${displayName}`,
@@ -753,13 +683,12 @@ Be concise and practical in your analysis.`,
                 Recipes ({recipeCount})
               </h3>
 
-              {/* Input for adding recipes via @ mentions */}
+              {/* Input for adding recipes via wiki links */}
               <ct-code-editor
                 $value={recipeInputText}
                 $mentionable={mentionable}
                 $mentioned={recipeMentioned}
-                onbacklink-create={addRecipeMention({ recipes })}
-                placeholder="@ mention recipes to add them..."
+                placeholder="Type [[ to mention recipes..."
                 language="text/markdown"
                 theme="light"
                 wordWrap
@@ -768,9 +697,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added recipes */}
               {ifElse(
-                derive(recipes, (list) => list.length > 0),
+                computed(() => recipeMentioned.get().length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {recipes.map((recipe) => (
+                  {recipeMentioned.map((recipe) => (
                     <div
                       style={{
                         padding: "6px 8px",
@@ -811,13 +740,12 @@ Be concise and practical in your analysis.`,
                 🛒 Prepared/Store-Bought ({preparedFoodCount})
               </h3>
 
-              {/* Input for adding prepared foods via @ mentions */}
+              {/* Input for adding prepared foods via wiki links */}
               <ct-code-editor
                 $value={preparedFoodInputText}
                 $mentionable={mentionable}
                 $mentioned={preparedFoodMentioned}
-                onbacklink-create={addPreparedFoodMention({ preparedFoods })}
-                placeholder="@ mention prepared foods to add them..."
+                placeholder="Type [[ to mention prepared foods..."
                 language="text/markdown"
                 theme="light"
                 wordWrap
@@ -826,9 +754,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added prepared foods */}
               {ifElse(
-                derive(preparedFoods, (list) => list.length > 0),
+                computed(() => preparedFoodMentioned.get().length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {preparedFoods.map((preparedFood) => (
+                  {preparedFoodMentioned.map((preparedFood) => (
                     <div
                       style={{
                         padding: "6px 8px",
