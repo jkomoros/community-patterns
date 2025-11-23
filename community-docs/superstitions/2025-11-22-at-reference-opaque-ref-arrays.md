@@ -221,7 +221,9 @@ Note: This is usually handled automatically by the framework in production envir
 - ✅ ct-code-editor works correctly in patterns
 - ✅ The shadow DOM protects component internals from direct DOM queries
 
-**Status:** ct-code-editor implementation **COMPLETE and WORKING**. @ mention functionality blocked by separate issue (empty mentionable list in test space).
+**Status:** ct-code-editor implementation **COMPLETE and WORKING**.
+
+**IMPORTANT:** ct-code-editor uses `[[` (wiki-link syntax) for completions, not `@`. See [ct-code-editor-wiki-link-syntax.md](./2025-11-22-ct-code-editor-wiki-link-syntax.md) for details.
 
 ## Related Patterns
 
