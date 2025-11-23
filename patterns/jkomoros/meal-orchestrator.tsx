@@ -212,35 +212,37 @@ const removeRecipe = handler<
   }
 });
 
-// Handler for adding recipes via @ mentions
-const addRecipeMentions = handler<
+// Handler for adding recipes via @ mentions using ct-code-editor's onbacklink-create event
+const addRecipeMention = handler<
   {
     detail: {
-      text: string;
-      mentions: Array<any>;
+      charm: Cell<any>;
+      navigate: boolean;
     };
   },
   {
     recipes: Cell<OpaqueRef<FoodRecipe>[]>;
   }
 >(({ detail }, { recipes }) => {
-  const { mentions } = detail;
+  const { charm, navigate } = detail;
 
-  if (mentions && mentions.length > 0) {
-    const currentRecipes = recipes.get();
-    const newRecipes = mentions.filter((mention: any) => {
-      // Only add if not already in the list
-      return !currentRecipes.some((existing) => {
-        if (typeof existing === 'object' && 'equals' in existing) {
-          return (existing as any).equals(mention);
-        }
-        return false;
-      });
-    });
+  // Don't add if user is navigating to the charm
+  if (navigate) return;
 
-    if (newRecipes.length > 0) {
-      recipes.set([...currentRecipes, ...newRecipes]);
+  if (!charm) return;
+
+  const currentRecipes = recipes.get();
+
+  // Check if not already in the list
+  const isDuplicate = currentRecipes.some((existing: any) => {
+    if (typeof existing === 'object' && 'equals' in existing) {
+      return existing.equals(charm);
     }
+    return false;
+  });
+
+  if (!isDuplicate) {
+    recipes.set([...currentRecipes, charm as any]);
   }
 });
 
@@ -259,35 +261,37 @@ const removePreparedFood = handler<
   }
 });
 
-// Handler for adding prepared foods via @ mentions
-const addPreparedFoodMentions = handler<
+// Handler for adding prepared foods via @ mentions using ct-code-editor's onbacklink-create event
+const addPreparedFoodMention = handler<
   {
     detail: {
-      text: string;
-      mentions: Array<any>;
+      charm: Cell<any>;
+      navigate: boolean;
     };
   },
   {
     preparedFoods: Cell<OpaqueRef<PreparedFood>[]>;
   }
 >(({ detail }, { preparedFoods }) => {
-  const { mentions } = detail;
+  const { charm, navigate } = detail;
 
-  if (mentions && mentions.length > 0) {
-    const currentFoods = preparedFoods.get();
-    const newFoods = mentions.filter((mention: any) => {
-      // Only add if not already in the list
-      return !currentFoods.some((existing) => {
-        if (typeof existing === 'object' && 'equals' in existing) {
-          return (existing as any).equals(mention);
-        }
-        return false;
-      });
-    });
+  // Don't add if user is navigating to the charm
+  if (navigate) return;
 
-    if (newFoods.length > 0) {
-      preparedFoods.set([...currentFoods, ...newFoods]);
+  if (!charm) return;
+
+  const currentFoods = preparedFoods.get();
+
+  // Check if not already in the list
+  const isDuplicate = currentFoods.some((existing: any) => {
+    if (typeof existing === 'object' && 'equals' in existing) {
+      return existing.equals(charm);
     }
+    return false;
+  });
+
+  if (!isDuplicate) {
+    preparedFoods.set([...currentFoods, charm as any]);
   }
 });
 
@@ -307,6 +311,12 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   }) => {
     // Get mentionable charms for @ references
     const mentionable = schemaifyWish<any[]>("#mentionable");
+
+    // Cells for ct-code-editor inputs
+    const recipeInputText = cell<string>("");
+    const recipeMentioned = cell<any[]>([]);
+    const preparedFoodInputText = cell<string>("");
+    const preparedFoodMentioned = cell<any[]>([]);
 
     const displayName = derive(
       mealName,
@@ -722,14 +732,10 @@ Be concise and practical in your analysis.`,
               <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
                 Free-form brainstorming space for rough ideas and menu thoughts.
               </div>
-              <ct-code-editor
+              <ct-input
                 $value={planningNotes}
-                language="text/markdown"
-                theme="light"
-                wordWrap
-                tabIndent
-                placeholder="Jot down ideas for the meal... (future: 'Extract Items' button will use LLM to pull out recipes and dietary requirements)"
-                style="min-height: 120px;"
+                placeholder="Jot down ideas for the meal..."
+                style="min-height: 120px; width: 100%;"
               />
             </ct-vstack>
           </ct-card>
@@ -742,10 +748,16 @@ Be concise and practical in your analysis.`,
               </h3>
 
               {/* Input for adding recipes via @ mentions */}
-              <ct-prompt-input
-                placeholder="@ mention recipes to add them..."
+              <ct-code-editor
+                $value={recipeInputText}
                 $mentionable={mentionable}
-                onct-send={addRecipeMentions({ recipes })}
+                $mentioned={recipeMentioned}
+                onbacklink-create={addRecipeMention({ recipes })}
+                placeholder="@ mention recipes to add them..."
+                language="text/markdown"
+                theme="light"
+                wordWrap
+                style="min-height: 60px;"
               />
 
               {/* List of added recipes */}
@@ -794,10 +806,16 @@ Be concise and practical in your analysis.`,
               </h3>
 
               {/* Input for adding prepared foods via @ mentions */}
-              <ct-prompt-input
-                placeholder="@ mention prepared foods to add them..."
+              <ct-code-editor
+                $value={preparedFoodInputText}
                 $mentionable={mentionable}
-                onct-send={addPreparedFoodMentions({ preparedFoods })}
+                $mentioned={preparedFoodMentioned}
+                onbacklink-create={addPreparedFoodMention({ preparedFoods })}
+                placeholder="@ mention prepared foods to add them..."
+                language="text/markdown"
+                theme="light"
+                wordWrap
+                style="min-height: 60px;"
               />
 
               {/* List of added prepared foods */}
@@ -859,20 +877,20 @@ Be concise and practical in your analysis.`,
                         Categories:
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {Object.entries(
-                          derive(analysisResult, (r) => r.categoryBreakdown),
-                        ).map(([category, count]) => (
-                          <div
-                            style={{
-                              padding: "4px 10px",
-                              background: "#e0f2fe",
-                              borderRadius: "12px",
-                              fontSize: "13px",
-                            }}
-                          >
-                            {category}: {count}
-                          </div>
-                        ))}
+                        {derive(analysisResult, (r) => {
+                          return Object.entries(r.categoryBreakdown).map(([category, count]) => (
+                            <div
+                              style={{
+                                padding: "4px 10px",
+                                background: "#e0f2fe",
+                                borderRadius: "12px",
+                                fontSize: "13px",
+                              }}
+                            >
+                              {category}: {count as number}
+                            </div>
+                          ));
+                        })}
                       </div>
                     </div>
 
