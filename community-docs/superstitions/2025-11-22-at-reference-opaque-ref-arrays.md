@@ -170,8 +170,61 @@ The BacklinksIndex pattern should be automatically created in production spaces.
 
 Note: This is usually handled automatically by the framework in production environments. The refresh requirement primarily affects development/test spaces during initial setup.
 
+## ct-code-editor Component Testing (2025-11-22 evening)
+
+### Initial Investigation (INCORRECT DIAGNOSIS)
+
+**Attempted solution:** Switch from `ct-prompt-input` to `ct-code-editor` to get actual Cell references via `onbacklink-create` event
+
+**Initial problem observed:** Used `document.querySelectorAll('ct-*')` and found 0 ct- custom elements
+
+**INCORRECT conclusion:** Thought ct-code-editor was preventing web components from rendering
+
+### Actual Finding (2025-11-22 late evening)
+
+**ROOT CAUSE:** Web components are in **shadow DOM** - `querySelectorAll` cannot find them!
+
+**Testing method corrected:**
+- Cannot use `document.querySelectorAll()` to find ct- elements
+- Must use accessibility tree inspection or visual verification
+- Playwright's accessibility snapshot correctly shows components
+
+**ct-code-editor STATUS: ✅ WORKING CORRECTLY**
+
+**Evidence:**
+1. Pattern compiles without TypeScript errors ✓
+2. Pattern deploys successfully ✓
+3. ct-code-editor renders as proper CodeMirror editor ✓
+4. Typing "@" displays in the editor field ✓
+5. All other ct- components (ct-card, ct-button, ct-input) render correctly ✓
+
+**What actually works:**
+```typescript
+<ct-code-editor
+  $value={recipeInputText}
+  $mentionable={mentionable}
+  $mentioned={recipeMentioned}
+  onbacklink-create={addRecipeMention({ recipes })}
+  placeholder="@ mention recipes to add them..."
+  language="text/markdown"
+  theme="light"
+  wordWrap
+  style="min-height: 60px;"
+/>
+```
+
+**@ Mention dropdown issue:** The dropdown still doesn't appear when typing "@", but this is **unrelated to ct-code-editor**. This is the same BacklinksIndex / mentionable list issue documented earlier - the `wish("#mentionable")` array is empty in the test space.
+
+**Lessons learned:**
+- ❌ DON'T use `document.querySelectorAll()` to check if ct- elements are rendering
+- ✅ DO use Playwright accessibility snapshot or visual inspection
+- ✅ ct-code-editor works correctly in patterns
+- ✅ The shadow DOM protects component internals from direct DOM queries
+
+**Status:** ct-code-editor implementation **COMPLETE and WORKING**. @ mention functionality blocked by separate issue (empty mentionable list in test space).
+
 ## Related Patterns
 
 - `note.tsx` - Full implementation with backlinks
 - `chatbot.tsx` - Implementation with LLM context
-- `meal-orchestrator.tsx` - Implementation for recipe references
+- `meal-orchestrator.tsx` - Attempted implementation (currently blocked)
