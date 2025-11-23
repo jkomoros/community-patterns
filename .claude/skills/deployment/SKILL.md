@@ -8,7 +8,19 @@ description: >
 
 # Pattern Deployment
 
-**IMPORTANT:** Always use `deno task ct`, never just `ct` directly.
+## ⚠️ CRITICAL DEPLOYMENT RULES
+
+**These are CRITICAL and MUST be followed every time:**
+
+1. **✅ ALWAYS use `http://localhost:8000`** - This is the toolshed (backend) server
+2. **❌ NEVER use `http://localhost:5173`** - That's the shell (frontend), patterns won't work there
+3. **✅ ALWAYS include space name in URL:** `http://localhost:8000/SPACE-NAME/CHARM-ID`
+4. **❌ NEVER use:** `http://localhost:8000/CHARM-ID` (missing space name)
+5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`, `--space`
+6. **❌ NEVER use `charm setsrc`** - Known framework bug causes conflicts. Use `charm new` instead.
+7. **✅ ALWAYS use `deno task ct`** - Never just `ct` directly
+
+**If you violate these rules, the pattern will not work. No exceptions.**
 
 ## Test Syntax
 
@@ -38,6 +50,11 @@ deno task ct charm new \
   ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
+**⚠️ ALL THREE PARAMETERS ARE REQUIRED:**
+- `--api-url http://localhost:8000` - MUST be 8000 (toolshed), NOT 5173 (shell)
+- `--identity ../community-patterns/claude.key` - Path to identity key at repo root
+- `--space my-space` - Space name (alphanumeric + hyphens only)
+
 This outputs a charm ID like `baedreicqpqie6td...`
 
 **View in browser:**
@@ -45,7 +62,11 @@ This outputs a charm ID like `baedreicqpqie6td...`
 http://localhost:8000/my-space/CHARM-ID
 ```
 
-**IMPORTANT**: Always use `http://localhost:8000/SPACE-ID/CHARM-ID` format, not just `/charm/CHARM-ID`.
+**⚠️ CRITICAL URL FORMAT:**
+- ✅ CORRECT: `http://localhost:8000/SPACE-NAME/CHARM-ID`
+- ❌ WRONG: `http://localhost:8000/CHARM-ID` (missing space name)
+- ❌ WRONG: `http://localhost:5173/SPACE-NAME/CHARM-ID` (wrong port)
+- ❌ WRONG: `http://localhost:5173/CHARM-ID` (wrong port AND missing space)
 
 ## First Custom Pattern Deployment
 
@@ -53,19 +74,33 @@ When a user successfully deploys their first custom pattern (one they created or
 
 ## Update Deployed Pattern
 
-After making changes to your pattern:
+**⚠️ DO NOT USE `charm setsrc` - Known Framework Bug**
+
+There is a known framework bug that causes conflicts when using `charm setsrc`.
+**Instead, always deploy a fresh instance with `charm new`:**
 
 ```bash
+# ❌ DON'T DO THIS - has conflicts due to framework bug
+# deno task ct charm setsrc ...
+
+# ✅ DO THIS INSTEAD - deploy a new instance
 cd ~/Code/labs
-deno task ct charm setsrc \
+deno task ct charm new \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
   --space my-space \
-  --charm CHARM-ID \
   ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
-Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows).
+**This gives you a new charm ID.** Use the new charm ID going forward.
+
+**Why not setsrc?**
+- Known framework bug causes conflict errors
+- Updates frequently fail
+- Cryptic error messages about state conflicts
+- `charm new` is reliable and always works
+
+**See superstition:** `community-docs/superstitions/2025-11-22-deployment-setsrc-conflicts-use-new-instead.md`
 
 ## Inspect Pattern
 
@@ -95,25 +130,41 @@ deno task ct charm new --space test-space-1 ../community-patterns/patterns/$GITH
 
 ## Deployment Troubleshooting
 
+**Pattern not loading after deployment?**
+
+Check these in order:
+
+1. **Wrong port?** MUST be `:8000` NOT `:5173`
+   - ✅ `http://localhost:8000/...`
+   - ❌ `http://localhost:5173/...`
+
+2. **Missing space name in URL?**
+   - ✅ `http://localhost:8000/SPACE-NAME/CHARM-ID`
+   - ❌ `http://localhost:8000/CHARM-ID`
+
+3. **Missing required parameters in deploy command?**
+   - ALL THREE REQUIRED: `--api-url`, `--identity`, `--space`
+   - Check your command includes all three
+
+4. **Used `charm setsrc`?**
+   - DON'T use setsrc (framework bug)
+   - Use `charm new` instead
+
 **Servers not running?**
 ```bash
 # Check if servers are up
-lsof -ti:8000  # Toolshed (backend)
-lsof -ti:5173  # Shell (frontend)
+lsof -ti:8000  # Toolshed (backend) - REQUIRED
+lsof -ti:5173  # Shell (frontend) - REQUIRED
 
 # Start if needed (or use session-startup skill)
 cd ~/Code/labs/packages/toolshed && deno task dev &
 cd ~/Code/labs/packages/shell && deno task dev-local &
 ```
 
-**Wrong URL format?**
-- ✅ Correct: `http://localhost:8000/test-space/charm-id`
-- ❌ Wrong: `http://localhost:8000/charm/charm-id`
-
-**Pattern not updating?**
-1. Use `charm setsrc` to update (not `charm new` again)
-2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
-3. Check you're using the correct charm ID
+**Pattern not updating after changes?**
+1. **Deploy a NEW instance** with `charm new` (DON'T use setsrc)
+2. You'll get a new charm ID - use that one
+3. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 
 **Identity key missing?**
 ```bash
