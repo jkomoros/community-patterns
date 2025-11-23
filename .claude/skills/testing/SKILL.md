@@ -10,10 +10,30 @@ description: >
 
 If Playwright MCP is available, use it to test patterns in a real browser.
 
+## ⚠️ CRITICAL URL FORMAT
+
+**When testing patterns, the URL MUST be:**
+
+```
+http://localhost:8000/SPACE-NAME/CHARM-ID
+```
+
+**⚠️ COMMON MISTAKES TO AVOID:**
+- ❌ `http://localhost:5173/...` - WRONG PORT (that's the shell, not toolshed)
+- ❌ `http://localhost:8000/CHARM-ID` - MISSING SPACE NAME
+- ❌ `http://localhost:5173/CHARM-ID` - WRONG PORT AND MISSING SPACE
+
+**If you use the wrong URL format, the pattern will NOT work. No exceptions.**
+
 ## Navigate to Deployed Pattern
 
 ```
-Use Playwright to navigate to: http://localhost:8000/my-space/CHARM-ID
+Use Playwright to navigate to: http://localhost:8000/SPACE-NAME/CHARM-ID
+```
+
+**Example:**
+```
+http://localhost:8000/test-space/baedreicqpqie6td...
 ```
 
 ## Test Pattern Functionality
@@ -35,18 +55,20 @@ If you see a login/registration page:
 
 **After deploying a new pattern:**
 ```
-1. Deploy with ct charm new
-2. Note the charm ID
-3. Use Playwright to test at http://localhost:8000/space/charm-id
+1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space SPACE-NAME pattern.tsx
+2. Note the charm ID from output
+3. Use Playwright to navigate to: http://localhost:8000/SPACE-NAME/CHARM-ID
+   ⚠️ MUST be port 8000, MUST include space name
 4. Verify all functionality works
 5. Report to user if tests pass or if issues found
 ```
 
 **After updating a pattern:**
 ```
-1. Update with ct charm setsrc
-2. Use Playwright to verify changes
-3. Test that fixes work and nothing broke
+1. Deploy NEW instance with ct charm new (DON'T use setsrc - framework bug)
+2. Note the NEW charm ID
+3. Use Playwright to test at http://localhost:8000/SPACE-NAME/NEW-CHARM-ID
+4. Test that changes work as expected
 ```
 
 **When Playwright unavailable:**
