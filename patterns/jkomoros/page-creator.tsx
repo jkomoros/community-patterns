@@ -13,6 +13,9 @@ import SubstackSummarizer from "./substack-summarizer.tsx";
 import CozyPoll from "./cozy-poll.tsx";
 import RewardSpinner from "./reward-spinner.tsx";
 import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
+import MealOrchestrator from "./meal-orchestrator.tsx";
+import PreparedFood from "./prepared-food.tsx";
+import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
 
 type Input = void;
 type Output = {
@@ -134,6 +137,66 @@ const createCheeseboardSchedule = handler<void, void>((_, __) => {
   }));
 });
 
+const createMealOrchestrator = handler<void, void>((_, __) => {
+  return navigateTo(MealOrchestrator({
+    mealName: "",
+    mealDate: "",
+    mealTime: "",
+    guestCount: 4,
+    ovens: [{
+      rackPositions: 5,
+      physicalRacks: 2
+    }],
+    stovetopBurners: 4,
+    dietaryProfiles: [],
+    planningNotes: "",
+    recipes: [],
+    preparedFoods: [],
+    notes: "",
+  }));
+});
+
+const createPreparedFood = handler<void, void>((_, __) => {
+  return navigateTo(PreparedFood({
+    name: "",
+    servings: 4,
+    category: "other",
+    dietaryTags: [],
+    primaryIngredients: [],
+    description: "",
+    source: "",
+    prepTime: 0,
+    requiresReheating: false,
+    tags: [],
+  }));
+});
+
+const createHotelMembershipExtractor = handler<void, void>((_, __) => {
+  return navigateTo(HotelMembershipExtractor({
+    memberships: [],
+    scannedEmailIds: [],
+    lastScanAt: 0,
+    brandHistory: [{ brand: "Marriott", attempts: [], status: "searching" }],
+    searchedBrands: [],
+    searchedNotFound: [],
+    unsearchedBrands: [],
+    currentQuery: "",
+    isScanning: false,
+    queryGeneratorInput: "",
+    gmailFilterQuery: "",
+    limit: 50,
+    auth: {
+      token: "",
+      tokenType: "",
+      scope: [],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    },
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -231,6 +294,27 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🍕 Cheeseboard Schedule
+                </ct-button>
+
+                <ct-button
+                  onClick={createMealOrchestrator()}
+                  size="lg"
+                >
+                  🍽️ Meal Orchestrator
+                </ct-button>
+
+                <ct-button
+                  onClick={createPreparedFood()}
+                  size="lg"
+                >
+                  🛒 Prepared Food
+                </ct-button>
+
+                <ct-button
+                  onClick={createHotelMembershipExtractor()}
+                  size="lg"
+                >
+                  🏨 Hotel Membership Extractor
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
