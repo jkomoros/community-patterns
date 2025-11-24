@@ -372,8 +372,8 @@ const batchAddNonConflicting = handler<
   {
     aisles: Cell<StoreAisle[]>;
     extractedAisles: Array<{ name: string; products: string[] }>;
-    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
-    photo: Cell<ImageData>;
+    uploadedPhotos: Cell<ImageData[]>;
+    photo: ImageData;
   }
 >((_event, { aisles, extractedAisles, uploadedPhotos, photo }) => {
   const currentAisles = aisles.get();
@@ -410,7 +410,7 @@ const batchAddAllPhotosNonConflicting = handler<
   unknown,
   {
     aisles: Cell<StoreAisle[]>;
-    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
+    uploadedPhotos: Cell<ImageData[]>;
     batchData: {
       aislesToAdd: Array<{ name: string; description: string }>;
       photosToDelete: Array<string>; // photo names
@@ -469,12 +469,12 @@ const copyOutline = handler<unknown, { outline: string }>(
 // Delete photo handler
 const deletePhoto = handler<
   unknown,
-  { hiddenPhotoIds: Cell<Set<string>>; photo: Cell<ImageData> }
+  { hiddenPhotoIds: Cell<Set<string>>; photo: ImageData }
 >((_event, { hiddenPhotoIds, photo }) => {
   // Instead of splicing the array (which shifts indices and breaks map identity),
   // just mark the photo as hidden. This preserves array indices and keeps
   // extraction state intact for remaining photos.
-  const photoData = photo.get();
+  const photoData = photo;
   const currentHidden = hiddenPhotoIds.get();
   const newHidden = new Set(currentHidden);
   newHidden.add(photoData.id);
@@ -705,17 +705,13 @@ export default pattern<StoreMapInput, StoreMapOutput>(
       const extraction = generateObject({
         system:
           'You are analyzing photos from a grocery store. Your task is to extract ALL visible aisle signs and return them as JSON.\n\nIMPORTANT: You MUST return a JSON object with an "aisles" array, even if you only see one aisle or partial information.\n\nFor each aisle sign you see:\n- Extract ONLY the aisle number (e.g., "8", "12", "5A", "5B") - DO NOT include the word "Aisle"\n- Extract each product category as a separate item in the products array\n- Include partially visible signs - do your best to read them\n\nExample output:\n{\n  "aisles": [\n    {"name": "8", "products": ["Bread", "Cereal", "Coffee"]},\n    {"name": "9", "products": ["Snacks", "Chips"]}\n  ]\n}',
-        prompt: derive(photo, (p) => {
-          // Safety check: photo might be undefined after deletion
-          if (!p || !p.data) return [];
-          return [
-            { type: "image" as const, image: p.data },
-            {
-              type: "text" as const,
-              text: "Look at this grocery store photo and extract ALL aisle signs you can see. Return a JSON object with an 'aisles' array containing objects with 'name' (just the number like '5' or '5A', NOT 'Aisle 5') and 'products' (array of strings) fields. Each product category should be a separate item in the products array. Read any text on hanging signs, endcaps, or aisle markers.",
-            },
-          ];
-        }),
+        prompt: [
+          { type: "image" as const, image: photo.data },
+          {
+            type: "text" as const,
+            text: "Look at this grocery store photo and extract ALL aisle signs you can see. Return a JSON object with an 'aisles' array containing objects with 'name' (just the number like '5' or '5A', NOT 'Aisle 5') and 'products' (array of strings) fields. Each product category should be a separate item in the products array. Read any text on hanging signs, endcaps, or aisle markers.",
+          },
+        ],
         schema: {
           type: "object",
           properties: {
@@ -2352,14 +2348,13 @@ What common sections might be missing?`,
                         🗑️ Delete
                       </ct-button>
                     </div>
-                  {computed(() => {
-                    // Track ALL reactive inputs - this re-evaluates whenever ANY change
-                    const pending = extraction.pending;
-                    const extractedData = extraction.extractedAisles;
-                    const currentAisles = aisles;
+                  {derive(
+                    { pending: extraction.pending, extractedData: extraction.extractedAisles, currentAisles: aisles },
+                    ({ pending, extractedData, currentAisles }) => {
+                      // Track ALL reactive inputs - this re-evaluates whenever ANY change
 
-                    // Show pending state while analyzing
-                    if (pending) {
+                      // Show pending state while analyzing
+                      if (pending) {
                         return (
                           <div
                             style={{
@@ -2615,7 +2610,6 @@ What common sections might be missing?`,
                     }
                   )}
                   </div>
-                )
               ); // Close ifElse
             })}
             </ct-vstack>
