@@ -253,7 +253,155 @@ async function interactiveSelect(
 
 // ===== MAIN FUNCTIONS =====
 
-async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod"> {
+async function handleOtherActions(labsDir: string): Promise<boolean> {
+  const options: SelectOption[] = [
+    {
+      label: "Clear LLM cache",
+      value: "clear-llm-cache",
+      icon: "🗑️  ",
+    },
+    {
+      label: "Clear local SQLite database",
+      value: "clear-sqlite",
+      icon: "⚠️  ",
+    },
+    {
+      label: "Back to main menu",
+      value: "back",
+      icon: "⬅️  ",
+    },
+  ];
+
+  const selection = await interactiveSelect(
+    options,
+    "⚙️  Other Actions\n\n(↑/↓ to move, Enter to select, Q to cancel):"
+  );
+
+  if (selection === "back" || selection === null) {
+    return false; // Return to main menu
+  }
+
+  if (selection === "clear-llm-cache") {
+    return await clearLLMCache(labsDir);
+  }
+
+  if (selection === "clear-sqlite") {
+    return await clearSQLiteDatabase(labsDir);
+  }
+
+  return false;
+}
+
+async function clearLLMCache(labsDir: string): Promise<boolean> {
+  console.log("\n🗑️  Clear LLM Cache\n");
+  console.log("This will delete all cached LLM responses.");
+  console.log("You will need to regenerate any AI-generated content.\n");
+
+  const confirm = await prompt("Type 'yes' to confirm");
+
+  if (confirm.toLowerCase() !== "yes") {
+    console.log("❌ Cancelled\n");
+    return false;
+  }
+
+  try {
+    // Run deno task to clear LLM cache
+    const command = new Deno.Command("deno", {
+      args: ["task", "ct", "cache", "clear"],
+      cwd: labsDir,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+
+    const { code } = await command.output();
+
+    if (code === 0) {
+      console.log("\n✅ LLM cache cleared successfully\n");
+      return true;
+    } else {
+      console.log("\n❌ Failed to clear LLM cache\n");
+      return false;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`\n❌ Error: ${message}\n`);
+    return false;
+  }
+}
+
+async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
+  console.log("\n⚠️  ⚠️  ⚠️  DANGER: Clear Local SQLite Database ⚠️  ⚠️  ⚠️\n");
+  console.log("╔═══════════════════════════════════════════════════════════╗");
+  console.log("║                                                           ║");
+  console.log("║  THIS WILL PERMANENTLY DELETE ALL LOCAL DATA             ║");
+  console.log("║                                                           ║");
+  console.log("║  You will lose:                                           ║");
+  console.log("║  • All patterns deployed to localhost                     ║");
+  console.log("║  • All local spaces                                       ║");
+  console.log("║  • All local charms                                       ║");
+  console.log("║  • All local data and state                               ║");
+  console.log("║                                                           ║");
+  console.log("║  THIS CANNOT BE UNDONE!                                   ║");
+  console.log("║                                                           ║");
+  console.log("╚═══════════════════════════════════════════════════════════╝\n");
+
+  const confirm1 = await prompt("Type 'DELETE' (in caps) to proceed");
+
+  if (confirm1 !== "DELETE") {
+    console.log("❌ Cancelled - no data was deleted\n");
+    return false;
+  }
+
+  console.log("\n⚠️  Final confirmation required\n");
+  const confirm2 = await prompt("Type 'I understand this is permanent' to confirm");
+
+  if (confirm2 !== "I understand this is permanent") {
+    console.log("❌ Cancelled - no data was deleted\n");
+    return false;
+  }
+
+  try {
+    // Find and delete the SQLite database file
+    // Default location is usually in the labs directory or a data directory
+    const possiblePaths = [
+      `${labsDir}/data/db.sqlite`,
+      `${labsDir}/db.sqlite`,
+      `${labsDir}/.data/db.sqlite`,
+    ];
+
+    let deletedPath: string | null = null;
+
+    for (const dbPath of possiblePaths) {
+      try {
+        await Deno.stat(dbPath);
+        await Deno.remove(dbPath);
+        deletedPath = dbPath;
+        break;
+      } catch {
+        // File doesn't exist at this path, try next
+        continue;
+      }
+    }
+
+    if (deletedPath) {
+      console.log(`\n✅ Local SQLite database deleted: ${deletedPath}\n`);
+      console.log("   Restart your dev server to initialize a fresh database.\n");
+      return true;
+    } else {
+      console.log("\n⚠️  Could not find SQLite database file\n");
+      console.log("   Checked locations:");
+      possiblePaths.forEach(p => console.log(`   • ${p}`));
+      console.log("\n   The database may be in a different location.\n");
+      return false;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`\n❌ Error: ${message}\n`);
+    return false;
+  }
+}
+
+async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod" | "other"> {
   const options: SelectOption[] = [];
 
   // Get last used target
@@ -284,12 +432,19 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "pro
     });
   }
 
+  // Add "other actions" option at the end
+  options.push({
+    label: "Take other actions...",
+    value: "other",
+    icon: "⚙️  ",
+  });
+
   const selection = await interactiveSelect(
     options,
     "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):"
   );
 
-  return (selection as "local" | "prod") || lastTarget;
+  return (selection as "local" | "prod" | "other") || lastTarget;
 }
 
 async function promptForSpace(config: Config, isProd: boolean): Promise<string> {
@@ -925,6 +1080,14 @@ async function main() {
 
   // Prompt for deployment target (first question)
   const deploymentTarget = await promptForDeploymentTarget(config);
+
+  // Handle "other actions" menu
+  if (deploymentTarget === "other") {
+    await handleOtherActions(labsDir);
+    // After handling other actions, exit (user can run the tool again)
+    Deno.exit(0);
+  }
+
   const isProd = deploymentTarget === "prod";
 
   // Prompt for space
