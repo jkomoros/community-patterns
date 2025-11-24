@@ -137,6 +137,7 @@ const createRewardSpinner = handler<void, void>((_, __) => {
 const createCheeseboardSchedule = handler<void, void>((_, __) => {
   return navigateTo(CheeseboardSchedule({
     preferences: [],
+    history: [],
   }));
 });
 
