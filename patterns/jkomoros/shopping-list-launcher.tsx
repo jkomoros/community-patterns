@@ -139,17 +139,6 @@ const ANDRONICOS_DATA: StoreData = {
 // Legacy markdown format - keep for backward compatibility with existing data
 const ANDRONICOS_OUTLINE = storeDataToMarkdown(ANDRONICOS_DATA);
 
-// Helper: Clean up aisle name for display (remove markdown and "Known items" suffix)
-function cleanAisleName(aisleName: string): string {
-  // Remove leading "# " markdown header syntax
-  let cleaned = aisleName.replace(/^#\s*/, '');
-
-  // Remove "(Known items: ...)" suffix
-  cleaned = cleaned.replace(/\s*\(Known items:.*?\)\s*$/, '');
-
-  return cleaned.trim();
-}
-
 const showSorted = handler<unknown, { currentView: Cell<"basic" | "sorted"> }>((_event, { currentView }) => {
   currentView.set("sorted");
 });
@@ -406,50 +395,59 @@ export default pattern<LauncherInput, LauncherOutput>(
 
     // Categorize each item into an aisle using LLM (per-item for better caching)
     const itemsWithAisles = items.map((item) => {
-      const assignment = llm({
+      const assignment = generateObject({
         model: "anthropic:claude-sonnet-4-5",
-        system: "You are a grocery store assistant. Given a store layout and an item, determine which aisle the item is in. Respond with ONLY the aisle name (e.g., 'Aisle 1 - Soda & Beverages' or 'Dairy'). If you cannot determine the aisle, respond with 'Other'.",
-        messages: derive(
+        prompt: derive(
           { title: item.title, storeData: mutableStoreData, seed: item.aisleSeed || 0 },
           ({ title, storeData, seed }: { title: string; storeData: StoreData | null; seed: number }) => {
             // Include seed to force re-evaluation on retry (even though we don't use it)
             const storeMarkdown = storeData ? storeDataToMarkdown(storeData) : ANDRONICOS_OUTLINE;
 
+            // Build list of valid location names from store data
+            const validLocations: string[] = [];
+
+            if (storeData) {
+              // Add aisles (just "Aisle 1", "Aisle 2", etc.)
+              storeData.aisles.forEach(aisle => {
+                validLocations.push(`Aisle ${aisle.name}`);
+              });
+
+              // Add departments (just the name)
+              storeData.departments.forEach(dept => {
+                validLocations.push(dept.name);
+              });
+            }
+
+            validLocations.push("Other");
+
             console.log(`[LLM Context] Item: ${title}, Seed: ${seed}, Corrections: ${storeData?.itemLocations.length || 0}`);
 
-            return [{
-              role: "user" as const,
-              content: `Store layout:\n${storeMarkdown}\n\nItem: ${title}\n\nWhich aisle or department is this item in?`,
-            }];
+            return `Store layout (for context):\n${storeMarkdown}\n\nItem: ${title}\n\nDetermine which aisle or department this item is in. You must respond with one of these exact values: ${validLocations.join(", ")}`;
           }
         ),
+        schema: {
+          type: "object",
+          properties: {
+            location: {
+              type: "string",
+              description: "The aisle or department name (e.g., 'Aisle 1', 'Bakery', 'Other')"
+            }
+          },
+          required: ["location"]
+        }
       });
 
       const aisleName = derive(assignment.result, (result) => {
-        // Debug logging
         console.log(`[Aisle Assignment] Item: ${item.title}, Result:`, result);
 
-        if (!result) return "Other";
-
-        // Handle string response
-        if (typeof result === "string") {
-          const trimmed = result.trim();
-          console.log(`[Aisle Assignment] String result for ${item.title}:`, trimmed);
-          return trimmed || "Other";
+        if (!result || !result.location) {
+          console.log(`[Aisle Assignment] No location in result for ${item.title}`);
+          return "Other";
         }
 
-        // Handle array of content blocks (streaming LLM format)
-        if (Array.isArray(result)) {
-          const textPart = (result as any[]).find((part: any) => part.type === "text");
-          if (textPart && "text" in textPart) {
-            const trimmed = textPart.text.trim();
-            console.log(`[Aisle Assignment] Array result for ${item.title}:`, trimmed);
-            return trimmed || "Other";
-          }
-        }
-
-        console.log(`[Aisle Assignment] Fallback to Other for ${item.title}`);
-        return "Other";
+        const location = result.location.trim();
+        console.log(`[Aisle Assignment] Structured result for ${item.title}:`, location);
+        return location || "Other";
       });
 
       // Track status: pending, success, failed, timeout
@@ -704,7 +702,7 @@ export default pattern<LauncherInput, LauncherOutput>(
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
                       }}>
-                        {cleanAisleName(group.aisleName)}
+                        {group.aisleName}
                       </div>
                     </div>
                     <div style={{
