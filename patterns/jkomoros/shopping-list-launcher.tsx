@@ -139,6 +139,17 @@ const ANDRONICOS_DATA: StoreData = {
 // Legacy markdown format - keep for backward compatibility with existing data
 const ANDRONICOS_OUTLINE = storeDataToMarkdown(ANDRONICOS_DATA);
 
+// Helper: Clean up aisle name for display (remove markdown and "Known items" suffix)
+function cleanAisleName(aisleName: string): string {
+  // Remove leading "# " markdown header syntax
+  let cleaned = aisleName.replace(/^#\s*/, '');
+
+  // Remove "(Known items: ...)" suffix
+  cleaned = cleaned.replace(/\s*\(Known items:.*?\)\s*$/, '');
+
+  return cleaned.trim();
+}
+
 const showSorted = handler<unknown, { currentView: Cell<"basic" | "sorted"> }>((_event, { currentView }) => {
   currentView.set("sorted");
 });
@@ -693,7 +704,7 @@ export default pattern<LauncherInput, LauncherOutput>(
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
                       }}>
-                        {group.aisleName}
+                        {cleanAisleName(group.aisleName)}
                       </div>
                     </div>
                     <div style={{
