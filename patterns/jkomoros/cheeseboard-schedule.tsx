@@ -39,12 +39,22 @@ interface PizzaWithPrefs {
   ingredients: IngredientWithPref[];
 }
 
+interface HistoricalPizza {
+  date: string;
+  description: string;
+  ingredients: Ingredient[];
+  ate: "yes" | "no" | "unknown";  // Track if user ate this pizza
+  addedAt: string;  // ISO timestamp when added to history
+}
+
 interface CheeseboardScheduleInput {
   preferences: Cell<Default<IngredientPreference[], []>>;
+  history: Cell<Default<HistoricalPizza[], []>>;
 }
 
 interface CheeseboardScheduleOutput {
   preferences: Cell<IngredientPreference[]>;
+  history: Cell<HistoricalPizza[]>;
 }
 
 // ============================================================================
@@ -284,12 +294,58 @@ const removePreference = handler<
   preferences.set(current.filter(p => p.ingredient !== ingredient));
 });
 
+// Handler to add a pizza to history
+const addToHistory = handler<
+  unknown,
+  { history: Cell<HistoricalPizza[]>; pizza: Pizza }
+>((_event, { history, pizza }) => {
+  const current = history.get();
+
+  // Check if this pizza is already in history (by date)
+  const exists = current.some(p => p.date === pizza.date);
+  if (exists) {
+    return; // Don't add duplicates
+  }
+
+  const historicalPizza: HistoricalPizza = {
+    date: pizza.date,
+    description: pizza.description,
+    ingredients: [...pizza.ingredients],
+    ate: "unknown",
+    addedAt: new Date().toISOString(),
+  };
+
+  // Add to beginning (newest first)
+  history.set([historicalPizza, ...current]);
+});
+
+// Handler to mark if user ate a pizza
+const markAte = handler<
+  unknown,
+  { history: Cell<HistoricalPizza[]>; date: string; ate: "yes" | "no" }
+>((_event, { history, date, ate }) => {
+  const current = history.get();
+  const updated = current.map(p =>
+    p.date === date ? { ...p, ate } : p
+  );
+  history.set(updated);
+});
+
+// Handler to remove a pizza from history
+const removeFromHistory = handler<
+  unknown,
+  { history: Cell<HistoricalPizza[]>; date: string }
+>((_event, { history, date }) => {
+  const current = history.get();
+  history.set(current.filter(p => p.date !== date));
+});
+
 // ============================================================================
 // PATTERN
 // ============================================================================
 
 export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
-  ({ preferences }) => {
+  ({ preferences, history }) => {
     // Fetch pizza schedule
     const cheeseBoardUrl = "https://cheeseboardcollective.coop/home/pizza/pizza-schedule/";
     const { result } = fetchData<WebReadResult>({
@@ -443,6 +499,33 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                     );
                   })}
                 </div>
+
+                {/* Add to History button */}
+                <div style={{ marginTop: "0.5rem" }}>
+                  {computed(() => {
+                    const inHistory = history.get().some(p => p.date === pizza.date);
+                    return inHistory ? (
+                      <span style={{ fontSize: "0.85rem", color: "#666", fontStyle: "italic" }}>
+                        ✓ In history
+                      </span>
+                    ) : (
+                      <button
+                        onClick={addToHistory({ history, pizza })}
+                        style={{
+                          background: "#007bff",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.85rem",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Add to History
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               );
             })}
@@ -538,9 +621,157 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
               </div>
             </div>
           </div>
+
+          {/* Pizza History */}
+          <details style={{
+            marginTop: "2rem",
+            padding: "1rem",
+            border: "1px solid #ddd",
+            borderRadius: "8px",
+            backgroundColor: "#f9f9f9"
+          }}>
+            <summary style={{ cursor: "pointer", fontWeight: "600", fontSize: "1.1rem" }}>
+              Pizza History ({computed(() => history.get().length)} pizzas)
+            </summary>
+
+            <div style={{ marginTop: "1rem" }}>
+              {computed(() => {
+                const historyList = history.get();
+
+                if (historyList.length === 0) {
+                  return (
+                    <p style={{ color: "#666", fontStyle: "italic" }}>
+                      No pizzas in history yet. Click "Add to History" on current pizzas to track them.
+                    </p>
+                  );
+                }
+
+                return historyList.map((pizza) => {
+                  // Calculate score for historical pizza
+                  const score = computed(() => {
+                    const prefs = preferences.get();
+                    const likedSet = new Set(prefs.filter(p => p.preference === "liked").map(p => p.ingredient));
+                    const dislikedSet = new Set(prefs.filter(p => p.preference === "disliked").map(p => p.ingredient));
+
+                    let total = 0;
+                    for (const ing of pizza.ingredients) {
+                      if (likedSet.has(ing.normalized)) total += 1;
+                      if (dislikedSet.has(ing.normalized)) total -= 2;
+                    }
+                    return total;
+                  });
+
+                  const emoji = computed(() => getScoreEmoji(score));
+
+                  return (
+                    <div style={{
+                      marginBottom: "1rem",
+                      padding: "0.75rem",
+                      border: "1px solid #ddd",
+                      borderRadius: "6px",
+                      backgroundColor: "#fff"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <h4 style={{ margin: "0", fontSize: "1rem" }}>
+                          {pizza.date}
+                          <span style={{ marginLeft: "0.5rem", fontSize: "1rem" }}>
+                            {emoji} ({score >= 0 ? "+" : ""}{score})
+                          </span>
+                        </h4>
+                        <button
+                          onClick={removeFromHistory({ history, date: pizza.date })}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "1rem",
+                            color: "#dc3545",
+                            fontWeight: "bold"
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.9rem", color: "#666" }}>
+                        {pizza.description}
+                      </p>
+
+                      {/* Ingredients */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                        {pizza.ingredients.map((ing) => {
+                          const badgeStyle = computed(() => {
+                            const prefs = preferences.get();
+                            const pref = prefs.find(p => p.ingredient === ing.normalized);
+
+                            let backgroundColor: string;
+                            let color: string;
+
+                            if (pref) {
+                              backgroundColor = pref.preference === "liked" ? "#28a745" : "#dc3545";
+                              color = "#ffffff";
+                            } else {
+                              backgroundColor = getIngredientHashColor(ing.normalized);
+                              color = "#000000";
+                            }
+
+                            return {
+                              padding: "0.2rem 0.4rem",
+                              backgroundColor,
+                              color,
+                              borderRadius: "3px",
+                              fontSize: "0.8rem"
+                            };
+                          });
+
+                          return <span style={badgeStyle}>{ing.raw}</span>;
+                        })}
+                      </div>
+
+                      {/* Did you eat this? */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ fontSize: "0.85rem", color: "#666" }}>Did you eat this?</span>
+                        <button
+                          onClick={markAte({ history, date: pizza.date, ate: "yes" })}
+                          style={{
+                            padding: "0.2rem 0.5rem",
+                            fontSize: "0.8rem",
+                            border: "1px solid #28a745",
+                            borderRadius: "4px",
+                            background: pizza.ate === "yes" ? "#28a745" : "white",
+                            color: pizza.ate === "yes" ? "white" : "#28a745",
+                            cursor: "pointer",
+                            fontWeight: pizza.ate === "yes" ? "bold" : "normal"
+                          }}
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={markAte({ history, date: pizza.date, ate: "no" })}
+                          style={{
+                            padding: "0.2rem 0.5rem",
+                            fontSize: "0.8rem",
+                            border: "1px solid #dc3545",
+                            borderRadius: "4px",
+                            background: pizza.ate === "no" ? "#dc3545" : "white",
+                            color: pizza.ate === "no" ? "white" : "#dc3545",
+                            cursor: "pointer",
+                            fontWeight: pizza.ate === "no" ? "bold" : "normal"
+                          }}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })}
+            </div>
+          </details>
         </div>
       ),
       preferences,
+      history,
     };
   }
 );
