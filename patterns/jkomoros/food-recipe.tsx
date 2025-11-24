@@ -490,19 +490,15 @@ const scaleRecipe = handler<
 // Image Upload Handler
 const handleImageUpload = handler<
   { detail: { images: ImageData[] } },
-  { notes: Cell<string> }
->(({ detail }, { notes }) => {
+  { uploadedImage: Cell<ImageData | null> }
+>(({ detail }, { uploadedImage }) => {
   if (!detail.images || detail.images.length === 0) return;
 
-  // Get the most recently uploaded image's data URL
+  // Get the most recently uploaded image
   const mostRecentImage = detail.images[detail.images.length - 1];
-  const dataUrl = mostRecentImage.data;
 
-  const currentNotes = notes.get();
-  const newNotes = currentNotes
-    ? `${currentNotes}\n\n---\n\n${dataUrl}`
-    : dataUrl;
-  notes.set(newNotes);
+  // Set the image data to trigger extraction
+  uploadedImage.set(mostRecentImage);
 });
 
 // LLM Extraction Handlers
@@ -830,6 +826,73 @@ export default pattern<RecipeInput, RecipeOutput>(
       tags,
     });
 
+    // Image Upload Extraction state
+    const uploadedImage = cell<ImageData | null>(null);
+
+    const { result: imageTextResult, pending: imageExtractionPending } =
+      generateObject({
+        system:
+          `You are a recipe text extraction assistant. Extract ALL text from recipe images.
+
+Your job is to extract the complete recipe text from the image, preserving:
+- Recipe title
+- All ingredients with amounts and units
+- All cooking steps/instructions
+- Any timing information (prep time, cook time, etc.)
+- Temperature settings
+- Servings/yield information
+- Any notes, tips, or variations
+
+Return the extracted text as faithfully as possible. Preserve line breaks and structure.`,
+        prompt: derive(uploadedImage, (img: ImageData | null) => {
+          // derive() unwraps the Cell, so img is ImageData | null here
+          if (!img || !img.data) {
+            return "";  // Return empty string instead of text to prevent unnecessary API call
+          }
+
+          return [
+            { type: "image" as const, image: img.data },
+            {
+              type: "text" as const,
+              text: `Extract all text from this recipe image. Preserve the complete recipe text including title, ingredients, instructions, timing, and any notes.`
+            }
+          ];
+        }),
+        model: "anthropic:claude-sonnet-4-5",
+        schema: {
+          type: "object",
+          properties: {
+            extractedText: { type: "string" },
+          },
+          required: ["extractedText"],
+        },
+      });
+
+    // Handler to apply extracted image text to notes
+    const applyImageText = handler<
+      Record<string, never>,
+      {
+        notes: Cell<string>;
+        uploadedImage: Cell<ImageData | null>;
+        imageTextResult: Cell<any>;
+      }
+    >(
+      (_, { notes, uploadedImage, imageTextResult }) => {
+        const result = imageTextResult.get();
+        if (!result?.extractedText) return;
+
+        const extractedText = result.extractedText;
+        const currentNotes = notes.get();
+        const newNotes = currentNotes
+          ? `${currentNotes}\n\n---\n\n${extractedText}`
+          : extractedText;
+        notes.set(newNotes);
+
+        // Clear the uploaded image to reset the extraction state
+        uploadedImage.set(null);
+      }
+    );
+
     // LLM Extraction state
     const extractTrigger = cell<string>("");
 
@@ -1129,9 +1192,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <ct-image-input
-                    onct-change={handleImageUpload({ notes })}
+                    onct-change={handleImageUpload({ uploadedImage })}
+                    maxSizeBytes={3932160}
                   >
-                    Upload Image
+                    📷 Add Photo
                   </ct-image-input>
                   <ct-button
                     onClick={triggerExtraction({ notes, extractTrigger })}
@@ -1143,6 +1207,29 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   </ct-button>
                 </div>
               </div>
+
+              {/* Show image extraction status - simple always-visible approach */}
+              <div style={{
+                padding: "8px",
+                background: "#f0fdf4",
+                border: "1px solid #86efac",
+                borderRadius: "4px",
+                fontSize: "13px",
+                color: "#166534",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span>{imageExtractionPending ? "📸 Extracting text from image..." : "📷 Upload an image to extract text"}</span>
+                <ct-button
+                  onClick={applyImageText({ notes, uploadedImage, imageTextResult })}
+                  disabled={imageExtractionPending}
+                  style={{ fontSize: "12px", padding: "4px 8px" }}
+                >
+                  Add to Notes
+                </ct-button>
+              </div>
+
               <ct-code-editor
                 $value={notes}
                 $mentionable={mentionable}
