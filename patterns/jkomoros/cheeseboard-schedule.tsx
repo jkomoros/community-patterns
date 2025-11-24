@@ -186,6 +186,13 @@ function parseIngredients(description: string): Ingredient[] {
     .map(part => cleanIngredient(part))
     .filter(part => part.length > 0);
 
+  // If the first part has a colon, strip everything before and including the colon
+  // This handles pizza name prefixes like "Our Annual Thanksgiving Mushroom Pizza: King Trumpet"
+  if (parts.length > 0 && parts[0].includes(':')) {
+    const colonIndex = parts[0].indexOf(':');
+    parts[0] = parts[0].substring(colonIndex + 1).trim();
+  }
+
   return parts.map(raw => ({
     raw,
     normalized: normalizeIngredient(raw),
