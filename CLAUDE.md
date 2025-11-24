@@ -316,28 +316,51 @@ Working on photo gallery pattern in WIP/photo-gallery.tsx
 
 ## Pattern Deployment
 
-**For deploying and updating patterns, use the `deployment` skill.**
+**⚠️ CRITICAL: ALWAYS read the `deployment` skill BEFORE deploying patterns!**
 
-The deployment skill covers:
+**DO NOT attempt to deploy without reading the deployment skill first.**
+
+Common mistakes when deploying without reading the skill:
+- ❌ Using `http://localhost:5173` (WRONG - that's the frontend)
+- ❌ Forgetting required parameters (--api-url, --identity, --space)
+- ❌ Missing space name in URL
+- ❌ Using `ct` directly instead of `deno task ct`
+
+**The deployment skill contains CRITICAL deployment rules that MUST be followed.**
+
+Use the deployment skill to learn:
 - Testing syntax before deployment
 - Deploying new patterns with `charm new`
-- Updating deployed patterns with `charm setsrc`
+- Updating deployed patterns (DON'T use `charm setsrc`)
+- All required parameters and correct URLs
 - Deployment troubleshooting
 
-Always use `deno task ct`, never just `ct` directly.
+**When user asks to deploy or test a pattern, IMMEDIATELY use the `/deployment` skill.**
 
 ---
 
 ## Testing Patterns with Playwright
 
-**For testing patterns in the browser, use the `testing` skill.**
+**⚠️ CRITICAL: ALWAYS read the `testing` skill BEFORE testing patterns!**
 
-The testing skill covers:
-- Navigating to deployed patterns
-- Testing pattern functionality with Playwright
+**DO NOT attempt to navigate to patterns without reading the testing skill first.**
+
+Common mistakes when testing without reading the skill:
+- ❌ Using wrong URL format (missing space name or wrong port)
+- ❌ Not knowing the correct URL structure from deployment
+- ❌ Opening multiple tabs causing conflicts
+
+**The testing skill contains CRITICAL URL formats and testing workflows.**
+
+Use the testing skill to learn:
+- Correct URL format for deployed patterns
+- Navigating to deployed patterns with Playwright
+- Testing pattern functionality
 - Registration workflow (first time only)
 - Testing workflows for new and updated patterns
-- Playwright troubleshooting (multiple tabs issue)
+- Playwright troubleshooting
+
+**When user asks to test a pattern, IMMEDIATELY use the `/testing` skill.**
 
 ---
 
@@ -408,6 +431,16 @@ Every session:
 - [ ] **Step 3**: Check and start dev server if needed
 - [ ] **Check**: Is Playwright MCP available for testing?
 - [ ] **Ready**: Ask user what they want to work on
+
+## ⚠️ BEFORE Deploying or Testing
+
+**Every time user asks to deploy or test a pattern:**
+
+- [ ] **CRITICAL**: Use `/deployment` skill if deploying
+- [ ] **CRITICAL**: Use `/testing` skill if testing with Playwright
+- [ ] **DO NOT** guess deployment commands or URLs
+- [ ] **DO NOT** use localhost:5173 (use localhost:8000)
+- [ ] **DO NOT** forget required parameters (--api-url, --identity, --space)
 
 ---
 
