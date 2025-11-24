@@ -676,24 +676,37 @@ async function openInBrowser(url: string): Promise<void> {
 
 async function promptOpenBrowser(url: string): Promise<void> {
   console.log("Press Enter to open in browser, or Q to quit...");
-  console.log("(Auto-closing in 5 seconds)");
+  console.log("(Auto-closing in 10 seconds)");
 
   // Set up raw mode to capture single keypress
   Deno.stdin.setRaw(true);
 
+  // Countdown animation
+  let secondsLeft = 10;
+  const countdownInterval = setInterval(() => {
+    secondsLeft--;
+    if (secondsLeft > 0) {
+      // Move cursor up one line, clear it, and rewrite the countdown
+      Deno.stdout.writeSync(new TextEncoder().encode(CURSOR_UP + CLEAR_LINE + CURSOR_TO_START));
+      console.log(`(Auto-closing in ${secondsLeft} second${secondsLeft !== 1 ? 's' : ''})`);
+    }
+  }, 1000);
+
   // Set up timeout
   const timeoutId = setTimeout(() => {
+    clearInterval(countdownInterval);
     Deno.stdin.setRaw(false);
     console.log("\n👋 Timed out, closing...\n");
     Deno.exit(0);
-  }, 5000);
+  }, 10000);
 
   try {
     const buf = new Uint8Array(1);
     const n = await Deno.stdin.read(buf);
 
-    // Clear timeout
+    // Clear timeout and countdown interval
     clearTimeout(timeoutId);
+    clearInterval(countdownInterval);
     Deno.stdin.setRaw(false);
 
     if (n === null) {
@@ -726,6 +739,7 @@ async function promptOpenBrowser(url: string): Promise<void> {
     console.log("\n👋 Closing...\n");
   } catch (error) {
     clearTimeout(timeoutId);
+    clearInterval(countdownInterval);
     Deno.stdin.setRaw(false);
     const message = error instanceof Error ? error.message : String(error);
     console.log(`⚠️  Error reading input: ${message}`);
