@@ -2246,7 +2246,7 @@ What common sections might be missing?`,
               <ct-image-input
                 multiple
                 maxImages={50}
-                maxSizeBytes={4000000}
+                maxSizeBytes={200000}
                 showPreview={false}
                 buttonText="📷 Scan Aisle Signs"
                 variant="secondary"
