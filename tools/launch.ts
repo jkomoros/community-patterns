@@ -753,7 +753,7 @@ async function deployPattern(
   labsDir: string
 ): Promise<string | null> {
   const apiUrl = isProd
-    ? "https://toolshed.saga-castor.ts.net/"
+    ? "https://toolshed.saga-castor.ts.net"
     : "http://localhost:8000";
 
   console.log("\n🚀 Deploying...");
