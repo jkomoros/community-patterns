@@ -376,38 +376,38 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
                       return prefs.some(p => p.ingredient === ing.normalized);
                     });
 
-                    // Compute color for this ingredient based on preferences
-                    const bgColor = computed(() => {
+                    // Compute entire style object based on preferences
+                    const badgeStyle = computed(() => {
                       const prefs = preferences.get();
                       const pref = prefs.find(p => p.ingredient === ing.normalized);
+
+                      let backgroundColor: string;
+                      let color: string;
 
                       if (pref) {
-                        // Bold green for liked, bold red for disliked
-                        return pref.preference === "liked" ? "#28a745" : "#dc3545";
+                        // Bright green for liked, bright red for disliked (with white text)
+                        backgroundColor = pref.preference === "liked" ? "#28a745" : "#dc3545";
+                        color = "#ffffff";
+                      } else {
+                        // Otherwise use hash-based pastel color (with black text)
+                        backgroundColor = getIngredientHashColor(ing.normalized);
+                        color = "#000000";
                       }
 
-                      // Otherwise use hash-based color
-                      return getIngredientHashColor(ing.normalized);
-                    });
-
-                    // Compute text color (white for liked/disliked, black for neutral)
-                    const textColor = computed(() => {
-                      const prefs = preferences.get();
-                      const pref = prefs.find(p => p.ingredient === ing.normalized);
-                      return pref ? "#ffffff" : "#000000";
-                    });
-
-                    return (
-                      <span style={{
+                      return {
                         padding: "0.25rem 0.5rem",
-                        backgroundColor: bgColor,
-                        color: textColor,
+                        backgroundColor,
+                        color,
                         borderRadius: "4px",
                         fontSize: "0.9rem",
                         display: "flex",
                         alignItems: "center",
                         gap: "0.25rem"
-                      }}>
+                      };
+                    });
+
+                    return (
+                      <span style={badgeStyle}>
                         <span>{ing.raw}</span>
                         {ifElse(
                           hasPreference,
