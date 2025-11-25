@@ -104,15 +104,20 @@ const spin = handler<
 
     const finalEmoji = prizeOptions[selectedIndex].emoji;
 
-    // Build slot machine sequence: start with current emoji to avoid visual discontinuity,
+    // Build slot machine sequence: start with last result (or default) to avoid visual discontinuity,
     // then random items, then final result at the end
     // Total of 32 items, with final result at position 30 (animation shows positions 0-30)
     // Animation translates -6000px (30 items × 200px) to center item 30 in the viewport window
+    const existingHistory = spinHistory.get();
+    const previousResult = existingHistory.length > 0
+      ? existingHistory[existingHistory.length - 1].result
+      : currentEmoji.get();
+
     const sequence: string[] = [];
     for (let i = 0; i < 32; i++) {
       if (i === 0) {
-        // First item is current emoji (avoids visual jump)
-        sequence.push(currentEmoji.get());
+        // First item is previous result (avoids visual jump)
+        sequence.push(previousResult);
       } else if (i === 30) {
         // Final result at position 30 (will be visible after animation stops)
         sequence.push(finalEmoji);
@@ -137,8 +142,15 @@ const spin = handler<
     };
     spinHistory.set([...history, newRecord]);
 
-    // Update the final emoji AFTER setting animation state
-    currentEmoji.set(finalEmoji);
+    // NOTE: We intentionally do NOT update currentEmoji here.
+    // The animation shows the final result at position 30, and
+    // shouldShowAnimation will be true for 10 seconds after the spin.
+    // When shouldShowAnimation becomes false, the static display will
+    // show currentEmoji - but we want it to show the RESULT, so we
+    // need to update it. However, updating it HERE causes a flash
+    // because for one frame the static display might show before
+    // the animation kicks in. Instead, we'll derive the display emoji
+    // from the last spin result when not animating.
   }
 );
 
@@ -238,8 +250,23 @@ export default pattern<SpinnerInput, SpinnerOutput>(
       ));
     });
 
-    // Check if current emoji is three candies (for special rendering)
-    const isThreeCandies = computed(() => currentEmoji.get() === "🍬🍬🍬");
+    // Get the display emoji - use last spin result if available, otherwise currentEmoji default
+    const displayEmoji = computed(() => {
+      const history = spinHistory.get();
+      if (history.length > 0) {
+        return history[history.length - 1].result;
+      }
+      return currentEmoji.get();
+    });
+
+    // Check if display emoji is three candies (for special rendering)
+    const isThreeCandies = computed(() => {
+      const history = spinHistory.get();
+      if (history.length > 0) {
+        return history[history.length - 1].result === "🍬🍬🍬";
+      }
+      return currentEmoji.get() === "🍬🍬🍬";
+    });
 
     return {
       [NAME]: str`Reward Spinner`,
@@ -486,7 +513,7 @@ export default pattern<SpinnerInput, SpinnerOutput>(
                     left: "50%",
                     top: "50%",
                     transform: "translate(-50%, -50%)",
-                  }}>{currentEmoji}</span>
+                  }}>{displayEmoji}</span>
                 )}
               </div>
             )}
