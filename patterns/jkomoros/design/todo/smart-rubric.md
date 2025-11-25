@@ -1134,3 +1134,98 @@ const removeItem = handler<
 **Next Steps:**
 - Phase 5-7: LLM features (extract, optimize, suggest)
 - Phase 8: Polish & testing
+
+### Session 8 - Phase 5 COMPLETE: LLM Quick Add (2025-11-25)
+**🎉 PHASE 5 COMPLETE: LLM Quick Add feature working!**
+
+#### Implementation Summary
+
+Added a "Quick Add" section that uses LLM to extract option names and dimension values from natural language descriptions.
+
+**Features:**
+- Input field for describing an option (e.g., "Apartment A: good location, Number 1 is 85")
+- "Analyze" button to submit to LLM
+- Displays extracted option name, dimension values, confidence levels, and reasoning
+- "Accept & Add" button to add the option with extracted values
+- "Clear" button to reset the form
+
+**Technical Implementation:**
+1. `generateObject()` with schema for extracting option name, values, and confidence
+2. System prompt provides dimension definitions (names, types, ranges/categories)
+3. LLM returns structured response with extracted values and reasoning
+4. Submit button pattern to avoid race conditions (typing doesn't trigger LLM)
+
+#### Critical Bug Fixed: ReadOnlyAddressError
+
+**Problem:** After clicking "Accept & Add", the form wouldn't clear. Error: `ReadOnlyAddressError: Cannot write to read-only address`
+
+**Root Cause:** Buttons were inside a `derive()` block. When handlers are called from inside `derive()` context, Cells become read-only proxies - `.set()` fails.
+
+**Solution:** Move Accept/Clear buttons OUTSIDE the `derive()` block:
+```typescript
+// Display-only content inside derive
+{derive({ result }, ({ result }) => {
+  if (!result) return <div>No result</div>;
+  return <div>Extracted: {result.optionName}</div>;
+})}
+
+// Action buttons OUTSIDE derive - handlers can write
+<ct-button onClick={acceptResult({ resultCell, promptCell })}>
+  Accept
+</ct-button>
+```
+
+**Handler reads from result Cell:**
+```typescript
+const acceptQuickAddFromResult = handler<
+  unknown,
+  {
+    resultCell: Cell<QuickAddResponse | undefined>,
+    optionsCell: Cell<Array<Cell<RubricOption>>>,
+    promptCell: Cell<string>,
+    submittedCell: Cell<string>,
+  }
+>((_, { resultCell, optionsCell, promptCell, submittedCell }) => {
+  const result = resultCell.get();
+  if (!result) return;
+
+  // Add option...
+  optionsCell.push({ name: result.optionName, values, manualRank: null });
+
+  // Clear form (works because outside derive context)
+  promptCell.set("");
+  submittedCell.set("");
+});
+```
+
+#### New Superstitions Created
+
+1. **`2025-11-25-generateObject-race-condition-pass-cell-directly.md`**
+   - Pass Cell directly to `prompt:` parameter instead of wrapping in `derive()`
+   - Avoids race condition where results get stuck in "pending" state
+
+2. **`2025-11-25-handlers-inside-derive-cause-readonly-error.md`**
+   - Handlers called from inside derive() context cannot write to Cells
+   - Solution: Move buttons/handlers OUTSIDE derive blocks
+
+#### Testing Results
+- ✅ LLM extracts option name correctly
+- ✅ Dimension values extracted with confidence levels
+- ✅ "Accept & Add" adds option with correct values
+- ✅ Score calculates correctly (tested: 92.0 for extracted values)
+- ✅ Form clears after accept (no more ReadOnlyAddressError)
+- ✅ "Clear" button works correctly
+
+#### Phase 5 Status: ✅ COMPLETE
+
+**Phases Completed:**
+- ✅ Phase 1: Data Model Validation
+- ✅ Phase 2: Core UI (two-pane layout, selection)
+- ✅ Phase 3: Dynamic Value Editing (numeric + categorical)
+- ✅ Phase 4: Manual Ranking (up/down buttons, boxing pattern)
+- ✅ Phase 5: LLM Quick Add (extract dimension values from descriptions)
+
+**Next Steps:**
+- Phase 6: LLM Optimize Weights (suggest weight adjustments to match manual ranking)
+- Phase 7: LLM Suggest Missing Dimensions
+- Phase 8: Polish & testing
