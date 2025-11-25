@@ -16,6 +16,7 @@ import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
 import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
 import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
+import SmartRubric from "./WIP/smart-rubric.tsx";
 
 type Input = void;
 type Output = {
@@ -201,6 +202,15 @@ const createHotelMembershipExtractor = handler<void, void>((_, __) => {
   }));
 });
 
+const createSmartRubric = handler<void, void>((_, __) => {
+  return navigateTo(SmartRubric({
+    title: "Decision Rubric",
+    options: [],
+    dimensions: [],
+    selection: { value: null },
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -319,6 +329,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🏨 Hotel Membership Extractor
+                </ct-button>
+
+                <ct-button
+                  onClick={createSmartRubric()}
+                  size="lg"
+                >
+                  📊 Smart Rubric
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
