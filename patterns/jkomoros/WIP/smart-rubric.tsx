@@ -4,18 +4,20 @@ import {
   computed,
   Default,
   derive,
+  generateObject,
   handler,
   NAME,
   pattern,
+  toSchema,
   UI,
 } from "commontools";
 
 /**
  * Smart Rubric - Decision Making Tool
  *
- * Phase 4: Manual Ranking with Boxing Pattern
+ * Phase 5: LLM Quick Add Feature
  *
- * Tests:
+ * Features:
  * - Dynamic dimension lookups with key-value pattern
  * - Reactive score calculation with derive()
  * - Adding/removing dimensions
@@ -23,6 +25,7 @@ import {
  * - Editing option values for dimensions via detail pane
  * - Manual ranking with up/down buttons using boxing pattern
  * - Cell.equals() for Cell identity comparison
+ * - LLM-powered Quick Add: describe an option, get extracted dimension values
  */
 
 // ============================================================================
@@ -63,6 +66,8 @@ interface RubricInput {
   options: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Cell<Array<Cell<RubricOption>>>
   dimensions: Default<Dimension[], []>;
   selection: Default<SelectionState, { value: null }>;
+  quickAddPrompt: Default<string, "">;  // For LLM Quick Add feature - user types here
+  quickAddSubmitted: Default<string, "">;  // Submitted prompt - triggers LLM only when set
 }
 
 interface RubricOutput {
@@ -70,6 +75,19 @@ interface RubricOutput {
   options: Cell<Array<Cell<RubricOption>>>;  // Auto-boxed by framework
   dimensions: Cell<Dimension[]>;
   selection: Cell<SelectionState>;
+  quickAddPrompt: Cell<string>;
+  quickAddSubmitted: Cell<string>;
+}
+
+// LLM Response type for Quick Add - must be object at root (not array)
+interface QuickAddResponse {
+  optionName: string;
+  extractedValues: Array<{
+    dimensionName: string;
+    value: string | number;
+    confidence: "high" | "medium" | "low";
+  }>;
+  reasoning: string;
 }
 
 // ============================================================================
@@ -77,11 +95,61 @@ interface RubricOutput {
 // ============================================================================
 
 export default pattern<RubricInput, RubricOutput>(
-  ({ title, options, dimensions, selection }) => {
+  ({ title, options, dimensions, selection, quickAddPrompt, quickAddSubmitted }) => {
     // CRITICAL: Save references to Cells BEFORE entering .map() or derive() contexts
     // Inside .map() and derive(), closures may unwrap Cells to plain values
     const selectionCell = selection;
     const optionsCell = options;
+    const quickAddSubmittedCell = quickAddSubmitted;
+
+    // ========================================================================
+    // LLM Quick Add - Extract dimension values from description
+    // ========================================================================
+
+    // Build system prompt with current dimensions using derive for reactivity
+    const quickAddSystemPrompt = derive(
+      { dims: dimensions },
+      ({ dims }) => {
+        if (dims.length === 0) {
+          return `You are helping extract information for a decision rubric.
+There are no dimensions defined yet. Extract a suitable name for the option and suggest what dimensions might be useful.`;
+        }
+
+        const dimDescriptions = dims.map(dim => {
+          if (dim.type === "categorical") {
+            const cats = dim.categories.map(c => `"${c.label}" (${c.score} pts)`).join(", ");
+            return `- ${dim.name} (categorical): Options are ${cats}`;
+          } else {
+            return `- ${dim.name} (numeric): Range ${dim.numericMin}-${dim.numericMax}`;
+          }
+        }).join("\n");
+
+        return `You are helping extract dimension values for a decision rubric.
+
+Current dimensions:
+${dimDescriptions}
+
+Given a description of an option, extract:
+1. A suitable name for the option
+2. Values for each dimension (match categorical labels exactly, use numbers within range for numeric)
+3. Your confidence level for each extraction
+
+Be precise with categorical values - use exact label matches.`;
+      }
+    );
+
+    // Call generateObject directly in pattern body (required by framework)
+    // Use quickAddSubmitted (not quickAddPrompt) to avoid triggering on every keystroke
+    // Only triggers when user clicks "Analyze" button
+    // Using haiku model for faster response to reduce race condition issues
+    // Pass Cell directly instead of derive() to reduce reactivity issues
+    const quickAddExtraction = generateObject({
+      model: "anthropic:claude-haiku-4-5",
+      system: quickAddSystemPrompt,
+      // Pass the Cell directly - framework should handle reactivity
+      prompt: quickAddSubmitted,
+      schema: toSchema<QuickAddResponse>(),
+    });
 
     // ========================================================================
     // Score Calculation Helper (Per-Option)
@@ -129,6 +197,62 @@ export default pattern<RubricInput, RubricOutput>(
           values: [],
           manualRank: null,
         });
+      }
+    );
+
+    // Accept LLM-extracted option and clear prompts
+    const acceptQuickAdd = handler<
+      unknown,
+      {
+        extraction: QuickAddResponse,
+        optionsCell: Cell<Array<Cell<RubricOption>>>,
+        promptCell: Cell<string>,
+        submittedCell: Cell<string>
+      }
+    >(
+      (_, { extraction, optionsCell, promptCell, submittedCell }) => {
+        // Convert extracted values to OptionValue format
+        const values: OptionValue[] = extraction.extractedValues
+          .filter(ev => ev && ev.dimensionName)
+          .map(ev => ({
+            dimensionName: ev.dimensionName,
+            value: ev.value,
+          }));
+
+        // Add the new option
+        optionsCell.push({
+          name: extraction.optionName,
+          values,
+          manualRank: null,
+        });
+
+        // Clear both prompts
+        promptCell.set("");
+        submittedCell.set("");
+      }
+    );
+
+    // Submit prompt to trigger LLM analysis
+    const submitQuickAdd = handler<
+      unknown,
+      { promptCell: Cell<string>, submittedCell: Cell<string> }
+    >(
+      (_, { promptCell, submittedCell }) => {
+        const prompt = promptCell.get();
+        if (prompt && prompt.trim() !== "") {
+          submittedCell.set(prompt);
+        }
+      }
+    );
+
+    // Clear Quick Add prompt without accepting
+    const clearQuickAdd = handler<
+      unknown,
+      { promptCell: Cell<string>, submittedCell: Cell<string> }
+    >(
+      (_, { promptCell, submittedCell }) => {
+        promptCell.set("");
+        submittedCell.set("");
       }
     );
 
@@ -328,13 +452,129 @@ export default pattern<RubricInput, RubricOutput>(
     // ========================================================================
 
     return {
-      [NAME]: "Smart Rubric (Phase 4)",
+      [NAME]: "Smart Rubric (Phase 5)",
       [UI]: (
         <ct-vstack gap="2" style="padding: 1rem; max-width: 1200px; margin: 0 auto;">
           {/* Header */}
           <div style={{ marginBottom: "1rem" }}>
-            <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Phase 4</h2>
+            <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Phase 5</h2>
             <ct-input $value={title} placeholder="Rubric Title" style="width: 100%;" />
+          </div>
+
+          {/* Quick Add with LLM */}
+          <div style={{
+            padding: "1rem",
+            background: "#e8f4f8",
+            border: "1px solid #b8daff",
+            borderRadius: "4px",
+            marginBottom: "1rem",
+          }}>
+            <h3 style={{ margin: "0 0 0.75rem 0", color: "#004085" }}>
+              🤖 Quick Add (AI-Powered)
+            </h3>
+            <ct-hstack gap="1" style={{ marginBottom: "0.75rem" }}>
+              <ct-input
+                $value={quickAddPrompt}
+                placeholder="Describe an option... e.g., 'Apartment A: 2br in Mission District, $2100/mo, 800sqft'"
+                style="flex: 1;"
+              />
+              <ct-button
+                onClick={submitQuickAdd({ promptCell: quickAddPrompt, submittedCell: quickAddSubmittedCell })}
+                style={{ background: "#007bff", color: "white" }}
+              >
+                Analyze
+              </ct-button>
+            </ct-hstack>
+
+            {/* LLM Extraction Results - Use derive to make pending/result reactive */}
+            {/* Use quickAddSubmitted (not quickAddPrompt) to check if we should show results */}
+            {derive(
+              { pending: quickAddExtraction.pending, error: quickAddExtraction.error, result: quickAddExtraction.result, submitted: quickAddSubmitted },
+              ({ pending, error, result, submitted }) => {
+                // Check if we have a submitted prompt (not the placeholder)
+                const hasSubmittedPrompt = submitted && submitted.trim() !== "" && submitted !== "No description submitted yet.";
+
+                if (pending && hasSubmittedPrompt) {
+                  return (
+                    <div style={{ color: "#004085", padding: "0.5rem" }}>
+                      ⏳ Analyzing description...
+                    </div>
+                  );
+                }
+
+                if (error && hasSubmittedPrompt) {
+                  return (
+                    <div style={{ color: "#721c24", padding: "0.5rem", background: "#f8d7da", borderRadius: "4px" }}>
+                      ❌ Error: {error}
+                    </div>
+                  );
+                }
+
+                // Only show result if we have a submitted prompt and a result
+                if (result && hasSubmittedPrompt) {
+                  return (
+                    <div style={{ background: "white", padding: "1rem", borderRadius: "4px", border: "1px solid #ddd" }}>
+                      <div style={{ marginBottom: "0.75rem" }}>
+                        <strong>Extracted Option:</strong> {result.optionName}
+                      </div>
+
+                      {result.extractedValues && Array.isArray(result.extractedValues) && result.extractedValues.length > 0 && (
+                        <div style={{ marginBottom: "0.75rem" }}>
+                          <strong>Values:</strong>
+                          <ul style={{ margin: "0.25rem 0", paddingLeft: "1.25rem" }}>
+                            {result.extractedValues
+                              .filter((ev: any) => ev && ev.dimensionName)
+                              .map((ev: { dimensionName: string; value: string | number; confidence: "high" | "medium" | "low" }) => (
+                                <li style={{ fontSize: "0.9em" }}>
+                                  {ev.dimensionName}: <strong>{String(ev.value ?? "")}</strong>
+                                  <span style={{
+                                    marginLeft: "0.5rem",
+                                    fontSize: "0.8em",
+                                    color: ev.confidence === "high" ? "#28a745" : ev.confidence === "medium" ? "#ffc107" : "#dc3545"
+                                  }}>
+                                    ({ev.confidence || "unknown"})
+                                  </span>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
+                        <em>{result.reasoning}</em>
+                      </div>
+
+                      <ct-hstack gap="1">
+                        <ct-button
+                          onClick={acceptQuickAdd({
+                            extraction: result,
+                            optionsCell,
+                            promptCell: quickAddPrompt,
+                            submittedCell: quickAddSubmittedCell,
+                          })}
+                          style={{ background: "#28a745", color: "white" }}
+                        >
+                          ✓ Accept & Add Option
+                        </ct-button>
+                        <ct-button
+                          onClick={clearQuickAdd({ promptCell: quickAddPrompt, submittedCell: quickAddSubmittedCell })}
+                          style={{ background: "#6c757d", color: "white" }}
+                        >
+                          ✗ Cancel
+                        </ct-button>
+                      </ct-hstack>
+                    </div>
+                  );
+                }
+
+                // Default: no submitted prompt yet
+                return (
+                  <div style={{ color: "#666", fontSize: "0.9em", fontStyle: "italic" }}>
+                    Enter a description above and click "Analyze" to extract dimension values with AI.
+                  </div>
+                );
+              }
+            )}
           </div>
 
           {/* Test Controls */}
@@ -716,6 +956,8 @@ export default pattern<RubricInput, RubricOutput>(
       options,
       dimensions,
       selection,
+      quickAddPrompt,
+      quickAddSubmitted,
     };
   }
 );
