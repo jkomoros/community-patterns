@@ -395,8 +395,9 @@ const applyLinking = handler<
             tags: [],
           });
 
-      // Push the new charm to allCharms to persist it
-      allCharms.push(newCharm);
+      // Add the new charm to allCharms to persist it
+      const currentCharms = allCharms.get();
+      allCharms.set([...currentCharms, newCharm]);
 
       // Add to appropriate array for this meal
       if (item.type === "recipe") {

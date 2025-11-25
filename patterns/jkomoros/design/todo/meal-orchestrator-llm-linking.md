@@ -345,13 +345,46 @@ The approach shows promise (charms are being created per console logs), but:
 2. Persistence issue: Charms don't appear in the All Charms list
 3. Possible cause: Pattern functions return Cell-wrapped outputs, may need different approach
 
+**Critical Discovery After Studying default-app.tsx:**
+
+Studied how framework handles charm creation:
+- `instantiate-recipe.tsx` (lines 75-78) shows pattern: `navigateTo(Counter({...}))`
+- `default-app.tsx` never explicitly adds to `allCharms` - only removes
+- **Framework automatically adds charms to `allCharms` when `navigateTo()` is called**
+
+**Root Cause Identified:**
+Our implementation pushed Cell-wrapped pattern outputs directly to `allCharms`:
+```typescript
+allCharms.push(FoodRecipe({...}));  // WRONG: This is a Cell-wrapped output
+```
+
+But the framework expects `navigateTo()` to handle charm persistence:
+```typescript
+navigateTo(FoodRecipe({...}));  // CORRECT: Framework adds to allCharms
+```
+
+**The Fundamental Problem:**
+- `navigateTo()` both creates AND navigates to the charm
+- We need to create WITHOUT navigating
+- No API exists for "create charm but don't navigate"
+
+**Conclusion:**
+The framework author's suggestion to "push to allCharms" may have been:
+1. A misunderstanding of our use case (batch creation without navigation)
+2. An incomplete answer (missing the step of how to get a persistable charm reference)
+3. Referring to functionality that doesn't yet exist
+
+**Status:** Back to the drawing board. The original assessment was correct - framework lacks a `createCharm()` primitive for programmatic creation without navigation.
+
 **Next Steps:**
-- Need to investigate if allCharms.push() requires different data format
-- May need to consult framework authors on proper charm creation API
-- Consider if there's a missing step (e.g., charm initialization, ID generation)
+- Revert to Option 2 (individual Create buttons with navigateTo)
+- File comprehensive issue documenting the missing primitive
+- Include findings from this investigation
 
 **Branch:** `feature/auto-create-charms`
-**Commit:** efdc595 - Implements automatic charm creation attempt
+**Commits:**
+- efdc595 - Initial attempt (incorrect approach)
+- 745f7e0 - Testing documentation
 
 ## Technical Notes
 
