@@ -136,11 +136,14 @@ interface AnalysisResult {
 
 **Status:** Committed in 1307e3b. Handler filters mentionables, builds context with existing items, triggers LLM analysis.
 
-### Phase 2: LLM Integration
-- [ ] Design comprehensive LLM system prompt
-- [ ] Implement generateObject call with AnalysisResult schema
-- [ ] Test prompt with sample planning notes
-- [ ] Refine matching logic based on results
+### Phase 2: LLM Integration ✅ COMPLETED
+- [x] Design comprehensive LLM system prompt
+- [x] Implement generateObject call with AnalysisResult schema
+- [x] Add "🔗 Link Recipes" button with pending state
+- [x] Wire button to triggerRecipeLinking handler
+- [ ] Test prompt with sample planning notes (next: Phase 3)
+
+**Status:** Committed in 53a3290. System prompt includes fuzzy matching, context extraction, and duplicate prevention. Button triggers LLM analysis when clicked.
 
 ### Phase 3: Modal UI
 - [ ] Create modal structure (based on food-recipe pattern)
