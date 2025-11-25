@@ -405,6 +405,36 @@ OR suggest a missing dimension if weights alone can't explain the gap.
 3. **Ask framework authors**: This may be a pattern that needs framework support
 4. **Simpler UI**: Use read-only display + modal for editing instead of inline editing?
 
-**Phase 2 Status**: ⏸️ **BLOCKED** - Need to understand proper pattern for dynamic value editing
+### Session 3 - Continued Phase 2 Debugging (2025-11-24)
+**Extensive debugging of "Cannot create cell link" error**
 
-**Recommendation**: Commit Phase 1 (working dynamic dimensions + scores), file an issue describing the use case, and potentially simplify Phase 2 UI to avoid inline editing of dynamically-looked-up values.
+**All Attempts Failed:**
+1. ❌ Passing Cell references from derive blocks to handlers → opaque cells
+2. ❌ Passing plain data (index) and looking up Cells inside handler → ReadOnlyAddressError
+3. ❌ Passing derived values to handlers → trying to write to read-only derived Cells
+4. ❌ Using closure to access Cells (no parameters) → "Cannot create cell link" error persists
+
+**Root Cause Identified:**
+The issue is NOT about how we pass parameters - it's about **WHERE the onClick is located**.
+
+According to `/community-docs/superstitions/2025-01-23-onclick-handlers-conditional-rendering.md`:
+- **onClick handlers CANNOT be inside reactive contexts** (derive, ifElse, map, etc.)
+- The `.map()` over options array IS a reactive context
+- Even with closure-based handlers (no Cell parameters), the onClick binding itself happening inside .map() causes opaque cell errors
+
+**The Fundamental Problem:**
+- Need: A list of clickable items (one per option)
+- Reality: onClick inside `.map()` = reactive context = opaque cell error
+- This pattern (clickable list items) may be fundamentally incompatible with the current framework constraints
+
+**Phase 2 Status**: 🔴 **BLOCKED** - onClick handlers in `.map()` contexts cause opaque cell errors
+
+**Next Steps:**
+1. Search for working examples of clickable list items in labs/examples
+2. Consider alternative UI patterns:
+   - Radio buttons for selection (native HTML)?
+   - Single "Edit" button outside the list that uses selected index?
+   - Completely different selection mechanism?
+3. May need to file an issue with framework authors about this use case
+
+**Recommendation**: Commit current progress, document the blocker thoroughly, and seek guidance on how to implement clickable list items within CommonTools constraints.

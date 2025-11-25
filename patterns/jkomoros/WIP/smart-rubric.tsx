@@ -99,32 +99,20 @@ export default pattern<RubricInput>(
       return totalScore;
     };
 
-    // ========================================================================
-    // Helper: Get selected option Cell
-    // ========================================================================
-
-    const selectedOptionCell = computed(() => {
-      const name = selectedOptionName.get();
-      if (!name) return null;
-      // When we map over options in JSX, each item is a Cell
-      // But when we get() the array here, we need to iterate and compare
-      const optsList = options.get();
-      for (let i = 0; i < optsList.length; i++) {
-        const opt = options.at(i);  // Get the Cell at index i
-        if (opt && opt.get().name === name) {
-          return opt;
-        }
-      }
-      return null;
-    });
+    // Note: We don't use computed() to get selected option Cell
+    // Instead, we'll look it up directly in the detail pane derive block
 
     // ========================================================================
     // Handlers
     // ========================================================================
 
-    const selectOption = handler<unknown, { optionName: string }>(
-      (_, { optionName }) => {
-        selectedOptionName.set(optionName);
+    const selectOption = handler<unknown, { optionIndex: number }>(
+      (_, { optionIndex }) => {
+        // Access Cells from closure, not from parameters
+        const opts = options.get();
+        if (opts[optionIndex]) {
+          selectedOptionName.set(opts[optionIndex].name);
+        }
       }
     );
 
@@ -184,63 +172,79 @@ export default pattern<RubricInput>(
 
     const changeCategoricalValue = handler<
       unknown,
-      { option: Cell<RubricOption>, dimensionName: string, categoryValue: string }
+      { optionName: string, dimensionName: string, categoryValue: string }
     >(
-      (_, { option, dimensionName, categoryValue }) => {
-        const valuesCell = option.key("values");
-        const currentValues = valuesCell.get();
-        const existingIndex = currentValues.findIndex(
-          (v: OptionValue) => v.dimensionName === dimensionName
-        );
+      (_, { optionName, dimensionName, categoryValue }) => {
+        // Look up the option Cell by name (not passed from derive block)
+        const opts = options.get();
+        for (let i = 0; i < opts.length; i++) {
+          const opt = options.at(i);
+          if (opt && opt.get().name === optionName) {
+            const valuesCell = opt.key("values");
+            const currentValues = valuesCell.get();
+            const existingIndex = currentValues.findIndex(
+              (v: OptionValue) => v.dimensionName === dimensionName
+            );
 
-        if (existingIndex >= 0) {
-          valuesCell.set(
-            currentValues.toSpliced(existingIndex, 1, {
-              dimensionName,
-              value: categoryValue,
-            })
-          );
-        } else {
-          valuesCell.set([
-            ...currentValues,
-            {
-              dimensionName,
-              value: categoryValue,
+            if (existingIndex >= 0) {
+              valuesCell.set(
+                currentValues.toSpliced(existingIndex, 1, {
+                  dimensionName,
+                  value: categoryValue,
+                })
+              );
+            } else {
+              valuesCell.set([
+                ...currentValues,
+                {
+                  dimensionName,
+                  value: categoryValue,
+                }
+              ]);
             }
-          ]);
+            break;
+          }
         }
       }
     );
 
     const changeNumericValue = handler<
       unknown,
-      { option: Cell<RubricOption>, dimensionName: string, delta: number, min: number, max: number }
+      { optionName: string, dimensionName: string, delta: number, min: number, max: number }
     >(
-      (_, { option, dimensionName, delta, min, max }) => {
-        const valuesCell = option.key("values");
-        const currentValues = valuesCell.get();
-        const existingIndex = currentValues.findIndex(
-          (v: OptionValue) => v.dimensionName === dimensionName
-        );
+      (_, { optionName, dimensionName, delta, min, max }) => {
+        // Look up the option Cell by name (not passed from derive block)
+        const opts = options.get();
+        for (let i = 0; i < opts.length; i++) {
+          const opt = options.at(i);
+          if (opt && opt.get().name === optionName) {
+            const valuesCell = opt.key("values");
+            const currentValues = valuesCell.get();
+            const existingIndex = currentValues.findIndex(
+              (v: OptionValue) => v.dimensionName === dimensionName
+            );
 
-        const currentValue = existingIndex >= 0 ? (currentValues[existingIndex].value as number) : min;
-        const newValue = Math.max(min, Math.min(max, currentValue + delta));
+            const currentValue = existingIndex >= 0 ? (currentValues[existingIndex].value as number) : min;
+            const newValue = Math.max(min, Math.min(max, currentValue + delta));
 
-        if (existingIndex >= 0) {
-          valuesCell.set(
-            currentValues.toSpliced(existingIndex, 1, {
-              dimensionName,
-              value: newValue,
-            })
-          );
-        } else {
-          valuesCell.set([
-            ...currentValues,
-            {
-              dimensionName,
-              value: newValue,
+            if (existingIndex >= 0) {
+              valuesCell.set(
+                currentValues.toSpliced(existingIndex, 1, {
+                  dimensionName,
+                  value: newValue,
+                })
+              );
+            } else {
+              valuesCell.set([
+                ...currentValues,
+                {
+                  dimensionName,
+                  value: newValue,
+                }
+              ]);
             }
-          ]);
+            break;
+          }
         }
       }
     );
@@ -316,11 +320,15 @@ export default pattern<RubricInput>(
                     }
                   );
 
-                  const isSelected = derive(selectedOptionName, (selected) => selected === option.name);
+                  const optionName = derive(option, (opt) => opt.name);
+                  const isSelected = derive(
+                    { selected: selectedOptionName, name: optionName },
+                    ({ selected, name }) => selected === name
+                  );
 
                   return (
                     <div
-                      onClick={selectOption({ optionName: option.name })}
+                      onClick={selectOption({ optionIndex: index })}
                       style={{
                         padding: "0.75rem",
                         border: derive(isSelected, (sel) => sel ? "2px solid #007bff" : "1px solid #ddd"),
@@ -332,7 +340,7 @@ export default pattern<RubricInput>(
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontWeight: "bold" }}>
-                          {index + 1}. {option.name}
+                          {index + 1}. {optionName}
                         </span>
                         <span style={{
                           fontSize: "1.2em",
@@ -354,9 +362,20 @@ export default pattern<RubricInput>(
               style="flex: 1; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"
             >
               {derive(
-                { selectedCell: selectedOptionCell, dims: dimensions },
-                ({ selectedCell, dims }) => {
-                  if (!selectedCell) {
+                { selectedName: selectedOptionName, opts: options, dims: dimensions },
+                ({ selectedName, opts, dims }) => {
+                  // Look up the selected option by name
+                  let selectedData = null;
+                  if (selectedName) {
+                    for (let i = 0; i < opts.length; i++) {
+                      if (opts[i].name === selectedName) {
+                        selectedData = opts[i];
+                        break;
+                      }
+                    }
+                  }
+
+                  if (!selectedData) {
                     // Show instructions when no option selected
                     return (
                       <div>
@@ -380,7 +399,6 @@ export default pattern<RubricInput>(
                   }
 
                   // Show detail pane for selected option
-                  const selectedData = selectedCell.get();
 
                   return (
                     <div>
@@ -423,7 +441,7 @@ export default pattern<RubricInput>(
                                       {dim.categories.map((cat) => (
                                         <button
                                           onClick={changeCategoricalValue({
-                                            option: selectedCell,
+                                            optionName: selectedData.name,
                                             dimensionName: dim.name,
                                             categoryValue: cat.label,
                                           })}
@@ -451,7 +469,7 @@ export default pattern<RubricInput>(
                                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                                     <button
                                       onClick={changeNumericValue({
-                                        option: selectedCell,
+                                        optionName: selectedData.name,
                                         dimensionName: dim.name,
                                         delta: -10,
                                         min: dim.numericMin,
@@ -480,7 +498,7 @@ export default pattern<RubricInput>(
 
                                     <button
                                       onClick={changeNumericValue({
-                                        option: selectedCell,
+                                        optionName: selectedData.name,
                                         dimensionName: dim.name,
                                         delta: 10,
                                         min: dim.numericMin,
