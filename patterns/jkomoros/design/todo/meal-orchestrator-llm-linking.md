@@ -153,12 +153,22 @@ interface AnalysisResult {
 - All items correctly classified (3 recipes, 1 prepared food)
 - Context extraction working (servings, category, description, source)
 
-### Phase 3: Modal UI
-- [ ] Create modal structure (based on food-recipe pattern)
-- [ ] Display matched items with confidence indicators
-- [ ] Display create-stub items with extracted details
-- [ ] Add checkboxes for each match/creation
-- [ ] Add "Apply" and "Cancel" buttons
+### Phase 3: Modal UI ✅ COMPLETED
+- [x] Create modal structure (based on food-recipe pattern)
+- [x] Display matched items with confidence indicators
+- [x] Display create-stub items with extracted details
+- [x] Add checkboxes for each match/creation
+- [x] Add "Apply" and "Cancel" buttons
+
+**Status:** Committed in ef108d8.
+- Modal displays with fixed position and dark backdrop overlay
+- Shows all 4 extracted food items with type badges
+- Match status indicators (found/create stub) with confidence percentages
+- Extracted details displayed (servings, category, source)
+- Context snippets from planning notes
+- Checkboxes default to checked (all selected)
+- Cancel button closes modal by resetting trigger cell
+- Apply Links button placeholder ready for Phase 4
 
 ### Phase 4: Apply Handler
 - [ ] Implement stub creation logic
