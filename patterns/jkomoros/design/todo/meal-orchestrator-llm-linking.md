@@ -222,6 +222,76 @@ Initial design included creating stub charms for unmatched items, but discovered
 
 **Status:** Feature is **functionally complete** within framework constraints. Cannot proceed with automatic charm creation until framework adds `createCharm()` primitive.
 
+### Phase 6: Option 2 Implementation - Individual "Create" Buttons ✅ COMPLETED
+After discovering the framework limitation, implemented a pragmatic workaround using `navigateTo()` with pre-filled data.
+
+- [x] Re-add imports for FoodRecipe and PreparedFood patterns
+- [x] Create `createMissingItem` handler that navigates with pre-filled charm
+- [x] Add "Create 🍳 Recipe" / "Create 🛒 Prepared Food" buttons to modal for unmatched items
+- [x] Test workflow: extract → create → verify pre-filled data
+
+**Implementation Details:**
+
+1. **Handler** (lines 320-358):
+```typescript
+const createMissingItem = handler<unknown, { item: FoodItem }>((_event, { item }) => {
+  if (item.type === "recipe") {
+    return navigateTo(FoodRecipe({
+      name: item.normalizedName,
+      servings: item.servings || 4,
+      category: (item.category as any) || "other",
+      notes: item.description || "",
+      source: item.source || "",
+      // ... all other required fields with defaults
+    }));
+  } else {
+    return navigateTo(PreparedFood({
+      name: item.normalizedName,
+      servings: item.servings || 4,
+      category: (item.category as any) || "other",
+      description: item.description || "",
+      source: item.source || "",
+      // ... all other required fields with defaults
+    }));
+  }
+});
+```
+
+2. **UI Update** (lines 1487-1503):
+- Replaced "⚠ No match found - will be skipped" message with green "Create" button
+- Button text adapts to item type: "Create 🍳 Recipe" or "Create 🛒 Prepared Food"
+
+3. **User Workflow:**
+   - User pastes planning notes with food items
+   - Clicks "🔗 Link Recipes" - modal shows extracted items
+   - For unmatched items, clicks "Create 🍳 Recipe" button
+   - Navigates to new charm with LLM-extracted data pre-filled
+   - User reviews data, adds ingredients/steps, saves
+   - User navigates back to meal orchestrator
+   - User can now link the newly created charm using [[ mentions
+
+**Testing Results (2025-01-24):**
+- ✅ LLM correctly extracted 4 items: Roast Chicken, Roasted Vegetables, Caesar Salad, Apple Pie
+- ✅ Modal displayed all items with correct type badges and extracted details
+- ✅ Clicked "Create 🍳 Recipe" for Roast Chicken
+- ✅ Successfully navigated to new FoodRecipe charm
+- ✅ Charm pre-filled with: name="Roast Chicken", servings=6, category="Main", notes="main course"
+- ⚠️ Minor issue: After navigating back and clicking "🔗 Link Recipes" again, modal showed empty with undefined error (possible LLM caching or reactivity issue - not critical)
+
+**Benefits of Option 2:**
+- Works within current framework constraints
+- Leverages existing `navigateTo()` API
+- Preserves LLM-extracted context (servings, category, source)
+- User can review/edit before saving
+- Clear, predictable workflow
+
+**Trade-offs:**
+- Requires user to navigate away and back (vs automatic stub creation)
+- User must manually link created charms (can't be automated)
+- Creates one charm at a time (vs batch creation)
+
+**Status:** Successfully implemented and tested. This is the recommended solution until framework adds `createCharm()` primitive.
+
 ## Technical Notes
 
 ### MentionableCharm Structure

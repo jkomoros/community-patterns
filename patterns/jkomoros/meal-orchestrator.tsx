@@ -17,6 +17,9 @@ import {
   wish,
 } from "commontools";
 
+import FoodRecipe from "./food-recipe.tsx";
+import PreparedFood from "./prepared-food.tsx";
+
 // Helper for wish with proper typing
 function schemaifyWish<T>(path: string) {
   return wish<T>(path);
@@ -312,6 +315,46 @@ const cancelLinking = handler<
 >((_event, { linkingAnalysisTrigger }) => {
   // Reset the trigger to clear the generateObject result
   linkingAnalysisTrigger.set("");
+});
+
+// Handler to create a missing item (navigates to pre-filled charm)
+const createMissingItem = handler<
+  unknown,
+  { item: FoodItem }
+>((_event, { item }) => {
+  // Navigate to a new charm with LLM-extracted data pre-filled
+  if (item.type === "recipe") {
+    return navigateTo(FoodRecipe({
+      name: item.normalizedName,
+      cuisine: "",
+      servings: item.servings || 4,
+      yield: "",
+      difficulty: "medium" as const,
+      prepTime: 0,
+      cookTime: 0,
+      restTime: 0,
+      holdTime: 0,
+      category: (item.category as any) || "other",
+      ingredients: [],
+      stepGroups: [],
+      tags: [],
+      notes: item.description || "",
+      source: item.source || "",
+    }));
+  } else {
+    return navigateTo(PreparedFood({
+      name: item.normalizedName,
+      servings: item.servings || 4,
+      category: (item.category as any) || "other",
+      dietaryTags: [],
+      primaryIngredients: [],
+      description: item.description || "",
+      source: item.source || "",
+      prepTime: 0,
+      requiresReheating: false,
+      tags: [],
+    }));
+  }
 });
 
 // Handler to apply selected links
@@ -1441,8 +1484,22 @@ Be concise and practical in your analysis.`,
                                   )}
                                 </div>
                               ) : (
-                                <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "4px" }}>
-                                  ⚠ No match found - will be skipped (create charm first to add it)
+                                <div>
+                                  <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "6px" }}>
+                                    ⚠ No match found
+                                  </div>
+                                  <ct-button
+                                    onClick={createMissingItem({ item })}
+                                    size="sm"
+                                    style={{
+                                      fontSize: "12px",
+                                      padding: "4px 10px",
+                                      backgroundColor: "#10b981",
+                                      color: "white",
+                                    }}
+                                  >
+                                    Create {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared Food"}
+                                  </ct-button>
                                 </div>
                               )}
 
