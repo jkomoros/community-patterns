@@ -306,9 +306,10 @@ Please analyze the planning notes and extract all food items, matching them to e
 // Handler to cancel analysis
 const cancelLinking = handler<
   unknown,
-  { linkingAnalysisResult: Cell<AnalysisResult | null> }
->((_event, { linkingAnalysisResult }) => {
-  linkingAnalysisResult.set(null);
+  { linkingAnalysisTrigger: Cell<string> }
+>((_event, { linkingAnalysisTrigger }) => {
+  // Reset the trigger to clear the generateObject result
+  linkingAnalysisTrigger.set("");
 });
 
 export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
@@ -1295,6 +1296,142 @@ Be concise and practical in your analysis.`,
               </ul>
             </div>
           </ct-card>
+
+          {/* Recipe Linking Results Modal */}
+          {ifElse(
+            hasLinkingResult,
+            <ct-card style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "700px",
+              maxWidth: "90vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              zIndex: "1000",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
+            }}>
+              <ct-vstack gap={1} style="padding: 16px;">
+                <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
+                  Review Recipe Links
+                </h3>
+                <div style={{ fontSize: "13px", color: "#666", marginBottom: "12px" }}>
+                  The following items were found in your planning notes. Check the items you want to add to your meal.
+                </div>
+
+                {/* Display each match with checkbox */}
+                <ct-vstack gap={1}>
+                  {derive(linkingResult, (result) => {
+                    if (!result || !result.matches) return [];
+                    return result.matches.map((matchResult: MatchResult, index: number) => {
+                      const item = matchResult.item;
+                      const match = matchResult.match;
+
+                      return (
+                        <div
+                          style={{
+                            padding: "12px",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "4px",
+                            background: "#f9fafb",
+                          }}
+                        >
+                          <div style={{ display: "flex", gap: "12px", alignItems: "start" }}>
+                            {/* Checkbox */}
+                            <div style={{ paddingTop: "2px" }}>
+                              <ct-checkbox checked={matchResult.selected} />
+                            </div>
+
+                            <div style={{ flex: 1 }}>
+                              {/* Item name and type */}
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                                <span style={{ fontSize: "14px", fontWeight: "600" }}>
+                                  {item.normalizedName}
+                                </span>
+                                <span style={{
+                                  padding: "2px 6px",
+                                  background: item.type === "recipe" ? "#dbeafe" : "#fef3c7",
+                                  borderRadius: "8px",
+                                  fontSize: "11px",
+                                  fontWeight: "500",
+                                }}>
+                                  {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared"}
+                                </span>
+                              </div>
+
+                              {/* Match status */}
+                              {match ? (
+                                <div style={{ fontSize: "12px", color: "#059669", marginBottom: "4px" }}>
+                                  ✓ Match found: <strong>{match.existingCharmName}</strong>
+                                  {match.matchType === "fuzzy" && (
+                                    <span style={{ color: "#666", fontStyle: "italic" }}>
+                                      {" "}(fuzzy match, {Math.round(match.confidence * 100)}% confidence)
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>
+                                  ⚠ No match found - will create new stub
+                                </div>
+                              )}
+
+                              {/* Extracted details */}
+                              <div style={{ fontSize: "12px", color: "#666", display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                                {item.servings && (
+                                  <span>• {item.servings} servings</span>
+                                )}
+                                {item.category && (
+                                  <span>• {item.category}</span>
+                                )}
+                                {item.source && (
+                                  <span>• {item.source}</span>
+                                )}
+                              </div>
+
+                              {/* Context snippet */}
+                              {item.contextSnippet && (
+                                <div style={{
+                                  fontSize: "11px",
+                                  color: "#666",
+                                  fontStyle: "italic",
+                                  marginTop: "6px",
+                                  paddingTop: "6px",
+                                  borderTop: "1px solid #e5e7eb",
+                                }}>
+                                  "{item.contextSnippet}"
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })}
+                </ct-vstack>
+
+                {/* Action buttons */}
+                <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
+                  <ct-button
+                    onClick={cancelLinking({ linkingAnalysisTrigger })}
+                    style={{ padding: "8px 16px" }}
+                  >
+                    Cancel
+                  </ct-button>
+                  <ct-button
+                    style={{
+                      padding: "8px 16px",
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                    }}
+                  >
+                    Apply Links
+                  </ct-button>
+                </div>
+              </ct-vstack>
+            </ct-card>,
+            <div />
+          )}
         </ct-vstack>
       ),
       mealName,
