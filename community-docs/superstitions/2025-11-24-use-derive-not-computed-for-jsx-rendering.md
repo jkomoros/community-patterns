@@ -1,6 +1,18 @@
-# ⚠️ SUPERSTITION: Use derive() Not computed() for Reactive JSX Rendering
+# ⚠️ LIKELY WRONG: Use derive() Not computed() for Reactive JSX Rendering
 
-**⚠️ WARNING: This is a SUPERSTITION - unverified folk knowledge from a single observation.**
+**🚨 UPDATE 2025-11-25: This superstition is LIKELY WRONG.**
+
+Code review of `packages/runner/src/builder/module.ts` shows:
+- `derive(input, fn)` → calls `lift(fn)(input)` → returns `OpaqueRef<T>`
+- `computed(fn)` → calls `lift(fn)(undefined)` → returns `OpaqueRef<T>`
+
+**Both return `OpaqueRef<T>`** - they are fundamentally the same! The only difference is that `derive()` takes explicit input dependencies while `computed()` captures them from closures.
+
+The `[object Object]` issue observed was likely caused by something else (perhaps a different bug that happened to be fixed when refactoring to use `derive()`).
+
+---
+
+**⚠️ ORIGINAL WARNING: This is a SUPERSTITION - unverified folk knowledge from a single observation.**
 
 This may be wrong, incomplete, or context-specific. Use with extreme skepticism and verify thoroughly!
 
@@ -201,6 +213,7 @@ stars: ⭐
 ## Guestbook
 
 - ⭐ 2025-11-24 - Fixed weird JSX fragments in store-mapper pattern - Using `computed(() => { return <JSX/> })` showed `[object Object]` in UI. Changed to `derive({ deps }, ({ deps }) => { return <JSX/> })` and JSX renders properly. UI suggestions section now shows clean buttons instead of object representations. (fix-grocery-list-bugs)
+- ❌ 2025-11-25 - Code review shows `derive()` and `computed()` both return `OpaqueRef<T>` via `lift()`. The original fix likely addressed a different issue. Marking as LIKELY WRONG. (update-patterns-for-labs-changes)
 
 ---
 
