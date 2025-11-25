@@ -292,6 +292,67 @@ const createMissingItem = handler<unknown, { item: FoodItem }>((_event, { item }
 
 **Status:** Successfully implemented and tested. This is the recommended solution until framework adds `createCharm()` primitive.
 
+### Phase 7: Automatic Creation via allCharms - Testing in Progress ⚠️
+After framework author revealed that charms can be created by pushing to `allCharms` from `wish("/")`, implemented automatic charm creation.
+
+- [x] Add wish for allCharms from root path
+- [x] Update applyLinking handler to create and push new charms
+- [x] Remove createMissingItem handler and Create buttons
+- [x] Update modal UI to show automatic creation message
+- [x] Test workflow in Playwright
+
+**Implementation Details (2025-01-24):**
+
+1. **Added allCharms wish** (line 440):
+```typescript
+const { allCharms } = schemaifyWish<{ allCharms: any[] }>("/");
+```
+
+2. **Updated applyLinking handler** (lines 366-407):
+```typescript
+} else {
+  // No match - create a new charm with LLM-extracted data
+  const newCharm = item.type === "recipe"
+    ? FoodRecipe({ name, servings, category, ... })
+    : PreparedFood({ name, servings, category, ... });
+
+  // Push the new charm to allCharms to persist it
+  allCharms.push(newCharm);
+
+  // Add to appropriate array for this meal
+  if (item.type === "recipe") {
+    recipesToAdd.push(newCharm);
+  } else {
+    preparedToAdd.push(newCharm);
+  }
+}
+```
+
+3. **UI Update**: Replaced "Create" buttons with message "✨ Will create new recipe/prepared food charm"
+
+**Testing Results (2025-01-24):**
+- ✅ Modal displays correctly with automatic creation messages
+- ✅ LLM extracted 3 items: Roast Chicken (recipe), Green Salad (recipe), Apple Pie (prepared)
+- ✅ Items added to meal arrays: "Recipes (2)", "Prepared/Store-Bought (1)"
+- ⚠️ **Charms display as "• servings"** - Data not fully populated
+- ⚠️ **Charms not visible in All Charms list** - May not be properly persisted
+- ℹ️ Console shows "Transaction failed (already exists)" - Suggests charms were created but may have persistence issues
+
+**Current Status:** ⚠️ **INCOMPLETE**
+
+The approach shows promise (charms are being created per console logs), but:
+1. Display issue: Created charms show as "• servings" instead of full charm data
+2. Persistence issue: Charms don't appear in the All Charms list
+3. Possible cause: Pattern functions return Cell-wrapped outputs, may need different approach
+
+**Next Steps:**
+- Need to investigate if allCharms.push() requires different data format
+- May need to consult framework authors on proper charm creation API
+- Consider if there's a missing step (e.g., charm initialization, ID generation)
+
+**Branch:** `feature/auto-create-charms`
+**Commit:** efdc595 - Implements automatic charm creation attempt
+
 ## Technical Notes
 
 ### MentionableCharm Structure
