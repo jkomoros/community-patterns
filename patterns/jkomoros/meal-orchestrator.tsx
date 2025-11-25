@@ -323,12 +323,12 @@ const applyLinking = handler<
   {
     linkingResult: AnalysisResult | null;
     mentionable: any[];
-    allCharms: Cell<any[]>;
+    createdCharms: Cell<any[]>;
     recipeMentioned: Cell<any[]>;
     preparedFoodMentioned: Cell<any[]>;
     linkingAnalysisTrigger: Cell<string>;
   }
->((_event, { linkingResult, mentionable, allCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+>((_event, { linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
   if (!linkingResult || !linkingResult.matches) return;
 
   // Filter for selected items
@@ -395,9 +395,8 @@ const applyLinking = handler<
             tags: [],
           });
 
-      // Add the new charm to allCharms to persist it
-      const currentCharms = allCharms.get();
-      allCharms.set([...currentCharms, newCharm]);
+      // Add to createdCharms so it becomes mentionable via this charm's export
+      createdCharms.push(newCharm);
 
       // Add to appropriate array for this meal
       if (item.type === "recipe") {
@@ -437,11 +436,12 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     preparedFoods,
     notes,
   }) => {
-    // Get all charms for creating new charms
-    const { allCharms } = schemaifyWish<{ allCharms: any[] }>("/");
-
     // Get mentionable charms for @ references
     const mentionable = schemaifyWish<any[]>("#mentionable");
+
+    // Track charms created by this meal orchestrator
+    // These will be exported as mentionable so they become discoverable
+    const createdCharms = cell<any[]>([]);
 
     // Cells for ct-code-editor inputs and outputs
     // $mentioned is automatically populated by ct-code-editor with charm references
@@ -1535,7 +1535,7 @@ Be concise and practical in your analysis.`,
                     Cancel
                   </ct-button>
                   <ct-button
-                    onClick={applyLinking({ linkingResult, mentionable, allCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
+                    onClick={applyLinking({ linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                     style={{
                       padding: "8px 16px",
                       backgroundColor: "#2563eb",
@@ -1562,6 +1562,9 @@ Be concise and practical in your analysis.`,
       recipes,
       preparedFoods,
       notes,
+      // Export created charms as mentionable so they become discoverable
+      // BacklinksIndex will pick these up and include them in #mentionable
+      mentionable: createdCharms,
     };
   },
 );
