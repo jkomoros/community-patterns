@@ -279,19 +279,27 @@ const triggerRecipeLinking = handler<
     const currentRecipes = recipeMentioned.get().map((r: any) => r.name);
     const currentPrepared = preparedFoodMentioned.get().map((p: any) => p.name);
 
-    // Build context for LLM
-    const context = {
-      planningNotes: notes,
-      existingRecipes: recipes.map((r: any) => r[NAME]?.replace('🍳 ', '')),
-      existingPreparedFoods: preparedFoods.map((p: any) => p[NAME]?.replace('🛒 ', '')),
-      currentlyAdded: {
-        recipes: currentRecipes,
-        preparedFoods: currentPrepared,
-      },
-    };
+    // Build context for LLM as natural language prompt
+    const existingRecipesList = recipes.map((r: any) => r[NAME]?.replace('🍳 ', '')).join(', ') || 'none';
+    const existingPreparedList = preparedFoods.map((p: any) => p[NAME]?.replace('🛒 ', '')).join(', ') || 'none';
+    const currentRecipesList = currentRecipes.join(', ') || 'none';
+    const currentPreparedList = currentPrepared.join(', ') || 'none';
+
+    const prompt = `Planning Notes:
+${notes}
+
+Existing Recipes in Space: ${existingRecipesList}
+Existing Prepared Foods in Space: ${existingPreparedList}
+
+Already Added to This Meal:
+- Recipes: ${currentRecipesList}
+- Prepared Foods: ${currentPreparedList}
+
+Please analyze the planning notes and extract all food items, matching them to existing items where possible.
+---ANALYZE-${Date.now()}---`;
 
     // Trigger LLM analysis
-    linkingAnalysisTrigger.set(JSON.stringify(context) + `\n---ANALYZE-${Date.now()}---`);
+    linkingAnalysisTrigger.set(prompt);
   }
 );
 
@@ -384,13 +392,20 @@ Return all items found in the planning notes, matched or unmatched.`,
                   required: ["originalText", "normalizedName", "type", "contextSnippet"],
                 },
                 match: {
-                  type: "object",
-                  properties: {
-                    existingCharmName: { type: "string", description: "Name of matched charm" },
-                    matchType: { type: "string", enum: ["exact", "fuzzy"], description: "Type of match" },
-                    confidence: { type: "number", description: "Match confidence 0-1", minimum: 0, maximum: 1 },
-                  },
-                  required: ["existingCharmName", "matchType", "confidence"],
+                  oneOf: [
+                    {
+                      type: "object",
+                      properties: {
+                        existingCharmName: { type: "string", description: "Name of matched charm" },
+                        matchType: { type: "string", enum: ["exact", "fuzzy"], description: "Type of match" },
+                        confidence: { type: "number", description: "Match confidence 0-1", minimum: 0, maximum: 1 },
+                      },
+                      required: ["existingCharmName", "matchType", "confidence"],
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
                   description: "Match to existing charm, null if no match"
                 },
                 selected: { type: "boolean", description: "Default to true for user approval", default: true },
