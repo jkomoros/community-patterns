@@ -317,57 +317,18 @@ const cancelLinking = handler<
   linkingAnalysisTrigger.set("");
 });
 
-// Handler to create a missing item (navigates to pre-filled charm)
-const createMissingItem = handler<
-  unknown,
-  { item: FoodItem }
->((_event, { item }) => {
-  // Navigate to a new charm with LLM-extracted data pre-filled
-  if (item.type === "recipe") {
-    return navigateTo(FoodRecipe({
-      name: item.normalizedName,
-      cuisine: "",
-      servings: item.servings || 4,
-      yield: "",
-      difficulty: "medium" as const,
-      prepTime: 0,
-      cookTime: 0,
-      restTime: 0,
-      holdTime: 0,
-      category: (item.category as any) || "other",
-      ingredients: [],
-      stepGroups: [],
-      tags: [],
-      notes: item.description || "",
-      source: item.source || "",
-    }));
-  } else {
-    return navigateTo(PreparedFood({
-      name: item.normalizedName,
-      servings: item.servings || 4,
-      category: (item.category as any) || "other",
-      dietaryTags: [],
-      primaryIngredients: [],
-      description: item.description || "",
-      source: item.source || "",
-      prepTime: 0,
-      requiresReheating: false,
-      tags: [],
-    }));
-  }
-});
-
 // Handler to apply selected links
 const applyLinking = handler<
   unknown,
   {
     linkingResult: AnalysisResult | null;
     mentionable: any[];
+    allCharms: Cell<any[]>;
     recipeMentioned: Cell<any[]>;
     preparedFoodMentioned: Cell<any[]>;
     linkingAnalysisTrigger: Cell<string>;
   }
->((_event, { linkingResult, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+>((_event, { linkingResult, mentionable, allCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
   if (!linkingResult || !linkingResult.matches) return;
 
   // Filter for selected items
@@ -401,11 +362,49 @@ const applyLinking = handler<
           preparedToAdd.push(charm);
         }
       }
+    } else {
+      // No match - create a new charm with LLM-extracted data
+      const newCharm = item.type === "recipe"
+        ? FoodRecipe({
+            name: item.normalizedName,
+            cuisine: "",
+            servings: item.servings || 4,
+            yield: "",
+            difficulty: "medium" as const,
+            prepTime: 0,
+            cookTime: 0,
+            restTime: 0,
+            holdTime: 0,
+            category: (item.category as any) || "other",
+            ingredients: [],
+            stepGroups: [],
+            tags: [],
+            notes: item.description || "",
+            source: item.source || "",
+          })
+        : PreparedFood({
+            name: item.normalizedName,
+            servings: item.servings || 4,
+            category: (item.category as any) || "other",
+            dietaryTags: [],
+            primaryIngredients: [],
+            description: item.description || "",
+            source: item.source || "",
+            prepTime: 0,
+            requiresReheating: false,
+            tags: [],
+          });
+
+      // Push the new charm to allCharms to persist it
+      allCharms.push(newCharm);
+
+      // Add to appropriate array for this meal
+      if (item.type === "recipe") {
+        recipesToAdd.push(newCharm);
+      } else {
+        preparedToAdd.push(newCharm);
+      }
     }
-    // Note: Unmatched items are skipped. The framework doesn't currently expose a way to
-    // programmatically create charms without navigating away from the current view.
-    // See issues/ISSUE-No-Create-Charm-Primitive.md for details.
-    // Users should create food-recipe or prepared-food charms first, then use this feature to link them.
   });
 
   // Add to appropriate arrays
@@ -437,6 +436,9 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     preparedFoods,
     notes,
   }) => {
+    // Get all charms for creating new charms
+    const { allCharms } = schemaifyWish<{ allCharms: any[] }>("/");
+
     // Get mentionable charms for @ references
     const mentionable = schemaifyWish<any[]>("#mentionable");
 
@@ -1484,22 +1486,8 @@ Be concise and practical in your analysis.`,
                                   )}
                                 </div>
                               ) : (
-                                <div>
-                                  <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "6px" }}>
-                                    ⚠ No match found
-                                  </div>
-                                  <ct-button
-                                    onClick={createMissingItem({ item })}
-                                    size="sm"
-                                    style={{
-                                      fontSize: "12px",
-                                      padding: "4px 10px",
-                                      backgroundColor: "#10b981",
-                                      color: "white",
-                                    }}
-                                  >
-                                    Create {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared Food"}
-                                  </ct-button>
+                                <div style={{ fontSize: "12px", color: "#10b981", marginBottom: "4px" }}>
+                                  ✨ Will create new {item.type === "recipe" ? "recipe" : "prepared food"} charm
                                 </div>
                               )}
 
@@ -1546,7 +1534,7 @@ Be concise and practical in your analysis.`,
                     Cancel
                   </ct-button>
                   <ct-button
-                    onClick={applyLinking({ linkingResult, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
+                    onClick={applyLinking({ linkingResult, mentionable, allCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                     style={{
                       padding: "8px 16px",
                       backgroundColor: "#2563eb",
