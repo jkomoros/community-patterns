@@ -139,7 +139,8 @@ const inputText = cell<string>("");           // For $value
 const mentioned = cell<any[]>([]);            // For $mentioned
 const checked = cell<boolean>(false);         // For $checked
 
-// Use computed() for local cells, derive() for pattern input cells
+// Both computed() and derive() work - they're functionally equivalent
+// derive() makes dependencies explicit, computed() captures from closures
 const count = computed(() => mentioned.get().length);
 const hasItems = computed(() => mentioned.get().length > 0);
 
@@ -150,9 +151,12 @@ const hasItems = computed(() => mentioned.get().length > 0);
 />
 ```
 
-**Key distinction:**
-- Use `derive()` for **pattern input cells** (from interface)
-- Use `computed()` for **local cells** created with `cell()`
+**Note on derive() vs computed():**
+Both are functionally equivalent (both call `lift()` internally and return `OpaqueRef<T>`).
+- `computed(() => ...)` - captures dependencies from closures
+- `derive(input, (val) => ...)` - explicit dependencies in first argument
+
+Use whichever style you prefer. The official docs recommend `computed()` but `derive()` works identically.
 
 ## Common Reactive Patterns
 
@@ -277,10 +281,9 @@ const displayValue = derive(inputValue, (value) => format(value));
 ## Key Takeaways
 
 1. **Default to reactive bindings** - Most CommonTools components provide reactive props
-2. **Use `computed()` for local cells** - Created with `cell()`
-3. **Use `derive()` for pattern inputs** - From the interface
-4. **Events are for side effects** - Not for state synchronization
-5. **Less code is better** - Reactive approach is usually simpler
+2. **Use `computed()` or `derive()`** - Both work identically; `computed()` is officially preferred
+3. **Events are for side effects** - Not for state synchronization
+4. **Less code is better** - Reactive approach is usually simpler
 
 ## Related Patterns
 
