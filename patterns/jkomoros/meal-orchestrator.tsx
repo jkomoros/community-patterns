@@ -228,6 +228,81 @@ const removePreparedFood = handler<
   }
 });
 
+// LLM Recipe Linking Types
+interface FoodItem {
+  originalText: string;
+  normalizedName: string;
+  type: "recipe" | "prepared";
+  contextSnippet: string;
+  servings?: number;
+  category?: string;
+  description?: string;
+  source?: string;
+}
+
+interface MatchResult {
+  item: FoodItem;
+  match: {
+    existingCharmName: string;
+    matchType: "exact" | "fuzzy";
+    confidence: number;
+  } | null;
+  selected: boolean; // User's checkbox state
+}
+
+interface AnalysisResult {
+  matches: MatchResult[];
+}
+
+// Handler to trigger LLM analysis of planning notes
+const triggerRecipeLinking = handler<
+  unknown,
+  {
+    planningNotes: Cell<string>;
+    mentionable: any[];
+    recipeMentioned: Cell<any[]>;
+    preparedFoodMentioned: Cell<any[]>;
+    linkingAnalysisTrigger: Cell<string>;
+  }
+>(
+  (_event, { planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+    const notes = planningNotes.get();
+    if (!notes || notes.trim() === "") {
+      return; // Nothing to analyze
+    }
+
+    // Filter mentionables by emoji prefix
+    const recipes = mentionable.filter((m: any) => m[NAME]?.startsWith('🍳'));
+    const preparedFoods = mentionable.filter((m: any) => m[NAME]?.startsWith('🛒'));
+
+    // Get currently mentioned items to avoid duplicates
+    const currentRecipes = recipeMentioned.get().map((r: any) => r.name);
+    const currentPrepared = preparedFoodMentioned.get().map((p: any) => p.name);
+
+    // Build context for LLM
+    const context = {
+      planningNotes: notes,
+      existingRecipes: recipes.map((r: any) => r[NAME]?.replace('🍳 ', '')),
+      existingPreparedFoods: preparedFoods.map((p: any) => p[NAME]?.replace('🛒 ', '')),
+      currentlyAdded: {
+        recipes: currentRecipes,
+        preparedFoods: currentPrepared,
+      },
+    };
+
+    // Trigger LLM analysis
+    linkingAnalysisTrigger.set(JSON.stringify(context) + `\n---ANALYZE-${Date.now()}---`);
+  }
+);
+
+// Handler to cancel analysis
+const cancelLinking = handler<
+  unknown,
+  { linkingAnalysisResult: Cell<AnalysisResult | null> }
+>((_event, { linkingAnalysisResult }) => {
+  linkingAnalysisResult.set(null);
+});
+
 export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   ({
     mealName,
@@ -251,6 +326,10 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     const recipeMentioned = cell<any[]>([]);
     const preparedFoodInputText = cell<string>("");
     const preparedFoodMentioned = cell<any[]>([]);
+
+    // LLM Recipe Linking State
+    const linkingAnalysisTrigger = cell<string>("");
+    const linkingAnalysisResult = cell<AnalysisResult | null>(null);
 
     const displayName = derive(
       mealName,
