@@ -398,11 +398,21 @@ const applyLinking = handler<
       // Add to createdCharms so it becomes mentionable via this charm's export
       createdCharms.push(newCharm);
 
+      // Store as wrapper object with display data AND the charm reference
+      // This is needed because OpaqueRef properties aren't directly accessible in derive()
+      const wrapper = {
+        charm: newCharm,
+        name: item.normalizedName,
+        servings: item.servings || 4,
+        category: item.category || "other",
+        source: item.source || "",
+      };
+
       // Add to appropriate array for this meal
       if (item.type === "recipe") {
-        recipesToAdd.push(newCharm);
+        recipesToAdd.push(wrapper);
       } else {
-        preparedToAdd.push(newCharm);
+        preparedToAdd.push(wrapper);
       }
     }
   });
@@ -996,8 +1006,9 @@ Be concise and practical in your analysis.`,
               {ifElse(
                 computed(() => recipeMentioned.get().length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {recipeMentioned.map((recipe) => (
+                  {recipeMentioned.map((item: any, index: number) => (
                     <div
+                      key={index}
                       style={{
                         padding: "6px 8px",
                         background: "#f9fafb",
@@ -1010,14 +1021,14 @@ Be concise and practical in your analysis.`,
                     >
                       <div>
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {recipe.name}
+                          {item.name}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {recipe.category} • {recipe.servings} servings
+                          {item.category} • {item.servings} servings
                         </div>
                       </div>
                       <ct-button
-                        onClick={removeRecipe({ recipes, recipe })}
+                        onClick={removeRecipe({ recipes, recipe: item })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
@@ -1053,8 +1064,9 @@ Be concise and practical in your analysis.`,
               {ifElse(
                 computed(() => preparedFoodMentioned.get().length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {preparedFoodMentioned.map((preparedFood) => (
+                  {preparedFoodMentioned.map((item: any, index: number) => (
                     <div
+                      key={index}
                       style={{
                         padding: "6px 8px",
                         background: "#fef3c7",
@@ -1067,14 +1079,14 @@ Be concise and practical in your analysis.`,
                     >
                       <div>
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {preparedFood.name}
+                          {item.name}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {preparedFood.category} • {preparedFood.servings} servings • {preparedFood.source}
+                          {item.category} • {item.servings} servings{item.source ? ` • ${item.source}` : ""}
                         </div>
                       </div>
                       <ct-button
-                        onClick={removePreparedFood({ preparedFoods, preparedFood })}
+                        onClick={removePreparedFood({ preparedFoods, preparedFood: item })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
