@@ -361,37 +361,31 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   }
 
   try {
-    // Find and delete the SQLite database file
-    // Default location is usually in the labs directory or a data directory
-    const possiblePaths = [
-      `${labsDir}/data/db.sqlite`,
-      `${labsDir}/db.sqlite`,
-      `${labsDir}/.data/db.sqlite`,
-    ];
+    // SQLite files are stored in cache/memory directories as per-space .sqlite files
+    const sqliteDir = `${labsDir}/packages/toolshed/cache/memory`;
 
-    let deletedPath: string | null = null;
+    let deletedCount = 0;
 
-    for (const dbPath of possiblePaths) {
-      try {
-        await Deno.stat(dbPath);
-        await Deno.remove(dbPath);
-        deletedPath = dbPath;
-        break;
-      } catch {
-        // File doesn't exist at this path, try next
-        continue;
+    try {
+      for await (const entry of Deno.readDir(sqliteDir)) {
+        if (entry.isFile && entry.name.endsWith(".sqlite")) {
+          await Deno.remove(`${sqliteDir}/${entry.name}`);
+          deletedCount++;
+        }
       }
+    } catch {
+      // Directory doesn't exist or can't be read
     }
 
-    if (deletedPath) {
-      console.log(`\n✅ Local SQLite database deleted: ${deletedPath}\n`);
-      console.log("   Restart your dev server to initialize a fresh database.\n");
+    if (deletedCount > 0) {
+      console.log(`\n✅ Deleted ${deletedCount} SQLite database file${deletedCount > 1 ? 's' : ''} from:`);
+      console.log(`   ${sqliteDir}\n`);
+      console.log("   Restart your dev server to initialize fresh databases.\n");
       return true;
     } else {
-      console.log("\n⚠️  Could not find SQLite database file\n");
-      console.log("   Checked locations:");
-      possiblePaths.forEach(p => console.log(`   • ${p}`));
-      console.log("\n   The database may be in a different location.\n");
+      console.log("\n⚠️  No SQLite database files found\n");
+      console.log(`   Checked: ${sqliteDir}/*.sqlite\n`);
+      console.log("   The database may already be clean.\n");
       return false;
     }
   } catch (error) {
