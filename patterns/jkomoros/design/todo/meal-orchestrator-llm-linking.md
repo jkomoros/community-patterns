@@ -184,11 +184,25 @@ interface AnalysisResult {
 - Closes modal after applying
 - Defensive filtering added to prevent errors from stale/undefined array values
 
-**Design Decision - No Stub Creation:**
-Initial design included creating stub charms for unmatched items, but this proved problematic:
-- Calling pattern functions like `FoodRecipe({...})` creates Cell-wrapped outputs, not persistent charms
-- Plain stub objects don't survive page reloads and cause undefined errors
-- Proper charm creation requires going through the charm system, not direct pattern instantiation
+**Design Decision - No Stub Creation (Framework Limitation):**
+Initial design included creating stub charms for unmatched items, but discovered this is **not possible with current framework**:
+
+**Attempted Approaches:**
+1. **Pattern function calls** - `FoodRecipe({...})` returns Cell-wrapped outputs, not persistent charms
+2. **Plain objects** - Don't persist, cause undefined errors after page reload
+3. **navigateTo() with pattern** - Returns boolean (navigation success), not charm reference
+4. **Calling .get() on patterns** - Still returns Cell-wrapped data, not persisted charms
+
+**Root Cause:**
+- The framework has no `createCharm()` primitive for programmatic charm creation without navigation
+- `navigateTo()` navigates AND has side effects that may persist charms, but returns boolean not reference
+- Pattern functions are for reactive composition, not storage
+- ct-code-editor component must use internal APIs not exposed to pattern developers
+
+**Filed Issue:**
+- Created comprehensive issue file: `issues/ISSUE-No-Create-Charm-Primitive.md`
+- Documents missing primitive, use cases, API design suggestions
+- Recommended API: `createCharm(pattern, inputs) => OpaqueRef<Output>`
 
 **Final Behavior:**
 - Modal shows items with "⚠ No match found - will be skipped (create charm first to add it)"
@@ -196,12 +210,17 @@ Initial design included creating stub charms for unmatched items, but this prove
 - LLM extraction still provides full context (servings, category, source) for user reference
 - Users can use the extracted information to quickly create missing charms manually
 
-### Phase 5: Testing & Refinement
-- [ ] Test with real planning notes
-- [ ] Test fuzzy matching quality
-- [ ] Test stub creation with various contexts
-- [ ] Verify page refresh behavior
-- [ ] Check for edge cases (empty notes, no matches, etc.)
+**Commit:** 962f55d - Reverted to match-only approach with clear documentation
+
+### Phase 5: Testing & Refinement ⚠️ BLOCKED BY FRAMEWORK
+- [x] Test LLM extraction quality - Works perfectly
+- [x] Test modal UI and user flow - Works perfectly
+- [x] Test matching existing charms - Works perfectly
+- [ ] ~~Test stub creation~~ - **BLOCKED: Framework has no createCharm() primitive**
+- [ ] ~~Verify page refresh behavior~~ - **N/A: No charm creation without createCharm()**
+- [ ] Test edge cases (empty notes, no matches, etc.) - Partially tested
+
+**Status:** Feature is **functionally complete** within framework constraints. Cannot proceed with automatic charm creation until framework adds `createCharm()` primitive.
 
 ## Technical Notes
 
