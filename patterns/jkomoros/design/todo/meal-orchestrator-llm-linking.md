@@ -170,12 +170,22 @@ interface AnalysisResult {
 - Cancel button closes modal by resetting trigger cell
 - Apply Links button placeholder ready for Phase 4
 
-### Phase 4: Apply Handler
-- [ ] Implement stub creation logic
-- [ ] Handle prepared-food stub creation (simpler structure)
-- [ ] Handle food-recipe stub creation (more complex)
-- [ ] Add matched/created items to appropriate arrays
-- [ ] Implement page refresh flow
+### Phase 4: Apply Handler ✅ COMPLETED
+- [x] Implement stub creation logic
+- [x] Handle prepared-food stub creation (simpler structure)
+- [x] Handle food-recipe stub creation (more complex)
+- [x] Add matched/created items to appropriate arrays
+- [x] Wire Apply Links button to handler
+
+**Status:** Committed in [pending]. Complete applyLinking handler that:
+- Filters selected items from modal checkboxes
+- Matches selected items against mentionable charms by name
+- Creates FoodRecipe stub charms for unmatched recipe items with LLM-extracted details
+- Creates PreparedFood stub charms for unmatched prepared-food items with LLM-extracted details
+- Adds both matched and newly-created charms to appropriate arrays
+- Closes modal after applying
+
+**Note:** Page refresh removed from requirements - not needed as charms are created synchronously and added to arrays immediately.
 
 ### Phase 5: Testing & Refinement
 - [ ] Test with real planning notes

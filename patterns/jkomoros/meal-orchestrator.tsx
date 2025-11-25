@@ -16,6 +16,9 @@ import {
   wish,
 } from "commontools";
 
+import FoodRecipe from "./food-recipe.tsx";
+import PreparedFood from "./prepared-food.tsx";
+
 // Helper for wish with proper typing
 function schemaifyWish<T>(path: string) {
   return wish<T>(path);
@@ -309,6 +312,106 @@ const cancelLinking = handler<
   { linkingAnalysisTrigger: Cell<string> }
 >((_event, { linkingAnalysisTrigger }) => {
   // Reset the trigger to clear the generateObject result
+  linkingAnalysisTrigger.set("");
+});
+
+// Handler to apply selected links
+const applyLinking = handler<
+  unknown,
+  {
+    linkingResult: AnalysisResult | null;
+    mentionable: any[];
+    recipeMentioned: Cell<any[]>;
+    preparedFoodMentioned: Cell<any[]>;
+    linkingAnalysisTrigger: Cell<string>;
+  }
+>((_event, { linkingResult, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
+  if (!linkingResult || !linkingResult.matches) return;
+
+  // Filter for selected items
+  const selectedItems = linkingResult.matches.filter(
+    (matchResult) => matchResult.selected
+  );
+
+  if (selectedItems.length === 0) {
+    // Close modal if nothing selected
+    linkingAnalysisTrigger.set("");
+    return;
+  }
+
+  const recipesToAdd: any[] = [];
+  const preparedToAdd: any[] = [];
+
+  selectedItems.forEach((matchResult) => {
+    const { item, match } = matchResult;
+
+    if (match) {
+      // This item matches an existing charm - find and add it
+      const charm = mentionable.find((m: any) => {
+        const charmName = m[NAME]?.replace(/^[🍳🛒]\s*/, ''); // Remove emoji prefix
+        return charmName === match.existingCharmName;
+      });
+
+      if (charm) {
+        if (item.type === "recipe") {
+          recipesToAdd.push(charm);
+        } else {
+          preparedToAdd.push(charm);
+        }
+      }
+    } else {
+      // No match - create a stub charm
+      if (item.type === "recipe") {
+        // Create food-recipe stub
+        const newRecipe = FoodRecipe({
+          name: item.normalizedName,
+          cuisine: "",
+          servings: item.servings || 4,
+          yield: "",
+          difficulty: "medium" as const,
+          prepTime: 0,
+          cookTime: 0,
+          restTime: 0,
+          holdTime: 0,
+          category: (item.category as any) || "other",
+          ingredients: [],
+          stepGroups: [],
+          tags: [],
+          notes: item.description || "",
+          source: item.source || "",
+        });
+        recipesToAdd.push(newRecipe);
+      } else {
+        // Create prepared-food stub
+        const newPreparedFood = PreparedFood({
+          name: item.normalizedName,
+          servings: item.servings || 4,
+          category: (item.category as any) || "other",
+          dietaryTags: [],
+          primaryIngredients: [],
+          description: item.description || "",
+          source: item.source || "",
+          prepTime: 0,
+          requiresReheating: false,
+          tags: [],
+        });
+        preparedToAdd.push(newPreparedFood);
+      }
+    }
+  });
+
+  // Add to appropriate arrays
+  if (recipesToAdd.length > 0) {
+    const currentRecipes = recipeMentioned.get();
+    recipeMentioned.set([...currentRecipes, ...recipesToAdd]);
+  }
+
+  if (preparedToAdd.length > 0) {
+    const currentPrepared = preparedFoodMentioned.get();
+    preparedFoodMentioned.set([...currentPrepared, ...preparedToAdd]);
+  }
+
+  // Close the modal
   linkingAnalysisTrigger.set("");
 });
 
@@ -1419,6 +1522,7 @@ Be concise and practical in your analysis.`,
                     Cancel
                   </ct-button>
                   <ct-button
+                    onClick={applyLinking({ linkingResult, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                     style={{
                       padding: "8px 16px",
                       backgroundColor: "#2563eb",
