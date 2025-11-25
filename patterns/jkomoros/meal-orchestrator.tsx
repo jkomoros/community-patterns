@@ -16,9 +16,6 @@ import {
   wish,
 } from "commontools";
 
-import FoodRecipe from "./food-recipe.tsx";
-import PreparedFood from "./prepared-food.tsx";
-
 // Helper for wish with proper typing
 function schemaifyWish<T>(path: string) {
   return wish<T>(path);
@@ -279,8 +276,9 @@ const triggerRecipeLinking = handler<
     const preparedFoods = mentionable.filter((m: any) => m[NAME]?.startsWith('🛒'));
 
     // Get currently mentioned items to avoid duplicates
-    const currentRecipes = recipeMentioned.get().map((r: any) => r.name);
-    const currentPrepared = preparedFoodMentioned.get().map((p: any) => p.name);
+    // Filter out any undefined values that might have been stored improperly
+    const currentRecipes = recipeMentioned.get().filter((r: any) => r != null).map((r: any) => r.name);
+    const currentPrepared = preparedFoodMentioned.get().filter((p: any) => p != null).map((p: any) => p.name);
 
     // Build context for LLM as natural language prompt
     const existingRecipesList = recipes.map((r: any) => r[NAME]?.replace('🍳 ', '')).join(', ') || 'none';
@@ -359,45 +357,8 @@ const applyLinking = handler<
           preparedToAdd.push(charm);
         }
       }
-    } else {
-      // No match - create a stub charm
-      if (item.type === "recipe") {
-        // Create food-recipe stub
-        const newRecipe = FoodRecipe({
-          name: item.normalizedName,
-          cuisine: "",
-          servings: item.servings || 4,
-          yield: "",
-          difficulty: "medium" as const,
-          prepTime: 0,
-          cookTime: 0,
-          restTime: 0,
-          holdTime: 0,
-          category: (item.category as any) || "other",
-          ingredients: [],
-          stepGroups: [],
-          tags: [],
-          notes: item.description || "",
-          source: item.source || "",
-        });
-        recipesToAdd.push(newRecipe);
-      } else {
-        // Create prepared-food stub
-        const newPreparedFood = PreparedFood({
-          name: item.normalizedName,
-          servings: item.servings || 4,
-          category: (item.category as any) || "other",
-          dietaryTags: [],
-          primaryIngredients: [],
-          description: item.description || "",
-          source: item.source || "",
-          prepTime: 0,
-          requiresReheating: false,
-          tags: [],
-        });
-        preparedToAdd.push(newPreparedFood);
-      }
     }
+    // Note: Items without matches are skipped - users should create charms first
   });
 
   // Add to appropriate arrays
@@ -550,10 +511,12 @@ Return all items found in the planning notes, matched or unmatched.`,
       }
 
       const recipesSummary = (recipeList || [])
+        .filter((r: any) => r != null)
         .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
         .join("\n");
 
       const preparedSummary = (preparedList || [])
+        .filter((p: any) => p != null)
         .map((p: any) => `- ${p.name} (${p.category}, ${p.servings} servings) [prepared/bought]`)
         .join("\n");
 
@@ -1475,7 +1438,7 @@ Be concise and practical in your analysis.`,
                                 </div>
                               ) : (
                                 <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>
-                                  ⚠ No match found - will create new stub
+                                  ⚠ No match found - will be skipped (create charm first to add it)
                                 </div>
                               )}
 

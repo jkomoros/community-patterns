@@ -171,21 +171,30 @@ interface AnalysisResult {
 - Apply Links button placeholder ready for Phase 4
 
 ### Phase 4: Apply Handler ✅ COMPLETED
-- [x] Implement stub creation logic
-- [x] Handle prepared-food stub creation (simpler structure)
-- [x] Handle food-recipe stub creation (more complex)
-- [x] Add matched/created items to appropriate arrays
+- [x] Implement matching logic for existing charms
+- [x] Add matched items to appropriate arrays
 - [x] Wire Apply Links button to handler
+- [x] Handle defensive filtering of undefined values
 
-**Status:** Committed in [pending]. Complete applyLinking handler that:
+**Status:** Completed. Final implementation:
 - Filters selected items from modal checkboxes
-- Matches selected items against mentionable charms by name
-- Creates FoodRecipe stub charms for unmatched recipe items with LLM-extracted details
-- Creates PreparedFood stub charms for unmatched prepared-food items with LLM-extracted details
-- Adds both matched and newly-created charms to appropriate arrays
+- Matches selected items against mentionable charms by name (emoji prefix removed)
+- Adds matched charms to recipeMentioned or preparedFoodMentioned arrays
+- **Simplified approach:** Unmatched items are skipped - users should create recipe/prepared-food charms first
 - Closes modal after applying
+- Defensive filtering added to prevent errors from stale/undefined array values
 
-**Note:** Page refresh removed from requirements - not needed as charms are created synchronously and added to arrays immediately.
+**Design Decision - No Stub Creation:**
+Initial design included creating stub charms for unmatched items, but this proved problematic:
+- Calling pattern functions like `FoodRecipe({...})` creates Cell-wrapped outputs, not persistent charms
+- Plain stub objects don't survive page reloads and cause undefined errors
+- Proper charm creation requires going through the charm system, not direct pattern instantiation
+
+**Final Behavior:**
+- Modal shows items with "⚠ No match found - will be skipped (create charm first to add it)"
+- Only existing charms from mentionable list are added to meal
+- LLM extraction still provides full context (servings, category, source) for user reference
+- Users can use the extracted information to quickly create missing charms manually
 
 ### Phase 5: Testing & Refinement
 - [ ] Test with real planning notes
