@@ -9,6 +9,7 @@ import {
   handler,
   ifElse,
   NAME,
+  navigateTo,
   OpaqueRef,
   pattern,
   str,
@@ -358,7 +359,10 @@ const applyLinking = handler<
         }
       }
     }
-    // Note: Items without matches are skipped - users should create charms first
+    // Note: Unmatched items are skipped. The framework doesn't currently expose a way to
+    // programmatically create charms without navigating away from the current view.
+    // See issues/ISSUE-No-Create-Charm-Primitive.md for details.
+    // Users should create food-recipe or prepared-food charms first, then use this feature to link them.
   });
 
   // Add to appropriate arrays
@@ -1437,7 +1441,7 @@ Be concise and practical in your analysis.`,
                                   )}
                                 </div>
                               ) : (
-                                <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "4px" }}>
+                                <div style={{ fontSize: "12px", color: "#f59e0b", marginBottom: "4px" }}>
                                   ⚠ No match found - will be skipped (create charm first to add it)
                                 </div>
                               )}
