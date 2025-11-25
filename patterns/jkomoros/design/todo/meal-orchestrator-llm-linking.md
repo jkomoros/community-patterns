@@ -141,9 +141,17 @@ interface AnalysisResult {
 - [x] Implement generateObject call with AnalysisResult schema
 - [x] Add "🔗 Link Recipes" button with pending state
 - [x] Wire button to triggerRecipeLinking handler
-- [ ] Test prompt with sample planning notes (next: Phase 3)
+- [x] Fix prompt format (natural language vs JSON)
+- [x] Fix schema to allow null match values (oneOf pattern)
+- [x] Test with sample planning notes in Playwright
 
-**Status:** Committed in 53a3290. System prompt includes fuzzy matching, context extraction, and duplicate prevention. Button triggers LLM analysis when clicked.
+**Status:** Committed in 106d325.
+- Initial implementation: 53a3290
+- Fixes: 106d325 (prompt format + schema validation)
+- Tested successfully in Playwright - both LLM calls return 200 OK
+- Extracted 4 food items correctly: roast chicken, roasted vegetables, Caesar salad, apple pie (Costco)
+- All items correctly classified (3 recipes, 1 prepared food)
+- Context extraction working (servings, category, description, source)
 
 ### Phase 3: Modal UI
 - [ ] Create modal structure (based on food-recipe pattern)
