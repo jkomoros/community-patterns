@@ -366,3 +366,45 @@ OR suggest a missing dimension if weights alone can't explain the gap.
   - Deployment: Fixed timeout issues by simplifying score calculation
 - **Phase 1 Status**: ✅ VALIDATED - Dynamic dimension architecture works!
 - **NEXT**: Deploy and test Phase 1 pattern, then proceed to Phase 2 (full UI)
+
+### Session 2 - Phase 2 Attempt: Detail Pane (2025-11-24)
+- **Goal**: Build detail pane for editing option values across dimensions
+- **Approach**: Two-pane layout with dynamic value editing
+- Created handlers: `changeCategoricalValue`, `changeNumericValue`
+- Built detail pane UI with:
+  - Button-based interface for categorical values
+  - Increment/decrement buttons for numeric values
+  - Dynamic dimension list based on selected option
+
+#### 🚫 BLOCKER: "Cannot create cell link" Error
+**Problem**: Persistent "Cannot create cell link: space is required" error when clicking options to show detail pane.
+
+**Root Cause**: The fundamental issue is accessing Cell references for dynamically looked-up values within reactive contexts (derive blocks and handlers).
+
+**Attempted Solutions**:
+1. ❌ **Inline arrow functions in derive()**: Closed over Cell references from derive block
+2. ❌ **Handler functions with partial application**: Still closing over Cells from unwrapped data
+3. ❌ **computed() to get selected Cell**: Used `.at()` to get Cell reference, but handlers still fail
+
+**The Core Problem**:
+- Pattern needs to edit values that are dynamically looked up: `option.values.find(v => v.dimensionName === dim.name)`
+- These values don't exist as direct Cell properties
+- Can't create bidirectional bindings ($ prop) to dynamically computed values
+- Handlers that access `.key("values")` on Cells passed from derive blocks lose space context
+
+**What We Learned**:
+- ct-select and ct-input with `$value` require direct Cell references
+- One-way binding with handlers + value prop doesn't work reliably for dynamic lookups
+- The reactive context (space) gets lost when passing Cell references through derive blocks
+
+**Possible Solutions to Explore**:
+1. **Restructure data model**: Store dimension values as direct properties instead of lookup array?
+   - Con: Loses flexibility of dynamic dimensions
+2. **Use native HTML controls**: Bypass ct- controls entirely and manage state manually?
+   - Con: Not idiomatic CommonTools
+3. **Ask framework authors**: This may be a pattern that needs framework support
+4. **Simpler UI**: Use read-only display + modal for editing instead of inline editing?
+
+**Phase 2 Status**: ⏸️ **BLOCKED** - Need to understand proper pattern for dynamic value editing
+
+**Recommendation**: Commit Phase 1 (working dynamic dimensions + scores), file an issue describing the use case, and potentially simplify Phase 2 UI to avoid inline editing of dynamically-looked-up values.

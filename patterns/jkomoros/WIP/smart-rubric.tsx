@@ -13,13 +13,16 @@ import {
 /**
  * Smart Rubric - Decision Making Tool
  *
- * Phase 1: Data Model Validation
+ * Phase 2: Detail Pane with Editable Values
  *
  * Tests:
  * - Dynamic dimension lookups with key-value pattern
- * - Reactive score calculation with computed()
+ * - Reactive score calculation with derive()
  * - Adding/removing dimensions
  * - Changing dimension weights and values
+ * - Editing option values for dimensions via detail pane
+ * - ct-select for categorical dimensions
+ * - ct-input for numeric dimensions
  */
 
 // ============================================================================
@@ -97,12 +100,22 @@ export default pattern<RubricInput>(
     };
 
     // ========================================================================
-    // Helper: Get selected option
+    // Helper: Get selected option Cell
     // ========================================================================
 
-    const selectedOption = computed(() => {
-      if (!selectedOptionName) return null;
-      return options.find(opt => opt.name === selectedOptionName);
+    const selectedOptionCell = computed(() => {
+      const name = selectedOptionName.get();
+      if (!name) return null;
+      // When we map over options in JSX, each item is a Cell
+      // But when we get() the array here, we need to iterate and compare
+      const optsList = options.get();
+      for (let i = 0; i < optsList.length; i++) {
+        const opt = options.at(i);  // Get the Cell at index i
+        if (opt && opt.get().name === name) {
+          return opt;
+        }
+      }
+      return null;
     });
 
     // ========================================================================
@@ -128,14 +141,34 @@ export default pattern<RubricInput>(
     const addTestDimension = handler<unknown, { dimensions: Cell<Dimension[]> }>(
       (_, { dimensions }) => {
         const count = dimensions.get().length + 1;
-        dimensions.push({
-          name: `Dimension ${count}`,
-          type: "numeric",
-          multiplier: 1,
-          categories: [],
-          numericMin: 0,
-          numericMax: 100,
-        });
+        const isEven = count % 2 === 0;
+
+        if (isEven) {
+          // Add categorical dimension
+          dimensions.push({
+            name: `Category ${count}`,
+            type: "categorical",
+            multiplier: 1,
+            categories: [
+              { label: "Excellent", score: 10 },
+              { label: "Good", score: 7 },
+              { label: "Fair", score: 4 },
+              { label: "Poor", score: 1 },
+            ],
+            numericMin: 0,
+            numericMax: 10,
+          });
+        } else {
+          // Add numeric dimension
+          dimensions.push({
+            name: `Number ${count}`,
+            type: "numeric",
+            multiplier: 1,
+            categories: [],
+            numericMin: 0,
+            numericMax: 100,
+          });
+        }
       }
     );
 
@@ -149,31 +182,65 @@ export default pattern<RubricInput>(
       }
     );
 
-    const changeOptionValue = handler<
-      { detail: { value: string } },
-      { option: Cell<RubricOption>, dimensionName: string }
+    const changeCategoricalValue = handler<
+      unknown,
+      { option: Cell<RubricOption>, dimensionName: string, categoryValue: string }
     >(
-      (event, { option, dimensionName }) => {
-        const newValue = event.detail.value;
-        const currentValues = option.key("values").get();
+      (_, { option, dimensionName, categoryValue }) => {
+        const valuesCell = option.key("values");
+        const currentValues = valuesCell.get();
         const existingIndex = currentValues.findIndex(
           (v: OptionValue) => v.dimensionName === dimensionName
         );
 
         if (existingIndex >= 0) {
-          // Update existing value
-          option.key("values").set(
+          valuesCell.set(
+            currentValues.toSpliced(existingIndex, 1, {
+              dimensionName,
+              value: categoryValue,
+            })
+          );
+        } else {
+          valuesCell.set([
+            ...currentValues,
+            {
+              dimensionName,
+              value: categoryValue,
+            }
+          ]);
+        }
+      }
+    );
+
+    const changeNumericValue = handler<
+      unknown,
+      { option: Cell<RubricOption>, dimensionName: string, delta: number, min: number, max: number }
+    >(
+      (_, { option, dimensionName, delta, min, max }) => {
+        const valuesCell = option.key("values");
+        const currentValues = valuesCell.get();
+        const existingIndex = currentValues.findIndex(
+          (v: OptionValue) => v.dimensionName === dimensionName
+        );
+
+        const currentValue = existingIndex >= 0 ? (currentValues[existingIndex].value as number) : min;
+        const newValue = Math.max(min, Math.min(max, currentValue + delta));
+
+        if (existingIndex >= 0) {
+          valuesCell.set(
             currentValues.toSpliced(existingIndex, 1, {
               dimensionName,
               value: newValue,
             })
           );
         } else {
-          // Add new value
-          option.key("values").push({
-            dimensionName,
-            value: newValue,
-          });
+          valuesCell.set([
+            ...currentValues,
+            {
+              dimensionName,
+              value: newValue,
+            }
+          ]);
         }
       }
     );
@@ -195,12 +262,12 @@ export default pattern<RubricInput>(
     // ========================================================================
 
     return {
-      [NAME]: "Smart Rubric (Phase 1 Test)",
+      [NAME]: "Smart Rubric (Phase 2)",
       [UI]: (
         <ct-vstack gap="2" style="padding: 1rem; max-width: 1200px; margin: 0 auto;">
           {/* Header */}
           <div style={{ marginBottom: "1rem" }}>
-            <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Data Model Test</h2>
+            <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Phase 2</h2>
             <ct-input $value={title} placeholder="Rubric Title" style="width: 100%;" />
           </div>
 
@@ -281,27 +348,170 @@ export default pattern<RubricInput>(
               )}
             </ct-vstack>
 
-            {/* RIGHT PANE: Instructions */}
+            {/* RIGHT PANE: Detail or Instructions */}
             <ct-vstack
               gap="1"
               style="flex: 1; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"
             >
-              <h3 style={{ margin: "0 0 1rem 0" }}>Phase 1 Test Instructions</h3>
+              {derive(
+                { selectedCell: selectedOptionCell, dims: dimensions },
+                ({ selectedCell, dims }) => {
+                  if (!selectedCell) {
+                    // Show instructions when no option selected
+                    return (
+                      <div>
+                        <h3 style={{ margin: "0 0 1rem 0" }}>Instructions</h3>
+                        <div style={{ fontSize: "0.9em", lineHeight: "1.6" }}>
+                          <p><strong>Goal:</strong> Validate dynamic dimension data model</p>
 
-              <div style={{ fontSize: "0.9em", lineHeight: "1.6" }}>
-                <p><strong>Goal:</strong> Validate dynamic dimension data model</p>
+                          <ol>
+                            <li>Click "+ Add Test Option" to add options</li>
+                            <li>Click "+ Add Test Dimension" to add dimensions</li>
+                            <li>Adjust dimension weights using +/- buttons</li>
+                            <li><strong>Click an option</strong> to edit its dimension values!</li>
+                          </ol>
 
-                <ol>
-                  <li>Click "+ Add Test Option" to add options</li>
-                  <li>Click "+ Add Test Dimension" to add dimensions</li>
-                  <li>Adjust dimension weights using +/- buttons</li>
-                  <li>Watch scores recalculate reactively!</li>
-                </ol>
+                          <p style={{ marginTop: "1rem", padding: "0.5rem", background: "#ffffcc", borderRadius: "4px" }}>
+                            <strong>Testing:</strong> Scores should update automatically when you change values!
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
 
-                <p style={{ marginTop: "1rem", padding: "0.5rem", background: "#ffffcc", borderRadius: "4px" }}>
-                  <strong>Testing:</strong> Scores should update automatically when you change weights. This proves the dynamic dimension lookup pattern works!
-                </p>
-              </div>
+                  // Show detail pane for selected option
+                  const selectedData = selectedCell.get();
+
+                  return (
+                    <div>
+                      <h3 style={{ margin: "0 0 1rem 0" }}>
+                        Editing: {selectedData.name}
+                      </h3>
+
+                      {dims.length === 0 ? (
+                        <div style={{ color: "#999", fontStyle: "italic" }}>
+                          No dimensions yet. Add dimensions to set values.
+                        </div>
+                      ) : (
+                        <div>
+                          {dims.map((dim) => {
+                            // Get current value for this dimension
+                            const currentValue = selectedData.values.find(
+                              v => v.dimensionName === dim.name
+                            )?.value ?? "";
+
+                            return (
+                              <div style={{
+                                padding: "0.75rem",
+                                background: "white",
+                                border: "1px solid #ddd",
+                                borderRadius: "4px",
+                                marginBottom: "0.75rem",
+                              }}>
+                                <div style={{
+                                  fontSize: "0.85em",
+                                  fontWeight: "500",
+                                  marginBottom: "0.5rem",
+                                  color: "#555",
+                                }}>
+                                  {dim.name} [{dim.type}]
+                                </div>
+
+                                {dim.type === "categorical" ? (
+                                  dim.categories.length > 0 ? (
+                                    <div style={{ fontSize: "0.9em" }}>
+                                      {dim.categories.map((cat) => (
+                                        <button
+                                          onClick={changeCategoricalValue({
+                                            option: selectedCell,
+                                            dimensionName: dim.name,
+                                            categoryValue: cat.label,
+                                          })}
+                                          style={{
+                                            padding: "0.5rem 0.75rem",
+                                            marginRight: "0.5rem",
+                                            marginBottom: "0.5rem",
+                                            border: currentValue === cat.label ? "2px solid #007bff" : "1px solid #ddd",
+                                            borderRadius: "4px",
+                                            background: currentValue === cat.label ? "#e7f3ff" : "white",
+                                            cursor: "pointer",
+                                            fontWeight: currentValue === cat.label ? "bold" : "normal",
+                                          }}
+                                        >
+                                          {cat.label} ({cat.score} pts)
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div style={{ color: "#999", fontStyle: "italic", fontSize: "0.85em" }}>
+                                      No categories defined
+                                    </div>
+                                  )
+                                ) : (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                                    <button
+                                      onClick={changeNumericValue({
+                                        option: selectedCell,
+                                        dimensionName: dim.name,
+                                        delta: -10,
+                                        min: dim.numericMin,
+                                        max: dim.numericMax,
+                                      })}
+                                      style={{
+                                        padding: "0.5rem 0.75rem",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "4px",
+                                        background: "white",
+                                        cursor: "pointer",
+                                        fontSize: "1.2em",
+                                      }}
+                                    >
+                                      -
+                                    </button>
+
+                                    <span style={{
+                                      flex: 1,
+                                      textAlign: "center",
+                                      fontSize: "1.1em",
+                                      fontWeight: "bold",
+                                    }}>
+                                      {currentValue || dim.numericMin}
+                                    </span>
+
+                                    <button
+                                      onClick={changeNumericValue({
+                                        option: selectedCell,
+                                        dimensionName: dim.name,
+                                        delta: 10,
+                                        min: dim.numericMin,
+                                        max: dim.numericMax,
+                                      })}
+                                      style={{
+                                        padding: "0.5rem 0.75rem",
+                                        border: "1px solid #ddd",
+                                        borderRadius: "4px",
+                                        background: "white",
+                                        cursor: "pointer",
+                                        fontSize: "1.2em",
+                                      }}
+                                    >
+                                      +
+                                    </button>
+
+                                    <span style={{ color: "#666", fontSize: "0.85em", whiteSpace: "nowrap" }}>
+                                      ({dim.numericMin}-{dim.numericMax})
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+              )}
             </ct-vstack>
           </ct-hstack>
 
