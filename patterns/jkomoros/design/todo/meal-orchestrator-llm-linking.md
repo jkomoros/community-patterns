@@ -127,11 +127,14 @@ interface AnalysisResult {
 
 ## Implementation Progress
 
-### Phase 1: Setup and Filtering
-- [ ] Add analysisTrigger cell
-- [ ] Add selectedMatches cell for checkbox state
-- [ ] Implement mentionable filtering by emoji (recipes vs prepared foods)
-- [ ] Create triggerAnalysis handler
+### Phase 1: Setup and Filtering ✅ COMPLETED
+- [x] Add analysisTrigger cell (linkingAnalysisTrigger)
+- [x] Add result cell (linkingAnalysisResult)
+- [x] Implement mentionable filtering by emoji (recipes vs prepared foods)
+- [x] Create triggerRecipeLinking handler with context building
+- [x] Create cancelLinking handler
+
+**Status:** Committed in 1307e3b. Handler filters mentionables, builds context with existing items, triggers LLM analysis.
 
 ### Phase 2: LLM Integration
 - [ ] Design comprehensive LLM system prompt
