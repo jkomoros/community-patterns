@@ -100,6 +100,7 @@ export default pattern<RubricInput, RubricOutput>(
     // Inside .map() and derive(), closures may unwrap Cells to plain values
     const selectionCell = selection;
     const optionsCell = options;
+    const quickAddPromptCell = quickAddPrompt;
     const quickAddSubmittedCell = quickAddSubmitted;
 
     // ========================================================================
@@ -200,19 +201,23 @@ Be precise with categorical values - use exact label matches.`;
       }
     );
 
-    // Accept LLM-extracted option and clear prompts
-    const acceptQuickAdd = handler<
+    // Accept LLM-extracted option from result Cell (called from OUTSIDE derive)
+    // This handler reads from the result Cell and clears prompts
+    const acceptQuickAddFromResult = handler<
       unknown,
       {
-        extraction: QuickAddResponse,
+        resultCell: Cell<QuickAddResponse | undefined>,
         optionsCell: Cell<Array<Cell<RubricOption>>>,
         promptCell: Cell<string>,
-        submittedCell: Cell<string>
+        submittedCell: Cell<string>,
       }
     >(
-      (_, { extraction, optionsCell, promptCell, submittedCell }) => {
-        // Convert extracted values to OptionValue format
-        const values: OptionValue[] = extraction.extractedValues
+      (_, { resultCell, optionsCell, promptCell, submittedCell }) => {
+        const result = resultCell.get();
+        if (!result) return;  // No result to accept
+
+        // Convert to OptionValue format
+        const values: OptionValue[] = (result.extractedValues || [])
           .filter(ev => ev && ev.dimensionName)
           .map(ev => ({
             dimensionName: ev.dimensionName,
@@ -221,12 +226,12 @@ Be precise with categorical values - use exact label matches.`;
 
         // Add the new option
         optionsCell.push({
-          name: extraction.optionName,
+          name: result.optionName,
           values,
           manualRank: null,
         });
 
-        // Clear both prompts
+        // Clear both prompts (this works because we're OUTSIDE derive context)
         promptCell.set("");
         submittedCell.set("");
       }
@@ -474,20 +479,19 @@ Be precise with categorical values - use exact label matches.`;
             </h3>
             <ct-hstack gap="1" style={{ marginBottom: "0.75rem" }}>
               <ct-input
-                $value={quickAddPrompt}
+                $value={quickAddPromptCell}
                 placeholder="Describe an option... e.g., 'Apartment A: 2br in Mission District, $2100/mo, 800sqft'"
                 style="flex: 1;"
               />
               <ct-button
-                onClick={submitQuickAdd({ promptCell: quickAddPrompt, submittedCell: quickAddSubmittedCell })}
+                onClick={submitQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
                 style={{ background: "#007bff", color: "white" }}
               >
                 Analyze
               </ct-button>
             </ct-hstack>
 
-            {/* LLM Extraction Results - Use derive to make pending/result reactive */}
-            {/* Use quickAddSubmitted (not quickAddPrompt) to check if we should show results */}
+            {/* LLM Extraction Results - Display only, no handlers inside derive */}
             {derive(
               { pending: quickAddExtraction.pending, error: quickAddExtraction.error, result: quickAddExtraction.result, submitted: quickAddSubmitted },
               ({ pending, error, result, submitted }) => {
@@ -544,25 +548,9 @@ Be precise with categorical values - use exact label matches.`;
                         <em>{result.reasoning}</em>
                       </div>
 
-                      <ct-hstack gap="1">
-                        <ct-button
-                          onClick={acceptQuickAdd({
-                            extraction: result,
-                            optionsCell,
-                            promptCell: quickAddPrompt,
-                            submittedCell: quickAddSubmittedCell,
-                          })}
-                          style={{ background: "#28a745", color: "white" }}
-                        >
-                          ✓ Accept & Add Option
-                        </ct-button>
-                        <ct-button
-                          onClick={clearQuickAdd({ promptCell: quickAddPrompt, submittedCell: quickAddSubmittedCell })}
-                          style={{ background: "#6c757d", color: "white" }}
-                        >
-                          ✗ Cancel
-                        </ct-button>
-                      </ct-hstack>
+                      <div style={{ color: "#666", fontSize: "0.85em", fontStyle: "italic" }}>
+                        Use buttons below to accept or clear.
+                      </div>
                     </div>
                   );
                 }
@@ -575,6 +563,27 @@ Be precise with categorical values - use exact label matches.`;
                 );
               }
             )}
+
+            {/* Action buttons OUTSIDE derive to avoid ReadOnlyAddressError */}
+            <ct-hstack gap="1" style={{ marginTop: "0.5rem" }}>
+              <ct-button
+                onClick={acceptQuickAddFromResult({
+                  resultCell: quickAddExtraction.result,
+                  optionsCell,
+                  promptCell: quickAddPromptCell,
+                  submittedCell: quickAddSubmittedCell,
+                })}
+                style={{ background: "#28a745", color: "white" }}
+              >
+                ✓ Accept & Add
+              </ct-button>
+              <ct-button
+                onClick={clearQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
+                style={{ background: "#6c757d", color: "white" }}
+              >
+                ✗ Clear
+              </ct-button>
+            </ct-hstack>
           </div>
 
           {/* Test Controls */}
