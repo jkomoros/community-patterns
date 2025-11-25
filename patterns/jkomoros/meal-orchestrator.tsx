@@ -331,6 +331,84 @@ export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     const linkingAnalysisTrigger = cell<string>("");
     const linkingAnalysisResult = cell<AnalysisResult | null>(null);
 
+    // LLM Analysis of Planning Notes
+    const { result: linkingResult, pending: linkingPending } = generateObject({
+      system: `You are a meal planning assistant. Extract food items from planning notes and match them to existing recipes and prepared foods.
+
+Your task:
+1. Parse the planning notes to identify all food items mentioned
+2. Classify each item as either "recipe" (homemade) or "prepared" (store-bought, guest-brought, takeout)
+3. Match each item to existing recipes/prepared foods in the space using fuzzy matching
+4. Extract contextual details from the notes (servings, category, description, source)
+
+Matching guidelines:
+- Prioritize exact matches (case-insensitive)
+- Use semantic similarity for fuzzy matching (e.g., "rotisserie chicken" matches "Costco Rotisserie Chicken")
+- Return the single best match per item
+- Mark match as null if no good match exists (confidence < 0.6)
+- Never suggest items already in currentlyAdded lists
+
+Context extraction guidelines:
+- servings: Look for phrases like "serves 8", "for 12 people", "feeds 6"
+- category: Infer from context (appetizer, main, side, starch, vegetable, dessert, bread, other)
+- description: Capture brief description from notes
+- source: For prepared foods, look for store names, person names, or "takeout"
+
+Return all items found in the planning notes, matched or unmatched.`,
+      prompt: linkingAnalysisTrigger,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          matches: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                item: {
+                  type: "object",
+                  properties: {
+                    originalText: { type: "string", description: "Raw text from planning notes" },
+                    normalizedName: { type: "string", description: "Cleaned name for the item" },
+                    type: { type: "string", enum: ["recipe", "prepared"], description: "Item classification" },
+                    contextSnippet: { type: "string", description: "Surrounding context from notes" },
+                    servings: { type: "number", description: "Extracted serving size if found" },
+                    category: {
+                      type: "string",
+                      enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"],
+                      description: "Inferred category"
+                    },
+                    description: { type: "string", description: "Brief description from notes" },
+                    source: { type: "string", description: "Source (for prepared foods)" },
+                  },
+                  required: ["originalText", "normalizedName", "type", "contextSnippet"],
+                },
+                match: {
+                  type: "object",
+                  properties: {
+                    existingCharmName: { type: "string", description: "Name of matched charm" },
+                    matchType: { type: "string", enum: ["exact", "fuzzy"], description: "Type of match" },
+                    confidence: { type: "number", description: "Match confidence 0-1", minimum: 0, maximum: 1 },
+                  },
+                  required: ["existingCharmName", "matchType", "confidence"],
+                  description: "Match to existing charm, null if no match"
+                },
+                selected: { type: "boolean", description: "Default to true for user approval", default: true },
+              },
+              required: ["item", "selected"],
+            },
+          },
+        },
+        required: ["matches"],
+      },
+    });
+
+    // Derive a flag for showing the modal
+    const hasLinkingResult = derive(
+      linkingResult,
+      (result) => result && result.matches && result.matches.length > 0,
+    );
+
     const displayName = derive(
       mealName,
       (name) => name.trim() || "Untitled Meal",
@@ -741,9 +819,17 @@ Be concise and practical in your analysis.`,
           {/* Planning Notes Section */}
           <ct-card>
             <ct-vstack gap={1}>
-              <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
-                📝 Planning Notes
-              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
+                  📝 Planning Notes
+                </h3>
+                <ct-button
+                  onClick={triggerRecipeLinking({ planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
+                  disabled={linkingPending}
+                >
+                  {linkingPending ? "Analyzing..." : "🔗 Link Recipes"}
+                </ct-button>
+              </div>
               <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
                 Free-form brainstorming space for rough ideas and menu thoughts.
               </div>
