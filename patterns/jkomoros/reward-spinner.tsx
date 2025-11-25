@@ -237,13 +237,14 @@ export default pattern<SpinnerInput, SpinnerOutput>(
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "6px",
+            gap: "4px",
             fontSize: "10px",
+            whiteSpace: "nowrap",
           }}
         >
-          <span style={{ fontSize: "14px", minWidth: "42px", textAlign: "right" }}>{prize.emoji}</span>
-          <span style={{ fontSize: "12px", letterSpacing: "1px" }}>{prize.dots}</span>
-          <span style={{ fontSize: "9px", minWidth: "30px" }}>
+          <span style={{ fontSize: "12px", minWidth: "36px", textAlign: "right", flexShrink: 0 }}>{prize.emoji}</span>
+          <span style={{ fontSize: "10px", letterSpacing: "0px", flexShrink: 0 }}>{prize.dots}</span>
+          <span style={{ fontSize: "9px", minWidth: "28px", flexShrink: 0 }}>
             {prize.percent}%
           </span>
         </div>
@@ -271,16 +272,19 @@ export default pattern<SpinnerInput, SpinnerOutput>(
     return {
       [NAME]: str`Reward Spinner`,
       [UI]: (
-        <ct-screen style="background-color: white; font-family: system-ui, sans-serif;">
+        <ct-screen style="background-color: white; font-family: system-ui, sans-serif; overflow: hidden;">
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              height: "100%",
+              height: "100dvh",
+              maxHeight: "100%",
               padding: "0",
               gap: "0",
+              overflow: "hidden",
+              touchAction: "manipulation",
             }}
           >
           {/* Wrapper for emoji and sparkles */}
