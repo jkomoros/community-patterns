@@ -122,20 +122,39 @@ const applyLinks = handler<...>((...) => {
 3. **Wrapper pattern is the workaround** - Store plain objects with duplicated display data
 4. **Keep the OpaqueRef for framework features** - The `.charm` property preserves linking/mentionable functionality
 
-## What Doesn't Work
+## What Doesn't Work (OpaqueRefs)
 
 ```typescript
-// BROKEN: Direct property access on OpaqueRef in array
+// BROKEN: Direct property access on OpaqueRef in array - item is a Cell
 {recipes.map((recipe) => <div>{recipe.name}</div>)}
 
-// BROKEN: derive() on OpaqueRef in array
-{recipes.map((recipe) => (
-  <div>{derive(recipe, (r) => r.name)}</div>
-))}
-
-// BROKEN: Using [NAME] symbol
+// BROKEN: Using [NAME] symbol directly on Cell
 {recipes.map((recipe) => <div>{recipe[NAME]}</div>)}
 ```
+
+## What DOES Work (Wrapper Objects)
+
+If you store **wrapper objects** (not raw OpaqueRefs), you can use `derive()` to unwrap the Cell and access properties:
+
+```typescript
+// Store wrappers with display data
+recipeMentioned.push({
+  charm: newCharm,  // OpaqueRef
+  name: "...",      // Display data
+  category: "main",
+  servings: 4,
+});
+
+// WORKS: Use derive() to unwrap Cell and access wrapper properties
+{recipeMentioned.map((itemCell) => (
+  <div>
+    {derive(itemCell, (item) => item?.name || "Untitled")}
+    {derive(itemCell, (item) => item?.category ? `${item.category} • ${item.servings}` : "")}
+  </div>
+))}
+```
+
+**Key insight:** `derive()` unwraps Cells to plain values, so wrapper object properties ARE accessible inside derive. But OpaqueRef properties (on the `.charm` field) are still not accessible.
 
 ## Metadata
 
