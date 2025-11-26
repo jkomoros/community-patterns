@@ -1,11 +1,18 @@
 # OpaqueRef Properties Not Accessible When Stored in Cell Arrays
 
-> ⚠️ **This is a temporary workaround for a potential framework bug.**
-> See issue file: `patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md`
+> ✅ **UPDATE 2025-11-26: Framework fix has landed!**
+> The framework author fixed the async loading issue. Properties on OpaqueRefs in Cell arrays should now be accessible after the reactive system updates.
+>
+> **Key insight from fix:** The first reactive run may return empty/undefined values, but subsequent reactive updates will populate the data correctly. Pattern code handles this gracefully - just let the reactive system do its job.
+
+> ~~⚠️ **This is a temporary workaround for a potential framework bug.**~~
+> ~~See issue file: `patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md`~~
 
 ## Summary
 
-When you store OpaqueRefs (results of pattern function calls like `FoodRecipe({...})`) in a Cell array, the OpaqueRef's exported properties (like `.name`, `.servings`, `.category`) are NOT directly accessible in JSX or derive callbacks. The workaround below is a **temporary hack** - the framework should ideally allow property access on OpaqueRefs in array contexts. Store wrapper objects containing both the display data and the charm reference until this is fixed.
+~~When you store OpaqueRefs (results of pattern function calls like `FoodRecipe({...})`) in a Cell array, the OpaqueRef's exported properties (like `.name`, `.servings`, `.category`) are NOT directly accessible in JSX or derive callbacks. The workaround below is a **temporary hack** - the framework should ideally allow property access on OpaqueRefs in array contexts. Store wrapper objects containing both the display data and the charm reference until this is fixed.~~
+
+**Post-fix:** OpaqueRef properties in arrays should now work. If you still see issues, it may be a timing issue - the first reactive pass may show undefined, but subsequent updates should populate correctly.
 
 ## The Problem
 
@@ -163,9 +170,10 @@ topic: OpaqueRef, Cell arrays, charm creation, display, properties
 discovered: 2025-11-25
 confirmed_count: 1
 last_confirmed: 2025-11-25
-sessions: [meal-orchestrator-automatic-charm-creation]
-related_functions: pattern, cell, OpaqueRef, handler
+fixed: 2025-11-26
+sessions: [meal-orchestrator-automatic-charm-creation, gmail-auth-wish-refactor]
+related_functions: pattern, cell, OpaqueRef, handler, wish
 stars: 4
-status: temporary_workaround
+status: fixed
 issue_file: patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md
 ```
