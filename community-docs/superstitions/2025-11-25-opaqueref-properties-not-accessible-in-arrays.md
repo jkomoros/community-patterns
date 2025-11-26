@@ -1,8 +1,11 @@
 # OpaqueRef Properties Not Accessible When Stored in Cell Arrays
 
+> ⚠️ **This is a temporary workaround for a potential framework bug.**
+> See issue file: `patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md`
+
 ## Summary
 
-When you store OpaqueRefs (results of pattern function calls like `FoodRecipe({...})`) in a Cell array, the OpaqueRef's exported properties (like `.name`, `.servings`, `.category`) are NOT directly accessible in JSX or derive callbacks. The workaround is to store wrapper objects containing both the display data and the charm reference.
+When you store OpaqueRefs (results of pattern function calls like `FoodRecipe({...})`) in a Cell array, the OpaqueRef's exported properties (like `.name`, `.servings`, `.category`) are NOT directly accessible in JSX or derive callbacks. The workaround below is a **temporary hack** - the framework should ideally allow property access on OpaqueRefs in array contexts. Store wrapper objects containing both the display data and the charm reference until this is fixed.
 
 ## The Problem
 
@@ -144,4 +147,6 @@ last_confirmed: 2025-11-25
 sessions: [meal-orchestrator-automatic-charm-creation]
 related_functions: pattern, cell, OpaqueRef, handler
 stars: 4
+status: temporary_workaround
+issue_file: patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md
 ```

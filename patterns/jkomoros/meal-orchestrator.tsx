@@ -1004,9 +1004,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added recipes */}
               {ifElse(
-                computed(() => recipeMentioned.get().length > 0),
+                computed(() => recipeMentioned.get().filter(Boolean).length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {recipeMentioned.map((item: any, index: number) => (
+                  {recipeMentioned.map((itemCell: any, index: number) => (
                     <div
                       key={index}
                       style={{
@@ -1020,15 +1020,18 @@ Be concise and practical in your analysis.`,
                       }}
                     >
                       <div>
+                        {/* Use derive to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {item.name}
+                          {derive(itemCell, (item: any) => item?.name || item?.[NAME] || "Untitled Recipe")}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {item.category} • {item.servings} servings
+                          {derive(itemCell, (item: any) =>
+                            item?.category ? `${item.category} • ${item.servings} servings` : "Recipe"
+                          )}
                         </div>
                       </div>
                       <ct-button
-                        onClick={removeRecipe({ recipes, recipe: item })}
+                        onClick={removeRecipe({ recipes: recipeMentioned, recipe: itemCell })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
@@ -1062,9 +1065,9 @@ Be concise and practical in your analysis.`,
 
               {/* List of added prepared foods */}
               {ifElse(
-                computed(() => preparedFoodMentioned.get().length > 0),
+                computed(() => preparedFoodMentioned.get().filter(Boolean).length > 0),
                 <ct-vstack gap={1} style="margin-top: 8px;">
-                  {preparedFoodMentioned.map((item: any, index: number) => (
+                  {preparedFoodMentioned.map((itemCell: any, index: number) => (
                     <div
                       key={index}
                       style={{
@@ -1078,15 +1081,20 @@ Be concise and practical in your analysis.`,
                       }}
                     >
                       <div>
+                        {/* Use derive to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {item.name}
+                          {derive(itemCell, (item: any) => item?.name || item?.[NAME] || "Untitled Item")}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {item.category} • {item.servings} servings{item.source ? ` • ${item.source}` : ""}
+                          {derive(itemCell, (item: any) =>
+                            item?.category
+                              ? `${item.category} • ${item.servings} servings${item.source ? ` • ${item.source}` : ""}`
+                              : "Prepared Food"
+                          )}
                         </div>
                       </div>
                       <ct-button
-                        onClick={removePreparedFood({ preparedFoods, preparedFood: item })}
+                        onClick={removePreparedFood({ preparedFoods: preparedFoodMentioned, preparedFood: itemCell })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×

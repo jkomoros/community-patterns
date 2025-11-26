@@ -292,23 +292,18 @@ const createMissingItem = handler<unknown, { item: FoodItem }>((_event, { item }
 
 **Status:** Successfully implemented and tested. This is the recommended solution until framework adds `createCharm()` primitive.
 
-### Phase 7: Automatic Creation via allCharms - Testing in Progress ⚠️
-After framework author revealed that charms can be created by pushing to `allCharms` from `wish("/")`, implemented automatic charm creation.
+### Phase 7: Automatic Creation via mentionable Export ✅ COMPLETED
+After framework author clarified that charms should be created by calling pattern functions and exporting them via `mentionable`, implemented automatic charm creation with a workaround for the OpaqueRef property access limitation.
 
-- [x] Add wish for allCharms from root path
-- [x] Update applyLinking handler to create and push new charms
-- [x] Remove createMissingItem handler and Create buttons
+- [x] Update applyLinking handler to create charms via pattern function calls
+- [x] Push created charms to `createdCharms` for mentionable export
 - [x] Update modal UI to show automatic creation message
 - [x] Test workflow in Playwright
+- [x] Fix display issue with wrapper object pattern
 
-**Implementation Details (2025-01-24):**
+**Implementation Details (2025-11-25):**
 
-1. **Added allCharms wish** (line 440):
-```typescript
-const { allCharms } = schemaifyWish<{ allCharms: any[] }>("/");
-```
-
-2. **Updated applyLinking handler** (lines 366-407):
+1. **Create charms and export via mentionable** (lines 366-416):
 ```typescript
 } else {
   // No match - create a new charm with LLM-extracted data
@@ -316,75 +311,57 @@ const { allCharms } = schemaifyWish<{ allCharms: any[] }>("/");
     ? FoodRecipe({ name, servings, category, ... })
     : PreparedFood({ name, servings, category, ... });
 
-  // Push the new charm to allCharms to persist it
-  allCharms.push(newCharm);
+  // Add to createdCharms so it becomes mentionable via this charm's export
+  createdCharms.push(newCharm);
+
+  // Store as wrapper object with display data AND the charm reference
+  // This is needed because OpaqueRef properties aren't directly accessible
+  const wrapper = {
+    charm: newCharm,
+    name: item.normalizedName,
+    servings: item.servings || 4,
+    category: item.category || "other",
+    source: item.source || "",
+  };
 
   // Add to appropriate array for this meal
   if (item.type === "recipe") {
-    recipesToAdd.push(newCharm);
+    recipesToAdd.push(wrapper);
   } else {
-    preparedToAdd.push(newCharm);
+    preparedToAdd.push(wrapper);
   }
 }
 ```
 
-3. **UI Update**: Replaced "Create" buttons with message "✨ Will create new recipe/prepared food charm"
+2. **UI Update**: Shows "✨ Will create new recipe/prepared food charm" for unmatched items
 
-**Testing Results (2025-01-24):**
-- ✅ Modal displays correctly with automatic creation messages
-- ✅ LLM extracted 3 items: Roast Chicken (recipe), Green Salad (recipe), Apple Pie (prepared)
-- ✅ Items added to meal arrays: "Recipes (2)", "Prepared/Store-Bought (1)"
-- ⚠️ **Charms display as "• servings"** - Data not fully populated
-- ⚠️ **Charms not visible in All Charms list** - May not be properly persisted
-- ℹ️ Console shows "Transaction failed (already exists)" - Suggests charms were created but may have persistence issues
+**Key Discovery - OpaqueRef Property Access Limitation:**
 
-**Current Status:** ⚠️ **INCOMPLETE**
+When OpaqueRefs are stored in Cell arrays, their properties are NOT directly accessible:
+- `Object.keys(opaqueRef)` returns `[]`
+- `opaqueRef.name` returns `undefined`
 
-The approach shows promise (charms are being created per console logs), but:
-1. Display issue: Created charms show as "• servings" instead of full charm data
-2. Persistence issue: Charms don't appear in the All Charms list
-3. Possible cause: Pattern functions return Cell-wrapped outputs, may need different approach
-
-**Critical Discovery After Studying default-app.tsx:**
-
-Studied how framework handles charm creation:
-- `instantiate-recipe.tsx` (lines 75-78) shows pattern: `navigateTo(Counter({...}))`
-- `default-app.tsx` never explicitly adds to `allCharms` - only removes
-- **Framework automatically adds charms to `allCharms` when `navigateTo()` is called**
-
-**Root Cause Identified:**
-Our implementation pushed Cell-wrapped pattern outputs directly to `allCharms`:
+**Workaround:** Store wrapper objects containing both display data AND the charm reference:
 ```typescript
-allCharms.push(FoodRecipe({...}));  // WRONG: This is a Cell-wrapped output
+const wrapper = {
+  charm: newCharm,      // OpaqueRef for framework features
+  name: "...",          // Display data duplicated
+  servings: 4,
+  category: "main",
+};
 ```
 
-But the framework expects `navigateTo()` to handle charm persistence:
-```typescript
-navigateTo(FoodRecipe({...}));  // CORRECT: Framework adds to allCharms
-```
+**Documentation:**
+- Superstition: `community-docs/superstitions/2025-11-25-opaqueref-properties-not-accessible-in-arrays.md`
+- Issue file: `patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md`
 
-**The Fundamental Problem:**
-- `navigateTo()` both creates AND navigates to the charm
-- We need to create WITHOUT navigating
-- No API exists for "create charm but don't navigate"
-
-**Conclusion:**
-The framework author's suggestion to "push to allCharms" may have been:
-1. A misunderstanding of our use case (batch creation without navigation)
-2. An incomplete answer (missing the step of how to get a persistable charm reference)
-3. Referring to functionality that doesn't yet exist
-
-**Status:** Back to the drawing board. The original assessment was correct - framework lacks a `createCharm()` primitive for programmatic creation without navigation.
-
-**Next Steps:**
-- Revert to Option 2 (individual Create buttons with navigateTo)
-- File comprehensive issue documenting the missing primitive
-- Include findings from this investigation
+**Status:** ✅ WORKING with wrapper workaround
 
 **Branch:** `feature/auto-create-charms`
 **Commits:**
-- efdc595 - Initial attempt (incorrect approach)
+- efdc595 - Initial attempt using allCharms (incorrect)
 - 745f7e0 - Testing documentation
+- ef7d6cb - Fix allCharms.push to use mentionable export pattern
 
 ## Technical Notes
 
