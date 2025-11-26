@@ -1,10 +1,14 @@
 /// <cts-enable />
-import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, recipe, UI } from "commontools";
-import GmailAuth from "./gmail-auth.tsx";
+import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, recipe, UI, wish } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
-// Import Email type for SearchGmailTool
-import type { Email } from "./gmail-importer.tsx";
+// Import Email type and Auth type for SearchGmailTool
+import type { Email, Auth } from "./gmail-importer.tsx";
+
+// What we expect from the gmail-auth charm via wish
+type GoogleAuthCharm = {
+  auth: Auth;
+};
 
 // ============================================================================
 // AGENT TOOL: searchGmail
@@ -44,21 +48,25 @@ type EmailPreview = {
  * - Email metadata (subject, from, date) directly - for filtering
  * - Body content as @link references - use read() to access
  *
+ * Auth: GmailImporter now uses wish() internally to discover auth from
+ * a favorited gmail-auth charm. No need to pass authCharm explicitly.
+ *
  * Output: EmailPreview[] (reactive, with body as @links)
  */
 export const SearchGmailTool = recipe<
-  { query: string; authCharm: any },
+  { query: string },
   EmailPreview[]
->(({ query, authCharm }) => {
+>(({ query }) => {
   // Create importer directly with reactive query cell
   // Each recipe invocation gets its own importer instance
+  // GmailImporter will use wish() to discover auth from favorited gmail-auth charm
   const importer = GmailImporter({
     settings: {
       gmailFilterQuery: query,  // Pass query cell directly (reactive)
       limit: Cell.of(20),
       historyId: Cell.of(""),
     },
-    authCharm,  // Pass authCharm directly (reactive)
+    authCharm: null,  // Let GmailImporter discover auth via wish
   });
 
   // Transform emails from importer - returns reactive value
@@ -137,23 +145,7 @@ interface HotelMembershipInput {
   // Gmail settings - individual fields like substack-summarizer
   gmailFilterQuery: Default<string, "">;
   limit: Default<number, 50>;
-  auth: Default<{
-    token: string;
-    tokenType: string;
-    scope: string[];
-    expiresIn: number;
-    expiresAt: number;
-    refreshToken: string;
-    user: { email: string; name: string; picture: string };
-  }, {
-    token: "";
-    tokenType: "";
-    scope: [];
-    expiresIn: 0;
-    expiresAt: 0;
-    refreshToken: "";
-    user: { email: ""; name: ""; picture: "" };
-  }>;
+  // Auth is now discovered via wish() - no longer stored in pattern input
 }
 
 export default pattern<HotelMembershipInput>(({
@@ -169,25 +161,46 @@ export default pattern<HotelMembershipInput>(({
   queryGeneratorInput,
   gmailFilterQuery,
   limit,
-  auth,
 }) => {
-  // Gmail authentication charm - using auth cell from pattern input
-  const authCharm = GmailAuth({
-    auth: auth,
-  });
+  // ============================================================================
+  // AUTH: Discover via wish (shared with all Gmail patterns)
+  // ============================================================================
+
+  // Wish for a favorited auth charm with #googleAuth tag
+  const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
+
+  // Extract auth data from wished charm
+  const auth = derive(wishResult, (w) =>
+    w?.result?.auth || {
+      token: "",
+      tokenType: "",
+      scope: [],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    });
+
+  // Track auth status
+  const isAuthenticated = derive(auth, (a) =>
+    !!(a && a.token && a.user && a.user.email)
+  );
+
+  // Track if wish found an auth charm
+  const hasWishedAuth = derive(wishResult, (w) => !!w?.result);
+  const wishError = derive(wishResult, (w) => w?.error || null);
 
   // ============================================================================
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
   // Register SearchGmailTool as a pattern directly
-  // The recipe needs both query (from agent) and authCharm (from context)
-  // Register as { pattern, args } to provide authCharm
+  // The recipe uses wish() internally via GmailImporter to discover auth
   const agentTools = {
     searchGmail: {
       description: "Search Gmail with a query string. Returns email metadata (subject, from, date, snippet) visible directly, with body content as @link references. Use the read() tool to access full email bodies.",
       pattern: SearchGmailTool,
-      args: { authCharm },  // Provide authCharm as static arg, agent provides query
+      // No args needed - GmailImporter discovers auth via wish
     },
   };
 
@@ -414,12 +427,6 @@ When done searching all brands, call finalResult with memberships array.`,
     }
   );
 
-
-  // Check if Gmail is authenticated by checking if auth cell has a valid token
-  const isAuthenticated = derive([auth], ([authData]) => {
-    return !!(authData && authData.token && authData.user && authData.user.email);
-  });
-
   // Group memberships by hotel brand
   const groupedMemberships = derive(memberships, (membershipList: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
@@ -444,29 +451,10 @@ When done searching all brands, call finalResult with memberships array.`,
   // Handler to start agent scan
   const startAgentScan = handler<unknown, {
     isScanning: Cell<Default<boolean, false>>;
-    auth: Cell<Default<{
-      token: string;
-      tokenType: string;
-      scope: string[];
-      expiresIn: number;
-      expiresAt: number;
-      refreshToken: string;
-      user: { email: string; name: string; picture: string };
-    }, {
-      token: "";
-      tokenType: "";
-      scope: [];
-      expiresIn: 0;
-      expiresAt: 0;
-      refreshToken: "";
-      user: { email: ""; name: ""; picture: "" };
-    }>>;
+    isAuthenticated: Cell<boolean>;
   }>((_, state) => {
-    // Check if authenticated
-    const authData = state.auth.get();
-    const authenticated = !!(authData && authData.token && authData.user && authData.user.email);
-
-    if (!authenticated) {
+    // Check if authenticated (via wished auth)
+    if (!state.isAuthenticated.get()) {
       return;
     }
 
@@ -486,27 +474,64 @@ When done searching all brands, call finalResult with memberships array.`,
           <ct-vstack style="padding: 16px; gap: 16px;">
             {/* Scan Control */}
             <ct-vstack gap={2}>
-              {/* PROMINENT Authentication warning when not authenticated */}
-              {derive(isAuthenticated, (authenticated) =>
-                !authenticated ? (
-                  <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px; marginBottom: 8px;">
-                    <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
-                      🔒 Gmail Authentication Required
+              {/* Authentication status - uses wish-based auth discovery */}
+              {derive([isAuthenticated, hasWishedAuth, wishError], ([authenticated, hasAuth, error]) => {
+                if (authenticated) {
+                  // Authenticated via wished auth
+                  return (
+                    <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; borderRadius: 8px; marginBottom: 8px;">
+                      <div style="fontSize: 14px; color: #065f46; textAlign: center;">
+                        ✅ Using shared Gmail auth from favorited charm
+                      </div>
                     </div>
-                    <div style="fontSize: 14px; color: #7f1d1d; textAlign: center; marginBottom: 16px; lineHeight: 1.5;">
-                      This tool scans your Gmail for hotel membership numbers.<br/>
-                      <strong>You must authenticate with Gmail before you can scan.</strong>
+                  );
+                }
+
+                if (!hasAuth) {
+                  // No auth charm found via wish
+                  return (
+                    <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px; marginBottom: 8px;">
+                      <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
+                        🔒 Gmail Authentication Required
+                      </div>
+                      <div style="fontSize: 14px; color: #7f1d1d; textAlign: center; marginBottom: 16px; lineHeight: 1.5;">
+                        This tool scans your Gmail for hotel membership numbers.
+                      </div>
+                      <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
+                        <strong>To enable Gmail access:</strong>
+                        <ol style="margin: 8px 0 0 0; paddingLeft: 20px; fontSize: 14px;">
+                          <li>Deploy a <code>gmail-auth</code> pattern</li>
+                          <li>Authenticate with Google</li>
+                          <li>Click the ⭐ star to favorite it</li>
+                          <li>This extractor will automatically find it!</li>
+                        </ol>
+                        {error ? (
+                          <div style="marginTop: 12px; fontSize: 12px; color: #666;">
+                            Debug: {error}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
-                      {authCharm}
+                  );
+                }
+
+                // Has auth charm but not authenticated (user needs to complete OAuth)
+                return (
+                  <div style="padding: 24px; background: #fef3c7; border: 3px solid #f59e0b; borderRadius: 12px; marginBottom: 8px;">
+                    <div style="fontSize: 20px; fontWeight: 700; color: #92400e; textAlign: center; marginBottom: 16px;">
+                      ⚠️ Gmail Auth Found - Please Authenticate
+                    </div>
+                    <div style="fontSize: 14px; color: #78350f; textAlign: center; lineHeight: 1.5;">
+                      Found a favorited Gmail Auth charm, but it's not authenticated yet.<br/>
+                      Please open the Gmail Auth charm and complete the Google sign-in.
                     </div>
                   </div>
-                ) : null
-              )}
+                );
+              })}
 
               {/* Scan button - disabled if not authenticated or currently scanning */}
               <ct-button
-                onClick={startAgentScan({ isScanning, auth })}
+                onClick={startAgentScan({ isScanning, isAuthenticated })}
                 size="lg"
                 disabled={derive([isAuthenticated, isScanning], ([authenticated, scanning]) =>
                   !authenticated || scanning
@@ -693,20 +718,16 @@ When done searching all brands, call finalResult with memberships array.`,
                 <div>Agent Memberships Found: {derive(agentResult, (r) => r?.memberships?.length || 0)}</div>
                 <div>Agent Queries Attempted: {derive(agentResult, (r) => r?.queriesAttempted?.length || 0)}</div>
                 <div>Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
+
+                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Auth State (wish-based):</div>
+                <div>Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
+                <div>Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
+                <div>Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
+                <div>Wish Error: {derive(wishError, (e) => e || "none")}</div>
               </ct-vstack>
             </details>
 
-            {/* Settings */}
-            <details style="marginTop: 8px;">
-              <summary style="cursor: pointer; padding: 8px; background: #f8f9fa; border: 1px solid #e0e0e0; borderRadius: 4px; fontSize: 13px;">
-                ⚙️ Gmail Authentication
-              </summary>
-              <ct-vstack gap={3} style="padding: 12px; marginTop: 8px;">
-                <div>
-                  {authCharm}
-                </div>
-              </ct-vstack>
-            </details>
+            {/* Auth info in debug section now shows wish-based status */}
           </ct-vstack>
         </ct-vscroll>
       </ct-screen>

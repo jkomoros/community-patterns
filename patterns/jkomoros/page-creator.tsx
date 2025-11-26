@@ -16,6 +16,7 @@ import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
 import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
 import SmartRubric from "./WIP/smart-rubric.tsx";
+import FavoritesViewer from "./favorites-viewer.tsx";
 
 type Input = void;
 type Output = {
@@ -181,15 +182,7 @@ const createHotelMembershipExtractor = handler<void, void>((_, __) => {
     queryGeneratorInput: "",
     gmailFilterQuery: "",
     limit: 50,
-    auth: {
-      token: "",
-      tokenType: "",
-      scope: [],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    },
+    // Auth is now discovered via wish() from favorited gmail-auth charm
   }));
 });
 
@@ -202,6 +195,10 @@ const createSmartRubric = handler<void, void>((_, __) => {
     quickAddPrompt: "",
     quickAddSubmitted: "",
   }));
+});
+
+const createFavoritesViewer = handler<void, void>((_, __) => {
+  return navigateTo(FavoritesViewer({}));
 });
 
 export default pattern<Input, Output>(
@@ -322,6 +319,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   📊 Smart Rubric
+                </ct-button>
+
+                <ct-button
+                  onClick={createFavoritesViewer()}
+                  size="lg"
+                >
+                  ⭐ Favorites Viewer
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
