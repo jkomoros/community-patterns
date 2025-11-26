@@ -164,3 +164,40 @@ Current: Factory for creating auth + importers
 - Audited all jkomoros patterns for auth usage
 - Created this TODO document
 - Next: Start Phase 1 - minimal test pattern
+
+### Session 2 (2024-11-26)
+- Created wish-auth-test.tsx in WIP/
+- Added `#googleAuth` tag to gmail-auth.tsx Output interface
+- Deployed and tested - wish for #googleAuth consistently fails with "No favorite found matching 'googleauth'"
+
+**DISCOVERED FRAMEWORK BUG in wish.ts:**
+
+The `tag` field in favorites entries is a reactive Cell that loads asynchronously. But wish.ts accesses it synchronously:
+
+```typescript
+// In wish.ts resolveBase() default case (lines 237-251):
+const favoritesCell = homeSpaceCell.key("favorites").asSchema(favoriteListSchema);
+const favorites = favoritesCell.get() || [];  // Gets array, but tag fields not yet loaded!
+
+const match = favorites.find((entry) =>
+  entry.tag?.toLowerCase().includes(searchTerm)  // entry.tag is undefined at this point!
+);
+```
+
+**Evidence:**
+- Created favorites-debug.tsx that reads the same favorites list
+- When accessing `fav.tag` directly in JSX with derive(), tag IS populated (777 chars, contains "googleauth")
+- When accessing `f.tag` synchronously inside a derive callback with `.find()`, tag is `undefined`
+- This explains why `wish({ tag: "#favorites" })` works (returns raw list) but `wish({ tag: "#googleAuth" })` fails (does synchronous search)
+
+**The bug:** wish.ts needs to await/sync the tag fields before searching, or use a reactive approach.
+
+**Debug patterns created:**
+- `WIP/wish-auth-test.tsx` - minimal test for #googleAuth
+- `WIP/favorites-debug.tsx` - shows favorites list with tags
+- `WIP/wish-debug.tsx` - shows the tag timing issue
+
+**Next steps:**
+1. File this as a framework issue in labs
+2. Wait for fix, or
+3. Find workaround (e.g., use #favorites and search manually in pattern code)

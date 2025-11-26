@@ -31,6 +31,7 @@ interface Input {
   }>;
 }
 
+/** Google OAuth authentication for Gmail API access. #googleAuth */
 interface Output {
   auth: Auth;
 }
