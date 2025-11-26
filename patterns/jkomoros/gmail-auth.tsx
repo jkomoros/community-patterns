@@ -85,6 +85,24 @@ export default pattern<Input, Output>(
               )}
           </div>
 
+          {auth?.user?.email && (
+            <div
+              style={{
+                padding: "15px",
+                backgroundColor: "#fff3cd",
+                borderRadius: "8px",
+                border: "1px solid #ffc107",
+                fontSize: "14px",
+              }}
+            >
+              <strong>⭐ Favorite this charm</strong> to share your Google auth
+              across all your Gmail patterns! Click the star button in the header
+              above, then any pattern using{" "}
+              <code>wish(&#123; tag: "#googleAuth" &#125;)</code> will
+              automatically find and use this authentication.
+            </div>
+          )}
+
           <ct-google-oauth
             $auth={auth}
             scopes={[
