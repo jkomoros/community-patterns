@@ -176,19 +176,19 @@ patterns/alice/
 
 ### Managing the Dev Servers
 
-**You can restart both dev servers whenever needed:**
+**Use the labs restart script to manage dev servers:**
 
 ```bash
-# Stop both servers
-pkill -f "packages/toolshed.*deno task dev"
-pkill -f "packages/shell.*deno task dev-local"
+# Get labs directory (adjust LABS_DIR if needed based on your setup)
+LABS_DIR="../labs"
 
-# Start both servers
-cd ~/Code/labs/packages/toolshed && deno task dev > /tmp/toolshed-dev.log 2>&1 &
-cd ~/Code/labs/packages/shell && deno task dev-local > /tmp/shell-dev.log 2>&1 &
-sleep 3
+# Restart both dev servers (recommended)
+$LABS_DIR/scripts/restart-local-dev.sh
 
-echo "Both servers restarted"
+# With options:
+$LABS_DIR/scripts/restart-local-dev.sh --force       # Kill existing processes first
+$LABS_DIR/scripts/restart-local-dev.sh --clear-cache # Clear toolshed cache
+$LABS_DIR/scripts/restart-local-dev.sh --force --clear-cache  # Both
 ```
 
 **When to restart:**
@@ -200,8 +200,8 @@ echo "Both servers restarted"
 **Both servers run in background** - session can continue while they start
 
 **Check server logs if issues occur:**
-- Toolshed: `/tmp/toolshed-dev.log`
-- Shell: `/tmp/shell-dev.log`
+- Toolshed: `$LABS_DIR/packages/toolshed/local-dev-toolshed.log`
+- Shell: `$LABS_DIR/packages/shell/local-dev-shell.log`
 
 ---
 
@@ -375,6 +375,14 @@ The git-workflow skill covers:
 - Update and rebase workflow before PRs
 - Fork vs direct repository workflows
 - Merge strategies and important notes
+
+**For landing feature branches, use the `land-branch` skill.**
+
+The land-branch skill provides a streamlined flow to:
+- Pull latest main and rebase the branch
+- Create a PR (or use existing one)
+- Merge via rebase and delete the branch
+- Return to main with latest changes
 
 **IMPORTANT:** Always wait for user permission before creating PRs.
 

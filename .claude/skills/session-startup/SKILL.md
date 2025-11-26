@@ -97,23 +97,17 @@ cd "$PARENT_DIR/patterns" && git fetch origin && git status 2>/dev/null
 **If updates available, update automatically:**
 
 ```bash
-# Stop both dev servers if running (will handle gracefully if not running)
-pkill -f "packages/toolshed.*deno task dev"
-pkill -f "packages/shell.*deno task dev-local"
-
 # Pull updates
 cd "$PARENT_DIR/labs" && git pull origin main
 
-# Restart both servers in background
-cd "$PARENT_DIR/labs/packages/toolshed" && deno task dev > /tmp/toolshed-dev.log 2>&1 &
-cd "$PARENT_DIR/labs/packages/shell" && deno task dev-local > /tmp/shell-dev.log 2>&1 &
-
-# Give them a moment to start
-sleep 3
+# Restart both servers using the labs script
+$PARENT_DIR/labs/scripts/restart-local-dev.sh --force
 
 echo "Both dev servers restarted with latest labs updates"
 echo "Toolshed (backend): http://localhost:8000"
 echo "Shell (frontend): http://localhost:5173"
+echo "Logs: $PARENT_DIR/labs/packages/toolshed/local-dev-toolshed.log"
+echo "      $PARENT_DIR/labs/packages/shell/local-dev-shell.log"
 ```
 
 **Important Notes:**
@@ -228,22 +222,16 @@ fi
 **Only if servers need to be started, run this:**
 
 ```bash
-# Start toolshed if needed
-if [ "$NEED_TOOLSHED" = "1" ]; then
-  cd ~/Code/labs/packages/toolshed && deno task dev > /tmp/toolshed-dev.log 2>&1 &
-  echo "Started toolshed server (logs: /tmp/toolshed-dev.log)"
-fi
+# Get labs directory
+LABS_DIR="$(git rev-parse --show-toplevel)/../labs"
 
-# Start shell if needed
-if [ "$NEED_SHELL" = "1" ]; then
-  cd ~/Code/labs/packages/shell && deno task dev-local > /tmp/shell-dev.log 2>&1 &
-  echo "Started shell server (logs: /tmp/shell-dev.log)"
-fi
-
-# Give servers a moment to start
+# Use the labs restart script (handles starting servers properly)
 if [ "$NEED_TOOLSHED" = "1" ] || [ "$NEED_SHELL" = "1" ]; then
-  sleep 3
+  $LABS_DIR/scripts/restart-local-dev.sh --force
   echo "Dev servers started. Access at http://localhost:8000"
+  echo "Logs:"
+  echo "  - Toolshed: $LABS_DIR/packages/toolshed/local-dev-toolshed.log"
+  echo "  - Shell: $LABS_DIR/packages/shell/local-dev-shell.log"
 fi
 ```
 
