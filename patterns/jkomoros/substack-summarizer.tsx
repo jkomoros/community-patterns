@@ -1,6 +1,5 @@
 /// <cts-enable />
 import { Default, derive, NAME, pattern, UI } from "commontools";
-import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
 interface SubstackInput {
@@ -9,27 +8,15 @@ interface SubstackInput {
 }
 
 export default pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
-  // Gmail authentication
-  const auth = GmailAuth({
-    auth: {
-      token: "",
-      tokenType: "",
-      scope: [],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    },
-  });
-
   // Import emails from Substack
+  // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
   const importer = GmailImporter({
     settings: {
       gmailFilterQuery,
       limit,
       historyId: "",
     },
-    authCharm: auth,
+    authCharm: null,  // Let importer wish for shared auth
   });
 
   const emails = importer.emails;
@@ -112,19 +99,14 @@ export default pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
               })}
             </div>
 
-            {/* Auth + Import Settings - at bottom, side by side */}
+            {/* Import Settings - Gmail Importer handles auth via wish */}
             <details style={{ marginTop: "1rem" }}>
               <summary style={{ cursor: "pointer", padding: "0.5rem", background: "#f8f9fa", border: "1px solid #e0e0e0", borderRadius: "4px", fontSize: "13px" }}>
                 ⚙️ Settings & Import
               </summary>
-              <ct-hstack gap={4} style="padding: 0.75rem; margin-top: 0.5rem; align-items: flex-start;">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {auth}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {importer}
-                </div>
-              </ct-hstack>
+              <div style={{ padding: "0.75rem", marginTop: "0.5rem" }}>
+                {importer}
+              </div>
             </details>
           </ct-vstack>
         </ct-vscroll>

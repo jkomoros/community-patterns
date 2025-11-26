@@ -258,3 +258,79 @@ After framework author fixed the issue, re-tested:
 - Console shows: `favorites [] → error` then `favorites [7 objects] → result`
 
 **Phase 1 COMPLETE!** Ready to proceed with Phase 2-6.
+
+### Session 3 (2024-11-26) - Phase 4 Complete
+
+**Completed Phase 2:** Updated gmail-auth.tsx with favorite prompt UI (already had #googleAuth tag).
+
+**Completed Phase 4:** Updated gmail-importer.tsx with wish-based auth discovery:
+- Made `authCharm` input optional with `Default<any, null>`
+- Added `wish<GoogleAuthCharm>({ tag: "#googleAuth" })` fallback
+- Added `hasExplicitAuth`, `effectiveAuthCharm`, `usingWishedAuth` derived values
+- Updated UI to show auth source ("Using shared auth from favorited Gmail Auth charm")
+- Tested successfully: fetched 26 emails using wished auth
+
+**Investigation: Why did user need to re-authenticate?**
+
+Deployed favorites-debug.tsx to examine the favorites list. Found:
+
+1. **8 duplicate Gmail Auth favorites** - All named "Gmail Auth #qw4zce", all with `#googleAuth` tag
+2. **Raw wish result shows**: `{ "result": [ null, {}, {}, {}, {}, {}, {}, {} ] }`
+   - First entry is `null`, rest are empty objects `{}`
+   - This is despite clicking on Entry 0 which DOES show authenticated data!
+3. **Root cause**: The wish for raw `#favorites` returns the list, but individual charm data loads asynchronously
+   - `wish({ tag: "#googleAuth" })` DOES work correctly (returns the first match with data)
+   - But during async loading, the first match might not be the authenticated one
+
+**Why re-authentication was needed:**
+- Previous session likely had the same 8 duplicates
+- The `wish()` found one of the unauthenticated charms first
+- When we re-authenticated, we authenticated a specific charm (Entry 0)
+- Now that charm is the one `wish()` finds
+
+**Recommendation:**
+- Clean up duplicate favorites (unfavorite 7 of the 8 Gmail Auth charms)
+- Only keep one favorited Gmail Auth charm
+- The framework doesn't distinguish between authenticated and unauthenticated - first match wins
+
+**Files modified:**
+- `gmail-importer.tsx` - Added wish-based auth discovery
+
+**Next:**
+1. Clean up debug console.log statements from gmail-importer.tsx
+2. Phase 5: Update dependent patterns (substack-summarizer, prompt-injection-tracker, etc.)
+
+### Session 3 continued - Phase 5 Complete
+
+**Updated patterns to use wish-based auth:**
+- `substack-summarizer.tsx` - Removed GmailAuth, passes `authCharm: null`
+- `prompt-injection-tracker.tsx` - Same treatment
+- `page-creator.tsx` - Removed GmailCharmCreator import and button
+
+**Deleted:**
+- `gmail-charm-creator.tsx` - No longer needed (patterns self-discover auth)
+
+**Not updated (per user request):**
+- `hotel-membership-extractor.tsx` - Still has its own auth
+
+**Tested in Playwright:**
+- substack-summarizer: ✅ Shows "Using shared auth from favorited Gmail Auth charm"
+- prompt-injection-tracker: ✅ Shows "Authenticated" with shared auth
+
+**Multiple accounts - TODO (framework limitation):**
+The current wish system only returns the first match, and the tag is in the schema description (not instance data), so all gmail-auth charms have the same `#googleAuth` tag. Framework author is planning support for this. Workaround: create separate patterns like `gmail-auth-work.tsx` and `gmail-auth-personal.tsx` with different tags.
+
+---
+
+## Summary
+
+**Completed:**
+- Phase 1: Verified wish + favorites system works
+- Phase 2: Added #googleAuth tag and favorite prompt to gmail-auth.tsx
+- Phase 4: Added wish-based auth discovery to gmail-importer.tsx
+- Phase 5: Updated dependent patterns to use wish-based auth
+
+**Key learnings documented:**
+- First reactive pass has empty data (superstition)
+- Duplicate favorites can cause issues (first match wins)
+- Multiple accounts need framework support

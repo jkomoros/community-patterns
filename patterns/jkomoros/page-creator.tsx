@@ -3,7 +3,6 @@ import { handler, NAME, navigateTo, pattern, UI } from "commontools";
 
 import Person from "./person.tsx";
 import Counter from "./lib/counter.tsx";
-import GmailCharmCreator from "./gmail-charm-creator.tsx";
 import ShoppingListLauncher from "./shopping-list-launcher.tsx";
 import StoreMapper from "./store-mapper.tsx";
 import MetaAnalyzer from "./meta-analyzer.tsx";
@@ -44,14 +43,6 @@ const createPerson = handler<void, void>((_, __) => {
 const createCounter = handler<void, void>((_, __) => {
   return navigateTo(Counter({
     value: 0,
-  }));
-});
-
-const createGmailCharmCreator = handler<void, void>((_, __) => {
-  return navigateTo(GmailCharmCreator({
-    authCharm: undefined,
-    importersList: [],
-    selectedImporter: { charm: undefined },
   }));
 });
 
@@ -261,13 +252,6 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🍳 New Recipe
-                </ct-button>
-
-                <ct-button
-                  onClick={createGmailCharmCreator()}
-                  size="lg"
-                >
-                  📧 Gmail Page Creator
                 </ct-button>
 
                 <ct-button

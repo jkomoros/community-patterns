@@ -45,7 +45,6 @@ import {
   UI,
 } from "commontools";
 
-import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
 // ============================================================================
@@ -237,27 +236,15 @@ export default pattern<Input, Output>(
     // Embedded Gmail Integration
     // ========================================================================
 
-    // Create Gmail auth instance
-    const auth = GmailAuth({
-      auth: {
-        token: "",
-        tokenType: "",
-        scope: [],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      },
-    });
-
     // Create Gmail importer with hard-coded query
+    // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
     const importer = GmailImporter({
       settings: {
         gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
         limit: 100,
         historyId: "",
       },
-      authCharm: auth,
+      authCharm: null,  // Let importer wish for shared auth
     });
 
     // For now, just use importer.emails directly

@@ -13,6 +13,7 @@ import {
   pattern,
   str,
   UI,
+  wish,
 } from "commontools";
 import TurndownService from "turndown";
 
@@ -879,20 +880,43 @@ const toggleAuthView = handler<
   },
 );
 
+// What we expect from the gmail-auth charm
+type GoogleAuthCharm = {
+  auth: Auth;
+};
+
 export default pattern<{
   settings: Default<Settings, {
     gmailFilterQuery: "in:INBOX";
     limit: 100;
     historyId: "";
   }>;
-  authCharm: any;
+  // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
+  authCharm: Default<any, null>;
 }>(
   ({ settings, authCharm }) => {
     const emails = cell<Confidential<Email[]>>([]);
     const showAuth = cell(false);
 
-    // Extract auth data from the authCharm
-    const auth = derive(authCharm, (charm) =>
+    // Wish for a favorited auth charm (used when no explicit authCharm provided)
+    const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
+
+    // Determine if we have an explicit auth charm provided
+    const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
+
+    // Get the effective auth charm: explicit one if provided, otherwise wished one
+    const effectiveAuthCharm = derive(
+      { authCharm, wishResult, hasExplicitAuth },
+      ({ authCharm, wishResult, hasExplicitAuth }) => {
+        if (hasExplicitAuth) {
+          return authCharm;
+        }
+        return wishResult?.result || null;
+      }
+    );
+
+    // Extract auth data from the effective auth charm
+    const auth = derive(effectiveAuthCharm, (charm) =>
       charm?.auth || {
         token: "",
         tokenType: "",
@@ -904,6 +928,18 @@ export default pattern<{
       });
 
     const isAuthenticated = derive(auth, (a) => a?.user?.email ? true : false);
+
+    // Track if we're using wished auth vs explicit
+    const usingWishedAuth = derive(
+      { hasExplicitAuth, wishResult },
+      ({ hasExplicitAuth, wishResult }) => !hasExplicitAuth && !!wishResult?.result
+    );
+
+    // Track wish error state (only relevant when no explicit auth)
+    const wishError = derive(
+      { hasExplicitAuth, wishResult },
+      ({ hasExplicitAuth, wishResult }) => !hasExplicitAuth ? wishResult?.error : null
+    );
 
     computed(() => {
       console.log("emails", emails.get().length);
@@ -960,7 +996,52 @@ export default pattern<{
                   <h3 style={{ fontSize: "16px", marginTop: "0" }}>
                     Authentication
                   </h3>
-                  <ct-render $cell={authCharm} />
+
+                  {/* Show source of auth */}
+                  {ifElse(
+                    hasExplicitAuth,
+                    <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
+                      Using explicitly linked auth charm
+                    </div>,
+                    ifElse(
+                      usingWishedAuth,
+                      <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
+                        ✓ Using shared auth from favorited Gmail Auth charm
+                      </div>,
+                      <div style={{
+                        marginBottom: "15px",
+                        padding: "12px",
+                        backgroundColor: "#fff3cd",
+                        borderRadius: "6px",
+                        border: "1px solid #ffeeba",
+                      }}>
+                        <strong>⚠️ No Google Auth Found</strong>
+                        <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
+                          To use Gmail Importer:
+                        </p>
+                        <ol style={{ margin: "8px 0 0 0", paddingLeft: "20px", fontSize: "14px" }}>
+                          <li>Deploy a <code>gmail-auth</code> pattern</li>
+                          <li>Authenticate with Google</li>
+                          <li>Click the ⭐ star to favorite it</li>
+                          <li>This importer will automatically find it!</li>
+                        </ol>
+                        {ifElse(
+                          derive(wishError, (err) => !!err),
+                          <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#856404" }}>
+                            Debug: {wishError}
+                          </p>,
+                          <div />
+                        )}
+                      </div>
+                    )
+                  )}
+
+                  {/* Render the auth charm if available */}
+                  {ifElse(
+                    derive(effectiveAuthCharm, (charm) => !!charm),
+                    <ct-render $cell={effectiveAuthCharm} />,
+                    <div />
+                  )}
                 </div>,
                 <div />,
               )}
