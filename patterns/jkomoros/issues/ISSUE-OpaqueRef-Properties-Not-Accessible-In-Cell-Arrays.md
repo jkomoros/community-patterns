@@ -1,8 +1,12 @@
 # Issue: OpaqueRef Properties Not Accessible When Stored in Cell Arrays
 
+> ✅ **RESOLVED 2025-11-26**: Framework author fixed this issue. Properties should now be accessible after reactive updates.
+
 ## Summary
 
 When OpaqueRefs (results of pattern function calls) are stored in a Cell array, their exported properties are not accessible in JSX `.map()` contexts. Direct property access returns `undefined` and `Object.keys()` returns an empty array.
+
+**Update:** This was caused by async Cell loading - the first reactive pass returned empty/undefined values. The fix ensures subsequent reactive updates populate the data correctly.
 
 ## Expected Behavior
 

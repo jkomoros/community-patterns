@@ -236,3 +236,25 @@ Will fail due to the async loading timing.
 - `WIP/wish-debug.tsx` - shows the timing difference
 
 **Additional evidence:** Labs' own `packages/patterns/wish.tsx` also fails with "No favorite found matching 'note'" when deployed and tested, confirming this is a framework bug not specific to my patterns.
+
+### Session 2 continued - Framework Fix Confirmed! ✅
+
+After framework author fixed the issue, re-tested:
+
+1. Deployed fresh gmail-auth.tsx with `#googleAuth` tag
+2. Favorited it (star button)
+3. Authenticated with Google
+4. Deployed wish-auth-test.tsx
+5. **SUCCESS!** wish-auth-test shows:
+   - Status: ✅ Auth Found!
+   - Email: jkomoros@gmail.com
+   - Name: Alex Komoroske
+   - Has Token: Yes
+
+**Key learnings:**
+- The first reactive run returns empty favorites `[]` and throws error
+- Subsequent reactive updates populate the data correctly
+- Pattern code handles this gracefully - just needs to wait for reactive update
+- Console shows: `favorites [] → error` then `favorites [7 objects] → result`
+
+**Phase 1 COMPLETE!** Ready to proceed with Phase 2-6.

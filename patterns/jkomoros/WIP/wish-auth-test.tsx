@@ -36,6 +36,8 @@ export default pattern<Record<string, never>>((_) => {
   // Wish for a charm tagged with #googleAuth
   const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
 
+  derive(wishResult, (wr) => console.log("wishResult", wr));
+
   // Extract auth data from the wish result
   const auth = derive(wishResult, (wr) => wr?.result?.auth);
   const userEmail = derive(auth, (a) => a?.user?.email || "");
