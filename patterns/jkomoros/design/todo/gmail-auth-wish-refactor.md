@@ -201,3 +201,38 @@ const match = favorites.find((entry) =>
 1. File this as a framework issue in labs
 2. Wait for fix, or
 3. Find workaround (e.g., use #favorites and search manually in pattern code)
+
+### Session 2 continued - Community Docs Research
+
+Searched community-docs for related issues:
+
+**Found related superstition:** `2025-11-25-opaqueref-properties-not-accessible-in-arrays.md`
+- Documents that OpaqueRef properties are not accessible when stored in Cell arrays
+- Same root cause: reactive Cell-backed properties load asynchronously
+- Synchronous access returns `undefined`, but JSX binding works
+- Workaround there: store wrapper objects with duplicated data
+
+**Key insight:** This is a known pattern issue, not just wish.ts. Any code that:
+1. Stores objects with Cell-backed properties in arrays
+2. Then tries to access those properties synchronously via `.find()`, `.map()`, etc.
+Will fail due to the async loading timing.
+
+**Workaround attempts:**
+- `wish({ tag: "#favorites" })` + manual derive search - FAILS (derive callbacks also access synchronously)
+- Direct JSX binding - WORKS but not useful for programmatic access
+
+**Conclusion:** No pattern-level workaround found. This requires a framework fix in wish.ts to either:
+1. Make tag loading synchronous/blocking before search
+2. Use truly reactive approach that defers search until tags are loaded
+3. Change favorites structure to store tags eagerly
+
+**Status:** BLOCKED - waiting for framework fix (expected today, 2024-11-26)
+
+**Update:** Framework author is aware of the OpaqueRef-in-arrays issue and planning to fix it today. Since wish.ts tag search has the same root cause, this fix should unblock us.
+
+**Debug patterns preserved for reproduction:**
+- `WIP/wish-auth-test.tsx` - demonstrates the failure
+- `WIP/favorites-debug.tsx` - shows tags ARE present when accessed reactively
+- `WIP/wish-debug.tsx` - shows the timing difference
+
+**Additional evidence:** Labs' own `packages/patterns/wish.tsx` also fails with "No favorite found matching 'note'" when deployed and tested, confirming this is a framework bug not specific to my patterns.
