@@ -1,8 +1,19 @@
 # Food Recipe Pattern - Major Improvements
 
-**Goal**: Enhance food-recipe pattern to support timing/scheduling, viewer mode, and image import - ultimately to support a thanksgiving-planner pattern that can schedule multiple recipes.
+## Current Status: Phases 1, 3, 4 ✅ COMPLETE
 
-**Status**: Design phase - ready for implementation
+**Completed:**
+- ✅ Phase 1: Data Model + Basic UI (StepGroup interface, notes at top, image upload)
+- ✅ Phase 3: LLM Timing Tools ("Organize by Timing", "Suggest Wait Times" with modal UI)
+- ✅ Phase 4: Viewer Pattern (food-recipe-viewer.tsx with completion tracking)
+
+**Remaining:**
+- Phase 2: Step Group Management UI (group editing, step reordering, move between groups)
+- Phase 5: Polish & Future (parallel groups, PDF import, time-based highlighting)
+
+---
+
+**Goal**: Enhance food-recipe pattern to support timing/scheduling, viewer mode, and image import - ultimately to support a thanksgiving-planner pattern that can schedule multiple recipes.
 
 ---
 

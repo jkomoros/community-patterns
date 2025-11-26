@@ -1,5 +1,17 @@
 # Store Mapper Improvements TODO
 
+## Current Status: ✅ ALL 6 ISSUES COMPLETE
+
+All issues implemented and tested:
+- ✅ Issue 1: Title placeholder "(Untitled map)"
+- ✅ Issue 2: "No more entrances" toggle button
+- ✅ Issue 3: Gray out already-added entrance buttons
+- ✅ Issue 4: Photo analysis bug fix (removed auto-delete)
+- ✅ Issue 5: "Add all from ALL photos" batch button
+- ✅ Issue 6: Item Locations UI form
+
+---
+
 **Branch:** jkomoros/store-mapper-improvements
 
 ## Issues to Fix

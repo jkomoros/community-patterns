@@ -1,5 +1,20 @@
 # Hotel Membership Extractor - Work Log
 
+## Current Status
+
+**Completed:**
+- ✅ Issue 1: Gmail Auth Prominence (prominent warning box)
+- ✅ Gmail content extraction works correctly
+- ✅ Email fetching and display working
+
+**Remaining - CRITICAL:**
+- ❌ Issue 3: Smarter Query Iteration (LLM needs query history and refinement)
+
+**Blocked (Framework Limitation):**
+- Issue 2: Auto-Fetch Emails - Framework doesn't support reactive side effects
+
+---
+
 Development notes and work tracking for the Hotel Membership Extractor pattern.
 
 ## Current Issues to Fix

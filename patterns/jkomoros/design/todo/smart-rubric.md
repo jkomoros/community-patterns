@@ -1,5 +1,21 @@
 # Smart Rubric TODO
 
+## Current Status: Phases 1-5 ✅ COMPLETE
+
+**Completed:**
+- ✅ Phase 1: Data Model Validation
+- ✅ Phase 2: Core UI (two-pane layout, selection)
+- ✅ Phase 3: Dynamic Value Editing (numeric + categorical)
+- ✅ Phase 4: Manual Ranking (up/down buttons, boxing pattern)
+- ✅ Phase 5: LLM Quick Add (extract dimension values from descriptions)
+
+**Remaining:**
+- Phase 6: LLM Optimize Weights
+- Phase 7: LLM Suggest Missing Dimensions
+- Phase 8: Polish & Testing
+
+---
+
 ## Pattern Overview
 A decision-making tool that helps users create rubrics for comparing multiple options across various dimensions. When the calculated ranking doesn't match user intuition, LLM helps identify missing dimensions or adjust weights.
 
