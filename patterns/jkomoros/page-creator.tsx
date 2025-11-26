@@ -208,6 +208,8 @@ const createSmartRubric = handler<void, void>((_, __) => {
     options: [],
     dimensions: [],
     selection: { value: null },
+    quickAddPrompt: "",
+    quickAddSubmitted: "",
   }));
 });
 

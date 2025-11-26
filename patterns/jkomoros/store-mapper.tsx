@@ -2614,7 +2614,6 @@ What common sections might be missing?`,
                     }
                   )}
                   </div>
-                )
               ); // Close ifElse
             })}
             </ct-vstack>
