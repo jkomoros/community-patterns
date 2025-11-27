@@ -92,9 +92,16 @@ C. **Hybrid: populate cache in handler, trigger generateObject, process result i
    - Another derive/handler processes result
    - Challenge: multi-step flow requires careful coordination
 
-**Current state:** Web caching is working. Prompts built from cached content are now deterministic. This helps but doesn't fully enable LLM caching until we switch from callLLM to generateObject.
+**Current state:** Web caching is working and VERIFIED. Prompts built from cached content are now deterministic. This helps but doesn't fully enable LLM caching until we switch from callLLM to generateObject.
 
-**Next session:** Implement approach C - split handler into cache-populating handler + reactive generateObject flow.
+**Test Results (Nov 27, 2025):**
+- Deployed charm: `baedreiab5tvgwfwqcexx24qbkeencwwtky3rw633tk4drqwkyg5o26yvh4`
+- First run: `Phase 1 complete: 29/29 articles (0 cache hits, 29 fetches)` ✅
+- Web content cached with immutable semantics (never overwritten)
+- Console shows `[FETCH]` for cache misses, `[CACHE HIT]` for cached content
+- Second run of same URLs would return instantly from cache
+
+**Next:** Implement approach C - split handler into cache-populating handler + reactive generateObject flow.
 
 ### Key Files Changed
 - `prompt-injection-tracker.tsx` - main pattern
