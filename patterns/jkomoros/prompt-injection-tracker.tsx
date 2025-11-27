@@ -1312,7 +1312,7 @@ Return your analysis for each article.`,
                       } else if (newArticleCount > 0) {
                         return (
                           <ct-button
-                            onClick={startProcessing({ parsedArticles, isProcessing, processingStatus, linkExtractionTrigger })}
+                            onClick={processAllArticles({ parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate })}
                             disabled={isProcessing}
                             style={{
                               background: "#3b82f6",
@@ -1324,7 +1324,7 @@ Return your analysis for each article.`,
                               boxShadow: "0 4px 6px rgba(59, 130, 246, 0.3)"
                             }}
                           >
-                            {isProcessing ? "⏳ Processing..." : `⚡ Process ${newArticleCount} New Alerts`}
+                            {isProcessing ? "⏳ Processing..." : `⚡ Process ${newArticleCount} New Alerts (Auto)`}
                           </ct-button>
                         );
                       } else {
@@ -1413,13 +1413,17 @@ Return your analysis for each article.`,
                       ⚙️ Advanced Actions
                     </summary>
                     <div style={{ marginTop: "12px" }}>
+                      <div style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+                        Old step-by-step handler (for debugging):
+                      </div>
                       <ct-button
                         onClick={startProcessing({ parsedArticles, isProcessing, processingStatus, linkExtractionTrigger })}
                         disabled={derive({ isProcessing, newArticleCount }, ({ isProcessing, newArticleCount }) =>
                           isProcessing || newArticleCount === 0
                         )}
+                        style={{ opacity: 0.7 }}
                       >
-                        {isProcessing ? "Processing..." : `Process ${newArticleCount} New Articles`}
+                        {isProcessing ? "Processing..." : `Process (Step-by-Step)`}
                       </ct-button>
                       {processingStatus ? (
                         <div style={{ marginTop: "8px", fontSize: "13px", color: "#666" }}>
