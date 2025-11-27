@@ -774,15 +774,18 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Save Button */}
-            <ct-button
-              onClick={saveResults({ memberships, lastScanAt, isScanning, agentResult })}
-              size="lg"
-              style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-              hidden={derive(shouldShowSaveButton, (show) => !show)}
-            >
-              💾 Save Results & Complete
-            </ct-button>
+            {/* Save Button - Only show after extraction completes */}
+            {derive(shouldShowSaveButton, (show) =>
+              show ? (
+                <ct-button
+                  onClick={saveResults({ memberships, lastScanAt, isScanning, agentResult })}
+                  size="lg"
+                  style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                >
+                  💾 Save Results & Complete
+                </ct-button>
+              ) : null
+            )}
 
             {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
