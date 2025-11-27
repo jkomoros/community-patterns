@@ -34,6 +34,7 @@ The current UI makes it hard to tell if processing is stuck or still working.
 - Consider making this configurable or removing the limit
 
 ### Other Improvements
+- [ ] **Display processingStatus cell value prominently in UI** - currently written to cell but not visible to user
 - [ ] Show which articles have been processed vs pending
 - [ ] Add ability to reprocess failed articles
 - [ ] Better error display when article fetch fails
