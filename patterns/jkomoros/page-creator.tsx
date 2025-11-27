@@ -171,18 +171,8 @@ const createPreparedFood = handler<void, void>((_, __) => {
 const createHotelMembershipExtractor = handler<void, void>((_, __) => {
   return navigateTo(HotelMembershipExtractor({
     memberships: [],
-    scannedEmailIds: [],
     lastScanAt: 0,
-    brandHistory: [{ brand: "Marriott", attempts: [], status: "searching" }],
-    searchedBrands: [],
-    searchedNotFound: [],
-    unsearchedBrands: [],
-    currentQuery: "",
     isScanning: false,
-    queryGeneratorInput: "",
-    gmailFilterQuery: "",
-    limit: 50,
-    // Auth is now discovered via wish() from favorited gmail-auth charm
   }));
 });
 
