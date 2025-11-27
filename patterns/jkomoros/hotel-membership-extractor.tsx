@@ -10,6 +10,31 @@ type GoogleAuthCharm = {
   auth: Auth;
 };
 
+// ============================================================================
+// EFFECTIVE QUERY HINTS - Based on successful extractions
+// ============================================================================
+// These queries have been proven to find membership numbers in real Gmail accounts.
+// The agent should try these first before doing broader searches.
+const EFFECTIVE_QUERIES = [
+  // Most effective: Welcome/confirmation emails with member numbers
+  'from:hilton.com subject:"welcome" OR subject:"hilton honors"',
+  'from:marriott.com subject:"welcome" OR subject:"bonvoy"',
+  'from:hyatt.com subject:"welcome to world of hyatt"',
+  'from:ihg.com subject:"welcome" OR subject:"ihg rewards"',
+  'from:accor.com subject:"welcome" OR subject:"accor"',
+
+  // Monthly statements often have member numbers prominently
+  'from:hilton.com subject:"statement"',
+  'from:marriott.com subject:"statement"',
+
+  // Broad searches as fallback
+  'from:hilton.com OR from:hiltonhonors.com',
+  'from:marriott.com OR from:email.marriott.com',
+  'from:hyatt.com OR from:worldofhyatt.com',
+  'from:ihg.com OR from:ihgrewardsclub.com',
+  'from:accor.com OR from:accorhotels.com',
+];
+
 // Simplified Email type for the agent
 interface SimpleEmail {
   id: string;
@@ -51,6 +76,9 @@ interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
   lastScanAt: Default<number, 0>;
   isScanning: Default<boolean, false>;
+  // Max number of searches to perform. 0 = unlimited (full scan), positive = quick test mode
+  // Default to 5 for quick testing - change to 0 for full scans
+  maxSearches: Default<number, 5>;
 }
 
 const env = getRecipeEnvironment();
@@ -204,6 +232,7 @@ export default pattern<HotelMembershipInput>(({
   memberships,
   lastScanAt,
   isScanning,
+  maxSearches,
 }) => {
   // ============================================================================
   // AUTH: Primary method is direct input (CT-1085 workaround)
@@ -260,13 +289,15 @@ export default pattern<HotelMembershipInput>(({
   interface SearchProgress {
     currentQuery: string;
     completedQueries: { query: string; emailCount: number; timestamp: number }[];
-    status: "idle" | "searching" | "analyzing";
+    status: "idle" | "searching" | "analyzing" | "limit_reached";
+    searchCount: number;  // Track total searches performed
   }
 
   const searchProgress = Cell.of<SearchProgress>({
     currentQuery: "",
     completedQueries: [],
     status: "idle",
+    searchCount: 0,
   });
 
   // ============================================================================
@@ -277,14 +308,34 @@ export default pattern<HotelMembershipInput>(({
   // When used as a tool, the framework passes a 'result' cell that we MUST write to
   const searchGmailHandler = handler<
     { query: string; result?: Cell<any> },
-    { auth: Cell<Auth>; progress: Cell<SearchProgress> }
+    { auth: Cell<Auth>; progress: Cell<SearchProgress>; maxSearches: Cell<Default<number, 5>> }
   >(
     async (input, state) => {
       const authData = state.auth.get();
       const token = authData?.token as string;
+      const max = state.maxSearches.get();
+      const currentProgress = state.progress.get();
+
+      // Check if we've hit the search limit (if not unlimited, where 0 = unlimited)
+      if (max > 0 && currentProgress.searchCount >= max) {
+        console.log(`[SearchGmail Tool] Search limit reached (${max})`);
+        const limitResult = {
+          success: false,
+          limitReached: true,
+          message: `Search limit of ${max} reached. Set maxSearches to 0 for unlimited searches.`,
+          emails: [],
+        };
+        if (input.result) {
+          input.result.set(limitResult);
+        }
+        state.progress.set({
+          ...currentProgress,
+          status: "limit_reached",
+        });
+        return limitResult;
+      }
 
       // Update progress: starting new search
-      const currentProgress = state.progress.get();
       state.progress.set({
         ...currentProgress,
         currentQuery: input.query,
@@ -314,7 +365,7 @@ export default pattern<HotelMembershipInput>(({
             })),
           };
 
-          // Update progress: search complete
+          // Update progress: search complete, increment count
           const updatedProgress = state.progress.get();
           state.progress.set({
             currentQuery: "",
@@ -323,6 +374,7 @@ export default pattern<HotelMembershipInput>(({
               { query: input.query, emailCount: emails.length, timestamp: Date.now() },
             ],
             status: "analyzing",
+            searchCount: updatedProgress.searchCount + 1,
           });
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
@@ -341,37 +393,39 @@ export default pattern<HotelMembershipInput>(({
 
   // Agent prompt - only active when scanning
   const agentPrompt = derive(
-    [isScanning, memberships],
-    ([scanning, found]: [boolean, MembershipRecord[]]) => {
+    [isScanning, memberships, maxSearches],
+    ([scanning, found, maxSearchLimit]: [boolean, MembershipRecord[], number]) => {
       if (!scanning) return "";  // Don't run unless actively scanning
 
       const foundBrands = [...new Set(found.map(m => m.hotelBrand))];
+      const isQuickMode = maxSearchLimit > 0;
 
       return `Find hotel loyalty program membership numbers in my Gmail.
 
 Already saved memberships for: ${foundBrands.join(", ") || "none yet"}
 Total memberships saved: ${found.length}
+${isQuickMode ? `\n⚠️ QUICK TEST MODE: Limited to ${maxSearchLimit} searches. Focus on high-value queries!\n` : ""}
 
 Your task:
 1. Use searchGmail to search for hotel loyalty emails
 2. Analyze the returned emails for membership numbers
 3. When you find a membership: IMMEDIATELY call reportMembership to save it
-4. Continue searching other brands
+4. Continue searching other brands${isQuickMode ? " (until limit reached)" : ""}
+
+${isQuickMode ? "PRIORITY QUERIES (use these first in quick mode):" : "EFFECTIVE QUERIES (proven to find memberships):"}
+${EFFECTIVE_QUERIES.slice(0, isQuickMode ? 5 : EFFECTIVE_QUERIES.length).map((q, i) => `${i + 1}. ${q}`).join("\n")}
 
 Hotel brands to search for:
-- Marriott (Marriott Bonvoy) - try: from:marriott.com OR from:email.marriott.com
-- Hilton (Hilton Honors) - try: from:hilton.com OR from:hiltonhonors.com
-- Hyatt (World of Hyatt) - try: from:hyatt.com
-- IHG (IHG One Rewards) - try: from:ihg.com
-- Accor (ALL - Accor Live Limitless) - try: from:accor.com
+- Marriott (Marriott Bonvoy)
+- Hilton (Hilton Honors)
+- Hyatt (World of Hyatt)
+- IHG (IHG One Rewards)
+- Accor (ALL - Accor Live Limitless)
 
-Search strategy:
-1. Start broad: from:marriott.com OR from:hilton.com OR from:hyatt.com OR from:ihg.com
-2. Look for subjects with "member", "account", "welcome", "status", "points"
-3. In email bodies, look for patterns like:
-   - "Member #" or "Membership Number:" followed by digits
-   - "Bonvoy Number:", "Hilton Honors #:", "World of Hyatt #:"
-   - Account numbers are typically 9-16 digits
+In email bodies, look for patterns like:
+- "Member #" or "Membership Number:" followed by digits
+- "Bonvoy Number:", "Hilton Honors #:", "World of Hyatt #:"
+- Account numbers are typically 9-16 digits
 
 When you find a membership, call reportMembership with:
 - hotelBrand: Hotel chain name (e.g., "Marriott", "Hilton")
@@ -384,8 +438,9 @@ When you find a membership, call reportMembership with:
 - confidence: 0-100 how confident you are
 
 IMPORTANT: Call reportMembership for EACH membership as you find it. Don't wait!
+${isQuickMode ? "\nNote: If you hit the search limit, stop and return what you found." : ""}
 
-When done searching all brands, return a summary of what you searched and found.`;
+When done searching${isQuickMode ? " (or limit reached)" : " all brands"}, return a summary of what you searched and found.`;
     }
   );
 
@@ -450,8 +505,8 @@ When done searching all brands, return a summary of what you searched and found.
 
   const agentTools = {
     searchGmail: {
-      description: "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text.",
-      handler: searchGmailHandler({ auth, progress: searchProgress }),
+      description: "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text. Note: If maxSearches limit is set, this tool will return an error when limit is reached.",
+      handler: searchGmailHandler({ auth, progress: searchProgress, maxSearches }),
     },
     reportMembership: {
       description: "Report a found membership number. Call this IMMEDIATELY when you find a valid membership number. It will be saved automatically. Parameters: hotelBrand (string), programName (string), membershipNumber (string), tier (string, optional), sourceEmailId (string), sourceEmailSubject (string), sourceEmailDate (string), confidence (number 0-100).",
@@ -550,14 +605,17 @@ Be thorough and search for all major hotel brands.`,
     isScanning: Cell<Default<boolean, false>>;
     isAuthenticated: Cell<boolean>;
     progress: Cell<SearchProgress>;
+    maxSearches: Cell<Default<number, 5>>;
   }>((_, state) => {
     if (!state.isAuthenticated.get()) return;
-    console.log("[StartScan] Beginning hotel membership extraction");
+    const max = state.maxSearches.get();
+    console.log(`[StartScan] Beginning hotel membership extraction (maxSearches: ${max})`);
     // Reset progress tracking
     state.progress.set({
       currentQuery: "",
       completedQueries: [],
       status: "idle",
+      searchCount: 0,
     });
     state.isScanning.set(true);
   });
@@ -648,15 +706,25 @@ Be thorough and search for all major hotel brands.`,
               );
             })}
 
+            {/* Scan Mode Indicator */}
+            {derive(maxSearches, (max: number) =>
+              max > 0 ? (
+                <div style="padding: 8px 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 6px; fontSize: 12px; color: #92400e; textAlign: center;">
+                  ⚡ Quick Test Mode: {max} searches max
+                </div>
+              ) : null
+            )}
+
             {/* Scan Button */}
             <ct-button
-              onClick={startScan({ isScanning, isAuthenticated, progress: searchProgress })}
+              onClick={startScan({ isScanning, isAuthenticated, progress: searchProgress, maxSearches })}
               size="lg"
               disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
             >
-              {derive([isAuthenticated, isScanning], ([auth, scanning]) => {
+              {derive([isAuthenticated, isScanning, maxSearches], ([auth, scanning, max]: [boolean, boolean, number]) => {
                 if (!auth) return "🔒 Authenticate First";
                 if (scanning) return "⏳ Scanning...";
+                if (max > 0) return `⚡ Quick Scan (${max} searches)`;
                 return "🔍 Scan for Hotel Memberships";
               })}
             </ct-button>
@@ -717,6 +785,7 @@ Be thorough and search for all major hotel brands.`,
             )}
 
             {/* Scan Complete - Auto-saved, just show summary */}
+            {/* Display info inside derive (read-only) */}
             {derive(scanCompleted, (completed) =>
               completed ? (
                 <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
@@ -734,17 +803,19 @@ Be thorough and search for all major hotel brands.`,
                   <div style="fontSize: 12px; color: #059669; textAlign: center; fontStyle: italic; marginBottom: 12px;">
                     {derive(agentResult, (r) => r?.summary || "")}
                   </div>
-
-                  <ct-button
-                    onClick={completeScan({ lastScanAt, isScanning })}
-                    size="lg"
-                    style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-                  >
-                    ✓ Done
-                  </ct-button>
                 </div>
               ) : null
             )}
+
+            {/* Done button OUTSIDE derive to avoid ReadOnlyAddressError */}
+            <ct-button
+              onClick={completeScan({ lastScanAt, isScanning })}
+              size="lg"
+              style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+              disabled={derive(scanCompleted, (completed) => !completed)}
+            >
+              {derive(scanCompleted, (completed) => completed ? "✓ Done" : "Scan not complete")}
+            </ct-button>
 
             {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
