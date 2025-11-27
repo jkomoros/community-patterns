@@ -81,6 +81,20 @@ interface HotelMembershipInput {
   maxSearches: Default<number, 5>;
 }
 
+/**
+ * Output type for hotel membership extractor.
+ * Other patterns can wish for these memberships using: wish("#hotelMemberships")
+ * #hotelMemberships
+ */
+interface HotelMembershipOutput {
+  /** All discovered hotel loyalty program memberships. #hotelMemberships */
+  memberships: MembershipRecord[];
+  /** Timestamp of last scan completion */
+  lastScanAt: number;
+  /** Number of memberships found */
+  count: number;
+}
+
 const env = getRecipeEnvironment();
 
 // ============================================================================
@@ -227,7 +241,7 @@ Accept: application/json
 // PATTERN
 // ============================================================================
 
-export default pattern<HotelMembershipInput>(({
+export default pattern<HotelMembershipInput, HotelMembershipOutput>(({
   auth: inputAuth,
   memberships,
   lastScanAt,
@@ -667,6 +681,14 @@ Be thorough and search for all major hotel brands.`,
 
   return {
     [NAME]: "🏨 Hotel Membership Extractor",
+
+    // ========================================================================
+    // OUTPUT: Export memberships for other patterns via wish("#hotelMemberships")
+    // ========================================================================
+    memberships,
+    lastScanAt,
+    count: totalMemberships,
+
     [UI]: (
       <ct-screen>
         <div slot="header">
