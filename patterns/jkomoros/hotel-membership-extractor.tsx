@@ -61,6 +61,9 @@ interface MembershipRecord {
   confidence?: number;          // LLM confidence 0-100
 }
 
+// Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
+type ScanMode = "full" | "recent";
+
 interface HotelMembershipInput {
   // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
   // Users can manually link gmail-auth's auth output to this input.
@@ -79,6 +82,8 @@ interface HotelMembershipInput {
   // Max number of searches to perform. 0 = unlimited (full scan), positive = quick test mode
   // Default to 5 for quick testing - change to 0 for full scans
   maxSearches: Default<number, 5>;
+  // Current scan mode - persisted to know if last scan was full or recent
+  currentScanMode: Default<ScanMode, "full">;
 }
 
 /**
@@ -247,6 +252,7 @@ export default pattern<HotelMembershipInput, HotelMembershipOutput>(({
   lastScanAt,
   isScanning,
   maxSearches,
+  currentScanMode,
 }) => {
   // ============================================================================
   // AUTH: Primary method is direct input (CT-1085 workaround)
@@ -405,36 +411,66 @@ export default pattern<HotelMembershipInput, HotelMembershipOutput>(({
     }
   );
 
+  // Helper to generate date filter for recent mode (last 7 days)
+  const getRecentDateFilter = () => {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    // Gmail date format: YYYY/MM/DD
+    const year = weekAgo.getFullYear();
+    const month = String(weekAgo.getMonth() + 1).padStart(2, '0');
+    const day = String(weekAgo.getDate()).padStart(2, '0');
+    return `after:${year}/${month}/${day}`;
+  };
+
   // Agent prompt - only active when scanning
   const agentPrompt = derive(
-    [isScanning, memberships, maxSearches],
-    ([scanning, found, maxSearchLimit]: [boolean, MembershipRecord[], number]) => {
+    [isScanning, memberships, maxSearches, currentScanMode],
+    ([scanning, found, maxSearchLimit, scanMode]: [boolean, MembershipRecord[], number, ScanMode]) => {
       if (!scanning) return "";  // Don't run unless actively scanning
 
       const foundBrands = [...new Set(found.map(m => m.hotelBrand))];
       const isQuickMode = maxSearchLimit > 0;
+      const isRecentMode = scanMode === "recent";
+      const dateFilter = isRecentMode ? getRecentDateFilter() : "";
+
+      // In recent mode, focus on brands we DON'T have yet
+      const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
+      const brandsToSearch = isRecentMode
+        ? ALL_BRANDS.filter(b => !foundBrands.some(fb => fb.toLowerCase() === b.toLowerCase()))
+        : ALL_BRANDS;
 
       return `Find hotel loyalty program membership numbers in my Gmail.
 
-Already saved memberships for: ${foundBrands.join(", ") || "none yet"}
+${isRecentMode ? `📅 RECENT SCAN MODE: Only searching emails from the last 7 days.
+Date filter to use: ${dateFilter}
+` : ""}Already saved memberships for: ${foundBrands.join(", ") || "none yet"}
 Total memberships saved: ${found.length}
 ${isQuickMode ? `\n⚠️ QUICK TEST MODE: Limited to ${maxSearchLimit} searches. Focus on high-value queries!\n` : ""}
+${isRecentMode && brandsToSearch.length < ALL_BRANDS.length ? `\n✅ Already have memberships for: ${foundBrands.join(", ")}. Focus on finding: ${brandsToSearch.join(", ") || "all brands covered!"}\n` : ""}
 
 Your task:
-1. Use searchGmail to search for hotel loyalty emails
+1. Use searchGmail to search for hotel loyalty emails${isRecentMode ? ` (ADD "${dateFilter}" to ALL queries!)` : ""}
 2. Analyze the returned emails for membership numbers
 3. When you find a membership: IMMEDIATELY call reportMembership to save it
 4. Continue searching other brands${isQuickMode ? " (until limit reached)" : ""}
 
 ${isQuickMode ? "PRIORITY QUERIES (use these first in quick mode):" : "EFFECTIVE QUERIES (proven to find memberships):"}
-${EFFECTIVE_QUERIES.slice(0, isQuickMode ? 5 : EFFECTIVE_QUERIES.length).map((q, i) => `${i + 1}. ${q}`).join("\n")}
+${EFFECTIVE_QUERIES.slice(0, isQuickMode ? 5 : EFFECTIVE_QUERIES.length).map((q, i) => {
+  const query = isRecentMode ? `(${q}) ${dateFilter}` : q;
+  return `${i + 1}. ${query}`;
+}).join("\n")}
 
-Hotel brands to search for:
-- Marriott (Marriott Bonvoy)
-- Hilton (Hilton Honors)
-- Hyatt (World of Hyatt)
-- IHG (IHG One Rewards)
-- Accor (ALL - Accor Live Limitless)
+Hotel brands to search for:${isRecentMode && brandsToSearch.length === 0 ? " (all brands already have memberships!)" : ""}
+${(isRecentMode ? brandsToSearch : ALL_BRANDS).map(b => {
+  switch(b) {
+    case "Marriott": return "- Marriott (Marriott Bonvoy)";
+    case "Hilton": return "- Hilton (Hilton Honors)";
+    case "Hyatt": return "- Hyatt (World of Hyatt)";
+    case "IHG": return "- IHG (IHG One Rewards)";
+    case "Accor": return "- Accor (ALL - Accor Live Limitless)";
+    default: return `- ${b}`;
+  }
+}).join("\n")}
 
 In email bodies, look for patterns like:
 - "Member #" or "Membership Number:" followed by digits
@@ -452,6 +488,7 @@ When you find a membership, call reportMembership with:
 - confidence: 0-100 how confident you are
 
 IMPORTANT: Call reportMembership for EACH membership as you find it. Don't wait!
+${isRecentMode ? "\nIMPORTANT: ALWAYS include the date filter in your search queries!" : ""}
 ${isQuickMode ? "\nNote: If you hit the search limit, stop and return what you found." : ""}
 
 When done searching${isQuickMode ? " (or limit reached)" : " all brands"}, return a summary of what you searched and found.`;
@@ -624,15 +661,21 @@ Be thorough and search for all major hotel brands.`,
     console.log(`[SetScanMode] Changed to: ${state.mode === 0 ? "Full" : state.mode} searches`);
   });
 
-  const startScan = handler<unknown, {
-    isScanning: Cell<Default<boolean, false>>;
-    isAuthenticated: Cell<boolean>;
-    progress: Cell<SearchProgress>;
-    maxSearches: Cell<Default<number, 5>>;
-  }>((_, state) => {
+  const startScan = handler<
+    unknown,
+    {
+      mode: ScanMode;
+      isScanning: Cell<Default<boolean, false>>;
+      isAuthenticated: Cell<boolean>;
+      progress: Cell<SearchProgress>;
+      maxSearches: Cell<Default<number, 5>>;
+      currentScanMode: Cell<Default<ScanMode, "full">>;
+    }
+  >((_, state) => {
     if (!state.isAuthenticated.get()) return;
+    const mode = state.mode;
     const max = state.maxSearches.get();
-    console.log(`[StartScan] Beginning hotel membership extraction (maxSearches: ${max})`);
+    console.log(`[StartScan] Beginning hotel membership extraction (mode: ${mode}, maxSearches: ${max})`);
     // Reset progress tracking
     state.progress.set({
       currentQuery: "",
@@ -640,6 +683,7 @@ Be thorough and search for all major hotel brands.`,
       status: "idle",
       searchCount: 0,
     });
+    state.currentScanMode.set(mode);
     state.isScanning.set(true);
   });
 
@@ -746,19 +790,46 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Scan Button */}
-            <ct-button
-              onClick={startScan({ isScanning, isAuthenticated, progress: searchProgress, maxSearches })}
-              size="lg"
-              disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
-            >
-              {derive([isAuthenticated, isScanning, maxSearches], ([auth, scanning, max]: [boolean, boolean, number]) => {
-                if (!auth) return "🔒 Authenticate First";
-                if (scanning) return "⏳ Scanning...";
-                if (max > 0) return `⚡ Quick Scan (${max} searches)`;
-                return "🔍 Scan for Hotel Memberships";
-              })}
-            </ct-button>
+            {/* Scan Buttons */}
+            <div style="display: flex; gap: 8px; flexWrap: wrap;">
+              {/* Full Scan Button */}
+              <ct-button
+                onClick={startScan({ mode: "full", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
+                size="lg"
+                style="flex: 1; minWidth: 140px;"
+                disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
+              >
+                {derive([isAuthenticated, isScanning, maxSearches], ([auth, scanning, max]: [boolean, boolean, number]) => {
+                  if (!auth) return "🔒 Authenticate First";
+                  if (scanning) return "⏳ Scanning...";
+                  if (max > 0) return `⚡ Quick Scan`;
+                  return "🔍 Full Scan";
+                })}
+              </ct-button>
+
+              {/* Check Recent Button */}
+              <ct-button
+                onClick={startScan({ mode: "recent", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
+                size="lg"
+                style="flex: 1; minWidth: 140px; background: #8b5cf6;"
+                disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
+              >
+                {derive([isAuthenticated, isScanning], ([auth, scanning]: [boolean, boolean]) => {
+                  if (!auth) return "🔒 Auth Required";
+                  if (scanning) return "⏳ Scanning...";
+                  return "📅 Check Recent";
+                })}
+              </ct-button>
+            </div>
+
+            {/* Scan mode info */}
+            {derive([isScanning, currentScanMode], ([scanning, mode]: [boolean, ScanMode]) =>
+              scanning ? (
+                <div style="padding: 8px 12px; background: #f3e8ff; border: 1px solid #8b5cf6; borderRadius: 6px; fontSize: 12px; color: #6b21a8; textAlign: center;">
+                  {mode === "recent" ? "📅 Recent mode: searching last 7 days only" : "🔍 Full mode: searching all time"}
+                </div>
+              ) : null
+            )}
 
             {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
