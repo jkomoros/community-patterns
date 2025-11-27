@@ -37,6 +37,17 @@ interface MembershipRecord {
 }
 
 interface HotelMembershipInput {
+  // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
+  // Users can manually link gmail-auth's auth output to this input.
+  auth: Default<Auth, {
+    token: "";
+    tokenType: "";
+    scope: [];
+    expiresIn: 0;
+    expiresAt: 0;
+    refreshToken: "";
+    user: { email: ""; name: ""; picture: "" };
+  }>;
   memberships: Default<MembershipRecord[], []>;
   lastScanAt: Default<number, 0>;
   isScanning: Default<boolean, false>;
@@ -189,34 +200,74 @@ Accept: application/json
 // ============================================================================
 
 export default pattern<HotelMembershipInput>(({
+  auth: inputAuth,
   memberships,
   lastScanAt,
   isScanning,
 }) => {
   // ============================================================================
-  // AUTH: Discover via wish (shared with all Gmail patterns)
-  // Using legacy string syntax which is more reliable
+  // AUTH: Primary method is direct input (CT-1085 workaround)
+  //
+  // WORKAROUND (CT-1085): Favorites don't persist across page navigations.
+  // The preferred method is to manually link gmail-auth's auth output to
+  // this pattern's auth input in the shell UI.
+  //
+  // Fallback: wish("#googleAuth") still attempted for when CT-1085 is fixed.
   // ============================================================================
 
-  const wishResult = wish<GoogleAuthCharm>("#googleAuth");
+  // Try wish as fallback (will work once CT-1085 is fixed)
+  const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
 
-  const auth = derive(wishResult, (w) =>
-    w?.auth || {
+  // Check if we have auth from either source
+  const hasDirectAuth = derive(inputAuth, (a: Auth) => !!(a?.token));
+  const wishedAuth = derive(wishedAuthCharm, (charm: GoogleAuthCharm | undefined) => charm?.auth);
+  const hasWishedAuth = derive(wishedAuth, (a: Auth | undefined) => !!(a?.token));
+
+  // Use input auth if provided, otherwise try wish
+  const auth = derive([inputAuth, wishedAuth], ([directAuth, wished]: [Auth, Auth | undefined]) => {
+    // Prefer direct input auth if it has a token
+    if (directAuth?.token) {
+      return directAuth;
+    }
+    // Fall back to wished auth
+    if (wished?.token) {
+      return wished;
+    }
+    // Return empty auth
+    return {
       token: "",
       tokenType: "",
-      scope: [],
+      scope: [] as string[],
       expiresIn: 0,
       expiresAt: 0,
       refreshToken: "",
       user: { email: "", name: "", picture: "" },
-    });
+    };
+  });
 
   const isAuthenticated = derive(auth, (a) =>
     !!(a && a.token && a.user && a.user.email)
   );
 
-  const hasWishedAuth = derive(wishResult, (w) => !!w);
-  const wishError = derive(wishResult, (_w) => null);  // Legacy syntax doesn't return errors
+  const authSource = derive([hasDirectAuth, hasWishedAuth], ([direct, wished]: [boolean, boolean]) =>
+    direct ? "direct" : wished ? "wish" : "none"
+  );
+
+  // ============================================================================
+  // PROGRESS TRACKING: Track search activity for UI feedback
+  // ============================================================================
+
+  interface SearchProgress {
+    currentQuery: string;
+    completedQueries: { query: string; emailCount: number; timestamp: number }[];
+    status: "idle" | "searching" | "analyzing";
+  }
+
+  const searchProgress = Cell.of<SearchProgress>({
+    currentQuery: "",
+    completedQueries: [],
+    status: "idle",
+  });
 
   // ============================================================================
   // AGENT: Single agent with searchGmail tool
@@ -226,11 +277,19 @@ export default pattern<HotelMembershipInput>(({
   // When used as a tool, the framework passes a 'result' cell that we MUST write to
   const searchGmailHandler = handler<
     { query: string; result?: Cell<any> },
-    { auth: Cell<Auth> }
+    { auth: Cell<Auth>; progress: Cell<SearchProgress> }
   >(
     async (input, state) => {
       const authData = state.auth.get();
       const token = authData?.token as string;
+
+      // Update progress: starting new search
+      const currentProgress = state.progress.get();
+      state.progress.set({
+        ...currentProgress,
+        currentQuery: input.query,
+        status: "searching",
+      });
 
       let resultData: any;
 
@@ -254,6 +313,17 @@ export default pattern<HotelMembershipInput>(({
               body: e.body,
             })),
           };
+
+          // Update progress: search complete
+          const updatedProgress = state.progress.get();
+          state.progress.set({
+            currentQuery: "",
+            completedQueries: [
+              ...updatedProgress.completedQueries,
+              { query: input.query, emailCount: emails.length, timestamp: Date.now() },
+            ],
+            status: "analyzing",
+          });
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
           resultData = { error: String(err), emails: [] };
@@ -319,7 +389,7 @@ Return all memberships you find. Be thorough - search multiple brands!`;
   const agentTools = {
     searchGmail: {
       description: "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text.",
-      handler: searchGmailHandler({ auth }),
+      handler: searchGmailHandler({ auth, progress: searchProgress }),
     },
   };
 
@@ -421,9 +491,16 @@ Be thorough and search for all major hotel brands.`,
   const startScan = handler<unknown, {
     isScanning: Cell<Default<boolean, false>>;
     isAuthenticated: Cell<boolean>;
+    progress: Cell<SearchProgress>;
   }>((_, state) => {
     if (!state.isAuthenticated.get()) return;
     console.log("[StartScan] Beginning hotel membership extraction");
+    // Reset progress tracking
+    state.progress.set({
+      currentQuery: "",
+      completedQueries: [],
+      status: "idle",
+    });
     state.isScanning.set(true);
   });
 
@@ -532,49 +609,40 @@ Be thorough and search for all major hotel brands.`,
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
             {/* Auth Status */}
-            {derive([isAuthenticated, hasWishedAuth, wishError], ([authenticated, hasAuth, error]) => {
+            {derive([isAuthenticated, authSource], ([authenticated, source]) => {
               if (authenticated) {
                 return (
                   <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; borderRadius: 8px;">
                     <div style="fontSize: 14px; color: #065f46; textAlign: center;">
-                      ✅ Gmail connected via shared auth
-                    </div>
-                  </div>
-                );
-              }
-
-              if (!hasAuth) {
-                return (
-                  <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px;">
-                    <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
-                      🔒 Gmail Authentication Required
-                    </div>
-                    <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5; textAlign: center;">
-                      <p style="margin: 0 0 12px 0; fontSize: 14px;">
-                        Create a Gmail Auth charm to authenticate:
-                      </p>
-                      <ct-button
-                        onClick={createGmailAuth({})}
-                        size="lg"
-                      >
-                        🔐 Create Gmail Auth
-                      </ct-button>
-                      <p style="margin: 12px 0 0 0; fontSize: 13px; color: #666;">
-                        After authenticating, click the ⭐ star to favorite it, then come back here.
-                      </p>
-                      {error ? <div style="marginTop: 12px; fontSize: 12px; color: #666;">Debug: {error}</div> : null}
+                      ✅ Gmail connected {source === "direct" ? "(linked)" : "(via wish)"}
                     </div>
                   </div>
                 );
               }
 
               return (
-                <div style="padding: 24px; background: #fef3c7; border: 3px solid #f59e0b; borderRadius: 12px;">
-                  <div style="fontSize: 20px; fontWeight: 700; color: #92400e; textAlign: center; marginBottom: 16px;">
-                    ⚠️ Gmail Auth Found - Please Complete Authentication
+                <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px;">
+                  <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
+                    🔒 Gmail Authentication Required
                   </div>
-                  <div style="fontSize: 14px; color: #78350f; textAlign: center;">
-                    Open your Gmail Auth charm and sign in with Google.
+                  <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
+                    <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
+                      Option 1: Link auth directly (recommended)
+                    </p>
+                    <p style="margin: 0 0 12px 0; fontSize: 13px; color: #666;">
+                      1. Open your Gmail Auth charm and authenticate<br/>
+                      2. Use the shell to link its <code>auth</code> output to this pattern's <code>auth</code> input
+                    </p>
+                    <hr style="margin: 12px 0; border: none; borderTop: 1px solid #e0e0e0;"/>
+                    <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
+                      Option 2: Create new Gmail Auth
+                    </p>
+                    <ct-button
+                      onClick={createGmailAuth({})}
+                      size="default"
+                    >
+                      🔐 Create Gmail Auth
+                    </ct-button>
                   </div>
                 </div>
               );
@@ -582,7 +650,7 @@ Be thorough and search for all major hotel brands.`,
 
             {/* Scan Button */}
             <ct-button
-              onClick={startScan({ isScanning, isAuthenticated })}
+              onClick={startScan({ isScanning, isAuthenticated, progress: searchProgress })}
               size="lg"
               disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
             >
@@ -593,14 +661,56 @@ Be thorough and search for all major hotel brands.`,
               })}
             </ct-button>
 
-            {/* Progress */}
+            {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
               scanning && pending ? (
-                <div style="padding: 16px; background: #dbeafe; border: 1px solid #3b82f6; borderRadius: 8px; textAlign: center;">
-                  <div style="fontWeight: 600; marginBottom: 8px;">🤖 AI Agent Working...</div>
-                  <div style="fontSize: 13px; color: #1e40af;">
-                    Searching Gmail for hotel loyalty emails and extracting membership numbers
+                <div style="padding: 16px; background: #dbeafe; border: 1px solid #3b82f6; borderRadius: 8px;">
+                  <div style="fontWeight: 600; marginBottom: 12px; textAlign: center;">
+                    🤖 AI Agent Working...
                   </div>
+
+                  {/* Current Activity */}
+                  {derive(searchProgress, (progress: SearchProgress) =>
+                    progress.currentQuery ? (
+                      <div style="padding: 8px; background: #bfdbfe; borderRadius: 4px; marginBottom: 12px;">
+                        <div style="fontSize: 12px; color: #1e40af; fontWeight: 600;">🔍 Currently searching:</div>
+                        <div style="fontSize: 13px; color: #1e3a8a; fontFamily: monospace; wordBreak: break-all;">
+                          {progress.currentQuery}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style="padding: 8px; background: #bfdbfe; borderRadius: 4px; marginBottom: 12px;">
+                        <div style="fontSize: 12px; color: #1e40af;">💭 Analyzing emails...</div>
+                      </div>
+                    )
+                  )}
+
+                  {/* Completed Searches */}
+                  {derive(searchProgress, (progress: SearchProgress) =>
+                    progress.completedQueries.length > 0 ? (
+                      <div style="marginTop: 8px;">
+                        <div style="fontSize: 12px; color: #1e40af; fontWeight: 600; marginBottom: 4px;">
+                          ✅ Completed searches ({progress.completedQueries.length}):
+                        </div>
+                        <div style="maxHeight: 120px; overflowY: auto; fontSize: 11px; color: #3b82f6;">
+                          {progress.completedQueries.slice(-5).map((q: { query: string; emailCount: number }, i: number) => (
+                            <div key={i} style="padding: 2px 0; borderBottom: 1px solid #dbeafe;">
+                              <span style="fontFamily: monospace;">{q.query.length > 50 ? q.query.substring(0, 50) + "..." : q.query}</span>
+                              <span style="marginLeft: 8px; color: #059669;">({q.emailCount} emails)</span>
+                            </div>
+                          ))}
+                          {progress.completedQueries.length > 5 && (
+                            <div style="padding: 4px 0; fontStyle: italic;">
+                              ...and {progress.completedQueries.length - 5} more
+                            </div>
+                          )}
+                        </div>
+                        <div style="marginTop: 8px; fontSize: 12px; color: #1e3a8a; fontWeight: 600;">
+                          📊 Total: {progress.completedQueries.reduce((sum: number, q: { emailCount: number }) => sum + q.emailCount, 0)} emails searched
+                        </div>
+                      </div>
+                    ) : null
+                  )}
                 </div>
               ) : null
             )}
@@ -697,6 +807,8 @@ Be thorough and search for all major hotel brands.`,
               </summary>
               <ct-vstack gap={2} style="padding: 12px; fontSize: 12px; fontFamily: monospace;">
                 <div>Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
+                <div>Auth Source: {authSource}</div>
+                <div>Has Direct Auth: {derive(hasDirectAuth, (h) => h ? "Yes ✓" : "No")}</div>
                 <div>Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
                 <div>Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
                 <div>Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
