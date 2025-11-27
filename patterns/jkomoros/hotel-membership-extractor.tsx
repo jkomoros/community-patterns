@@ -1,97 +1,14 @@
 /// <cts-enable />
-import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, patternTool, recipe, UI, wish } from "commontools";
+import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI, wish } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
-// Import Email type and Auth type for SearchGmailTool
+// Import Email type and Auth type
 import type { Email, Auth } from "./gmail-importer.tsx";
 
 // What we expect from the gmail-auth charm via wish
 type GoogleAuthCharm = {
   auth: Auth;
 };
-
-// ============================================================================
-// AGENT TOOL: searchGmail
-// ============================================================================
-
-/**
- * Email preview with body content as @links
- * Agent sees metadata directly but must read() to get body content
- */
-type EmailPreview = {
-  id: string;
-  threadId: string;
-  subject: string;
-  from: string;
-  date: string;
-  to: string;
-  snippet: string;
-  // Body fields as `any` - framework converts to @links
-  markdownContent: any;
-  htmlContent: any;
-  plainText: any;
-};
-
-/**
- * SearchGmail Tool - Dynamic Gmail queries with server-side search
- *
- * Recipe-based approach: Each tool call instantiates its own GmailImporter
- * with the specific query. Returns reactive emails cell that agent waits for.
- *
- * This matches the pattern used by searchWeb/readWebpage in common-tools.tsx:
- * - Recipe takes query as input
- * - Creates async operation (GmailImporter fetch)
- * - Returns reactive result
- * - Agent framework waits for result to resolve
- *
- * Agent sees:
- * - Email metadata (subject, from, date) directly - for filtering
- * - Body content as @link references - use read() to access
- *
- * Auth: GmailImporter now uses wish() internally to discover auth from
- * a favorited gmail-auth charm. No need to pass authCharm explicitly.
- *
- * Output: EmailPreview[] (reactive, with body as @links)
- */
-export const SearchGmailTool = recipe<
-  { query: string },
-  EmailPreview[]
->(({ query }) => {
-  // Create importer directly with reactive query cell
-  // Each recipe invocation gets its own importer instance
-  // GmailImporter will use wish() to discover auth from favorited gmail-auth charm
-  const importer = GmailImporter({
-    settings: {
-      gmailFilterQuery: query,  // Pass query cell directly (reactive)
-      limit: Cell.of(20),
-      historyId: Cell.of(""),
-    },
-    authCharm: null,  // Let GmailImporter discover auth via wish
-  });
-
-  // Transform emails from importer - returns reactive value
-  // Agent framework waits for this cell to populate
-  return derive(importer.emails, (emailsList) => {
-    const count = emailsList?.length || 0;
-    console.log(`[SearchGmailTool] Returning ${count} emails`);
-
-    if (!emailsList || !Array.isArray(emailsList)) return [];
-
-    return emailsList.map((email: Email) => ({
-      id: email.id,
-      threadId: email.threadId,
-      subject: email.subject,
-      from: email.from,
-      date: email.date,
-      to: email.to,
-      snippet: email.snippet,
-      // Body content as cells (type any) → framework converts to @links
-      markdownContent: Cell.of(email.markdownContent) as any,
-      htmlContent: Cell.of(email.htmlContent) as any,
-      plainText: Cell.of(email.plainText) as any,
-    }));
-  });
-});
 
 // ============================================================================
 // DATA STRUCTURES
@@ -191,22 +108,60 @@ export default pattern<HotelMembershipInput>(({
   const wishError = derive(wishResult, (w) => w?.error || null);
 
   // ============================================================================
+  // GMAIL IMPORTER: Single instance with reactive query cell
+  // ============================================================================
+
+  // Create a mutable query cell that the agent can update
+  const agentQueryCell = Cell.of("");
+
+  // Create a single GmailImporter instance that reacts to query changes
+  const importer = GmailImporter({
+    settings: {
+      gmailFilterQuery: agentQueryCell,  // Reactive - updates trigger new fetch
+      limit: Cell.of(20),
+      historyId: Cell.of(""),
+    },
+    authCharm: null,  // Let GmailImporter discover auth via wish
+  });
+
+  // Transform emails to include @link references for body content
+  const agentEmails = derive(importer.emails, (emailsList: Email[]) => {
+    if (!emailsList || !Array.isArray(emailsList)) return [];
+
+    return emailsList.map((email: Email) => ({
+      id: email.id,
+      threadId: email.threadId,
+      subject: email.subject,
+      from: email.from,
+      date: email.date,
+      to: email.to,
+      snippet: email.snippet,
+      // Body content typed as any -> becomes @link references for agent
+      markdownContent: email.markdownContent as any,
+      htmlContent: email.htmlContent as any,
+      plainText: email.plainText as any,
+    }));
+  });
+
+  // ============================================================================
   // AGENT: Hotel Membership Extractor with Tool Calling
   // ============================================================================
 
-  // Register SearchGmailTool as a pattern directly
-  // The recipe uses wish() internally via GmailImporter to discover auth
-  const agentTools = {
-    searchGmail: {
-      description: "Search Gmail with a query string. Returns email metadata (subject, from, date, snippet) visible directly, with body content as @link references. Use the read() tool to access full email bodies.",
-      pattern: SearchGmailTool,
-      // No args needed - GmailImporter discovers auth via wish
-    },
-  };
+  // Tool: Set the Gmail query (triggers reactive fetch)
+  const setGmailQueryHandler = handler<
+    { query: string },
+    { queryCell: Cell<string> }
+  >((input, state) => {
+    console.log(`[Agent] Setting Gmail query to: ${input.query}`);
+    state.queryCell.set(input.query);
+    return { success: true, query: input.query };
+  });
 
+  // Agent prompt - DON'T include agentQueryCell as dependency to avoid reactive loop
+  // The agent will see the query via the emails loaded (or via importer state)
   const agentPrompt = derive(
-    [brandHistory, memberships, isScanning],
-    ([history, found, scanning]: [BrandSearchHistory[], MembershipRecord[], boolean]) => {
+    [brandHistory, memberships, isScanning, agentEmails],
+    ([history, found, scanning, emails]: [BrandSearchHistory[], MembershipRecord[], boolean, any[]]) => {
       if (!scanning) return "";  // Don't run unless actively scanning
 
       const foundBrands = history.filter((h: BrandSearchHistory) => h.status === "found").map((h: BrandSearchHistory) => h.brand);
@@ -218,6 +173,11 @@ export default pattern<HotelMembershipInput>(({
         .flatMap((h: BrandSearchHistory) => h.attempts.map((a: QueryAttempt) => `${h.brand}: "${a.query}" → ${a.emailsFound} emails, ${a.membershipsFound} memberships`))
         .slice(-5);  // Last 5 attempts
 
+      // Format current emails for agent to see
+      const emailSummary = emails.length > 0
+        ? emails.map((e: any, i: number) => `${i + 1}. [${e.id}] "${e.subject}" from ${e.from} (${e.date})`).join("\n")
+        : "(no emails loaded yet - set a query first)";
+
       return `Find hotel loyalty program membership numbers in my Gmail account.
 
 Current progress:
@@ -226,44 +186,53 @@ Current progress:
 - Brands searching: ${searchingBrands.join(", ") || "none"}
 - Brands exhausted: ${exhaustedBrands.join(", ") || "none"}
 
-Recent attempts:
+Recent query attempts:
 ${recentAttempts.length > 0 ? recentAttempts.join("\n") : "No attempts yet"}
+
+Current emails (${emails.length}):
+${emailSummary}
 
 Search for memberships from these hotel brands: Marriott, Hilton, Hyatt, IHG, Accor
 
-Strategy:
-1. Use searchGmail to find emails from hotel brands
-2. Analyze email subjects/previews (you'll see @link references)
-3. Use the read tool to read promising emails
-4. Extract membership numbers from email content
-5. If query returns promotional emails, refine with subject filters
-6. Try 3-5 different queries per brand before moving to next brand
+IMPORTANT: This is a ONE-SHOT task. You must:
+1. First, call setGmailQuery with "from:marriott.com" to search Gmail
+2. The results will appear above once loaded - analyze the subjects
+3. Read specific emails using their @link references
+4. Extract any membership numbers found
+5. Return your final result with all memberships
 
-When done, call finalResult with all memberships you found.`;
+Do NOT call setGmailQuery multiple times in a loop. Call it once, examine results, read emails, then return your final result with the memberships array.`;
     }
   );
+
+  // Define tools using the handler approach (handlers can mutate cells!)
+  const agentTools = {
+    setGmailQuery: {
+      description: "Set the Gmail search query. This triggers a new search and the results will appear in the email list. Wait for the emails to load after calling this.",
+      handler: setGmailQueryHandler({ queryCell: agentQueryCell }),
+    },
+  };
 
   const agent = generateObject({
     system: `You are a hotel loyalty program membership extractor.
 
 Your goal: Find membership numbers from hotel loyalty programs in the user's Gmail.
 
+CRITICAL: This is a SINGLE-PASS extraction. You will:
+1. See emails already loaded in the prompt (if any)
+2. Optionally call setGmailQuery ONCE to search for a specific brand
+3. Analyze the email list shown in the prompt
+4. Extract membership info from any promising emails
+5. Return your final result immediately
+
 Available tools:
-- searchGmail(query): Search Gmail, returns email @link references (NOT full content)
-- read(@link): Read full content of a specific email (built-in tool)
+- setGmailQuery(query): Search Gmail (e.g., "from:marriott.com"). Call this ONLY ONCE.
+- read(@link): Read email content
 
-How @links work:
-- searchGmail returns: [{"@link": "/of:abc/email/0"}, {"@link": "/of:abc/email/1"}, ...]
-- You see metadata but NOT full content
-- Use read tool to get full content: read({"@link": "/of:abc/email/0"})
-
-Search strategy:
-1. Start broad: "from:marriott.com"
-2. Analyze subjects in @link references
-3. Read promising emails (account/confirmation/welcome, not promotional)
-4. If mostly promotional: refine with "subject:(membership OR account OR number)"
-5. Try 3-5 queries per brand
-6. Extract membership numbers, program names, tiers
+DO NOT:
+- Call setGmailQuery multiple times
+- Loop or repeat tool calls
+- Wait for anything - results appear in the prompt automatically
 
 Membership data to extract:
 - hotelBrand: "Marriott", "Hilton", etc.
@@ -273,9 +242,9 @@ Membership data to extract:
 - sourceEmailId: Email ID where found
 - sourceEmailSubject: Email subject
 - sourceEmailDate: Email date
-- confidence: 0-100 (how confident you are this is valid)
+- confidence: 0-100
 
-When done searching all brands, call finalResult with memberships array.`,
+Return your final result with the memberships array containing any found memberships.`,
 
     prompt: agentPrompt,
 
