@@ -291,9 +291,16 @@ Return your final result with the memberships array containing any found members
 
   const { result: agentResult, pending: agentPending } = agent;
 
-  // Wrap agentResult in a derived cell so we can pass it to handlers
-  // agentResult is already a reactive value, so we just need to make it accessible
-  const agentResultCell = derive([agentResult], ([result]) => result);
+  // Store agent result in a mutable cell that we can read from the handler
+  const agentResultStore = Cell.of<any>(null);
+
+  // Update the store whenever agent result changes
+  derive([agentResult], ([result]) => {
+    if (result) {
+      agentResultStore.set(result);
+    }
+    return result;
+  });
 
   // Handler to save agent results and stop scanning
   const saveAgentResults = handler<unknown, {
@@ -302,9 +309,9 @@ Return your final result with the memberships array containing any found members
     lastScanAt: Cell<Default<number, 0>>;
     brandHistory: Cell<Default<BrandSearchHistory[], []>>;
     isScanning: Cell<Default<boolean, false>>;
-    agentResult: Cell<any>;
+    agentResultStore: Cell<any>;
   }>((_, state) => {
-    const result = state.agentResult.get();
+    const result = state.agentResultStore.get();
     if (!result) return;
 
     const currentMemberships = state.memberships.get();
@@ -523,6 +530,7 @@ Return your final result with the memberships array containing any found members
               )}
 
               {/* PROMINENT Agent Save Results Button - appears when agent completes */}
+              {/* Display-only content inside derive */}
               {derive(shouldShowAgentSaveButton, (show) =>
                 show ? (
                   <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
@@ -539,26 +547,29 @@ Return your final result with the memberships array containing any found members
                         return `Searched ${queries} quer${queries !== 1 ? 'ies' : 'y'}, no new memberships found`;
                       })}
                     </div>
-                    <ct-button
-                      onClick={saveAgentResults({
-                        memberships,
-                        scannedEmailIds,
-                        lastScanAt,
-                        brandHistory,
-                        isScanning,
-                        agentResult: agentResultCell,
-                      })}
-                      size="lg"
-                      style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-                    >
-                      💾 Save Results & Complete
-                    </ct-button>
                     <div style="fontSize: 11px; color: #059669; marginTop: 8px; textAlign: center; fontStyle: italic;">
-                      Click to save memberships and stop scanning
+                      Click button below to save memberships and stop scanning
                     </div>
                   </div>
                 ) : null
               )}
+
+              {/* Save button - use hidden attribute for visibility to avoid derive context issues */}
+              <ct-button
+                onClick={saveAgentResults({
+                  memberships,
+                  scannedEmailIds,
+                  lastScanAt,
+                  brandHistory,
+                  isScanning,
+                  agentResultStore: agentResultStore,
+                })}
+                size="lg"
+                style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                hidden={derive(shouldShowAgentSaveButton, (show) => !show)}
+              >
+                💾 Save Results & Complete
+              </ct-button>
             </ct-vstack>
 
             {/* Summary Stats */}
