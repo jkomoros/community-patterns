@@ -1,222 +1,55 @@
-# ⚠️ LIKELY WRONG: Use derive() Not computed() for Reactive JSX Rendering
+# DEPRECATED: Use derive() Not computed() for Reactive JSX Rendering
 
-**🚨 UPDATE 2025-11-25: This superstition is LIKELY WRONG.**
+**STATUS: DISPROVEN - See folk_wisdom/reactivity.md**
+
+This superstition has been disproven through code review and documentation research.
+
+---
+
+## What Was Claimed
+
+The original superstition claimed that `computed()` returns `[object Object]` when used in JSX, while `derive()` works correctly.
+
+## Why It's Wrong
 
 Code review of `packages/runner/src/builder/module.ts` shows:
-- `derive(input, fn)` → calls `lift(fn)(input)` → returns `OpaqueRef<T>`
-- `computed(fn)` → calls `lift(fn)(undefined)` → returns `OpaqueRef<T>`
 
-**Both return `OpaqueRef<T>`** - they are fundamentally the same! The only difference is that `derive()` takes explicit input dependencies while `computed()` captures them from closures.
+```typescript
+derive(input, fn) → calls lift(fn)(input) → returns OpaqueRef<T>
+computed(fn)      → calls lift(fn)(undefined) → returns OpaqueRef<T>
+```
 
-The `[object Object]` issue observed was likely caused by something else (perhaps a different bug that happened to be fixed when refactoring to use `derive()`).
+**Both return `OpaqueRef<T>`** - they are functionally identical!
+
+The `[object Object]` issue observed was caused by something else (perhaps a different bug that happened to be fixed when refactoring to use `derive()`).
+
+## Correct Understanding
+
+1. **`computed()` and `derive()` are the same thing** - `derive` is just the older name
+2. **JSX is automatically reactive** - you usually don't need either inside JSX
+3. **Use `computed()` outside JSX** for data transformations
+4. **The official docs prefer `computed()`** as the modern name
+
+## See Instead
+
+- **folk_wisdom/reactivity.md** - "computed() and derive() Are The Same Thing"
+- **folk_wisdom/reactivity.md** - "JSX is Automatically Reactive"
+- **Official docs:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
 
 ---
 
-**⚠️ ORIGINAL WARNING: This is a SUPERSTITION - unverified folk knowledge from a single observation.**
+## Original Guestbook (for history)
 
-This may be wrong, incomplete, or context-specific. Use with extreme skepticism and verify thoroughly!
+- ⭐ 2025-11-24 - Fixed weird JSX fragments in store-mapper pattern (fix-grocery-list-bugs)
+- ❌ 2025-11-25 - Code review shows both return OpaqueRef<T>. Marked as LIKELY WRONG.
+- ❌ 2025-11-26 - Formally deprecated after folk wisdom synthesis confirmed they're identical.
 
-## Topic
+---
 
-Rendering reactive JSX content - `derive()` vs `computed()`
-
-## Problem
-
-When embedding reactive content inside JSX, using `computed(() => { return <JSX/> })` causes weird rendering issues:
-- UI shows `[object Object]` or strange fragments instead of actual content
-- JSX elements don't render properly
-- Buttons/text appear as object representations
-
-### What Didn't Work
-
-```typescript
-// ❌ Using computed() to return JSX
-<div>
-  {computed(() => {
-    const value = someCell.get();
-
-    if (value === "pending") {
-      return <div>Loading...</div>;
-    }
-
-    return <div>Content: {value}</div>;
-  })}
-</div>
-```
-
-**Symptom:** The UI shows something like:
-- `[object Object]` text
-- Weird JSX fragment representations
-- Content doesn't render as actual HTML elements
-
-**Why:** `computed()` returns a `Cell` object, not rendered JSX. When that Cell is embedded in JSX, it gets converted to a string representation of the object.
-
-## Solution That Seemed to Work
-
-Use `derive()` with explicit dependencies instead of `computed()`:
-
-```typescript
-// ✅ Using derive() to return JSX
-<div>
-  {derive(
-    { value: someCell },
-    ({ value }) => {
-      if (value === "pending") {
-        return <div>Loading...</div>;
-      }
-
-      return <div>Content: {value}</div>;
-    }
-  )}
-</div>
-```
-
-**Result:** JSX renders properly as HTML elements, reactively updating when dependencies change.
-
-## Context
-
-- **Pattern:** store-mapper.tsx
-- **Use case:** Conditionally rendering different UI states (pending, success, error) based on LLM response
-- **Framework:** CommonTools JSX with reactive cells
-- **Error location:** Photo extraction results section showing analysis status
-
-## Theory / Hypothesis
-
-The difference between `computed()` and `derive()`:
-
-1. **computed()**:
-   - Returns a `Cell<T>`
-   - Meant for computed values that will be read via `.get()`
-   - Not designed for direct JSX embedding
-   - When embedded in JSX, gets coerced to string → `[object Object]`
-
-2. **derive()**:
-   - Can return any type including JSX/RenderNode
-   - Explicitly declares dependencies in first argument
-   - Framework knows how to render the returned JSX
-   - Properly re-renders when dependencies change
-
-**Mental model:**
-- Use `computed()` for **values** you'll read with `.get()`
-- Use `derive()` for **rendering** JSX reactively
-
-## Examples
-
-### ❌ Don't use computed() for JSX:
-```typescript
-// DON'T DO THIS
-{computed(() => {
-  const pending = extraction.pending;
-  const result = extraction.result;
-
-  if (pending) return <div>Analyzing...</div>;
-  if (!result) return <div>No results</div>;
-  return <div>Found: {result.items.length} items</div>;
-})}
-```
-
-### ✅ Do use derive() for JSX:
-```typescript
-// DO THIS INSTEAD
-{derive(
-  { pending: extraction.pending, result: extraction.result },
-  ({ pending, result }) => {
-    if (pending) return <div>Analyzing...</div>;
-    if (!result) return <div>No results</div>;
-    return <div>Found: {result.items.length} items</div>;
-  }
-)}
-```
-
-### ✅ computed() is fine for values:
-```typescript
-// This is fine - you'll call .get() on it
-const itemCount = computed(() => {
-  const items = itemsCell.get();
-  return items.length;
-});
-
-// Later:
-<div>Total: {itemCount}</div>  // ✅ Works because it's a primitive value
-```
-
-### ✅ derive() for complex conditional rendering:
-```typescript
-{derive(
-  {
-    isPending: assignment.pending,
-    extractedData: assignment.extractedAisles,
-    currentAisles: aisles
-  },
-  ({ isPending, extractedData, currentAisles }) => {
-    // Show pending state
-    if (isPending) {
-      return (
-        <div style={{ color: "#16a34a" }}>
-          Analyzing photo...
-        </div>
-      );
-    }
-
-    // Show error state
-    if (!extractedData || extractedData.aisles.length === 0) {
-      return (
-        <div style={{ color: "#999" }}>
-          No aisles detected
-        </div>
-      );
-    }
-
-    // Show results
-    return (
-      <div>
-        Found {extractedData.aisles.length} aisles
-        {/* ... more complex JSX ... */}
-      </div>
-    );
-  }
-)}
-```
-
-## Key Differences Summary
-
-| Feature | `computed()` | `derive()` |
-|---------|-------------|-----------|
-| **Returns** | `Cell<T>` | `T` (unwrapped) |
-| **Use for** | Computed values | Rendered content |
-| **Dependencies** | Implicit (via `.get()`) | Explicit (first arg) |
-| **JSX embedding** | ❌ Shows `[object Object]` | ✅ Renders properly |
-| **Access pattern** | Call `.get()` | Use directly |
-
-## Related Official Docs
-
-- CommonTools reactivity documentation
-- Cell documentation
-- derive() vs computed() comparison (if exists)
-
-The official docs may not explicitly warn that `computed()` shouldn't be used for JSX rendering.
-
-## Metadata
-
+**Metadata:**
 ```yaml
-topic: jsx-rendering, computed, derive, reactivity, cells
-discovered: 2025-11-24
-confirmed_count: 2
-last_confirmed: 2025-11-24
-sessions: [fix-grocery-list-bugs, smart-rubric-phase-1]
-related_functions: computed, derive
-related_patterns: Cell, JSX, conditional-rendering
-status: superstition
-stars: ⭐⭐
+status: deprecated
+deprecated_date: 2025-11-26
+reason: Disproven by code review - computed() and derive() are identical
+see_instead: folk_wisdom/reactivity.md
 ```
-
-## Guestbook
-
-- ⭐ 2025-11-24 - Fixed weird JSX fragments in store-mapper pattern - Using `computed(() => { return <JSX/> })` showed `[object Object]` in UI. Changed to `derive({ deps }, ({ deps }) => { return <JSX/> })` and JSX renders properly. UI suggestions section now shows clean buttons instead of object representations. (fix-grocery-list-bugs)
-- ❌ 2025-11-25 - Code review shows `derive()` and `computed()` both return `OpaqueRef<T>` via `lift()`. The original fix likely addressed a different issue. Marking as LIKELY WRONG. (update-patterns-for-labs-changes)
-
-- ⭐ 2025-11-24 - **CONFIRMED!** Built smart-rubric pattern with dynamic score calculations. Initially tried calling a function `calculateScore(option)` that accessed `dimensions.get()` inside JSX map - got "Cannot create cell link: space is required" error. Tried using `dimensions.forEach()` directly - same error. **Solution:** Used `derive({ option, dims: dimensions }, ({ option, dims }) => { /* calculate score */ })` inline in the map. Works perfectly! Scores are now reactive and update when dimension weights change. This pattern matches what store-mapper.tsx does extensively. (smart-rubric-phase-1)
-
----
-
-**Remember: This is just one observation. Test thoroughly in your own context!**
