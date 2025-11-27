@@ -919,19 +919,23 @@ export default pattern<{
     const showAuth = cell(false);
 
     // Wish for a favorited auth charm (used when no explicit authCharm provided)
-    const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
+    // TODO(CT-1084): Update to wish({ query: "#googleAuth" }) when object syntax bug is fixed
+    // Currently using legacy string syntax because object syntax compiles to {}
+    // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
+    const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
 
     // Determine if we have an explicit auth charm provided
     const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
 
     // Get the effective auth charm: explicit one if provided, otherwise wished one
     const effectiveAuthCharm = derive(
-      { authCharm, wishResult, hasExplicitAuth },
-      ({ authCharm, wishResult, hasExplicitAuth }) => {
+      { authCharm, wishedAuthCharm, hasExplicitAuth },
+      ({ authCharm, wishedAuthCharm, hasExplicitAuth }) => {
         if (hasExplicitAuth) {
           return authCharm;
         }
-        return wishResult?.result || null;
+        // Legacy syntax returns the result directly (not wrapped in { result, error })
+        return wishedAuthCharm || null;
       }
     );
 
@@ -951,14 +955,14 @@ export default pattern<{
 
     // Track if we're using wished auth vs explicit
     const usingWishedAuth = derive(
-      { hasExplicitAuth, wishResult },
-      ({ hasExplicitAuth, wishResult }) => !hasExplicitAuth && !!wishResult?.result
+      { hasExplicitAuth, wishedAuthCharm },
+      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !!wishedAuthCharm
     );
 
-    // Track wish error state (only relevant when no explicit auth)
+    // Note: Legacy syntax doesn't provide error info, so we just check if auth is missing
     const wishError = derive(
-      { hasExplicitAuth, wishResult },
-      ({ hasExplicitAuth, wishResult }) => !hasExplicitAuth ? wishResult?.error : null
+      { hasExplicitAuth, wishedAuthCharm },
+      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleAuth favorite found" : null
     );
 
     computed(() => {

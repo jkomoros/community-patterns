@@ -26,15 +26,15 @@ function getPrimaryTag(tagStr: string): string {
 }
 
 export default pattern<Record<string, never>>((_) => {
-  const wishResult = wish<Array<Favorite>>({ tag: "#favorites" });
+  // TODO(CT-1084): Update to wish({ query: "#favorites" }) when object syntax bug is fixed
+  // Currently using legacy string syntax because object syntax compiles to {}
+  // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
+  const favorites = wish<Array<Favorite>>("#favorites");
 
   const favoriteCount = derive(
-    wishResult,
-    (wr) => wr?.result?.length ?? 0,
+    favorites,
+    (favs) => favs?.length ?? 0,
   );
-
-  // Simple list - don't group to avoid async issues with tag loading
-  const favorites = derive(wishResult, (wr) => wr?.result ?? []);
 
   return {
     [NAME]: "⭐ Favorites",
@@ -63,23 +63,6 @@ export default pattern<Record<string, never>>((_) => {
           </div>
         </div>
 
-        {derive(wishResult, (wr) =>
-          wr?.error
-            ? (
-              <div
-                style={{
-                  padding: "15px",
-                  backgroundColor: "#fff3cd",
-                  border: "1px solid #ffc107",
-                  borderRadius: "8px",
-                  color: "#856404",
-                }}
-              >
-                ⚠️ {wr.error}
-              </div>
-            )
-            : null
-        )}
 
         {derive(favoriteCount, (count) =>
           count === 0
@@ -148,7 +131,7 @@ export default pattern<Record<string, never>>((_) => {
           <strong>💡 Tip:</strong> Favorites are stored in your home space and
           shared across all your spaces. Patterns can use{" "}
           <code style={{ backgroundColor: "#e9ecef", padding: "2px 6px", borderRadius: "3px" }}>
-            wish({"{"} tag: "#tagName" {"}"})
+            wish("#tagName")
           </code>{" "}
           to discover favorited charms automatically.
         </div>
