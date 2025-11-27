@@ -65,6 +65,71 @@ fi
 git push origin $CURRENT_BRANCH --force-with-lease
 ```
 
+## Step 2.5: Check for Downstream Dependencies
+
+**IMPORTANT:** If your changes modified any pattern's input type (the type parameter to `pattern<Input>`), you MUST check if other patterns import and use that pattern.
+
+```bash
+# Get list of changed .tsx files
+CHANGED_PATTERNS=$(git diff --name-only $MAIN_REMOTE/main...HEAD -- '*.tsx')
+
+if [ -n "$CHANGED_PATTERNS" ]; then
+  echo "Changed patterns:"
+  echo "$CHANGED_PATTERNS"
+  echo ""
+  echo "Checking for downstream dependencies..."
+
+  for file in $CHANGED_PATTERNS; do
+    # Extract the pattern name from the file path
+    PATTERN_NAME=$(basename "$file" .tsx)
+
+    # Search for imports of this pattern in other files
+    IMPORTERS=$(grep -l "from.*['\"].*${PATTERN_NAME}['\"]" patterns/**/*.tsx 2>/dev/null | grep -v "$file" || true)
+
+    if [ -n "$IMPORTERS" ]; then
+      echo ""
+      echo "⚠️  $PATTERN_NAME is imported by:"
+      echo "$IMPORTERS"
+      echo "   → Check if input type changes require updates to these files!"
+    fi
+  done
+fi
+```
+
+**What to check:**
+- If you changed a pattern's input type (added/removed/renamed fields)
+- Find all patterns that import and instantiate that pattern
+- Update their instantiation calls to match the new type
+- Common case: `page-creator.tsx` imports many patterns for its launcher buttons
+
+**Example:** If `hotel-membership-extractor.tsx` input changes from 10 fields to 3 fields, `page-creator.tsx` must be updated to only pass the 3 valid fields.
+
+### Verify Importing Patterns Deploy Successfully
+
+After updating any importing patterns, **you MUST verify they compile and deploy**:
+
+```bash
+# For each pattern that imports the changed pattern, test deployment
+# Example: if page-creator.tsx imports hotel-membership-extractor.tsx
+
+cd ../labs && deno task ct charm new \
+  --api-url http://localhost:8000 \
+  --identity /path/to/community-patterns/claude.key \
+  --space testing \
+  /path/to/community-patterns/patterns/$USER/page-creator.tsx
+```
+
+**Why this matters:**
+- TypeScript compilation happens at deploy time, not at save time
+- A pattern may look fine in your editor but fail to deploy due to type mismatches
+- Catching these errors before landing prevents broken patterns on main
+
+**If deployment fails:**
+1. Read the error message (usually shows the exact type mismatch)
+2. Fix the instantiation call to match the new input type
+3. Re-deploy to verify the fix
+4. Commit the fix before proceeding
+
 ## Step 3: Create PR
 
 ```bash
