@@ -973,3 +973,80 @@ ${[...knownNumbers].join(", ")}
 1. **Phase 1: Export** - Add `#hotelMemberships` tag to output
 2. **Phase 2: Import wish** - Accept wished memberships and merge
 3. **Phase 3: Agent awareness** - Update agent to skip known brands
+
+---
+
+## 🚫 Framework Issue: Auth Linking Not Working (2025-11-27)
+
+### Problem
+
+Cannot test the auto-save implementation because:
+1. `wish("#googleAuth")` fails - favorites don't persist across navigation (known bug CT-1085)
+2. `charm link` command doesn't work for pattern inputs
+3. Both `/auth` and `/argument/auth` paths fail to propagate auth to pattern
+
+### What We Tried
+
+1. **Favoriting gmail-auth charm**
+   - Favorited the charm (star turns ⭐)
+   - Navigated to hotel-membership-extractor
+   - Favorite not found: `No favorite found matching "googleauth"`
+   - This is the known favorites bug documented in ISSUE-favorites-not-persisting-across-navigation.md
+
+2. **Using `charm link` command**
+   ```bash
+   deno task ct charm link --space jkomoros-test TARGET/auth SOURCE/auth
+   ```
+   - Command reports "Linked ... successfully"
+   - But pattern still shows "Has Direct Auth: No"
+   - Tried both `/auth` and `/argument/auth` paths
+
+3. **Using "Create Gmail Auth" button**
+   - Button spawns new gmail-auth charm with linked auth
+   - OAuth flow completes successfully (shows "Authentication successful!")
+   - Navigate back to hotel-membership-extractor
+   - Pattern still shows "🔒 Gmail Authentication Required"
+   - Auth linkage doesn't survive navigation
+
+### Debug Info from Pattern
+
+```
+Is Authenticated: No
+Auth Source: none
+Has Direct Auth: No
+Has Wished Auth: No
+Auth User: none
+```
+
+### Root Causes
+
+1. **CT-1085: Favorites don't persist** - Known bug preventing `wish("#tag")` from finding favorited charms
+2. **Charm link may not work for pattern inputs** - The link seems to go to output cells, not input cells
+3. **Page navigation may reset link resolution** - Links established may not be re-resolved after navigation
+
+### Impact
+
+Cannot test:
+- Auto-save feature (reportMembership tool)
+- Real-time membership updates
+- Done button workflow
+- Agent scanning with real Gmail data
+
+### Workaround Attempts
+
+1. ❌ Direct charm link to `/auth` - Doesn't work
+2. ❌ Direct charm link to `/argument/auth` - Doesn't work
+3. ❌ Using "Create Gmail Auth" button - Auth doesn't persist
+4. ❌ Favoriting gmail-auth charm - Favorites bug blocks this
+
+### Next Steps
+
+1. **Document as framework issue** - This may need framework-level fix
+2. **Try testing without navigation** - Stay on same page throughout OAuth flow
+3. **Ask framework authors** - How should pattern input linking work?
+4. **Consider alternative auth patterns** - Maybe embed auth directly?
+
+### Related Issues
+
+- ISSUE-favorites-not-persisting-across-navigation.md (bisected to commit a83109850)
+- CT-1085 (referenced in pattern workaround comments)
