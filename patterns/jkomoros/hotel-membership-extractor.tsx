@@ -601,6 +601,15 @@ Be thorough and search for all major hotel brands.`,
     },
   );
 
+  // Handler to change scan mode (power user setting)
+  const setScanMode = handler<
+    unknown,
+    { mode: number; maxSearches: Cell<Default<number, 5>> }
+  >((_, state) => {
+    state.maxSearches.set(state.mode);
+    console.log(`[SetScanMode] Changed to: ${state.mode === 0 ? "Full" : state.mode} searches`);
+  });
+
   const startScan = handler<unknown, {
     isScanning: Cell<Default<boolean, false>>;
     isAuthenticated: Cell<boolean>;
@@ -875,20 +884,56 @@ Be thorough and search for all major hotel brands.`,
               <summary style="cursor: pointer; padding: 8px; background: #f8f9fa; border: 1px solid #e0e0e0; borderRadius: 4px; fontSize: 12px;">
                 🔧 Debug Info
               </summary>
-              <ct-vstack gap={2} style="padding: 12px; fontSize: 12px; fontFamily: monospace;">
-                <div>Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
-                <div>Auth Source: {authSource}</div>
-                <div>Has Direct Auth: {derive(hasDirectAuth, (h) => h ? "Yes ✓" : "No")}</div>
-                <div>Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
-                <div>Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
-                <div>Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
-                <div>Agent Pending: {derive(agentPending, (p) => p ? "Yes ⏳" : "No ✓")}</div>
-                <div>Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
-                <div>Memberships Found (agent count): {derive(agentResult, (r) => r?.membershipsFound || 0)}</div>
-                <div>Searches Performed: {derive(agentResult, (r) =>
+              <ct-vstack gap={2} style="padding: 12px; fontSize: 12px;">
+                {/* Scan Mode Selector - Power User Setting */}
+                <div style="marginBottom: 12px; padding: 8px; background: #f0f0f0; borderRadius: 4px;">
+                  <div style="marginBottom: 6px; fontWeight: 600;">Scan Mode:</div>
+                  <div style="display: flex; gap: 6px; flexWrap: wrap;">
+                    <button
+                      onClick={setScanMode({ mode: 5, maxSearches })}
+                      style={derive(maxSearches, (max: number) => `
+                        padding: 4px 10px; border: 1px solid ${max === 5 ? "#f59e0b" : "#ccc"};
+                        borderRadius: 4px; background: ${max === 5 ? "#fef3c7" : "white"};
+                        cursor: pointer; fontSize: 11px;
+                      `)}
+                    >
+                      Quick (5)
+                    </button>
+                    <button
+                      onClick={setScanMode({ mode: 20, maxSearches })}
+                      style={derive(maxSearches, (max: number) => `
+                        padding: 4px 10px; border: 1px solid ${max === 20 ? "#3b82f6" : "#ccc"};
+                        borderRadius: 4px; background: ${max === 20 ? "#dbeafe" : "white"};
+                        cursor: pointer; fontSize: 11px;
+                      `)}
+                    >
+                      Normal (20)
+                    </button>
+                    <button
+                      onClick={setScanMode({ mode: 0, maxSearches })}
+                      style={derive(maxSearches, (max: number) => `
+                        padding: 4px 10px; border: 1px solid ${max === 0 ? "#10b981" : "#ccc"};
+                        borderRadius: 4px; background: ${max === 0 ? "#d1fae5" : "white"};
+                        cursor: pointer; fontSize: 11px;
+                      `)}
+                    >
+                      Full (unlimited)
+                    </button>
+                  </div>
+                </div>
+                <div style="fontFamily: monospace;">Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
+                <div style="fontFamily: monospace;">Auth Source: {authSource}</div>
+                <div style="fontFamily: monospace;">Has Direct Auth: {derive(hasDirectAuth, (h) => h ? "Yes ✓" : "No")}</div>
+                <div style="fontFamily: monospace;">Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
+                <div style="fontFamily: monospace;">Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
+                <div style="fontFamily: monospace;">Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
+                <div style="fontFamily: monospace;">Agent Pending: {derive(agentPending, (p) => p ? "Yes ⏳" : "No ✓")}</div>
+                <div style="fontFamily: monospace;">Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
+                <div style="fontFamily: monospace;">Memberships Found (agent count): {derive(agentResult, (r) => r?.membershipsFound || 0)}</div>
+                <div style="fontFamily: monospace;">Searches Performed: {derive(agentResult, (r) =>
                   r?.searchesPerformed?.map((s: any) => `${s.query} (${s.emailsFound})`).join(", ") || "none"
                 )}</div>
-                <div>Agent Summary: {derive(agentResult, (r) => r?.summary?.substring(0, 100) || "none")}</div>
+                <div style="fontFamily: monospace;">Agent Summary: {derive(agentResult, (r) => r?.summary?.substring(0, 100) || "none")}</div>
               </ct-vstack>
             </details>
           </ct-vstack>
