@@ -436,14 +436,51 @@ Be thorough and search for all major hotel brands.`,
     const result = state.agentResultStore.get();
     if (!result) return;
 
+    console.log("[SaveResults] Raw result:", JSON.stringify(result, null, 2));
+    console.log("[SaveResults] Raw memberships:", result.memberships);
+
+    // Debug each membership
+    if (result.memberships) {
+      result.memberships.forEach((m: any, i: number) => {
+        console.log(`[SaveResults] Membership ${i}:`, {
+          hotelBrand: m.hotelBrand,
+          hotelBrandType: typeof m.hotelBrand,
+          programName: m.programName,
+          membershipNumber: m.membershipNumber,
+        });
+      });
+    }
+
     const currentMemberships = state.memberships.get();
 
     // Add new memberships with unique IDs
-    const newMemberships = (result.memberships || []).map((m: any) => ({
-      ...m,
-      id: `${m.hotelBrand}-${m.membershipNumber}-${Date.now()}`,
-      extractedAt: Date.now(),
-    }));
+    // Extract only primitive fields - don't spread the whole object as it may contain @link references
+    // Also handle case where values might be cell references that need .get()
+    const newMemberships = (result.memberships || []).map((m: any) => {
+      // Try to get raw values, handling both direct values and cell references
+      const getValue = (v: any): string => {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "string") return v;
+        if (typeof v === "number") return String(v);
+        if (typeof v?.get === "function") return String(v.get() || "");
+        return String(v);
+      };
+
+      const membership = {
+        id: `${getValue(m.hotelBrand)}-${getValue(m.membershipNumber)}-${Date.now()}`,
+        hotelBrand: getValue(m.hotelBrand),
+        programName: getValue(m.programName),
+        membershipNumber: getValue(m.membershipNumber),
+        tier: m.tier ? getValue(m.tier) : undefined,
+        sourceEmailId: getValue(m.sourceEmailId),
+        sourceEmailDate: getValue(m.sourceEmailDate),
+        sourceEmailSubject: getValue(m.sourceEmailSubject),
+        extractedAt: Date.now(),
+        confidence: typeof m.confidence === "number" ? m.confidence : undefined,
+      };
+      console.log(`[SaveResults] Processed membership:`, membership);
+      return membership;
+    });
 
     // Deduplicate by membership number
     const existingNumbers = new Set(currentMemberships.map(m => m.membershipNumber));
@@ -624,7 +661,7 @@ Be thorough and search for all major hotel brands.`,
                 return brands.map((brand) => (
                   <details open style="border: 1px solid #e0e0e0; borderRadius: 8px; marginBottom: 12px; padding: 12px;">
                     <summary style="cursor: pointer; fontWeight: 600; fontSize: 14px; marginBottom: 8px;">
-                      {brand} ({groups[brand].length})
+                      {brand || "Unknown Brand"} ({groups[brand].length})
                     </summary>
                     <ct-vstack gap={2} style="paddingLeft: 16px;">
                       {groups[brand].map((m) => (
@@ -643,7 +680,7 @@ Be thorough and search for all major hotel brands.`,
                             </div>
                           )}
                           <div style="fontSize: 11px; color: #999;">
-                            📧 {m.sourceEmailSubject} • {new Date(m.sourceEmailDate).toLocaleDateString()}
+                            📧 {m.sourceEmailSubject || "Unknown email"} • {m.sourceEmailDate ? new Date(m.sourceEmailDate).toLocaleDateString() : "Unknown date"}
                           </div>
                         </div>
                       ))}
