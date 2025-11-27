@@ -26,6 +26,24 @@
  *
  * See git commit df6c3cc for detailed dispatch to framework team.
  *
+ * AUTH SETUP (CT-1085 WORKAROUND):
+ * Due to CT-1085 (favorites don't persist across navigation), wish("#googleAuth")
+ * doesn't work reliably. Use manual charm linking instead:
+ *
+ * 1. Deploy gmail-auth charm:
+ *    CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+ *      deno task ct charm new patterns/jkomoros/gmail-auth.tsx --space YOUR_SPACE
+ *
+ * 2. Complete OAuth flow in gmail-auth charm (navigate to it, click authenticate)
+ *
+ * 3. Deploy this tracker:
+ *    CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+ *      deno task ct charm new patterns/jkomoros/prompt-injection-tracker.tsx --space YOUR_SPACE
+ *
+ * 4. Link auth:
+ *    CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+ *      deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
+ *
  * STATUS: Phases 1-3 working, 4-5 in progress
  */
 import {
@@ -216,6 +234,10 @@ interface PromptInjectionReport {
 
 interface Input {
   emails: Default<any[], []>;  // Link from GmailImporter.emails externally
+  // WORKAROUND (CT-1085): Accept auth charm as direct input since favorites don't persist.
+  // Users can manually link gmail-auth charm to this input using:
+  //   deno task ct charm link GMAIL_AUTH_ID YOUR_TRACKER_ID/authCharm --space YOUR_SPACE
+  authCharm: Default<any, null>;
 }
 
 interface Output {
@@ -231,20 +253,26 @@ interface Output {
 // ============================================================================
 
 export default pattern<Input, Output>(
-  ({ emails: inputEmails }) => {
+  ({ emails: inputEmails, authCharm }) => {
     // ========================================================================
     // Embedded Gmail Integration
     // ========================================================================
 
     // Create Gmail importer with hard-coded query
-    // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
+    // WORKAROUND (CT-1085): Pass authCharm from input since wish("#googleAuth") doesn't work
+    // reliably due to favorites not persisting across page navigations.
+    //
+    // To set up auth:
+    // 1. Deploy gmail-auth: deno task ct charm new patterns/jkomoros/gmail-auth.tsx --space YOUR_SPACE
+    // 2. Complete OAuth flow in gmail-auth charm
+    // 3. Link auth: deno task ct charm link GMAIL_AUTH_ID THIS_CHARM_ID/authCharm --space YOUR_SPACE
     const importer = GmailImporter({
       settings: {
         gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
         limit: 100,
         historyId: "",
       },
-      authCharm: null,  // Let importer wish for shared auth
+      authCharm,  // Pass through from input (can be linked via charm link command)
     });
 
     // For now, just use importer.emails directly
