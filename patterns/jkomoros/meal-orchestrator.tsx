@@ -398,21 +398,12 @@ const applyLinking = handler<
       // Add to createdCharms so it becomes mentionable via this charm's export
       createdCharms.push(newCharm);
 
-      // Store as wrapper object with display data AND the charm reference
-      // This is needed because OpaqueRef properties aren't directly accessible in derive()
-      const wrapper = {
-        charm: newCharm,
-        name: item.normalizedName,
-        servings: item.servings || 4,
-        category: item.category || "other",
-        source: item.source || "",
-      };
-
       // Add to appropriate array for this meal
+      // OpaqueRef properties are now directly accessible after framework fix
       if (item.type === "recipe") {
-        recipesToAdd.push(wrapper);
+        recipesToAdd.push(newCharm);
       } else {
-        preparedToAdd.push(wrapper);
+        preparedToAdd.push(newCharm);
       }
     }
   });

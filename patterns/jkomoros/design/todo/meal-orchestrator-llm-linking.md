@@ -303,17 +303,17 @@ const createMissingItem = handler<unknown, { item: FoodItem }>((_event, { item }
 **Status:** Successfully implemented and tested. This is the recommended solution until framework adds `createCharm()` primitive.
 
 ### Phase 7: Automatic Creation via mentionable Export ✅ COMPLETED
-After framework author clarified that charms should be created by calling pattern functions and exporting them via `mentionable`, implemented automatic charm creation with a workaround for the OpaqueRef property access limitation.
+After framework author clarified that charms should be created by calling pattern functions and exporting them via `mentionable`, implemented automatic charm creation.
 
 - [x] Update applyLinking handler to create charms via pattern function calls
 - [x] Push created charms to `createdCharms` for mentionable export
 - [x] Update modal UI to show automatic creation message
 - [x] Test workflow in Playwright
-- [x] Fix display issue with wrapper object pattern
+- [x] ~~Fix display issue with wrapper object pattern~~ **RESOLVED by framework fix**
 
-**Implementation Details (2025-11-25):**
+**Implementation Details (2025-11-25, updated 2025-11-27):**
 
-1. **Create charms and export via mentionable** (lines 366-416):
+1. **Create charms and export via mentionable** (lines 366-407):
 ```typescript
 } else {
   // No match - create a new charm with LLM-extracted data
@@ -324,48 +324,36 @@ After framework author clarified that charms should be created by calling patter
   // Add to createdCharms so it becomes mentionable via this charm's export
   createdCharms.push(newCharm);
 
-  // Store as wrapper object with display data AND the charm reference
-  // This is needed because OpaqueRef properties aren't directly accessible
-  const wrapper = {
-    charm: newCharm,
-    name: item.normalizedName,
-    servings: item.servings || 4,
-    category: item.category || "other",
-    source: item.source || "",
-  };
-
   // Add to appropriate array for this meal
+  // OpaqueRef properties are now directly accessible after framework fix
   if (item.type === "recipe") {
-    recipesToAdd.push(wrapper);
+    recipesToAdd.push(newCharm);
   } else {
-    preparedToAdd.push(wrapper);
+    preparedToAdd.push(newCharm);
   }
 }
 ```
 
 2. **UI Update**: Shows "✨ Will create new recipe/prepared food charm" for unmatched items
 
-**Key Discovery - OpaqueRef Property Access Limitation:**
+**Framework Fix (2025-11-27):**
 
-When OpaqueRefs are stored in Cell arrays, their properties are NOT directly accessible:
-- `Object.keys(opaqueRef)` returns `[]`
-- `opaqueRef.name` returns `undefined`
+The OpaqueRef property access limitation has been **FIXED** in labs commit `03c6e190e`:
+- "fix(runner): fix instantiating patterns and saving them via Cell.push in a handler"
 
-**Workaround:** Store wrapper objects containing both display data AND the charm reference:
-```typescript
-const wrapper = {
-  charm: newCharm,      // OpaqueRef for framework features
-  name: "...",          // Display data duplicated
-  servings: 4,
-  category: "main",
-};
-```
+Key changes:
+- Track created opaque refs in the current frame in `opaqueRefWithCell`
+- Process result recipes when `frame.opaqueRefs.size > 0` (not just when returned)
+- Patterns created via `list.push(newPattern)` are now correctly instantiated
+- OpaqueRef properties (`.name`, `.servings`, etc.) are directly accessible in Cell arrays
 
-**Documentation:**
-- Superstition: `community-docs/superstitions/2025-11-25-opaqueref-properties-not-accessible-in-arrays.md`
-- Issue file: `patterns/jkomoros/issues/ISSUE-OpaqueRef-Properties-Not-Accessible-In-Cell-Arrays.md`
+**Previous Workaround (REMOVED):**
+~~Store wrapper objects containing both display data AND the charm reference~~
+- This workaround is no longer needed after the framework fix
+- Code simplified to push OpaqueRefs directly
+- Cleanup commit on branch `cleanup-opaqueref-workarounds`
 
-**Status:** ✅ WORKING with wrapper workaround
+**Status:** ✅ WORKING - wrapper workaround removed
 
 **Branch:** `feature/auto-create-charms`
 **Commits:**
