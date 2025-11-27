@@ -1,14 +1,24 @@
 /// <cts-enable />
-import { Cell, cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI, wish } from "commontools";
-import GmailImporter from "./gmail-importer.tsx";
+import { Cell, Default, derive, generateObject, getRecipeEnvironment, handler, NAME, navigateTo, pattern, UI, wish } from "commontools";
+import GmailAuth from "./gmail-auth.tsx";
 
 // Import Email type and Auth type
-import type { Email, Auth } from "./gmail-importer.tsx";
+import type { Auth } from "./gmail-importer.tsx";
 
 // What we expect from the gmail-auth charm via wish
 type GoogleAuthCharm = {
   auth: Auth;
 };
+
+// Simplified Email type for the agent
+interface SimpleEmail {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+  body: string;  // Plain text or markdown content
+}
 
 // ============================================================================
 // DATA STRUCTURES
@@ -26,69 +36,172 @@ interface MembershipRecord {
   confidence?: number;          // LLM confidence 0-100
 }
 
-interface QueryAttempt {
-  query: string;                // The Gmail query tried
-  attemptedAt: number;          // Timestamp
-  emailsFound: number;          // How many emails returned
-  membershipsFound: number;     // How many memberships extracted
-  emailIds: { [id: string]: true };  // Which emails (for deduplication, using object as set)
-}
-
-interface BrandSearchHistory {
-  brand: string;                // Brand name (e.g., "Marriott")
-  attempts: QueryAttempt[];     // All query attempts for this brand
-  status: "searching" | "found" | "exhausted";  // Current status
-}
-
-// Old tracking structure (for backward compatibility during transition)
-interface BrandSearchRecord {
-  brand: string;
-  searchedAt: number;
-}
-
 interface HotelMembershipInput {
   memberships: Default<MembershipRecord[], []>;
-  scannedEmailIds: Default<string[], []>;
   lastScanAt: Default<number, 0>;
-  // New: Query history tracking per brand
-  brandHistory: Default<BrandSearchHistory[], [{ brand: "Marriott"; attempts: []; status: "searching" }]>;
-  // Old fields kept for backward compatibility during transition
-  searchedBrands: Default<string[], []>;
-  searchedNotFound: Default<BrandSearchRecord[], []>;  // Old tracking structure
-  unsearchedBrands: Default<string[], []>;
-  currentQuery: Default<string, "">;
   isScanning: Default<boolean, false>;
-  queryGeneratorInput: Default<string, "">;  // Trigger cell for LLM query generation
-  // Gmail settings - individual fields like substack-summarizer
-  gmailFilterQuery: Default<string, "">;
-  limit: Default<number, 50>;
-  // Auth is now discovered via wish() - no longer stored in pattern input
 }
+
+const env = getRecipeEnvironment();
+
+// ============================================================================
+// Gmail Fetching Utilities (inline, similar to gmail-importer)
+// ============================================================================
+
+async function fetchGmailEmails(
+  token: string,
+  query: string,
+  maxResults: number = 20
+): Promise<SimpleEmail[]> {
+  if (!token) {
+    throw new Error("No auth token");
+  }
+
+  // Step 1: Search for message IDs
+  const searchUrl = new URL(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`
+  );
+
+  const searchRes = await fetch(searchUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!searchRes.ok) {
+    throw new Error(`Gmail search failed: ${searchRes.status} ${searchRes.statusText}`);
+  }
+
+  const searchJson = await searchRes.json();
+  const messageIds: { id: string }[] = searchJson.messages || [];
+
+  if (messageIds.length === 0) {
+    return [];
+  }
+
+  console.log(`[SearchGmail] Found ${messageIds.length} messages for query: ${query}`);
+
+  // Step 2: Fetch full message content using batch API
+  const boundary = `batch_${Math.random().toString(36).substring(2)}`;
+  const batchBody = messageIds.map((msg, index) => `
+--${boundary}
+Content-Type: application/http
+Content-ID: <batch-${index}+${msg.id}>
+
+GET /gmail/v1/users/me/messages/${msg.id}?format=full
+Authorization: Bearer ${token}
+Accept: application/json
+
+`).join("") + `--${boundary}--`;
+
+  const batchRes = await fetch(
+    "https://gmail.googleapis.com/batch/gmail/v1",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/mixed; boundary=${boundary}`,
+      },
+      body: batchBody,
+    }
+  );
+
+  if (!batchRes.ok) {
+    throw new Error(`Gmail batch fetch failed: ${batchRes.status}`);
+  }
+
+  const responseText = await batchRes.text();
+
+  // Parse batch response
+  const emails: SimpleEmail[] = [];
+  const parts = responseText.split(`--batch_`).slice(1, -1);
+
+  for (const part of parts) {
+    try {
+      const jsonStart = part.indexOf(`\n{`);
+      if (jsonStart === -1) continue;
+
+      const jsonContent = part.slice(jsonStart).trim();
+      const message = JSON.parse(jsonContent);
+
+      if (!message.payload) continue;
+
+      // Extract headers
+      const headers = message.payload.headers || [];
+      const getHeader = (name: string) =>
+        headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || "";
+
+      // Extract body
+      let bodyText = "";
+      const extractText = (payload: any): string => {
+        if (payload.body?.data) {
+          try {
+            const decoded = atob(payload.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+            return decoded;
+          } catch { return ""; }
+        }
+        if (payload.parts) {
+          for (const p of payload.parts) {
+            if (p.mimeType === "text/plain" && p.body?.data) {
+              try {
+                return atob(p.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+              } catch { continue; }
+            }
+          }
+          // Try HTML if no plain text
+          for (const p of payload.parts) {
+            if (p.mimeType === "text/html" && p.body?.data) {
+              try {
+                const html = atob(p.body.data.replace(/-/g, "+").replace(/_/g, "/"));
+                // Simple HTML to text conversion
+                return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+              } catch { continue; }
+            }
+          }
+          // Recurse into nested parts
+          for (const p of payload.parts) {
+            const nested = extractText(p);
+            if (nested) return nested;
+          }
+        }
+        return "";
+      };
+
+      bodyText = extractText(message.payload);
+
+      emails.push({
+        id: message.id,
+        subject: getHeader("Subject"),
+        from: getHeader("From"),
+        date: getHeader("Date"),
+        snippet: message.snippet || "",
+        body: bodyText.substring(0, 5000),  // Limit body size
+      });
+    } catch (e) {
+      console.error("Error parsing email:", e);
+    }
+  }
+
+  console.log(`[SearchGmail] Parsed ${emails.length} emails`);
+  return emails;
+}
+
+// ============================================================================
+// PATTERN
+// ============================================================================
 
 export default pattern<HotelMembershipInput>(({
   memberships,
-  scannedEmailIds,
   lastScanAt,
-  brandHistory,
-  searchedBrands,
-  searchedNotFound,
-  unsearchedBrands,
-  currentQuery,
   isScanning,
-  queryGeneratorInput,
-  gmailFilterQuery,
-  limit,
 }) => {
   // ============================================================================
   // AUTH: Discover via wish (shared with all Gmail patterns)
+  // Using legacy string syntax which is more reliable
   // ============================================================================
 
-  // Wish for a favorited auth charm with #googleAuth tag
-  const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
+  const wishResult = wish<GoogleAuthCharm>("#googleAuth");
 
-  // Extract auth data from wished charm
   const auth = derive(wishResult, (w) =>
-    w?.result?.auth || {
+    w?.auth || {
       token: "",
       tokenType: "",
       scope: [],
@@ -98,153 +211,134 @@ export default pattern<HotelMembershipInput>(({
       user: { email: "", name: "", picture: "" },
     });
 
-  // Track auth status
   const isAuthenticated = derive(auth, (a) =>
     !!(a && a.token && a.user && a.user.email)
   );
 
-  // Track if wish found an auth charm
-  const hasWishedAuth = derive(wishResult, (w) => !!w?.result);
-  const wishError = derive(wishResult, (w) => w?.error || null);
+  const hasWishedAuth = derive(wishResult, (w) => !!w);
+  const wishError = derive(wishResult, (_w) => null);  // Legacy syntax doesn't return errors
 
   // ============================================================================
-  // GMAIL IMPORTER: Single instance with reactive query cell
+  // AGENT: Single agent with searchGmail tool
   // ============================================================================
 
-  // Create a mutable query cell that the agent can update
-  const agentQueryCell = Cell.of("");
+  // The searchGmail tool - async handler that fetches and returns emails
+  // When used as a tool, the framework passes a 'result' cell that we MUST write to
+  const searchGmailHandler = handler<
+    { query: string; result?: Cell<any> },
+    { auth: Cell<Auth> }
+  >(
+    async (input, state) => {
+      const authData = state.auth.get();
+      const token = authData?.token as string;
 
-  // Create a single GmailImporter instance that reacts to query changes
-  const importer = GmailImporter({
-    settings: {
-      gmailFilterQuery: agentQueryCell,  // Reactive - updates trigger new fetch
-      limit: Cell.of(20),
-      historyId: Cell.of(""),
-    },
-    authCharm: null,  // Let GmailImporter discover auth via wish
-  });
+      let resultData: any;
 
-  // Transform emails to include @link references for body content
-  const agentEmails = derive(importer.emails, (emailsList: Email[]) => {
-    if (!emailsList || !Array.isArray(emailsList)) return [];
+      if (!token) {
+        resultData = { error: "Not authenticated", emails: [] };
+      } else {
+        try {
+          console.log(`[SearchGmail Tool] Searching: ${input.query}`);
+          const emails = await fetchGmailEmails(token, input.query, 30);
+          console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
 
-    return emailsList.map((email: Email) => ({
-      id: email.id,
-      threadId: email.threadId,
-      subject: email.subject,
-      from: email.from,
-      date: email.date,
-      to: email.to,
-      snippet: email.snippet,
-      // Body content typed as any -> becomes @link references for agent
-      markdownContent: email.markdownContent as any,
-      htmlContent: email.htmlContent as any,
-      plainText: email.plainText as any,
-    }));
-  });
+          resultData = {
+            success: true,
+            emailCount: emails.length,
+            emails: emails.map(e => ({
+              id: e.id,
+              subject: e.subject,
+              from: e.from,
+              date: e.date,
+              snippet: e.snippet,
+              body: e.body,
+            })),
+          };
+        } catch (err) {
+          console.error("[SearchGmail Tool] Error:", err);
+          resultData = { error: String(err), emails: [] };
+        }
+      }
 
-  // ============================================================================
-  // AGENT: Hotel Membership Extractor with Tool Calling
-  // ============================================================================
+      // Write to the result cell if provided (required for tool calling)
+      if (input.result) {
+        input.result.set(resultData);
+      }
 
-  // Tool: Set the Gmail query (triggers reactive fetch)
-  const setGmailQueryHandler = handler<
-    { query: string },
-    { queryCell: Cell<string> }
-  >((input, state) => {
-    console.log(`[Agent] Setting Gmail query to: ${input.query}`);
-    state.queryCell.set(input.query);
-    return { success: true, query: input.query };
-  });
-
-  // Agent prompt - DON'T include agentQueryCell as dependency to avoid reactive loop
-  // The agent will see the query via the emails loaded (or via importer state)
-  const agentPrompt = derive(
-    [brandHistory, memberships, isScanning, agentEmails],
-    ([history, found, scanning, emails]: [BrandSearchHistory[], MembershipRecord[], boolean, any[]]) => {
-      if (!scanning) return "";  // Don't run unless actively scanning
-
-      const foundBrands = history.filter((h: BrandSearchHistory) => h.status === "found").map((h: BrandSearchHistory) => h.brand);
-      const searchingBrands = history.filter((h: BrandSearchHistory) => h.status === "searching").map((h: BrandSearchHistory) => h.brand);
-      const exhaustedBrands = history.filter((h: BrandSearchHistory) => h.status === "exhausted").map((h: BrandSearchHistory) => h.brand);
-
-      // Show recent query attempts for context
-      const recentAttempts = history
-        .flatMap((h: BrandSearchHistory) => h.attempts.map((a: QueryAttempt) => `${h.brand}: "${a.query}" → ${a.emailsFound} emails, ${a.membershipsFound} memberships`))
-        .slice(-5);  // Last 5 attempts
-
-      // Format current emails for agent to see
-      const emailSummary = emails.length > 0
-        ? emails.map((e: any, i: number) => `${i + 1}. [${e.id}] "${e.subject}" from ${e.from} (${e.date})`).join("\n")
-        : "(no emails loaded yet - set a query first)";
-
-      return `Find hotel loyalty program membership numbers in my Gmail account.
-
-Current progress:
-- Memberships found: ${found.length}
-- Brands found: ${foundBrands.join(", ") || "none yet"}
-- Brands searching: ${searchingBrands.join(", ") || "none"}
-- Brands exhausted: ${exhaustedBrands.join(", ") || "none"}
-
-Recent query attempts:
-${recentAttempts.length > 0 ? recentAttempts.join("\n") : "No attempts yet"}
-
-Current emails (${emails.length}):
-${emailSummary}
-
-Search for memberships from these hotel brands: Marriott, Hilton, Hyatt, IHG, Accor
-
-IMPORTANT: This is a ONE-SHOT task. You must:
-1. First, call setGmailQuery with "from:marriott.com" to search Gmail
-2. The results will appear above once loaded - analyze the subjects
-3. Read specific emails using their @link references
-4. Extract any membership numbers found
-5. Return your final result with all memberships
-
-Do NOT call setGmailQuery multiple times in a loop. Call it once, examine results, read emails, then return your final result with the memberships array.`;
+      return resultData;
     }
   );
 
-  // Define tools using the handler approach (handlers can mutate cells!)
+  // Agent prompt - only active when scanning
+  const agentPrompt = derive(
+    [isScanning, memberships],
+    ([scanning, found]: [boolean, MembershipRecord[]]) => {
+      if (!scanning) return "";  // Don't run unless actively scanning
+
+      const foundBrands = [...new Set(found.map(m => m.hotelBrand))];
+
+      return `Find hotel loyalty program membership numbers in my Gmail.
+
+Already found memberships for: ${foundBrands.join(", ") || "none yet"}
+Total memberships found: ${found.length}
+
+Your task:
+1. Use the searchGmail tool to search for hotel loyalty emails
+2. Analyze the returned emails for membership numbers
+3. Extract membership information from the email bodies
+
+Hotel brands to search for:
+- Marriott (Marriott Bonvoy) - try: from:marriott.com OR from:email.marriott.com
+- Hilton (Hilton Honors) - try: from:hilton.com OR from:hiltonhonors.com
+- Hyatt (World of Hyatt) - try: from:hyatt.com
+- IHG (IHG One Rewards) - try: from:ihg.com
+- Accor (ALL - Accor Live Limitless) - try: from:accor.com
+
+Search strategy:
+1. Start with a broad query: from:marriott.com OR from:hilton.com OR from:hyatt.com OR from:ihg.com
+2. Look for emails with subjects containing "member", "account", "welcome", "status", "points"
+3. In email bodies, look for patterns like:
+   - "Member #" or "Membership Number:" followed by digits
+   - "Bonvoy Number:", "Hilton Honors #:", "World of Hyatt #:"
+   - Account numbers are typically 9-16 digits
+
+For each membership found, provide:
+- hotelBrand: The hotel chain name
+- programName: The loyalty program name
+- membershipNumber: The actual number (digits only)
+- tier: Status tier if mentioned (Member, Silver, Gold, Platinum, Diamond, etc.)
+- sourceEmailId: The email ID
+- sourceEmailSubject: The email subject
+- sourceEmailDate: The email date
+- confidence: 0-100 how confident you are this is correct
+
+Return all memberships you find. Be thorough - search multiple brands!`;
+    }
+  );
+
   const agentTools = {
-    setGmailQuery: {
-      description: "Set the Gmail search query. This triggers a new search and the results will appear in the email list. Wait for the emails to load after calling this.",
-      handler: setGmailQueryHandler({ queryCell: agentQueryCell }),
+    searchGmail: {
+      description: "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text.",
+      handler: searchGmailHandler({ auth }),
     },
   };
 
   const agent = generateObject({
-    system: `You are a hotel loyalty program membership extractor.
+    system: `You are a hotel loyalty membership extractor.
 
-Your goal: Find membership numbers from hotel loyalty programs in the user's Gmail.
+Your job: Search Gmail to find hotel loyalty program membership numbers.
 
-CRITICAL: This is a SINGLE-PASS extraction. You will:
-1. See emails already loaded in the prompt (if any)
-2. Optionally call setGmailQuery ONCE to search for a specific brand
-3. Analyze the email list shown in the prompt
-4. Extract membership info from any promising emails
-5. Return your final result immediately
+You have ONE tool: searchGmail({ query: string })
+- Use Gmail search syntax: from:domain.com, subject:"keyword", OR, AND
+- The tool returns emails with full body text
+- Search multiple times if needed for different hotel brands
 
-Available tools:
-- setGmailQuery(query): Search Gmail (e.g., "from:marriott.com"). Call this ONLY ONCE.
-- read(@link): Read email content
+When you find a membership number:
+- Verify it looks like a real membership number (usually 9-16 digits)
+- Note the tier/status if mentioned
+- Record which email it came from
 
-DO NOT:
-- Call setGmailQuery multiple times
-- Loop or repeat tool calls
-- Wait for anything - results appear in the prompt automatically
-
-Membership data to extract:
-- hotelBrand: "Marriott", "Hilton", etc.
-- programName: "Marriott Bonvoy", "Hilton Honors", etc.
-- membershipNumber: The actual number (typically 9-12 digits)
-- tier: "Gold", "Platinum", etc. (if mentioned)
-- sourceEmailId: Email ID where found
-- sourceEmailSubject: Email subject
-- sourceEmailDate: Email date
-- confidence: 0-100
-
-Return your final result with the memberships array containing any found memberships.`,
+Be thorough and search for all major hotel brands.`,
 
     prompt: agentPrompt,
 
@@ -272,29 +366,29 @@ Return your final result with the memberships array containing any found members
             required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
           },
         },
-        queriesAttempted: {
+        searchesPerformed: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              brand: { type: "string" },
               query: { type: "string" },
               emailsFound: { type: "number" },
-              emailsRead: { type: "number" },
             },
           },
         },
+        summary: {
+          type: "string",
+          description: "Brief summary of what was found",
+        },
       },
-      required: ["memberships"],
+      required: ["memberships", "summary"],
     },
   });
 
   const { result: agentResult, pending: agentPending } = agent;
 
-  // Store agent result in a mutable cell that we can read from the handler
+  // Store agent result for save handler
   const agentResultStore = Cell.of<any>(null);
-
-  // Update the store whenever agent result changes
   derive([agentResult], ([result]) => {
     if (result) {
       agentResultStore.set(result);
@@ -302,12 +396,40 @@ Return your final result with the memberships array containing any found members
     return result;
   });
 
-  // Handler to save agent results and stop scanning
-  const saveAgentResults = handler<unknown, {
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
+  // Handler to create a new GmailAuth charm and navigate to it
+  const createGmailAuth = handler<unknown, Record<string, never>>(
+    () => {
+      const gmailAuthCharm = GmailAuth({
+        auth: {
+          token: "",
+          tokenType: "",
+          scope: [],
+          expiresIn: 0,
+          expiresAt: 0,
+          refreshToken: "",
+          user: { email: "", name: "", picture: "" },
+        },
+      });
+      return navigateTo(gmailAuthCharm);
+    },
+  );
+
+  const startScan = handler<unknown, {
+    isScanning: Cell<Default<boolean, false>>;
+    isAuthenticated: Cell<boolean>;
+  }>((_, state) => {
+    if (!state.isAuthenticated.get()) return;
+    console.log("[StartScan] Beginning hotel membership extraction");
+    state.isScanning.set(true);
+  });
+
+  const saveResults = handler<unknown, {
     memberships: Cell<Default<MembershipRecord[], []>>;
-    scannedEmailIds: Cell<Default<string[], []>>;
     lastScanAt: Cell<Default<number, 0>>;
-    brandHistory: Cell<Default<BrandSearchHistory[], []>>;
     isScanning: Cell<Default<boolean, false>>;
     agentResultStore: Cell<any>;
   }>((_, state) => {
@@ -315,137 +437,52 @@ Return your final result with the memberships array containing any found members
     if (!result) return;
 
     const currentMemberships = state.memberships.get();
-    const scanned = state.scannedEmailIds.get();
-    const currentHistory = state.brandHistory.get();
 
-    // Add new memberships with unique IDs and extractedAt timestamp
-    const newMemberships = result.memberships.map((m: any) => ({
+    // Add new memberships with unique IDs
+    const newMemberships = (result.memberships || []).map((m: any) => ({
       ...m,
       id: `${m.hotelBrand}-${m.membershipNumber}-${Date.now()}`,
       extractedAt: Date.now(),
     }));
 
-    // Update memberships array
-    state.memberships.set([...currentMemberships, ...newMemberships]);
+    // Deduplicate by membership number
+    const existingNumbers = new Set(currentMemberships.map(m => m.membershipNumber));
+    const uniqueNew = newMemberships.filter((m: MembershipRecord) => !existingNumbers.has(m.membershipNumber));
 
-    // Update scanned email IDs from queriesAttempted
-    const allEmailIds = new Set(scanned);
-    // Note: Agent doesn't track individual email IDs, so we'll just mark scan time
-
-    // Update brandHistory based on queriesAttempted
-    // Deep clone the history to avoid mutating frozen objects from Cell
-    let updatedHistory: BrandSearchHistory[] = currentHistory.map(h => ({
-      brand: h.brand,
-      attempts: [...h.attempts],
-      status: h.status,
-    }));
-
-    if (result.queriesAttempted && Array.isArray(result.queriesAttempted)) {
-      for (const queryAttempt of result.queriesAttempted) {
-        const { brand, query, emailsFound } = queryAttempt;
-
-        // Count how many memberships were found for this brand in this agent run
-        const membershipsForBrand = newMemberships.filter((m: MembershipRecord) => m.hotelBrand === brand).length;
-
-        const attempt: QueryAttempt = {
-          query,
-          attemptedAt: Date.now(),
-          emailsFound: emailsFound || 0,
-          membershipsFound: membershipsForBrand,
-          emailIds: {}, // Agent doesn't track individual IDs
-        };
-
-        // Find existing brand entry index
-        const brandIndex = updatedHistory.findIndex(h => h.brand === brand);
-
-        if (brandIndex >= 0) {
-          // Update existing brand entry by replacing it with new object
-          const oldEntry = updatedHistory[brandIndex];
-          const newAttempts = [...oldEntry.attempts, attempt];
-
-          // Determine new status
-          let newStatus: "searching" | "found" | "exhausted" = oldEntry.status;
-          if (membershipsForBrand > 0) {
-            newStatus = "found";
-          } else if (newAttempts.length >= 5) {
-            newStatus = "exhausted";
-          } else {
-            newStatus = "searching";
-          }
-
-          // Replace with new object (don't mutate)
-          updatedHistory[brandIndex] = {
-            brand: oldEntry.brand,
-            attempts: newAttempts,
-            status: newStatus,
-          };
-        } else {
-          // Create new brand entry
-          const newStatus: "searching" | "found" | "exhausted" =
-            membershipsForBrand > 0 ? "found" : "searching";
-
-          updatedHistory.push({
-            brand,
-            attempts: [attempt],
-            status: newStatus,
-          });
-        }
-      }
+    if (uniqueNew.length > 0) {
+      state.memberships.set([...currentMemberships, ...uniqueNew]);
     }
 
-    state.brandHistory.set(updatedHistory);
     state.lastScanAt.set(Date.now());
-
-    // Stop scanning
     state.isScanning.set(false);
+
+    console.log(`[SaveResults] Saved ${uniqueNew.length} new memberships`);
   });
 
-  // Determine when to show agent save button
-  const shouldShowAgentSaveButton = derive(
+  // ============================================================================
+  // UI HELPERS
+  // ============================================================================
+
+  const shouldShowSaveButton = derive(
     [isScanning, agentPending, agentResult],
-    ([scanning, pending, result]) => {
-      // Show save button when:
-      // 1. We're in scanning mode
-      // 2. Agent is complete (not pending)
-      // 3. We have agent results
-      return scanning && !pending && !!result;
-    }
+    ([scanning, pending, result]) => scanning && !pending && !!result
   );
 
-  // Group memberships by hotel brand
-  const groupedMemberships = derive(memberships, (membershipList: MembershipRecord[]) => {
+  const totalMemberships = derive(memberships, (list) => list?.length || 0);
+
+  const groupedMemberships = derive(memberships, (list: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
-
-    // Defensive check for undefined/null
-    if (!membershipList || !Array.isArray(membershipList)) {
-      return groups;
+    if (!list) return groups;
+    for (const m of list) {
+      if (!groups[m.hotelBrand]) groups[m.hotelBrand] = [];
+      groups[m.hotelBrand].push(m);
     }
-
-    for (const membership of membershipList) {
-      if (!groups[membership.hotelBrand]) {
-        groups[membership.hotelBrand] = [];
-      }
-      groups[membership.hotelBrand].push(membership);
-    }
-
     return groups;
   });
 
-  const totalMemberships = derive(memberships, (list) => (list && Array.isArray(list)) ? list.length : 0);
-
-  // Handler to start agent scan
-  const startAgentScan = handler<unknown, {
-    isScanning: Cell<Default<boolean, false>>;
-    isAuthenticated: Cell<boolean>;
-  }>((_, state) => {
-    // Check if authenticated (via wished auth)
-    if (!state.isAuthenticated.get()) {
-      return;
-    }
-
-    // Set scanning flag - this will trigger agent via agentPrompt reactive dependency
-    state.isScanning.set(true);
-  });
+  // ============================================================================
+  // UI
+  // ============================================================================
 
   return {
     [NAME]: "🏨 Hotel Membership Extractor",
@@ -457,266 +494,183 @@ Return your final result with the memberships array containing any found members
 
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
-            {/* Scan Control */}
-            <ct-vstack gap={2}>
-              {/* Authentication status - uses wish-based auth discovery */}
-              {derive([isAuthenticated, hasWishedAuth, wishError], ([authenticated, hasAuth, error]) => {
-                if (authenticated) {
-                  // Authenticated via wished auth
-                  return (
-                    <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; borderRadius: 8px; marginBottom: 8px;">
-                      <div style="fontSize: 14px; color: #065f46; textAlign: center;">
-                        ✅ Using shared Gmail auth from favorited charm
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (!hasAuth) {
-                  // No auth charm found via wish
-                  return (
-                    <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px; marginBottom: 8px;">
-                      <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
-                        🔒 Gmail Authentication Required
-                      </div>
-                      <div style="fontSize: 14px; color: #7f1d1d; textAlign: center; marginBottom: 16px; lineHeight: 1.5;">
-                        This tool scans your Gmail for hotel membership numbers.
-                      </div>
-                      <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
-                        <strong>To enable Gmail access:</strong>
-                        <ol style="margin: 8px 0 0 0; paddingLeft: 20px; fontSize: 14px;">
-                          <li>Deploy a <code>gmail-auth</code> pattern</li>
-                          <li>Authenticate with Google</li>
-                          <li>Click the ⭐ star to favorite it</li>
-                          <li>This extractor will automatically find it!</li>
-                        </ol>
-                        {error ? (
-                          <div style="marginTop: 12px; fontSize: 12px; color: #666;">
-                            Debug: {error}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Has auth charm but not authenticated (user needs to complete OAuth)
+            {/* Auth Status */}
+            {derive([isAuthenticated, hasWishedAuth, wishError], ([authenticated, hasAuth, error]) => {
+              if (authenticated) {
                 return (
-                  <div style="padding: 24px; background: #fef3c7; border: 3px solid #f59e0b; borderRadius: 12px; marginBottom: 8px;">
-                    <div style="fontSize: 20px; fontWeight: 700; color: #92400e; textAlign: center; marginBottom: 16px;">
-                      ⚠️ Gmail Auth Found - Please Authenticate
-                    </div>
-                    <div style="fontSize: 14px; color: #78350f; textAlign: center; lineHeight: 1.5;">
-                      Found a favorited Gmail Auth charm, but it's not authenticated yet.<br/>
-                      Please open the Gmail Auth charm and complete the Google sign-in.
+                  <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; borderRadius: 8px;">
+                    <div style="fontSize: 14px; color: #065f46; textAlign: center;">
+                      ✅ Gmail connected via shared auth
                     </div>
                   </div>
                 );
+              }
+
+              if (!hasAuth) {
+                return (
+                  <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px;">
+                    <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
+                      🔒 Gmail Authentication Required
+                    </div>
+                    <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5; textAlign: center;">
+                      <p style="margin: 0 0 12px 0; fontSize: 14px;">
+                        Create a Gmail Auth charm to authenticate:
+                      </p>
+                      <ct-button
+                        onClick={createGmailAuth({})}
+                        size="lg"
+                      >
+                        🔐 Create Gmail Auth
+                      </ct-button>
+                      <p style="margin: 12px 0 0 0; fontSize: 13px; color: #666;">
+                        After authenticating, click the ⭐ star to favorite it, then come back here.
+                      </p>
+                      {error ? <div style="marginTop: 12px; fontSize: 12px; color: #666;">Debug: {error}</div> : null}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div style="padding: 24px; background: #fef3c7; border: 3px solid #f59e0b; borderRadius: 12px;">
+                  <div style="fontSize: 20px; fontWeight: 700; color: #92400e; textAlign: center; marginBottom: 16px;">
+                    ⚠️ Gmail Auth Found - Please Complete Authentication
+                  </div>
+                  <div style="fontSize: 14px; color: #78350f; textAlign: center;">
+                    Open your Gmail Auth charm and sign in with Google.
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Scan Button */}
+            <ct-button
+              onClick={startScan({ isScanning, isAuthenticated })}
+              size="lg"
+              disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
+            >
+              {derive([isAuthenticated, isScanning], ([auth, scanning]) => {
+                if (!auth) return "🔒 Authenticate First";
+                if (scanning) return "⏳ Scanning...";
+                return "🔍 Scan for Hotel Memberships";
               })}
+            </ct-button>
 
-              {/* Scan button - disabled if not authenticated or currently scanning */}
-              <ct-button
-                onClick={startAgentScan({ isScanning, isAuthenticated })}
-                size="lg"
-                disabled={derive([isAuthenticated, isScanning], ([authenticated, scanning]) =>
-                  !authenticated || scanning
-                )}
-              >
-                {derive([isAuthenticated, isScanning], ([authenticated, scanning]) => {
-                  if (!authenticated) return "🔒 Authenticate First";
-                  if (scanning) return "⏳ Scanning...";
-                  return "🔍 Scan for Hotel Memberships";
-                })}
-              </ct-button>
-
-              {/* Agent progress status */}
-              {derive([isScanning, agentPending], ([scanning, pending]) =>
-                scanning && pending ? (
-                  <div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 8px; fontSize: 13px; textAlign: center;">
-                    🤖 Agent is searching Gmail and extracting memberships...
+            {/* Progress */}
+            {derive([isScanning, agentPending], ([scanning, pending]) =>
+              scanning && pending ? (
+                <div style="padding: 16px; background: #dbeafe; border: 1px solid #3b82f6; borderRadius: 8px; textAlign: center;">
+                  <div style="fontWeight: 600; marginBottom: 8px;">🤖 AI Agent Working...</div>
+                  <div style="fontSize: 13px; color: #1e40af;">
+                    Searching Gmail for hotel loyalty emails and extracting membership numbers
                   </div>
-                ) : null
-              )}
+                </div>
+              ) : null
+            )}
 
-              {/* PROMINENT Agent Save Results Button - appears when agent completes */}
-              {/* Display-only content inside derive */}
-              {derive(shouldShowAgentSaveButton, (show) =>
-                show ? (
-                  <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
-                    <div style="fontSize: 14px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
-                      ✅ Agent Extraction Complete!
-                    </div>
-                    <div style="fontSize: 13px; color: #047857; marginBottom: 12px; textAlign: center;">
-                      {derive(agentResult, (result) => {
-                        const count = result?.memberships?.length || 0;
-                        const queries = result?.queriesAttempted?.length || 0;
-                        if (count > 0) {
-                          return `Found ${count} membership${count !== 1 ? 's' : ''} across ${queries} search${queries !== 1 ? 'es' : ''}`;
-                        }
-                        return `Searched ${queries} quer${queries !== 1 ? 'ies' : 'y'}, no new memberships found`;
-                      })}
-                    </div>
-                    <div style="fontSize: 11px; color: #059669; marginTop: 8px; textAlign: center; fontStyle: italic;">
-                      Click button below to save memberships and stop scanning
-                    </div>
+            {/* Results Ready */}
+            {derive(shouldShowSaveButton, (show) =>
+              show ? (
+                <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
+                  <div style="fontSize: 16px; fontWeight: 600; color: #065f46; marginBottom: 8px; textAlign: center;">
+                    ✅ Extraction Complete!
                   </div>
-                ) : null
-              )}
+                  <div style="fontSize: 13px; color: #047857; textAlign: center; marginBottom: 12px;">
+                    {derive(agentResult, (r) => {
+                      const count = r?.memberships?.length || 0;
+                      return count > 0
+                        ? `Found ${count} membership${count !== 1 ? 's' : ''}!`
+                        : "No new memberships found";
+                    })}
+                  </div>
+                  <div style="fontSize: 12px; color: #059669; textAlign: center;">
+                    {derive(agentResult, (r) => r?.summary || "")}
+                  </div>
+                </div>
+              ) : null
+            )}
 
-              {/* Save button - use hidden attribute for visibility to avoid derive context issues */}
-              <ct-button
-                onClick={saveAgentResults({
-                  memberships,
-                  scannedEmailIds,
-                  lastScanAt,
-                  brandHistory,
-                  isScanning,
-                  agentResultStore: agentResultStore,
-                })}
-                size="lg"
-                style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-                hidden={derive(shouldShowAgentSaveButton, (show) => !show)}
-              >
-                💾 Save Results & Complete
-              </ct-button>
-            </ct-vstack>
+            {/* Save Button */}
+            <ct-button
+              onClick={saveResults({ memberships, lastScanAt, isScanning, agentResultStore })}
+              size="lg"
+              style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+              hidden={derive(shouldShowSaveButton, (show) => !show)}
+            >
+              💾 Save Results & Complete
+            </ct-button>
 
-            {/* Summary Stats */}
+            {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
               <div>Total Memberships: {totalMemberships}</div>
-              <div>Brands Searched: {derive(searchedBrands, (brands) => brands.length)}</div>
-              <div>Emails Scanned: {derive(scannedEmailIds, (ids) => ids.length)}</div>
-              {derive(lastScanAt, (timestamp) =>
-                timestamp > 0
-                  ? <div>Last Scan: {new Date(timestamp).toLocaleString()}</div>
-                  : null
+              {derive(lastScanAt, (ts) =>
+                ts > 0 ? <div>Last Scan: {new Date(ts).toLocaleString()}</div> : null
               )}
             </div>
 
-            {/* Memberships Grouped by Brand */}
+            {/* Memberships List */}
             <div>
               <h3 style="margin: 0 0 12px 0; fontSize: 15px;">Your Memberships</h3>
               {derive(groupedMemberships, (groups) => {
-                // Defensive check
-                if (!groups || typeof groups !== 'object') {
-                  return (
-                    <div style="padding: 24px; textAlign: center; color: #999;">
-                      No memberships found yet. Click "Scan for Memberships" to search your emails.
-                    </div>
-                  );
-                }
-
                 const brands = Object.keys(groups).sort();
-
                 if (brands.length === 0) {
                   return (
                     <div style="padding: 24px; textAlign: center; color: #999;">
-                      No memberships found yet. Click "Scan for Memberships" to search your emails.
+                      No memberships found yet. Click "Scan" to search your emails.
                     </div>
                   );
                 }
 
-                return brands.map((brand) => {
-                  const membershipList = groups[brand];
-
-                  // Defensive check for membershipList
-                  if (!membershipList || !Array.isArray(membershipList)) {
-                    return null;
-                  }
-
-                  return (
-                    <details open style="border: 1px solid #e0e0e0; borderRadius: 8px; marginBottom: 12px; padding: 12px;">
-                      <summary style="cursor: pointer; fontWeight: 600; fontSize: 14px; marginBottom: 8px;">
-                        {brand} ({membershipList.length})
-                      </summary>
-                      <ct-vstack gap={2} style="paddingLeft: 16px;">
-                        {membershipList.map((membership) => {
-                          // Defensive check for membership object
-                          if (!membership) return null;
-
-                          return (
-                            <div style="padding: 8px; background: #f8f9fa; borderRadius: 4px;">
-                              <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px;">
-                                {membership.programName || 'Unknown Program'}
-                              </div>
-                              <div style="marginBottom: 4px;">
-                                <code style="fontSize: 14px; background: white; padding: 6px 12px; borderRadius: 4px; display: inline-block;">
-                                  {membership.membershipNumber || 'No Number'}
-                                </code>
-                              </div>
-                              {membership.tier && (
-                                <div style="fontSize: 12px; color: #666; marginBottom: 2px;">
-                                  ⭐ {membership.tier}
-                                </div>
-                              )}
-                              <div style="fontSize: 11px; color: #999;">
-                                📧 {membership.sourceEmailSubject || 'No Subject'} • {membership.sourceEmailDate ? new Date(membership.sourceEmailDate).toLocaleDateString() : 'Unknown Date'}
-                              </div>
+                return brands.map((brand) => (
+                  <details open style="border: 1px solid #e0e0e0; borderRadius: 8px; marginBottom: 12px; padding: 12px;">
+                    <summary style="cursor: pointer; fontWeight: 600; fontSize: 14px; marginBottom: 8px;">
+                      {brand} ({groups[brand].length})
+                    </summary>
+                    <ct-vstack gap={2} style="paddingLeft: 16px;">
+                      {groups[brand].map((m) => (
+                        <div style="padding: 8px; background: #f8f9fa; borderRadius: 4px;">
+                          <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px;">
+                            {m.programName}
+                          </div>
+                          <div style="marginBottom: 4px;">
+                            <code style="fontSize: 14px; background: white; padding: 6px 12px; borderRadius: 4px; display: inline-block;">
+                              {m.membershipNumber}
+                            </code>
+                          </div>
+                          {m.tier && (
+                            <div style="fontSize: 12px; color: #666; marginBottom: 2px;">
+                              ⭐ {m.tier}
                             </div>
-                          );
-                        })}
-                      </ct-vstack>
-                    </details>
-                  );
-                });
+                          )}
+                          <div style="fontSize: 11px; color: #999;">
+                            📧 {m.sourceEmailSubject} • {new Date(m.sourceEmailDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                    </ct-vstack>
+                  </details>
+                ));
               })}
             </div>
 
-            {/* Debug/Status Info */}
+            {/* Debug Info */}
             <details style="marginTop: 16px;">
               <summary style="cursor: pointer; padding: 8px; background: #f8f9fa; border: 1px solid #e0e0e0; borderRadius: 4px; fontSize: 12px;">
                 🔧 Debug Info
               </summary>
               <ct-vstack gap={2} style="padding: 12px; fontSize: 12px; fontFamily: monospace;">
-                <div style="fontWeight: 600; marginTop: 8px; marginBottom: 4px;">Brand History (New System):</div>
-                {derive(brandHistory, (history) => {
-                  if (!history || !Array.isArray(history) || history.length === 0) {
-                    return <div style="paddingLeft: 12px; color: #999;">No history yet</div>;
-                  }
-                  return history.map((brandEntry) => (
-                    <details style="marginLeft: 12px; marginBottom: 8px; border: 1px solid #e0e0e0; borderRadius: 4px; padding: 8px; background: white;">
-                      <summary style="cursor: pointer; fontWeight: 500;">
-                        {brandEntry.brand} - Status: <span style={{
-                          color: brandEntry.status === "found" ? "#10b981" : brandEntry.status === "exhausted" ? "#ef4444" : "#f59e0b"
-                        }}>{brandEntry.status}</span> ({brandEntry.attempts.length} attempts)
-                      </summary>
-                      <div style="paddingLeft: 12px; marginTop: 8px;">
-                        {brandEntry.attempts.map((attempt, idx) => (
-                          <div style="marginBottom: 8px; paddingBottom: 8px; borderBottom: idx < brandEntry.attempts.length - 1 ? '1px solid #f3f4f6' : 'none';">
-                            <div><strong>Attempt {idx + 1}:</strong> {new Date(attempt.attemptedAt).toLocaleString()}</div>
-                            <div style="marginTop: 4px;"><strong>Query:</strong> <code style="background: #f3f4f6; padding: 2px 6px; borderRadius: 3px;">{attempt.query}</code></div>
-                            <div><strong>Results:</strong> {attempt.emailsFound} emails → {attempt.membershipsFound} memberships</div>
-                            {attempt.membershipsFound > 0 && <div style="color: #10b981; fontWeight: 600;">✅ Success!</div>}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  ));
-                })}
-
-                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Old Tracking (Deprecated):</div>
-                <div>Unsearched Brands: {derive(unsearchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
-                <div>Searched (Found): {derive(searchedBrands, (brands) => (brands && Array.isArray(brands)) ? brands.join(", ") || "None" : "None")}</div>
-                <div>Searched (Not Found): {derive(searchedNotFound, (records) =>
-                  (records && Array.isArray(records)) ? records.map((r: BrandSearchRecord) => `${r.brand} (${new Date(r.searchedAt).toLocaleDateString()})`).join(", ") || "None" : "None"
-                )}</div>
-
-                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Agent State:</div>
+                <div>Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
+                <div>Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
+                <div>Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
+                <div>Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
                 <div>Agent Pending: {derive(agentPending, (p) => p ? "Yes ⏳" : "No ✓")}</div>
                 <div>Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
-                <div>Agent Memberships Found: {derive(agentResult, (r) => r?.memberships?.length || 0)}</div>
-                <div>Agent Queries Attempted: {derive(agentResult, (r) => r?.queriesAttempted?.length || 0)}</div>
-                <div>Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
-
-                <div style="fontWeight: 600; marginTop: 12px; marginBottom: 4px;">Auth State (wish-based):</div>
-                <div>Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
-                <div>Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
-                <div>Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
-                <div>Wish Error: {derive(wishError, (e) => e || "none")}</div>
+                <div>Memberships in Result: {derive(agentResult, (r) => r?.memberships?.length || 0)}</div>
+                <div>Searches Performed: {derive(agentResult, (r) =>
+                  r?.searchesPerformed?.map((s: any) => `${s.query} (${s.emailsFound})`).join(", ") || "none"
+                )}</div>
               </ct-vstack>
             </details>
-
-            {/* Auth info in debug section now shows wish-based status */}
           </ct-vstack>
         </ct-vscroll>
       </ct-screen>
