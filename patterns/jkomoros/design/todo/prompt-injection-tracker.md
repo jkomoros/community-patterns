@@ -66,42 +66,254 @@ The `callLLM()` helper uses raw `fetch()` to `/api/ai/llm/generateObject`, which
 - [ ] Remove `callLLM()` helper function entirely
 - [ ] Test that re-processing same articles uses cached LLM results
 
-### generateObject Conversion (Complex)
+### generateObject Conversion - DETAILED DESIGN (Nov 27, 2025)
 
-The `callLLM()` helper in `processAllArticles` handler needs to be replaced with reactive `generateObject`. This is architecturally challenging because:
+**Critical constraint from official docs (LLM.md):**
+> "These functions can **only be called from within a pattern body**, not from handlers or `computed()` functions"
 
-1. **generateObject is reactive, not async** - can't await it in a handler
-2. **Per-article caching requires per-article generateObject** - but we can't create dynamic generateObject calls
+**Per-item pattern from docs:**
+```typescript
+// In pattern body, NOT in handler
+const photoExtractions = uploadedPhotos.map((photo) => {
+  return generateObject<PhotoExtractionResult>({
+    system: `...`,
+    prompt: derive(photo, (p) => {
+      if (!p?.data) return "Waiting..."; // Empty/waiting prevents LLM call
+      return [{ type: "image", image: p.data }, { type: "text", text: `...` }];
+    })
+  });
+});
+```
 
-**Potential approaches:**
+#### Architecture: Reactive Per-Article LLM Calls
 
-A. **Use existing trigger pattern:**
-   - Set `linkExtractionTrigger` with prompt built from cached content
-   - Result appears in `linkExtractionResult` reactively
-   - Challenge: handler can't wait for reactive result
+The key insight is: **handler fetches web content, pattern body does LLM calls reactively**.
 
-B. **Restructure to fully reactive flow:**
-   - Remove imperative handler
-   - Use chain of derives: parsedArticles → cachedContent → llmPrompt → generateObject → result
-   - Challenge: complex state machine, harder to track progress
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                         NEW DATA FLOW                                             │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                   │
+│  ┌──────────────────┐                                                            │
+│  │ User clicks      │                                                            │
+│  │ "Fetch Content"  │                                                            │
+│  └────────┬─────────┘                                                            │
+│           │                                                                       │
+│           ▼                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │ fetchArticleContent HANDLER (async side effect)                             │  │
+│  │                                                                              │  │
+│  │ for each article in parsedArticles:                                         │  │
+│  │   if NOT in webPageCache:                                                   │  │
+│  │     content = await fetch(/api/agent-tools/web-read)                        │  │
+│  │     webPageCache.set({...cache, [url]: {content, fetchedAt}})               │  │
+│  │                                                                              │  │
+│  │ (Handler ONLY fetches, does NOT call LLM)                                   │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+│           │                                                                       │
+│           │ webPageCache updated                                                  │
+│           ▼                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │ articlesWithContent DERIVE (reactive)                                       │  │
+│  │                                                                              │  │
+│  │ derive([parsedArticles, webPageCache], ([articles, cache]) => {             │  │
+│  │   return articles                                                            │  │
+│  │     .filter(a => cache[a.articleURL])  // Only articles with cached content │  │
+│  │     .map(a => ({                                                            │  │
+│  │       ...a,                                                                  │  │
+│  │       articleContent: cache[a.articleURL].content,                          │  │
+│  │     }));                                                                     │  │
+│  │ });                                                                          │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+│           │                                                                       │
+│           │ articlesWithContent changes                                          │
+│           ▼                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │ articleLinkExtractions IN PATTERN BODY (reactive per-article LLM)          │  │
+│  │                                                                              │  │
+│  │ const articleLinkExtractions = articlesWithContent.map((article) => {       │  │
+│  │   return generateObject({                                                    │  │
+│  │     system: LINK_EXTRACTION_SYSTEM,                                         │  │
+│  │     prompt: derive(article, (a) => {                                        │  │
+│  │       if (!a?.articleContent) return "";  // Empty = no LLM call            │  │
+│  │       return JSON.stringify({                                               │  │
+│  │         articleURL: a.articleURL,                                           │  │
+│  │         articleContent: a.articleContent,                                   │  │
+│  │         title: a.title,                                                     │  │
+│  │       });                                                                    │  │
+│  │     }),                                                                      │  │
+│  │     model: "anthropic:claude-sonnet-4-5",                                   │  │
+│  │     schema: SINGLE_ARTICLE_EXTRACTION_SCHEMA,                               │  │
+│  │   });                                                                        │  │
+│  │ });                                                                          │  │
+│  │                                                                              │  │
+│  │ Each article gets its own generateObject call.                              │  │
+│  │ Framework caches: same articleContent = same prompt = cached LLM result.    │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+│           │                                                                       │
+│           │ articleLinkExtractions[i].result populated reactively                │
+│           ▼                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │ collectedLinkResults DERIVE (collect all LLM results)                       │  │
+│  │                                                                              │  │
+│  │ derive(articleLinkExtractions, (extractions) => {                           │  │
+│  │   const completed = extractions.filter(e => e.result && !e.pending);        │  │
+│  │   return {                                                                   │  │
+│  │     total: extractions.length,                                              │  │
+│  │     completed: completed.length,                                            │  │
+│  │     pending: extractions.filter(e => e.pending).length,                     │  │
+│  │     results: completed.map(e => e.result),                                  │  │
+│  │   };                                                                         │  │
+│  │ });                                                                          │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+│           │                                                                       │
+│           │ All LLM calls complete                                               │
+│           ▼                                                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────┐  │
+│  │ novelReportURLs DERIVE (dedupe against existing reports)                    │  │
+│  │                                                                              │  │
+│  │ derive([collectedLinkResults, reports], ([results, existingReports]) => {   │  │
+│  │   const existingURLs = new Set(existingReports.map(r => r.sourceURL));      │  │
+│  │   const novelURLs = [];                                                      │  │
+│  │   for (const result of results.results) {                                   │  │
+│  │     for (const link of result.securityReportLinks) {                        │  │
+│  │       if (!existingURLs.has(normalizeURL(link))) {                          │  │
+│  │         novelURLs.push(normalizeURL(link));                                 │  │
+│  │       }                                                                      │  │
+│  │     }                                                                        │  │
+│  │   }                                                                          │  │
+│  │   return [...new Set(novelURLs)];  // Dedupe                                │  │
+│  │ });                                                                          │  │
+│  └────────────────────────────────────────────────────────────────────────────┘  │
+│           │                                                                       │
+│           ▼                                                                       │
+│  (Same pattern for report fetching and summarization LLM)                        │
+│                                                                                   │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
 
-C. **Hybrid: populate cache in handler, trigger generateObject, process result in derive:**
-   - Handler only fetches and caches web content
-   - Derive builds LLM prompt from cached content
-   - generateObject reacts to prompt
-   - Another derive/handler processes result
-   - Challenge: multi-step flow requires careful coordination
+#### Implementation Steps
 
-**Current state:** Web caching is working and VERIFIED. Prompts built from cached content are now deterministic. This helps but doesn't fully enable LLM caching until we switch from callLLM to generateObject.
+**Step 1: Add `articlesWithContent` derive**
+```typescript
+// Join parsedArticles with webPageCache to get content for each article
+const articlesWithContent = derive(
+  [parsedArticles, webPageCache] as const,
+  ([articles, cache]: [any[], Record<string, CachedWebPage>]) => {
+    return articles
+      .filter(a => cache[a.articleURL]) // Only include articles with cached content
+      .map(a => ({
+        emailId: a.emailId,
+        articleURL: a.articleURL,
+        title: a.title,
+        articleContent: cache[a.articleURL].content,
+      }));
+  }
+);
+```
 
-**Test Results (Nov 27, 2025):**
+**Step 2: Replace LLM calls in pattern body with per-article generateObject**
+```typescript
+// In pattern body - creates reactive LLM call for each article
+const articleLinkExtractions = articlesWithContent.map((article) => {
+  return generateObject({
+    system: LINK_EXTRACTION_SYSTEM,
+    prompt: derive(article, (a) => {
+      if (!a?.articleContent) return ""; // Empty prompt = no LLM call
+      return JSON.stringify({
+        articleURL: a.articleURL,
+        articleContent: a.articleContent,
+        title: a.title,
+      });
+    }),
+    model: "anthropic:claude-sonnet-4-5",
+    schema: {
+      type: "object",
+      properties: {
+        articleURL: { type: "string" },
+        securityReportLinks: { type: "array", items: { type: "string" } },
+      },
+      required: ["articleURL", "securityReportLinks"],
+    },
+  });
+});
+```
+
+**Step 3: Create derive to collect results and track progress**
+```typescript
+const linkExtractionProgress = derive(
+  articleLinkExtractions,
+  (extractions) => {
+    const total = extractions.length;
+    const pending = extractions.filter(e => e.pending).length;
+    const completed = extractions.filter(e => e.result && !e.pending).length;
+    const errors = extractions.filter(e => e.error).length;
+    const results = extractions
+      .filter(e => e.result)
+      .map(e => e.result);
+
+    return { total, pending, completed, errors, results, allDone: pending === 0 && total > 0 };
+  }
+);
+```
+
+**Step 4: Simplify handler to ONLY fetch web content**
+```typescript
+// Handler now ONLY fetches web content into cache
+const fetchArticleContent = handler<
+  unknown,
+  { parsedArticles: any[]; webPageCache: Cell<Record<string, CachedWebPage>>; processingStatus: Cell<string> }
+>(
+  async (_, { parsedArticles, webPageCache, processingStatus }) => {
+    const cache = webPageCache.get();
+    let fetched = 0;
+
+    for (const article of parsedArticles) {
+      if (cache[article.articleURL]) continue; // Skip cached
+
+      processingStatus.set(`Fetching ${++fetched}/${parsedArticles.length}...`);
+      const content = await fetchWebContent(article.articleURL);
+      if (content) {
+        const updatedCache = { ...webPageCache.get() };
+        updatedCache[article.articleURL] = { content, fetchedAt: new Date().toISOString() };
+        webPageCache.set(updatedCache);
+      }
+    }
+
+    processingStatus.set(`Fetched ${fetched} articles. LLM processing reactively...`);
+    // LLM calls happen AUTOMATICALLY via reactive generateObject in pattern body!
+  }
+);
+```
+
+**Step 5: Remove callLLM() and update UI**
+- Delete `callLLM()` helper function entirely
+- Remove the two phases of LLM calls from processAllArticles handler
+- Update UI to show progress from `linkExtractionProgress` derive
+- Add reactive status display showing pending/completed counts
+
+#### Key Benefits of This Architecture
+
+1. **Framework LLM caching works**: Same article content = same prompt = cached result
+2. **Per-article granularity**: Each article cached independently, partial reruns work
+3. **Progress tracking**: `linkExtractionProgress.pending` shows real-time status
+4. **Simpler handler**: Handler only does side effects (fetch), no LLM logic
+5. **Automatic reruns**: If webPageCache updates, LLM calls react automatically
+
+#### Challenges to Watch For
+
+1. **Array reactivity**: `.map()` on reactive array may need careful handling
+2. **derive() in generateObject prompt**: Must access nested properties correctly
+3. **Empty prompt handling**: Return "" to prevent LLM call for missing content
+4. **Progress aggregation**: Need derive to collect all LLM results
+
+#### Test Results (Nov 27, 2025)
 - Deployed charm: `baedreiab5tvgwfwqcexx24qbkeencwwtky3rw633tk4drqwkyg5o26yvh4`
 - First run: `Phase 1 complete: 29/29 articles (0 cache hits, 29 fetches)` ✅
 - Web content cached with immutable semantics (never overwritten)
 - Console shows `[FETCH]` for cache misses, `[CACHE HIT]` for cached content
-- Second run of same URLs would return instantly from cache
 
-**Next:** Implement approach C - split handler into cache-populating handler + reactive generateObject flow.
+**Next step:** Implement Step 1 (articlesWithContent derive) and Step 2 (per-article generateObject).
 
 ### Key Files Changed
 - `prompt-injection-tracker.tsx` - main pattern
