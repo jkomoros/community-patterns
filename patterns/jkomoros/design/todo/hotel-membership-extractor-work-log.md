@@ -11,6 +11,19 @@
   - Tries broad searches, subject filters, program-specific queries
   - Even validates found numbers by searching for them
   - Found 3 memberships in acceptance testing
+- ✅ Auto-save: memberships saved immediately via reportMembership tool
+- ✅ Stop Scan button working (onClick handler outside derive block)
+- ✅ Export with `#hotelMemberships` tag for wish discovery
+- ✅ Wish import code implemented (merges wished memberships with local)
+
+**⚠️ UNTESTED - Needs Testing:**
+- ❌ **Wish Import Feature** - Code implemented but NOT tested end-to-end
+  - Uses `wish<HotelMembershipOutput>({ query: "#hotelMemberships" })`
+  - Merges wished memberships with local memberships (deduplication by brand+number)
+  - Shows "imported" badge on wished memberships in UI
+  - **Blocked by CT-1085**: Favorites don't persist across page navigation
+  - **Cannot test locally**: OAuth doesn't work in local dev environment
+  - **To test**: Need production deployment OR CT-1085 fix OR manual `charm link`
 
 **Remaining - NEW ISSUE:**
 - ❌ Save handler data extraction - agent returns correct data (visible in summary)
@@ -20,6 +33,7 @@
 
 **Blocked (Framework Limitation):**
 - Issue 2: Auto-Fetch Emails - Framework doesn't support reactive side effects
+- CT-1085: Favorites don't persist across navigation (blocks wish-based auth)
 
 ---
 
@@ -971,8 +985,13 @@ ${[...knownNumbers].join(", ")}
 ### Implementation Priority
 
 1. **Phase 1: Export** - Add `#hotelMemberships` tag to output ✅ DONE
-2. **Phase 2: Import wish** - Accept wished memberships and merge
-3. **Phase 3: Agent awareness** - Update agent to skip known brands
+2. **Phase 2: Import wish** - Accept wished memberships and merge ⚠️ IMPLEMENTED BUT UNTESTED
+   - Code complete: `wish<HotelMembershipOutput>({ query: "#hotelMemberships" })`
+   - Merges with deduplication by brand+number
+   - Shows "imported" badge in UI
+   - **BLOCKED**: Cannot test due to CT-1085 (favorites don't persist) and local OAuth issues
+   - **TODO**: Test end-to-end when CT-1085 is fixed or in production
+3. **Phase 3: Agent awareness** - Update agent to skip known brands (not started)
 
 ---
 
