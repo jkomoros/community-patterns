@@ -333,14 +333,16 @@ Return your final result with the memberships array containing any found members
     // Note: Agent doesn't track individual email IDs, so we'll just mark scan time
 
     // Update brandHistory based on queriesAttempted
-    const updatedHistory = [...currentHistory];
+    // Deep clone the history to avoid mutating frozen objects from Cell
+    let updatedHistory: BrandSearchHistory[] = currentHistory.map(h => ({
+      brand: h.brand,
+      attempts: [...h.attempts],
+      status: h.status,
+    }));
 
     if (result.queriesAttempted && Array.isArray(result.queriesAttempted)) {
       for (const queryAttempt of result.queriesAttempted) {
-        const { brand, query, emailsFound, emailsRead } = queryAttempt;
-
-        // Find or create brand entry
-        let brandEntry = updatedHistory.find(h => h.brand === brand);
+        const { brand, query, emailsFound } = queryAttempt;
 
         // Count how many memberships were found for this brand in this agent run
         const membershipsForBrand = newMemberships.filter((m: MembershipRecord) => m.hotelBrand === brand).length;
@@ -353,12 +355,16 @@ Return your final result with the memberships array containing any found members
           emailIds: {}, // Agent doesn't track individual IDs
         };
 
-        if (brandEntry) {
-          // Update existing brand entry
-          const newAttempts = [...brandEntry.attempts, attempt];
+        // Find existing brand entry index
+        const brandIndex = updatedHistory.findIndex(h => h.brand === brand);
+
+        if (brandIndex >= 0) {
+          // Update existing brand entry by replacing it with new object
+          const oldEntry = updatedHistory[brandIndex];
+          const newAttempts = [...oldEntry.attempts, attempt];
 
           // Determine new status
-          let newStatus: "searching" | "found" | "exhausted" = brandEntry.status;
+          let newStatus: "searching" | "found" | "exhausted" = oldEntry.status;
           if (membershipsForBrand > 0) {
             newStatus = "found";
           } else if (newAttempts.length >= 5) {
@@ -367,9 +373,12 @@ Return your final result with the memberships array containing any found members
             newStatus = "searching";
           }
 
-          // Update in place
-          brandEntry.attempts = newAttempts;
-          brandEntry.status = newStatus;
+          // Replace with new object (don't mutate)
+          updatedHistory[brandIndex] = {
+            brand: oldEntry.brand,
+            attempts: newAttempts,
+            status: newStatus,
+          };
         } else {
           // Create new brand entry
           const newStatus: "searching" | "found" | "exhausted" =
