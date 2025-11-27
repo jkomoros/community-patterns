@@ -673,3 +673,216 @@ Run acceptance testing on hotel-membership-extractor and identify next steps.
 2. Fix data extraction based on actual result format
 3. Test save → display flow works correctly
 4. Consider if agent schema needs adjustment
+
+---
+
+## 🆕 Feature Design: Auto-Save & Ongoing Scan Mode (2025-11-27)
+
+### Overview
+
+The current extraction model requires a manual "Save Results" button click after extraction completes. This is suboptimal UX. The ideal flow:
+
+1. **First Scan:** Comprehensive search across all hotel brands to find ALL membership numbers
+2. **Ongoing Scan:** Periodic/triggered scan of RECENT emails only, looking for NEW memberships
+
+In both modes, results should auto-save with NO user confirmation required.
+
+### Key Insight: Append-Only is Safe
+
+**Why no save button is needed:**
+- Memberships are NEVER overwritten, only appended
+- Each discovered membership has a unique (brand + number) key
+- If we find a duplicate, we simply skip it
+- User can never lose data through automatic saving
+- Worst case: we discover the same membership twice → only stored once
+
+### Data Model Changes
+
+**Current:** Simple array of memberships
+```typescript
+memberships: MembershipRecord[]
+```
+
+**Proposed:** Map keyed by (brand + number) for deduplication
+```typescript
+memberships: Map<string, MembershipRecord>  // key: `${brand}:${number}`
+// OR use array but with deduplication logic
+```
+
+**MembershipRecord additions:**
+```typescript
+interface MembershipRecord {
+  hotelBrand: string;
+  membershipNumber: string;
+  programName: string;
+  tierStatus: string;
+  // NEW fields:
+  firstDiscoveredAt: number;    // When we first found this
+  lastSeenInEmailAt: number;    // Most recent email mentioning it
+  sourceEmails: string[];       // Email IDs where this was found (for debugging)
+  confidence: "high" | "medium" | "low";  // How confident we are
+}
+```
+
+### Auto-Save Implementation
+
+**Simple approach:** Save after every agent tool call that finds memberships
+
+```typescript
+// In agent onToolResult callback or similar:
+const handleNewMemberships = (found: MembershipRecord[]) => {
+  for (const m of found) {
+    const key = `${m.hotelBrand}:${m.membershipNumber}`;
+    const existing = memberships.get().find(e =>
+      e.hotelBrand === m.hotelBrand && e.membershipNumber === m.membershipNumber
+    );
+
+    if (!existing) {
+      // NEW membership - append immediately
+      memberships.push({
+        ...m,
+        firstDiscoveredAt: Date.now(),
+        lastSeenInEmailAt: Date.now(),
+      });
+    } else {
+      // DUPLICATE - just update lastSeenInEmailAt
+      existing.lastSeenInEmailAt = Date.now();
+    }
+  }
+};
+```
+
+### First Scan vs Ongoing Scan
+
+**First Scan (Comprehensive):**
+- Triggered on first run OR manually by user
+- Searches ALL emails for ALL brands
+- Uses broad queries: `from:marriott.com`, etc.
+- Goal: Find every membership ever mentioned
+
+**Ongoing Scan (Incremental):**
+- Triggered periodically OR on new email arrival
+- Searches only RECENT emails (e.g., last 7 days)
+- Only looks for brands we DON'T have memberships for yet
+- Uses `after:YYYY/MM/DD` Gmail filter
+- Goal: Catch new memberships without re-processing old emails
+
+### Ongoing Scan Query Strategy
+
+```typescript
+const buildOngoingScanQuery = (existingMemberships: MembershipRecord[]) => {
+  // Get brands we already have memberships for
+  const knownBrands = new Set(existingMemberships.map(m => m.hotelBrand.toLowerCase()));
+
+  // Only search brands we DON'T have yet
+  const brandsToSearch = ALL_HOTEL_BRANDS.filter(b => !knownBrands.has(b.toLowerCase()));
+
+  // Date filter: last 7 days
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const dateFilter = `after:${weekAgo.toISOString().split('T')[0].replace(/-/g, '/')}`;
+
+  // Build query for unknown brands only
+  const fromFilters = brandsToSearch.map(b => `from:${b.toLowerCase()}.com`).join(' OR ');
+
+  return `(${fromFilters}) ${dateFilter}`;
+};
+```
+
+**Example:**
+- We have: Hilton, IHG, Hyatt memberships
+- ALL_BRANDS: Marriott, Hilton, Hyatt, IHG, Accor
+- Unknown brands: Marriott, Accor
+- Query: `(from:marriott.com OR from:accor.com) after:2025/11/20`
+
+### Trigger Modes
+
+**Option A: Timer-Based**
+- Run ongoing scan every N hours
+- Con: Wastes resources if no new emails
+
+**Option B: Event-Based (Ideal)**
+- Trigger on Gmail notification of new hotel-related email
+- Requires webhook/push notification setup
+- More complex but more efficient
+
+**Option C: Manual + Auto (MVP)**
+- First scan: Manual "Start Scan" button
+- Auto-save results as discovered
+- Ongoing scan: Manual "Check Recent" button
+- User controls when scans run, but no save confirmation needed
+
+### UI Changes
+
+**Remove:**
+- ❌ "Save Results" button
+
+**Add:**
+- ✅ "Start Full Scan" button (first scan)
+- ✅ "Check Recent Emails" button (ongoing scan)
+- ✅ Real-time membership list that updates as discoveries are made
+- ✅ "Last scanned: X minutes ago" timestamp
+- ✅ "X new memberships found this session" counter
+
+### Edge Cases
+
+**Multiple Membership Numbers for Same Brand:**
+User mentioned: "if multiple loyalty numbers found for a given brand, try to help figure out what happened"
+
+Scenarios:
+1. **Old account + new account** - User created new account, forgot old
+2. **Spouse/family account** - Joint emails, different members
+3. **Work vs personal** - Separate loyalty programs
+4. **Merged programs** - Hotel acquisition (e.g., Starwood → Marriott)
+
+**Detection heuristics:**
+- Same brand, different numbers, different dates → likely account change
+- Same brand, different numbers, same email thread → likely family accounts
+- Same brand, different tier levels → might indicate primary vs secondary
+
+**UI for duplicates:**
+```
+⚠️ Multiple Marriott accounts detected:
+  - #123456789 (Gold, last seen 2023-01)  [likely old account]
+  - #987654321 (Silver, last seen 2025-11) [likely current]
+
+Which is your primary account? [#123456789] [#987654321] [Keep Both]
+```
+
+### Implementation Priority
+
+1. **Phase 1: Auto-Save (MVP)**
+   - Remove save button
+   - Implement deduplication logic
+   - Save memberships immediately as discovered
+   - Show real-time updates in UI
+
+2. **Phase 2: Ongoing Scan**
+   - Add "Check Recent" button
+   - Implement date-filtered queries
+   - Skip already-known brands
+
+3. **Phase 3: Multi-Account Detection**
+   - Detect multiple numbers per brand
+   - Show disambiguation UI
+   - Let user mark primary account
+
+### Open Questions
+
+1. **How to handle membership number changes?**
+   - Some programs let you choose your number
+   - Same person might have different numbers over time
+   - Should we track "previous numbers"?
+
+2. **How to detect spouse accounts?**
+   - Name in email different from user's name?
+   - Separate email threads?
+   - Let user manually tag?
+
+3. **What about deleted/cancelled accounts?**
+   - Old membership no longer valid
+   - Should user be able to archive/hide?
+
+4. **Privacy considerations?**
+   - Storing email IDs as sourceEmails - is this needed?
+   - Should we store email content snippets?
