@@ -952,8 +952,8 @@ Be thorough and search for all major hotel brands.`,
                           {/* Reverse order - most recent first */}
                           {[...progress.completedQueries].reverse().slice(0, 5).map((q: { query: string; emailCount: number }, i: number) => (
                             <div key={i} style="padding: 2px 0; borderBottom: 1px solid #dbeafe;">
-                              <span style="fontFamily: monospace;">{q.query.length > 50 ? q.query.substring(0, 50) + "..." : q.query}</span>
-                              <span style="marginLeft: 8px; color: #059669;">({q.emailCount} emails)</span>
+                              <span style="fontFamily: monospace;">{q?.query ? (q.query.length > 50 ? q.query.substring(0, 50) + "..." : q.query) : "unknown"}</span>
+                              <span style="marginLeft: 8px; color: #059669;">({q?.emailCount ?? 0} emails)</span>
                             </div>
                           ))}
                           {progress.completedQueries.length > 5 && (
