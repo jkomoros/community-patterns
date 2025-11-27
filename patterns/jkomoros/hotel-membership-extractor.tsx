@@ -697,6 +697,16 @@ Be thorough and search for all major hotel brands.`,
     console.log("[CompleteScan] Scan completed");
   });
 
+  // Handler to stop scan early (memberships already saved via auto-save)
+  const stopScan = handler<unknown, {
+    lastScanAt: Cell<Default<number, 0>>;
+    isScanning: Cell<Default<boolean, false>>;
+  }>((_, state) => {
+    state.lastScanAt.set(Date.now());
+    state.isScanning.set(false);
+    console.log("[StopScan] Scan stopped by user - memberships already saved via auto-save");
+  });
+
   // ============================================================================
   // UI HELPERS
   // ============================================================================
@@ -852,6 +862,16 @@ Be thorough and search for all major hotel brands.`,
                 </div>
               ) : null
             )}
+
+            {/* Stop Scan Button - OUTSIDE derive to avoid ReadOnlyAddressError */}
+            <ct-button
+              onClick={stopScan({ lastScanAt, isScanning })}
+              size="sm"
+              style="background: #ef4444; fontSize: 12px; width: 100%;"
+              disabled={derive(isScanning, (scanning) => !scanning)}
+            >
+              {derive(isScanning, (scanning) => scanning ? "⏹ Stop Scan" : "Not scanning")}
+            </ct-button>
 
             {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
