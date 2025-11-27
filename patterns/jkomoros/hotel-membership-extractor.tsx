@@ -303,6 +303,47 @@ export default pattern<HotelMembershipInput, HotelMembershipOutput>(({
   );
 
   // ============================================================================
+  // WISH IMPORT: Find existing memberships from other charms
+  // ============================================================================
+
+  // Wish for existing memberships from other hotel-membership-extractor charms
+  const wishedMembershipsCharm = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
+
+  // Extract wished memberships (if any) - WishState has { result, error }
+  const wishedMemberships = derive(wishedMembershipsCharm, (wishState: { result?: HotelMembershipOutput; error?: any }) =>
+    wishState?.result?.memberships || []
+  );
+
+  // Merge local memberships with wished memberships (deduplicated by brand+number)
+  const allMemberships = derive([memberships, wishedMemberships], ([local, wished]: [MembershipRecord[], MembershipRecord[]]) => {
+    const seen = new Set<string>();
+    const merged: MembershipRecord[] = [];
+
+    // Add local memberships first (they take precedence)
+    for (const m of (local || [])) {
+      const key = `${m.hotelBrand}:${m.membershipNumber}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(m);
+      }
+    }
+
+    // Add wished memberships that we don't already have
+    for (const m of (wished || [])) {
+      const key = `${m.hotelBrand}:${m.membershipNumber}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push({ ...m, _fromWish: true } as MembershipRecord & { _fromWish?: boolean });
+      }
+    }
+
+    return merged;
+  });
+
+  // Track if we have wished memberships
+  const hasWishedMemberships = derive(wishedMemberships, (list) => (list?.length || 0) > 0);
+
+  // ============================================================================
   // PROGRESS TRACKING: Track search activity for UI feedback
   // ============================================================================
 
@@ -717,9 +758,12 @@ Be thorough and search for all major hotel brands.`,
     ([scanning, pending, result]) => scanning && !pending && !!result
   );
 
-  const totalMemberships = derive(memberships, (list) => list?.length || 0);
+  // Use allMemberships (local + wished) for display
+  const totalMemberships = derive(allMemberships, (list) => list?.length || 0);
+  const localMembershipCount = derive(memberships, (list) => list?.length || 0);
+  const wishedMembershipCount = derive(wishedMemberships, (list) => list?.length || 0);
 
-  const groupedMemberships = derive(memberships, (list: MembershipRecord[]) => {
+  const groupedMemberships = derive(allMemberships, (list: MembershipRecord[]) => {
     const groups: Record<string, MembershipRecord[]> = {};
     if (!list) return groups;
     for (const m of list) {
@@ -964,6 +1008,13 @@ Be thorough and search for all major hotel brands.`,
             {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
               <div>Total Memberships: {totalMemberships}</div>
+              {derive([localMembershipCount, wishedMembershipCount], ([local, wished]) =>
+                wished > 0 ? (
+                  <div style="fontSize: 11px; color: #888;">
+                    ({local} local, {wished} imported from other charms)
+                  </div>
+                ) : null
+              )}
               {derive(lastScanAt, (ts) =>
                 ts > 0 ? <div>Last Scan: {new Date(ts).toLocaleString()}</div> : null
               )}
@@ -1029,9 +1080,14 @@ Be thorough and search for all major hotel brands.`,
                     </summary>
                     <ct-vstack gap={2} style="paddingLeft: 16px;">
                       {groups[brand].map((m) => (
-                        <div style="padding: 8px; background: #f8f9fa; borderRadius: 4px;">
-                          <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px;">
+                        <div style={`padding: 8px; background: ${(m as any)._fromWish ? "#e0f2fe" : "#f8f9fa"}; borderRadius: 4px; ${(m as any)._fromWish ? "border: 1px dashed #0ea5e9;" : ""}`}>
+                          <div style="fontWeight: 600; fontSize: 13px; marginBottom: 4px; display: flex; alignItems: center; gap: 6px;">
                             {m.programName}
+                            {(m as any)._fromWish && (
+                              <span style="fontSize: 10px; background: #0ea5e9; color: white; padding: 2px 6px; borderRadius: 10px;">
+                                imported
+                              </span>
+                            )}
                           </div>
                           <div style="marginBottom: 4px;">
                             <code style="fontSize: 14px; background: white; padding: 6px 12px; borderRadius: 4px; display: inline-block;">

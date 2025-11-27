@@ -12,7 +12,7 @@ type Favorite = { cell: Cell<{ [NAME]?: string }>; tag: string };
 
 export default pattern<Record<string, never>>((_) => {
   // Wish for the raw favorites list - same as favorites-manager.tsx
-  const wishResult = wish<Array<Favorite>>({ tag: "#favorites" });
+  const wishResult = wish<Array<Favorite>>({ query: "#favorites" });
 
   return {
     [NAME]: "Favorites Debug",
