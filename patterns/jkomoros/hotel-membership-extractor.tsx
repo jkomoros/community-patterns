@@ -349,13 +349,14 @@ export default pattern<HotelMembershipInput>(({
 
       return `Find hotel loyalty program membership numbers in my Gmail.
 
-Already found memberships for: ${foundBrands.join(", ") || "none yet"}
-Total memberships found: ${found.length}
+Already saved memberships for: ${foundBrands.join(", ") || "none yet"}
+Total memberships saved: ${found.length}
 
 Your task:
-1. Use the searchGmail tool to search for hotel loyalty emails
+1. Use searchGmail to search for hotel loyalty emails
 2. Analyze the returned emails for membership numbers
-3. Extract membership information from the email bodies
+3. When you find a membership: IMMEDIATELY call reportMembership to save it
+4. Continue searching other brands
 
 Hotel brands to search for:
 - Marriott (Marriott Bonvoy) - try: from:marriott.com OR from:email.marriott.com
@@ -365,31 +366,96 @@ Hotel brands to search for:
 - Accor (ALL - Accor Live Limitless) - try: from:accor.com
 
 Search strategy:
-1. Start with a broad query: from:marriott.com OR from:hilton.com OR from:hyatt.com OR from:ihg.com
-2. Look for emails with subjects containing "member", "account", "welcome", "status", "points"
+1. Start broad: from:marriott.com OR from:hilton.com OR from:hyatt.com OR from:ihg.com
+2. Look for subjects with "member", "account", "welcome", "status", "points"
 3. In email bodies, look for patterns like:
    - "Member #" or "Membership Number:" followed by digits
    - "Bonvoy Number:", "Hilton Honors #:", "World of Hyatt #:"
    - Account numbers are typically 9-16 digits
 
-For each membership found, provide:
-- hotelBrand: The hotel chain name
-- programName: The loyalty program name
-- membershipNumber: The actual number (digits only)
-- tier: Status tier if mentioned (Member, Silver, Gold, Platinum, Diamond, etc.)
-- sourceEmailId: The email ID
+When you find a membership, call reportMembership with:
+- hotelBrand: Hotel chain name (e.g., "Marriott", "Hilton")
+- programName: Loyalty program name (e.g., "Marriott Bonvoy", "Hilton Honors")
+- membershipNumber: The actual number (digits only, no spaces)
+- tier: Status tier if mentioned (Member, Silver, Gold, Platinum, Diamond)
+- sourceEmailId: The email ID from searchGmail results
 - sourceEmailSubject: The email subject
 - sourceEmailDate: The email date
-- confidence: 0-100 how confident you are this is correct
+- confidence: 0-100 how confident you are
 
-Return all memberships you find. Be thorough - search multiple brands!`;
+IMPORTANT: Call reportMembership for EACH membership as you find it. Don't wait!
+
+When done searching all brands, return a summary of what you searched and found.`;
     }
   );
+
+  // ============================================================================
+  // AUTO-SAVE: Report membership tool - saves immediately with deduplication
+  // ============================================================================
+  const reportMembershipHandler = handler<
+    {
+      hotelBrand: string;
+      programName: string;
+      membershipNumber: string;
+      tier?: string;
+      sourceEmailId: string;
+      sourceEmailSubject: string;
+      sourceEmailDate: string;
+      confidence: number;
+      result?: Cell<any>;
+    },
+    { memberships: Cell<Default<MembershipRecord[], []>> }
+  >((input, state) => {
+    const currentMemberships = state.memberships.get() || [];
+
+    // Deduplication key: brand + number (case-insensitive)
+    const key = `${input.hotelBrand.toLowerCase()}:${input.membershipNumber}`;
+    const existingKeys = new Set(
+      currentMemberships.map(m => `${m.hotelBrand.toLowerCase()}:${m.membershipNumber}`)
+    );
+
+    let resultMessage: string;
+
+    if (existingKeys.has(key)) {
+      // Already have this membership - skip
+      console.log(`[ReportMembership] Duplicate skipped: ${input.hotelBrand} ${input.membershipNumber}`);
+      resultMessage = `Duplicate: ${input.hotelBrand} ${input.membershipNumber} already saved`;
+    } else {
+      // New membership - save immediately
+      const newMembership: MembershipRecord = {
+        id: `${input.hotelBrand}-${input.membershipNumber}-${Date.now()}`,
+        hotelBrand: input.hotelBrand,
+        programName: input.programName,
+        membershipNumber: input.membershipNumber,
+        tier: input.tier,
+        sourceEmailId: input.sourceEmailId,
+        sourceEmailDate: input.sourceEmailDate,
+        sourceEmailSubject: input.sourceEmailSubject,
+        extractedAt: Date.now(),
+        confidence: input.confidence,
+      };
+
+      state.memberships.set([...currentMemberships, newMembership]);
+      console.log(`[ReportMembership] SAVED: ${input.hotelBrand} ${input.membershipNumber} (${input.tier || "no tier"})`);
+      resultMessage = `Saved: ${input.hotelBrand} ${input.membershipNumber}`;
+    }
+
+    // Write result if result cell provided (for tool calling)
+    if (input.result) {
+      input.result.set({ success: true, message: resultMessage });
+    }
+
+    return { success: true, message: resultMessage };
+  });
 
   const agentTools = {
     searchGmail: {
       description: "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text.",
       handler: searchGmailHandler({ auth, progress: searchProgress }),
+    },
+    reportMembership: {
+      description: "Report a found membership number. Call this IMMEDIATELY when you find a valid membership number. It will be saved automatically. Parameters: hotelBrand (string), programName (string), membershipNumber (string), tier (string, optional), sourceEmailId (string), sourceEmailSubject (string), sourceEmailDate (string), confidence (number 0-100).",
+      handler: reportMembershipHandler({ memberships }),
     },
   };
 
@@ -398,15 +464,25 @@ Return all memberships you find. Be thorough - search multiple brands!`;
 
 Your job: Search Gmail to find hotel loyalty program membership numbers.
 
-You have ONE tool: searchGmail({ query: string })
-- Use Gmail search syntax: from:domain.com, subject:"keyword", OR, AND
-- The tool returns emails with full body text
-- Search multiple times if needed for different hotel brands
+You have TWO tools:
+1. searchGmail({ query: string }) - Search Gmail and return matching emails
+   - Use Gmail search syntax: from:domain.com, subject:"keyword", OR, AND
+   - Returns emails with full body text
+   - Search multiple times for different hotel brands
 
-When you find a membership number:
-- Verify it looks like a real membership number (usually 9-16 digits)
-- Note the tier/status if mentioned
-- Record which email it came from
+2. reportMembership({ hotelBrand, programName, membershipNumber, tier?, sourceEmailId, sourceEmailSubject, sourceEmailDate, confidence }) - SAVE a found membership
+   - Call this IMMEDIATELY when you find a valid membership number
+   - The membership is saved automatically (no manual save needed)
+   - Duplicates are automatically skipped
+
+IMPORTANT WORKFLOW:
+1. Search for emails from a hotel brand
+2. Read the email bodies for membership numbers
+3. When you find a membership: IMMEDIATELY call reportMembership
+4. Continue searching other brands
+5. When done with all brands, return a summary
+
+Do NOT wait until the end to report memberships. Report each one as you find it.
 
 Be thorough and search for all major hotel brands.`,
 
@@ -419,23 +495,6 @@ Be thorough and search for all major hotel brands.`,
     schema: {
       type: "object",
       properties: {
-        memberships: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              hotelBrand: { type: "string" },
-              programName: { type: "string" },
-              membershipNumber: { type: "string" },
-              tier: { type: "string" },
-              sourceEmailId: { type: "string" },
-              sourceEmailSubject: { type: "string" },
-              sourceEmailDate: { type: "string" },
-              confidence: { type: "number" },
-            },
-            required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
-          },
-        },
         searchesPerformed: {
           type: "array",
           items: {
@@ -443,15 +502,20 @@ Be thorough and search for all major hotel brands.`,
             properties: {
               query: { type: "string" },
               emailsFound: { type: "number" },
+              brandsSearched: { type: "array", items: { type: "string" } },
             },
           },
         },
+        membershipsFound: {
+          type: "number",
+          description: "Total count of memberships found and saved via reportMembership",
+        },
         summary: {
           type: "string",
-          description: "Brief summary of what was found",
+          description: "Brief summary of what was searched and found",
         },
       },
-      required: ["memberships", "summary"],
+      required: ["membershipsFound", "summary"],
     },
   });
 
@@ -498,104 +562,25 @@ Be thorough and search for all major hotel brands.`,
     state.isScanning.set(true);
   });
 
-  const saveResults = handler<unknown, {
-    memberships: Cell<Default<MembershipRecord[], []>>;
+  // Handler to mark scan as complete (memberships already saved via reportMembership tool)
+  const completeScan = handler<unknown, {
     lastScanAt: Cell<Default<number, 0>>;
     isScanning: Cell<Default<boolean, false>>;
-    agentResult: Cell<any>;
   }>((_, state) => {
-    // Access the agentResult Cell and get memberships via path access
-    // This properly resolves cell links in the result
-    const resultCell = state.agentResult;
-    const result = resultCell.get();
-    if (!result) return;
-
-    console.log("[SaveResults] Result summary:", result.summary);
-
-    // Access memberships through Cell path to resolve links
-    const membershipsCell = resultCell.key("memberships");
-    const membershipsArray = membershipsCell.get() || [];
-
-    console.log("[SaveResults] Memberships count:", membershipsArray.length);
-
-    const currentMemberships = state.memberships.get();
-    const newMemberships: MembershipRecord[] = [];
-
-    // Iterate through memberships using index-based Cell access
-    for (let i = 0; i < membershipsArray.length; i++) {
-      const membershipCell = membershipsCell.key(i);
-      const m = membershipCell.get();
-
-      console.log(`[SaveResults] Membership ${i} resolved:`, m);
-
-      if (!m) continue;
-
-      // Now m should have the actual values
-      const membership: MembershipRecord = {
-        id: `${m.hotelBrand || "unknown"}-${m.membershipNumber || "unknown"}-${Date.now()}-${i}`,
-        hotelBrand: String(m.hotelBrand || ""),
-        programName: String(m.programName || ""),
-        membershipNumber: String(m.membershipNumber || ""),
-        tier: m.tier ? String(m.tier) : undefined,
-        sourceEmailId: String(m.sourceEmailId || ""),
-        sourceEmailDate: String(m.sourceEmailDate || ""),
-        sourceEmailSubject: String(m.sourceEmailSubject || ""),
-        extractedAt: Date.now(),
-        confidence: typeof m.confidence === "number" ? m.confidence : undefined,
-      };
-      console.log(`[SaveResults] Processed membership:`, membership);
-      newMemberships.push(membership);
-    }
-
-    // Deduplicate by membership number
-    const existingNumbers = new Set(currentMemberships.map(m => m.membershipNumber));
-    const uniqueNew = newMemberships.filter(m => m.membershipNumber && !existingNumbers.has(m.membershipNumber));
-
-    if (uniqueNew.length > 0) {
-      state.memberships.set([...currentMemberships, ...uniqueNew]);
-    }
-
     state.lastScanAt.set(Date.now());
     state.isScanning.set(false);
-
-    console.log(`[SaveResults] Saved ${uniqueNew.length} new memberships`);
+    console.log("[CompleteScan] Scan completed");
   });
 
   // ============================================================================
   // UI HELPERS
   // ============================================================================
 
-  const shouldShowSaveButton = derive(
+  // Shows when agent completed (scan in progress, agent done)
+  const scanCompleted = derive(
     [isScanning, agentPending, agentResult],
     ([scanning, pending, result]) => scanning && !pending && !!result
   );
-
-  // Derive resolved memberships from agent result for UI display
-  // This properly resolves cell links by using Cell path access
-  const resolvedMemberships = derive(agentResult, () => {
-    const membershipsCell = agentResult.key("memberships");
-    const arr = membershipsCell.get() || [];
-    const resolved: Array<{
-      hotelBrand: string;
-      programName: string;
-      membershipNumber: string;
-      tier?: string;
-      sourceEmailSubject?: string;
-    }> = [];
-    for (let i = 0; i < arr.length; i++) {
-      const m = membershipsCell.key(i).get();
-      if (m) {
-        resolved.push({
-          hotelBrand: String(m.hotelBrand || ""),
-          programName: String(m.programName || ""),
-          membershipNumber: String(m.membershipNumber || ""),
-          tier: m.tier ? String(m.tier) : undefined,
-          sourceEmailSubject: m.sourceEmailSubject ? String(m.sourceEmailSubject) : undefined,
-        });
-      }
-    }
-    return resolved;
-  });
 
   const totalMemberships = derive(memberships, (list) => list?.length || 0);
 
@@ -731,59 +716,33 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Results Ready - Show exactly what will be saved */}
-            {derive(shouldShowSaveButton, (show) =>
-              show ? (
+            {/* Scan Complete - Auto-saved, just show summary */}
+            {derive(scanCompleted, (completed) =>
+              completed ? (
                 <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
                   <div style="fontSize: 16px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
-                    ✅ Extraction Complete!
+                    ✅ Scan Complete!
                   </div>
 
-                  {/* List exactly what will be saved */}
                   <div style="background: white; borderRadius: 8px; padding: 12px; marginBottom: 12px;">
-                    <div style="fontSize: 13px; fontWeight: 600; color: #065f46; marginBottom: 8px;">
-                      📋 Memberships found (will be saved):
+                    <div style="fontSize: 14px; color: #065f46; textAlign: center;">
+                      {derive(agentResult, (r) => r?.membershipsFound || 0)} memberships found and saved automatically
                     </div>
-                    {derive(resolvedMemberships, (memberships) => {
-                      if (!memberships || memberships.length === 0) {
-                        return <div style="fontSize: 12px; color: #666;">No memberships found</div>;
-                      }
-
-                      return memberships.map((m, i) => (
-                        <div key={i} style="padding: 8px; background: #f0fdf4; borderRadius: 4px; marginBottom: 6px; border: 1px solid #bbf7d0;">
-                          <div style="fontSize: 14px; fontWeight: 600; color: #166534;">
-                            {m.hotelBrand || "Unknown"} - {m.programName || "Unknown Program"}
-                          </div>
-                          <div style="fontSize: 16px; fontWeight: 700; color: #15803d; fontFamily: monospace; letterSpacing: 1px;">
-                            #{m.membershipNumber || "???"}
-                          </div>
-                          {m.tier && <div style="fontSize: 11px; color: #166534;">⭐ {m.tier}</div>}
-                          <div style="fontSize: 10px; color: #6b7280; marginTop: 4px;">
-                            Source: {m.sourceEmailSubject ? m.sourceEmailSubject.substring(0, 40) + "..." : "email"}
-                          </div>
-                        </div>
-                      ));
-                    })}
                   </div>
 
-                  {/* Summary */}
-                  <div style="fontSize: 11px; color: #059669; textAlign: center; fontStyle: italic;">
+                  {/* Summary from agent */}
+                  <div style="fontSize: 12px; color: #059669; textAlign: center; fontStyle: italic; marginBottom: 12px;">
                     {derive(agentResult, (r) => r?.summary || "")}
                   </div>
-                </div>
-              ) : null
-            )}
 
-            {/* Save Button - Only show after extraction completes */}
-            {derive(shouldShowSaveButton, (show) =>
-              show ? (
-                <ct-button
-                  onClick={saveResults({ memberships, lastScanAt, isScanning, agentResult })}
-                  size="lg"
-                  style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-                >
-                  💾 Save Results & Complete
-                </ct-button>
+                  <ct-button
+                    onClick={completeScan({ lastScanAt, isScanning })}
+                    size="lg"
+                    style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                  >
+                    ✓ Done
+                  </ct-button>
+                </div>
               ) : null
             )}
 
@@ -854,10 +813,11 @@ Be thorough and search for all major hotel brands.`,
                 <div>Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
                 <div>Agent Pending: {derive(agentPending, (p) => p ? "Yes ⏳" : "No ✓")}</div>
                 <div>Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
-                <div>Memberships in Result: {derive(agentResult, (r) => r?.memberships?.length || 0)}</div>
+                <div>Memberships Found (agent count): {derive(agentResult, (r) => r?.membershipsFound || 0)}</div>
                 <div>Searches Performed: {derive(agentResult, (r) =>
                   r?.searchesPerformed?.map((s: any) => `${s.query} (${s.emailsFound})`).join(", ") || "none"
                 )}</div>
+                <div>Agent Summary: {derive(agentResult, (r) => r?.summary?.substring(0, 100) || "none")}</div>
               </ct-vstack>
             </details>
           </ct-vstack>
