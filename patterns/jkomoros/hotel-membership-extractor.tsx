@@ -567,18 +567,9 @@ Be thorough and search for all major hotel brands.`,
     lastScanAt: Cell<Default<number, 0>>;
     isScanning: Cell<Default<boolean, false>>;
   }>((_, state) => {
-    try {
-      state.lastScanAt.set(Date.now());
-      state.isScanning.set(false);
-      console.log("[CompleteScan] Scan completed");
-    } catch (e) {
-      // Workaround for ReadOnlyAddressError that can occur after long agent runs
-      console.warn("[CompleteScan] Error setting state, likely framework issue:", e);
-      // Try to at least reset scanning state
-      try {
-        state.isScanning.set(false);
-      } catch (_) { /* ignore */ }
-    }
+    state.lastScanAt.set(Date.now());
+    state.isScanning.set(false);
+    console.log("[CompleteScan] Scan completed");
   });
 
   // ============================================================================
