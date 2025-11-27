@@ -719,6 +719,28 @@ Be thorough and search for all major hotel brands.`,
     return groups;
   });
 
+  // Multi-account detection: find brands with multiple different membership numbers
+  const brandsWithMultipleAccounts = derive(groupedMemberships, (groups) => {
+    const multiAccountBrands: Record<string, { numbers: string[]; memberships: MembershipRecord[] }> = {};
+
+    for (const [brand, memberships] of Object.entries(groups)) {
+      // Get unique membership numbers for this brand
+      const uniqueNumbers = [...new Set(memberships.map(m => m.membershipNumber))];
+
+      if (uniqueNumbers.length > 1) {
+        // Multiple different membership numbers for the same brand!
+        multiAccountBrands[brand] = {
+          numbers: uniqueNumbers,
+          memberships: memberships,
+        };
+      }
+    }
+
+    return multiAccountBrands;
+  });
+
+  const hasMultipleAccounts = derive(brandsWithMultipleAccounts, (brands) => Object.keys(brands).length > 0);
+
   // ============================================================================
   // UI
   // ============================================================================
@@ -926,6 +948,46 @@ Be thorough and search for all major hotel brands.`,
                 ts > 0 ? <div>Last Scan: {new Date(ts).toLocaleString()}</div> : null
               )}
             </div>
+
+            {/* Multi-Account Warning */}
+            {derive([hasMultipleAccounts, brandsWithMultipleAccounts], ([hasMulti, multiBrands]) =>
+              hasMulti ? (
+                <div style="padding: 16px; background: #fef3c7; border: 2px solid #f59e0b; borderRadius: 8px; marginBottom: 16px;">
+                  <div style="fontSize: 14px; fontWeight: 700; color: #92400e; marginBottom: 8px;">
+                    ⚠️ Multiple Accounts Detected
+                  </div>
+                  <div style="fontSize: 13px; color: #78350f;">
+                    {Object.entries(multiBrands).map(([brand, data], brandIdx) => (
+                      <div key={brandIdx} style="marginBottom: 8px; padding: 8px; background: white; borderRadius: 4px;">
+                        <div style="fontWeight: 600; marginBottom: 4px;">{brand}</div>
+                        <div style="fontSize: 12px; color: #666;">
+                          Found {data.numbers.length} different membership numbers:
+                          <ul style="margin: 4px 0 0 16px; padding: 0;">
+                            {data.numbers.map((num: string, i: number) => {
+                              const membership = data.memberships.find((m: MembershipRecord) => m.membershipNumber === num);
+                              return (
+                                <li key={i} style="marginBottom: 2px;">
+                                  <code style="background: #f3f4f6; padding: 2px 6px; borderRadius: 2px;">{num}</code>
+                                  {membership?.tier && <span style="marginLeft: 4px;">({membership.tier})</span>}
+                                  {membership?.sourceEmailDate && (
+                                    <span style="marginLeft: 4px; color: #999;">
+                                      - last seen {new Date(membership.sourceEmailDate).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                        <div style="fontSize: 11px; color: #92400e; marginTop: 4px; fontStyle: italic;">
+                          This could be: old vs new account, family member, or work vs personal
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            )}
 
             {/* Memberships List */}
             <div>
