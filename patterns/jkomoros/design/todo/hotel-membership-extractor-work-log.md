@@ -6,9 +6,17 @@
 - ✅ Issue 1: Gmail Auth Prominence (prominent warning box)
 - ✅ Gmail content extraction works correctly
 - ✅ Email fetching and display working
+- ✅ Issue 3: Smarter Query Iteration - SOLVED with agent architecture!
+  - Agent does 14+ different queries per scan
+  - Tries broad searches, subject filters, program-specific queries
+  - Even validates found numbers by searching for them
+  - Found 3 memberships in acceptance testing
 
-**Remaining - CRITICAL:**
-- ❌ Issue 3: Smarter Query Iteration (LLM needs query history and refinement)
+**Remaining - NEW ISSUE:**
+- ❌ Save handler data extraction - agent returns correct data (visible in summary)
+  but extracted membership objects have empty brand/program names
+  - Hypothesis: generateObject returns cells/links that need special handling
+  - Added getValue() helper and debug logging to diagnose
 
 **Blocked (Framework Limitation):**
 - Issue 2: Auto-Fetch Emails - Framework doesn't support reactive side effects
@@ -613,3 +621,55 @@ Agent: Found membership! finalResult({ memberships: [...] })
 - Need to inspect what email content looks like
 - Need to test LLM extraction prompt in isolation
 - Consider adding "show raw email content" debug view
+
+---
+
+## Session: Acceptance Testing (2025-11-27)
+
+### Goal
+Run acceptance testing on hotel-membership-extractor and identify next steps.
+
+### Test Results
+
+**Agent Performance: EXCELLENT** ✅
+- Agent successfully authenticated via wish system (Gmail Auth charm)
+- Searched ALL 5 hotel brands (Marriott, Hilton, Hyatt, IHG, Accor)
+- Performed 14+ different search queries:
+  - Broad: `from:marriott.com`
+  - Subject filters: `from:hilton.com subject:(welcome OR member)`
+  - Program-specific: `"World of Hyatt" "member number"`
+  - Validation: searched for found membership numbers directly
+- Found **3 memberships**:
+  - Hilton Honors (650697007, Silver)
+  - IHG One Rewards (499515687, Silver Elite)
+  - World of Hyatt (515838782J, Member)
+- Intelligent summary explaining why Marriott/Accor numbers not found
+
+**Issues Found:**
+
+1. **Save Handler Serialization Error** - FIXED ✅
+   - Error: "Cannot convert value to URI: {"link@1":..."
+   - Cause: Spreading agent result objects included @link references
+   - Fix: Extract only primitive fields explicitly
+
+2. **Data Extraction Issue** - IN PROGRESS 🔄
+   - Agent returns correct data (visible in summary)
+   - But saved memberships have empty brand/program names
+   - Showing "Unknown Brand (3)" and "Invalid Date" in UI
+   - Added getValue() helper to handle cell references
+   - Added debug logging to diagnose
+
+### Changes Made
+- Fixed save handler to not spread objects
+- Added getValue() helper for cell/link dereferencing
+- Added comprehensive debug logging
+- Improved UI fallbacks for empty values
+
+### Branch
+`hotel-membership-extractor-testing`
+
+### Next Steps
+1. Deploy with debug logging to see raw agent result structure
+2. Fix data extraction based on actual result format
+3. Test save → display flow works correctly
+4. Consider if agent schema needs adjustment
