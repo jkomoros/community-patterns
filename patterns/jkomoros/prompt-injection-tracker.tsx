@@ -143,6 +143,193 @@ function normalizeURL(url: string): string {
 }
 
 // ============================================================================
+// LLM Prompts and Schemas
+// ============================================================================
+
+const LINK_EXTRACTION_SYSTEM = `You are analyzing blog posts and news articles about cybersecurity to extract links to ORIGINAL security reports.
+
+For each article provided (with content), extract URLs that point to the ORIGINAL security research, advisories, or reports.
+
+Classification rules:
+
+1. "is-original-report": The article itself IS original security research
+   - Published on company security blogs (tenable.com/blog, paloaltonetworks.com/blog, etc.)
+   - Written by the researchers who discovered the vulnerability
+   - Contains first-person language ("We discovered...", "Our research shows...")
+   - Return the article URL itself as the security report link
+
+2. "has-security-links": Article is a repost/news coverage that REFERENCES original research
+   - Look for URLs in the article content linking to security blogs, GitHub repos, advisories
+   - Common patterns: "according to [Company]", "researchers found", "[Company] disclosed"
+   - Extract all links that appear to be original security reports
+   - Examples: Links to Tenable blog, researcher GitHub, company advisory pages
+
+3. "no-security-links": Generic mention, forecast, or tangential content
+   - Only mentions "prompt injection" in passing
+   - No specific vulnerability or disclosure
+   - General AI security discussion
+   - Return empty array
+
+When extracting links from content:
+- Look for URLs in the text (full URLs or markdown links)
+- Prioritize: company security blogs, researcher sites, GitHub advisories, CVE pages
+- Ignore: social media, news sites, generic homepages
+- Return the actual URLs found in the article
+
+Return your analysis for each article.`;
+
+const LINK_EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    articles: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          articleURL: { type: "string" },
+          securityReportLinks: {
+            type: "array",
+            items: { type: "string" },
+          },
+          classification: {
+            type: "string",
+            enum: ["has-security-links", "is-original-report", "no-security-links"],
+          },
+        },
+        required: ["articleURL", "securityReportLinks", "classification"],
+      },
+    },
+  },
+  required: ["articles"],
+};
+
+const SUMMARIZATION_SYSTEM = `You are analyzing original security reports about potential LLM/AI security vulnerabilities.
+
+For each security report, extract structured information AND classify if it's LLM-specific:
+
+**Required fields:**
+- title: Clear name (e.g., "HackedGPT - ChatGPT Memory Hijacking")
+- summary: 2-3 sentence overview of what happened and impact
+- attackMechanism: Technical description of how the attack works
+- affectedSystems: List of vulnerable products (e.g., ["ChatGPT-4o", "Claude API"])
+- noveltyFactor: What makes this attack new/different
+- severity: Your assessment (low, medium, high, critical)
+- discoveryDate: When reported (from article or "2025-11")
+- isLLMSpecific: TRUE if this is genuinely an LLM/AI-specific security vulnerability
+- llmClassification: 1-2 sentence explanation of your classification
+
+**isLLMSpecific Classification:**
+✅ TRUE (LLM-specific vulnerabilities):
+- Prompt injection attacks
+- Jailbreaking/safety bypass techniques
+- Model manipulation (poisoning, backdoors)
+- LLM memory hijacking
+- Agent system vulnerabilities exploiting LLM behavior
+- Attacks that exploit LLM text generation capabilities
+
+❌ FALSE (not LLM-specific):
+- General malware/security issues that just mention AI
+- Traditional web vulnerabilities in apps using AI
+- Business/product issues with AI companies
+- General AI ethics or safety discussions
+- Crypto scams using AI for social engineering (unless exploiting LLM vulnerabilities)
+
+Focus on actual LLM security disclosures, and filter out tangential mentions.`;
+
+const SUMMARIZATION_SCHEMA = {
+  type: "object",
+  properties: {
+    reports: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          sourceURL: { type: "string" },
+          title: { type: "string" },
+          summary: { type: "string" },
+          attackMechanism: { type: "string" },
+          affectedSystems: {
+            type: "array",
+            items: { type: "string" },
+          },
+          noveltyFactor: { type: "string" },
+          severity: {
+            type: "string",
+            enum: ["low", "medium", "high", "critical"],
+          },
+          discoveryDate: { type: "string" },
+          isLLMSpecific: { type: "boolean" },
+          llmClassification: { type: "string" },
+        },
+        required: ["sourceURL", "title", "summary", "attackMechanism", "affectedSystems", "noveltyFactor", "severity", "discoveryDate", "isLLMSpecific", "llmClassification"],
+      },
+    },
+  },
+  required: ["reports"],
+};
+
+/**
+ * Helper function to call LLM API directly for structured output.
+ * Used by processAllArticles handler to avoid reactive generateObject limitations.
+ */
+async function callLLM(
+  system: string,
+  prompt: string,
+  schema: object
+): Promise<any> {
+  const response = await fetch("/api/ai/llm/generateObject", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system,
+      messages: [{ role: "user", content: prompt }],
+      model: "anthropic:claude-sonnet-4-5",
+      schema,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`LLM API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.object;
+}
+
+/**
+ * Helper function to fetch article/report content via web-read API.
+ * Returns null on failure instead of throwing.
+ */
+async function fetchWebContent(
+  url: string,
+  maxTokens: number = 4000
+): Promise<string | null> {
+  try {
+    const response = await fetch("/api/agent-tools/web-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url,
+        max_tokens: maxTokens,
+        include_code: false,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to fetch ${url}: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.content || null;
+  } catch (error) {
+    console.error(`Error fetching ${url}:`, error);
+    return null;
+  }
+}
+
+// ============================================================================
 // Type Definitions
 // ============================================================================
 
