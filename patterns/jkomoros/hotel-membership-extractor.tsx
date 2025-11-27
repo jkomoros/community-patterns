@@ -457,14 +457,8 @@ Be thorough and search for all major hotel brands.`,
 
   const { result: agentResult, pending: agentPending } = agent;
 
-  // Store agent result for save handler
-  const agentResultStore = Cell.of<any>(null);
-  derive([agentResult], ([result]) => {
-    if (result) {
-      agentResultStore.set(result);
-    }
-    return result;
-  });
+  // Note: We pass agentResult Cell directly to handlers to properly resolve cell links
+  // Don't store raw result - cell links won't resolve properly when copied
 
   // ============================================================================
   // HANDLERS
@@ -508,60 +502,54 @@ Be thorough and search for all major hotel brands.`,
     memberships: Cell<Default<MembershipRecord[], []>>;
     lastScanAt: Cell<Default<number, 0>>;
     isScanning: Cell<Default<boolean, false>>;
-    agentResultStore: Cell<any>;
+    agentResult: Cell<any>;
   }>((_, state) => {
-    const result = state.agentResultStore.get();
+    // Access the agentResult Cell and get memberships via path access
+    // This properly resolves cell links in the result
+    const resultCell = state.agentResult;
+    const result = resultCell.get();
     if (!result) return;
 
-    console.log("[SaveResults] Raw result:", JSON.stringify(result, null, 2));
-    console.log("[SaveResults] Raw memberships:", result.memberships);
+    console.log("[SaveResults] Result summary:", result.summary);
 
-    // Debug each membership
-    if (result.memberships) {
-      result.memberships.forEach((m: any, i: number) => {
-        console.log(`[SaveResults] Membership ${i}:`, {
-          hotelBrand: m.hotelBrand,
-          hotelBrandType: typeof m.hotelBrand,
-          programName: m.programName,
-          membershipNumber: m.membershipNumber,
-        });
-      });
-    }
+    // Access memberships through Cell path to resolve links
+    const membershipsCell = resultCell.key("memberships");
+    const membershipsArray = membershipsCell.get() || [];
+
+    console.log("[SaveResults] Memberships count:", membershipsArray.length);
 
     const currentMemberships = state.memberships.get();
+    const newMemberships: MembershipRecord[] = [];
 
-    // Add new memberships with unique IDs
-    // Extract only primitive fields - don't spread the whole object as it may contain @link references
-    // Also handle case where values might be cell references that need .get()
-    const newMemberships = (result.memberships || []).map((m: any) => {
-      // Try to get raw values, handling both direct values and cell references
-      const getValue = (v: any): string => {
-        if (v === null || v === undefined) return "";
-        if (typeof v === "string") return v;
-        if (typeof v === "number") return String(v);
-        if (typeof v?.get === "function") return String(v.get() || "");
-        return String(v);
-      };
+    // Iterate through memberships using index-based Cell access
+    for (let i = 0; i < membershipsArray.length; i++) {
+      const membershipCell = membershipsCell.key(i);
+      const m = membershipCell.get();
 
-      const membership = {
-        id: `${getValue(m.hotelBrand)}-${getValue(m.membershipNumber)}-${Date.now()}`,
-        hotelBrand: getValue(m.hotelBrand),
-        programName: getValue(m.programName),
-        membershipNumber: getValue(m.membershipNumber),
-        tier: m.tier ? getValue(m.tier) : undefined,
-        sourceEmailId: getValue(m.sourceEmailId),
-        sourceEmailDate: getValue(m.sourceEmailDate),
-        sourceEmailSubject: getValue(m.sourceEmailSubject),
+      console.log(`[SaveResults] Membership ${i} resolved:`, m);
+
+      if (!m) continue;
+
+      // Now m should have the actual values
+      const membership: MembershipRecord = {
+        id: `${m.hotelBrand || "unknown"}-${m.membershipNumber || "unknown"}-${Date.now()}-${i}`,
+        hotelBrand: String(m.hotelBrand || ""),
+        programName: String(m.programName || ""),
+        membershipNumber: String(m.membershipNumber || ""),
+        tier: m.tier ? String(m.tier) : undefined,
+        sourceEmailId: String(m.sourceEmailId || ""),
+        sourceEmailDate: String(m.sourceEmailDate || ""),
+        sourceEmailSubject: String(m.sourceEmailSubject || ""),
         extractedAt: Date.now(),
         confidence: typeof m.confidence === "number" ? m.confidence : undefined,
       };
       console.log(`[SaveResults] Processed membership:`, membership);
-      return membership;
-    });
+      newMemberships.push(membership);
+    }
 
     // Deduplicate by membership number
     const existingNumbers = new Set(currentMemberships.map(m => m.membershipNumber));
-    const uniqueNew = newMemberships.filter((m: MembershipRecord) => !existingNumbers.has(m.membershipNumber));
+    const uniqueNew = newMemberships.filter(m => m.membershipNumber && !existingNumbers.has(m.membershipNumber));
 
     if (uniqueNew.length > 0) {
       state.memberships.set([...currentMemberships, ...uniqueNew]);
@@ -581,6 +569,33 @@ Be thorough and search for all major hotel brands.`,
     [isScanning, agentPending, agentResult],
     ([scanning, pending, result]) => scanning && !pending && !!result
   );
+
+  // Derive resolved memberships from agent result for UI display
+  // This properly resolves cell links by using Cell path access
+  const resolvedMemberships = derive(agentResult, () => {
+    const membershipsCell = agentResult.key("memberships");
+    const arr = membershipsCell.get() || [];
+    const resolved: Array<{
+      hotelBrand: string;
+      programName: string;
+      membershipNumber: string;
+      tier?: string;
+      sourceEmailSubject?: string;
+    }> = [];
+    for (let i = 0; i < arr.length; i++) {
+      const m = membershipsCell.key(i).get();
+      if (m) {
+        resolved.push({
+          hotelBrand: String(m.hotelBrand || ""),
+          programName: String(m.programName || ""),
+          membershipNumber: String(m.membershipNumber || ""),
+          tier: m.tier ? String(m.tier) : undefined,
+          sourceEmailSubject: m.sourceEmailSubject ? String(m.sourceEmailSubject) : undefined,
+        });
+      }
+    }
+    return resolved;
+  });
 
   const totalMemberships = derive(memberships, (list) => list?.length || 0);
 
@@ -685,7 +700,7 @@ Be thorough and search for all major hotel brands.`,
                     )
                   )}
 
-                  {/* Completed Searches */}
+                  {/* Completed Searches - Reverse chronological (most recent first) */}
                   {derive(searchProgress, (progress: SearchProgress) =>
                     progress.completedQueries.length > 0 ? (
                       <div style="marginTop: 8px;">
@@ -693,7 +708,8 @@ Be thorough and search for all major hotel brands.`,
                           ✅ Completed searches ({progress.completedQueries.length}):
                         </div>
                         <div style="maxHeight: 120px; overflowY: auto; fontSize: 11px; color: #3b82f6;">
-                          {progress.completedQueries.slice(-5).map((q: { query: string; emailCount: number }, i: number) => (
+                          {/* Reverse order - most recent first */}
+                          {[...progress.completedQueries].reverse().slice(0, 5).map((q: { query: string; emailCount: number }, i: number) => (
                             <div key={i} style="padding: 2px 0; borderBottom: 1px solid #dbeafe;">
                               <span style="fontFamily: monospace;">{q.query.length > 50 ? q.query.substring(0, 50) + "..." : q.query}</span>
                               <span style="marginLeft: 8px; color: #059669;">({q.emailCount} emails)</span>
@@ -715,22 +731,43 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Results Ready */}
+            {/* Results Ready - Show exactly what will be saved */}
             {derive(shouldShowSaveButton, (show) =>
               show ? (
                 <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
-                  <div style="fontSize: 16px; fontWeight: 600; color: #065f46; marginBottom: 8px; textAlign: center;">
+                  <div style="fontSize: 16px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
                     ✅ Extraction Complete!
                   </div>
-                  <div style="fontSize: 13px; color: #047857; textAlign: center; marginBottom: 12px;">
-                    {derive(agentResult, (r) => {
-                      const count = r?.memberships?.length || 0;
-                      return count > 0
-                        ? `Found ${count} membership${count !== 1 ? 's' : ''}!`
-                        : "No new memberships found";
+
+                  {/* List exactly what will be saved */}
+                  <div style="background: white; borderRadius: 8px; padding: 12px; marginBottom: 12px;">
+                    <div style="fontSize: 13px; fontWeight: 600; color: #065f46; marginBottom: 8px;">
+                      📋 Memberships found (will be saved):
+                    </div>
+                    {derive(resolvedMemberships, (memberships) => {
+                      if (!memberships || memberships.length === 0) {
+                        return <div style="fontSize: 12px; color: #666;">No memberships found</div>;
+                      }
+
+                      return memberships.map((m, i) => (
+                        <div key={i} style="padding: 8px; background: #f0fdf4; borderRadius: 4px; marginBottom: 6px; border: 1px solid #bbf7d0;">
+                          <div style="fontSize: 14px; fontWeight: 600; color: #166534;">
+                            {m.hotelBrand || "Unknown"} - {m.programName || "Unknown Program"}
+                          </div>
+                          <div style="fontSize: 16px; fontWeight: 700; color: #15803d; fontFamily: monospace; letterSpacing: 1px;">
+                            #{m.membershipNumber || "???"}
+                          </div>
+                          {m.tier && <div style="fontSize: 11px; color: #166534;">⭐ {m.tier}</div>}
+                          <div style="fontSize: 10px; color: #6b7280; marginTop: 4px;">
+                            Source: {m.sourceEmailSubject ? m.sourceEmailSubject.substring(0, 40) + "..." : "email"}
+                          </div>
+                        </div>
+                      ));
                     })}
                   </div>
-                  <div style="fontSize: 12px; color: #059669; textAlign: center;">
+
+                  {/* Summary */}
+                  <div style="fontSize: 11px; color: #059669; textAlign: center; fontStyle: italic;">
                     {derive(agentResult, (r) => r?.summary || "")}
                   </div>
                 </div>
@@ -739,7 +776,7 @@ Be thorough and search for all major hotel brands.`,
 
             {/* Save Button */}
             <ct-button
-              onClick={saveResults({ memberships, lastScanAt, isScanning, agentResultStore })}
+              onClick={saveResults({ memberships, lastScanAt, isScanning, agentResult })}
               size="lg"
               style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
               hidden={derive(shouldShowSaveButton, (show) => !show)}
