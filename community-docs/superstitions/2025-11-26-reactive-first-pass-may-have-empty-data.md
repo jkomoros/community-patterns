@@ -7,7 +7,7 @@ When pattern code runs, the first reactive pass may return empty arrays `[]` or 
 ## The Confusion
 
 We spent significant time debugging what we thought was a framework bug:
-- `wish({ tag: "#googleAuth" })` was returning "No favorite found"
+- `wish({ query: "#googleAuth" })` was returning "No favorite found"
 - Console showed error messages
 - Deploy command logged the error
 - We assumed the framework's favorites/wish system was broken

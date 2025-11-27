@@ -34,7 +34,7 @@ type GoogleAuthCharm = {
 
 export default pattern<Record<string, never>>((_) => {
   // Wish for a charm tagged with #googleAuth
-  const wishResult = wish<GoogleAuthCharm>({ tag: "#googleAuth" });
+  const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
   derive(wishResult, (wr) => console.log("wishResult", wr));
 

@@ -11,10 +11,10 @@ type Favorite = { cell: Cell<unknown>; tag: string };
 
 export default pattern<Record<string, never>>((_) => {
   // Try to wish for #googleAuth - this is what wish-auth-test does
-  const googleAuthWish = wish<{ auth: unknown }>({ tag: "#googleAuth" });
+  const googleAuthWish = wish<{ auth: unknown }>({ query: "#googleAuth" });
 
   // Also get the raw favorites list for comparison
-  const favoritesWish = wish<Array<Favorite>>({ tag: "#favorites" });
+  const favoritesWish = wish<Array<Favorite>>({ query: "#favorites" });
 
   return {
     [NAME]: "Wish Debug",
