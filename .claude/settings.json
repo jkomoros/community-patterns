@@ -102,7 +102,17 @@
       "SlashCommand:/community-docs",
       "SlashCommand:/issue-filing",
       "SlashCommand:/todo-files",
-      "SlashCommand:/git-workflow"
+      "SlashCommand:/git-workflow",
+      "Skill(community-docs)",
+      "Skill(deployment)",
+      "Skill(git-workflow)",
+      "Skill(issue-filing)",
+      "Skill(land-branch)",
+      "Skill(pattern-development)",
+      "Skill(recovery-strategies)",
+      "Skill(session-startup)",
+      "Skill(testing)",
+      "Skill(todo-files)"
     ],
     "deny": []
   }
