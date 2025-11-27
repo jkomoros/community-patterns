@@ -684,6 +684,226 @@ Return your analysis for each article.`,
     // Handlers - Article Processing
     // ========================================================================
 
+    // NEW: Single handler that runs the full pipeline automatically
+    const processAllArticles = handler<
+      unknown,
+      {
+        parsedArticles: Array<{emailId: string; articleURL: string; title: string}>;
+        reports: Cell<PromptInjectionReport[]>;
+        processedArticles: Cell<ProcessedArticle[]>;
+        isProcessing: Cell<boolean>;
+        processingStatus: Cell<string>;
+        lastProcessedDate: Cell<string>;
+      }
+    >(
+      async (_, { parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate }) => {
+        console.log("=== Starting full pipeline processing ===");
+        console.log("Articles to process:", parsedArticles?.length || 0);
+
+        if (!parsedArticles || parsedArticles.length === 0) {
+          console.log("No articles to process");
+          processingStatus.set("No new articles to process");
+          return;
+        }
+
+        isProcessing.set(true);
+        const startTime = Date.now();
+
+        try {
+          // ================================================================
+          // Phase 1: Fetch article content (parallel)
+          // ================================================================
+          processingStatus.set(`Fetching ${parsedArticles.length} articles...`);
+          console.log("Phase 1: Fetching articles...");
+
+          const articleFetchPromises = parsedArticles.map(async (article, idx) => {
+            const content = await fetchWebContent(article.articleURL);
+            if (content) {
+              console.log(`Fetched ${idx + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+            }
+            return {
+              emailId: article.emailId,
+              articleURL: article.articleURL,
+              articleContent: content || "",
+              title: article.title,
+            };
+          });
+
+          const articleBatch = await Promise.all(articleFetchPromises);
+          const successfulArticles = articleBatch.filter(a => a.articleContent);
+          console.log(`Phase 1 complete: ${successfulArticles.length}/${parsedArticles.length} articles fetched`);
+
+          if (successfulArticles.length === 0) {
+            processingStatus.set("Failed to fetch any articles");
+            isProcessing.set(false);
+            return;
+          }
+
+          // ================================================================
+          // Phase 2: LLM extracts security report links
+          // ================================================================
+          processingStatus.set(`Extracting security links from ${successfulArticles.length} articles...`);
+          console.log("Phase 2: Extracting security report links...");
+
+          const extractionResult = await callLLM(
+            LINK_EXTRACTION_SYSTEM,
+            JSON.stringify(successfulArticles),
+            LINK_EXTRACTION_SCHEMA
+          );
+
+          if (!extractionResult?.articles) {
+            processingStatus.set("LLM extraction returned no results");
+            isProcessing.set(false);
+            return;
+          }
+
+          console.log(`Phase 2 complete: Analyzed ${extractionResult.articles.length} articles`);
+
+          // ================================================================
+          // Phase 3: Dedupe and identify novel report URLs
+          // ================================================================
+          processingStatus.set("Identifying novel security reports...");
+          console.log("Phase 3: Deduplicating report URLs...");
+
+          const existingReportURLs = new Set(
+            reports.get().map((r: PromptInjectionReport) => normalizeURL(r.sourceURL))
+          );
+
+          const novelReportURLs: string[] = [];
+          const processedArticleRecords: ProcessedArticle[] = [];
+
+          for (const article of extractionResult.articles) {
+            const reportLinks = article.securityReportLinks || [];
+
+            // Collect novel report URLs
+            for (const link of reportLinks) {
+              const normalized = normalizeURL(link);
+              if (!existingReportURLs.has(normalized) && !novelReportURLs.includes(normalized)) {
+                novelReportURLs.push(normalized);
+                console.log("Novel report URL:", normalized);
+              }
+            }
+
+            // Record this article as processed (for caching)
+            processedArticleRecords.push({
+              articleURL: normalizeURL(article.articleURL),
+              emailId: "",
+              processedDate: new Date().toISOString(),
+              originalReportURLs: reportLinks,
+              classification: reportLinks.length > 0 ? "has-reports" : "no-reports",
+              notes: "",
+            });
+          }
+
+          console.log(`Phase 3 complete: Found ${novelReportURLs.length} novel report URLs`);
+
+          // Save processed articles to cache
+          for (const record of processedArticleRecords) {
+            processedArticles.push(record);
+          }
+
+          if (novelReportURLs.length === 0) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            processingStatus.set(`No new security reports found (${elapsed}s)`);
+            lastProcessedDate.set(new Date().toLocaleString());
+            isProcessing.set(false);
+            return;
+          }
+
+          // ================================================================
+          // Phase 4: Fetch novel report content (parallel)
+          // ================================================================
+          processingStatus.set(`Fetching ${novelReportURLs.length} security reports...`);
+          console.log("Phase 4: Fetching novel report content...");
+
+          const reportFetchPromises = novelReportURLs.map(async (url, idx) => {
+            const content = await fetchWebContent(url, 8000); // More tokens for full reports
+            if (content) {
+              console.log(`Fetched report ${idx + 1}/${novelReportURLs.length}`);
+            }
+            return {
+              reportURL: url,
+              reportContent: content || "",
+            };
+          });
+
+          const reportBatch = await Promise.all(reportFetchPromises);
+          const successfulReports = reportBatch.filter(r => r.reportContent);
+          console.log(`Phase 4 complete: ${successfulReports.length}/${novelReportURLs.length} reports fetched`);
+
+          if (successfulReports.length === 0) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            processingStatus.set(`Failed to fetch report content (${elapsed}s)`);
+            lastProcessedDate.set(new Date().toLocaleString());
+            isProcessing.set(false);
+            return;
+          }
+
+          // ================================================================
+          // Phase 5: LLM summarizes security reports
+          // ================================================================
+          processingStatus.set(`Summarizing ${successfulReports.length} security reports...`);
+          console.log("Phase 5: Summarizing security reports...");
+
+          const summarizationResult = await callLLM(
+            SUMMARIZATION_SYSTEM,
+            JSON.stringify(successfulReports),
+            SUMMARIZATION_SCHEMA
+          );
+
+          if (!summarizationResult?.reports || summarizationResult.reports.length === 0) {
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            processingStatus.set(`LLM summarization returned no results (${elapsed}s)`);
+            lastProcessedDate.set(new Date().toLocaleString());
+            isProcessing.set(false);
+            return;
+          }
+
+          console.log(`Phase 5 complete: Summarized ${summarizationResult.reports.length} reports`);
+
+          // ================================================================
+          // Phase 6: Save reports
+          // ================================================================
+          processingStatus.set(`Saving ${summarizationResult.reports.length} security reports...`);
+          console.log("Phase 6: Saving reports...");
+
+          for (const report of summarizationResult.reports) {
+            reports.push({
+              id: `report-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              title: report.title,
+              sourceURL: normalizeURL(report.sourceURL),
+              discoveryDate: report.discoveryDate,
+              summary: report.summary,
+              attackMechanism: report.attackMechanism,
+              affectedSystems: report.affectedSystems,
+              noveltyFactor: report.noveltyFactor,
+              severity: report.severity,
+              isLLMSpecific: report.isLLMSpecific,
+              llmClassification: report.llmClassification,
+              originalEmailId: "",
+              addedDate: new Date().toISOString(),
+              isRead: false,
+              userNotes: "",
+              tags: [],
+            });
+          }
+
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          lastProcessedDate.set(new Date().toLocaleString());
+          processingStatus.set(`Added ${summarizationResult.reports.length} new security reports! (${elapsed}s)`);
+          console.log(`=== Pipeline complete in ${elapsed}s ===`);
+
+        } catch (error) {
+          console.error("Pipeline error:", error);
+          processingStatus.set(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+        } finally {
+          isProcessing.set(false);
+        }
+      }
+    );
+
+    // OLD HANDLERS BELOW (to be removed in step 4)
+
     // Handler to process link extraction results and fetch novel reports
     const processLinkExtractionResults = handler<
       unknown,
