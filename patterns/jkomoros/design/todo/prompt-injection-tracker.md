@@ -1,7 +1,104 @@
 # Prompt Injection Tracker - TODO
 
 ## Status
-**Working:** Core functionality verified end-to-end (Nov 27, 2025)
+**In Progress:** Refactoring for proper LLM caching (Nov 27, 2025)
+
+## Current Work: LLM Caching Architecture
+
+### Problem Discovered
+The `callLLM()` helper uses raw `fetch()` to `/api/ai/llm/generateObject`, which:
+1. **Bypasses framework LLM caching** - each call is a fresh HTTP request
+2. **May be restricted by policy in future** - direct API access might be limited
+3. **Web content varies between fetches** - dynamic pages break cache keys
+
+### Solution: webPageCache + Reactive generateObject
+
+**Key insight from Alex:** "Use generateObject. And it's OK to have a single cache of URL -> webPage that we keep cached and assume never changes, within our own data model. Then that will make sure we always have exactly the same webPage content and thus the LLM extraction is also the same. It's critical the whole flow be designed to be character-by-character identical as much as possible."
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  emails (from Gmail)                                                 │
+│       │                                                              │
+│       ▼                                                              │
+│  parsedArticles (derive) ──────► list of {url, title, emailId}      │
+│       │                                                              │
+│       ▼                                                              │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ webPageCache cell (persisted, available via wish)           │    │
+│  │ Record<normalizedURL, { content: string, fetchedAt: string}>│    │
+│  │                                                              │    │
+│  │ - Check cache first, only fetch if missing                  │    │
+│  │ - Content is IMMUTABLE once cached                          │    │
+│  │ - Ensures character-by-character identical prompts          │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│       │                                                              │
+│       ▼                                                              │
+│  linkExtractionPrompt (derive) ──► builds prompt from cached content│
+│       │                                                              │
+│       ▼                                                              │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ generateObject (reactive, framework-cached)                  │    │
+│  │ - NEVER use fetch() to call LLM APIs directly               │    │
+│  │ - Framework caches based on exact prompt string             │    │
+│  │ - Same prompt = instant cached response                     │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│       │                                                              │
+│       ▼                                                              │
+│  processedArticles + reports (cells)                                │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementation Steps (Current)
+
+- [x] Add `CachedWebPage` interface and `webPageCache` to Output
+- [x] Add `webPageCache` cell in pattern
+- [x] Modify fetch logic to use cache (check first, write after)
+- [x] Export webPageCache in return statement (available via wish)
+- [x] Update handler signature to include webPageCache
+- [x] Update UI button onClick to pass webPageCache
+- [ ] Replace `callLLM()` with reactive `generateObject` trigger pattern
+- [ ] Remove `callLLM()` helper function entirely
+- [ ] Test that re-processing same articles uses cached LLM results
+
+### generateObject Conversion (Complex)
+
+The `callLLM()` helper in `processAllArticles` handler needs to be replaced with reactive `generateObject`. This is architecturally challenging because:
+
+1. **generateObject is reactive, not async** - can't await it in a handler
+2. **Per-article caching requires per-article generateObject** - but we can't create dynamic generateObject calls
+
+**Potential approaches:**
+
+A. **Use existing trigger pattern:**
+   - Set `linkExtractionTrigger` with prompt built from cached content
+   - Result appears in `linkExtractionResult` reactively
+   - Challenge: handler can't wait for reactive result
+
+B. **Restructure to fully reactive flow:**
+   - Remove imperative handler
+   - Use chain of derives: parsedArticles → cachedContent → llmPrompt → generateObject → result
+   - Challenge: complex state machine, harder to track progress
+
+C. **Hybrid: populate cache in handler, trigger generateObject, process result in derive:**
+   - Handler only fetches and caches web content
+   - Derive builds LLM prompt from cached content
+   - generateObject reacts to prompt
+   - Another derive/handler processes result
+   - Challenge: multi-step flow requires careful coordination
+
+**Current state:** Web caching is working. Prompts built from cached content are now deterministic. This helps but doesn't fully enable LLM caching until we switch from callLLM to generateObject.
+
+**Next session:** Implement approach C - split handler into cache-populating handler + reactive generateObject flow.
+
+### Key Files Changed
+- `prompt-injection-tracker.tsx` - main pattern
+- Output interface now includes `webPageCache: Default<Record<string, CachedWebPage>, {}>`
 
 ## Completed
 - [x] CT-1085 workaround: Accept authCharm as direct input for manual linking
@@ -10,6 +107,7 @@
 - [x] LLM link extraction from articles
 - [x] LLM report summarization
 - [x] Report saving and display
+- [x] Auto-run pipeline (processAllArticles handler) - needs refactor for caching
 
 ## UI Improvements Needed
 

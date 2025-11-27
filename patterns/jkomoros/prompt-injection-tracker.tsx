@@ -427,12 +427,26 @@ interface Input {
   authCharm: Default<any, null>;
 }
 
+/**
+ * Cached web page content for consistent LLM prompts.
+ * Other charms can wish for this to get cached web content.
+ */
+interface CachedWebPage {
+  content: string;
+  fetchedAt: string;
+}
+
 interface Output {
   lastProcessedDate: Default<string, "">;
   processedArticles: Default<ProcessedArticle[], []>;
   reports: Default<PromptInjectionReport[], []>;
   isProcessing: Default<boolean, false>;
   processingStatus: Default<string, "">;
+  /**
+   * URL -> cached web content. Available for other charms via wish.
+   * Content is immutable once cached to ensure LLM prompt consistency.
+   */
+  webPageCache: Default<Record<string, CachedWebPage>, {}>;
 }
 
 // ============================================================================
@@ -477,7 +491,12 @@ export default pattern<Input, Output>(
     const processingStatus = cell<string>("");
     const importJSON = cell<string>("");  // JSON to import
 
-    // Trigger cells for LLM phases
+    // Web page cache: URL -> content (immutable once cached)
+    // This ensures LLM prompts are character-by-character identical for caching.
+    // Available to other charms via wish.
+    const webPageCache = cell<Record<string, CachedWebPage>>({});
+
+    // Trigger cells for LLM phases (used with reactive generateObject)
     const linkExtractionTrigger = cell<string>("");  // Trigger for extracting security report links
     const reportSummarizationTrigger = cell<string>("");  // Trigger for summarizing novel reports
 
@@ -694,9 +713,10 @@ Return your analysis for each article.`,
         isProcessing: Cell<boolean>;
         processingStatus: Cell<string>;
         lastProcessedDate: Cell<string>;
+        webPageCache: Cell<Record<string, CachedWebPage>>;
       }
     >(
-      async (_, { parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate }) => {
+      async (_, { parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate, webPageCache }) => {
         console.log("=== Starting full pipeline processing ===");
         console.log("Articles to process:", parsedArticles?.length || 0);
 
@@ -711,15 +731,45 @@ Return your analysis for each article.`,
 
         try {
           // ================================================================
-          // Phase 1: Fetch article content (parallel)
+          // Phase 1: Fetch article content (parallel, with caching)
+          // Cache ensures character-by-character identical prompts for LLM caching.
           // ================================================================
           processingStatus.set(`Fetching ${parsedArticles.length} articles...`);
-          console.log("Phase 1: Fetching articles...");
+          console.log("Phase 1: Fetching articles (using cache when available)...");
+
+          const currentCache = webPageCache.get();
+          let cacheHits = 0;
+          let cacheMisses = 0;
 
           const articleFetchPromises = parsedArticles.map(async (article, idx) => {
+            const normalizedURL = article.articleURL;  // Already normalized in parsedArticles derive
+
+            // Check cache first - content is immutable once cached
+            if (currentCache[normalizedURL]) {
+              cacheHits++;
+              console.log(`[CACHE HIT] ${idx + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+              return {
+                emailId: article.emailId,
+                articleURL: article.articleURL,
+                articleContent: currentCache[normalizedURL].content,
+                title: article.title,
+              };
+            }
+
+            // Cache miss - fetch from web
+            cacheMisses++;
             const content = await fetchWebContent(article.articleURL);
             if (content) {
-              console.log(`Fetched ${idx + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+              console.log(`[FETCH] ${idx + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+              // Write to cache (immutable - never overwrite)
+              const updatedCache = { ...webPageCache.get() };
+              if (!updatedCache[normalizedURL]) {
+                updatedCache[normalizedURL] = {
+                  content,
+                  fetchedAt: new Date().toISOString(),
+                };
+                webPageCache.set(updatedCache);
+              }
             }
             return {
               emailId: article.emailId,
@@ -731,7 +781,7 @@ Return your analysis for each article.`,
 
           const articleBatch = await Promise.all(articleFetchPromises);
           const successfulArticles = articleBatch.filter(a => a.articleContent);
-          console.log(`Phase 1 complete: ${successfulArticles.length}/${parsedArticles.length} articles fetched`);
+          console.log(`Phase 1 complete: ${successfulArticles.length}/${parsedArticles.length} articles (${cacheHits} cache hits, ${cacheMisses} fetches)`);
 
           if (successfulArticles.length === 0) {
             processingStatus.set("Failed to fetch any articles");
@@ -1356,7 +1406,7 @@ Return your analysis for each article.`,
                       } else if (newArticleCount > 0) {
                         return (
                           <ct-button
-                            onClick={processAllArticles({ parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate })}
+                            onClick={processAllArticles({ parsedArticles, reports, processedArticles, isProcessing, processingStatus, lastProcessedDate, webPageCache })}
                             disabled={isProcessing}
                             style={{
                               background: "#3b82f6",
@@ -1910,6 +1960,7 @@ Return your analysis for each article.`,
       reports,
       isProcessing,
       processingStatus,
+      webPageCache,  // Available to other charms via wish
     };
   },
 );
