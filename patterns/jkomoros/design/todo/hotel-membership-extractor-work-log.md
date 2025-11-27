@@ -886,3 +886,90 @@ Which is your primary account? [#123456789] [#987654321] [Keep Both]
 4. **Privacy considerations?**
    - Storing email IDs as sourceEmails - is this needed?
    - Should we store email content snippets?
+
+---
+
+## 🆕 Feature Design: Export & Wish Import (2025-11-27)
+
+### Overview
+
+The hotel-membership-extractor should be able to:
+1. **Export** membership numbers so other patterns can use them
+2. **Import via wish** to avoid re-discovering known memberships
+
+### Export Memberships
+
+**Goal:** Other patterns can wish for hotel memberships without re-scanning Gmail.
+
+**Implementation:**
+- Add output cell that exports memberships
+- Tag output with `#hotelMemberships` for wish discovery
+- Other patterns use `wish("#hotelMemberships")` to get the list
+
+**Output Schema:**
+```typescript
+interface Output {
+  memberships: MembershipRecord[];
+  // Add tag for wish discovery
+}
+```
+
+**Pattern Output Comment:**
+```typescript
+/** Hotel membership records. #hotelMemberships */
+interface Output {
+  memberships: MembershipRecord[];
+}
+```
+
+### Import Known Memberships via Wish
+
+**Goal:** If user already has memberships stored elsewhere, import them to avoid duplicating scan work.
+
+**Use Cases:**
+1. User has another hotel-membership charm with existing data
+2. User wants to merge memberships from multiple scans
+3. User manually entered memberships somewhere
+
+**Implementation:**
+```typescript
+// In pattern input:
+interface Input {
+  // ... existing fields ...
+  knownMemberships: Default<MembershipRecord[], []>;  // Direct input
+}
+
+// Try to wish for existing memberships
+const wishedMemberships = wish<{ memberships: MembershipRecord[] }>("#hotelMemberships");
+
+// Merge known memberships into agent context
+const agentPrompt = derive([isScanning, memberships, wishedMemberships], ([scanning, found, wished]) => {
+  const knownNumbers = new Set([
+    ...found.map(m => m.membershipNumber),
+    ...(wished?.memberships || []).map(m => m.membershipNumber),
+  ]);
+
+  return `...
+Already known membership numbers (don't search for these):
+${[...knownNumbers].join(", ")}
+...`;
+});
+```
+
+**Agent Instructions Update:**
+- Tell agent about known memberships
+- Instruct agent to skip searching for brands we already have
+- Focus scan on unknown brands only
+
+### Benefits
+
+1. **Avoid duplicate work** - Don't re-scan Gmail for memberships we already know
+2. **Cross-pattern sharing** - Other patterns can use membership data
+3. **Merge multiple sources** - Combine manual entries with scanned data
+4. **Incremental scans** - Ongoing scans skip known memberships
+
+### Implementation Priority
+
+1. **Phase 1: Export** - Add `#hotelMemberships` tag to output
+2. **Phase 2: Import wish** - Accept wished memberships and merge
+3. **Phase 3: Agent awareness** - Update agent to skip known brands
