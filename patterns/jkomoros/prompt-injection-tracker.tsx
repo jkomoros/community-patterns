@@ -564,6 +564,112 @@ export default pattern<Input, Output>(
     });
 
     // ========================================================================
+    // Join Articles with Cached Content (for reactive LLM calls)
+    // ========================================================================
+
+    // This derive joins parsedArticles with webPageCache to get content for each article.
+    // Only articles with cached content are included, enabling per-article generateObject calls.
+    const articlesWithContent = derive(
+      [parsedArticles, webPageCache] as const,
+      ([articles, cache]: [Array<{emailId: string; articleURL: string; title: string}>, Record<string, CachedWebPage>]) => {
+        const result = articles
+          .filter(a => cache[a.articleURL]) // Only include articles with cached content
+          .map(a => ({
+            emailId: a.emailId,
+            articleURL: a.articleURL,
+            title: a.title,
+            articleContent: cache[a.articleURL].content,
+          }));
+        console.log(`[ARTICLES_WITH_CONTENT] ${result.length}/${articles.length} articles have cached content`);
+        return result;
+      }
+    );
+
+    // ========================================================================
+    // Reactive Per-Article LLM Link Extraction (NEW - uses framework caching)
+    // ========================================================================
+
+    // Schema for single-article extraction (per-article for better caching)
+    const SINGLE_ARTICLE_EXTRACTION_SCHEMA = {
+      type: "object" as const,
+      properties: {
+        articleURL: { type: "string" as const },
+        securityReportLinks: {
+          type: "array" as const,
+          items: { type: "string" as const },
+        },
+      },
+      required: ["articleURL", "securityReportLinks"] as const,
+    };
+
+    // Per-article generateObject calls in pattern body.
+    // Each article gets its own generateObject call, enabling framework LLM caching.
+    // When the same article content is processed again, cached result is returned instantly.
+    const articleLinkExtractions = articlesWithContent.map((article) => {
+      return generateObject({
+        system: LINK_EXTRACTION_SYSTEM,
+        prompt: derive(article, (a) => {
+          // Empty prompt = no LLM call (prevents call when content is missing)
+          if (!a?.articleContent) return "";
+          // Deterministic JSON prompt from cached content ensures cache hits
+          return JSON.stringify({
+            articleURL: a.articleURL,
+            articleContent: a.articleContent,
+            title: a.title,
+          });
+        }),
+        model: "anthropic:claude-sonnet-4-5",
+        schema: SINGLE_ARTICLE_EXTRACTION_SCHEMA,
+      });
+    });
+
+    // Collect all LLM extraction results and track progress
+    const linkExtractionProgress = derive(
+      articleLinkExtractions,
+      (extractions: Array<{ result: any; pending: boolean; error: any }>) => {
+        if (!extractions || extractions.length === 0) {
+          return { total: 0, pending: 0, completed: 0, errors: 0, results: [], allDone: false };
+        }
+        const total = extractions.length;
+        const pending = extractions.filter(e => e.pending).length;
+        const completed = extractions.filter(e => e.result && !e.pending).length;
+        const errors = extractions.filter(e => e.error).length;
+        const results = extractions
+          .filter(e => e.result)
+          .map(e => e.result);
+
+        console.log(`[LINK_EXTRACTION_PROGRESS] ${completed}/${total} completed, ${pending} pending, ${errors} errors`);
+        return { total, pending, completed, errors, results, allDone: pending === 0 && total > 0 };
+      }
+    );
+
+    // Collect novel report URLs from all completed extractions
+    const novelReportURLs = derive(
+      [linkExtractionProgress, reports] as const,
+      ([progress, existingReports]: [{ results: any[]; allDone: boolean }, PromptInjectionReport[]]) => {
+        if (!progress.allDone || progress.results.length === 0) {
+          return [];
+        }
+
+        const existingURLs = new Set(existingReports.map(r => normalizeURL(r.sourceURL)));
+        const novelURLs: string[] = [];
+
+        for (const result of progress.results) {
+          if (!result?.securityReportLinks) continue;
+          for (const link of result.securityReportLinks) {
+            const normalized = normalizeURL(link);
+            if (!existingURLs.has(normalized) && !novelURLs.includes(normalized)) {
+              novelURLs.push(normalized);
+            }
+          }
+        }
+
+        console.log(`[NOVEL_REPORT_URLS] Found ${novelURLs.length} novel report URLs from ${progress.results.length} articles`);
+        return novelURLs;
+      }
+    );
+
+    // ========================================================================
     // LLM Phase 2: Summarize Novel Security Reports
     // ========================================================================
 
@@ -703,7 +809,72 @@ Return your analysis for each article.`,
     // Handlers - Article Processing
     // ========================================================================
 
-    // NEW: Single handler that runs the full pipeline automatically
+    // NEW: Simplified handler that ONLY fetches web content into cache.
+    // LLM calls happen reactively via generateObject in pattern body above.
+    const fetchArticleContent = handler<
+      unknown,
+      {
+        parsedArticles: Array<{emailId: string; articleURL: string; title: string}>;
+        webPageCache: Cell<Record<string, CachedWebPage>>;
+        processingStatus: Cell<string>;
+        isProcessing: Cell<boolean>;
+      }
+    >(
+      async (_, { parsedArticles, webPageCache, processingStatus, isProcessing }) => {
+        console.log("=== Starting web content fetch (LLM will run reactively) ===");
+        console.log("Articles to fetch:", parsedArticles?.length || 0);
+
+        if (!parsedArticles || parsedArticles.length === 0) {
+          processingStatus.set("No new articles to process");
+          return;
+        }
+
+        isProcessing.set(true);
+        const startTime = Date.now();
+        const cache = webPageCache.get();
+        let fetched = 0;
+        let cached = 0;
+
+        // Fetch all articles that aren't already cached
+        for (let i = 0; i < parsedArticles.length; i++) {
+          const article = parsedArticles[i];
+
+          if (cache[article.articleURL]) {
+            cached++;
+            continue; // Skip already cached
+          }
+
+          processingStatus.set(`Fetching ${i + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+
+          const content = await fetchWebContent(article.articleURL);
+          if (content) {
+            fetched++;
+            // Update cache (immutable - never overwrite existing)
+            const updatedCache = { ...webPageCache.get() };
+            if (!updatedCache[article.articleURL]) {
+              updatedCache[article.articleURL] = {
+                content,
+                fetchedAt: new Date().toISOString(),
+              };
+              webPageCache.set(updatedCache);
+            }
+            console.log(`[FETCH] ${i + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+          } else {
+            console.log(`[FETCH FAILED] ${i + 1}/${parsedArticles.length}: ${article.title.substring(0, 40)}...`);
+          }
+        }
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        processingStatus.set(`Fetched ${fetched} articles (${cached} cached). LLM extraction running reactively... (${elapsed}s)`);
+        console.log(`=== Web fetch complete: ${fetched} new, ${cached} cached in ${elapsed}s ===`);
+        console.log("LLM calls will now run reactively via generateObject in pattern body.");
+
+        // Note: We DON'T set isProcessing to false here!
+        // The LLM calls are still running reactively. The UI should watch linkExtractionProgress.pending.
+      }
+    );
+
+    // OLD: Single handler that runs the full pipeline automatically (kept for comparison)
     const processAllArticles = handler<
       unknown,
       {
@@ -1486,6 +1657,115 @@ Return your analysis for each article.`,
                       ) : null}
                     </div>
                   </details>
+                </div>
+              </ct-card>
+
+              {/* NEW: Reactive LLM Extraction Progress */}
+              <ct-card style={{
+                border: "2px solid #8b5cf6",
+                boxShadow: "0 4px 6px rgba(139, 92, 246, 0.1)"
+              }}>
+                <div>
+                  <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#8b5cf6" }}>
+                    🧪 Reactive LLM Extraction (NEW)
+                  </h3>
+                  <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "12px" }}>
+                    Uses reactive generateObject with framework caching. Same article = cached LLM result.
+                  </div>
+
+                  {/* Progress display */}
+                  <div style={{
+                    padding: "12px",
+                    background: "#f5f3ff",
+                    borderRadius: "8px",
+                    marginBottom: "12px"
+                  }}>
+                    <div style={{ fontSize: "13px", marginBottom: "8px" }}>
+                      <strong>Articles with cached content:</strong>{" "}
+                      {derive(articlesWithContent, (a) => a.length)} / {newArticleCount}
+                    </div>
+                    <div style={{ fontSize: "13px", marginBottom: "8px" }}>
+                      <strong>LLM Extraction Progress:</strong>{" "}
+                      {derive(linkExtractionProgress, (p) =>
+                        p.total === 0 ? "No articles to process" :
+                        `${p.completed}/${p.total} completed${p.pending > 0 ? `, ${p.pending} pending` : ""}${p.errors > 0 ? `, ${p.errors} errors` : ""}`
+                      )}
+                    </div>
+                    {derive(linkExtractionProgress, (p) =>
+                      p.pending > 0 ? (
+                        <div style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginTop: "8px",
+                          padding: "8px",
+                          background: "#fef3c7",
+                          borderRadius: "4px"
+                        }}>
+                          <span style={{ animation: "spin 1s linear infinite" }}>⏳</span>
+                          <span style={{ fontSize: "12px", color: "#92400e" }}>
+                            LLM processing {p.pending} articles...
+                          </span>
+                        </div>
+                      ) : null
+                    )}
+                    {derive(linkExtractionProgress, (p) =>
+                      p.allDone && p.completed > 0 ? (
+                        <div style={{
+                          padding: "8px",
+                          background: "#dcfce7",
+                          borderRadius: "4px",
+                          marginTop: "8px"
+                        }}>
+                          <span style={{ fontSize: "12px", color: "#166534" }}>
+                            ✅ All LLM extraction complete!
+                          </span>
+                        </div>
+                      ) : null
+                    )}
+                    <div style={{ fontSize: "13px", marginTop: "8px" }}>
+                      <strong>Novel Report URLs Found:</strong>{" "}
+                      {derive(novelReportURLs, (urls) => urls.length)}
+                    </div>
+                  </div>
+
+                  {/* Action button */}
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <ct-button
+                      onClick={fetchArticleContent({ parsedArticles, webPageCache, processingStatus, isProcessing })}
+                      disabled={derive({ isProcessing, newArticleCount }, ({ isProcessing, newArticleCount }) =>
+                        isProcessing || newArticleCount === 0
+                      )}
+                      style={{
+                        background: "#8b5cf6",
+                        color: "white"
+                      }}
+                    >
+                      {isProcessing ? "⏳ Fetching..." : `📥 Fetch ${newArticleCount} Articles (Reactive)`}
+                    </ct-button>
+                  </div>
+
+                  {/* Novel URLs list */}
+                  {derive(novelReportURLs, (urls) =>
+                    urls.length > 0 ? (
+                      <div style={{ marginTop: "12px" }}>
+                        <details>
+                          <summary style={{ cursor: "pointer", fontSize: "12px", color: "#6b7280" }}>
+                            Show {urls.length} novel report URLs
+                          </summary>
+                          <div style={{ fontSize: "10px", marginTop: "8px", maxHeight: "200px", overflowY: "auto" }}>
+                            {urls.map((url: string, i: number) => (
+                              <div key={i} style={{ padding: "4px", background: i % 2 === 0 ? "#f9fafb" : "white", wordBreak: "break-all" }}>
+                                <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: "#3b82f6" }}>
+                                  {url}
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                    ) : null
+                  )}
                 </div>
               </ct-card>
 
