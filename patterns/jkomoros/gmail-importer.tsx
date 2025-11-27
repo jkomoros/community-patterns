@@ -9,12 +9,14 @@ import {
   handler,
   ifElse,
   NAME,
+  navigateTo,
   patternTool,
   pattern,
   str,
   UI,
   wish,
 } from "commontools";
+import GmailAuth from "./gmail-auth.tsx";
 import TurndownService from "turndown";
 
 type CFC<T, C extends string> = T;
@@ -880,6 +882,24 @@ const toggleAuthView = handler<
   },
 );
 
+// Handler to create a new GmailAuth charm and navigate to it
+const createGmailAuth = handler<unknown, Record<string, never>>(
+  () => {
+    const gmailAuthCharm = GmailAuth({
+      auth: {
+        token: "",
+        tokenType: "",
+        scope: [],
+        expiresIn: 0,
+        expiresAt: 0,
+        refreshToken: "",
+        user: { email: "", name: "", picture: "" },
+      },
+    });
+    return navigateTo(gmailAuthCharm);
+  },
+);
+
 // What we expect from the gmail-auth charm
 type GoogleAuthCharm = {
   auth: Auth;
@@ -1017,14 +1037,17 @@ export default pattern<{
                       }}>
                         <strong>⚠️ No Google Auth Found</strong>
                         <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                          To use Gmail Importer:
+                          Create a Gmail Auth charm to authenticate:
                         </p>
-                        <ol style={{ margin: "8px 0 0 0", paddingLeft: "20px", fontSize: "14px" }}>
-                          <li>Deploy a <code>gmail-auth</code> pattern</li>
-                          <li>Authenticate with Google</li>
-                          <li>Click the ⭐ star to favorite it</li>
-                          <li>This importer will automatically find it!</li>
-                        </ol>
+                        <ct-button
+                          onClick={createGmailAuth({})}
+                          style={{ marginTop: "12px" }}
+                        >
+                          Create Gmail Auth
+                        </ct-button>
+                        <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
+                          After authenticating, click the ⭐ star to favorite it, then come back here.
+                        </p>
                         {ifElse(
                           derive(wishError, (err) => !!err),
                           <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#856404" }}>
