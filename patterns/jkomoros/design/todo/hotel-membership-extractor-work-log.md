@@ -970,6 +970,128 @@ ${[...knownNumbers].join(", ")}
 
 ### Implementation Priority
 
-1. **Phase 1: Export** - Add `#hotelMemberships` tag to output
+1. **Phase 1: Export** - Add `#hotelMemberships` tag to output ✅ DONE
 2. **Phase 2: Import wish** - Accept wished memberships and merge
 3. **Phase 3: Agent awareness** - Update agent to skip known brands
+
+---
+
+## 🧪 Testing Best Practices (2025-11-27)
+
+### Overview
+
+Testing patterns that require OAuth authentication (like Gmail) can be tricky due to:
+- OAuth tokens expiring between test sessions
+- Favorites not persisting across page navigations (CT-1085)
+- Need for reproducible, quick test runs
+
+### CT-1085 Auth Workaround
+
+**Problem:** The pattern uses `wish("#googleauth")` to get Gmail authentication, but favorites (which power wish) don't persist across page navigations. This means:
+- First page load: wish finds gmail-auth charm
+- After OAuth redirect: wish fails (favorite lost)
+- Result: 401 errors on Gmail API calls
+
+**Solution:** Accept auth as a **direct input** that can be linked manually.
+
+**Implementation in Pattern:**
+```typescript
+interface HotelMembershipInput {
+  // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
+  // Users can manually link gmail-auth's auth output to this input.
+  auth: Default<Auth, {
+    token: "";
+    tokenType: "";
+    // ... empty default
+  }>;
+  // ... other inputs
+}
+```
+
+**Testing Workflow:**
+
+1. **Deploy a fresh gmail-auth charm:**
+   ```bash
+   CT_API_URL=http://localhost:8000 CT_IDENTITY=../community-patterns/claude.key \
+     deno task ct charm new ../community-patterns/patterns/jkomoros/gmail-auth.tsx \
+     --space hotel-test
+   # Returns: baedreig...abc (gmail-auth charm ID)
+   ```
+
+2. **Complete OAuth flow in gmail-auth charm:**
+   - Navigate to `http://localhost:8000/hotel-test/GMAIL_AUTH_CHARM_ID`
+   - Click "Authenticate with Google"
+   - Complete OAuth flow in popup
+   - Wait for "✅ Authenticated" confirmation
+
+3. **Link gmail-auth output to your pattern's input:**
+   ```bash
+   CT_API_URL=http://localhost:8000 CT_IDENTITY=../community-patterns/claude.key \
+     deno task ct charm link GMAIL_AUTH_ID/auth YOUR_PATTERN_ID/auth \
+     --space hotel-test
+   ```
+
+4. **Navigate to your pattern - auth is now linked!**
+   - UI should show "✅ Gmail connected (linked)"
+   - Gmail API calls will work
+
+### Quick Test Mode (maxSearches Parameter)
+
+**Problem:** Full scans search all 11+ Gmail queries and can take minutes.
+
+**Solution:** Add `maxSearches` input parameter for quick tests.
+
+**Implementation:**
+```typescript
+interface HotelMembershipInput {
+  // Max number of searches to perform. 0 = unlimited (full scan)
+  // Default to 5 for quick testing
+  maxSearches: Default<number, 5>;
+}
+```
+
+**Usage:**
+- Default (5 searches): Quick test covering 2-3 hotel brands
+- Set to 0 or higher: Full comprehensive scan
+- UI shows: "⚡ Quick Test Mode: 5 searches max"
+
+### Complete Testing Workflow
+
+```bash
+# 1. Deploy gmail-auth (fresh each test session)
+GMAIL_AUTH_ID=$(CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm new patterns/jkomoros/gmail-auth.tsx --space test | tail -1)
+
+# 2. Deploy your pattern
+PATTERN_ID=$(CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm new patterns/jkomoros/hotel-membership-extractor.tsx --space test | tail -1)
+
+# 3. In Playwright/browser:
+#    - Navigate to gmail-auth charm
+#    - Complete OAuth flow
+#    - Verify "✅ Authenticated"
+
+# 4. Link auth
+CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm link $GMAIL_AUTH_ID/auth $PATTERN_ID/auth --space test
+
+# 5. Navigate to pattern - ready to test!
+```
+
+### Test Results (2025-11-27)
+
+**With CT-1085 workaround + 5-search limit:**
+- Auth link working: ✅ Gmail connected (linked)
+- Quick scan found 2 memberships:
+  - Hilton Honors (#650697007, Silver)
+  - World of Hyatt (#515838782J, Member)
+- Scan completed in ~30 seconds
+- Data saved correctly via auto-save
+
+### Key Lessons
+
+1. **Always deploy fresh gmail-auth** for each test session (tokens expire)
+2. **Use `charm link`** to connect auth - don't rely on wish/favorites for testing
+3. **Use maxSearches=5** for quick iteration, maxSearches=0 for full scans
+4. **Check console logs** for Gmail API errors (401 = expired token)
+5. **Debugger outputs** show what the pattern is exporting
