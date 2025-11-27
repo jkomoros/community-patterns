@@ -740,23 +740,67 @@ Return your analysis for each article.`,
           }
 
           // ================================================================
-          // Phase 2: LLM extracts security report links
+          // Phase 2: LLM extracts security report links (per-article for caching)
           // ================================================================
-          processingStatus.set(`Extracting security links from ${successfulArticles.length} articles...`);
-          console.log("Phase 2: Extracting security report links...");
+          // Process each article individually so framework can cache each LLM call
+          // If the same article is processed again, cached result is returned instantly
+          const allExtractedArticles: Array<{
+            articleURL: string;
+            securityReportLinks: string[];
+          }> = [];
 
-          const extractionResult = await callLLM(
-            LINK_EXTRACTION_SYSTEM,
-            JSON.stringify(successfulArticles),
-            LINK_EXTRACTION_SCHEMA
-          );
+          console.log(`Phase 2: Extracting links from ${successfulArticles.length} articles (individually for caching)...`);
 
-          if (!extractionResult?.articles) {
+          for (let idx = 0; idx < successfulArticles.length; idx++) {
+            const article = successfulArticles[idx];
+            processingStatus.set(`Analyzing article ${idx + 1}/${successfulArticles.length}...`);
+
+            try {
+              // Single-article schema for caching - each article gets its own cached LLM call
+              const singleArticleSchema = {
+                type: "object" as const,
+                properties: {
+                  articleURL: { type: "string" as const },
+                  securityReportLinks: {
+                    type: "array" as const,
+                    items: { type: "string" as const },
+                  },
+                },
+                required: ["articleURL", "securityReportLinks"],
+              };
+
+              const result = await callLLM(
+                LINK_EXTRACTION_SYSTEM,
+                JSON.stringify({
+                  articleURL: article.articleURL,
+                  articleContent: article.articleContent,
+                  title: article.title,
+                }),
+                singleArticleSchema
+              );
+
+              if (result) {
+                allExtractedArticles.push({
+                  articleURL: result.articleURL || article.articleURL,
+                  securityReportLinks: result.securityReportLinks || [],
+                });
+                const linkCount = result.securityReportLinks?.length || 0;
+                console.log(`Article ${idx + 1}/${successfulArticles.length}: ${linkCount} links found`);
+              }
+            } catch (error) {
+              console.error(`Article ${idx + 1} analysis failed:`, error);
+              // Continue with other articles even if one fails
+            }
+          }
+
+          if (allExtractedArticles.length === 0) {
             processingStatus.set("LLM extraction returned no results");
             isProcessing.set(false);
             return;
           }
 
+          // Create extractionResult structure for compatibility with Phase 3
+          const extractionResult = { articles: allExtractedArticles };
           console.log(`Phase 2 complete: Analyzed ${extractionResult.articles.length} articles`);
 
           // ================================================================
