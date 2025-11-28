@@ -2,9 +2,149 @@
 
 ## Status
 
-**Draft v2** - Design proposal for framework authors
+**Draft v3** - Design proposal with critical blockers identified
 
 **Last Updated:** 2025-11-27
+
+---
+
+## ⚠️ Critical Blockers Identified
+
+After deep research into the framework implementation, several **critical blockers** have been identified with the original reduce() design:
+
+### Blocker 1: Function Serialization
+
+**Problem:** The original design proposed passing a reducer function as runtime data:
+
+```typescript
+reduce(analyses, {
+  initial: [],
+  reducer: (acc, item) => { ... }  // ← This function can't be serialized!
+});
+```
+
+**Why it fails:**
+1. Builtins receive their inputs via `inputsCell.asSchema()` which reads from storage
+2. Storage only supports JSON-serializable values
+3. Functions are converted to strings via `.toString()` during serialization (see `json-utils.ts:218`)
+4. Closures captured by the function are LOST during stringification
+5. The FunctionCache only helps with functions that are part of Module implementations, not runtime data
+
+**Evidence:** In `runner.ts:742-746`:
+```typescript
+if (typeof module.implementation === "function" &&
+    !this.functionCache.has(module)
+) {
+  this.functionCache.set(module, module.implementation);
+}
+```
+Functions work when they're the `implementation` of a Module, but NOT when passed as data.
+
+### Blocker 2: derive() and computed() Are NOT Builtins
+
+**Problem:** The design assumed we could create reduce() similar to derive()/computed().
+
+**Reality:** Looking at `module.ts:226-227`:
+```typescript
+export const computed: <T>(fn: () => T) => OpaqueRef<T> = <T>(fn: () => T) =>
+  lift<any, T>(fn)(undefined);
+```
+
+`derive()` and `computed()` use `lift()` to create a **Module** where the function IS the implementation. They're NOT builtins like map() - they work because:
+1. The function becomes the module's `implementation` property at compile time
+2. ts-transformers convert the code to wrap captured variables
+3. The module is registered with the recipe system
+
+### Blocker 3: Recipe Composition for Reduce
+
+**Problem:** Even if we could pass a reducer as a Recipe, reduce needs to COMPOSE results:
+- `reduce(initial, item1)` → `result1`
+- `reduce(result1, item2)` → `result2`
+- ...
+
+This requires feeding the output of one recipe invocation as input to the next, which is fundamentally different from map() where each item is processed independently.
+
+---
+
+## Revised Approach Options
+
+Given these blockers, here are the viable options:
+
+### Option A: Derive-Based Aggregation (RECOMMENDED)
+
+Instead of a reduce builtin, use derive() with the existing `.reduce()` method on arrays:
+
+```typescript
+// The proxy already supports .reduce() as a ReadOnly array method!
+// (See query-result-proxy.ts:54)
+
+const completed = derive([analyses], (items) => {
+  // items is already unwrapped here because derive() processes its inputs
+  return items.reduce((acc, item) => {
+    if (item.pending) return acc;
+    return [...acc, item.result];
+  }, []);
+});
+```
+
+**Pros:**
+- Works with existing framework
+- No new builtins needed
+- ts-transformers already handle derive()
+
+**Cons:**
+- Runs entire reduce on every change (not incremental)
+- May have performance issues with large arrays
+- Still has the OpaqueRef proxy issue - items may still be proxied
+
+### Option B: Module Factory for Reduce
+
+Create `reduce` as a module factory (like derive), not a builtin:
+
+```typescript
+// In module.ts (framework change)
+export function reduce<T, R>(
+  list: Opaque<T[]>,
+  initial: R,
+  reducer: (acc: R, item: T, index: number) => R,
+): OpaqueRef<R> {
+  // Implementation uses lift() to create a module
+  return lift((inputs: { list: T[]; initial: R }) => {
+    return inputs.list.reduce(reducer, inputs.initial);
+  })({ list, initial });
+}
+```
+
+**Pros:**
+- Follows existing patterns
+- Function becomes module implementation
+- ts-transformers can handle closure capture
+
+**Cons:**
+- Requires framework changes to module.ts
+- Still runs full reduce on every change
+- Reducer closures need transformer support
+
+### Option C: New Builtin With Recipe-Based Reducer
+
+Create a reduce builtin where the reducer is a Recipe:
+
+```typescript
+// User writes:
+analyses.reduce((acc, item) => { ... }, initialValue);
+
+// ts-transformer converts to:
+reduceBuiltin(analyses, reducerRecipe, initialValue);
+```
+
+**Pros:**
+- Could potentially be incremental
+- Follows map() pattern
+
+**Cons:**
+- Complex ts-transformer work
+- Recipe composition is hard
+- May need framework changes to runner
 
 ---
 
@@ -247,19 +387,53 @@ export function reduce(
 }
 ```
 
-### Why Functional Reducer (Not Recipe)
+### ⚠️ IMPLEMENTATION BLOCKED
 
-The reducer must be a plain JavaScript function for several reasons:
+**The above implementation WILL NOT WORK as written.**
 
-1. **Synchronous execution required** - reduce runs in a single scheduler action, not across multiple reactive passes
+The critical flaw is on line 366: `if (typeof reducer !== "function")`. When `reducer` is read from storage via `asSchema`, it will be a **string** (the function's source code), not a function object. Closures captured by the reducer will be lost.
 
-2. **Items are already unwrapped** - the key insight is that `asSchema` with `items: {}` (no `asCell`) unwraps the array items, giving the reducer plain values
+**See "Critical Blockers Identified" section at the top of this document.**
 
-3. **Matches existing patterns** - `computed()` and `derive()` also take functions, not recipes
+### Viable Alternative: Module Factory
 
-4. **Simpler implementation** - no need for recipe invocation machinery
+Instead of a builtin, implement reduce as a module factory (like derive):
 
-The trade-off is that reducers can't use reactive features internally, but that's intentional - the reactivity is at the list level, not inside the reducer.
+```typescript
+// In module.ts (framework code)
+export function reduce<T, R>(
+  list: Opaque<T[]>,
+  initial: R,
+  reducer: (acc: R, item: T, index: number) => R,
+): OpaqueRef<R> {
+  // The reducer function becomes the module's implementation
+  // ts-transformers will handle closure capture
+  return lift((inputs: { list: T[]; initial: R }) => {
+    if (!inputs.list) return inputs.initial;
+    return inputs.list.reduce(reducer, inputs.initial);
+  })({ list, initial });
+}
+```
+
+This works because:
+1. The reducer becomes part of the Module at compile time
+2. ts-transformers capture closures into params
+3. The function is cached in FunctionCache by module key
+
+### Why The Original Approach Fails
+
+The original design assumed we could pass functions as runtime data:
+
+1. **Builtins are NOT like derive/computed** - derive/computed use `lift()` to make the function the module's `implementation` property at compile time
+
+2. **Functions in storage become strings** - See `json-utils.ts:218`:
+   ```typescript
+   implementation: typeof module.implementation === "function"
+     ? module.implementation.toString()  // ← Stringified!
+     : module.implementation,
+   ```
+
+3. **Closures don't survive** - When a function is stringified and re-evaluated, any captured variables from the outer scope are lost
 
 ### Streaming Behavior
 
@@ -527,26 +701,64 @@ export function mapByKey(
 }
 ```
 
-### Key Function Design
+### ⚠️ Key Function Implementation Challenge
 
-The key function is a plain JavaScript function (not a recipe) for simplicity:
+**The key function has the same serialization issue as reduce's reducer.**
+
+When `keyFn` is read from storage, it becomes a string, not a function. However, mapByKey has better workaround options:
+
+**Option 1: String-Based Key Path (Recommended)**
+```typescript
+// Instead of a function, use a property path string
+const analyses = mapByKey(articles, "id", a => analyze(a));
+// or
+const analyses = mapByKey(articles, ["nested", "id"], a => analyze(a));
+```
+
+This is similar to React's `key` prop - just specify which property to use as the key.
+
+**Option 2: Default to Identity**
+```typescript
+// When item IS the key (e.g., URLs)
+const fetches = mapByKey(urls, url => fetchData({ url }));
+// Internally: key = JSON.stringify(item)
+```
+
+**Option 3: ts-Transformer Support**
+
+The key function could be transformed like map closures:
+```typescript
+// User writes:
+mapByKey(items, item => item.type + ":" + item.id, ...)
+
+// Transformed to:
+mapByKeyWithPattern(items, "keyFn",
+  recipe(({ element }) => element.type + ":" + element.id), ...)
+```
+
+### Key Function Design (Revised)
+
+Given serialization constraints, the recommended API uses property paths instead of functions:
 
 ```typescript
-// Identity: URL is the key
-const fetches = mapByKey(urls, url => url, url => fetchData({url}));
+// Identity: URL is the key (default when no key specified)
+const fetches = mapByKey(urls, url => fetchData({url}));
 
-// Property extraction: article.id is the key
-const analyses = mapByKey(articles, a => a.id, a => analyze(a));
+// Property path: article.id is the key
+const analyses = mapByKey(articles, "id", a => analyze(a));
 
-// Composite key
+// Nested property path
+const results = mapByKey(items, ["nested", "id"], ...);
+
+// Composite key (requires ts-transformer)
 const results = mapByKey(items, item => `${item.type}:${item.id}`, ...);
 ```
 
-**Why plain function?**
-- Key extraction is synchronous - no async/reactive behavior needed
-- Typical use cases are property access or identity
-- Simpler implementation and better error messages
-- Can still capture closure variables (ts-transformers handles this)
+**Why property path instead of function?**
+- Property paths are JSON-serializable
+- Covers 90% of use cases (keying by ID)
+- No closure serialization issues
+- ts-transformer can handle complex cases
 
 ### API Variants
 
@@ -651,90 +863,155 @@ const linkedFetches = mapByKey(
 
 ---
 
-## Part 4: Implementation Plan
+## Part 4: Revised Implementation Plan
 
-### Phase 1: Functional reduce() (~150 lines)
+### ⚠️ Critical Path Dependency
 
-**Files to modify:**
-- `packages/runner/src/builtins/reduce.ts` (new file)
-- `packages/runner/src/builtins/index.ts` (add registration)
-- `packages/patterns/src/index.ts` (export for patterns)
+The original implementation plan assumed we could pass functions as runtime data.
+**This is not possible.** The plan must be revised.
 
-**Steps:**
-1. Create `reduce.ts` with implementation from this doc
-2. Add `moduleRegistry.addModuleByRef("reduce", raw(reduce))` to index.ts
-3. Export `reduce` function for pattern use
-4. Test with simple array aggregation
+### Phase 1: Validate Workarounds (1-2 days)
 
-**Test cases:**
+Before implementing new primitives, validate that existing mechanisms can solve the problem:
+
+**Experiment A: derive() with array.reduce()**
 ```typescript
-// Basic aggregation
-const sum = reduce(numbers, { initial: 0, reducer: (acc, n) => acc + n });
-
-// Pending filtering
-const completed = reduce(llmResults, {
-  initial: [],
-  reducer: (acc, item) => item.pending ? acc : [...acc, item.result]
+// Does this actually unwrap items and give boolean .pending?
+const completed = derive([analyses], (items) => {
+  return items.reduce((acc, item) => {
+    console.log("item.pending type:", typeof item.pending);  // boolean or proxy?
+    if (item.pending) return acc;
+    return [...acc, item.result];
+  }, []);
 });
-
-// Empty list handling
-const empty = reduce(cell([]), { initial: "default", reducer: (a, b) => b });
-// → "default"
 ```
 
-**Estimated effort:** 1-2 days
+**Experiment B: Check if derive inputs are unwrapped**
+```typescript
+// When items is Cell<LLMResult[]>, what does derive receive?
+const test = derive([analyses], (items) => {
+  const first = items[0];
+  console.log("Is first a Cell?", isCell(first));
+  console.log("pending value:", first?.pending);
+  return items;
+});
+```
 
-### Phase 2: mapByKey() (~200 lines)
+**Expected outcome:** Determine if derive() solves the aggregation problem or if items remain proxied.
+
+### Phase 2: reduce() Module Factory (2-3 days)
+
+If derive() doesn't unwrap, implement reduce as a module factory (NOT a builtin):
 
 **Files to modify:**
-- `packages/runner/src/builtins/map-by-key.ts` (new file)
-- `packages/runner/src/builtins/index.ts` (add registration)
+- `packages/runner/src/builder/module.ts` (add reduce export)
+- `packages/ts-transformers/src/transformers/builtins/reduce.ts` (new transformer)
 - `packages/patterns/src/index.ts` (export for patterns)
 
-**Steps:**
-1. Create `map-by-key.ts` with implementation from this doc
-2. Register builtin
-3. Export for patterns
-4. Test key stability
-
-**Test cases:**
+**Implementation:**
 ```typescript
-// Key stability across reordering
-const urls = cell(["a", "b", "c"]);
-const fetches = mapByKey(urls, url => fetchData({ url }));
-urls.set(["c", "b", "a"]);  // No new fetches - keys unchanged
-
-// Deduplication
-const withDupes = cell(["a", "b", "a", "c"]);
-const results = mapByKey(withDupes, x => process(x));
-// Only 3 process() calls, not 4
-
-// Key function
-const articles = cell([{id: 1, text: "..."}, {id: 2, text: "..."}]);
-const analyses = mapByKey(articles, a => a.id, a => analyze(a.text));
+// In module.ts
+export function reduce<T, R>(
+  list: Opaque<T[]>,
+  initial: R,
+  reducer: (acc: R, item: T, index: number) => R,
+): OpaqueRef<R> {
+  return lift((inputs: { list: T[]; initial: R }) => {
+    if (!inputs.list) return inputs.initial;
+    return inputs.list.reduce(reducer, inputs.initial);
+  })({ list, initial });
+}
 ```
 
-**Estimated effort:** 2-3 days
+**ts-transformer work:**
+- Recognize `reduce(list, initial, reducer)` calls
+- Transform reducer closure to capture variables
+- Generate schema types from TypeScript types
 
-### Phase 3: ts-transformers Integration
+**Risk:** May need to understand how derive transformer works and replicate pattern.
+
+### Phase 3: mapByKey() Builtin (3-5 days)
+
+**More feasible** because the operation recipe follows the same pattern as map().
 
 **Files to modify:**
-- `packages/ts-transformers/src/closure.ts`
-- `packages/ts-transformers/src/index.ts`
+- `packages/runner/src/builtins/map-by-key.ts` (new builtin)
+- `packages/runner/src/builtins/index.ts` (registration)
+- `packages/ts-transformers/src/transformers/closure.ts` (add mapByKey recognition)
+
+**Key implementation decisions:**
+
+1. **Key extraction:** Use property path strings instead of functions
+   ```typescript
+   // Instead of: mapByKey(items, i => i.id, ...)
+   // Use: mapByKey(items, "id", ...)  // Property path
+   ```
+
+2. **Key-based createRef:** Change from `{ result, index }` to `{ result, key }`
+   ```typescript
+   resultCell = runtime.getCell(
+     parentCell.space,
+     { result, key: JSON.stringify(keyValue) },  // Key-based identity
+     undefined,
+     tx,
+   );
+   ```
+
+3. **Cleanup tracking:** Need to track and stop orphaned result cells
+   ```typescript
+   const keyToResultCell = new Map<string, Cell<any>>();
+   // When key disappears from list, call runtime.runner.stop(resultCell)
+   ```
+
+**Test cases (with property paths):**
+```typescript
+// Key stability across reordering (key = item value)
+const urls = cell(["a", "b", "c"]);
+const fetches = mapByKey(urls, url => fetchData({ url }));  // Default: key = item
+urls.set(["c", "b", "a"]);  // No new fetches - same keys, different order
+
+// Property path key
+const articles = cell([{id: 1, text: "..."}, {id: 2, text: "..."}]);
+const analyses = mapByKey(articles, "id", a => analyze(a.text));
+```
+
+### Phase 4: ts-transformers for mapByKey (2-3 days)
+
+**Files to modify:**
+- `packages/ts-transformers/src/transformers/closure.ts`
 
 **Steps:**
-1. Add `mapByKey` and `mapByKeyWithPattern` to recognized methods
-2. Transform closures in key function and operation recipe
-3. Follow existing `map` → `mapWithPattern` transformation pattern
+1. Add `mapByKey` to list of recognized reactive array methods
+2. Transform the operation callback (same as map)
+3. Handle key function if it's a lambda (convert to recipe or property path)
 
-**Estimated effort:** 1-2 days
+**Challenge:** Deciding whether key functions need transformation or should be limited to property paths.
 
-### Phase 4: Testing & Documentation
+### Phase 5: Testing & Documentation (1-2 days)
 
-**Test files:**
-- `packages/runner/src/builtins/reduce.test.ts`
+**Test files needed:**
 - `packages/runner/src/builtins/map-by-key.test.ts`
-- `packages/runner/src/__tests__/streaming-pipeline.test.ts`
+- Integration tests for streaming pipelines
+
+**Documentation:**
+- Update `docs/common/PATTERNS.md` with mapByKey examples
+- Document property path syntax for keys
+
+---
+
+### Revised Total Estimated Effort
+
+| Phase | Effort | Risk |
+|-------|--------|------|
+| 1. Validate workarounds | 1-2 days | LOW - just experiments |
+| 2. reduce() module factory | 2-3 days | MEDIUM - needs ts-transformer work |
+| 3. mapByKey() builtin | 3-5 days | MEDIUM - similar to map but key management |
+| 4. ts-transformers | 2-3 days | HIGH - complex AST transformation |
+| 5. Testing & docs | 1-2 days | LOW |
+
+**Total: 9-15 days** (vs original estimate of 5-9 days)
+
+**Recommendation:** Start with Phase 1 experiments to validate whether derive() already solves the problem. If it does, reduce() may not be needed.
 
 **Documentation:**
 - Update `docs/common/PATTERNS.md` with reduce/mapByKey examples
@@ -992,58 +1269,81 @@ export function registerBuiltins(runtime: IRuntime) {
 
 ---
 
-## Summary
+## Summary (Revised After Critical Analysis)
 
-### What We're Proposing
+### Key Findings
 
-Two complementary primitives that enable streaming MapReduce pipelines:
+After deep research into the framework implementation:
 
-| Primitive | Solves | Mechanism | LOC |
-|-----------|--------|-----------|-----|
-| `reduce()` | Can't aggregate array of pending cells | Schema-based unwrapping (`items: {}` not `items: { asCell: true }`) | ~150 |
-| `mapByKey()` | Index reordering breaks map | Key-based `createRef()` for cell identity | ~200 |
+1. **Functions cannot be passed as runtime data to builtins** - they get serialized to strings, losing closures
 
-### Why These Specific Designs
+2. **derive() and computed() are NOT builtins** - they use `lift()` to make the function a module implementation at compile time
 
-**reduce() uses functional reducer:**
-- Synchronous execution in single scheduler action
-- Matches existing `computed()` and `derive()` patterns
-- Unwrapping is the key innovation, not the reduce logic
+3. **mapByKey() is more feasible than reduce()** - the operation is a Recipe (like map), but the key function needs special handling
 
-**mapByKey() uses key function:**
-- `createRef({ result, key })` gives deterministic entity ID by key
-- Existing framework machinery - no new concepts needed
-- Key functions are typically simple property access
+4. **ts-transformers are required** for any solution involving user-provided functions
 
-### Implementation Leverages Existing Code
+### Recommended Path Forward
 
+| Priority | Approach | Effort | Risk |
+|----------|----------|--------|------|
+| 1 | Test if derive() with array.reduce() already works | 1-2 days | LOW |
+| 2 | Implement mapByKey() with property path keys | 3-5 days | MEDIUM |
+| 3 | Add reduce() as module factory (like derive) | 2-3 days | MEDIUM |
+| 4 | ts-transformer support for both | 2-3 days | HIGH |
+
+### What Actually Works
+
+**mapByKey() core mechanism is sound:**
 ```typescript
-// reduce() - same pattern as ifElse builtin
-inputsCell.asSchema({ list: { type: "array", items: {} } })  // Unwrap!
-
-// mapByKey() - same pattern as map builtin
-runtime.getCell(space, { result, key }, ...)  // Key not index!
-runtime.runner.run(tx, opRecipe, inputs, resultCell)  // Same recipe execution
+// Key-based createRef works
+resultCell = runtime.getCell(space, { result, key }, ...);
+// Same key → same entity ID → same result cell
 ```
 
-### Expected Effort
+**Key extraction should use property paths:**
+```typescript
+// Instead of functions (serialization issues)
+mapByKey(items, "id", item => process(item))  // Property path
 
-~5-9 days total:
-- Phase 1: reduce() - 1-2 days
-- Phase 2: mapByKey() - 2-3 days
-- Phase 3: ts-transformers - 1-2 days
-- Phase 4: Tests & docs - 1-2 days
+// Not functions (closure loss)
+mapByKey(items, item => item.id, item => process(item))  // ❌
+```
 
-### Next Steps
+**reduce() needs module factory approach:**
+```typescript
+// In module.ts (framework change)
+export function reduce<T, R>(list: Opaque<T[]>, initial: R, reducer: ...) {
+  return lift(inputs => inputs.list.reduce(reducer, inputs.initial))({ list, initial });
+}
+```
 
-1. Review this design with framework authors
-2. Validate unwrapping approach works as expected
-3. Implement reduce() first (simpler, validates pattern)
-4. Implement mapByKey()
-5. Update ts-transformers for closure capture
+### What Doesn't Work
+
+**Original reduce() builtin approach:**
+```typescript
+// ❌ reducer function can't survive serialization
+reduce(analyses, {
+  reducer: (acc, item) => { ... }  // Lost when stored
+});
+```
+
+**Key functions as runtime data:**
+```typescript
+// ❌ keyFn can't survive serialization
+mapByKey(items, item => item.complex.key, ...)
+```
+
+### Immediate Next Steps
+
+1. **Experiment:** Test derive() with array.reduce() to see if it unwraps items
+2. **Design:** Finalize mapByKey API with property path keys
+3. **Discuss:** Review this document with framework authors
+4. **Prototype:** Build mapByKey builtin with property path support
 
 ---
 
 **Document History:**
 - 2025-11-27: Initial draft (v1)
 - 2025-11-27: Added Quick Start, Gotchas, detailed implementation (v2)
+- 2025-11-27: **Critical revision (v3)** - Identified function serialization blocker, revised implementation plan, recommended property path approach for keys
