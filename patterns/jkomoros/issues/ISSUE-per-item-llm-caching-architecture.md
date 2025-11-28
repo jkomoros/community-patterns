@@ -34,6 +34,38 @@ UI shows progress as pipeline runs (X/N articles processed, etc.)
 
 ---
 
+## TL;DR - Current Recommendation
+
+After extensive research, here's our best understanding:
+
+**What Works:**
+1. ✅ **Server-side LLM caching works** - even with raw `fetch()` to the API
+2. ✅ **derive/computed work on SINGLE generateObject results** - note.tsx, suggestion.tsx show this
+3. ✅ **JSX can display per-item status** from Cell.map() results (via internal effect/isCell detection)
+4. ✅ **Empty prompts return immediately** - no LLM call, useful for "needs content" detection
+
+**What Doesn't Work:**
+1. ❌ **Cell.map() returns OpaqueRef, not Array** - can't aggregate completion across dynamic arrays
+2. ❌ **derive/computed on Cell.map() arrays** - items are proxied, `.pending` returns proxy not boolean
+3. ❌ **effect() not available** - exported from runner but not from commontools public API
+
+**Recommended Approach:**
+For our use case (dynamic per-item LLM processing with per-item caching):
+
+**Architecture F + Handler Aggregation:**
+1. Use `parsedArticles.map()` to create per-item `generateObject` calls (gets per-item caching)
+2. Display per-item progress in JSX (works - no derive wrapper)
+3. User clicks "Continue" when all visually complete
+4. Handler aggregates results using `.get()` and proceeds to next phase
+
+This is a **two-button flow** (Fetch Articles → Continue), which is less elegant than fully automatic but works reliably with current framework capabilities.
+
+**Alternative:** Architecture B (imperative fetch in handler) also works and gets caching, but is less idiomatic.
+
+**Key Question for Framework Author:** Is there a planned way to aggregate completion across dynamic Cell.map() arrays? Or is the "user clicks Continue" pattern the expected approach?
+
+---
+
 ## Research Findings
 
 ### ✅ CONFIRMED: Server-Side LLM Caching Works for Raw Fetch
@@ -135,6 +167,226 @@ const extractions = articlesWithContent.map(...);
 ```
 
 **Key insight:** The docs example uses a **plain JavaScript array**, not a Cell. When mapping over a Cell, you get a Cell back, not an array of generateObject results.
+
+---
+
+### ✅ CONFIRMED: Why JSX Works but derive() Fails for .pending Access
+
+**Source:** `~/Code/labs/packages/html/src/render.ts` (lines 349-389) and `~/Code/labs/packages/runner/src/cell.ts` (lines 1086-1141)
+
+**The critical difference:**
+
+**JSX uses `isCell()` detection and wraps cells in `effect()` for reactivity:**
+```typescript
+// From render.ts - bindProps()
+if (isCell(propValue)) {
+  // JSX detects cells and handles them specially
+  const cancel = effect(propValue, (replacement) => {
+    setProperty(element, propKey, replacement);
+  });
+}
+```
+
+**derive() receives OpaqueRef (proxied cells) and accessing properties returns another proxy:**
+```typescript
+// From cell.ts - getAsOpaqueRefProxy()
+get(target, prop) {
+  if (typeof prop === "string" || typeof prop === "number") {
+    const nestedCell = self.key(prop) as Cell<T>;
+    return nestedCell.getAsOpaqueRefProxy();  // Returns ANOTHER proxy, not the value!
+  }
+}
+```
+
+**Why this matters:**
+- In JSX: `{extraction.pending}` → JSX detects this is a cell, uses `effect()` to observe it
+- In derive(): `extractions.filter(e => e.pending)` → `e.pending` returns a **proxy**, not a boolean
+  - The proxy is truthy (it's an object), so conditions fail unexpectedly
+
+**This explains our Architecture A failure:**
+```typescript
+// FAILS: derive() receives proxied cells
+derive(articleLinkExtractions, (extractions) => {
+  extractions.filter(e => e.pending)  // e.pending is a PROXY, not a boolean!
+  // Proxy is always truthy, so filter doesn't work as expected
+});
+
+// WORKS: JSX uses isCell() detection
+{articleExtractions.map(({ extraction }) => (
+  <div>{extraction.pending ? "Loading..." : "Done"}</div>  // JSX handles this correctly
+))}
+```
+
+**generateObject result structure (from llm.ts lines 109-119):**
+```typescript
+const GenerateObjectResultSchema = {
+  type: "object",
+  properties: {
+    pending: { type: "boolean", default: false },
+    result: { type: "object" },
+    error: {},
+    partial: { type: "string" },
+    requestHash: { type: "string" },
+  },
+  required: ["pending"],
+};
+```
+
+Each property (`.pending`, `.result`, `.error`) is a separate sub-cell accessed via `.key()`.
+
+---
+
+### ✅ CONFIRMED: Empty Prompts Don't Trigger LLM Calls
+
+**Source:** `~/Code/labs/packages/runner/src/builtins/llm.ts` (lines 715-721)
+
+```typescript
+if ((!prompt && (!messages || messages.length === 0)) || !schema) {
+  resultWithLog.set(undefined);
+  errorWithLog.set(undefined);
+  partialWithLog.set(undefined);
+  pendingWithLog.set(false);  // Immediately not pending
+  return;  // No LLM call made!
+}
+```
+
+**Behavior when prompt is empty:**
+1. **No LLM call is triggered** - function returns immediately
+2. **`pending` = `false`** - not waiting for anything
+3. **`result` = `undefined`** - no result available
+4. **`error` = `undefined`** - no error occurred
+
+**Implication for Architecture F:** Articles without cached content won't trigger LLM calls - they'll just show as "not pending" with undefined result. This is actually good - we can detect "needs content" vs "processing" vs "done" states:
+- `pending=false, result=undefined, content=""` → Needs content (cache empty)
+- `pending=true` → Processing (LLM running)
+- `pending=false, result=defined` → Done
+
+---
+
+### ✅ CONFIRMED: derive() and computed() WORK on Single generateObject Results
+
+**Source:** `~/Code/labs/packages/patterns/note.tsx` (line 182) and `~/Code/labs/packages/patterns/suggestion.tsx` (lines 36-40)
+
+**Key discovery:** The problem isn't that derive/computed can't access `.pending` - they CAN when working with a SINGLE generateObject result!
+
+**note.tsx example:**
+```typescript
+const result = generateText({
+  system: str`Translate the content to ${language}.`,
+  prompt: str`<to_translate>${content}</to_translate>`,
+});
+
+return derive(result, ({ pending, result }) => {
+  if (pending) return undefined;
+  if (result == null) return "Error occured";
+  return result;
+});
+```
+
+**suggestion.tsx example:**
+```typescript
+return ifElse(
+  computed(() => suggestion.pending && !suggestion.result),
+  undefined,
+  suggestion.result,
+);
+```
+
+**The REAL problem:** When using `Cell.map()` to create an ARRAY of generateObject calls:
+1. `Cell.map()` returns `OpaqueRef<S[]>` (a proxy), not `Array<S>`
+2. Inside derive(), iterating over this proxy gives proxied items
+3. Accessing `.pending` on proxied items returns another proxy, not a boolean
+
+**So the issue is specifically with ARRAYS from Cell.map(), not with derive/computed in general!**
+
+---
+
+### ❓ OPEN QUESTION: How to Track Completion Across DYNAMIC Arrays
+
+**The Core Problem:**
+- We can derive/compute completion for a SINGLE generateObject result
+- We can display per-item status in JSX (works fine)
+- But we can't aggregate completion across a DYNAMIC array from Cell.map()
+
+**Why existing patterns don't show this:**
+The docs examples (email summarizer) only show displaying status in JSX - they don't aggregate "all done" for a next phase.
+
+**Potential Solutions:**
+
+**1. Fixed-Size Batch Processing (Works but limited)**
+```typescript
+// Create generateObject calls at pattern body level (not in Cell.map)
+const extraction0 = generateObject({ prompt: derive(batch, b => b[0]?.content ?? ""), ... });
+const extraction1 = generateObject({ prompt: derive(batch, b => b[1]?.content ?? ""), ... });
+const extraction2 = generateObject({ prompt: derive(batch, b => b[2]?.content ?? ""), ... });
+
+// Now we can compute completion from the fixed set
+const allComplete = computed(() =>
+  !extraction0.pending && !extraction1.pending && !extraction2.pending
+);
+```
+- ✅ Works with derive/computed
+- ❌ Limited to fixed batch size
+- ⚠️ Verbose, not scalable
+
+**2. Explicit User Action (Simple, works)**
+```typescript
+// User sees all items marked "✅ Done" in UI via JSX
+// User clicks "Continue" button
+const continueHandler = handler((_, { articleExtractions, novelURLs }) => {
+  const allResults = [];
+  for (const { extraction } of articleExtractions) {
+    // In handlers, .get() works to read cell values
+    const pending = extraction.pending.get?.() ?? extraction.pending;
+    const result = extraction.result.get?.() ?? extraction.result;
+    if (pending) {
+      alert("Some items still processing!");
+      return;
+    }
+    allResults.push(result);
+  }
+  // All done, process results...
+  novelURLs.set(collectNovelURLs(allResults));
+});
+```
+- ✅ Works today
+- ✅ User confirms all items are done visually
+- ⚠️ Requires user action, not automatic
+
+**3. Per-Item Derived State (Untested hypothesis)**
+```typescript
+// Create a derived "isDone" cell for EACH item
+// NOT using Cell.map - doing it at pattern body level
+const article1Done = derive(extraction1, e => !e.pending);
+const article2Done = derive(extraction2, e => !e.pending);
+
+// Then compute from the fixed set of booleans
+const allDone = computed(() => article1Done && article2Done);
+```
+- ⚠️ Only works with fixed-size arrays
+- ❓ Untested if this actually works
+
+**4. effect() - Not Available to Patterns**
+The `effect()` function exists in `@commontools/runner` and is used internally by JSX rendering:
+```typescript
+// From runner/src/reactivity.ts
+export const effect = <T>(
+  value: Cell<T> | T,
+  callback: (value: T) => Cancel | undefined | void,
+): Cancel => {
+  if (isCell(value)) {
+    return value.sink(callback);
+  }
+  // ...
+};
+```
+- ❌ Not exported from `commontools` public API
+- ❌ Cannot be used in patterns
+
+**Question for framework author:** Is there an idiomatic way to:
+1. Track completion across a DYNAMIC array of generateObject calls?
+2. Automatically trigger the next phase when all items complete?
+3. Or is the "user clicks Continue" pattern the expected approach?
 
 ---
 
@@ -604,14 +856,16 @@ const collectResults = handler<unknown, {
    - When cache is updated, do generateObject prompts reactively update?
    - Can we access `.pending` and `.result` directly in JSX on mapped results?
 
-2. **Why does derive() wrapper break generateObject results?**
-   Architecture A failed when we wrapped `articleExtractions` in `derive()` to aggregate results:
-   ```typescript
-   derive(articleExtractions, (extractions) => {
-     extractions.filter(e => e.pending)  // TypeError!
-   });
-   ```
-   But accessing the same properties in JSX seems to work (per LLM.md example). Why?
+2. **~~Why does derive() wrapper break generateObject results?~~** ✅ ANSWERED
+   Architecture A failed when we wrapped `articleExtractions` in `derive()` to aggregate results.
+
+   **ANSWER:** derive/computed work FINE on single generateObject results (see note.tsx, suggestion.tsx).
+   The problem is specifically with ARRAYS from Cell.map():
+   - `Cell.map()` returns `OpaqueRef<S[]>` (proxy)
+   - Inside derive, array items are proxied
+   - `.pending` on proxied items returns another proxy, not boolean
+
+   JSX works because it uses `isCell()` detection and `effect()` internally.
 
 3. **Is Architecture B (imperative fetch) acceptable long-term?**
    Using `await fetch("/api/ai/llm/generateObject", {...})` in a handler works and gets caching. Is this:
@@ -621,14 +875,18 @@ const collectResults = handler<unknown, {
 
 4. **Recommended pattern for dynamic per-item LLM processing?**
    For "user clicks button → process N items through LLM → each item cached individually":
-   - Is Architecture F (direct map + JSX display) the right approach?
-   - Or is there a better idiomatic pattern?
+   - Is Architecture F (direct map + JSX display + handler aggregation) the right approach?
+   - Should we use "user clicks Continue" for phase transitions?
+   - Or is there a more automatic approach?
 
-5. **Empty prompt handling:**
-   If a generateObject prompt is empty (e.g., cache not yet populated), does it:
-   - Trigger an LLM call with empty input?
-   - Get filtered/skipped?
-   - Return an error?
+5. **~~Empty prompt handling:~~** ✅ ANSWERED
+   ~~If a generateObject prompt is empty, what happens?~~
+
+   **ANSWER:** (from llm.ts lines 715-721)
+   - **No LLM call is triggered** - function returns immediately
+   - **pending = false** - not waiting
+   - **result = undefined** - no result
+   This is actually useful for detecting "needs content" vs "processing" vs "done" states.
 
 ---
 
@@ -637,15 +895,21 @@ const collectResults = handler<unknown, {
 **Patterns:**
 - `patterns/jkomoros/prompt-injection-tracker.tsx` - Main pattern with this issue
 - `patterns/jkomoros/hotel-membership-extractor.tsx` - Agentic example (Architecture E)
+- `~/Code/labs/packages/patterns/note.tsx` (line 182) - **Working example:** derive() on single generateText result
+- `~/Code/labs/packages/patterns/suggestion.tsx` (lines 36-40) - **Working example:** computed() with generateObject.pending
+- `~/Code/labs/packages/patterns/write-and-run.tsx` (lines 109-113) - **Working example:** computed() with compileAndRun.pending
 
 **Framework Code (researched):**
 - `~/Code/labs/packages/toolshed/routes/ai/llm/cache.ts` - LLM cache implementation
 - `~/Code/labs/packages/toolshed/routes/ai/llm/llm.handlers.ts` - Cache key logic, tool caching (lines 129-157)
-- `~/Code/labs/packages/runner/src/cell.ts` - Cell.map() implementation (lines 1147-1169)
+- `~/Code/labs/packages/runner/src/cell.ts` - Cell.map() implementation (lines 1147-1169), OpaqueRef proxy (lines 1086-1141)
+- `~/Code/labs/packages/runner/src/reactivity.ts` - effect() implementation (not exported to patterns)
+- `~/Code/labs/packages/html/src/render.ts` - How JSX uses isCell() + effect() (lines 349-389)
 - `~/Code/labs/packages/api/index.ts` - IDerivable interface showing OpaqueRef return type
 
 **Official docs:**
 - `~/Code/labs/docs/common/LLM.md` - generateObject documentation
+- `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md` - Derived statistics pattern (line 433-448)
 
 **Community docs:**
 - `community-docs/superstitions/2025-11-22-llm-generateObject-reactive-map-derive.md`
