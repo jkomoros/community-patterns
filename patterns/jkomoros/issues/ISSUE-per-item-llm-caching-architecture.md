@@ -89,6 +89,146 @@ const batchDone = computed(() => workers.every(w => !w.pending)); // WORKS!
 
 ## Research Findings
 
+### 🔬 DEEP DIVE: Why Cell.map() Returns OpaqueRef (Proxy)
+
+**This is the core of our problem.** After extensive research into the git history, design docs, and implementation, here's why Cell.map() works the way it does.
+
+#### The Architecture
+
+**Key Insight:** OpaqueRef and Cell were MERGED in PR #2024 (Nov 2025). They are now the same thing!
+
+```
+OpaqueRef<T> === Cell<T> wrapped in a Proxy
+```
+
+The Proxy (from `cell.ts:getAsOpaqueRefProxy()`) provides:
+1. **Symbol.iterator** - Array destructuring support
+2. **Symbol.toPrimitive** - Throws error directing to use `derive`
+3. **Recursive property access** - Each `.foo` returns another proxied child cell
+
+#### Why Property Access Returns a Proxy
+
+From `cell.ts` lines 1119-1134:
+```typescript
+} else if (typeof prop === "string" || typeof prop === "number") {
+  // Recursive property access - wrap the child cell
+  const nestedCell = self.key(prop) as Cell<T>;
+  return nestedCell.getAsOpaqueRefProxy();  // Returns ANOTHER PROXY!
+}
+```
+
+This is **intentional design** for fine-grained reactivity:
+- Each property access creates a **reactive dependency**
+- The system tracks which exact properties are read
+- Changes to specific properties trigger only dependent computations
+
+#### Why Cell.map() Returns OpaqueRef<S[]>
+
+From `map.ts` (the map builtin implementation):
+```typescript
+// For each element, create a result cell and run a recipe
+const resultCell = runtime.getCell(parentCell.space, { result, index }, undefined, tx);
+runtime.runner.run(tx, opRecipe, recipeInputs, resultCell);
+resultWithLog.key(initializedUpTo).set(resultCell);  // Store CELL in array
+```
+
+The map builtin:
+1. Creates a **result Cell** containing an array
+2. For each input element, runs a **recipe** (pattern)
+3. Stores the **result cells** (not values!) in the output array
+4. Returns the result Cell wrapped as OpaqueRef
+
+So `Cell.map()` returns `OpaqueRef<S[]>` where **each element is itself a Cell**.
+
+#### The Closure Transformation
+
+When you write:
+```typescript
+state.items.map((item) => item.price * state.discount)
+```
+
+The **ts-transformers** package transforms this to:
+```typescript
+state.items.mapWithPattern(
+  recipe(({ element, params: { state } }) => element.price * state.discount),
+  { state: { discount: state.discount } }
+)
+```
+
+From `closure-design.md`:
+> Map callbacks on reactive arrays that capture variables from outer scope need those values passed explicitly.
+
+This is why:
+1. The callback is wrapped in a `recipe()`
+2. Captured variables are passed as `params`
+3. The callback receives `{ element, index, array, params }`
+
+#### Is This Fundamental or Fixable?
+
+**FUNDAMENTAL.** The proxy-based reactivity is core to how CommonTools works:
+
+1. **Dependency tracking** - The system needs to know which cells are accessed
+2. **Fine-grained updates** - Only re-run computations when dependencies change
+3. **Lazy evaluation** - Don't compute until values are needed
+
+**However**, there are potential framework enhancements that could help:
+
+1. **Export `effect()` to patterns** - Would allow patterns to react to cell changes
+2. **Add `Cell.mapValues()`** - A variant that returns plain values instead of cells (for aggregation)
+3. **Add `Cell.every()`/`Cell.some()`** - Array aggregation methods that work reactively
+
+#### Why JSX Works But derive() Doesn't
+
+**JSX** (from `render.ts` lines 349-389):
+```typescript
+if (isCell(propValue)) {
+  const cancel = effect(propValue, (replacement) => {
+    setProperty(element, propKey, replacement);
+  });
+}
+```
+
+JSX uses `isCell()` to detect cells and `effect()` to subscribe to changes. It receives the **actual value** in the callback.
+
+**derive()** (from `module.ts`):
+```typescript
+export function derive<In, Out>(input: Opaque<In>, f: (input: In) => Out): OpaqueRef<Out> {
+  return lift(f)(input);
+}
+```
+
+derive() passes the **proxied input** to the callback. When you access `.pending`, you get another proxy (the cell for that property), not the boolean value.
+
+**Key difference:**
+- **effect()** - Callback receives unwrapped values
+- **derive()** - Callback receives proxied cells (for dependency tracking)
+
+#### Timeline of Key Changes
+
+| Commit | Date | Change |
+|--------|------|--------|
+| `7ec536e65` | Oct 2025 | Map closure transformation implemented |
+| `b30582325` | Oct 2025 | Fix: fn in OpaqueRef.map(fn) gets OpaqueRef arguments |
+| `c1c0183b7` | Nov 2025 | **Merge OpaqueRef and Cell** - they're now the same! |
+| `af8d315ad` | Nov 2025 | Remove legacy proxy, complete merge |
+
+#### Design Docs Referenced
+
+- `packages/ts-transformers/docs/closure-design.md` - Map closure transformation design
+- `packages/ts-transformers/docs/hierarchical-params-spec.md` - How captured params are structured
+- `packages/ts-transformers/docs/closure-implementation-roadmap.md` - Future plans
+
+#### Conclusion
+
+The proxy behavior is **by design** to enable reactive dependency tracking. The issue isn't a bug or incomplete implementation - it's a fundamental architectural choice.
+
+Our options are:
+1. **Work within the design** (Architecture B, F, G)
+2. **Request framework enhancements** (expose `effect()`, add `Cell.every()`)
+3. **Use imperative workarounds** (handlers with `.get()`)
+
+---
+
 ### ✅ CONFIRMED: Server-Side LLM Caching Works for Raw Fetch
 
 After reviewing the toolshed codebase, **LLM caching happens at the HTTP endpoint level**, meaning raw `fetch()` requests DO benefit from caching.
