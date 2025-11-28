@@ -1914,3 +1914,251 @@ Similarly, a reactive framework primitive should **match the reactive nature**:
 - No natural "end" → The accumulator is always "current"
 
 **We were trying to impose batch thinking on a streaming system. MapReduce shows us how to think in streams.**
+
+---
+
+### 🔧 PROPOSED PRIMITIVE: Reactive `reduce()`
+
+#### The Core Problem (Revisited)
+
+Why doesn't this work today?
+
+```typescript
+const links = derive(extractions, (items) => {
+  return items.reduce((acc, item) => {
+    if (item.pending) return acc;  // BUG: item.pending is a PROXY, not boolean!
+    return [...acc, ...item.result.links];
+  }, []);
+});
+```
+
+The issue: inside `derive()`, array items are **proxied cells**. Accessing `.pending` returns another proxy, not a boolean. The proxy is truthy, so the condition always fails.
+
+#### What Reduce Needs to Do Differently
+
+The key insight: **reduce needs to UNWRAP values** before passing them to the reducer function, similar to how:
+- **Handlers** receive unwrapped values (you can use `.get()` or values are plain)
+- **JSX** unwraps cells via `effect()` internally
+
+A reactive `reduce()` would:
+1. Iterate over the array cell
+2. For each item, **unwrap** the cell to get plain values
+3. Call the reducer with **plain values** (not proxies)
+4. Track dependencies on each unwrapped cell
+5. Re-run when any dependency changes
+6. Return a cell containing the accumulated result
+
+#### Proposed API
+
+```typescript
+import { reduce } from "commontools";
+
+// Basic usage
+const completedLinks = reduce(
+  extractions,                          // Array cell to reduce
+  (acc, item) => {                      // Reducer function (receives UNWRAPPED values!)
+    if (item.pending) return acc;       // item.pending is boolean, not proxy!
+    if (item.error) return acc;         // item.error is Error | undefined
+    return [...acc, ...item.result.links];  // item.result is the actual object
+  },
+  []                                    // Initial accumulator
+);
+
+// completedLinks: OpaqueRef<string[]>
+// Updates incrementally as each extraction completes
+```
+
+#### How It Would Work Internally
+
+```typescript
+// Conceptual implementation (in builtins/reduce.ts)
+export function reduceBuiltin(
+  inputsCell: Cell<{
+    array: Array<{ pending: boolean; result: any; error: any }>;
+    initial: any;
+  }>,
+  reducerRecipe: Recipe,  // The reducer function wrapped as a recipe
+  sendResult: (tx, result) => void,
+  addCancel: AddCancel,
+  runtime: IRuntime,
+): Action {
+  return (tx) => {
+    // Get array with schema that unwraps cells to plain values
+    const { array, initial } = inputsCell.asSchema({
+      type: "object",
+      properties: {
+        array: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              pending: { type: "boolean" },
+              result: { asCell: false },  // Unwrap to plain value!
+              error: {},
+            },
+          },
+        },
+        initial: {},
+      },
+    }).withTx(tx).get();
+
+    // Run reducer with unwrapped values
+    let accumulator = initial;
+    for (let i = 0; i < (array?.length ?? 0); i++) {
+      const item = array[i];
+      // item.pending is now a real boolean!
+      // item.result is now the actual value!
+      accumulator = runReducer(reducerRecipe, accumulator, item, i);
+    }
+
+    sendResult(tx, accumulator);
+  };
+}
+```
+
+#### The Key Difference from derive()
+
+| Aspect | `derive()` | `reduce()` |
+|--------|-----------|-----------|
+| **Values received** | Proxied cells | Unwrapped plain values |
+| **item.pending** | Returns proxy (truthy object) | Returns boolean |
+| **item.result** | Returns proxy | Returns actual value |
+| **Dependency tracking** | Via proxy access | Via schema unwrapping |
+| **Use case** | Transform values | Aggregate values |
+
+#### Transformation by ts-transformers
+
+Like `map()` callbacks, `reduce()` callbacks would be transformed:
+
+**Pattern code:**
+```typescript
+const links = extractions.reduce(
+  (acc, item) => item.pending ? acc : [...acc, ...item.result.links],
+  []
+);
+```
+
+**Transformed to:**
+```typescript
+const links = extractions.reduceWithRecipe(
+  recipe(({ accumulator, element, params }) =>
+    element.pending ? accumulator : [...accumulator, ...element.result.links]
+  ),
+  { /* captured variables */ },
+  []  // initial
+);
+```
+
+#### Full Example: Streaming Pipeline
+
+```typescript
+export default pattern<Input, Output>(({ emails, existingReports }) => {
+  // Phase 1: Parse emails (sync)
+  const articles = derive(emails, e => e.filter(hasURL).map(toArticle));
+
+  // Phase 2: Extract links via LLM (async, per-item cached)
+  const extractions = articles.map(article =>
+    generateObject({
+      prompt: `Extract links from: ${article.content}`,
+      schema: LINK_SCHEMA,
+    })
+  );
+
+  // Phase 3: Aggregate completed results (STREAMING!)
+  const extractedLinks = reduce(
+    extractions,
+    (acc, item) => {
+      if (item.pending || item.error) return acc;
+      return [...acc, ...item.result.links];
+    },
+    []
+  );
+  // extractedLinks updates incrementally as each extraction completes!
+
+  // Phase 4: Derive novel URLs (sync, reactive)
+  const novelURLs = derive(
+    [extractedLinks, existingReports],
+    ([links, existing]) => dedupeAndFilter(links, existing)
+  );
+  // novelURLs updates as extractedLinks grows!
+
+  // Phase 5: Fetch novel reports (async, per-item cached)
+  const reportFetches = novelURLs.map(url => fetchData({ url }));
+
+  // Phase 6: Aggregate fetched reports (STREAMING!)
+  const fetchedReports = reduce(
+    reportFetches,
+    (acc, item) => {
+      if (item.pending || item.error) return acc;
+      return [...acc, { url: item.url, content: item.result }];
+    },
+    []
+  );
+
+  // Progress computed reactively
+  const extractionProgress = reduce(
+    extractions,
+    (acc, item) => ({
+      total: acc.total + 1,
+      completed: acc.completed + (item.pending ? 0 : 1),
+      errors: acc.errors + (item.error ? 1 : 0),
+    }),
+    { total: 0, completed: 0, errors: 0 }
+  );
+
+  return {
+    [NAME]: "Prompt Injection Tracker",
+    [UI]: (
+      <div>
+        <h2>Extraction Progress</h2>
+        <p>{extractionProgress.completed}/{extractionProgress.total} complete</p>
+        {extractionProgress.errors > 0 && (
+          <p>⚠️ {extractionProgress.errors} errors</p>
+        )}
+
+        <h2>Found Links ({extractedLinks.length})</h2>
+        {/* Links appear incrementally as extractions complete */}
+        {extractedLinks.map(link => <LinkItem link={link} />)}
+
+        <h2>Novel Reports ({fetchedReports.length})</h2>
+        {fetchedReports.map(report => <ReportCard report={report} />)}
+      </div>
+    ),
+    reports: fetchedReports,
+  };
+});
+```
+
+#### Why This Works
+
+1. **No barriers** - Each phase flows into the next incrementally
+2. **Streaming** - Results appear as items complete, not all-at-once
+3. **Reactive** - Everything updates automatically via dependency tracking
+4. **Cacheable** - Per-item operations (map) are cached individually
+5. **Pure functions** - Both map and reduce are pure transformations
+6. **Fits the model** - Uses cells and derivations, no imperative tricks
+
+#### Implementation Complexity: Medium
+
+The reduce builtin would need to:
+1. Handle array iteration with schema-based unwrapping
+2. Track dependencies on each array item's relevant properties
+3. Re-run when any tracked property changes
+4. Support the closure transformation (capture external variables)
+
+This is similar in complexity to the existing `map` builtin, which already:
+- Iterates over arrays
+- Runs recipes per item
+- Tracks dependencies
+- Handles closures via transformation
+
+#### Comparison to Alternatives
+
+| Approach | Streaming | Fits Model | Implementation |
+|----------|-----------|------------|----------------|
+| `whenAll()` | ❌ Batch | ⚠️ Forced | Medium |
+| `effect()` export | ✅ | ❌ Imperative | Low |
+| `reduce()` | ✅ | ✅ Native | Medium |
+| Better handlers | N/A | ✅ | Low |
+
+**Recommendation:** `reduce()` is the most philosophically aligned solution.
