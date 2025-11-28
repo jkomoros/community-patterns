@@ -1545,3 +1545,372 @@ The framework's reactive model is powerful, but lacks primitives for aggregating
 5. **Solve the core problem** - Single button triggers full pipeline
 
 This would transform our 6-architecture workaround document into a simple, idiomatic pattern.
+
+---
+
+### 🔴 CRITIQUE: Why This Proposal May Be Flawed
+
+#### 1. **Reactive Systems Don't "Wait"**
+
+The proposal smuggles imperative thinking into a reactive model. `whenAll()` implies a state machine (pending → complete), but reactive systems don't have "states" - they have **values that change over time**.
+
+```typescript
+// This looks reactive but thinks imperatively
+const all = whenAll(extractions);
+const next = derive(all.results, results => ...);  // "when results exist, do X"
+```
+
+This is essentially `if (condition) then action` - imperative control flow dressed up as reactive data flow. The framework might intentionally NOT support this pattern.
+
+#### 2. **The derive() Re-creation Problem**
+
+Consider:
+```typescript
+const extractions = derive(allArticles.results, articles => {
+  if (!articles) return [];
+  return articles.map(a => generateObject({...}));  // Creates NEW cells!
+});
+```
+
+Every time `allArticles.results` changes (including from `undefined` to `[...]`), this derive re-runs and creates **new** generateObject calls. Questions:
+- Are the old generateObject cells garbage collected?
+- Do the new ones hit cache? (Probably yes, if prompts match)
+- What about cell identity? Are these the "same" cells or different ones?
+
+This could cause subtle bugs or performance issues.
+
+#### 3. **Dynamic Arrays Break the Model**
+
+What happens when the input array grows mid-processing?
+
+```typescript
+const all = whenAll(extractions);
+// User adds new email while processing
+// Does "all complete" reset? Does it include new items?
+```
+
+`Promise.all()` works because Promise arrays are static. Reactive arrays are inherently dynamic. The semantics become unclear:
+- **Option A:** Snapshot at call time → Not reactive, defeats the purpose
+- **Option B:** Track dynamically → "All complete" may never be true
+- **Option C:** ??? → Complex edge cases
+
+#### 4. **Too Specific to Our Use Case**
+
+`whenAll()` solves "process array, wait for all, continue" - but this is ONE pattern. The framework might prefer more general primitives:
+
+- **Expose `effect()`** - Let patterns build custom aggregation
+- **Add `Cell.reduce()`** - General-purpose array reduction
+- **Improve handler ergonomics** - Make the "Continue button" pattern nicer
+
+A `whenAll()` that only solves pipeline-style processing may be too narrow.
+
+#### 5. **It Might Encourage Anti-Patterns**
+
+The "dream" 6-phase pipeline is impressive but possibly wrong:
+
+```typescript
+// Is this actually good design?
+Phase1 → whenAll → Phase2 → whenAll → Phase3 → whenAll → Phase4 → ...
+```
+
+Maybe the framework is RIGHT to make this hard because:
+- **Complex pipelines should be multiple charms** - Each phase is its own charm
+- **User confirmation is a feature** - "Continue" buttons let users verify intermediate results
+- **Simpler patterns are better** - One async operation per pattern, compose via linking
+
+#### 6. **Type System Nightmare**
+
+```typescript
+function whenAll<T extends { pending: boolean; result: unknown; error: unknown }>(
+  cells: OpaqueRef<T[]>
+): OpaqueRef<WhenAllResult<T>>
+```
+
+This requires:
+- Inferring `T` from `OpaqueRef<T[]>` (tricky with Cell.map results)
+- Handling heterogeneous arrays (what if items have different result types?)
+- Preserving type information through the proxy chain
+
+The type gymnastics might be prohibitive.
+
+#### 7. **Progress Tracking is Expensive**
+
+```typescript
+all.progress: OpaqueRef<{completed: number, total: number}>
+```
+
+This requires iterating the entire array on every change. For 1000 items, that's 1000 iterations per item completion. The framework might avoid this intentionally.
+
+#### 8. **Error Semantics Are Unclear**
+
+- `Promise.all` - Fails fast on first error
+- `Promise.allSettled` - Collects all results/errors
+
+The proposal has both `results` and `errors` but:
+- When is `results` populated? Only if zero errors? Or always?
+- Is `errors` an array of all errors? Just the first?
+- How do partial failures work?
+
+This ambiguity suggests the abstraction isn't well-defined.
+
+#### 9. **Maybe the "Problem" is Actually Fine**
+
+Our workarounds (Architecture B, F, G) all **work**. They're verbose but functional. The framework might consider this acceptable:
+
+- **Architecture B (imperative fetch):** Works, gets caching, single button
+- **Architecture G (worker pool):** Works, parallel processing, batch tracking
+- **Manual "Continue" button:** User confirms each phase, catches errors
+
+Perhaps the "problem" is that we want automatic pipelines, but the framework philosophy is that **humans should be in the loop** for multi-stage processing.
+
+---
+
+### 🟡 ALTERNATIVE: Smaller, More Composable Primitives
+
+Instead of `whenAll()`, consider requesting:
+
+#### Option A: Export `effect()` to Patterns
+
+```typescript
+import { effect } from "commontools";
+
+// Patterns can build their own aggregation
+let completed = 0;
+extractions.forEach(e => {
+  effect(e.pending, (pending) => {
+    if (!pending) completed++;
+    if (completed === extractions.length) {
+      // All done - trigger next phase
+    }
+  });
+});
+```
+
+**Pros:** Maximum flexibility, minimal API surface
+**Cons:** Imperative, breaks pure reactive model, patterns become stateful
+
+#### Option B: Reactive `Cell.reduce()`
+
+```typescript
+const allDone = extractions.reduce(
+  (acc, item) => acc && !item.pending,
+  true
+);
+```
+
+The framework would handle unwrapping proxies internally.
+
+**Pros:** General-purpose, familiar API
+**Cons:** Still has the "reduce over proxies" implementation challenge
+
+#### Option C: Better Handler Ergonomics
+
+Instead of new primitives, make the handler-based approach nicer:
+
+```typescript
+// Current: awkward .get() calls
+const collectResults = handler((_, { extractions }) => {
+  for (const e of extractions) {
+    const pending = e.pending.get?.() ?? e.pending;  // Ugly
+    // ...
+  }
+});
+
+// Improved: handlers automatically unwrap cells
+const collectResults = handler((_, { extractions }) => {
+  // extractions is already unwrapped!
+  for (const e of extractions) {
+    if (e.pending) continue;  // Just works
+    results.push(e.result);
+  }
+});
+```
+
+**Pros:** Works within existing model, no new concepts
+**Cons:** Still requires user action to trigger
+
+#### Option D: Accept the Multi-Charm Pattern
+
+Maybe the answer is: **don't build monolithic pipelines**.
+
+```
+Charm 1: Email Parser       → outputs: parsedArticles
+Charm 2: Link Extractor     → inputs: parsedArticles, outputs: extractedLinks
+Charm 3: Report Summarizer  → inputs: extractedLinks, outputs: summaries
+```
+
+Each charm is simple, testable, and handles one phase. Users link them together. The framework's job is making charm linking seamless, not enabling mega-patterns.
+
+---
+
+### 🟢 VERDICT
+
+The `whenAll()` proposal is **appealing but possibly misguided**. It:
+
+1. ✅ Would solve our immediate problem elegantly
+2. ❌ May not fit the reactive philosophy (waiting is imperative)
+3. ❌ Has unclear semantics for dynamic arrays and errors
+4. ❌ Might encourage complex patterns that should be decomposed
+5. ❓ May be solvable with smaller primitives (`effect()`, better handlers)
+
+**Recommendation for framework author discussion:**
+
+> "We're struggling with aggregating completion across dynamic arrays. We sketched `whenAll()` but realize it may be too specific or philosophically wrong. What's your view on:
+> 1. Should patterns support multi-phase pipelines, or should that be multiple linked charms?
+> 2. Would exposing `effect()` be acceptable, or does that break the reactive model?
+> 3. Is there a simpler primitive we're missing?"
+
+The answer might be: "Use multiple charms" or "The Continue button is the right pattern" - and that's a valid framework opinion.
+
+---
+
+### 🧠 DEEPER ANALYSIS: Why MapReduce Was Brilliant (And What We Can Learn)
+
+Before proposing a MapReduce-inspired primitive, let's understand WHY MapReduce was so transformative at Google scale. The insights are relevant.
+
+#### The Problem MapReduce Solved
+
+Google had petabytes of web pages to process. The naive approach:
+```
+for each page in all_pages:
+    process(page)
+    accumulate(result)
+```
+
+This fails at scale because:
+- **Sequential processing** - One page at a time is too slow
+- **Shared state** - The accumulator becomes a bottleneck
+- **Failure handling** - If one page fails, restart everything?
+- **Resource coordination** - How do you distribute work across 10,000 machines?
+
+#### The MapReduce Insight: Separate "What" From "How"
+
+MapReduce's brilliance was decomposing computation into two **pure functions**:
+
+```
+MAP:    (key, value) → list of (key', value')
+REDUCE: (key', list of value') → (key', aggregated_value')
+```
+
+**Why this decomposition is powerful:**
+
+1. **Map is Embarrassingly Parallel**
+   - Each mapper works on one chunk, independently
+   - No coordination between mappers
+   - No shared state
+   - Failures are isolated - just retry that chunk
+
+2. **The Only Synchronization is the Shuffle**
+   - Map emits (key, value) pairs
+   - Framework groups values by key
+   - This is the ONLY place data from different mappers "meets"
+   - It's a well-defined, optimizable operation
+
+3. **Reduce is Also Parallel (Per Key)**
+   - Each key's values reduced independently
+   - Different keys reduced in parallel
+   - Reducer is just a fold/accumulate operation
+
+4. **No "Waiting for All"**
+   - Reducers can start as soon as ANY mapper completes for their key
+   - It's **streaming**, not batch
+   - Values flow through the system incrementally
+
+#### The Key Insight We Missed
+
+Our `whenAll()` proposal thought in **batch** terms:
+```
+[all mappers complete] → BARRIER → [proceed to reduce]
+```
+
+But MapReduce is **streaming**:
+```
+[mapper 1 completes] → values flow to reducer → [reducer updates]
+[mapper 2 completes] → values flow to reducer → [reducer updates]
+[mapper 3 completes] → values flow to reducer → [reducer updates]
+...
+```
+
+**There is no "wait for all" in MapReduce!** Values flow incrementally. The reduce accumulates progressively. The system converges toward completion, but there's no explicit barrier.
+
+#### Why This Fits Reactive Systems Perfectly
+
+Reactive systems are inherently **streaming**:
+- Values change over time
+- Derived computations update when dependencies change
+- Data flows through the graph incrementally
+
+The mismatch in our thinking was:
+- We wanted **batch semantics** (`whenAll` → proceed)
+- The framework provides **streaming semantics** (values update → derivations update)
+
+**We were fighting the reactive model instead of embracing it!**
+
+#### What MapReduce Teaches Us
+
+| Concept | MapReduce | Reactive Framework | Our Problem |
+|---------|-----------|-------------------|-------------|
+| **Map** | Pure function on each item | `Cell.map()` | ✅ Works! |
+| **Emit** | (key, value) pairs | Cell updates | ✅ Works! |
+| **Shuffle** | Group by key | Dependency tracking | ✅ Built-in! |
+| **Reduce** | Fold values for each key | ??? | ❌ Missing! |
+
+**The gap isn't `whenAll()` - it's a proper reactive REDUCE!**
+
+#### The Real Primitive We Need: Streaming Reduce
+
+Instead of "wait for all, then aggregate", we need "aggregate incrementally as items complete":
+
+```typescript
+// MapReduce-inspired: incremental aggregation
+const links = articles.mapReduce({
+  // Map: extract links from each article (parallel, cached)
+  map: (article) => generateObject({
+    prompt: `Extract links from: ${article.content}`,
+    schema: LINK_SCHEMA,
+  }),
+
+  // Reduce: accumulate results as they arrive (streaming)
+  reduce: (accumulated, item) => {
+    if (item.pending) return accumulated;  // Skip pending
+    if (item.error) return accumulated;     // Skip errors
+    return [...accumulated, ...item.result.links];  // Accumulate
+  },
+
+  initial: [],  // Starting accumulator
+});
+
+// links updates incrementally as each extraction completes!
+// No "waiting" - just reactive updates
+```
+
+**Why this fits reactive philosophy:**
+1. **No barriers** - Results flow through as they complete
+2. **Progressive updates** - UI shows partial results immediately
+3. **Pure functions** - Map and reduce are both pure
+4. **Streaming** - Embraces the reactive model instead of fighting it
+
+#### Why This Is Better Than `whenAll()`
+
+| Aspect | `whenAll()` | `mapReduce()` |
+|--------|-------------|---------------|
+| **Semantics** | Batch (wait for all) | Streaming (incremental) |
+| **Partial results** | None until complete | Available immediately |
+| **Dynamic arrays** | Ambiguous | Natural (new items join stream) |
+| **Fits reactive model** | Somewhat forced | Native fit |
+| **Error handling** | All-or-nothing | Per-item (skip errors) |
+| **Progress** | Binary (pending/done) | Continuous (N items accumulated) |
+
+#### The Deeper Lesson
+
+MapReduce succeeded because it **matched the nature of the problem**:
+- Data is distributed → Map is distributed
+- Aggregation needs coordination → Shuffle provides it
+- Results build up → Reduce accumulates
+
+Similarly, a reactive framework primitive should **match the reactive nature**:
+- Items complete asynchronously → Process them as they complete
+- Results build up over time → Accumulate incrementally
+- No natural "end" → The accumulator is always "current"
+
+**We were trying to impose batch thinking on a streaming system. MapReduce shows us how to think in streams.**
