@@ -70,32 +70,33 @@ This requires feeding the output of one recipe invocation as input to the next, 
 
 Given these blockers, here are the viable options:
 
-### Option A: Derive-Based Aggregation (RECOMMENDED)
+### Option A: Derive-Based Aggregation - ❌ DOES NOT WORK
 
-Instead of a reduce builtin, use derive() with the existing `.reduce()` method on arrays:
+**Experiment performed:** Tried using derive() with array.reduce():
 
 ```typescript
-// The proxy already supports .reduce() as a ReadOnly array method!
-// (See query-result-proxy.ts:54)
-
 const completed = derive([analyses], (items) => {
-  // items is already unwrapped here because derive() processes its inputs
   return items.reduce((acc, item) => {
-    if (item.pending) return acc;
+    if (item.pending) return acc;  // TypeScript error!
     return [...acc, item.result];
   }, []);
 });
 ```
 
-**Pros:**
-- Works with existing framework
-- No new builtins needed
-- ts-transformers already handle derive()
+**Results (TypeScript compilation errors):**
+```
+[ERROR] Operator '+' cannot be applied to types 'number' and 'Cell<number[]>'
+[ERROR] Property 'doubled' does not exist on type 'OpaqueCell<...>'
+[ERROR] Property 'pending' does not exist on type 'Cell<LLMResult[]>'
+```
 
-**Cons:**
-- Runs entire reduce on every change (not incremental)
-- May have performance issues with large arrays
-- Still has the OpaqueRef proxy issue - items may still be proxied
+**Conclusion:** derive() does NOT unwrap array items. Inside the derive callback:
+- `items` is an `OpaqueCell` or `Cell` proxy
+- `items[0]` is ALSO a proxy, not the unwrapped value
+- `.reduce()` receives proxied items, not plain values
+- TypeScript correctly catches this - you can't access `.pending` on a Cell
+
+**This option is NOT viable.** We need a primitive that explicitly unwraps values.
 
 ### Option B: Module Factory for Reduce
 
@@ -125,26 +126,88 @@ export function reduce<T, R>(
 - Still runs full reduce on every change
 - Reducer closures need transformer support
 
-### Option C: New Builtin With Recipe-Based Reducer
+### Option C: ts-Transformer Approach - ✅ MOST PROMISING
 
-Create a reduce builtin where the reducer is a Recipe:
+**Key Insight:** reduce() could work like derive(), not like map().
+
+For map, each item needs its own recipe invocation (parallel processing).
+For reduce, we need sequential composition - but if we use **lift()**, the reducer runs synchronously inside the lift callback.
+
+**How it would work:**
 
 ```typescript
 // User writes:
-analyses.reduce((acc, item) => { ... }, initialValue);
+const result = reduce(analyses, [], (acc, item) => {
+  if (item.pending) return acc;
+  return [...acc, item.result];
+});
 
 // ts-transformer converts to:
-reduceBuiltin(analyses, reducerRecipe, initialValue);
+const result = lift(
+  { type: "object", properties: { list: listSchema, ...capturedSchemas } },
+  resultSchema,
+  ({ list, ...params }) => {
+    // Inside lift, list IS UNWRAPPED to plain values!
+    return list.reduce((acc, item) => {
+      if (item.pending) return acc;  // item.pending is boolean here
+      return [...acc, item.result];
+    }, []);
+  }
+)({ list: analyses, ...capturedValues });
+```
+
+**Why this works:**
+1. The reducer function becomes part of the lift() callback closure (compile-time capture, not runtime data)
+2. ts-transformers use `CaptureCollector` to find OpaqueRefs in the reducer
+3. Captured refs become params passed to lift
+4. Inside lift's implementation, the `list` input IS unwrapped (that's how lift/derive work)
+5. The standard JS `.reduce()` runs on unwrapped array
+
+**What the transformer needs to do:**
+1. Recognize `reduce(list, initial, reducer)` calls
+2. Use `CaptureCollector` to find OpaqueRefs captured in reducer body
+3. Build input schema including `list` and all captured refs
+4. Infer result schema from reducer return type
+5. Generate lift() call that wraps the reducer in a synchronous reduce
+
+**Transformer sketch (pseudocode):**
+```typescript
+function transformReduceCall(call: ts.CallExpression): ts.Expression {
+  const [listArg, initialArg, reducerArg] = call.arguments;
+
+  // Find OpaqueRefs captured in the reducer
+  const collector = new CaptureCollector(checker);
+  const { captureTree } = collector.analyze(reducerArg);
+
+  // Build the lift callback body that does actual reduce
+  const liftBody = factory.createCallExpression(
+    factory.createPropertyAccessExpression(
+      factory.createIdentifier('list'),
+      'reduce'
+    ),
+    undefined,
+    [reducerArg, initialArg]  // Pass reducer as-is, it's now inside lift
+  );
+
+  // Generate: lift(schema, resultSchema, ({list, ...params}) =>
+  //             list.reduce(reducer, initial))({list, ...values})
+  return generateLiftCall(listArg, captureTree, liftBody);
+}
 ```
 
 **Pros:**
-- Could potentially be incremental
-- Follows map() pattern
+- Follows existing derive/lift patterns
+- Reducer closure is captured at compile time (no serialization issues!)
+- ts-transformers machinery already exists (CaptureCollector, etc.)
+- Works with existing framework - just generates different code
 
 **Cons:**
-- Complex ts-transformer work
-- Recipe composition is hard
-- May need framework changes to runner
+- Requires new transformer (2-4 days work)
+- Different signature from derive: `reduce(list, initial, reducer)` vs `derive(inputs, fn)`
+- Need to handle (acc, item) two-parameter signature
+- Schema inference for list items and result type
+
+**Estimated effort:** 2-4 days for the transformer + 1 day testing
 
 ---
 
@@ -870,34 +933,36 @@ const linkedFetches = mapByKey(
 The original implementation plan assumed we could pass functions as runtime data.
 **This is not possible.** The plan must be revised.
 
-### Phase 1: Validate Workarounds (1-2 days)
+### Phase 1: Validate Workarounds - ✅ COMPLETED
 
-Before implementing new primitives, validate that existing mechanisms can solve the problem:
+**Experiment A: derive() with array.reduce()** - FAILED
 
-**Experiment A: derive() with array.reduce()**
+Created `patterns/jkomoros/WIP/reduce-experiment.tsx` to test:
 ```typescript
-// Does this actually unwrap items and give boolean .pending?
 const completed = derive([analyses], (items) => {
   return items.reduce((acc, item) => {
-    console.log("item.pending type:", typeof item.pending);  // boolean or proxy?
-    if (item.pending) return acc;
+    if (item.pending) return acc;  // Does this work?
     return [...acc, item.result];
   }, []);
 });
 ```
 
-**Experiment B: Check if derive inputs are unwrapped**
-```typescript
-// When items is Cell<LLMResult[]>, what does derive receive?
-const test = derive([analyses], (items) => {
-  const first = items[0];
-  console.log("Is first a Cell?", isCell(first));
-  console.log("pending value:", first?.pending);
-  return items;
-});
+**Results:** TypeScript compilation errors confirm derive does NOT unwrap:
+```
+[ERROR] Operator '+' cannot be applied to types 'number' and 'Cell<number[]>'
+[ERROR] Property 'pending' does not exist on type 'Cell<LLMResult[]>'
 ```
 
-**Expected outcome:** Determine if derive() solves the aggregation problem or if items remain proxied.
+**Conclusion:** derive() passes proxied Cells, not unwrapped values. Array items remain as OpaqueCell proxies.
+
+**Experiment B: Check types** - CONFIRMED
+
+Inside derive callback:
+- `items` is `OpaqueCell<T[]>` or `Cell<T[]>`, not `T[]`
+- `items[0]` is also proxied, not the unwrapped value
+- Properties like `.pending` don't exist on the Cell type
+
+**Result: derive() workaround is NOT viable. We need a new primitive.**
 
 ### Phase 2: reduce() Module Factory (2-3 days)
 
