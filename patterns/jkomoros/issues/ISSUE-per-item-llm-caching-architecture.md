@@ -70,6 +70,74 @@ if (shouldCache) {
 
 ---
 
+### ✅ CONFIRMED: Agentic Tool Calls Cache Full Conversation, NOT Individual Calls
+
+**Source:** `~/Code/labs/packages/toolshed/routes/ai/llm/llm.handlers.ts` (lines 129-142)
+
+The framework caches the **full multi-turn conversation**, not individual tool calls:
+
+```typescript
+// Enable caching for all requests including those with tools.
+// With the sequential request architecture, each request includes complete context
+// (including tool results from previous rounds), making each response cacheable.
+//
+// Cache key naturally includes:
+// - Original user message
+// - Tool definitions
+// - Tool results (in messages array for subsequent rounds)
+// - Full conversation history
+```
+
+**Implication for Architecture E (Agentic Loop):**
+- ❌ Individual tool calls are NOT cached separately
+- ✅ If the agent runs the exact same sequence with same tool results, the full conversation is cached
+- ⚠️ Non-deterministic tools (like searching Gmail which might return different emails) will produce different cache keys
+- ❌ **NOT suitable for per-item LLM caching** - agent might vary its prompts or call order
+
+---
+
+### ✅ CONFIRMED: Cell.map() Returns OpaqueRef, NOT Array
+
+**Source:** `~/Code/labs/packages/runner/src/cell.ts` (lines 1147-1169)
+
+**Root cause of Architecture A failure:**
+
+`Cell.map()` returns `OpaqueRef<S[]>` (a reactive cell reference), NOT a plain JavaScript array:
+
+```typescript
+// From api/index.ts - IDerivable interface
+map<S>(fn: (element, index, array) => Opaque<S>): OpaqueRef<S[]>;  // Returns OpaqueRef!
+```
+
+**This explains the TypeError:**
+```typescript
+// What we wrote:
+const articleLinkExtractions = articlesWithContent.map((article) => {
+  return generateObject({...});  // Returns {result, pending, error}
+});
+
+// What we expected: Array<{result, pending, error}>
+// What we got: OpaqueRef<Array<{result, pending, error}>>  ← Can't access .pending directly!
+```
+
+**Why the docs example works:**
+```typescript
+const articles: Article[] = [...];  // Plain JavaScript array
+const extractions = articles.map((article) => generateObject({...}));
+// ↑ This is Array.prototype.map(), returns plain array
+```
+
+**Why our code fails:**
+```typescript
+const articlesWithContent = derive(...);  // Returns Cell
+const extractions = articlesWithContent.map(...);
+// ↑ This is Cell.map(), returns OpaqueRef<S[]>, NOT Array<S>
+```
+
+**Key insight:** The docs example uses a **plain JavaScript array**, not a Cell. When mapping over a Cell, you get a Cell back, not an array of generateObject results.
+
+---
+
 ## What Works (from official docs)
 
 Per LLM.md, this pattern SHOULD work for per-item LLM calls:
@@ -177,30 +245,33 @@ const startProcessing = handler(async (_, { linkExtractionTrigger }) => {
 
 ## Potential Architectures
 
-### Architecture A: Reactive Per-Item (Idiomatic but blocked)
+### Architecture A: Reactive Per-Item ❌ BLOCKED (Cell.map issue)
 
 ```
 parsedArticles (derive from emails)
         ↓
 articlesWithContent (derive joining with webPageCache)
         ↓
-articlesWithContent.map(article => generateObject({...}))  ← DOESN'T WORK
+articlesWithContent.map(article => generateObject({...}))  ← RETURNS OpaqueRef, NOT Array!
         ↓
-linkExtractionProgress (derive tracking pending/completed)
+linkExtractionProgress (derive tracking pending/completed)  ← TypeError here
         ↓
 novelReportURLs (derive collecting results)
 ```
 
+**Root Cause (CONFIRMED):**
+`Cell.map()` returns `OpaqueRef<S[]>`, not `Array<S>`. So `articlesWithContent.map(...)` returns a Cell, not an array of `{result, pending, error}` objects. Accessing `.pending` on a Cell throws TypeError.
+
 **Pros:**
-- Fully reactive (one button, automatic updates)
-- Per-item LLM caching
-- Framework handles all the complexity
+- Would be fully reactive (one button, automatic updates)
+- Would get per-item LLM caching
+- Framework would handle all the complexity
 
 **Cons:**
-- generateObject inside derive/map doesn't seem to work
-- "Can't kick off reactive things from inside derive"
+- ❌ `Cell.map()` returns `OpaqueRef`, not array - can't access individual item properties
+- ❌ Docs example uses plain array, not Cell - different behavior
 
-**Question:** Is there an idiomatic way to do this?
+**Question:** Is there a way to use `Cell.map()` with `generateObject` and properly access the individual `{result, pending, error}` objects?
 
 ---
 
@@ -276,7 +347,7 @@ export default pattern(({ existingArticles }) => {
 
 ---
 
-### Architecture E: Agentic Loop with Tools (hotel-membership-extractor pattern)
+### Architecture E: Agentic Loop with Tools ❌ NO PER-ITEM CACHING
 
 **Reference implementation:** `patterns/jkomoros/hotel-membership-extractor.tsx`
 
@@ -367,56 +438,87 @@ handler sets isScanning = false
 - ⚠️ LLM decides the flow (less deterministic)
 - ⚠️ More expensive (LLM is reasoning about what to do)
 - ⚠️ Tool results must write to `input.result` cell (gotcha!)
-- ❓ **Unclear: Does per-tool-call caching work?** If the agent makes the same tool call twice, is it cached?
-- ⚠️ Harder to get per-article caching (agent might batch or vary prompts)
+- ❌ **CONFIRMED: NO per-tool-call caching** - only full conversation is cached
+- ❌ Non-deterministic tools (Gmail search) produce different cache keys each time
+- ❌ **NOT suitable for per-item LLM caching** - agent varies prompts/order
 
-**Question for framework author:** For agentic workflows, does the framework cache individual tool calls or the full multi-turn conversation?
+**Caching behavior (CONFIRMED):**
+From `llm.handlers.ts` lines 129-142: The cache key includes the full conversation history including all tool results. Individual tool calls are NOT cached separately. If the agent makes the same sequence with identical tool results, the full conversation is cached - but this is unlikely with non-deterministic tools like Gmail search.
 
 ---
 
-## Comparison Matrix
+## Comparison Matrix (Updated with Research)
 
 | Architecture | Per-Item Cache | Single Button | Idiomatic | Progress UI | Works Today |
 |-------------|----------------|---------------|-----------|-------------|-------------|
-| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ |
-| B: Imperative fetch() | ✅ | ✅ | ⚠️ | ✅ | ✅ |
-| C: Static Array | ✅ | ✅ | ✅ | ✅ | ⚠️ Limited |
-| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ |
-| E: Agentic Loop | ❓ | ✅ | ✅ | ✅ | ✅ |
+| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ Cell.map returns OpaqueRef |
+| **B: Imperative fetch()** | **✅** | **✅** | ⚠️ | **✅** | **✅ RECOMMENDED** |
+| C: Static Array | ✅ | ✅ | ✅ | ✅ | ⚠️ Limited to init-time data |
+| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ Needs more research |
+| E: Agentic Loop | ❌ | ✅ | ✅ | ✅ | ✅ But no per-item cache |
+
+**Conclusion:** Architecture B (imperative handler with raw fetch) is currently the **only working option** for per-item LLM caching with dynamic arrays.
 
 ---
 
 ## Specific Questions for Framework Author
 
-1. **Per-item generateObject from dynamic arrays:**
-   The docs show `emails.map(email => generateObject({...}))` working. But when the source array comes from `derive()`, this doesn't seem to work. Is there a pattern for this?
+### ✅ ANSWERED by Research
 
-2. **~~Server-side LLM caching:~~** ✅ ANSWERED
+1. **~~Server-side LLM caching:~~** ✅ ANSWERED
    ~~Does the server cache LLM requests based on (system + prompt + schema) regardless of whether they come from reactive `generateObject` or raw `fetch()`?~~
 
-   **Yes!** Cache is at HTTP endpoint level. Key = SHA-256(payload minus cache/metadata).
+   **Yes!** Cache is at HTTP endpoint level. Key = SHA-256(payload minus cache/metadata). Raw fetch benefits from caching.
 
-3. **Triggering reactive things from handlers:**
-   Is there a way to "kick off" multiple independent `generateObject` calls from a handler that will each be cached individually?
+2. **~~Agentic tool caching:~~** ✅ ANSWERED
+   ~~In Architecture E (agentic loop), are individual tool calls cached? Or only the final result?~~
 
-4. **Agentic tool caching:**
-   In Architecture E (agentic loop), are individual tool calls cached? Or only the final result?
+   **Full conversation only.** Individual tool calls are NOT cached separately. Cache key includes full message history + tool results.
 
-5. **Recommended architecture:**
-   For "process N items with LLM, cache per-item" use case, what's the idiomatic pattern?
-   - Architecture B (imperative fetch) works but feels like a workaround
-   - Architecture E (agentic) is elegant but unclear on caching
+3. **~~Why doesn't Cell.map() work with generateObject?~~** ✅ ANSWERED
+   ~~The docs show `emails.map(email => generateObject({...}))` working. But when the source array comes from `derive()`, this doesn't seem to work.~~
+
+   **Cell.map() returns OpaqueRef, not Array.** The docs example uses a plain JavaScript array (`articles: Article[]`), which uses `Array.prototype.map()`. But `derive()` returns a Cell, and `Cell.map()` returns `OpaqueRef<S[]>`, not `Array<S>`.
+
+### ❓ REMAINING QUESTIONS
+
+1. **How to use Cell.map() with generateObject correctly?**
+   Is there a way to:
+   - Map over a Cell and call `generateObject` for each item
+   - Access individual `{result, pending, error}` objects from the mapped results
+   - Or is this pattern fundamentally not supported?
+
+2. **Is Architecture B (imperative fetch) acceptable?**
+   Using `await fetch("/api/ai/llm/generateObject", {...})` in a handler loop works and gets per-item caching. Is this:
+   - An acceptable workaround?
+   - Going to break in the future?
+   - Missing some framework benefits we should know about?
+
+3. **Recommended pattern for dynamic per-item LLM processing?**
+   For the use case "user clicks button → process N items through LLM → each item cached individually", what's the idiomatic approach?
+   - Currently only Architecture B works
+   - Is there a better pattern we're missing?
 
 ---
 
 ## Related Code/Docs
 
-- **Pattern:** `patterns/jkomoros/prompt-injection-tracker.tsx`
-- **Pattern:** `patterns/jkomoros/hotel-membership-extractor.tsx` (agentic example)
-- **Official docs:** `~/Code/labs/docs/common/LLM.md`
-- **Cache implementation:** `~/Code/labs/packages/toolshed/routes/ai/llm/cache.ts`
-- **Superstition:** `community-docs/superstitions/2025-11-22-llm-generateObject-reactive-map-derive.md`
-- **Superstition:** `community-docs/superstitions/2025-11-27-llm-never-raw-fetch-use-generateObject.md`
+**Patterns:**
+- `patterns/jkomoros/prompt-injection-tracker.tsx` - Main pattern with this issue
+- `patterns/jkomoros/hotel-membership-extractor.tsx` - Agentic example (Architecture E)
+
+**Framework Code (researched):**
+- `~/Code/labs/packages/toolshed/routes/ai/llm/cache.ts` - LLM cache implementation
+- `~/Code/labs/packages/toolshed/routes/ai/llm/llm.handlers.ts` - Cache key logic, tool caching (lines 129-157)
+- `~/Code/labs/packages/runner/src/cell.ts` - Cell.map() implementation (lines 1147-1169)
+- `~/Code/labs/packages/api/index.ts` - IDerivable interface showing OpaqueRef return type
+
+**Official docs:**
+- `~/Code/labs/docs/common/LLM.md` - generateObject documentation
+
+**Community docs:**
+- `community-docs/superstitions/2025-11-22-llm-generateObject-reactive-map-derive.md`
+- `community-docs/superstitions/2025-11-27-llm-never-raw-fetch-use-generateObject.md`
 
 ## Environment
 
