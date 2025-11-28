@@ -2152,13 +2152,89 @@ This is similar in complexity to the existing `map` builtin, which already:
 - Tracks dependencies
 - Handles closures via transformation
 
+#### ⚠️ CRITICAL ISSUE: Cell.map() Assumes Append-Only Arrays
+
+**Problem discovered during review:** The streaming pipeline has a flaw.
+
+Looking at `map.ts`:
+```typescript
+// Add values that have been appended
+while (initializedUpTo < list.length) {
+  // ... only processes NEW indices
+  initializedUpTo++;
+}
+```
+
+The map builtin:
+1. Tracks `initializedUpTo` - how many items it has processed
+2. Only creates new result cells for indices >= `initializedUpTo`
+3. **Does NOT re-run** if items at existing indices change
+
+**Problematic scenario:**
+```
+Time 1: reduce completes item 0 → extractedLinks = ["url-0"]
+Time 2: reduce completes item 2 → extractedLinks = ["url-0", "url-2"]
+Time 3: reduce completes item 1 → extractedLinks = ["url-0", "url-2", "url-1"]
+
+If dedupe SORTS alphabetically:
+Time 1: novelURLs = ["url-0"]           → map fetches index 0: "url-0"
+Time 2: novelURLs = ["url-0", "url-2"]  → map fetches index 1: "url-2"
+Time 3: novelURLs = ["url-0", "url-1", "url-2"]
+                              ↑
+                    Index 1 CHANGED from "url-2" to "url-1"!
+                    But map already ran fetch for "url-2" at index 1.
+                    It won't re-fetch "url-1".
+```
+
+**Result:** The fetch for `"url-1"` never happens! The pipeline silently loses data.
+
+**This affects the entire streaming model**, not just reduce:
+- Any derived array that could reorder breaks downstream maps
+- The map builtin fundamentally assumes stable indices
+
+**Potential Solutions:**
+
+1. **Ensure all derived arrays are append-only**
+   - Dedupe must preserve insertion order, never sort
+   - Constrains what transforms are safe
+
+2. **Use keyed collections instead of arrays**
+   - `Map<URL, Result>` instead of `Result[]`
+   - Keys provide stable identity
+   - Would need `Cell.mapEntries()` or similar
+
+3. **Enhance Cell.map() to detect changes at existing indices**
+   - Compare new items with old at each index
+   - Re-run recipe if item changed
+   - Performance cost: O(n) comparison on each update
+
+4. **Add Cell.mapWithKey() that uses stable keys**
+   ```typescript
+   const fetches = novelURLs.mapWithKey(
+     url => url,  // Key function - URL is the stable identity
+     url => fetchData({ url })
+   );
+   // Keyed by URL, so reordering doesn't cause re-fetches
+   // Only truly NEW URLs trigger new fetches
+   ```
+
+**This is a significant limitation** of the streaming model. The reduce() proposal still has value, but downstream processing needs careful design to avoid the index-stability trap.
+
+**Updated Recommendation:**
+- `reduce()` is still valuable for aggregation
+- But streaming into `Cell.map()` requires append-only semantics OR keyed mapping
+- Framework might need `mapWithKey()` for full streaming pipeline support
+
+---
+
 #### Comparison to Alternatives
 
-| Approach | Streaming | Fits Model | Implementation |
-|----------|-----------|------------|----------------|
-| `whenAll()` | ❌ Batch | ⚠️ Forced | Medium |
-| `effect()` export | ✅ | ❌ Imperative | Low |
-| `reduce()` | ✅ | ✅ Native | Medium |
-| Better handlers | N/A | ✅ | Low |
+| Approach | Streaming | Fits Model | Implementation | Index-Stable |
+|----------|-----------|------------|----------------|--------------|
+| `whenAll()` | ❌ Batch | ⚠️ Forced | Medium | N/A |
+| `effect()` export | ✅ | ❌ Imperative | Low | N/A |
+| `reduce()` | ✅ | ✅ Native | Medium | ✅ (output is single value) |
+| `reduce()` + `map()` | ⚠️ | ⚠️ | Medium | ❌ (if array reorders) |
+| `mapWithKey()` | ✅ | ✅ | Medium | ✅ |
 
-**Recommendation:** `reduce()` is the most philosophically aligned solution.
+**Recommendation:** `reduce()` is valuable, but full streaming pipelines need `mapWithKey()` or careful append-only constraints.
