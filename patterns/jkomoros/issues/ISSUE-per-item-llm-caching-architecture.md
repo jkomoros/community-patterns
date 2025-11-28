@@ -49,20 +49,41 @@ After extensive research, here's our best understanding:
 2. ❌ **derive/computed on Cell.map() arrays** - items are proxied, `.pending` returns proxy not boolean
 3. ❌ **effect() not available** - exported from runner but not from commontools public API
 
-**Recommended Approach:**
+**Recommended Approaches:**
 For our use case (dynamic per-item LLM processing with per-item caching):
 
-**Architecture F + Handler Aggregation:**
-1. Use `parsedArticles.map()` to create per-item `generateObject` calls (gets per-item caching)
-2. Display per-item progress in JSX (works - no derive wrapper)
-3. User clicks "Continue" when all visually complete
-4. Handler aggregates results using `.get()` and proceeds to next phase
+**Option 1: Architecture G - Worker Pool (NEW - Most Promising)**
+1. Create FIXED number of workers using `Array.from()` (plain JS, not Cell.map)
+2. Each worker's prompt derives from batch position + item array
+3. Use `computed(() => workers.every(w => !w.pending))` to track batch completion - THIS WORKS!
+4. User clicks "Next Batch" to advance through items
+5. Per-item caching works, parallel processing, completion tracking
 
-This is a **two-button flow** (Fetch Articles → Continue), which is less elegant than fully automatic but works reliably with current framework capabilities.
+```typescript
+// Key pattern: Array.prototype.map creates plain array, not OpaqueRef
+const workers = Array.from({ length: 5 }, (_, i) =>
+  generateObject({ prompt: derive([items, batchStart], ...), ... })
+);
+const batchDone = computed(() => workers.every(w => !w.pending)); // WORKS!
+```
 
-**Alternative:** Architecture B (imperative fetch in handler) also works and gets caching, but is less idiomatic.
+**Option 2: Architecture B - Imperative Fetch (Confirmed Working)**
+1. Handler loops through items with `await fetch("/api/ai/llm/generateObject")`
+2. Server-side caching still applies
+3. Single button, full control, but less idiomatic
 
-**Key Question for Framework Author:** Is there a planned way to aggregate completion across dynamic Cell.map() arrays? Or is the "user clicks Continue" pattern the expected approach?
+**Option 3: Architecture F - Direct Map + Handler Aggregation**
+1. Use Cell.map() for per-item generateObject (gets caching)
+2. Display per-item progress in JSX
+3. User clicks "Continue" when visually complete
+4. Handler aggregates using `.get()`
+
+**Key Trade-offs:**
+- **G (Worker Pool):** Best balance - batch completion tracking, per-item caching, but N-click flow
+- **B (Imperative):** Single click, but bypasses reactive system
+- **F (Direct Map):** Most idiomatic, but can't detect completion programmatically
+
+**Key Question for Framework Author:** Would exposing `effect()` to patterns help here? Or is there a better pattern for "run handler when cell becomes true"?
 
 ---
 
@@ -699,6 +720,153 @@ From `llm.handlers.ts` lines 129-142: The cache key includes the full conversati
 
 ---
 
+### Architecture G: Fixed Worker Pool with Batch Processing ⚠️ EXPERIMENTAL
+
+**Key Insight:** The problem with Cell.map() is that it returns OpaqueRef. But if we create a FIXED number of workers using Array.prototype.map (plain JS), we get a plain array of generateObject results that we CAN use with derive/computed!
+
+**Concept:**
+```
+Fixed Workers (N=5)              Batch Queue               Accumulated Results
+┌─────────────────┐              ┌─────────┐              ┌─────────┐
+│ Worker 0        │◄─────────────│ Batch 0 │─────────────►│Result 0 │
+│ Worker 1        │   Batch N    │ Batch 1 │   Collect   │Result 1 │
+│ Worker 2        │◄─────────────│ Batch 2 │─────────────►│Result 2 │
+│ Worker 3        │              │ ...     │              │...      │
+│ Worker 4        │              └─────────┘              └─────────┘
+└─────────────────┘
+    ↓
+All workers at PATTERN BODY level
+Can use computed() to track batch completion!
+```
+
+**Implementation:**
+```typescript
+const NUM_WORKERS = 5;
+const currentBatchStart = Cell.of(0);
+const allResults = Cell.of<ExtractionResult[]>([]);
+
+// Fixed workers - each derives its input from batch position
+// NOTE: Array.prototype.map here, NOT Cell.map!
+const workers = Array.from({ length: NUM_WORKERS }, (_, i) => {
+  const workerPrompt = derive(
+    [articlesToProcess, currentBatchStart],
+    ([articles, batchStart]) => {
+      const item = articles[batchStart + i];
+      return item ? JSON.stringify(item) : "";
+    }
+  );
+
+  return generateObject<ExtractionResult>({
+    system: EXTRACTION_SYSTEM,
+    prompt: workerPrompt,
+    model: "anthropic:claude-sonnet-4-5",
+    schema: EXTRACTION_SCHEMA,
+  });
+});
+
+// NOW we can compute batch completion!
+// workers is Array<generateObjectResult>, not OpaqueRef
+const currentBatchDone = computed(() =>
+  workers.every(w => !w.pending)
+);
+
+// Track progress
+const totalItems = computed(() => articlesToProcess.length);
+const processedItems = computed(() =>
+  Math.min(currentBatchStart + NUM_WORKERS, totalItems)
+);
+const batchesTotal = computed(() => Math.ceil(totalItems / NUM_WORKERS));
+const currentBatchNum = computed(() =>
+  Math.floor(currentBatchStart / NUM_WORKERS) + 1
+);
+
+// Handler to advance to next batch
+const advanceBatch = handler((_, state) => {
+  // First collect current batch results
+  for (const worker of workers) {
+    const result = worker.result.get?.() ?? worker.result;
+    if (result) {
+      state.allResults.push(result);
+    }
+  }
+
+  // Advance to next batch
+  const current = state.currentBatchStart.get();
+  const total = state.articlesToProcess.length;
+  if (current + NUM_WORKERS < total) {
+    state.currentBatchStart.set(current + NUM_WORKERS);
+  }
+});
+
+// UI shows batch progress
+{currentBatchDone ? (
+  <div>
+    <p>Batch {currentBatchNum}/{batchesTotal} complete!</p>
+    <button onclick={advanceBatch({...})}>
+      {currentBatchStart + NUM_WORKERS >= totalItems
+        ? "Finish & Collect Results"
+        : "Process Next Batch"}
+    </button>
+  </div>
+) : (
+  <div>
+    <p>Processing batch {currentBatchNum}/{batchesTotal}...</p>
+    {workers.map((w, i) => (
+      <div>Worker {i}: {w.pending ? "⏳" : "✅"}</div>
+    ))}
+  </div>
+)}
+```
+
+**Why This Works:**
+1. `Array.from()` creates a plain JS array, not a Cell
+2. Each worker is a separate generateObject call at pattern body level
+3. `workers.every(w => !w.pending)` works in computed() because:
+   - `workers` is a plain Array
+   - Each `w` is a generateObject result cell
+   - `w.pending` is accessed on individual cells (which works!)
+4. We can aggregate completion across the fixed worker set
+
+**Pros:**
+- ✅ Per-item LLM caching (each worker prompt is deterministic for each item)
+- ✅ Parallel processing (N items at once)
+- ✅ Can compute batch completion (no proxy issues!)
+- ✅ Progress visible (X/Y items, batch N/M)
+- ✅ Works with dynamic array sizes (just takes more batches)
+
+**Cons:**
+- ⚠️ Still requires user clicks between batches
+- ⚠️ Fixed parallelism (N workers)
+- ⚠️ Items processed in order (can't skip ahead)
+- ❓ Empty prompts for workers past end of data - need to handle gracefully
+
+**Handling Short Final Batch:**
+```typescript
+// Workers past end of data get empty prompt → no LLM call, pending=false immediately
+const workerPrompt = derive(
+  [articlesToProcess, currentBatchStart],
+  ([articles, batchStart]) => {
+    const item = articles[batchStart + i];
+    // No item = empty prompt = no LLM call
+    return item ? JSON.stringify(item) : "";
+  }
+);
+```
+Per our research, empty prompts return immediately with `pending=false, result=undefined`, so workers without items just complete instantly.
+
+**Potential Enhancement - Auto-Advance:**
+```typescript
+// If we could trigger handler when currentBatchDone becomes true...
+// But we can't use effect() in patterns
+
+// Alternative: Very fast polling in UI?
+// Or: Framework enhancement to support "when cell becomes true, run handler"
+```
+
+**Key Limitation:** Still requires manual "Next Batch" clicks. True automatic advancement would need effect() or similar reactive trigger.
+
+---
+
 ### Architecture F: Direct Map + Inline Cache Access ⚠️ NEEDS TESTING
 
 **Key insight from LLM.md docs:** The email summarizer example shows `emails.map()` with `generateText` working because:
@@ -813,19 +981,21 @@ const collectResults = handler<unknown, {
 
 ## Comparison Matrix (Updated with Research)
 
-| Architecture | Per-Item Cache | Single Button | Idiomatic | Progress UI | Works Today |
-|-------------|----------------|---------------|-----------|-------------|-------------|
-| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ derive() wrapper fails |
-| **B: Imperative fetch()** | **✅** | **✅** | ⚠️ | **✅** | **✅ CONFIRMED** |
-| C: Static Array | ✅ | ✅ | ✅ | ✅ | ⚠️ Limited to init-time data |
-| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ Unclear |
-| E: Agentic Loop | ❌ | ✅ | ✅ | ✅ | ✅ But no per-item cache |
-| **F: Direct Map + JSX** | **✅** | ⚠️ 2-btn | **✅** | **✅** | **❓ NEEDS TESTING** |
+| Architecture | Per-Item Cache | Single Button | Idiomatic | Progress UI | Batch Completion | Works Today |
+|-------------|----------------|---------------|-----------|-------------|------------------|-------------|
+| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ Cell.map returns proxy |
+| **B: Imperative fetch()** | **✅** | **✅** | ⚠️ | **✅** | **✅** | **✅ CONFIRMED** |
+| C: Static Array | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ Limited to init-time data |
+| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ | ❓ Unclear |
+| E: Agentic Loop | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ But no per-item cache |
+| F: Direct Map + JSX | ✅ | ⚠️ 2-btn | ✅ | ✅ | ❌ | ❓ NEEDS TESTING |
+| **G: Worker Pool** | **✅** | ⚠️ N-btn | **✅** | **✅** | **✅** | **❓ EXPERIMENTAL** |
 
 **Conclusions:**
-1. **Architecture B (imperative fetch)** is the only CONFIRMED working option
-2. **Architecture F (direct map + JSX)** is promising and more idiomatic - needs testing
-3. The key insight: don't wrap generateObject results in derive() for aggregation
+1. **Architecture B (imperative fetch)** is the only CONFIRMED working option with single button
+2. **Architecture G (worker pool)** is promising - gets batch completion tracking, per-item caching, parallel processing
+3. **Architecture F (direct map + JSX)** works for display but can't aggregate completion
+4. The key insight: use Array.prototype.map (plain JS), NOT Cell.map(), to create fixed workers
 
 ---
 
