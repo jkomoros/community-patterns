@@ -447,17 +447,133 @@ From `llm.handlers.ts` lines 129-142: The cache key includes the full conversati
 
 ---
 
+### Architecture F: Direct Map + Inline Cache Access ⚠️ NEEDS TESTING
+
+**Key insight from LLM.md docs:** The email summarizer example shows `emails.map()` with `generateText` working because:
+1. `emails` is an input (opaque ref to array)
+2. Template literal prompts like `${email.body}` are reactive
+3. Results are displayed directly in JSX (no derive wrapper for aggregation)
+
+**The issue with Architecture A:** We tried to wrap the extraction results in `derive()` to aggregate them. But derive receives unwrapped values, and the generateObject results might not behave the same way inside derive.
+
+**New approach:** Map directly, access cache inline, display in JSX, aggregate via handler.
+
+```typescript
+// parsedArticles is derived from emails - it's an opaque ref
+const parsedArticles = computed(() =>
+  emails.filter(e => e.articleURL).map(e => ({
+    emailId: e.id,
+    articleURL: e.articleURL,
+    title: e.subject,
+  }))
+);
+
+// webPageCache stores fetched content
+const webPageCache = Cell.of<Record<string, { content: string }>>({});
+
+// Map over parsedArticles directly - don't pre-compute articlesWithContent!
+// Access cache INLINE in the prompt - this should be reactive
+const articleExtractions = parsedArticles.map((article) => ({
+  article,
+  extraction: generateObject<ExtractionResult>({
+    system: LINK_EXTRACTION_SYSTEM,
+    // Template literal with inline cache access - reactive!
+    prompt: `URL: ${article.articleURL}
+Title: ${article.title}
+Content: ${webPageCache[article.articleURL]?.content ?? ""}`,
+    // Empty content = empty prompt section = might still trigger LLM (need to test)
+  }),
+}));
+
+// Display progress directly in JSX (no derive wrapper!)
+{articleExtractions.map(({ article, extraction }) => (
+  <div>
+    <span>{article.title}</span>
+    {extraction.pending ? (
+      <span>⏳ Analyzing...</span>
+    ) : extraction.error ? (
+      <span>❌ {extraction.error}</span>
+    ) : (
+      <span>✅ Found {extraction.result.links?.length ?? 0} links</span>
+    )}
+  </div>
+))}
+
+// Aggregate results via handler when user clicks "Continue"
+const collectResults = handler<unknown, {
+  articleExtractions: { article: any; extraction: { result: any; pending: boolean } }[];
+  novelURLs: Cell<string[]>;
+}>((_, { articleExtractions, novelURLs }) => {
+  const urls: string[] = [];
+  // In handler, we can use .get() to read values
+  for (const item of articleExtractions) {
+    const ext = item.extraction;
+    if (!ext.pending && ext.result?.links) {
+      urls.push(...ext.result.links);
+    }
+  }
+  novelURLs.set(urls);
+});
+```
+
+**Flow:**
+```
+1. User clicks "Fetch Articles"
+        ↓
+   handler: fetch content, write to webPageCache[url]
+        ↓
+2. Prompts reactively update (cache access is inline)
+        ↓
+3. generateObject calls run (one per article)
+        ↓
+4. JSX shows per-item progress (direct access, no derive)
+        ↓
+5. User clicks "Continue" when all complete
+        ↓
+6. Handler aggregates results using .get()
+```
+
+**Why this might work:**
+- Template literals in prompts are reactive (per LLM.md email example)
+- `webPageCache[url]?.content` should be reactive property access on a Cell
+- Results displayed directly in JSX (no derive wrapper that might cause issues)
+- Aggregation done in handler where .get() works
+
+**Pros:**
+- ✅ Per-item generateObject calls (per-item caching)
+- ✅ Uses reactive generateObject (idiomatic)
+- ✅ Progress visible in JSX
+- ⚠️ Requires "Continue" button (not fully automatic)
+
+**Cons:**
+- ⚠️ Two-button flow (Fetch Articles → Continue)
+- ❓ **UNTESTED:** Does inline cache access work reactively in map callback?
+- ❓ **UNTESTED:** Does empty prompt content prevent LLM call or just return empty result?
+- ❓ **UNTESTED:** Can handler read articleExtractions properly?
+
+**Key Questions to Test:**
+1. Does `webPageCache[article.articleURL]` work reactively inside a map callback?
+2. When cache is updated, do the generateObject calls re-run?
+3. Can we read `.pending` and `.result` directly in JSX on mapped generateObject results?
+4. Does an empty prompt section trigger an LLM call or get filtered?
+
+---
+
 ## Comparison Matrix (Updated with Research)
 
 | Architecture | Per-Item Cache | Single Button | Idiomatic | Progress UI | Works Today |
 |-------------|----------------|---------------|-----------|-------------|-------------|
-| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ Cell.map returns OpaqueRef |
-| **B: Imperative fetch()** | **✅** | **✅** | ⚠️ | **✅** | **✅ RECOMMENDED** |
+| A: Reactive Per-Item | ✅ | ✅ | ✅ | ✅ | ❌ derive() wrapper fails |
+| **B: Imperative fetch()** | **✅** | **✅** | ⚠️ | **✅** | **✅ CONFIRMED** |
 | C: Static Array | ✅ | ✅ | ✅ | ✅ | ⚠️ Limited to init-time data |
-| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ Needs more research |
+| D: Hybrid | ✅ | ❌ | ⚠️ | ⚠️ | ❓ Unclear |
 | E: Agentic Loop | ❌ | ✅ | ✅ | ✅ | ✅ But no per-item cache |
+| **F: Direct Map + JSX** | **✅** | ⚠️ 2-btn | **✅** | **✅** | **❓ NEEDS TESTING** |
 
-**Conclusion:** Architecture B (imperative handler with raw fetch) is currently the **only working option** for per-item LLM caching with dynamic arrays.
+**Conclusions:**
+1. **Architecture B (imperative fetch)** is the only CONFIRMED working option
+2. **Architecture F (direct map + JSX)** is promising and more idiomatic - needs testing
+3. The key insight: don't wrap generateObject results in derive() for aggregation
 
 ---
 
@@ -482,22 +598,37 @@ From `llm.handlers.ts` lines 129-142: The cache key includes the full conversati
 
 ### ❓ REMAINING QUESTIONS
 
-1. **How to use Cell.map() with generateObject correctly?**
-   Is there a way to:
-   - Map over a Cell and call `generateObject` for each item
-   - Access individual `{result, pending, error}` objects from the mapped results
-   - Or is this pattern fundamentally not supported?
+1. **Architecture F validation - does inline cache access work?**
+   In `parsedArticles.map((article) => generateObject({ prompt: \`...${webPageCache[article.url]?.content}...\` }))`:
+   - Does `webPageCache[article.url]` work reactively inside a map callback?
+   - When cache is updated, do generateObject prompts reactively update?
+   - Can we access `.pending` and `.result` directly in JSX on mapped results?
 
-2. **Is Architecture B (imperative fetch) acceptable?**
-   Using `await fetch("/api/ai/llm/generateObject", {...})` in a handler loop works and gets per-item caching. Is this:
-   - An acceptable workaround?
+2. **Why does derive() wrapper break generateObject results?**
+   Architecture A failed when we wrapped `articleExtractions` in `derive()` to aggregate results:
+   ```typescript
+   derive(articleExtractions, (extractions) => {
+     extractions.filter(e => e.pending)  // TypeError!
+   });
+   ```
+   But accessing the same properties in JSX seems to work (per LLM.md example). Why?
+
+3. **Is Architecture B (imperative fetch) acceptable long-term?**
+   Using `await fetch("/api/ai/llm/generateObject", {...})` in a handler works and gets caching. Is this:
+   - An acceptable pattern?
    - Going to break in the future?
-   - Missing some framework benefits we should know about?
+   - Missing framework benefits?
 
-3. **Recommended pattern for dynamic per-item LLM processing?**
-   For the use case "user clicks button → process N items through LLM → each item cached individually", what's the idiomatic approach?
-   - Currently only Architecture B works
-   - Is there a better pattern we're missing?
+4. **Recommended pattern for dynamic per-item LLM processing?**
+   For "user clicks button → process N items through LLM → each item cached individually":
+   - Is Architecture F (direct map + JSX display) the right approach?
+   - Or is there a better idiomatic pattern?
+
+5. **Empty prompt handling:**
+   If a generateObject prompt is empty (e.g., cache not yet populated), does it:
+   - Trigger an LLM call with empty input?
+   - Get filtered/skipped?
+   - Return an error?
 
 ---
 
