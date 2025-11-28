@@ -1230,3 +1230,318 @@ const collectResults = handler<unknown, {
 - Local dev (localhost:8000 / localhost:5173)
 - Date: November 27, 2025
 - labs repo: HEAD of main
+
+---
+
+## 💭 DREAM SKETCH: Ideal Framework Primitives
+
+*This section explores what framework primitives could elegantly solve this problem while fitting the reactive design philosophy.*
+
+### The Gap in Current Primitives
+
+The framework has excellent primitives for:
+- **Single async operations:** `generateObject()` returns `{pending, result, error}`
+- **Mapping over arrays:** `Cell.map()` creates per-item reactive results
+- **Deriving from single cells:** `derive(cell, fn)` tracks dependencies beautifully
+
+But it lacks primitives for:
+- **Aggregating across dynamic arrays** - Can't do `cells.every(c => !c.pending)`
+- **Collecting results when all complete** - No reactive "wait for all"
+- **Automatic phase continuation** - Can't "derive from results when all done"
+
+### Proposed Primitive: `whenAll()`
+
+**The simplest, most powerful addition would be a reactive `Promise.all()` equivalent.**
+
+#### API Design
+
+```typescript
+import { whenAll } from "commontools";
+
+// Input: array of async cells (generateObject, fetchData, etc.)
+const extractions = parsedArticles.map(article =>
+  generateObject({ prompt: `...${article.content}...`, ... })
+);
+
+// whenAll aggregates completion status reactively
+const all = whenAll(extractions);
+
+// all.pending: OpaqueRef<boolean>     - true while ANY item pending
+// all.results: OpaqueRef<T[] | undefined> - all results when complete
+// all.errors:  OpaqueRef<Error[] | undefined> - any errors encountered
+// all.progress: OpaqueRef<{completed: number, total: number}>
+```
+
+#### Why This Fits the Framework Philosophy
+
+1. **Returns cells** - Everything is reactive, fits the dependency model
+2. **No side effects** - It's a derived computation, not imperative
+3. **Preserves per-item caching** - Each generateObject is still separate
+4. **Enables automatic continuation** - Just derive from results!
+
+#### Usage Pattern
+
+```typescript
+// Step 1: Create per-item async operations (each cached individually)
+const extractions = parsedArticles.map(article =>
+  generateObject({
+    system: EXTRACTION_SYSTEM,
+    prompt: `Analyze: ${article.title}\n${webPageCache[article.url]?.content}`,
+    schema: EXTRACTION_SCHEMA,
+  })
+);
+
+// Step 2: Aggregate with whenAll (framework handles the iteration)
+const allExtractions = whenAll(extractions);
+
+// Step 3: Automatic continuation via derive!
+const novelURLs = derive(allExtractions.results, results => {
+  if (!results) return [];  // Still pending
+  return dedupeAndFilter(results.flatMap(r => r.links));
+});
+
+// Step 4: Next phase triggers automatically when novelURLs populated
+const reportFetches = novelURLs.map(url => fetchData({ url }));
+const allReports = whenAll(reportFetches);
+
+// Step 5: Final summarization
+const summaries = derive(allReports.results, reports => {
+  if (!reports) return [];
+  return reports.map(r => generateObject({ prompt: `Summarize: ${r.content}` }));
+});
+
+// UI just displays progress - everything flows automatically!
+return {
+  [UI]: (
+    <div>
+      <h2>Pipeline Status</h2>
+
+      <div>Extracting: {allExtractions.progress.completed}/{allExtractions.progress.total}</div>
+      {allExtractions.pending ? <Spinner /> : <span>✅ Extraction complete</span>}
+
+      <div>Fetching: {allReports.progress.completed}/{allReports.progress.total}</div>
+      {allReports.pending ? <Spinner /> : <span>✅ Reports fetched</span>}
+
+      {/* Results flow automatically when each phase completes */}
+      {summaries.map(s => <ReportCard report={s.result} />)}
+    </div>
+  ),
+};
+```
+
+#### Implementation Sketch
+
+```typescript
+// In packages/runner/src/builder/built-in.ts
+
+export function whenAll<T extends { pending: boolean; result: unknown; error: unknown }>(
+  cells: OpaqueRef<T[]>
+): OpaqueRef<WhenAllResult<T>> {
+  // Implementation would:
+  // 1. Create a result cell for the aggregate state
+  // 2. Use internal effect() to subscribe to each item's .pending
+  // 3. Track completion count, collect results as items finish
+  // 4. Update result cell reactively as items complete
+  // 5. Handle dynamic array growth (new items added)
+
+  return createNodeFactory({
+    type: "ref",
+    implementation: "whenAll",
+  })(cells);
+}
+
+// The whenAll builtin (in builtins/when-all.ts) would:
+export function whenAllBuiltin(
+  inputsCell: Cell<{ cells: Array<{pending: boolean; result: any; error: any}> }>,
+  sendResult: (tx: IExtendedStorageTransaction, result: any) => void,
+  addCancel: AddCancel,
+  // ...
+): Action {
+  return (tx) => {
+    const { cells } = inputsCell.asSchema(...).withTx(tx).get();
+
+    let completed = 0;
+    const results: any[] = [];
+    const errors: any[] = [];
+
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      if (!cell.pending) {
+        completed++;
+        if (cell.result !== undefined) results[i] = cell.result;
+        if (cell.error !== undefined) errors[i] = cell.error;
+      }
+    }
+
+    sendResult(tx, {
+      pending: completed < cells.length,
+      results: completed === cells.length ? results : undefined,
+      errors: errors.length > 0 ? errors : undefined,
+      progress: { completed, total: cells.length },
+    });
+  };
+}
+```
+
+### Alternative/Complementary Primitives
+
+#### `Cell.every()` / `Cell.some()` / `Cell.count()`
+
+Reactive array methods that work with cells:
+
+```typescript
+// These would iterate with UNWRAPPED values, not proxies
+const allDone = extractions.every(e => !e.pending);     // OpaqueRef<boolean>
+const anyFailed = extractions.some(e => !!e.error);     // OpaqueRef<boolean>
+const doneCount = extractions.count(e => !e.pending);   // OpaqueRef<number>
+```
+
+**Implementation insight:** These methods would use internal `effect()` to:
+1. Iterate over the array cell
+2. Call the predicate with **unwrapped values** (not proxies)
+3. Track dependencies on each item's accessed properties
+4. Return a derived cell that re-evaluates when dependencies change
+
+#### `Cell.settled()` - Like Promise.allSettled
+
+```typescript
+const status = extractions.settled();
+// Returns OpaqueRef<Array<{
+//   status: 'pending' | 'fulfilled' | 'rejected',
+//   value?: T,
+//   reason?: Error
+// }>>
+
+// Useful for "process what we can, skip failures"
+const successfulResults = derive(status, items =>
+  items.filter(i => i.status === 'fulfilled').map(i => i.value)
+);
+```
+
+#### `phases()` - High-Level Pipeline Builder
+
+For complex multi-stage pipelines:
+
+```typescript
+const pipeline = phases({
+  extract: {
+    from: parsedArticles,
+    process: (article) => generateObject({...}),
+  },
+  dedupe: {
+    waitFor: 'extract',
+    process: (extractResults) => dedupeURLs(extractResults),
+  },
+  summarize: {
+    waitFor: 'dedupe',
+    process: (novelURLs) => novelURLs.map(url => generateObject({...})),
+  },
+});
+
+// Type-safe access to each phase
+pipeline.extract.pending   // boolean
+pipeline.extract.results   // T[] | undefined
+pipeline.summarize.results // Summary[] | undefined
+```
+
+### Why `whenAll()` Should Be First
+
+| Primitive | Solves Aggregation | Enables Continuation | Familiar Concept | Minimal API |
+|-----------|-------------------|---------------------|------------------|-------------|
+| `whenAll()` | ✅ | ✅ | ✅ (Promise.all) | ✅ |
+| `Cell.every()` | ✅ | ❌ (just boolean) | ✅ (Array.every) | ✅ |
+| `Cell.settled()` | ✅ | ⚠️ (partial) | ✅ (Promise.allSettled) | ✅ |
+| `phases()` | ✅ | ✅ | ⚠️ (new concept) | ❌ (complex) |
+
+**Recommendation:** Start with `whenAll()` - it solves the core problem with minimal API surface and familiar semantics.
+
+### How This Would Solve Our Use Case
+
+```typescript
+// prompt-injection-tracker with whenAll()
+
+export default pattern<Input, Output>(({ emails, reports }) => {
+  // Phase 1: Parse emails (sync, instant)
+  const parsedArticles = derive(emails, e =>
+    e.filter(hasArticleURL).map(toArticleInfo)
+  );
+
+  // Phase 2: Fetch article content (async, cached per-URL)
+  const articleFetches = parsedArticles.map(a => fetchData({ url: a.url }));
+  const allArticles = whenAll(articleFetches);
+
+  // Phase 3: Extract links via LLM (async, cached per-article)
+  const extractions = derive(allArticles.results, articles => {
+    if (!articles) return [];
+    return articles.map(a => generateObject({
+      prompt: `Extract security report links from: ${a.content}`,
+      schema: LINK_SCHEMA,
+    }));
+  });
+  const allExtractions = whenAll(extractions);
+
+  // Phase 4: Dedupe and identify novel URLs (sync)
+  const novelURLs = derive(
+    [allExtractions.results, reports],
+    ([results, existing]) => {
+      if (!results) return [];
+      const allLinks = results.flatMap(r => r.links);
+      return dedupeAndFilterKnown(allLinks, existing);
+    }
+  );
+
+  // Phase 5: Fetch novel reports (async, cached)
+  const reportFetches = novelURLs.map(url => fetchData({ url }));
+  const allReports = whenAll(reportFetches);
+
+  // Phase 6: Summarize reports (async, cached per-report)
+  const summaries = derive(allReports.results, reports => {
+    if (!reports) return [];
+    return reports.map(r => generateObject({
+      prompt: `Summarize this security report: ${r.content}`,
+      schema: SUMMARY_SCHEMA,
+    }));
+  });
+  const allSummaries = whenAll(summaries);
+
+  // Single-button trigger: just need to start phase 1
+  const startPipeline = handler((_, { emails }) => {
+    // Trigger email fetch - everything else flows automatically!
+    emails.set(fetchGmailEmails());
+  });
+
+  return {
+    [NAME]: "Prompt Injection Tracker",
+    [UI]: (
+      <div>
+        <button onclick={startPipeline({emails})}>🚀 Run Pipeline</button>
+
+        <PipelineProgress
+          phases={[
+            { name: "Fetch Articles", ...allArticles },
+            { name: "Extract Links", ...allExtractions },
+            { name: "Fetch Reports", ...allReports },
+            { name: "Summarize", ...allSummaries },
+          ]}
+        />
+
+        {/* Results appear automatically as pipeline completes */}
+        {allSummaries.results?.map(s => <ReportCard summary={s} />)}
+      </div>
+    ),
+    reports: allSummaries.results ?? [],
+  };
+});
+```
+
+### Summary
+
+The framework's reactive model is powerful, but lacks primitives for aggregating across dynamic arrays of async operations. Adding `whenAll()` would:
+
+1. **Fit the philosophy** - Returns reactive cells, no side effects
+2. **Enable automatic continuation** - derive() from results when complete
+3. **Preserve per-item caching** - Each async operation stays separate
+4. **Be familiar** - Developers know Promise.all()
+5. **Solve the core problem** - Single button triggers full pipeline
+
+This would transform our 6-architecture workaround document into a simple, idiomatic pattern.
