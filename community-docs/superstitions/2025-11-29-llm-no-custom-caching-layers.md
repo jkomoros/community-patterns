@@ -75,23 +75,31 @@ This came up when building a prompt-injection-tracker pattern that:
 
 Initial implementation built a `webPageCache` to ensure "character-by-character identical prompts." Framework author explicitly rejected this approach.
 
-## The Exception
+## UPDATE: Use fetchData Instead of Handler-Based Caching
 
-**Handler-based web fetching is fine** - you may still want to cache fetched web content to avoid re-fetching:
+**UPDATE 2025-11-29**: Even for web fetching, you don't need custom caching! Use `fetchData`:
 
 ```typescript
-// This is OK - caching web fetches, not LLM results
-const fetchContent = handler(async (_, { url, cache }) => {
-  if (cache.get()[url]) return; // Skip if cached
-  const content = await fetch(url);
-  cache.set({ ...cache.get(), [url]: content });
-});
+// ✅ BETTER - Use fetchData with dumb map approach
+const webContent = urls.map((url) => ({
+  url,
+  content: fetchData({
+    url: "/api/agent-tools/web-read",
+    mode: "json",
+    options: { method: "POST", body: { url } },
+  }),
+}));
 ```
 
-The key distinction:
-- ❌ Don't cache LLM results yourself
-- ✅ OK to cache external data fetches (web pages, API responses)
+`fetchData` is cached by URL + options automatically. No handler needed!
+
+**The key distinctions:**
+- ❌ Don't cache LLM results yourself (use generateObject)
+- ❌ Don't build handler-based web fetch caching (use fetchData)
+- ✅ Use the "dumb map approach" for ALL reactive primitives
+
+See `2025-11-29-llm-dumb-map-approach-works.md` for the full pattern.
 
 ---
 
-**Confidence level:** HIGH (framework author explicitly rejected this pattern)
+**Confidence level:** HIGH (framework author explicitly rejected custom caching + fetchData verified working)

@@ -5,58 +5,83 @@
  * Extracts URLs from security newsletters using Gmail integration + LLM extraction.
  *
  * =============================================================================
- * KEY INSIGHT: THE "DUMB MAP APPROACH"
+ * KEY INSIGHT: MULTI-LEVEL FRAMEWORK CACHING
  * =============================================================================
  *
- * This pattern demonstrates the correct way to do LLM extraction over arrays
- * in Common Tools. The key insight from the framework author:
+ * This pattern demonstrates how to leverage Common Tools' automatic caching
+ * at MULTIPLE levels. The framework caches results for ANY reactive primitive
+ * based on its inputs - not just generateObject, but also fetchData!
  *
- *   "Just use array.map() with generateObject. The framework handles caching."
- *
- * HOW IT WORKS:
- * -------------
+ * THE "DUMB MAP APPROACH" - Works for ALL reactive primitives:
+ * ------------------------------------------------------------
  * ```typescript
+ * // Level 1: LLM extraction (cached by prompt content)
  * const extractions = articles.map((article) => ({
- *   extraction: generateObject({
- *     prompt: article.content,
- *     schema: SCHEMA,
+ *   extraction: generateObject({ prompt: article.content, ... }),
+ * }));
+ *
+ * // Level 2: Web fetching (cached by URL + options)
+ * const webContent = links.map((url) => ({
+ *   content: fetchData({
+ *     url: "/api/agent-tools/web-read",
+ *     mode: "json",
+ *     options: { method: "POST", body: { url } },
  *   }),
+ * }));
+ *
+ * // Level 3: LLM summarization (cached by fetched content)
+ * const summaries = webContent.map((item) => ({
+ *   summary: generateObject({ prompt: item.content.result, ... }),
  * }));
  * ```
  *
- * 1. `array.map()` creates a new reactive array
- * 2. Each item contains a `generateObject` call
- * 3. The framework automatically memoizes/caches results based on inputs
- * 4. Same inputs (prompt + schema) = cached result (no re-calling LLM)
- * 5. New articles only trigger LLM calls for those new items
+ * HOW FRAMEWORK CACHING WORKS:
+ * ----------------------------
+ * 1. Each reactive primitive (generateObject, fetchData, etc.) is cached by inputs
+ * 2. Same inputs = same cached result, no re-execution
+ * 3. When inputs change, only affected items are recomputed
+ * 4. Works across page refreshes and sessions (persisted cache)
+ * 5. Multiple levels of caching compose automatically
  *
- * WHY THIS WORKS:
- * ---------------
- * - The framework tracks dependencies reactively
- * - generateObject results are cached by their inputs
- * - When an article's content doesn't change, the extraction is reused
- * - No need for manual cache management or state tracking
+ * REACTIVE PRIMITIVES THAT CACHE:
+ * -------------------------------
+ * - generateObject({ prompt, schema, ... }) - Cached by prompt + schema + model
+ * - generateText({ prompt, ... }) - Cached by prompt + model
+ * - fetchData({ url, options }) - Cached by URL + method + body + headers
  *
  * WHAT NOT TO DO:
  * ---------------
- * ❌ Don't build custom caching layers (framework does this)
+ * ❌ Don't build custom caching layers (webPageCache, processedArticles, etc.)
  * ❌ Don't cast to OpaqueRef<> in map callbacks (causes type issues)
  * ❌ Don't use complex state machines for "processing" states
- * ❌ Don't try to batch/queue LLM calls manually
+ * ❌ Don't try to batch/queue calls manually
+ * ❌ Don't use imperative fetch() in handlers for cacheable data
  *
- * REFERENCE:
- * ----------
- * See `patterns/examples/map-test-100-items.tsx` for the canonical example
- * that demonstrates this pattern working with 100 items.
+ * INSTEAD:
+ * --------
+ * ✅ Use fetchData() for web requests - framework caches automatically
+ * ✅ Use generateObject() for LLM - framework caches automatically
+ * ✅ Chain multiple levels with map() - each level caches independently
+ * ✅ Trust the framework to handle caching, deduplication, and persistence
  *
  * =============================================================================
- * ARCHITECTURE
+ * ARCHITECTURE: THREE-LEVEL CACHING PIPELINE
  * =============================================================================
  *
- * 1. Gmail Integration: Fetch emails via GmailImporter composition pattern
- * 2. Article Conversion: Convert emails to Article format via derive()
- * 3. LLM Extraction: Map over articles with generateObject (the core pattern)
- * 4. Results Aggregation: Derive collected links from extraction results
+ * Level 1: Article → Link Extraction (generateObject, cached by article content)
+ *   - Gmail emails converted to articles
+ *   - LLM extracts security-related URLs
+ *   - Classification: has-security-links, no-security-links
+ *
+ * Level 2: URL → Web Content (fetchData, cached by URL)
+ *   - Fetch actual page content via /api/agent-tools/web-read
+ *   - Framework caches by URL - same URL never fetched twice
+ *   - Returns markdown content for LLM analysis
+ *
+ * Level 3: Web Content → Report Summary (generateObject, cached by content)
+ *   - LLM analyzes fetched content
+ *   - Extracts: title, summary, severity, isLLMSpecific
+ *   - Framework caches by content - same content never analyzed twice
  *
  * WORKAROUNDS:
  * ------------
@@ -68,6 +93,7 @@ import {
   cell,
   Default,
   derive,
+  fetchData,
   generateObject,
   handler,
   ifElse,
@@ -448,15 +474,45 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // ==========================================================================
-  // LEVEL 2: Summarize extracted links (the "dumb map approach" again!)
-  // Each unique link gets summarized with LLM, framework handles caching
+  // LEVEL 2: Fetch web content for each link (fetchData, framework-cached!)
+  // The framework caches fetchData results by URL + options
+  // Same URL = cached content, never fetched twice
   // ==========================================================================
 
-  // Map over the deduplicated links directly
-  // NOTE: We use allExtractedLinks (which is plain string array from derive)
-  // and map over it with generateObject - the "dumb map approach"
-  const linkSummaries = allExtractedLinks.map((url) => ({
+  const linkContents = allExtractedLinks.map((url) => ({
     url,
+    // fetchData with POST to web-read API - framework caches by all inputs
+    webContent: fetchData<{ content: string; title?: string }>({
+      url: "/api/agent-tools/web-read",
+      mode: "json",
+      options: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: { url, max_tokens: 4000, include_code: false },
+      },
+    }),
+  }));
+
+  // Count web fetch progress
+  const fetchPendingCount = derive(linkContents, (list) =>
+    list.filter((item: any) => item.webContent?.pending).length
+  );
+  const fetchCompletedCount = derive(linkContents, (list) =>
+    list.filter((item: any) => !item.webContent?.pending && item.webContent?.result).length
+  );
+  const fetchErrorCount = derive(linkContents, (list) =>
+    list.filter((item: any) => !item.webContent?.pending && item.webContent?.error).length
+  );
+
+  // ==========================================================================
+  // LEVEL 3: Summarize fetched content (generateObject, framework-cached!)
+  // The framework caches generateObject results by prompt content
+  // Same content = cached summary, LLM never called twice for same page
+  // ==========================================================================
+
+  const linkSummaries = linkContents.map((item) => ({
+    url: item.url,
+    webContent: item.webContent,
     summary: generateObject<{
       title: string;
       summary: string;
@@ -465,13 +521,24 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       category: string;
     }>({
       system: REPORT_SUMMARY_SYSTEM,
-      prompt: str`URL: ${url}\n\nBased on this URL, determine:\n1. What type of security resource this is\n2. Likely severity (based on URL patterns like CVE, advisory, etc.)\n3. Whether it's LLM-specific security`,
+      // Use fetched content if available, otherwise fall back to URL-only analysis
+      prompt: derive(
+        { url: item.url, content: item.webContent },
+        ({ url, content }) => {
+          const pageContent = content?.result?.content;
+          if (pageContent) {
+            return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nAnalyze this security resource and provide a summary.`;
+          }
+          // Fallback if fetch failed or pending
+          return `URL: ${url}\n\nBased on this URL, determine:\n1. What type of security resource this is\n2. Likely severity\n3. Whether it's LLM-specific security`;
+        }
+      ),
       model: "anthropic:claude-sonnet-4-5",
       schema: {
         type: "object" as const,
         properties: {
           title: { type: "string" as const, description: "Brief title for this security resource" },
-          summary: { type: "string" as const, description: "1-2 sentence summary based on URL" },
+          summary: { type: "string" as const, description: "1-2 sentence summary based on content" },
           severity: { type: "string" as const, enum: ["low", "medium", "high", "critical"] as const },
           isLLMSpecific: { type: "boolean" as const, description: "Is this specifically about LLM/AI security?" },
           category: { type: "string" as const, description: "Category: CVE, advisory, blog, github, docs" },
@@ -573,7 +640,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           </div>
         </details>
 
-        {/* Status Card */}
+        {/* Status Card - Three-Level Pipeline */}
         <div style={{
           padding: "16px",
           background: "#f8fafc",
@@ -581,30 +648,64 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           marginBottom: "16px",
           border: "1px solid #e2e8f0",
         }}>
-          <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>{articleCount}</div>
-              <div style={{ fontSize: "12px", color: "#666" }}>Articles</div>
-            </div>
-            <div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: pendingCount > 0 ? "#f59e0b" : "#10b981" }}>
-                {pendingCount > 0 ? pendingCount : completedCount}
+          {/* Pipeline Progress */}
+          <div style={{ fontSize: "11px", color: "#666", marginBottom: "12px", fontWeight: "500" }}>
+            THREE-LEVEL CACHING PIPELINE
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
+            {/* Level 1: Article Extraction */}
+            <div style={{
+              padding: "8px 12px",
+              background: pendingCount > 0 ? "#fef3c7" : "#d1fae5",
+              borderRadius: "6px",
+              border: `1px solid ${pendingCount > 0 ? "#fcd34d" : "#6ee7b7"}`,
+            }}>
+              <div style={{ fontSize: "11px", color: "#666" }}>L1: Extract</div>
+              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+                {completedCount}/{articleCount}
               </div>
-              <div style={{ fontSize: "12px", color: "#666" }}>
-                {pendingCount > 0 ? "Processing..." : "Completed"}
+            </div>
+            <span style={{ color: "#9ca3af" }}>→</span>
+            {/* Level 2: Web Fetch */}
+            <div style={{
+              padding: "8px 12px",
+              background: fetchPendingCount > 0 ? "#fef3c7" : fetchErrorCount > 0 ? "#fee2e2" : "#dbeafe",
+              borderRadius: "6px",
+              border: `1px solid ${fetchPendingCount > 0 ? "#fcd34d" : fetchErrorCount > 0 ? "#fca5a5" : "#93c5fd"}`,
+            }}>
+              <div style={{ fontSize: "11px", color: "#666" }}>L2: Fetch</div>
+              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+                {fetchCompletedCount}/{linkCount}
+                {fetchErrorCount > 0 && <span style={{ color: "#dc2626", marginLeft: "4px" }}>({fetchErrorCount} err)</span>}
               </div>
             </div>
-            <div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3b82f6" }}>{linkCount}</div>
-              <div style={{ fontSize: "12px", color: "#666" }}>Security Links</div>
+            <span style={{ color: "#9ca3af" }}>→</span>
+            {/* Level 3: Summarize */}
+            <div style={{
+              padding: "8px 12px",
+              background: summaryPendingCount > 0 ? "#fef3c7" : "#f3e8ff",
+              borderRadius: "6px",
+              border: `1px solid ${summaryPendingCount > 0 ? "#fcd34d" : "#c4b5fd"}`,
+            }}>
+              <div style={{ fontSize: "11px", color: "#666" }}>L3: Summarize</div>
+              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+                {summaryCompletedCount}/{linkCount}
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8b5cf6" }}>{reportCount}</div>
-              <div style={{ fontSize: "12px", color: "#666" }}>Reports</div>
+            <span style={{ color: "#9ca3af" }}>→</span>
+            {/* Final: LLM-specific */}
+            <div style={{
+              padding: "8px 12px",
+              background: "#fce7f3",
+              borderRadius: "6px",
+              border: "1px solid #f9a8d4",
+            }}>
+              <div style={{ fontSize: "11px", color: "#666" }}>🤖 LLM-specific</div>
+              <div style={{ fontSize: "16px", fontWeight: "bold" }}>{llmSpecificCount}</div>
             </div>
           </div>
           {/* Classification breakdown */}
-          <div style={{ marginTop: "12px", fontSize: "11px", color: "#666", display: "flex", gap: "12px" }}>
+          <div style={{ fontSize: "11px", color: "#666", display: "flex", gap: "12px" }}>
             <span>🔬 {derive(classificationCounts, c => c["is-original-report"])} original</span>
             <span>🔗 {derive(classificationCounts, c => c["has-security-links"])} with links</span>
             <span>⬜ {derive(classificationCounts, c => c["no-security-links"])} no links</span>
