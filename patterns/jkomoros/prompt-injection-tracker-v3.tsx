@@ -106,6 +106,7 @@
 import {
   Cell,
   cell,
+  computed,
   Default,
   derive,
   fetchData,
@@ -418,6 +419,23 @@ const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
   }
 );
 
+// Handler to toggle read/unread state for a report URL
+const toggleRead = handler<
+  unknown,
+  { readUrls: Cell<string[]>; url: string }
+>((_event, { readUrls, url }) => {
+  const current = readUrls.get();
+  const normalizedUrl = normalizeURL(url);
+  const index = current.indexOf(normalizedUrl);
+  if (index >= 0) {
+    // Remove from array (mark as unread)
+    readUrls.set(current.filter((u) => u !== normalizedUrl));
+  } else {
+    // Add to array (mark as read)
+    readUrls.set([...current, normalizedUrl]);
+  }
+});
+
 // =============================================================================
 // PATTERN
 // =============================================================================
@@ -463,9 +481,10 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
 
   // ==========================================================================
-  // Reports storage
+  // Reports storage and read state
   // ==========================================================================
   const reports = cell<PromptInjectionReport[]>([]);
+  const readUrls = cell<string[]>([]); // Track which report URLs have been read (normalized)
 
   // ==========================================================================
   // LEVEL 1: Extract security links from articles (the "dumb map approach")
@@ -866,6 +885,16 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     }));
   });
 
+  // Count unread reports (reports not in readUrls array)
+  const unreadCount = derive(
+    { reports: finalReportsWithSources, read: readUrls },
+    ({ reports, read }: { reports: any[]; read: string[] }) => {
+      return reports.filter((r: any) => !read.includes(normalizeURL(r.url))).length;
+    }
+  );
+
+  const totalReportCount = derive(finalReportsWithSources, (reports) => reports.length);
+
   // ==========================================================================
   // UI
   // ==========================================================================
@@ -1115,15 +1144,31 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         {/* Deduplicated Original Reports - Final Output */}
         {uniqueOriginalCount > 0 && (
           <div style={{ marginTop: "24px" }}>
-            <h3>
-              Original Security Reports ({summaryCompletedCount}/{uniqueOriginalCount})
-              {summaryPendingCount > 0 && <span style={{ color: "#f59e0b", marginLeft: "8px" }}>⏳ {summaryPendingCount} processing...</span>}
+            <h3 style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span>Original Security Reports ({summaryCompletedCount}/{uniqueOriginalCount})</span>
+              {unreadCount > 0 && (
+                <span style={{
+                  fontSize: "12px",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  background: "#2563eb",
+                  color: "white",
+                  fontWeight: "600",
+                }}>
+                  {unreadCount} unread
+                </span>
+              )}
+              {summaryPendingCount > 0 && <span style={{ color: "#f59e0b", fontSize: "14px" }}>⏳ {summaryPendingCount} processing...</span>}
             </h3>
             <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>
               Deduplicated from {linkCount} source URLs. 🤖 {llmSpecificCount} LLM-specific.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {finalReportsWithSources.map((item) => (
+              {finalReportsWithSources.map((item) => {
+                // Check if this report is read
+                const isRead = computed(() => readUrls.get().includes(normalizeURL(item.url)));
+
+                return (
                 <div style={{
                   padding: "12px",
                   background: item.summary?.pending ? "#fef3c7" :
@@ -1137,13 +1182,30 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                     item.summary?.result?.severity === "critical" ? "#fca5a5" :
                     item.summary?.result?.severity === "high" ? "#fdba74" :
                     "#86efac"}`,
+                  opacity: isRead ? 0.6 : 1,
+                  transition: "opacity 0.2s ease",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    {/* Read/Unread toggle button */}
+                    <button
+                      onClick={toggleRead({ readUrls, url: item.url })}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: "14px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        opacity: 0.7,
+                      }}
+                      title={isRead ? "Mark as unread" : "Mark as read"}
+                    >
+                      {isRead ? "✓" : "○"}
+                    </button>
                     {item.summary?.pending ? (
                       <span>⏳ Analyzing...</span>
                     ) : (
                       <>
-                        <span style={{ fontWeight: "600" }}>{item.summary?.result?.title || "Unknown"}</span>
+                        <span style={{ fontWeight: isRead ? "400" : "600" }}>{item.summary?.result?.title || "Unknown"}</span>
                         {item.summary?.result?.canonicalId && (
                           <span style={{
                             fontSize: "10px",
@@ -1215,7 +1277,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                     </details>
                   )}
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         )}
@@ -1226,6 +1289,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     contentClassifications,
     originalReportUrls,
     finalReportsWithSources,
+    readUrls,
     emails: importer.emails,
   };
 });
