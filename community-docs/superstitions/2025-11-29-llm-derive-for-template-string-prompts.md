@@ -19,12 +19,21 @@ stars: ⭐⭐
 
 ## The Distinction
 
-**Direct property access works** for simple cases:
+**IMPORTANT UPDATE:** Testing revealed that even direct property access may need derive() for proper `.result` population:
+
 ```typescript
-// ✅ WORKS - single property access
+// ⚠️ COMPILE SUCCESS BUT .result UNDEFINED
 const extractions = items.map((item) => ({
   extraction: generateObject({
-    prompt: item.content,  // Direct access OK
+    prompt: item.content,  // Compiles, but result may be undefined!
+    schema: SCHEMA,
+  }),
+}));
+
+// ✅ WORKS - result is populated correctly
+const extractions = items.map((item) => ({
+  extraction: generateObject({
+    prompt: derive(item, (i) => i?.content ?? ""),
     schema: SCHEMA,
   }),
 }));
