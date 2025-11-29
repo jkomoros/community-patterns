@@ -171,9 +171,9 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
     articleId: article.id,
     articleTitle: article.title,
     extraction: generateObject<ExtractedLinks>({
-      system: `Extract all URLs from the text that link to security vulnerability reports, CVE details, security advisories, or security research. Return the URLs in the securityReportLinks array. If no security-related URLs are found, return an empty array.`,
-      // Pass content directly like in working map-test-100-items.tsx
-      prompt: article.content,
+      system: `You are a URL extractor. Find and extract ALL URLs (http:// or https://) from the given text. Return them in the securityReportLinks array.`,
+      // Use derive() for prompt - direct access returns undefined result
+      prompt: derive(article, (a) => a?.content ?? ""),
       model: "anthropic:claude-sonnet-4-5",
       schema: LINK_EXTRACTION_SCHEMA,
     }),
@@ -186,16 +186,19 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
     list.filter((e: any) => e.extraction?.pending).length
   );
 
+  // Completed = not pending (matches what the UI checkmarks show)
   const completedCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e.extraction?.result && !e.extraction?.pending).length
+    list.filter((e: any) => !e.extraction?.pending).length
   );
 
   // Collect all extracted links from completed extractions
+  // Access result.securityReportLinks - the schema shape
   const allExtractedLinks = derive(articleExtractions, (list) => {
     const links: string[] = [];
     for (const item of list) {
-      if (item.extraction?.result?.securityReportLinks) {
-        links.push(...item.extraction.result.securityReportLinks);
+      const result = item.extraction?.result;
+      if (result && result.securityReportLinks) {
+        links.push(...result.securityReportLinks);
       }
     }
     // Dedupe
@@ -255,19 +258,17 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
               border: `1px solid ${item.extraction.pending ? "#fcd34d" : "#6ee7b7"}`,
             }}>
               <div style={{ fontWeight: "500", marginBottom: "4px" }}>
-                {item.extraction.pending ? "⏳" : "✅"} {item.articleTitle}
+                {item.extraction.pending ? "⏳ " : "✅ "}
+                {item.articleTitle}
+                {" - "}
+                {item.extraction.pending ? "processing..." : `${item.extraction.result?.securityReportLinks?.length ?? 0} links`}
               </div>
-              {!item.extraction.pending && item.extraction.result && (
-                <div style={{ fontSize: "12px", color: "#374151" }}>
-                  {item.extraction.result.securityReportLinks?.length || 0} security links found
-                  {item.extraction.result.securityReportLinks && item.extraction.result.securityReportLinks.length > 0 && (
-                    <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-                      {item.extraction.result.securityReportLinks.map((link: string) => (
-                        <li style={{ fontSize: "11px", color: "#3b82f6" }}>{link}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              {!item.extraction.pending && (item.extraction.result?.securityReportLinks?.length ?? 0) > 0 && (
+                <ul style={{ margin: "4px 0 0 16px", padding: 0, fontSize: "11px" }}>
+                  {item.extraction.result?.securityReportLinks?.map((link: string) => (
+                    <li style={{ color: "#3b82f6" }}>{link}</li>
+                  ))}
+                </ul>
               )}
               {item.extraction.error && (
                 <div style={{ fontSize: "12px", color: "#dc2626" }}>

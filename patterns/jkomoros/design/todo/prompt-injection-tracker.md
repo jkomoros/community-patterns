@@ -88,19 +88,45 @@ const extractions = articles.map((article) => ({
 - [x] Start with hardcoded test articles (no Gmail yet)
 - [x] Verify basic map + generateObject flow works
 
-**Result:** Deployed and working! Charm ID: `baedreifihxx26uni7da2bogh36edzvl7zfo5lf2cphxstgfxfrcqwzltwi`
+**Result:** Deployed and working! Test articles with real URLs added.
 - 5 test articles processed correctly
-- All 5 show "Completed" status
+- All 5 show "Completed" status with checkmarks
 - Map+generateObject pattern confirmed working
-- Note: 0 links extracted (test URLs are fake - LLM correctly identifies them as not real security reports)
+- Added real security URLs (NVD, OWASP, heartbleed.com, etc.)
 
-**Key learning:** Need `derive()` in the prompt parameter when building template strings with multiple article properties:
+**Key learnings documented:**
+
+1. **Need `derive()` for prompt parameter** - Direct `article.content` returns undefined `.result`
 ```typescript
-prompt: derive(article, (a) => {
-  if (!a) return "";
-  return `Article Title: ${a.title}\nContent: ${a.content}`;
-}),
+// DOESN'T WORK - result is undefined
+prompt: article.content,
+
+// WORKS - result has data (even if empty array)
+prompt: derive(article, (a) => a?.content ?? ""),
 ```
+
+2. **Template strings in prompts cause "opaque value" error**
+```typescript
+// ERROR: Tried to directly access an opaque value
+prompt: `Text: ${article.content}`,
+
+// WORKS: Wrap in derive()
+prompt: derive(article, (a) => `Text: ${a?.content ?? ""}`),
+```
+
+3. **completedCount checking `.result` fails** - Check `!pending` instead
+```typescript
+// DOESN'T WORK - result may be undefined even when done
+list.filter((e) => e.extraction?.result && !e.extraction?.pending).length
+
+// WORKS
+list.filter((e) => !e.extraction?.pending).length
+```
+
+**Remaining issue:** LLM returns `{"securityReportLinks":[]}` for all articles.
+- Articles have real URLs (verified in test data)
+- Prompt content may not be passed correctly via derive()
+- Needs more investigation or framework author guidance
 
 ### Phase 2: Add Gmail Integration
 
