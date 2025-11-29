@@ -822,12 +822,13 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
     for (const item of items) {
       const result = item.classification?.result;
-      if (!result) continue;
+      const sourceUrl = item.sourceUrl as string | null;
+      if (!result || !sourceUrl) continue;
 
       // Determine the "original" URL for this item
       let originalUrl: string;
       if (result.isOriginalReport) {
-        originalUrl = item.sourceUrl;
+        originalUrl = sourceUrl;
       } else if (result.originalReportUrl) {
         originalUrl = result.originalReportUrl;
       } else {
@@ -839,8 +840,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
       if (existing) {
         // Add this source to existing group
-        if (!existing.sourceRefs.includes(item.sourceUrl)) {
-          existing.sourceRefs.push(item.sourceUrl);
+        if (!existing.sourceRefs.includes(sourceUrl)) {
+          existing.sourceRefs.push(sourceUrl);
         }
         // Use the first completed summary we find
         if (!existing.summary?.result && item.summary?.result) {
@@ -851,7 +852,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         byOriginalUrl.set(normalized, {
           url: originalUrl,
           summary: item.summary,
-          sourceRefs: [item.sourceUrl],
+          sourceRefs: [sourceUrl],
         });
       }
     }
@@ -1207,8 +1208,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                         Referenced by {item.sourceCount} source URLs
                       </summary>
                       <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-                        {item.sourceRefs?.map((src: string) => (
-                          <li><a href={src} target="_blank" style={{ color: "#6b7280" }}>{src}</a></li>
+                        {(item.sourceRefs || []).map((src: string, idx: number) => (
+                          <li key={idx}><a href={src} target="_blank" style={{ color: "#6b7280" }}>{src}</a></li>
                         ))}
                       </ul>
                     </details>
