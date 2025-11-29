@@ -178,6 +178,9 @@ interface TrackerInput {
   limit: Default<number, 50>;
   // Manual articles (for testing without Gmail)
   articles: Default<Article[], []>;
+  // WORKAROUND (CT-1085): Accept auth charm as direct input since wish doesn't work reliably.
+  // Link gmail-auth charm using: deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
+  authCharm: Default<any, null>;
 }
 
 interface TrackerOutput {
@@ -185,17 +188,19 @@ interface TrackerOutput {
   extractedLinks: string[];
 }
 
-export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles }) => {
+export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles, authCharm }) => {
   // ==========================================================================
   // Gmail Integration
   // ==========================================================================
+  // WORKAROUND (CT-1085): Pass authCharm from input since wish("#googleAuth") doesn't work
+  // reliably. Link auth using: deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
   const importer = GmailImporter({
     settings: {
       gmailFilterQuery,
       limit,
       historyId: "",
     },
-    authCharm: null, // Let importer wish for shared auth
+    authCharm, // Pass through from input (link via ct charm link)
   });
 
   // Convert Gmail emails to our Article format
