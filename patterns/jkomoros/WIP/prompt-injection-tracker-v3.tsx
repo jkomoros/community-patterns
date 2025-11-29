@@ -12,9 +12,11 @@
  * Phase 1: Hardcoded test articles (no Gmail yet)
  */
 import {
+  Cell,
   Default,
   derive,
   generateObject,
+  handler,
   NAME,
   pattern,
   str,
@@ -33,23 +35,24 @@ interface Article {
 }
 
 interface ExtractedLinks {
-  securityReportLinks: string[];
+  urls: string[];
 }
 
 // =============================================================================
 // SCHEMAS
 // =============================================================================
 
+// Simplified schema - just extract all URLs found
 const LINK_EXTRACTION_SCHEMA = {
   type: "object" as const,
   properties: {
-    securityReportLinks: {
+    urls: {
       type: "array" as const,
       items: { type: "string" as const },
-      description: "URLs that link to security vulnerability reports, CVEs, or security advisories",
+      description: "All URLs found in the text",
     },
   },
-  required: ["securityReportLinks"] as const,
+  required: ["urls"] as const,
 };
 
 // =============================================================================
@@ -148,11 +151,26 @@ No security vulnerabilities mentioned in this marketing email - just product inf
 ];
 
 // =============================================================================
+// HANDLERS
+// =============================================================================
+
+// Handler to load test articles (like addItem in map-test-100-items)
+const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
+  (_event, { articles }) => {
+    // Clear and load test articles
+    for (const article of TEST_ARTICLES) {
+      articles.push(article);
+    }
+  }
+);
+
+// =============================================================================
 // PATTERN
 // =============================================================================
 
 interface TrackerInput {
-  articles: Default<Article[], typeof TEST_ARTICLES>;
+  // Start with empty array like map-test-100-items
+  articles: Default<Article[], []>;
 }
 
 interface TrackerOutput {
@@ -171,9 +189,9 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
     articleId: article.id,
     articleTitle: article.title,
     extraction: generateObject<ExtractedLinks>({
-      system: `You are a URL extractor. Find and extract ALL URLs (http:// or https://) from the given text. Return them in the securityReportLinks array.`,
-      // Use derive() for prompt - direct access returns undefined result
-      prompt: derive(article, (a) => a?.content ?? ""),
+      system: `Extract all URLs from the text. Return them in the urls array.`,
+      // Direct access like map-test-100-items.tsx
+      prompt: article.content,
       model: "anthropic:claude-sonnet-4-5",
       schema: LINK_EXTRACTION_SCHEMA,
     }),
@@ -192,13 +210,12 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
   );
 
   // Collect all extracted links from completed extractions
-  // Access result.securityReportLinks - the schema shape
   const allExtractedLinks = derive(articleExtractions, (list) => {
     const links: string[] = [];
     for (const item of list) {
       const result = item.extraction?.result;
-      if (result && result.securityReportLinks) {
-        links.push(...result.securityReportLinks);
+      if (result && result.urls) {
+        links.push(...result.urls);
       }
     }
     // Dedupe
@@ -218,6 +235,22 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
         <p style={{ fontSize: "12px", color: "#666", marginBottom: "16px" }}>
           Using "dumb map approach" - each article processed independently with per-item caching.
         </p>
+
+        {/* Load Test Data Button */}
+        <button
+          onClick={loadTestArticles({ articles })}
+          style={{
+            padding: "8px 16px",
+            background: "#3b82f6",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            marginBottom: "12px",
+          }}
+        >
+          Load Test Articles ({TEST_ARTICLES.length})
+        </button>
 
         {/* Status Card */}
         <div style={{
@@ -261,11 +294,11 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
                 {item.extraction.pending ? "⏳ " : "✅ "}
                 {item.articleTitle}
                 {" - "}
-                {item.extraction.pending ? "processing..." : `${item.extraction.result?.securityReportLinks?.length ?? 0} links`}
+                {item.extraction.pending ? "processing..." : `${item.extraction.result?.urls?.length ?? 0} links`}
               </div>
-              {!item.extraction.pending && (item.extraction.result?.securityReportLinks?.length ?? 0) > 0 && (
+              {!item.extraction.pending && (item.extraction.result?.urls?.length ?? 0) > 0 && (
                 <ul style={{ margin: "4px 0 0 16px", padding: 0, fontSize: "11px" }}>
-                  {item.extraction.result?.securityReportLinks?.map((link: string) => (
+                  {item.extraction.result?.urls?.map((link: string) => (
                     <li style={{ color: "#3b82f6" }}>{link}</li>
                   ))}
                 </ul>
