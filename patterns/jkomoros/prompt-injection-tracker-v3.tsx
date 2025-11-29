@@ -448,6 +448,53 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // ==========================================================================
+  // LEVEL 2: Summarize extracted links (the "dumb map approach" again!)
+  // Each unique link gets summarized with LLM, framework handles caching
+  // ==========================================================================
+
+  // Map over the deduplicated links directly
+  // NOTE: We use allExtractedLinks (which is plain string array from derive)
+  // and map over it with generateObject - the "dumb map approach"
+  const linkSummaries = allExtractedLinks.map((url) => ({
+    url,
+    summary: generateObject<{
+      title: string;
+      summary: string;
+      severity: "low" | "medium" | "high" | "critical";
+      isLLMSpecific: boolean;
+      category: string;
+    }>({
+      system: REPORT_SUMMARY_SYSTEM,
+      prompt: str`URL: ${url}\n\nBased on this URL, determine:\n1. What type of security resource this is\n2. Likely severity (based on URL patterns like CVE, advisory, etc.)\n3. Whether it's LLM-specific security`,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object" as const,
+        properties: {
+          title: { type: "string" as const, description: "Brief title for this security resource" },
+          summary: { type: "string" as const, description: "1-2 sentence summary based on URL" },
+          severity: { type: "string" as const, enum: ["low", "medium", "high", "critical"] as const },
+          isLLMSpecific: { type: "boolean" as const, description: "Is this specifically about LLM/AI security?" },
+          category: { type: "string" as const, description: "Category: CVE, advisory, blog, github, docs" },
+        },
+        required: ["title", "summary", "severity", "isLLMSpecific", "category"] as const,
+      },
+    }),
+  }));
+
+  // Count summaries progress
+  const summaryPendingCount = derive(linkSummaries, (list) =>
+    list.filter((s: any) => s.summary?.pending).length
+  );
+  const summaryCompletedCount = derive(linkSummaries, (list) =>
+    list.filter((s: any) => !s.summary?.pending).length
+  );
+
+  // Count LLM-specific reports
+  const llmSpecificCount = derive(linkSummaries, (list) =>
+    list.filter((s: any) => s.summary?.result?.isLLMSpecific).length
+  );
+
+  // ==========================================================================
   // UI
   // ==========================================================================
   return {
@@ -621,19 +668,81 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           ))}
         </div>
 
-        {/* All Extracted Links */}
+        {/* Report Summaries - Level 2 LLM extraction */}
         {linkCount > 0 && (
           <div style={{ marginTop: "24px" }}>
-            <h3>All Security Report Links ({linkCount})</h3>
-            <div style={{
-              padding: "12px",
-              background: "#eff6ff",
-              borderRadius: "6px",
-              border: "1px solid #bfdbfe",
-            }}>
-              {allExtractedLinks.map((link: string) => (
-                <div style={{ fontSize: "13px", padding: "4px 0" }}>
-                  <a href={link} target="_blank" style={{ color: "#2563eb" }}>{link}</a>
+            <h3>
+              Security Report Summaries ({summaryCompletedCount}/{linkCount})
+              {summaryPendingCount > 0 && <span style={{ color: "#f59e0b", marginLeft: "8px" }}>⏳ {summaryPendingCount} processing...</span>}
+            </h3>
+            <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>
+              🤖 {llmSpecificCount} LLM-specific reports found
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {linkSummaries.map((item) => (
+                <div style={{
+                  padding: "12px",
+                  background: item.summary.pending ? "#fef3c7" :
+                    item.summary.result?.isLLMSpecific ? "#fce7f3" :
+                    item.summary.result?.severity === "critical" ? "#fee2e2" :
+                    item.summary.result?.severity === "high" ? "#ffedd5" :
+                    "#f0fdf4",
+                  borderRadius: "6px",
+                  border: `1px solid ${item.summary.pending ? "#fcd34d" :
+                    item.summary.result?.isLLMSpecific ? "#f9a8d4" :
+                    item.summary.result?.severity === "critical" ? "#fca5a5" :
+                    item.summary.result?.severity === "high" ? "#fdba74" :
+                    "#86efac"}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    {item.summary.pending ? (
+                      <span>⏳ Analyzing...</span>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight: "600" }}>{item.summary.result?.title || "Unknown"}</span>
+                        <span style={{
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: item.summary.result?.severity === "critical" ? "#dc2626" :
+                                     item.summary.result?.severity === "high" ? "#ea580c" :
+                                     item.summary.result?.severity === "medium" ? "#ca8a04" :
+                                     "#16a34a",
+                          color: "white",
+                        }}>
+                          {item.summary.result?.severity?.toUpperCase()}
+                        </span>
+                        {item.summary.result?.isLLMSpecific && (
+                          <span style={{
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#db2777",
+                            color: "white",
+                          }}>
+                            🤖 LLM
+                          </span>
+                        )}
+                        <span style={{
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "#6b7280",
+                          color: "white",
+                        }}>
+                          {item.summary.result?.category}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {!item.summary.pending && item.summary.result?.summary && (
+                    <div style={{ fontSize: "12px", color: "#374151", marginBottom: "4px" }}>
+                      {item.summary.result.summary}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "11px", color: "#6b7280" }}>
+                    <a href={item.url} target="_blank" style={{ color: "#2563eb" }}>{item.url}</a>
+                  </div>
                 </div>
               ))}
             </div>
@@ -643,6 +752,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     ),
     articles: allArticles,
     extractedLinks: allExtractedLinks,
+    linkSummaries,
     emails: importer.emails,
   };
 });
