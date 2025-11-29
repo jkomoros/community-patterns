@@ -100,4 +100,22 @@ Discovered while building prompt-injection-tracker-v3:
 
 ---
 
-**Confidence level:** MEDIUM (single error + fix, may have edge cases)
+## ⚠️ CONFLICTING SUPERSTITION
+
+**This contradicts `2025-11-25-generateObject-race-condition-pass-cell-directly.md`** which says:
+- DON'T use derive() - causes race conditions
+- Pass Cell directly to prompt
+
+**Our testing (Nov 29, 2025) showed the OPPOSITE:**
+- Direct `article.content` → `.result` is undefined
+- `derive(article, (a) => a?.content)` → `.result` has data (even if empty array)
+
+**Possible explanation:** The context differs:
+- Race condition doc: User input cells, typing triggers multiple calls
+- This doc: Static data in `.map()`, no user input
+
+**Needs framework author clarification** on when to use derive() vs direct Cell access.
+
+---
+
+**Confidence level:** MEDIUM (single error + fix, contradicts other superstition)

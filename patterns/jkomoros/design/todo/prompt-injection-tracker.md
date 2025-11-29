@@ -128,6 +128,16 @@ list.filter((e) => !e.extraction?.pending).length
 - Prompt content may not be passed correctly via derive()
 - Needs more investigation or framework author guidance
 
+**CONFLICTING SUPERSTITIONS DISCOVERED:**
+- `2025-11-25-generateObject-race-condition-pass-cell-directly.md`: DON'T use derive()
+- Our testing: MUST use derive() or result is undefined
+
+The difference may be context:
+- Race condition: user input cells, typing triggers calls
+- Our case: static data in .map(), no user input
+
+Need framework author to clarify when derive() helps vs hurts.
+
 ### Phase 2: Add Gmail Integration
 
 - [ ] Add Gmail auth input (like current pattern)
