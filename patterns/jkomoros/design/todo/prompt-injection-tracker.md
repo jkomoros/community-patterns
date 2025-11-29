@@ -81,12 +81,26 @@ const extractions = articles.map((article) => ({
 
 ## Implementation Plan
 
-### Phase 1: Start Fresh with Working Pattern
+### Phase 1: Start Fresh with Working Pattern ✅ DONE
 
-- [ ] Create new `prompt-injection-tracker-v3.tsx` in WIP/
-- [ ] Use `map-test-100-items.tsx` as template (verified working)
-- [ ] Start with hardcoded test articles (no Gmail yet)
-- [ ] Verify basic map + generateObject flow works
+- [x] Create new `prompt-injection-tracker-v3.tsx` in WIP/
+- [x] Use `map-test-100-items.tsx` as template (verified working)
+- [x] Start with hardcoded test articles (no Gmail yet)
+- [x] Verify basic map + generateObject flow works
+
+**Result:** Deployed and working! Charm ID: `baedreifihxx26uni7da2bogh36edzvl7zfo5lf2cphxstgfxfrcqwzltwi`
+- 5 test articles processed correctly
+- All 5 show "Completed" status
+- Map+generateObject pattern confirmed working
+- Note: 0 links extracted (test URLs are fake - LLM correctly identifies them as not real security reports)
+
+**Key learning:** Need `derive()` in the prompt parameter when building template strings with multiple article properties:
+```typescript
+prompt: derive(article, (a) => {
+  if (!a) return "";
+  return `Article Title: ${a.title}\nContent: ${a.content}`;
+}),
+```
 
 ### Phase 2: Add Gmail Integration
 
