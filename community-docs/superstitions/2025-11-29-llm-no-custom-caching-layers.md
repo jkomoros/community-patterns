@@ -1,0 +1,97 @@
+---
+topic: llm
+discovered: 2025-11-29
+confirmed_count: 1
+last_confirmed: 2025-11-29
+sessions: [prompt-injection-tracker-map-approach]
+related_labs_docs: ~/Code/labs/docs/common/LLM.md
+status: superstition
+stars: ⭐⭐⭐
+source: framework-author
+---
+
+# ⭐⭐⭐ FRAMEWORK AUTHOR CONFIRMED
+
+**This came directly from the framework author** - higher confidence than typical superstitions.
+
+> "Ugh, no, it is building another layer of caching on top"
+> - Framework author, Nov 2025 (reacting to a webPageCache pattern)
+
+---
+
+# DON'T Build Custom Caching Layers for LLM Calls
+
+## Anti-Pattern
+
+Don't create your own caching mechanisms for LLM calls:
+
+```typescript
+// ❌ WRONG - Don't do this
+interface CachedWebPage {
+  content: string;
+  fetchedAt: string;
+}
+
+const webPageCache = cell<Record<string, CachedWebPage>>({});
+
+// Check cache before calling LLM...
+// Store results in cache...
+// Complex derives to join cache with articles...
+```
+
+## Why It's Wrong
+
+1. **The framework already caches**: `generateObject()` caches based on the exact prompt string
+2. **Double caching causes problems**: You're adding complexity for no benefit
+3. **Hard to debug**: Two caching layers means two places things can go wrong
+4. **Unnecessary code**: More code to maintain, more bugs to fix
+
+## What To Do Instead
+
+Just use the "dumb map approach" - let the framework handle caching:
+
+```typescript
+// ✅ RIGHT - Let framework handle caching
+const extractions = articles.map((article) =>
+  generateObject({
+    system: "Extract links...",
+    prompt: article.content,  // Same content = cached response
+    schema: EXTRACTION_SCHEMA,
+  })
+);
+```
+
+The framework will automatically:
+- Cache based on the prompt string
+- Return cached results for identical prompts
+- Handle invalidation when prompts change
+
+## Context
+
+This came up when building a prompt-injection-tracker pattern that:
+1. Fetches articles from Gmail
+2. Extracts security report links via LLM
+3. Summarizes reports via LLM
+
+Initial implementation built a `webPageCache` to ensure "character-by-character identical prompts." Framework author explicitly rejected this approach.
+
+## The Exception
+
+**Handler-based web fetching is fine** - you may still want to cache fetched web content to avoid re-fetching:
+
+```typescript
+// This is OK - caching web fetches, not LLM results
+const fetchContent = handler(async (_, { url, cache }) => {
+  if (cache.get()[url]) return; // Skip if cached
+  const content = await fetch(url);
+  cache.set({ ...cache.get(), [url]: content });
+});
+```
+
+The key distinction:
+- ❌ Don't cache LLM results yourself
+- ✅ OK to cache external data fetches (web pages, API responses)
+
+---
+
+**Confidence level:** HIGH (framework author explicitly rejected this pattern)

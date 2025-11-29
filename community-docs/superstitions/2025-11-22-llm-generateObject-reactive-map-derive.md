@@ -165,6 +165,29 @@ This happened because object identity doesn't match in reactive arrays, so `.ind
 - [ ] Test if this applies to other LLM functions (generateText, etc.)
 - [ ] Verify if this is specific to `ImageData` or applies to all nested objects
 
+## ⚠️ UPDATE (2025-11-29): May Be Context-Specific
+
+Testing on 2025-11-29 showed that **direct property access works** for text content:
+
+```typescript
+// This worked fine (no derive needed for text):
+const extractions = items.map((item) => ({
+  itemId: item.id,
+  extraction: generateObject({
+    prompt: item.content,  // Direct access, no derive()
+    schema: SCHEMA,
+  }),
+}));
+```
+
+**Possible distinction:**
+- For **image data** that loads asynchronously → may still need `derive()` to wait for data
+- For **text content** that exists immediately → direct access works fine
+
+The original superstition may be specific to image upload scenarios where `photo.data` isn't immediately available. For pre-existing text content, the simpler approach works.
+
+See: `2025-11-29-llm-dumb-map-approach-works.md` for the simpler pattern.
+
 ## Notes
 
 **Debugging approach that revealed the issue:**
