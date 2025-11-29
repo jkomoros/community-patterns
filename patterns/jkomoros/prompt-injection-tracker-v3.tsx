@@ -9,19 +9,22 @@
  * 2. Let framework handle caching automatically
  * 3. NO custom caching layers, NO OpaqueRef casting
  *
- * Phase 1: Hardcoded test articles (no Gmail yet)
+ * Phase 2: Gmail integration - imports emails and extracts URLs
  */
 import {
   Cell,
+  cell,
   Default,
   derive,
   generateObject,
   handler,
+  ifElse,
   NAME,
   pattern,
   str,
   UI,
 } from "commontools";
+import GmailImporter from "./gmail-importer.tsx";
 
 // =============================================================================
 // TYPES
@@ -169,7 +172,11 @@ const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
 // =============================================================================
 
 interface TrackerInput {
-  // Start with empty array like map-test-100-items
+  // Gmail filter query - default to security newsletters
+  gmailFilterQuery: Default<string, "label:security OR from:security">;
+  // Max emails to fetch
+  limit: Default<number, 50>;
+  // Manual articles (for testing without Gmail)
   articles: Default<Article[], []>;
 }
 
@@ -178,14 +185,46 @@ interface TrackerOutput {
   extractedLinks: string[];
 }
 
-export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
+export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles }) => {
+  // ==========================================================================
+  // Gmail Integration
+  // ==========================================================================
+  const importer = GmailImporter({
+    settings: {
+      gmailFilterQuery,
+      limit,
+      historyId: "",
+    },
+    authCharm: null, // Let importer wish for shared auth
+  });
+
+  // Convert Gmail emails to our Article format
+  const emailArticles = derive(importer.emails, (emails: any[]) => {
+    return emails.map((email: any) => ({
+      id: email.id,
+      title: email.subject || "No Subject",
+      source: email.from || "Unknown",
+      content: email.markdownContent || email.snippet || "",
+    }));
+  });
+
+  // Combine manual articles with email articles
+  // Manual articles take precedence (shown first)
+  const allArticles = derive(
+    { manual: articles, fromEmail: emailArticles },
+    ({ manual, fromEmail }) => [...manual, ...fromEmail]
+  );
+
   // Count for display
-  const articleCount = derive(articles, (list) => list.length);
+  const articleCount = derive(allArticles, (list) => list.length);
+  const emailCount = derive(emailArticles, (list) => list.length);
+  const manualCount = derive(articles, (list) => list.length);
 
   // ==========================================================================
   // CORE: Map over articles with generateObject (the "dumb map approach")
+  // NOTE: We use allArticles which combines manual + email articles
   // ==========================================================================
-  const articleExtractions = articles.map((article) => ({
+  const articleExtractions = allArticles.map((article) => ({
     articleId: article.id,
     articleTitle: article.title,
     extraction: generateObject<ExtractedLinks>({
@@ -233,24 +272,75 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
       <div style={{ padding: "16px", fontFamily: "system-ui", maxWidth: "800px" }}>
         <h2>Prompt Injection Tracker v3</h2>
         <p style={{ fontSize: "12px", color: "#666", marginBottom: "16px" }}>
-          Using "dumb map approach" - each article processed independently with per-item caching.
+          Extracts URLs from security newsletters. Uses Gmail integration + LLM extraction.
         </p>
 
-        {/* Load Test Data Button */}
-        <button
-          onClick={loadTestArticles({ articles })}
-          style={{
-            padding: "8px 16px",
-            background: "#3b82f6",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
+        {/* Source Stats */}
+        <div style={{
+          display: "flex",
+          gap: "16px",
+          marginBottom: "16px",
+          fontSize: "13px",
+          color: "#666"
+        }}>
+          <span>📧 {emailCount} from Gmail</span>
+          <span>📝 {manualCount} manual</span>
+        </div>
+
+        {/* Gmail Settings (collapsible) */}
+        <details style={{ marginBottom: "16px" }}>
+          <summary style={{
             cursor: "pointer",
-            marginBottom: "12px",
-          }}
-        >
-          Load Test Articles ({TEST_ARTICLES.length})
-        </button>
+            padding: "8px 12px",
+            background: "#f8f9fa",
+            border: "1px solid #e0e0e0",
+            borderRadius: "4px",
+            fontSize: "13px",
+            fontWeight: "500"
+          }}>
+            ⚙️ Gmail Settings & Import
+          </summary>
+          <div style={{
+            padding: "12px",
+            marginTop: "8px",
+            border: "1px solid #e0e0e0",
+            borderRadius: "4px"
+          }}>
+            {importer}
+          </div>
+        </details>
+
+        {/* Test Data Button (for development) */}
+        <details style={{ marginBottom: "16px" }}>
+          <summary style={{
+            cursor: "pointer",
+            padding: "8px 12px",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: "4px",
+            fontSize: "13px"
+          }}>
+            🧪 Test Mode (no Gmail needed)
+          </summary>
+          <div style={{ padding: "12px", marginTop: "8px" }}>
+            <button
+              onClick={loadTestArticles({ articles })}
+              style={{
+                padding: "8px 16px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Load Test Articles ({TEST_ARTICLES.length})
+            </button>
+            <p style={{ fontSize: "11px", color: "#666", marginTop: "8px" }}>
+              Loads sample security newsletter content for testing without Gmail.
+            </p>
+          </div>
+        </details>
 
         {/* Status Card */}
         <div style={{
@@ -332,7 +422,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ articles }) => {
         )}
       </div>
     ),
-    articles,
+    articles: allArticles,
     extractedLinks: allExtractedLinks,
+    emails: importer.emails,
   };
 });
