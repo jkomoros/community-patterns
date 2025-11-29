@@ -2,14 +2,66 @@
 /**
  * PROMPT INJECTION TRACKER V3
  *
- * Using verified "dumb map approach" from framework author feedback.
+ * Extracts URLs from security newsletters using Gmail integration + LLM extraction.
  *
- * Architecture:
- * 1. articles.map((article) => generateObject({...})) for link extraction
- * 2. Let framework handle caching automatically
- * 3. NO custom caching layers, NO OpaqueRef casting
+ * =============================================================================
+ * KEY INSIGHT: THE "DUMB MAP APPROACH"
+ * =============================================================================
  *
- * Phase 2: Gmail integration - imports emails and extracts URLs
+ * This pattern demonstrates the correct way to do LLM extraction over arrays
+ * in Common Tools. The key insight from the framework author:
+ *
+ *   "Just use array.map() with generateObject. The framework handles caching."
+ *
+ * HOW IT WORKS:
+ * -------------
+ * ```typescript
+ * const extractions = articles.map((article) => ({
+ *   extraction: generateObject({
+ *     prompt: article.content,
+ *     schema: SCHEMA,
+ *   }),
+ * }));
+ * ```
+ *
+ * 1. `array.map()` creates a new reactive array
+ * 2. Each item contains a `generateObject` call
+ * 3. The framework automatically memoizes/caches results based on inputs
+ * 4. Same inputs (prompt + schema) = cached result (no re-calling LLM)
+ * 5. New articles only trigger LLM calls for those new items
+ *
+ * WHY THIS WORKS:
+ * ---------------
+ * - The framework tracks dependencies reactively
+ * - generateObject results are cached by their inputs
+ * - When an article's content doesn't change, the extraction is reused
+ * - No need for manual cache management or state tracking
+ *
+ * WHAT NOT TO DO:
+ * ---------------
+ * ❌ Don't build custom caching layers (framework does this)
+ * ❌ Don't cast to OpaqueRef<> in map callbacks (causes type issues)
+ * ❌ Don't use complex state machines for "processing" states
+ * ❌ Don't try to batch/queue LLM calls manually
+ *
+ * REFERENCE:
+ * ----------
+ * See `patterns/examples/map-test-100-items.tsx` for the canonical example
+ * that demonstrates this pattern working with 100 items.
+ *
+ * =============================================================================
+ * ARCHITECTURE
+ * =============================================================================
+ *
+ * 1. Gmail Integration: Fetch emails via GmailImporter composition pattern
+ * 2. Article Conversion: Convert emails to Article format via derive()
+ * 3. LLM Extraction: Map over articles with generateObject (the core pattern)
+ * 4. Results Aggregation: Derive collected links from extraction results
+ *
+ * WORKAROUNDS:
+ * ------------
+ * - CT-1085: wish() favoriting is broken, so authCharm is exposed as a
+ *   top-level input and linked via `ct charm link`
  */
 import {
   Cell,
