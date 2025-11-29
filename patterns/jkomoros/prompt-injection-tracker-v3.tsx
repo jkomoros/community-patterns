@@ -354,8 +354,8 @@ const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
 // =============================================================================
 
 interface TrackerInput {
-  // Gmail filter query - default to security newsletters
-  gmailFilterQuery: Default<string, "label:security OR from:security">;
+  // Gmail filter query - default to Google Alerts for "prompt injection"
+  gmailFilterQuery: Default<string, 'from:"googlealerts-noreply@google.com" subject:"prompt injection"'>;
   // Max emails to fetch
   limit: Default<number, 50>;
   // Manual articles (for testing without Gmail)
