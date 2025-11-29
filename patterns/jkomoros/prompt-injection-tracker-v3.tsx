@@ -79,6 +79,41 @@ import {
 import GmailImporter from "./gmail-importer.tsx";
 
 // =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Normalize URL for deduplication
+ * - Remove tracking parameters (utm_*, fbclid, gclid, etc.)
+ * - Remove URL fragments (#section)
+ * - Remove trailing slashes
+ * - Convert to lowercase
+ */
+function normalizeURL(url: string): string {
+  try {
+    const parsed = new URL(url);
+
+    // Remove common tracking parameters
+    const trackingParams = [
+      "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+      "fbclid", "gclid", "msclkid", "ref", "source", "_ga", "mc_cid", "mc_eid"
+    ];
+    trackingParams.forEach(param => parsed.searchParams.delete(param));
+
+    // Remove fragment
+    parsed.hash = "";
+
+    // Remove trailing slash
+    parsed.pathname = parsed.pathname.replace(/\/$/, "");
+
+    // Convert to lowercase
+    return parsed.toString().toLowerCase();
+  } catch {
+    return url.toLowerCase();
+  }
+}
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -91,24 +126,93 @@ interface Article {
 
 interface ExtractedLinks {
   urls: string[];
+  classification: "has-security-links" | "is-original-report" | "no-security-links";
+}
+
+interface PromptInjectionReport {
+  id: string;
+  title: string;
+  sourceURL: string;
+  summary: string;
+  severity: "low" | "medium" | "high" | "critical";
+  isLLMSpecific: boolean;
+  discoveryDate: string;
+  addedDate: string;
 }
 
 // =============================================================================
 // SCHEMAS
 // =============================================================================
 
-// Simplified schema - just extract all URLs found
+// Schema for extracting security report links with classification
 const LINK_EXTRACTION_SCHEMA = {
   type: "object" as const,
   properties: {
     urls: {
       type: "array" as const,
       items: { type: "string" as const },
-      description: "All URLs found in the text",
+      description: "Security-related URLs found (CVEs, advisories, security blogs, GitHub security issues)",
+    },
+    classification: {
+      type: "string" as const,
+      enum: ["has-security-links", "is-original-report", "no-security-links"] as const,
+      description: "Classification of this content",
     },
   },
-  required: ["urls"] as const,
+  required: ["urls", "classification"] as const,
 };
+
+// Schema for report summarization
+const REPORT_SUMMARY_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    title: { type: "string" as const, description: "Clear name for the vulnerability/attack" },
+    summary: { type: "string" as const, description: "2-3 sentence overview" },
+    severity: {
+      type: "string" as const,
+      enum: ["low", "medium", "high", "critical"] as const,
+    },
+    isLLMSpecific: {
+      type: "boolean" as const,
+      description: "TRUE if this is specifically about LLM/AI security (prompt injection, jailbreaking, etc.)",
+    },
+    discoveryDate: { type: "string" as const, description: "When reported (YYYY-MM or YYYY-MM-DD)" },
+  },
+  required: ["title", "summary", "severity", "isLLMSpecific", "discoveryDate"] as const,
+};
+
+// LLM prompt for security link extraction
+const LINK_EXTRACTION_SYSTEM = `You are analyzing content to extract SECURITY-RELATED URLs only.
+
+Extract URLs that point to:
+- CVE details (nvd.nist.gov, cve.org)
+- Security advisories (company security blogs, CISA, vendor advisories)
+- Security research (GitHub security advisories, researcher blogs)
+- Vulnerability disclosures
+
+Classification rules:
+1. "is-original-report": The content IS original security research (first-person: "We discovered...")
+2. "has-security-links": Contains links to security reports/advisories
+3. "no-security-links": No security-relevant URLs, just marketing or general content
+
+IGNORE: social media, news homepages, marketing pages, product demos.
+Return ONLY security-relevant URLs.`;
+
+// LLM prompt for report summarization
+const REPORT_SUMMARY_SYSTEM = `Summarize this security report. Determine if it's LLM-specific:
+
+LLM-SPECIFIC (isLLMSpecific: true):
+- Prompt injection attacks
+- Jailbreaking/safety bypass
+- LLM memory hijacking
+- Agent system exploits
+
+NOT LLM-SPECIFIC (isLLMSpecific: false):
+- General malware mentioning AI
+- Traditional web vulnerabilities
+- Business issues with AI companies
+
+Be concise. Focus on the vulnerability, not the article structure.`;
 
 // =============================================================================
 // TEST DATA - Simulated security newsletter articles
@@ -278,15 +382,19 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   const manualCount = derive(articles, (list) => list.length);
 
   // ==========================================================================
-  // CORE: Map over articles with generateObject (the "dumb map approach")
-  // NOTE: We use allArticles which combines manual + email articles
+  // Reports storage
+  // ==========================================================================
+  const reports = cell<PromptInjectionReport[]>([]);
+
+  // ==========================================================================
+  // LEVEL 1: Extract security links from articles (the "dumb map approach")
   // ==========================================================================
   const articleExtractions = allArticles.map((article) => ({
     articleId: article.id,
     articleTitle: article.title,
+    articleSource: article.source,
     extraction: generateObject<ExtractedLinks>({
-      system: `Extract all URLs from the text. Return them in the urls array.`,
-      // Direct access like map-test-100-items.tsx
+      system: LINK_EXTRACTION_SYSTEM,
       prompt: article.content,
       model: "anthropic:claude-sonnet-4-5",
       schema: LINK_EXTRACTION_SCHEMA,
@@ -305,20 +413,39 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     list.filter((e: any) => !e.extraction?.pending).length
   );
 
-  // Collect all extracted links from completed extractions
+  // Collect all extracted links from completed extractions (normalized & deduped)
   const allExtractedLinks = derive(articleExtractions, (list) => {
     const links: string[] = [];
+    const seen = new Set<string>();
     for (const item of list) {
       const result = item.extraction?.result;
       if (result && result.urls) {
-        links.push(...result.urls);
+        for (const url of result.urls) {
+          const normalized = normalizeURL(url);
+          if (!seen.has(normalized)) {
+            seen.add(normalized);
+            links.push(url); // Keep original URL for display
+          }
+        }
       }
     }
-    // Dedupe
-    return [...new Set(links)];
+    return links;
   });
 
   const linkCount = derive(allExtractedLinks, (links) => links.length);
+  const reportCount = derive(reports, (list: PromptInjectionReport[]) => list.length);
+
+  // Count by classification
+  const classificationCounts = derive(articleExtractions, (list) => {
+    const counts: Record<string, number> = { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 };
+    for (const item of list) {
+      const classification = item.extraction?.result?.classification as string | undefined;
+      if (classification && counts[classification] !== undefined) {
+        counts[classification]++;
+      }
+    }
+    return counts;
+  });
 
   // ==========================================================================
   // UI
@@ -422,8 +549,18 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             </div>
             <div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3b82f6" }}>{linkCount}</div>
-              <div style={{ fontSize: "12px", color: "#666" }}>Links Found</div>
+              <div style={{ fontSize: "12px", color: "#666" }}>Security Links</div>
             </div>
+            <div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8b5cf6" }}>{reportCount}</div>
+              <div style={{ fontSize: "12px", color: "#666" }}>Reports</div>
+            </div>
+          </div>
+          {/* Classification breakdown */}
+          <div style={{ marginTop: "12px", fontSize: "11px", color: "#666", display: "flex", gap: "12px" }}>
+            <span>🔬 {derive(classificationCounts, c => c["is-original-report"])} original</span>
+            <span>🔗 {derive(classificationCounts, c => c["has-security-links"])} with links</span>
+            <span>⬜ {derive(classificationCounts, c => c["no-security-links"])} no links</span>
           </div>
         </div>
 
@@ -433,15 +570,40 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           {articleExtractions.map((item) => (
             <div style={{
               padding: "12px",
-              background: item.extraction.pending ? "#fef3c7" : "#d1fae5",
+              background: item.extraction.pending ? "#fef3c7" :
+                item.extraction.result?.classification === "is-original-report" ? "#dbeafe" :
+                item.extraction.result?.classification === "has-security-links" ? "#d1fae5" :
+                "#f3f4f6",
               borderRadius: "6px",
-              border: `1px solid ${item.extraction.pending ? "#fcd34d" : "#6ee7b7"}`,
+              border: `1px solid ${item.extraction.pending ? "#fcd34d" :
+                item.extraction.result?.classification === "is-original-report" ? "#93c5fd" :
+                item.extraction.result?.classification === "has-security-links" ? "#6ee7b7" :
+                "#d1d5db"}`,
             }}>
-              <div style={{ fontWeight: "500", marginBottom: "4px" }}>
-                {item.extraction.pending ? "⏳ " : "✅ "}
-                {item.articleTitle}
-                {" - "}
-                {item.extraction.pending ? "processing..." : `${item.extraction.result?.urls?.length ?? 0} links`}
+              <div style={{ fontWeight: "500", marginBottom: "4px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span>
+                  {item.extraction.pending ? "⏳ " :
+                   item.extraction.result?.classification === "is-original-report" ? "🔬 " :
+                   item.extraction.result?.classification === "has-security-links" ? "✅ " :
+                   "⬜ "}
+                  {item.articleTitle}
+                </span>
+                {!item.extraction.pending && (
+                  <span style={{
+                    fontSize: "10px",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    background: item.extraction.result?.classification === "is-original-report" ? "#3b82f6" :
+                               item.extraction.result?.classification === "has-security-links" ? "#10b981" :
+                               "#6b7280",
+                    color: "white",
+                  }}>
+                    {item.extraction.result?.classification || "unknown"}
+                  </span>
+                )}
+                <span style={{ color: "#666", fontSize: "12px" }}>
+                  {item.extraction.pending ? "processing..." : `${item.extraction.result?.urls?.length ?? 0} links`}
+                </span>
               </div>
               {!item.extraction.pending && (item.extraction.result?.urls?.length ?? 0) > 0 && (
                 <ul style={{ margin: "4px 0 0 16px", padding: 0, fontSize: "11px" }}>
