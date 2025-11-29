@@ -65,22 +65,37 @@
  * ✅ Trust the framework to handle caching, deduplication, and persistence
  *
  * =============================================================================
- * ARCHITECTURE: THREE-LEVEL CACHING PIPELINE
+ * ARCHITECTURE: FIVE-LEVEL CACHING PIPELINE WITH DEDUPLICATION
  * =============================================================================
  *
  * Level 1: Article → Link Extraction (generateObject, cached by article content)
  *   - Gmail emails converted to articles
- *   - LLM extracts security-related URLs
- *   - Classification: has-security-links, no-security-links
+ *   - LLM extracts security-related URLs from newsletters
+ *   - Classification: has-security-links, is-original-report, no-security-links
  *
  * Level 2: URL → Web Content (fetchData, cached by URL)
  *   - Fetch actual page content via /api/agent-tools/web-read
  *   - Framework caches by URL - same URL never fetched twice
  *   - Returns markdown content for LLM analysis
  *
- * Level 3: Web Content → Report Summary (generateObject, cached by content)
- *   - LLM analyzes fetched content
- *   - Extracts: title, summary, severity, isLLMSpecific
+ * Level 3: Web Content → Classification (generateObject, cached by content)
+ *   - Classify: Is this an ORIGINAL report or a NEWS ARTICLE about one?
+ *   - If news article: extract the URL to the original report it references
+ *   - If original: this URL IS the canonical source
+ *
+ * DEDUPLICATION (pure derive, instant):
+ *   - Collect all original report URLs (either source URL or extracted URL)
+ *   - Normalize and deduplicate by URL
+ *   - Multiple news articles → same original = only processed once
+ *
+ * Level 4: Original URL → Fetch Original (fetchData, cached by URL)
+ *   - Fetch the actual original reports
+ *   - Skip fetch if already fetched in L2 (direct originals)
+ *   - Framework caching means same original never fetched twice
+ *
+ * Level 5: Original Content → Report Summary (generateObject, cached by content)
+ *   - LLM analyzes original report content
+ *   - Extracts: title, summary, severity, isLLMSpecific, canonicalId
  *   - Framework caches by content - same content never analyzed twice
  *
  * WORKAROUNDS:
@@ -188,7 +203,32 @@ const LINK_EXTRACTION_SCHEMA = {
   required: ["urls", "classification"] as const,
 };
 
-// Schema for report summarization
+// Schema for classifying fetched content and extracting original report URLs
+const CONTENT_CLASSIFICATION_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    isOriginalReport: {
+      type: "boolean" as const,
+      description: "TRUE if this IS an original security report (CVE, vendor advisory, researcher disclosure). FALSE if it's a news article/blog ABOUT a security issue.",
+    },
+    originalReportUrl: {
+      type: "string" as const,
+      description: "If isOriginalReport=false, the URL to the original report this article discusses. Null if isOriginalReport=true or no clear original found.",
+    },
+    confidence: {
+      type: "string" as const,
+      enum: ["high", "medium", "low"] as const,
+      description: "Confidence in the classification",
+    },
+    briefDescription: {
+      type: "string" as const,
+      description: "One-line description of what this content is about",
+    },
+  },
+  required: ["isOriginalReport", "confidence", "briefDescription"] as const,
+};
+
+// Schema for final report summarization (used on original reports)
 const REPORT_SUMMARY_SCHEMA = {
   type: "object" as const,
   properties: {
@@ -203,9 +243,38 @@ const REPORT_SUMMARY_SCHEMA = {
       description: "TRUE if this is specifically about LLM/AI security (prompt injection, jailbreaking, etc.)",
     },
     discoveryDate: { type: "string" as const, description: "When reported (YYYY-MM or YYYY-MM-DD)" },
+    canonicalId: {
+      type: "string" as const,
+      description: "Canonical identifier: CVE-XXXX-XXXXX if available, or a descriptive slug like 'log4shell-rce'",
+    },
   },
-  required: ["title", "summary", "severity", "isLLMSpecific", "discoveryDate"] as const,
+  required: ["title", "summary", "severity", "isLLMSpecific", "discoveryDate", "canonicalId"] as const,
 };
+
+// LLM prompt for classifying content and extracting original report URLs
+const CONTENT_CLASSIFICATION_SYSTEM = `Classify this security content:
+
+ORIGINAL REPORT (isOriginalReport: true):
+- CVE details pages (nvd.nist.gov, cve.org)
+- Vendor security advisories (Microsoft MSRC, Apache advisories, etc.)
+- Security researcher disclosures (first-person: "We discovered...", "I found...")
+- GitHub security advisories
+- CISA/government advisories
+
+NEWS/BLOG ARTICLE (isOriginalReport: false):
+- News coverage of a security issue
+- Blog posts summarizing/discussing someone else's research
+- Aggregator content linking to original sources
+- Third-party analysis of a vulnerability
+
+If this is a NEWS/BLOG article, look for URLs pointing to the ORIGINAL report:
+- Links to CVE pages, vendor advisories, researcher blogs
+- "Read more", "Original report", "Advisory" links
+- Extract the most authoritative source URL
+
+Return null for originalReportUrl if:
+- This IS an original report (isOriginalReport: true)
+- No clear original source is linked`;
 
 // LLM prompt for security link extraction
 const LINK_EXTRACTION_SYSTEM = `You are analyzing content to extract SECURITY-RELATED URLs only.
@@ -385,27 +454,13 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     authCharm, // Pass through from input (link via ct charm link)
   });
 
-  // Convert Gmail emails to our Article format
-  const emailArticles = derive(importer.emails, (emails: any[]) => {
-    return emails.map((email: any) => ({
-      id: email.id,
-      title: email.subject || "No Subject",
-      source: email.from || "Unknown",
-      content: email.markdownContent || email.snippet || "",
-    }));
-  });
-
-  // Combine manual articles with email articles
-  // Manual articles take precedence (shown first)
-  const allArticles = derive(
-    { manual: articles, fromEmail: emailArticles },
-    ({ manual, fromEmail }) => [...manual, ...fromEmail]
-  );
-
-  // Count for display
-  const articleCount = derive(allArticles, (list) => list.length);
-  const emailCount = derive(emailArticles, (list) => list.length);
+  // Count for display (emails counted directly from importer)
+  const emailCount = derive(importer.emails, (list: any[]) => list.length);
   const manualCount = derive(articles, (list) => list.length);
+  const articleCount = derive(
+    { emails: importer.emails, manual: articles },
+    ({ emails, manual }) => emails.length + manual.length
+  );
 
   // ==========================================================================
   // Reports storage
@@ -414,8 +469,13 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
   // ==========================================================================
   // LEVEL 1: Extract security links from articles (the "dumb map approach")
+  // CRITICAL: Must map over reactive cell arrays, NOT derive results!
+  // - `articles` is an input cell - can map over it
+  // - `importer.emails` is a cell output from GmailImporter - can map over it
   // ==========================================================================
-  const articleExtractions = allArticles.map((article) => ({
+
+  // Process manual articles (maps over input cell - reactive!)
+  const manualArticleExtractions = articles.map((article) => ({
     articleId: article.id,
     articleTitle: article.title,
     articleSource: article.source,
@@ -426,6 +486,25 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       schema: LINK_EXTRACTION_SCHEMA,
     }),
   }));
+
+  // Process email articles (maps over GmailImporter output cell - reactive!)
+  const emailArticleExtractions = importer.emails.map((email: any) => ({
+    articleId: email.id,
+    articleTitle: email.subject || "No Subject",
+    articleSource: email.from || "Unknown",
+    extraction: generateObject<ExtractedLinks>({
+      system: LINK_EXTRACTION_SYSTEM,
+      prompt: email.markdownContent || email.snippet || "",
+      model: "anthropic:claude-sonnet-4-5",
+      schema: LINK_EXTRACTION_SCHEMA,
+    }),
+  }));
+
+  // Combine extractions from both sources for aggregation (derive is fine for read-only)
+  const articleExtractions = derive(
+    { manual: manualArticleExtractions, email: emailArticleExtractions },
+    ({ manual, email }) => [...manual, ...email]
+  );
 
   // ==========================================================================
   // Progress tracking
@@ -439,7 +518,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     list.filter((e: any) => !e.extraction?.pending).length
   );
 
-  // Collect all extracted links from completed extractions (normalized & deduped)
+  // Collect all extracted links for counting (derive is fine for read-only aggregation)
   const allExtractedLinks = derive(articleExtractions, (list) => {
     const links: string[] = [];
     const seen = new Set<string>();
@@ -450,7 +529,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           const normalized = normalizeURL(url);
           if (!seen.has(normalized)) {
             seen.add(normalized);
-            links.push(url); // Keep original URL for display
+            links.push(url);
           }
         }
       }
@@ -474,92 +553,317 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // ==========================================================================
-  // LEVEL 2: Fetch web content for each link (fetchData, framework-cached!)
-  // The framework caches fetchData results by URL + options
-  // Same URL = cached content, never fetched twice
+  // LEVELS 2-5: Process first URL from each article through the pipeline
+  // CRITICAL: Must map over cell arrays, not derive results!
+  // We map over manualArticleExtractions and emailArticleExtractions separately
   // ==========================================================================
 
-  const linkContents = allExtractedLinks.map((url) => ({
-    url,
-    // fetchData with POST to web-read API - framework caches by all inputs
-    webContent: fetchData<{ content: string; title?: string }>({
-      url: "/api/agent-tools/web-read",
-      mode: "json",
-      options: {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: { url, max_tokens: 4000, include_code: false },
-      },
-    }),
-  }));
+  // Helper: Process L2-L5 for an article extraction
+  // This is applied via .map() to both manual and email extractions
+  const processArticleUrl = (article: any) => {
+    // Get first URL from this article's extraction
+    const firstUrl = derive(article.extraction, (ext: any) => {
+      const urls = ext?.result?.urls || [];
+      return urls[0] || null;
+    });
 
-  // Count web fetch progress
-  const fetchPendingCount = derive(linkContents, (list) =>
-    list.filter((item: any) => item.webContent?.pending).length
-  );
-  const fetchCompletedCount = derive(linkContents, (list) =>
-    list.filter((item: any) => !item.webContent?.pending && item.webContent?.result).length
-  );
-  const fetchErrorCount = derive(linkContents, (list) =>
-    list.filter((item: any) => !item.webContent?.pending && item.webContent?.error).length
-  );
-
-  // ==========================================================================
-  // LEVEL 3: Summarize fetched content (generateObject, framework-cached!)
-  // The framework caches generateObject results by prompt content
-  // Same content = cached summary, LLM never called twice for same page
-  // ==========================================================================
-
-  const linkSummaries = linkContents.map((item) => ({
-    url: item.url,
-    webContent: item.webContent,
-    summary: generateObject<{
-      title: string;
-      summary: string;
-      severity: "low" | "medium" | "high" | "critical";
-      isLLMSpecific: boolean;
-      category: string;
-    }>({
-      system: REPORT_SUMMARY_SYSTEM,
-      // Use fetched content if available, otherwise fall back to URL-only analysis
-      prompt: derive(
-        { url: item.url, content: item.webContent },
-        ({ url, content }) => {
-          const pageContent = content?.result?.content;
-          if (pageContent) {
-            return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nAnalyze this security resource and provide a summary.`;
-          }
-          // Fallback if fetch failed or pending
-          return `URL: ${url}\n\nBased on this URL, determine:\n1. What type of security resource this is\n2. Likely severity\n3. Whether it's LLM-specific security`;
-        }
-      ),
-      model: "anthropic:claude-sonnet-4-5",
-      schema: {
-        type: "object" as const,
-        properties: {
-          title: { type: "string" as const, description: "Brief title for this security resource" },
-          summary: { type: "string" as const, description: "1-2 sentence summary based on content" },
-          severity: { type: "string" as const, enum: ["low", "medium", "high", "critical"] as const },
-          isLLMSpecific: { type: "boolean" as const, description: "Is this specifically about LLM/AI security?" },
-          category: { type: "string" as const, description: "Category: CVE, advisory, blog, github, docs" },
+    // L2: Fetch web content for first URL
+    const webContent = ifElse(
+      firstUrl,
+      fetchData<{ content: string; title?: string }>({
+        url: "/api/agent-tools/web-read",
+        mode: "json",
+        options: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: derive(firstUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false })),
         },
-        required: ["title", "summary", "severity", "isLLMSpecific", "category"] as const,
-      },
-    }),
-  }));
+      }),
+      null
+    );
 
-  // Count summaries progress
-  const summaryPendingCount = derive(linkSummaries, (list) =>
-    list.filter((s: any) => s.summary?.pending).length
+    // L3: Classify content
+    const classification = ifElse(
+      firstUrl,
+      generateObject<{
+        isOriginalReport: boolean;
+        originalReportUrl: string | null;
+        confidence: "high" | "medium" | "low";
+        briefDescription: string;
+      }>({
+        system: CONTENT_CLASSIFICATION_SYSTEM,
+        prompt: derive(
+          { url: firstUrl, content: webContent },
+          ({ url, content }: any) => {
+            const pageContent = content?.result?.content;
+            if (pageContent) {
+              return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
+            }
+            return `URL: ${url}\n\nClassify based on URL pattern only.`;
+          }
+        ),
+        model: "anthropic:claude-sonnet-4-5",
+        schema: CONTENT_CLASSIFICATION_SCHEMA,
+      }),
+      null
+    );
+
+    // L4: Fetch original report if this is a news article pointing to one
+    const needsOriginalFetch = derive(classification, (c: any) =>
+      c?.result && !c.result.isOriginalReport && c.result.originalReportUrl
+    );
+    const originalReportUrl = derive(classification, (c: any) => c?.result?.originalReportUrl);
+
+    const originalContent = ifElse(
+      needsOriginalFetch,
+      fetchData<{ content: string; title?: string }>({
+        url: "/api/agent-tools/web-read",
+        mode: "json",
+        options: {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: derive(originalReportUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false })),
+        },
+      }),
+      null
+    );
+
+    // L5: Summarize the final report content
+    const isOriginal = derive(classification, (c: any) => c?.result?.isOriginalReport);
+    const reportContent = ifElse(
+      isOriginal,
+      webContent,
+      originalContent
+    );
+
+    const summary = ifElse(
+      firstUrl,
+      generateObject<{
+        title: string;
+        summary: string;
+        severity: "low" | "medium" | "high" | "critical";
+        isLLMSpecific: boolean;
+        discoveryDate: string;
+        canonicalId: string;
+      }>({
+        system: REPORT_SUMMARY_SYSTEM,
+        prompt: derive(
+          { url: firstUrl, originalReportUrl, content: reportContent, isOriginal },
+          ({ url, originalReportUrl, content, isOriginal }: any) => {
+            const targetUrl = isOriginal ? url : (originalReportUrl || url);
+            const pageContent = content?.result?.content;
+            if (pageContent) {
+              return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
+            }
+            return `URL: ${targetUrl}\n\nSummarize based on URL pattern.`;
+          }
+        ),
+        model: "anthropic:claude-sonnet-4-5",
+        schema: REPORT_SUMMARY_SCHEMA,
+      }),
+      null
+    );
+
+    return {
+      articleId: article.articleId,
+      articleTitle: article.articleTitle,
+      extraction: article.extraction,
+      sourceUrl: firstUrl,
+      webContent,
+      classification,
+      originalReportUrl,
+      originalContent,
+      isOriginal,
+      summary,
+    };
+  };
+
+  // Process manual articles through L2-L5 (maps over cell - reactive!)
+  const manualUrlProcessing = manualArticleExtractions.map(processArticleUrl);
+
+  // Process email articles through L2-L5 (maps over cell - reactive!)
+  const emailUrlProcessing = emailArticleExtractions.map(processArticleUrl);
+
+  // Combine for aggregation (derive is fine for read-only operations)
+  const articleFirstUrlProcessing = derive(
+    { manual: manualUrlProcessing, email: emailUrlProcessing },
+    ({ manual, email }) => [...manual, ...email]
   );
-  const summaryCompletedCount = derive(linkSummaries, (list) =>
-    list.filter((s: any) => !s.summary?.pending).length
+
+  // Filter to only articles that have URLs for aggregation
+  const contentClassifications = derive(articleFirstUrlProcessing, (articles) => {
+    return articles.filter((a: any) => a.sourceUrl).map((a: any) => ({
+      sourceUrl: a.sourceUrl,
+      webContent: a.webContent,
+      classification: a.classification,
+      originalUrl: a.originalReportUrl,
+      originalContent: a.originalContent,
+      isOriginal: a.isOriginal,
+      summary: a.summary,
+    }));
+  });
+
+  // L2: Count web fetch progress (from articleFirstUrlProcessing)
+  const fetchPendingCount = derive(articleFirstUrlProcessing, (list) =>
+    list.filter((item: any) => item.sourceUrl && item.webContent?.pending).length
+  );
+  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) =>
+    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
+  );
+  const fetchErrorCount = derive(articleFirstUrlProcessing, (list) =>
+    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.error).length
+  );
+
+  // Count classification progress
+  const classifyPendingCount = derive(contentClassifications, (list) =>
+    list.filter((c: any) => c.classification?.pending).length
+  );
+  const classifyCompletedCount = derive(contentClassifications, (list) =>
+    list.filter((c: any) => !c.classification?.pending).length
+  );
+
+  // Count originals vs news articles
+  const originalCount = derive(contentClassifications, (list) =>
+    list.filter((c: any) => c.classification?.result?.isOriginalReport).length
+  );
+  const newsArticleCount = derive(contentClassifications, (list) =>
+    list.filter((c: any) => c.classification?.result && !c.classification.result.isOriginalReport).length
+  );
+
+  // ==========================================================================
+  // Collect deduplicated original report URLs
+  // - If content IS an original report → use its source URL
+  // - If content is news/blog → use the extracted originalReportUrl
+  // Framework caching handles the rest - same URL = same cached fetch
+  // ==========================================================================
+
+  const originalReportUrls = derive(contentClassifications, (items) => {
+    const seen = new Set<string>();
+    const urls: Array<{ url: string; sourceUrl: string; isDirectOriginal: boolean }> = [];
+
+    for (const item of items) {
+      const result = item.classification?.result;
+      if (!result) continue; // Still pending
+
+      let targetUrl: string | null = null;
+      let isDirectOriginal = false;
+
+      if (result.isOriginalReport) {
+        // This URL IS the original report
+        targetUrl = item.sourceUrl;
+        isDirectOriginal = true;
+      } else if (result.originalReportUrl) {
+        // This is a news article pointing to an original
+        targetUrl = result.originalReportUrl;
+        isDirectOriginal = false;
+      }
+
+      if (targetUrl) {
+        const normalized = normalizeURL(targetUrl);
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          urls.push({ url: targetUrl, sourceUrl: item.sourceUrl, isDirectOriginal });
+        }
+      }
+    }
+    return urls;
+  });
+
+  const uniqueOriginalCount = derive(originalReportUrls, (urls) => urls.length);
+
+  // ==========================================================================
+  // L4/L5 Progress Counters (now derived from contentClassifications)
+  // ==========================================================================
+
+  // L4: Count original fetches in progress (for news articles pointing to originals)
+  const l4PendingCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => {
+      const needsFetch = item.classification?.result &&
+        !item.classification.result.isOriginalReport &&
+        item.classification.result.originalReportUrl;
+      return needsFetch && item.originalContent?.pending;
+    }).length
+  );
+  const l4CompletedCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => {
+      const result = item.classification?.result;
+      if (!result) return false;
+      // Direct originals are "complete" (no extra fetch needed)
+      if (result.isOriginalReport) return true;
+      // News articles: complete when original is fetched
+      if (result.originalReportUrl && item.originalContent?.result) return true;
+      return false;
+    }).length
+  );
+
+  // L5: Count summaries in progress
+  const summaryPendingCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => item.summary?.pending).length
+  );
+  const summaryCompletedCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => !item.summary?.pending && item.summary?.result).length
   );
 
   // Count LLM-specific reports
-  const llmSpecificCount = derive(linkSummaries, (list) =>
-    list.filter((s: any) => s.summary?.result?.isLLMSpecific).length
+  const llmSpecificCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => item.summary?.result?.isLLMSpecific).length
   );
+
+  // ==========================================================================
+  // Deduplicated Final Reports (for display)
+  // Group by original URL, show each unique report once with all sources
+  // ==========================================================================
+  const finalReportsWithSources = derive(contentClassifications, (items) => {
+    const byOriginalUrl = new Map<string, {
+      url: string;
+      summary: any;
+      sourceRefs: string[];
+    }>();
+
+    for (const item of items) {
+      const result = item.classification?.result;
+      if (!result) continue;
+
+      // Determine the "original" URL for this item
+      let originalUrl: string;
+      if (result.isOriginalReport) {
+        originalUrl = item.sourceUrl;
+      } else if (result.originalReportUrl) {
+        originalUrl = result.originalReportUrl;
+      } else {
+        continue; // No original URL to track
+      }
+
+      const normalized = normalizeURL(originalUrl);
+      const existing = byOriginalUrl.get(normalized);
+
+      if (existing) {
+        // Add this source to existing group
+        if (!existing.sourceRefs.includes(item.sourceUrl)) {
+          existing.sourceRefs.push(item.sourceUrl);
+        }
+        // Use the first completed summary we find
+        if (!existing.summary?.result && item.summary?.result) {
+          existing.summary = item.summary;
+        }
+      } else {
+        // New unique original URL
+        byOriginalUrl.set(normalized, {
+          url: originalUrl,
+          summary: item.summary,
+          sourceRefs: [item.sourceUrl],
+        });
+      }
+    }
+
+    // Convert to array with sourceCount
+    return Array.from(byOriginalUrl.values()).map((entry) => ({
+      url: entry.url,
+      summary: entry.summary,
+      sourceRefs: entry.sourceRefs,
+      sourceCount: entry.sourceRefs.length,
+    }));
+  });
 
   // ==========================================================================
   // UI
@@ -640,7 +944,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           </div>
         </details>
 
-        {/* Status Card - Three-Level Pipeline */}
+        {/* Status Card - Five-Level Pipeline with Deduplication */}
         <div style={{
           padding: "16px",
           background: "#f8fafc",
@@ -650,65 +954,103 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         }}>
           {/* Pipeline Progress */}
           <div style={{ fontSize: "11px", color: "#666", marginBottom: "12px", fontWeight: "500" }}>
-            THREE-LEVEL CACHING PIPELINE
+            FIVE-LEVEL PIPELINE WITH REPORT DEDUPLICATION
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "12px", flexWrap: "wrap" }}>
             {/* Level 1: Article Extraction */}
             <div style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
               background: pendingCount > 0 ? "#fef3c7" : "#d1fae5",
               borderRadius: "6px",
               border: `1px solid ${pendingCount > 0 ? "#fcd34d" : "#6ee7b7"}`,
             }}>
-              <div style={{ fontSize: "11px", color: "#666" }}>L1: Extract</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+              <div style={{ fontSize: "10px", color: "#666" }}>L1: Extract</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
                 {completedCount}/{articleCount}
               </div>
             </div>
-            <span style={{ color: "#9ca3af" }}>→</span>
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
             {/* Level 2: Web Fetch */}
             <div style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
               background: fetchPendingCount > 0 ? "#fef3c7" : fetchErrorCount > 0 ? "#fee2e2" : "#dbeafe",
               borderRadius: "6px",
               border: `1px solid ${fetchPendingCount > 0 ? "#fcd34d" : fetchErrorCount > 0 ? "#fca5a5" : "#93c5fd"}`,
             }}>
-              <div style={{ fontSize: "11px", color: "#666" }}>L2: Fetch</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+              <div style={{ fontSize: "10px", color: "#666" }}>L2: Fetch</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
                 {fetchCompletedCount}/{linkCount}
-                {fetchErrorCount > 0 && <span style={{ color: "#dc2626", marginLeft: "4px" }}>({fetchErrorCount} err)</span>}
               </div>
             </div>
-            <span style={{ color: "#9ca3af" }}>→</span>
-            {/* Level 3: Summarize */}
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
+            {/* Level 3: Classify */}
             <div style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
+              background: classifyPendingCount > 0 ? "#fef3c7" : "#e0e7ff",
+              borderRadius: "6px",
+              border: `1px solid ${classifyPendingCount > 0 ? "#fcd34d" : "#a5b4fc"}`,
+            }}>
+              <div style={{ fontSize: "10px", color: "#666" }}>L3: Classify</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                {classifyCompletedCount}/{linkCount}
+              </div>
+            </div>
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
+            {/* Deduplication indicator */}
+            <div style={{
+              padding: "6px 10px",
+              background: "#fef9c3",
+              borderRadius: "6px",
+              border: "1px solid #fde047",
+            }}>
+              <div style={{ fontSize: "10px", color: "#666" }}>Dedupe</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                {linkCount}→{uniqueOriginalCount}
+              </div>
+            </div>
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
+            {/* Level 4: Fetch Originals */}
+            <div style={{
+              padding: "6px 10px",
+              background: l4PendingCount > 0 ? "#fef3c7" : "#d1fae5",
+              borderRadius: "6px",
+              border: `1px solid ${l4PendingCount > 0 ? "#fcd34d" : "#6ee7b7"}`,
+            }}>
+              <div style={{ fontSize: "10px", color: "#666" }}>L4: Fetch</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                {l4CompletedCount}/{uniqueOriginalCount}
+              </div>
+            </div>
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
+            {/* Level 5: Summarize */}
+            <div style={{
+              padding: "6px 10px",
               background: summaryPendingCount > 0 ? "#fef3c7" : "#f3e8ff",
               borderRadius: "6px",
               border: `1px solid ${summaryPendingCount > 0 ? "#fcd34d" : "#c4b5fd"}`,
             }}>
-              <div style={{ fontSize: "11px", color: "#666" }}>L3: Summarize</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                {summaryCompletedCount}/{linkCount}
+              <div style={{ fontSize: "10px", color: "#666" }}>L5: Summary</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>
+                {summaryCompletedCount}/{uniqueOriginalCount}
               </div>
             </div>
-            <span style={{ color: "#9ca3af" }}>→</span>
+            <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
             {/* Final: LLM-specific */}
             <div style={{
-              padding: "8px 12px",
+              padding: "6px 10px",
               background: "#fce7f3",
               borderRadius: "6px",
               border: "1px solid #f9a8d4",
             }}>
-              <div style={{ fontSize: "11px", color: "#666" }}>🤖 LLM-specific</div>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>{llmSpecificCount}</div>
+              <div style={{ fontSize: "10px", color: "#666" }}>LLM</div>
+              <div style={{ fontSize: "14px", fontWeight: "bold" }}>{llmSpecificCount}</div>
             </div>
           </div>
           {/* Classification breakdown */}
-          <div style={{ fontSize: "11px", color: "#666", display: "flex", gap: "12px" }}>
-            <span>🔬 {derive(classificationCounts, c => c["is-original-report"])} original</span>
-            <span>🔗 {derive(classificationCounts, c => c["has-security-links"])} with links</span>
-            <span>⬜ {derive(classificationCounts, c => c["no-security-links"])} no links</span>
+          <div style={{ fontSize: "11px", color: "#666", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <span>🔬 {originalCount} direct originals</span>
+            <span>📰 {newsArticleCount} news articles</span>
+            <span>📊 {uniqueOriginalCount} unique reports</span>
           </div>
         </div>
 
@@ -769,51 +1111,63 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
           ))}
         </div>
 
-        {/* Report Summaries - Level 2 LLM extraction */}
-        {linkCount > 0 && (
+        {/* Deduplicated Original Reports - Final Output */}
+        {uniqueOriginalCount > 0 && (
           <div style={{ marginTop: "24px" }}>
             <h3>
-              Security Report Summaries ({summaryCompletedCount}/{linkCount})
+              Original Security Reports ({summaryCompletedCount}/{uniqueOriginalCount})
               {summaryPendingCount > 0 && <span style={{ color: "#f59e0b", marginLeft: "8px" }}>⏳ {summaryPendingCount} processing...</span>}
             </h3>
             <div style={{ fontSize: "11px", color: "#666", marginBottom: "8px" }}>
-              🤖 {llmSpecificCount} LLM-specific reports found
+              Deduplicated from {linkCount} source URLs. 🤖 {llmSpecificCount} LLM-specific.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {linkSummaries.map((item) => (
+              {finalReportsWithSources.map((item) => (
                 <div style={{
                   padding: "12px",
-                  background: item.summary.pending ? "#fef3c7" :
-                    item.summary.result?.isLLMSpecific ? "#fce7f3" :
-                    item.summary.result?.severity === "critical" ? "#fee2e2" :
-                    item.summary.result?.severity === "high" ? "#ffedd5" :
+                  background: item.summary?.pending ? "#fef3c7" :
+                    item.summary?.result?.isLLMSpecific ? "#fce7f3" :
+                    item.summary?.result?.severity === "critical" ? "#fee2e2" :
+                    item.summary?.result?.severity === "high" ? "#ffedd5" :
                     "#f0fdf4",
                   borderRadius: "6px",
-                  border: `1px solid ${item.summary.pending ? "#fcd34d" :
-                    item.summary.result?.isLLMSpecific ? "#f9a8d4" :
-                    item.summary.result?.severity === "critical" ? "#fca5a5" :
-                    item.summary.result?.severity === "high" ? "#fdba74" :
+                  border: `1px solid ${item.summary?.pending ? "#fcd34d" :
+                    item.summary?.result?.isLLMSpecific ? "#f9a8d4" :
+                    item.summary?.result?.severity === "critical" ? "#fca5a5" :
+                    item.summary?.result?.severity === "high" ? "#fdba74" :
                     "#86efac"}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
-                    {item.summary.pending ? (
+                    {item.summary?.pending ? (
                       <span>⏳ Analyzing...</span>
                     ) : (
                       <>
-                        <span style={{ fontWeight: "600" }}>{item.summary.result?.title || "Unknown"}</span>
+                        <span style={{ fontWeight: "600" }}>{item.summary?.result?.title || "Unknown"}</span>
+                        {item.summary?.result?.canonicalId && (
+                          <span style={{
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#4b5563",
+                            color: "white",
+                            fontFamily: "monospace",
+                          }}>
+                            {item.summary.result.canonicalId}
+                          </span>
+                        )}
                         <span style={{
                           fontSize: "10px",
                           padding: "2px 6px",
                           borderRadius: "4px",
-                          background: item.summary.result?.severity === "critical" ? "#dc2626" :
-                                     item.summary.result?.severity === "high" ? "#ea580c" :
-                                     item.summary.result?.severity === "medium" ? "#ca8a04" :
+                          background: item.summary?.result?.severity === "critical" ? "#dc2626" :
+                                     item.summary?.result?.severity === "high" ? "#ea580c" :
+                                     item.summary?.result?.severity === "medium" ? "#ca8a04" :
                                      "#16a34a",
                           color: "white",
                         }}>
-                          {item.summary.result?.severity?.toUpperCase()}
+                          {item.summary?.result?.severity?.toUpperCase()}
                         </span>
-                        {item.summary.result?.isLLMSpecific && (
+                        {item.summary?.result?.isLLMSpecific && (
                           <span style={{
                             fontSize: "10px",
                             padding: "2px 6px",
@@ -821,29 +1175,44 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                             background: "#db2777",
                             color: "white",
                           }}>
-                            🤖 LLM
+                            LLM
                           </span>
                         )}
-                        <span style={{
-                          fontSize: "10px",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          background: "#6b7280",
-                          color: "white",
-                        }}>
-                          {item.summary.result?.category}
-                        </span>
+                        {item.sourceCount > 1 && (
+                          <span style={{
+                            fontSize: "10px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            background: "#0891b2",
+                            color: "white",
+                          }}>
+                            {item.sourceCount} refs
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
-                  {!item.summary.pending && item.summary.result?.summary && (
+                  {!item.summary?.pending && item.summary?.result?.summary && (
                     <div style={{ fontSize: "12px", color: "#374151", marginBottom: "4px" }}>
                       {item.summary.result.summary}
                     </div>
                   )}
-                  <div style={{ fontSize: "11px", color: "#6b7280" }}>
+                  <div style={{ fontSize: "11px", color: "#6b7280", marginBottom: "4px" }}>
                     <a href={item.url} target="_blank" style={{ color: "#2563eb" }}>{item.url}</a>
                   </div>
+                  {/* Show sources that referenced this report */}
+                  {item.sourceCount > 1 && (
+                    <details style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                      <summary style={{ cursor: "pointer" }}>
+                        Referenced by {item.sourceCount} source URLs
+                      </summary>
+                      <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+                        {item.sourceRefs?.map((src: string) => (
+                          <li><a href={src} target="_blank" style={{ color: "#6b7280" }}>{src}</a></li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
               ))}
             </div>
@@ -851,9 +1220,11 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         )}
       </div>
     ),
-    articles: allArticles,
+    articles: articleExtractions,
     extractedLinks: allExtractedLinks,
-    linkSummaries,
+    contentClassifications,
+    originalReportUrls,
+    finalReportsWithSources,
     emails: importer.emails,
   };
 });
