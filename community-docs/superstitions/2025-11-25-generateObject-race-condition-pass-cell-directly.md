@@ -153,3 +153,26 @@ To verify this superstition:
 ---
 
 **Remember:** This is a hypothesis based on one successful fix. The actual root cause may be different!
+
+---
+
+## ⚠️ CONFLICTING EVIDENCE (Nov 29, 2025)
+
+**Later testing in `prompt-injection-tracker-v3` showed the OPPOSITE:**
+
+```typescript
+// Direct access: .result is UNDEFINED
+prompt: article.content,
+
+// With derive(): .result is POPULATED (even if empty array)
+prompt: derive(article, (a) => a?.content ?? ""),
+```
+
+**The original "race condition" diagnosis may have been wrong.** The actual issue might have been:
+1. Something else in the pattern causing the stuck state
+2. A framework bug that has since been fixed
+3. Misattribution of the root cause
+
+**Recommendation:** Try using `derive()` first. If you see race condition symptoms (stuck pending, Frame mismatch errors), then try direct Cell access as a fallback.
+
+See: `2025-11-29-llm-derive-for-template-string-prompts.md` for the newer findings.
