@@ -88,55 +88,43 @@ const extractions = articles.map((article) => ({
 - [x] Start with hardcoded test articles (no Gmail yet)
 - [x] Verify basic map + generateObject flow works
 
-**Result:** Deployed and working! Test articles with real URLs added.
+**Result:** FULLY WORKING! URL extraction functional.
 - 5 test articles processed correctly
-- All 5 show "Completed" status with checkmarks
-- Map+generateObject pattern confirmed working
-- Added real security URLs (NVD, OWASP, heartbleed.com, etc.)
+- 12 total URLs extracted successfully
+- Real security URLs extracted (NVD, OWASP, heartbleed.com, CISA, etc.)
 
-**Key learnings documented:**
+**CRITICAL FINDING: Empty Array + Handler Pattern**
 
-1. **Need `derive()` for prompt parameter** - Direct `article.content` returns undefined `.result`
+The key breakthrough: **Use empty array default + handler to load data, NOT pre-populated defaults.**
+
 ```typescript
-// DOESN'T WORK - result is undefined
-prompt: article.content,
+// ❌ BROKEN: Pre-populated default - .result is UNDEFINED
+interface Input {
+  articles: Default<Article[], typeof TEST_ARTICLES>;
+}
 
-// WORKS - result has data (even if empty array)
-prompt: derive(article, (a) => a?.content ?? ""),
+// ✅ WORKS: Empty array + handler - .result has data
+interface Input {
+  articles: Default<Article[], []>;
+}
+
+const loadArticles = handler<unknown, { articles: Cell<Article[]> }>(
+  (_event, { articles }) => {
+    for (const article of TEST_ARTICLES) {
+      articles.push(article);
+    }
+  }
+);
 ```
 
-2. **Template strings in prompts cause "opaque value" error**
-```typescript
-// ERROR: Tried to directly access an opaque value
-prompt: `Text: ${article.content}`,
+**Why:** Items added via handler go through the reactive system properly, wiring up generateObject results. Pre-populated defaults bypass this.
 
-// WORKS: Wrap in derive()
-prompt: derive(article, (a) => `Text: ${a?.content ?? ""}`),
-```
+See: `community-docs/superstitions/2025-11-29-generateObject-empty-array-handler-pattern.md`
 
-3. **completedCount checking `.result` fails** - Check `!pending` instead
-```typescript
-// DOESN'T WORK - result may be undefined even when done
-list.filter((e) => e.extraction?.result && !e.extraction?.pending).length
-
-// WORKS
-list.filter((e) => !e.extraction?.pending).length
-```
-
-**Remaining issue:** LLM returns `{"securityReportLinks":[]}` for all articles.
-- Articles have real URLs (verified in test data)
-- Prompt content may not be passed correctly via derive()
-- Needs more investigation or framework author guidance
-
-**CONFLICTING SUPERSTITIONS DISCOVERED:**
-- `2025-11-25-generateObject-race-condition-pass-cell-directly.md`: DON'T use derive()
-- Our testing: MUST use derive() or result is undefined
-
-The difference may be context:
-- Race condition: user input cells, typing triggers calls
-- Our case: static data in .map(), no user input
-
-Need framework author to clarify when derive() helps vs hurts.
+**Other learnings:**
+- Check `!pending` for completion, not `.result`
+- Direct `item.content` access works with empty array + handler pattern
+- Template strings in prompts need derive() to avoid "opaque value" error
 
 ### Phase 2: Add Gmail Integration
 
