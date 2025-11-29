@@ -106,7 +106,6 @@
 import {
   Cell,
   cell,
-  computed,
   Default,
   derive,
   fetchData,
@@ -559,6 +558,11 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   const linkCount = derive(allExtractedLinks, (links) => links.length);
   const reportCount = derive(reports, (list: PromptInjectionReport[]) => list.length);
 
+  // Count articles that have at least one URL (used for L2/L3 metrics)
+  const articlesWithUrlsCount = derive(articleExtractions, (list) =>
+    list.filter((e: any) => e.extraction?.result?.urls?.length > 0).length
+  );
+
   // Count by classification
   const classificationCounts = derive(articleExtractions, (list) => {
     const counts: Record<string, number> = { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 };
@@ -815,12 +819,9 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     }).length
   );
 
-  // L5: Count summaries in progress
+  // L5: Count summaries in progress (per article)
   const summaryPendingCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => item.summary?.pending).length
-  );
-  const summaryCompletedCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => !item.summary?.pending && item.summary?.result).length
   );
 
   // Count LLM-specific reports
@@ -885,15 +886,28 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     }));
   });
 
-  // Count unread reports (reports not in readUrls array)
-  const unreadCount = derive(
+  // Add isRead flag to reports (computed once, not in render loop!)
+  const finalReportsWithReadState = derive(
     { reports: finalReportsWithSources, read: readUrls },
     ({ reports, read }: { reports: any[]; read: string[] }) => {
-      return reports.filter((r: any) => !read.includes(normalizeURL(r.url))).length;
+      return reports.map((r: any) => ({
+        ...r,
+        isRead: read.includes(normalizeURL(r.url)),
+      }));
     }
   );
 
+  // Count unread reports (reports not in readUrls array)
+  const unreadCount = derive(finalReportsWithReadState, (reports) =>
+    reports.filter((r: any) => !r.isRead).length
+  );
+
   const totalReportCount = derive(finalReportsWithSources, (reports) => reports.length);
+
+  // L5: Count unique reports with completed summaries (deduplicated)
+  const reportsWithSummaryCount = derive(finalReportsWithSources, (reports) =>
+    reports.filter((r: any) => r.summary?.result && !r.summary.pending).length
+  );
 
   // ==========================================================================
   // UI
@@ -1009,7 +1023,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L2: Fetch</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {fetchCompletedCount}/{linkCount}
+                {fetchCompletedCount}/{articlesWithUrlsCount}
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
@@ -1022,7 +1036,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L3: Classify</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {classifyCompletedCount}/{linkCount}
+                {classifyCompletedCount}/{articlesWithUrlsCount}
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
@@ -1061,7 +1075,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L5: Summary</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {summaryCompletedCount}/{uniqueOriginalCount}
+                {reportsWithSummaryCount}/{uniqueOriginalCount}
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
@@ -1145,7 +1159,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         {uniqueOriginalCount > 0 && (
           <div style={{ marginTop: "24px" }}>
             <h3 style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <span>Original Security Reports ({summaryCompletedCount}/{uniqueOriginalCount})</span>
+              <span>Original Security Reports ({reportsWithSummaryCount}/{uniqueOriginalCount})</span>
               {unreadCount > 0 && (
                 <span style={{
                   fontSize: "12px",
@@ -1164,11 +1178,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
               Deduplicated from {linkCount} source URLs. 🤖 {llmSpecificCount} LLM-specific.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {finalReportsWithSources.map((item) => {
-                // Check if this report is read
-                const isRead = computed(() => readUrls.get().includes(normalizeURL(item.url)));
-
-                return (
+              {finalReportsWithReadState.map((item) => (
                 <div style={{
                   padding: "12px",
                   background: item.summary?.pending ? "#fef3c7" :
@@ -1182,7 +1192,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                     item.summary?.result?.severity === "critical" ? "#fca5a5" :
                     item.summary?.result?.severity === "high" ? "#fdba74" :
                     "#86efac"}`,
-                  opacity: isRead ? 0.6 : 1,
+                  opacity: item.isRead ? 0.6 : 1,
                   transition: "opacity 0.2s ease",
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
@@ -1197,15 +1207,15 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                         cursor: "pointer",
                         opacity: 0.7,
                       }}
-                      title={isRead ? "Mark as unread" : "Mark as read"}
+                      title={item.isRead ? "Mark as unread" : "Mark as read"}
                     >
-                      {isRead ? "✓" : "○"}
+                      {item.isRead ? "✓" : "○"}
                     </button>
                     {item.summary?.pending ? (
                       <span>⏳ Analyzing...</span>
                     ) : (
                       <>
-                        <span style={{ fontWeight: isRead ? "400" : "600" }}>{item.summary?.result?.title || "Unknown"}</span>
+                        <span style={{ fontWeight: item.isRead ? "400" : "600" }}>{item.summary?.result?.title || "Unknown"}</span>
                         {item.summary?.result?.canonicalId && (
                           <span style={{
                             fontSize: "10px",
@@ -1277,8 +1287,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
                     </details>
                   )}
                 </div>
-              );
-              })}
+              ))}
             </div>
           </div>
         )}
