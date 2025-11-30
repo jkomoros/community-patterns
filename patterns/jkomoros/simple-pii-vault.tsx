@@ -14,6 +14,13 @@ interface InputSchema {
   entries: Default<PIIEntry[], []>;
 }
 
+// Result schema with tag for wish discovery
+interface ResultSchema {
+  title: string;
+  entries: PIIEntry[];
+  resultDescription: "#pii-vault - Sensitive PII entries for redaction";
+}
+
 // Category display info
 const CATEGORY_INFO: Record<PIICategory, { label: string; placeholder: string }> = {
   name: { label: "Name", placeholder: "John Smith" },
@@ -213,5 +220,7 @@ export default pattern<InputSchema>(({ title, entries }) => {
     ),
     title,
     entries,
+    // Tag for wish discovery - allows redactor to find this vault
+    resultDescription: "#pii-vault - Sensitive PII entries for redaction",
   };
 });
