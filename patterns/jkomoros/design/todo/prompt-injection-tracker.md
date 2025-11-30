@@ -181,15 +181,39 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 
 **Current Status:**
 - Root cause IDENTIFIED ✅
-- Fix NOT yet implemented (needs decision on how to count errors)
-- Instrumented pattern deployed for further testing
+- Fix IMPLEMENTED ✅ (commit 5e07160)
+- Tested with 5 articles: L2 now shows "1/4 ⚠️3" correctly
+- Page refresh test: **NEW ISSUES FOUND** (see Session 3 below)
 
 ### Next Steps
 
 1. ~~**Decide on counter semantics:**~~ → **Option C chosen**: Show separate counts
-2. ~~**Implement the fix** for L2 counter~~ → **DONE** in this session
-3. **Verify fix** with test data and page refresh
-4. **Test caching behavior** after fix - does cache load correctly?
+2. ~~**Implement the fix** for L2 counter~~ → **DONE** (commit 5e07160)
+3. ~~**Verify fix** with test data~~ → **DONE** - L2 counter works correctly
+4. **Investigate page refresh issues** - See Session 3 findings below
+
+### 🟡 NEW ISSUE: Page Refresh Instability
+
+**Nov 29, 2025 - Session 3 Findings:**
+
+After page refresh, observed:
+- **L1: 5/5** ✅ - Articles preserved correctly
+- **L2: 3/4** - No error indicator (some fetches succeeded on retry?)
+- **L3: 0/4** ❌ - Classifications not counting after refresh
+- **Dedupe: 11→0** ❌ - Not flowing through to later stages
+- **"Too many iterations: 101 action"** error - Reactivity loop detected
+- **Many storage transaction failures** - Framework struggling with concurrent updates
+- **TypeError: Cannot read properties of undefined (reading 'sourceUrl')** - Array items undefined during hydration
+
+**Hypothesis:** During page refresh/hydration, the mapped arrays have undefined items temporarily, causing:
+1. Counter derives to fail with TypeError
+2. Reactivity loop as framework tries to recover
+3. Transaction failures from too many concurrent writes
+
+**Potential fixes:**
+- Add null checks in counter derives: `list.filter((item: any) => item && item.sourceUrl && ...)`
+- Investigate if this is a framework-level issue with map hydration
+- May need to debounce or batch counter updates
 
 ### Future: Retry Failed Fetches
 
@@ -203,6 +227,7 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 - Pattern: `patterns/jkomoros/prompt-injection-tracker-v3.tsx`
 - TODO: `patterns/jkomoros/design/todo/prompt-injection-tracker.md` (this file)
 - Related commits:
+  - 5e07160: Fix L2 counter to show success/error counts separately
   - a59cc38: Fix LLM returning "null" string instead of actual null for URLs
   - 6529af6: Fix pipeline metrics and reactivity loop from computed() inside map
 
