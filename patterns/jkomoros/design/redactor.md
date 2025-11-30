@@ -1,5 +1,18 @@
 # Redactor Pattern Design
 
+## Implementation Progress
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Simple PII Vault (`simple-pii-vault.tsx`) | ✅ Done | UI for managing PII entries by category |
+| Canonicalization algorithm | 🔄 In Progress | |
+| PII matching with evasion resistance | ⏳ Pending | |
+| Nonce generation per category | ⏳ Pending | |
+| Redactor pattern | ⏳ Pending | Will consume vault, provide redact/restore |
+| End-to-end testing | ⏳ Pending | |
+
+---
+
 ## Overview
 
 The Redactor pattern provides a privacy-preserving layer between sensitive user data and untrusted systems (primarily LLMs). It accepts a structured list of PII (Personally Identifying Information), redacts that PII from outgoing text by replacing it with realistic-looking nonces, and restores the original PII when responses come back.
