@@ -131,6 +131,7 @@ Folk wisdom is organized by topic in consolidated files:
 - `llm.md` - LLM integration
 - `deployment.md` - Deployment and tooling
 - `debugging.md` - Debugging strategies
+- `background-execution.md` - Background sync, OAuth, server-side execution
 
 Each file contains multiple entries, sorted by star rating (highest first).
 
