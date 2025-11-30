@@ -5,11 +5,28 @@
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Simple PII Vault (`simple-pii-vault.tsx`) | ✅ Done | UI for managing PII entries by category |
-| Canonicalization algorithm | 🔄 In Progress | |
-| PII matching with evasion resistance | ⏳ Pending | |
-| Nonce generation per category | ⏳ Pending | |
-| Redactor pattern | ⏳ Pending | Will consume vault, provide redact/restore |
-| End-to-end testing | ⏳ Pending | |
+| Canonicalization algorithm | ✅ Done | NFKC, confusables, strip whitespace/punctuation |
+| PII matching with evasion resistance | ✅ Done | Word boundary checking, position mapping |
+| Nonce generation per category | ✅ Done | Realistic pools per category |
+| Redactor pattern (`redactor.tsx`) | ✅ Done | Full redact/restore with session state |
+| End-to-end testing | ✅ Done | See Test Results section below |
+
+## Test Results
+
+### Basic Redaction & Restore
+- ✅ "Alex Komoros" → "Alice Anderson" (name category)
+- ✅ "alex@example.com" → "alice0@example.com" (email category)
+- ✅ Restore correctly reverses nonces back to original PII
+
+### Evasion Resistance
+- ✅ "A l e x  K o m o r o s" (spaced) → correctly redacted
+- ✅ "a.l.e.x@example.com" (punctuated) → correctly redacted
+- ✅ "A_L_E_X@example.com" (underscored) → correctly redacted
+- ⚠️ Extreme obfuscation (mixed symbols like "A~L.E*X--K%O%M%O%R%O%S") partially works
+
+### Known Limitations
+- Partial matches in heavily obfuscated text may not all be caught
+- Auto-split name parts match independently (may replace "Alex" and "Komoros" separately)
 
 ---
 
