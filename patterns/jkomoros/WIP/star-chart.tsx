@@ -258,10 +258,12 @@ export default pattern<StarChartInput, StarChartOutput>(
                   {ifElse(
                     record.earned,
                     <div
+                      className="magical-star"
                       style={{
                         fontSize: "32px",
                         lineHeight: "1",
-                        filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.4))",
+                        filter: "drop-shadow(0 0 8px rgba(251, 191, 36, 0.6))",
+                        animation: "shimmer 3s ease-in-out infinite, jiggle 2s ease-in-out infinite",
                       }}
                     >
                       ⭐
@@ -280,6 +282,37 @@ export default pattern<StarChartInput, StarChartOutput>(
               ))}
             </div>
           </div>
+
+          {/* CSS Animations for magical stars */}
+          <style>{`
+            @keyframes shimmer {
+              0%, 100% {
+                filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+              }
+              50% {
+                filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.9)) brightness(1.1);
+              }
+            }
+
+            @keyframes jiggle {
+              0%, 100% {
+                transform: rotate(-3deg);
+              }
+              25% {
+                transform: rotate(2deg);
+              }
+              50% {
+                transform: rotate(-2deg);
+              }
+              75% {
+                transform: rotate(3deg);
+              }
+            }
+
+            .magical-star {
+              display: inline-block;
+            }
+          `}</style>
         </ct-screen>
       ),
       goalName,
