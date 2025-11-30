@@ -227,12 +227,12 @@ Adapt from reward-spinner:
 - [x] Basic star placement on tap
 - [x] Clear instructions for parent/child
 
-### Phase 3: Magical Stars
-- [ ] Random rotation per star (-15° to +15°, stored in record)
-- [ ] Golden shimmer CSS animation
-- [ ] Subtle jiggle animation
-- [ ] Glow/shadow effect
-- [ ] Sparkle burst on placement (adapt from reward-spinner)
+### Phase 3: Magical Stars ✅
+- [x] Random rotation per star (-15° to +15°, stored in record)
+- [x] Golden shimmer CSS animation
+- [x] Subtle jiggle animation
+- [x] Glow/shadow effect
+- [ ] Sparkle burst on placement (adapt from reward-spinner) - deferred
 
 ### Phase 4: Streak System
 - [ ] Current streak calculation
@@ -266,4 +266,21 @@ Adapt from reward-spinner:
 
 ## Session Notes
 
-*Track progress and learnings here during development*
+### 2025-11-30 - Debug Refactoring
+
+**Changed debug approach from embedded panel to linked charm:**
+- Removed embedded debug panel (toggle button, date picker, clear data button)
+- Added `debugDate` input that can be linked to external date picker charm
+- Added documentation in pattern comments explaining how to use linked charms for debugging
+- This keeps the UI clean for end users while allowing debugging via CLI
+
+**Key insight about computed() vs Cells:**
+- Inside `computed()`, Cells use `.get()` to access values: `days.get()`
+- Inside `computed()`, other computed values are accessed directly (no `.get()`): `effectiveToday as unknown as string`
+- Cast to unknown then to target type for TypeScript when accessing computed values
+
+**Phases 1-3 complete:**
+- Core structure with vertical timeline
+- Two-step award flow (parent enables, child places)
+- Magical star effects (shimmer, jiggle, glow via CSS animations)
+- Sparkle burst animation deferred for later
