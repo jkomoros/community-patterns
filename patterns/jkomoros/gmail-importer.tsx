@@ -88,7 +88,18 @@ type Settings = {
   limit: Default<number, 100>;
   // Gmail history ID for incremental sync
   historyId: Default<string, "">;
+  // Enable verbose console logging for debugging
+  debugMode: Default<boolean, false>;
 };
+
+// Debug logging helper - only logs when debugMode is true
+let DEBUG_MODE = false;
+function debugLog(...args: unknown[]) {
+  if (DEBUG_MODE) console.log(...args);
+}
+function debugWarn(...args: unknown[]) {
+  if (DEBUG_MODE) console.warn(...args);
+}
 
 const updateLimit = handler<
   { detail: { value: string } },
@@ -129,7 +140,7 @@ class GmailClient {
       refreshToken: this.auth.get().refreshToken,
     };
 
-    console.log("refreshAuthToken", body);
+    debugLog("refreshAuthToken", body);
 
     const res = await fetch(
       new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
@@ -187,10 +198,10 @@ class GmailClient {
       url.searchParams.set("labelId", labelId);
     }
 
-    console.log("[GmailClient] Fetching history from:", url.toString());
+    debugLog("[GmailClient] Fetching history from:", url.toString());
     const res = await this.googleRequest(url);
     const json = await res.json();
-    console.log("[GmailClient] History API returned:", {
+    debugLog("[GmailClient] History API returned:", {
       historyId: json.historyId,
       historyCount: json.history?.length || 0,
       hasNextPageToken: !!json.nextPageToken,
@@ -213,7 +224,7 @@ class GmailClient {
     if (
       !json || !("messages" in json) || !Array.isArray(json.messages)
     ) {
-      console.log(`No messages found in response: ${JSON.stringify(json)}`);
+      debugLog(`No messages found in response: ${JSON.stringify(json)}`);
       return [];
     }
     return json.messages;
@@ -223,7 +234,7 @@ class GmailClient {
     messages: { id: string }[],
   ): Promise<any[]> {
     const boundary = `batch_${Math.random().toString(36).substring(2)}`;
-    console.log("Processing batch with boundary", boundary);
+    debugLog("Processing batch with boundary", boundary);
 
     const batchBody = messages.map((message, index) => `
 --${boundary}
@@ -236,7 +247,7 @@ Accept: application/json
 
 `).join("") + `--${boundary}--`;
 
-    console.log("Sending batch request for", messages.length, "messages");
+    debugLog("Sending batch request for", messages.length, "messages");
 
     const batchResponse = await this.googleRequest(
       new URL(
@@ -252,7 +263,7 @@ Accept: application/json
     );
 
     const responseText = await batchResponse.text();
-    console.log("Received batch response of length:", responseText.length);
+    debugLog("Received batch response of length:", responseText.length);
 
     const HTTP_RES_REGEX = /HTTP\/\d\.\d (\d\d\d) ([^\n]*)/;
     const parts = responseText.split(`--batch_`)
@@ -278,7 +289,7 @@ Accept: application/json
               httpStatus = 0;
             }
             if (httpStatus > 0 && httpStatus >= 400) {
-              console.warn(
+              debugWarn(
                 `Non-successful HTTP status code (${httpStatus}) returned in multipart response: ${httpMessage}`,
               );
               return null;
@@ -287,13 +298,13 @@ Accept: application/json
           const jsonContent = part.slice(jsonStart).trim();
           return JSON.parse(jsonContent);
         } catch (error) {
-          console.error("Error parsing part:", error);
+          if (DEBUG_MODE) console.error("Error parsing part:", error);
           return null;
         }
       })
       .filter((part) => part !== null);
 
-    console.log("Found", parts.length, "parts in response");
+    debugLog("Found", parts.length, "parts in response");
     return parts;
   }
 
@@ -348,11 +359,11 @@ Accept: application/json
 
     // Allow all 2xx status
     if (ok) {
-      console.log(`${url}: ${status} ${statusText}`);
+      debugLog(`${url}: ${status} ${statusText}`);
       return res;
     }
 
-    console.warn(
+    debugWarn(
       `${url}: ${status} ${statusText}`,
       `Remaining retries: ${retries}`,
     );
@@ -366,7 +377,7 @@ Accept: application/json
       await this.refreshAuth();
     } else if (status === 429) {
       this.delay += this.delayIncrement;
-      console.log(`Incrementing delay to ${this.delay}`);
+      debugLog(`Incrementing delay to ${this.delay}`);
       await sleep(this.delay);
     }
     return this.googleRequest(url, _options, retries - 1);
@@ -380,20 +391,24 @@ const googleUpdater = handler<unknown, {
     gmailFilterQuery: string;
     limit: number;
     historyId: string;
+    debugMode: boolean;
   }>;
 }>(
   async (_event, state) => {
-    console.log("googleUpdater!");
+    // Update global debug mode from settings
+    DEBUG_MODE = state.settings.get().debugMode || false;
+
+    debugLog("googleUpdater!");
 
     if (!state.auth.get().token) {
-      console.warn("no token found in auth cell");
+      debugWarn("no token found in auth cell");
       return;
     }
 
     const settings = state.settings.get();
     const gmailFilterQuery = settings.gmailFilterQuery;
 
-    console.log("gmailFilterQuery", gmailFilterQuery);
+    debugLog("gmailFilterQuery", gmailFilterQuery);
 
     const result = await process(
       state.auth,
@@ -406,7 +421,7 @@ const googleUpdater = handler<unknown, {
 
     // Handle deleted emails
     if (result.deletedEmailIds && result.deletedEmailIds.length > 0) {
-      console.log(`Removing ${result.deletedEmailIds.length} deleted messages`);
+      debugLog(`Removing ${result.deletedEmailIds.length} deleted messages`);
       const deleteSet = new Set(result.deletedEmailIds);
       const currentEmails = state.emails.get();
       const remainingEmails = currentEmails.filter((email) =>
@@ -417,22 +432,22 @@ const googleUpdater = handler<unknown, {
 
     // Add new emails
     if (result.newEmails && result.newEmails.length > 0) {
-      console.log(`Adding ${result.newEmails.length} new emails`);
+      debugLog(`Adding ${result.newEmails.length} new emails`);
       state.emails.push(...result.newEmails);
     }
 
     // Update historyId
     if (result.newHistoryId) {
       const currentSettings = state.settings.get();
-      console.log("=== UPDATING HISTORY ID ===");
-      console.log("Previous historyId:", currentSettings.historyId || "none");
-      console.log("New historyId:", result.newHistoryId);
+      debugLog("=== UPDATING HISTORY ID ===");
+      debugLog("Previous historyId:", currentSettings.historyId || "none");
+      debugLog("New historyId:", result.newHistoryId);
       state.settings.set({
         ...currentSettings,
         historyId: result.newHistoryId,
       });
-      console.log("HistoryId updated successfully");
-      console.log("==========================");
+      debugLog("HistoryId updated successfully");
+      debugLog("==========================");
     }
   },
 );
@@ -468,17 +483,17 @@ function messageToEmail(
   return parts.map((messageData, index) => {
     try {
       // DEBUG: Log raw message structure
-      console.log(`\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
-      console.log(`[messageToEmail] Message ID: ${messageData.id}`);
-      console.log(`[messageToEmail] Has payload: ${!!messageData.payload}`);
-      console.log(`[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`);
-      console.log(`[messageToEmail] Payload.parts length: ${messageData.payload?.parts?.length || 0}`);
-      console.log(`[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`);
-      console.log(`[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body?.data}`);
-      console.log(`[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`);
+      debugLog(`\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
+      debugLog(`[messageToEmail] Message ID: ${messageData.id}`);
+      debugLog(`[messageToEmail] Has payload: ${!!messageData.payload}`);
+      debugLog(`[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`);
+      debugLog(`[messageToEmail] Payload.parts length: ${messageData.payload?.parts?.length || 0}`);
+      debugLog(`[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`);
+      debugLog(`[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body?.data}`);
+      debugLog(`[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`);
 
       if (!messageData.payload?.headers) {
-        console.log("[messageToEmail] ERROR: Missing required message data:", messageData);
+        debugLog("[messageToEmail] ERROR: Missing required message data:", messageData);
         return null;
       }
 
@@ -488,8 +503,8 @@ function messageToEmail(
       const to = getHeader(messageHeaders, "To");
       const date = getHeader(messageHeaders, "Date");
 
-      console.log(`[messageToEmail] Subject: ${subject}`);
-      console.log(`[messageToEmail] From: ${from}`);
+      debugLog(`[messageToEmail] Subject: ${subject}`);
+      debugLog(`[messageToEmail] From: ${from}`);
 
       let plainText = "";
       let htmlContent = "";
@@ -497,107 +512,107 @@ function messageToEmail(
       if (
         messageData.payload.parts && Array.isArray(messageData.payload.parts)
       ) {
-        console.log(`[messageToEmail] Processing ${messageData.payload.parts.length} parts`);
+        debugLog(`[messageToEmail] Processing ${messageData.payload.parts.length} parts`);
 
         // Log structure of each part
         messageData.payload.parts.forEach((part: any, partIndex: number) => {
-          console.log(`[messageToEmail] Part ${partIndex + 1}:`);
-          console.log(`  - mimeType: ${part.mimeType}`);
-          console.log(`  - Has body: ${!!part.body}`);
-          console.log(`  - Has body.data: ${!!part.body?.data}`);
-          console.log(`  - body.size: ${part.body?.size || 0}`);
-          console.log(`  - Has nested parts: ${!!part.parts}`);
-          console.log(`  - Nested parts length: ${part.parts?.length || 0}`);
+          debugLog(`[messageToEmail] Part ${partIndex + 1}:`);
+          debugLog(`  - mimeType: ${part.mimeType}`);
+          debugLog(`  - Has body: ${!!part.body}`);
+          debugLog(`  - Has body.data: ${!!part.body?.data}`);
+          debugLog(`  - body.size: ${part.body?.size || 0}`);
+          debugLog(`  - Has nested parts: ${!!part.parts}`);
+          debugLog(`  - Nested parts length: ${part.parts?.length || 0}`);
         });
 
         // Look for plainText part
         const textPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/plain",
         );
-        console.log(`[messageToEmail] Found text/plain part: ${!!textPart}`);
+        debugLog(`[messageToEmail] Found text/plain part: ${!!textPart}`);
         if (textPart?.body?.data) {
           plainText = decodeBase64(textPart.body.data);
-          console.log(`[messageToEmail] Decoded plainText length: ${plainText.length}`);
+          debugLog(`[messageToEmail] Decoded plainText length: ${plainText.length}`);
         } else {
-          console.log(`[messageToEmail] text/plain part has no body.data`);
+          debugLog(`[messageToEmail] text/plain part has no body.data`);
         }
 
         // Look for HTML part
         const htmlPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/html",
         );
-        console.log(`[messageToEmail] Found text/html part: ${!!htmlPart}`);
+        debugLog(`[messageToEmail] Found text/html part: ${!!htmlPart}`);
         if (htmlPart?.body?.data) {
           htmlContent = decodeBase64(htmlPart.body.data);
-          console.log(`[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`);
+          debugLog(`[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`);
         } else {
-          console.log(`[messageToEmail] text/html part has no body.data`);
+          debugLog(`[messageToEmail] text/html part has no body.data`);
         }
 
         // Handle multipart messages - check for nested parts
         if (htmlContent === "") {
-          console.log(`[messageToEmail] No HTML found in top-level parts, checking nested parts...`);
+          debugLog(`[messageToEmail] No HTML found in top-level parts, checking nested parts...`);
           for (const part of messageData.payload.parts) {
             if (part.parts && Array.isArray(part.parts)) {
-              console.log(`[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`);
+              debugLog(`[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`);
               const nestedHtmlPart = part.parts.find(
                 (nestedPart: any) => nestedPart.mimeType === "text/html",
               );
               if (nestedHtmlPart?.body?.data) {
                 htmlContent = decodeBase64(nestedHtmlPart.body.data);
-                console.log(`[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`);
+                debugLog(`[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`);
                 break;
               }
             }
           }
         }
       } else if (messageData.payload.body?.data) {
-        console.log(`[messageToEmail] Single part message`);
-        console.log(`[messageToEmail] body.size: ${messageData.payload.body.size}`);
+        debugLog(`[messageToEmail] Single part message`);
+        debugLog(`[messageToEmail] body.size: ${messageData.payload.body.size}`);
         const bodyData = decodeBase64(messageData.payload.body.data);
-        console.log(`[messageToEmail] Decoded body length: ${bodyData.length}`);
+        debugLog(`[messageToEmail] Decoded body length: ${bodyData.length}`);
         if (messageData.payload.mimeType === "text/html") {
           htmlContent = bodyData;
-          console.log(`[messageToEmail] Set as htmlContent`);
+          debugLog(`[messageToEmail] Set as htmlContent`);
         } else {
           plainText = bodyData;
-          console.log(`[messageToEmail] Set as plainText`);
+          debugLog(`[messageToEmail] Set as plainText`);
         }
       } else {
-        console.log(`[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
+        debugLog(`[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
       }
 
       // Generate markdown content from HTML or plainText
       let markdownContent = "";
-      console.log(`[messageToEmail] Converting to markdown...`);
-      console.log(`[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`);
-      console.log(`[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`);
+      debugLog(`[messageToEmail] Converting to markdown...`);
+      debugLog(`[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`);
+      debugLog(`[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`);
 
       if (htmlContent) {
-        console.log(`[messageToEmail] Converting HTML to markdown...`);
+        debugLog(`[messageToEmail] Converting HTML to markdown...`);
         try {
           // Convert HTML to markdown using our custom converter
           markdownContent = turndown.turndown(htmlContent);
-          console.log(`[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`);
+          debugLog(`[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`);
         } catch (error) {
-          console.error("[messageToEmail] Error converting HTML to markdown:", error);
+          if (DEBUG_MODE) console.error("[messageToEmail] Error converting HTML to markdown:", error);
           // Fallback to plainText if HTML conversion fails
           markdownContent = plainText;
-          console.log(`[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`);
+          debugLog(`[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`);
         }
       } else {
         // Use plainText as fallback if no HTML content
-        console.log(`[messageToEmail] No HTML, using plainText as markdown`);
+        debugLog(`[messageToEmail] No HTML, using plainText as markdown`);
         markdownContent = plainText;
-        console.log(`[messageToEmail] Final markdown length: ${markdownContent.length}`);
+        debugLog(`[messageToEmail] Final markdown length: ${markdownContent.length}`);
       }
 
-      console.log(`[messageToEmail] === FINAL EMAIL CONTENT ===`);
-      console.log(`[messageToEmail] plainText: ${plainText.length} chars`);
-      console.log(`[messageToEmail] htmlContent: ${htmlContent.length} chars`);
-      console.log(`[messageToEmail] markdownContent: ${markdownContent.length} chars`);
-      console.log(`[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`);
-      console.log(`[messageToEmail] ===========================\n`);
+      debugLog(`[messageToEmail] === FINAL EMAIL CONTENT ===`);
+      debugLog(`[messageToEmail] plainText: ${plainText.length} chars`);
+      debugLog(`[messageToEmail] htmlContent: ${htmlContent.length} chars`);
+      debugLog(`[messageToEmail] markdownContent: ${markdownContent.length} chars`);
+      debugLog(`[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`);
+      debugLog(`[messageToEmail] ===========================\n`);
 
       return {
         id: messageData.id,
@@ -613,10 +628,12 @@ function messageToEmail(
         markdownContent,
       };
     } catch (error: any) {
-      console.error(
-        "Error processing message part:",
-        "message" in error ? error.message : error,
-      );
+      if (DEBUG_MODE) {
+        console.error(
+          "Error processing message part:",
+          "message" in error ? error.message : error,
+        );
+      }
       return null;
     }
   }).filter((message): message is Email => message !== null);
@@ -637,7 +654,7 @@ export async function process(
   | void
 > {
   if (!auth.get()) {
-    console.warn("no token");
+    debugWarn("no token");
     return;
   }
 
@@ -656,79 +673,79 @@ export async function process(
 
   // Try incremental sync if we have a historyId
   if (currentHistoryId) {
-    console.log("=== INCREMENTAL SYNC MODE ===");
-    console.log("Current historyId:", currentHistoryId);
-    console.log("Existing emails count:", existingEmails.length);
+    debugLog("=== INCREMENTAL SYNC MODE ===");
+    debugLog("Current historyId:", currentHistoryId);
+    debugLog("Existing emails count:", existingEmails.length);
 
     try {
-      console.log("Calling Gmail History API...");
+      debugLog("Calling Gmail History API...");
       const historyResponse = await client.fetchHistory(
         currentHistoryId,
         undefined,
         maxResults,
       );
 
-      console.log("History API Response:");
-      console.log("- New historyId:", historyResponse.historyId);
-      console.log("- Has history records:", !!historyResponse.history);
-      console.log(
+      debugLog("History API Response:");
+      debugLog("- New historyId:", historyResponse.historyId);
+      debugLog("- Has history records:", !!historyResponse.history);
+      debugLog(
         "- History records count:",
         historyResponse.history?.length || 0,
       );
 
       if (historyResponse.history) {
-        console.log(
+        debugLog(
           `Processing ${historyResponse.history.length} history records`,
         );
 
         // Process history records
         for (let i = 0; i < historyResponse.history.length; i++) {
           const record = historyResponse.history[i];
-          console.log(`\nHistory Record ${i + 1}:`);
-          console.log("- History ID:", record.id);
-          console.log("- Messages added:", record.messagesAdded?.length || 0);
-          console.log(
+          debugLog(`\nHistory Record ${i + 1}:`);
+          debugLog("- History ID:", record.id);
+          debugLog("- Messages added:", record.messagesAdded?.length || 0);
+          debugLog(
             "- Messages deleted:",
             record.messagesDeleted?.length || 0,
           );
-          console.log("- Labels added:", record.labelsAdded?.length || 0);
-          console.log("- Labels removed:", record.labelsRemoved?.length || 0);
+          debugLog("- Labels added:", record.labelsAdded?.length || 0);
+          debugLog("- Labels removed:", record.labelsRemoved?.length || 0);
 
           // Handle added messages
           if (record.messagesAdded) {
-            console.log(
+            debugLog(
               `  Processing ${record.messagesAdded.length} added messages`,
             );
             for (const item of record.messagesAdded) {
               if (!existingEmailIds.has(item.message.id)) {
-                console.log(`    - New message to fetch: ${item.message.id}`);
+                debugLog(`    - New message to fetch: ${item.message.id}`);
                 messagesToFetch.push(item.message.id);
               } else {
-                console.log(`    - Message already exists: ${item.message.id}`);
+                debugLog(`    - Message already exists: ${item.message.id}`);
               }
             }
           }
 
           // Handle deleted messages
           if (record.messagesDeleted) {
-            console.log(
+            debugLog(
               `  Processing ${record.messagesDeleted.length} deleted messages`,
             );
             for (const item of record.messagesDeleted) {
-              console.log(`    - Message to delete: ${item.message.id}`);
+              debugLog(`    - Message to delete: ${item.message.id}`);
               messagesToDelete.push(item.message.id);
             }
           }
 
           // Handle label changes
           if (record.labelsAdded) {
-            console.log(
+            debugLog(
               `  Processing ${record.labelsAdded.length} label additions`,
             );
             for (const item of record.labelsAdded) {
               const email = emailMap.get(item.message.id);
               if (email) {
-                console.log(
+                debugLog(
                   `    - Adding labels to ${item.message.id}:`,
                   item.labelIds,
                 );
@@ -741,13 +758,13 @@ export async function process(
           }
 
           if (record.labelsRemoved) {
-            console.log(
+            debugLog(
               `  Processing ${record.labelsRemoved.length} label removals`,
             );
             for (const item of record.labelsRemoved) {
               const email = emailMap.get(item.message.id);
               if (email) {
-                console.log(
+                debugLog(
                   `    - Removing labels from ${item.message.id}:`,
                   item.labelIds,
                 );
@@ -761,15 +778,15 @@ export async function process(
         }
 
         newHistoryId = historyResponse.historyId;
-        console.log("\n=== INCREMENTAL SYNC SUMMARY ===");
-        console.log(`Messages to fetch: ${messagesToFetch.length}`);
-        console.log(`Messages to delete: ${messagesToDelete.length}`);
-        console.log(`Old historyId: ${currentHistoryId}`);
-        console.log(`New historyId: ${newHistoryId}`);
-        console.log("================================\n");
+        debugLog("\n=== INCREMENTAL SYNC SUMMARY ===");
+        debugLog(`Messages to fetch: ${messagesToFetch.length}`);
+        debugLog(`Messages to delete: ${messagesToDelete.length}`);
+        debugLog(`Old historyId: ${currentHistoryId}`);
+        debugLog(`New historyId: ${newHistoryId}`);
+        debugLog("================================\n");
       } else {
-        console.log("No history changes found");
-        console.log(
+        debugLog("No history changes found");
+        debugLog(
           `Updating historyId from ${currentHistoryId} to ${historyResponse.historyId}`,
         );
         newHistoryId = historyResponse.historyId;
@@ -779,45 +796,45 @@ export async function process(
         error.message &&
         (error.message.includes("404") || error.message.includes("410"))
       ) {
-        console.log("History ID expired, falling back to full sync");
+        debugLog("History ID expired, falling back to full sync");
         useFullSync = true;
       } else {
-        console.error("Error fetching history:", error);
+        if (DEBUG_MODE) console.error("Error fetching history:", error);
         throw error;
       }
     }
   } else {
-    console.log("=== FULL SYNC MODE ===");
-    console.log("No historyId found, performing full sync");
+    debugLog("=== FULL SYNC MODE ===");
+    debugLog("No historyId found, performing full sync");
     useFullSync = true;
   }
 
   // Perform full sync if needed
   if (useFullSync) {
-    console.log("Getting user profile to obtain current historyId...");
+    debugLog("Getting user profile to obtain current historyId...");
     // Get current profile to get latest historyId
     const profile = await client.getProfile();
     newHistoryId = profile.historyId;
-    console.log("Profile received:");
-    console.log("- Email:", profile.emailAddress);
-    console.log("- Current historyId:", profile.historyId);
-    console.log("- Total messages:", profile.messagesTotal);
-    console.log("- Total threads:", profile.threadsTotal);
+    debugLog("Profile received:");
+    debugLog("- Email:", profile.emailAddress);
+    debugLog("- Current historyId:", profile.historyId);
+    debugLog("- Total messages:", profile.messagesTotal);
+    debugLog("- Total threads:", profile.threadsTotal);
 
-    console.log(
+    debugLog(
       `\nFetching messages with query: "${gmailFilterQuery}", limit: ${maxResults}`,
     );
     const messages = await client.fetchEmail(maxResults, gmailFilterQuery);
-    console.log(`Received ${messages.length} messages from API`);
+    debugLog(`Received ${messages.length} messages from API`);
 
     messagesToFetch = messages
       .filter((message: { id: string }) => !existingEmailIds.has(message.id))
       .map((message: { id: string }) => message.id);
 
-    console.log(
+    debugLog(
       `After filtering existing: ${messagesToFetch.length} new messages to fetch`,
     );
-    console.log("======================\n");
+    debugLog("======================\n");
   }
 
   // Collect all new emails to return
@@ -825,12 +842,12 @@ export async function process(
 
   // Fetch new messages in batches
   if (messagesToFetch.length > 0) {
-    console.log(`Fetching ${messagesToFetch.length} new messages`);
+    debugLog(`Fetching ${messagesToFetch.length} new messages`);
     const batchSize = 100;
 
     for (let i = 0; i < messagesToFetch.length; i += batchSize) {
       const batchIds = messagesToFetch.slice(i, i + batchSize);
-      console.log(
+      debugLog(
         `Processing batch ${i / batchSize + 1} of ${
           Math.ceil(messagesToFetch.length / batchSize)
         }`,
@@ -842,19 +859,21 @@ export async function process(
         const emails = messageToEmail(fetched);
 
         if (emails.length > 0) {
-          console.log(`Adding ${emails.length} new emails`);
+          debugLog(`Adding ${emails.length} new emails`);
           allNewEmails.push(...emails);
         }
       } catch (error: any) {
-        console.error(
-          "Error processing batch:",
-          "message" in error ? error.message : error,
-        );
+        if (DEBUG_MODE) {
+          console.error(
+            "Error processing batch:",
+            "message" in error ? error.message : error,
+          );
+        }
       }
     }
   }
 
-  console.log("Sync completed successfully");
+  debugLog("Sync completed successfully");
 
   // Return the results instead of directly updating cells
   return {
@@ -879,6 +898,16 @@ const toggleAuthView = handler<
 >(
   (_, { showAuth }) => {
     showAuth.set(!showAuth.get());
+  },
+);
+
+const toggleDebugMode = handler<
+  { target: { checked: boolean } },
+  { settings: Cell<Settings> }
+>(
+  ({ target }, { settings }) => {
+    const current = settings.get();
+    settings.set({ ...current, debugMode: target.checked });
   },
 );
 
@@ -910,6 +939,7 @@ export default pattern<{
     gmailFilterQuery: "in:INBOX";
     limit: 100;
     historyId: "";
+    debugMode: false;
   }>;
   // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
   authCharm: Default<any, null>;
@@ -966,7 +996,9 @@ export default pattern<{
     );
 
     computed(() => {
-      console.log("emails", emails.get().length);
+      if (settings.debugMode) {
+        console.log("emails", emails.get().length);
+      }
     });
 
     return {
@@ -1098,6 +1130,17 @@ export default pattern<{
                 $value={settings.gmailFilterQuery}
                 placeholder="in:INBOX"
               />
+            </div>
+
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
+                <input
+                  type="checkbox"
+                  checked={settings.debugMode}
+                  onChange={toggleDebugMode({ settings })}
+                />
+                Debug Mode (verbose console logging)
+              </label>
             </div>
             <ct-button
               type="button"
