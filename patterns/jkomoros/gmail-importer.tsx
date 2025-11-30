@@ -92,13 +92,12 @@ type Settings = {
   debugMode: Default<boolean, false>;
 };
 
-// Debug logging helper - only logs when debugMode is true
-let DEBUG_MODE = false;
-function debugLog(...args: unknown[]) {
-  if (DEBUG_MODE) console.log(...args);
+// Debug logging helpers - pass debugMode explicitly to avoid module-level state issues
+function debugLog(debugMode: boolean, ...args: unknown[]) {
+  if (debugMode) console.log(...args);
 }
-function debugWarn(...args: unknown[]) {
-  if (DEBUG_MODE) console.warn(...args);
+function debugWarn(debugMode: boolean, ...args: unknown[]) {
+  if (debugMode) console.warn(...args);
 }
 
 const updateLimit = handler<
@@ -117,6 +116,8 @@ interface GmailClientConfig {
   delay?: number;
   // In milliseconds, the amount to permanently increment to the `delay` on every 429 response.
   delayIncrement?: number;
+  // Enable verbose console logging
+  debugMode?: boolean;
 }
 
 class GmailClient {
@@ -124,15 +125,17 @@ class GmailClient {
   private retries: number;
   private delay: number;
   private delayIncrement: number;
+  private debugMode: boolean;
 
   constructor(
     auth: Cell<Auth>,
-    { retries = 3, delay = 1000, delayIncrement = 100 }: GmailClientConfig = {},
+    { retries = 3, delay = 1000, delayIncrement = 100, debugMode = false }: GmailClientConfig = {},
   ) {
     this.auth = auth;
     this.retries = retries;
     this.delay = delay;
     this.delayIncrement = delayIncrement;
+    this.debugMode = debugMode;
   }
 
   private async refreshAuth() {
@@ -140,7 +143,7 @@ class GmailClient {
       refreshToken: this.auth.get().refreshToken,
     };
 
-    debugLog("refreshAuthToken", body);
+    debugLog(this.debugMode, "refreshAuthToken", body);
 
     const res = await fetch(
       new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
@@ -198,10 +201,10 @@ class GmailClient {
       url.searchParams.set("labelId", labelId);
     }
 
-    debugLog("[GmailClient] Fetching history from:", url.toString());
+    debugLog(this.debugMode, "[GmailClient] Fetching history from:", url.toString());
     const res = await this.googleRequest(url);
     const json = await res.json();
-    debugLog("[GmailClient] History API returned:", {
+    debugLog(this.debugMode, "[GmailClient] History API returned:", {
       historyId: json.historyId,
       historyCount: json.history?.length || 0,
       hasNextPageToken: !!json.nextPageToken,
@@ -224,7 +227,7 @@ class GmailClient {
     if (
       !json || !("messages" in json) || !Array.isArray(json.messages)
     ) {
-      debugLog(`No messages found in response: ${JSON.stringify(json)}`);
+      debugLog(this.debugMode, `No messages found in response: ${JSON.stringify(json)}`);
       return [];
     }
     return json.messages;
@@ -234,7 +237,7 @@ class GmailClient {
     messages: { id: string }[],
   ): Promise<any[]> {
     const boundary = `batch_${Math.random().toString(36).substring(2)}`;
-    debugLog("Processing batch with boundary", boundary);
+    debugLog(this.debugMode, "Processing batch with boundary", boundary);
 
     const batchBody = messages.map((message, index) => `
 --${boundary}
@@ -247,7 +250,7 @@ Accept: application/json
 
 `).join("") + `--${boundary}--`;
 
-    debugLog("Sending batch request for", messages.length, "messages");
+    debugLog(this.debugMode, "Sending batch request for", messages.length, "messages");
 
     const batchResponse = await this.googleRequest(
       new URL(
@@ -263,7 +266,7 @@ Accept: application/json
     );
 
     const responseText = await batchResponse.text();
-    debugLog("Received batch response of length:", responseText.length);
+    debugLog(this.debugMode, "Received batch response of length:", responseText.length);
 
     const HTTP_RES_REGEX = /HTTP\/\d\.\d (\d\d\d) ([^\n]*)/;
     const parts = responseText.split(`--batch_`)
@@ -290,6 +293,7 @@ Accept: application/json
             }
             if (httpStatus > 0 && httpStatus >= 400) {
               debugWarn(
+                this.debugMode,
                 `Non-successful HTTP status code (${httpStatus}) returned in multipart response: ${httpMessage}`,
               );
               return null;
@@ -298,13 +302,13 @@ Accept: application/json
           const jsonContent = part.slice(jsonStart).trim();
           return JSON.parse(jsonContent);
         } catch (error) {
-          if (DEBUG_MODE) console.error("Error parsing part:", error);
+          if (this.debugMode) console.error("Error parsing part:", error);
           return null;
         }
       })
       .filter((part) => part !== null);
 
-    debugLog("Found", parts.length, "parts in response");
+    debugLog(this.debugMode, "Found", parts.length, "parts in response");
     return parts;
   }
 
@@ -359,11 +363,12 @@ Accept: application/json
 
     // Allow all 2xx status
     if (ok) {
-      debugLog(`${url}: ${status} ${statusText}`);
+      debugLog(this.debugMode, `${url}: ${status} ${statusText}`);
       return res;
     }
 
     debugWarn(
+      this.debugMode,
       `${url}: ${status} ${statusText}`,
       `Remaining retries: ${retries}`,
     );
@@ -377,7 +382,7 @@ Accept: application/json
       await this.refreshAuth();
     } else if (status === 429) {
       this.delay += this.delayIncrement;
-      debugLog(`Incrementing delay to ${this.delay}`);
+      debugLog(this.debugMode, `Incrementing delay to ${this.delay}`);
       await sleep(this.delay);
     }
     return this.googleRequest(url, _options, retries - 1);
@@ -395,33 +400,33 @@ const googleUpdater = handler<unknown, {
   }>;
 }>(
   async (_event, state) => {
-    // Update global debug mode from settings
-    DEBUG_MODE = state.settings.get().debugMode || false;
+    const debugMode = state.settings.get().debugMode || false;
 
-    debugLog("googleUpdater!");
+    debugLog(debugMode, "googleUpdater!");
 
     if (!state.auth.get().token) {
-      debugWarn("no token found in auth cell");
+      debugWarn(debugMode, "no token found in auth cell");
       return;
     }
 
     const settings = state.settings.get();
     const gmailFilterQuery = settings.gmailFilterQuery;
 
-    debugLog("gmailFilterQuery", gmailFilterQuery);
+    debugLog(debugMode, "gmailFilterQuery", gmailFilterQuery);
 
     const result = await process(
       state.auth,
       settings.limit,
       gmailFilterQuery,
       { emails: state.emails, settings: state.settings },
+      debugMode,
     );
 
     if (!result) return;
 
     // Handle deleted emails
     if (result.deletedEmailIds && result.deletedEmailIds.length > 0) {
-      debugLog(`Removing ${result.deletedEmailIds.length} deleted messages`);
+      debugLog(debugMode, `Removing ${result.deletedEmailIds.length} deleted messages`);
       const deleteSet = new Set(result.deletedEmailIds);
       const currentEmails = state.emails.get();
       const remainingEmails = currentEmails.filter((email) =>
@@ -432,22 +437,22 @@ const googleUpdater = handler<unknown, {
 
     // Add new emails
     if (result.newEmails && result.newEmails.length > 0) {
-      debugLog(`Adding ${result.newEmails.length} new emails`);
+      debugLog(debugMode, `Adding ${result.newEmails.length} new emails`);
       state.emails.push(...result.newEmails);
     }
 
     // Update historyId
     if (result.newHistoryId) {
       const currentSettings = state.settings.get();
-      debugLog("=== UPDATING HISTORY ID ===");
-      debugLog("Previous historyId:", currentSettings.historyId || "none");
-      debugLog("New historyId:", result.newHistoryId);
+      debugLog(debugMode, "=== UPDATING HISTORY ID ===");
+      debugLog(debugMode, "Previous historyId:", currentSettings.historyId || "none");
+      debugLog(debugMode, "New historyId:", result.newHistoryId);
       state.settings.set({
         ...currentSettings,
         historyId: result.newHistoryId,
       });
-      debugLog("HistoryId updated successfully");
-      debugLog("==========================");
+      debugLog(debugMode, "HistoryId updated successfully");
+      debugLog(debugMode, "==========================");
     }
   },
 );
@@ -479,21 +484,22 @@ function getHeader(headers: any[], name: string): string {
 
 function messageToEmail(
   parts: any[],
+  debugMode: boolean = false,
 ): Email[] {
   return parts.map((messageData, index) => {
     try {
       // DEBUG: Log raw message structure
-      debugLog(`\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
-      debugLog(`[messageToEmail] Message ID: ${messageData.id}`);
-      debugLog(`[messageToEmail] Has payload: ${!!messageData.payload}`);
-      debugLog(`[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`);
-      debugLog(`[messageToEmail] Payload.parts length: ${messageData.payload?.parts?.length || 0}`);
-      debugLog(`[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`);
-      debugLog(`[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body?.data}`);
-      debugLog(`[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`);
+      debugLog(debugMode, `\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
+      debugLog(debugMode, `[messageToEmail] Message ID: ${messageData.id}`);
+      debugLog(debugMode, `[messageToEmail] Has payload: ${!!messageData.payload}`);
+      debugLog(debugMode, `[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`);
+      debugLog(debugMode, `[messageToEmail] Payload.parts length: ${messageData.payload?.parts?.length || 0}`);
+      debugLog(debugMode, `[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`);
+      debugLog(debugMode, `[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body?.data}`);
+      debugLog(debugMode, `[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`);
 
       if (!messageData.payload?.headers) {
-        debugLog("[messageToEmail] ERROR: Missing required message data:", messageData);
+        debugLog(debugMode, "[messageToEmail] ERROR: Missing required message data:", messageData);
         return null;
       }
 
@@ -503,8 +509,8 @@ function messageToEmail(
       const to = getHeader(messageHeaders, "To");
       const date = getHeader(messageHeaders, "Date");
 
-      debugLog(`[messageToEmail] Subject: ${subject}`);
-      debugLog(`[messageToEmail] From: ${from}`);
+      debugLog(debugMode, `[messageToEmail] Subject: ${subject}`);
+      debugLog(debugMode, `[messageToEmail] From: ${from}`);
 
       let plainText = "";
       let htmlContent = "";
@@ -512,107 +518,107 @@ function messageToEmail(
       if (
         messageData.payload.parts && Array.isArray(messageData.payload.parts)
       ) {
-        debugLog(`[messageToEmail] Processing ${messageData.payload.parts.length} parts`);
+        debugLog(debugMode, `[messageToEmail] Processing ${messageData.payload.parts.length} parts`);
 
         // Log structure of each part
         messageData.payload.parts.forEach((part: any, partIndex: number) => {
-          debugLog(`[messageToEmail] Part ${partIndex + 1}:`);
-          debugLog(`  - mimeType: ${part.mimeType}`);
-          debugLog(`  - Has body: ${!!part.body}`);
-          debugLog(`  - Has body.data: ${!!part.body?.data}`);
-          debugLog(`  - body.size: ${part.body?.size || 0}`);
-          debugLog(`  - Has nested parts: ${!!part.parts}`);
-          debugLog(`  - Nested parts length: ${part.parts?.length || 0}`);
+          debugLog(debugMode, `[messageToEmail] Part ${partIndex + 1}:`);
+          debugLog(debugMode, `  - mimeType: ${part.mimeType}`);
+          debugLog(debugMode, `  - Has body: ${!!part.body}`);
+          debugLog(debugMode, `  - Has body.data: ${!!part.body?.data}`);
+          debugLog(debugMode, `  - body.size: ${part.body?.size || 0}`);
+          debugLog(debugMode, `  - Has nested parts: ${!!part.parts}`);
+          debugLog(debugMode, `  - Nested parts length: ${part.parts?.length || 0}`);
         });
 
         // Look for plainText part
         const textPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/plain",
         );
-        debugLog(`[messageToEmail] Found text/plain part: ${!!textPart}`);
+        debugLog(debugMode, `[messageToEmail] Found text/plain part: ${!!textPart}`);
         if (textPart?.body?.data) {
           plainText = decodeBase64(textPart.body.data);
-          debugLog(`[messageToEmail] Decoded plainText length: ${plainText.length}`);
+          debugLog(debugMode, `[messageToEmail] Decoded plainText length: ${plainText.length}`);
         } else {
-          debugLog(`[messageToEmail] text/plain part has no body.data`);
+          debugLog(debugMode, `[messageToEmail] text/plain part has no body.data`);
         }
 
         // Look for HTML part
         const htmlPart = messageData.payload.parts.find(
           (part: any) => part.mimeType === "text/html",
         );
-        debugLog(`[messageToEmail] Found text/html part: ${!!htmlPart}`);
+        debugLog(debugMode, `[messageToEmail] Found text/html part: ${!!htmlPart}`);
         if (htmlPart?.body?.data) {
           htmlContent = decodeBase64(htmlPart.body.data);
-          debugLog(`[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`);
+          debugLog(debugMode, `[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`);
         } else {
-          debugLog(`[messageToEmail] text/html part has no body.data`);
+          debugLog(debugMode, `[messageToEmail] text/html part has no body.data`);
         }
 
         // Handle multipart messages - check for nested parts
         if (htmlContent === "") {
-          debugLog(`[messageToEmail] No HTML found in top-level parts, checking nested parts...`);
+          debugLog(debugMode, `[messageToEmail] No HTML found in top-level parts, checking nested parts...`);
           for (const part of messageData.payload.parts) {
             if (part.parts && Array.isArray(part.parts)) {
-              debugLog(`[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`);
+              debugLog(debugMode, `[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`);
               const nestedHtmlPart = part.parts.find(
                 (nestedPart: any) => nestedPart.mimeType === "text/html",
               );
               if (nestedHtmlPart?.body?.data) {
                 htmlContent = decodeBase64(nestedHtmlPart.body.data);
-                debugLog(`[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`);
+                debugLog(debugMode, `[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`);
                 break;
               }
             }
           }
         }
       } else if (messageData.payload.body?.data) {
-        debugLog(`[messageToEmail] Single part message`);
-        debugLog(`[messageToEmail] body.size: ${messageData.payload.body.size}`);
+        debugLog(debugMode, `[messageToEmail] Single part message`);
+        debugLog(debugMode, `[messageToEmail] body.size: ${messageData.payload.body.size}`);
         const bodyData = decodeBase64(messageData.payload.body.data);
-        debugLog(`[messageToEmail] Decoded body length: ${bodyData.length}`);
+        debugLog(debugMode, `[messageToEmail] Decoded body length: ${bodyData.length}`);
         if (messageData.payload.mimeType === "text/html") {
           htmlContent = bodyData;
-          debugLog(`[messageToEmail] Set as htmlContent`);
+          debugLog(debugMode, `[messageToEmail] Set as htmlContent`);
         } else {
           plainText = bodyData;
-          debugLog(`[messageToEmail] Set as plainText`);
+          debugLog(debugMode, `[messageToEmail] Set as plainText`);
         }
       } else {
-        debugLog(`[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
+        debugLog(debugMode, `[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
       }
 
       // Generate markdown content from HTML or plainText
       let markdownContent = "";
-      debugLog(`[messageToEmail] Converting to markdown...`);
-      debugLog(`[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`);
-      debugLog(`[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`);
+      debugLog(debugMode, `[messageToEmail] Converting to markdown...`);
+      debugLog(debugMode, `[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`);
+      debugLog(debugMode, `[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`);
 
       if (htmlContent) {
-        debugLog(`[messageToEmail] Converting HTML to markdown...`);
+        debugLog(debugMode, `[messageToEmail] Converting HTML to markdown...`);
         try {
           // Convert HTML to markdown using our custom converter
           markdownContent = turndown.turndown(htmlContent);
-          debugLog(`[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`);
+          debugLog(debugMode, `[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`);
         } catch (error) {
-          if (DEBUG_MODE) console.error("[messageToEmail] Error converting HTML to markdown:", error);
+          if (debugMode) console.error("[messageToEmail] Error converting HTML to markdown:", error);
           // Fallback to plainText if HTML conversion fails
           markdownContent = plainText;
-          debugLog(`[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`);
+          debugLog(debugMode, `[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`);
         }
       } else {
         // Use plainText as fallback if no HTML content
-        debugLog(`[messageToEmail] No HTML, using plainText as markdown`);
+        debugLog(debugMode, `[messageToEmail] No HTML, using plainText as markdown`);
         markdownContent = plainText;
-        debugLog(`[messageToEmail] Final markdown length: ${markdownContent.length}`);
+        debugLog(debugMode, `[messageToEmail] Final markdown length: ${markdownContent.length}`);
       }
 
-      debugLog(`[messageToEmail] === FINAL EMAIL CONTENT ===`);
-      debugLog(`[messageToEmail] plainText: ${plainText.length} chars`);
-      debugLog(`[messageToEmail] htmlContent: ${htmlContent.length} chars`);
-      debugLog(`[messageToEmail] markdownContent: ${markdownContent.length} chars`);
-      debugLog(`[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`);
-      debugLog(`[messageToEmail] ===========================\n`);
+      debugLog(debugMode, `[messageToEmail] === FINAL EMAIL CONTENT ===`);
+      debugLog(debugMode, `[messageToEmail] plainText: ${plainText.length} chars`);
+      debugLog(debugMode, `[messageToEmail] htmlContent: ${htmlContent.length} chars`);
+      debugLog(debugMode, `[messageToEmail] markdownContent: ${markdownContent.length} chars`);
+      debugLog(debugMode, `[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`);
+      debugLog(debugMode, `[messageToEmail] ===========================\n`);
 
       return {
         id: messageData.id,
@@ -628,7 +634,7 @@ function messageToEmail(
         markdownContent,
       };
     } catch (error: any) {
-      if (DEBUG_MODE) {
+      if (debugMode) {
         console.error(
           "Error processing message part:",
           "message" in error ? error.message : error,
@@ -649,16 +655,17 @@ export async function process(
       { gmailFilterQuery: string; limit: number; historyId: string }
     >;
   },
+  debugMode: boolean = false,
 ): Promise<
   | { newHistoryId?: string; newEmails?: Email[]; deletedEmailIds?: string[] }
   | void
 > {
   if (!auth.get()) {
-    debugWarn("no token");
+    debugWarn(debugMode, "no token");
     return;
   }
 
-  const client = new GmailClient(auth);
+  const client = new GmailClient(auth, { debugMode });
   const currentHistoryId = state.settings.get().historyId;
 
   let newHistoryId: string | null = null;
@@ -673,55 +680,59 @@ export async function process(
 
   // Try incremental sync if we have a historyId
   if (currentHistoryId) {
-    debugLog("=== INCREMENTAL SYNC MODE ===");
-    debugLog("Current historyId:", currentHistoryId);
-    debugLog("Existing emails count:", existingEmails.length);
+    debugLog(debugMode, "=== INCREMENTAL SYNC MODE ===");
+    debugLog(debugMode, "Current historyId:", currentHistoryId);
+    debugLog(debugMode, "Existing emails count:", existingEmails.length);
 
     try {
-      debugLog("Calling Gmail History API...");
+      debugLog(debugMode, "Calling Gmail History API...");
       const historyResponse = await client.fetchHistory(
         currentHistoryId,
         undefined,
         maxResults,
       );
 
-      debugLog("History API Response:");
-      debugLog("- New historyId:", historyResponse.historyId);
-      debugLog("- Has history records:", !!historyResponse.history);
+      debugLog(debugMode, "History API Response:");
+      debugLog(debugMode, "- New historyId:", historyResponse.historyId);
+      debugLog(debugMode, "- Has history records:", !!historyResponse.history);
       debugLog(
+        debugMode,
         "- History records count:",
         historyResponse.history?.length || 0,
       );
 
       if (historyResponse.history) {
         debugLog(
+          debugMode,
           `Processing ${historyResponse.history.length} history records`,
         );
 
         // Process history records
         for (let i = 0; i < historyResponse.history.length; i++) {
           const record = historyResponse.history[i];
-          debugLog(`\nHistory Record ${i + 1}:`);
-          debugLog("- History ID:", record.id);
-          debugLog("- Messages added:", record.messagesAdded?.length || 0);
+          debugLog(debugMode, `\nHistory Record ${i + 1}:`);
+          debugLog(debugMode, "- History ID:", record.id);
+          debugLog(debugMode, "- Messages added:", record.messagesAdded?.length || 0);
           debugLog(
+            debugMode,
             "- Messages deleted:",
             record.messagesDeleted?.length || 0,
           );
-          debugLog("- Labels added:", record.labelsAdded?.length || 0);
-          debugLog("- Labels removed:", record.labelsRemoved?.length || 0);
+          debugLog(debugMode, "- Labels added:", record.labelsAdded?.length || 0);
+          debugLog(debugMode, "- Labels removed:", record.labelsRemoved?.length || 0);
 
           // Handle added messages
           if (record.messagesAdded) {
             debugLog(
+              debugMode,
               `  Processing ${record.messagesAdded.length} added messages`,
             );
             for (const item of record.messagesAdded) {
               if (!existingEmailIds.has(item.message.id)) {
-                debugLog(`    - New message to fetch: ${item.message.id}`);
+                debugLog(debugMode, `    - New message to fetch: ${item.message.id}`);
                 messagesToFetch.push(item.message.id);
               } else {
-                debugLog(`    - Message already exists: ${item.message.id}`);
+                debugLog(debugMode, `    - Message already exists: ${item.message.id}`);
               }
             }
           }
@@ -729,10 +740,11 @@ export async function process(
           // Handle deleted messages
           if (record.messagesDeleted) {
             debugLog(
+              debugMode,
               `  Processing ${record.messagesDeleted.length} deleted messages`,
             );
             for (const item of record.messagesDeleted) {
-              debugLog(`    - Message to delete: ${item.message.id}`);
+              debugLog(debugMode, `    - Message to delete: ${item.message.id}`);
               messagesToDelete.push(item.message.id);
             }
           }
@@ -740,12 +752,14 @@ export async function process(
           // Handle label changes
           if (record.labelsAdded) {
             debugLog(
+              debugMode,
               `  Processing ${record.labelsAdded.length} label additions`,
             );
             for (const item of record.labelsAdded) {
               const email = emailMap.get(item.message.id);
               if (email) {
                 debugLog(
+                  debugMode,
                   `    - Adding labels to ${item.message.id}:`,
                   item.labelIds,
                 );
@@ -759,12 +773,14 @@ export async function process(
 
           if (record.labelsRemoved) {
             debugLog(
+              debugMode,
               `  Processing ${record.labelsRemoved.length} label removals`,
             );
             for (const item of record.labelsRemoved) {
               const email = emailMap.get(item.message.id);
               if (email) {
                 debugLog(
+                  debugMode,
                   `    - Removing labels from ${item.message.id}:`,
                   item.labelIds,
                 );
@@ -778,15 +794,16 @@ export async function process(
         }
 
         newHistoryId = historyResponse.historyId;
-        debugLog("\n=== INCREMENTAL SYNC SUMMARY ===");
-        debugLog(`Messages to fetch: ${messagesToFetch.length}`);
-        debugLog(`Messages to delete: ${messagesToDelete.length}`);
-        debugLog(`Old historyId: ${currentHistoryId}`);
-        debugLog(`New historyId: ${newHistoryId}`);
-        debugLog("================================\n");
+        debugLog(debugMode, "\n=== INCREMENTAL SYNC SUMMARY ===");
+        debugLog(debugMode, `Messages to fetch: ${messagesToFetch.length}`);
+        debugLog(debugMode, `Messages to delete: ${messagesToDelete.length}`);
+        debugLog(debugMode, `Old historyId: ${currentHistoryId}`);
+        debugLog(debugMode, `New historyId: ${newHistoryId}`);
+        debugLog(debugMode, "================================\n");
       } else {
-        debugLog("No history changes found");
+        debugLog(debugMode, "No history changes found");
         debugLog(
+          debugMode,
           `Updating historyId from ${currentHistoryId} to ${historyResponse.historyId}`,
         );
         newHistoryId = historyResponse.historyId;
@@ -796,45 +813,47 @@ export async function process(
         error.message &&
         (error.message.includes("404") || error.message.includes("410"))
       ) {
-        debugLog("History ID expired, falling back to full sync");
+        debugLog(debugMode, "History ID expired, falling back to full sync");
         useFullSync = true;
       } else {
-        if (DEBUG_MODE) console.error("Error fetching history:", error);
+        if (debugMode) console.error("Error fetching history:", error);
         throw error;
       }
     }
   } else {
-    debugLog("=== FULL SYNC MODE ===");
-    debugLog("No historyId found, performing full sync");
+    debugLog(debugMode, "=== FULL SYNC MODE ===");
+    debugLog(debugMode, "No historyId found, performing full sync");
     useFullSync = true;
   }
 
   // Perform full sync if needed
   if (useFullSync) {
-    debugLog("Getting user profile to obtain current historyId...");
+    debugLog(debugMode, "Getting user profile to obtain current historyId...");
     // Get current profile to get latest historyId
     const profile = await client.getProfile();
     newHistoryId = profile.historyId;
-    debugLog("Profile received:");
-    debugLog("- Email:", profile.emailAddress);
-    debugLog("- Current historyId:", profile.historyId);
-    debugLog("- Total messages:", profile.messagesTotal);
-    debugLog("- Total threads:", profile.threadsTotal);
+    debugLog(debugMode, "Profile received:");
+    debugLog(debugMode, "- Email:", profile.emailAddress);
+    debugLog(debugMode, "- Current historyId:", profile.historyId);
+    debugLog(debugMode, "- Total messages:", profile.messagesTotal);
+    debugLog(debugMode, "- Total threads:", profile.threadsTotal);
 
     debugLog(
+      debugMode,
       `\nFetching messages with query: "${gmailFilterQuery}", limit: ${maxResults}`,
     );
     const messages = await client.fetchEmail(maxResults, gmailFilterQuery);
-    debugLog(`Received ${messages.length} messages from API`);
+    debugLog(debugMode, `Received ${messages.length} messages from API`);
 
     messagesToFetch = messages
       .filter((message: { id: string }) => !existingEmailIds.has(message.id))
       .map((message: { id: string }) => message.id);
 
     debugLog(
+      debugMode,
       `After filtering existing: ${messagesToFetch.length} new messages to fetch`,
     );
-    debugLog("======================\n");
+    debugLog(debugMode, "======================\n");
   }
 
   // Collect all new emails to return
@@ -842,12 +861,13 @@ export async function process(
 
   // Fetch new messages in batches
   if (messagesToFetch.length > 0) {
-    debugLog(`Fetching ${messagesToFetch.length} new messages`);
+    debugLog(debugMode, `Fetching ${messagesToFetch.length} new messages`);
     const batchSize = 100;
 
     for (let i = 0; i < messagesToFetch.length; i += batchSize) {
       const batchIds = messagesToFetch.slice(i, i + batchSize);
       debugLog(
+        debugMode,
         `Processing batch ${i / batchSize + 1} of ${
           Math.ceil(messagesToFetch.length / batchSize)
         }`,
@@ -856,14 +876,14 @@ export async function process(
       try {
         await sleep(1000);
         const fetched = await client.fetchMessagesByIds(batchIds);
-        const emails = messageToEmail(fetched);
+        const emails = messageToEmail(fetched, debugMode);
 
         if (emails.length > 0) {
-          debugLog(`Adding ${emails.length} new emails`);
+          debugLog(debugMode, `Adding ${emails.length} new emails`);
           allNewEmails.push(...emails);
         }
       } catch (error: any) {
-        if (DEBUG_MODE) {
+        if (debugMode) {
           console.error(
             "Error processing batch:",
             "message" in error ? error.message : error,
@@ -873,7 +893,7 @@ export async function process(
     }
   }
 
-  debugLog("Sync completed successfully");
+  debugLog(debugMode, "Sync completed successfully");
 
   // Return the results instead of directly updating cells
   return {
