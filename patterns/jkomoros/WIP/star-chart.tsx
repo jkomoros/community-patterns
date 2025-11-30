@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, handler, ifElse, NAME, OpaqueRef, pattern, UI } from "commontools";
+import { Cell, computed, Default, handler, ifElse, NAME, OpaqueRef, pattern, UI } from "commontools";
 
 /**
  * Star Chart Pattern
@@ -97,6 +97,13 @@ const placeStar = handler<
 
 export default pattern<StarChartInput, StarChartOutput>(
   ({ goalName, days, awardEnabled }) => {
+    // Check if today already has a star
+    const todayHasStar = computed(() => {
+      const todayStr = getTodayString();
+      const allDays = days.get();
+      return allDays.some((d) => d.date === todayStr && d.earned);
+    });
+
     return {
       [NAME]: "Star Chart",
       [UI]: (
@@ -134,7 +141,7 @@ export default pattern<StarChartInput, StarChartOutput>(
               </div>
             </div>
 
-            {/* Today's Award Section - Two-step flow */}
+            {/* Today's Section */}
             <div
               style={{
                 background: "rgba(255,255,255,0.8)",
@@ -156,61 +163,90 @@ export default pattern<StarChartInput, StarChartOutput>(
                 Today - {formatDateShort(today)}
               </div>
 
-              {/* Step 1: Parent enables award (small button) */}
-              <button
-                onClick={enableAward({ awardEnabled })}
-                disabled={awardEnabled}
-                style={{
-                  fontSize: "14px",
-                  background: awardEnabled ? "#e5e7eb" : "#f59e0b",
-                  color: awardEnabled ? "#9ca3af" : "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "8px 16px",
-                  cursor: awardEnabled ? "default" : "pointer",
-                  marginBottom: "16px",
-                }}
-              >
-                {ifElse(awardEnabled, "Ready for star!", "Award Star")}
-              </button>
+              {/* If today already has a star, show celebration */}
+              {ifElse(
+                todayHasStar,
+                <div>
+                  <div
+                    className="magical-star"
+                    style={{
+                      fontSize: "100px",
+                      lineHeight: "1",
+                      filter: "drop-shadow(0 0 12px rgba(251, 191, 36, 0.7))",
+                      animation: "shimmer 3s ease-in-out infinite, jiggle 2s ease-in-out infinite",
+                    }}
+                  >
+                    ⭐
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "bold",
+                      color: "#d97706",
+                      marginTop: "12px",
+                    }}
+                  >
+                    Great job today!
+                  </div>
+                </div>,
+                <div>
+                  {/* Step 1: Parent enables award (small button) */}
+                  <button
+                    onClick={enableAward({ awardEnabled })}
+                    disabled={awardEnabled}
+                    style={{
+                      fontSize: "14px",
+                      background: awardEnabled ? "#e5e7eb" : "#f59e0b",
+                      color: awardEnabled ? "#9ca3af" : "white",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "8px 16px",
+                      cursor: awardEnabled ? "default" : "pointer",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    {ifElse(awardEnabled, "Ready for star!", "Award Star")}
+                  </button>
 
-              {/* Step 2: Child places the star (big button, only when enabled) */}
-              <button
-                onClick={placeStar({ days, awardEnabled })}
-                disabled={ifElse(awardEnabled, false, true)}
-                style={{
-                  fontSize: "80px",
-                  background: awardEnabled
-                    ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
-                    : "#e5e7eb",
-                  border: "none",
-                  borderRadius: "50%",
-                  width: "150px",
-                  height: "150px",
-                  cursor: awardEnabled ? "pointer" : "default",
-                  boxShadow: awardEnabled
-                    ? "0 8px 24px rgba(251, 191, 36, 0.5)"
-                    : "none",
-                  transition: "all 0.3s ease",
-                  transform: awardEnabled ? "scale(1.1)" : "scale(1)",
-                }}
-              >
-                {ifElse(awardEnabled, "⭐", "○")}
-              </button>
+                  {/* Step 2: Child places the star (big button, only when enabled) */}
+                  <button
+                    onClick={placeStar({ days, awardEnabled })}
+                    disabled={ifElse(awardEnabled, false, true)}
+                    style={{
+                      fontSize: "80px",
+                      background: awardEnabled
+                        ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
+                        : "#e5e7eb",
+                      border: "none",
+                      borderRadius: "50%",
+                      width: "150px",
+                      height: "150px",
+                      cursor: awardEnabled ? "pointer" : "default",
+                      boxShadow: awardEnabled
+                        ? "0 8px 24px rgba(251, 191, 36, 0.5)"
+                        : "none",
+                      transition: "all 0.3s ease",
+                      transform: awardEnabled ? "scale(1.1)" : "scale(1)",
+                    }}
+                  >
+                    {ifElse(awardEnabled, "⭐", "○")}
+                  </button>
 
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#92400e",
-                  marginTop: "12px",
-                }}
-              >
-                {ifElse(
-                  awardEnabled,
-                  "Tap the star to place it!",
-                  "Parent: tap 'Award Star' first"
-                )}
-              </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#92400e",
+                      marginTop: "12px",
+                    }}
+                  >
+                    {ifElse(
+                      awardEnabled,
+                      "Tap the star to place it!",
+                      "Parent: tap 'Award Star' first"
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Timeline of days */}
