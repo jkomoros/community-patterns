@@ -154,6 +154,19 @@ function normalizeURL(url: string): string {
   }
 }
 
+/**
+ * Check if a URL is valid (not null, undefined, empty, or literal "null" string)
+ *
+ * WORKAROUND: The LLM (via generateObject) sometimes returns the literal string
+ * "null" instead of actual null/undefined when a field should be empty. This
+ * appears to be an issue in how the schema description is interpreted or how
+ * the response is parsed. The schema says "Null if isOriginalReport=true" but
+ * the LLM returns "null" as a string value. This helper papers over that issue.
+ */
+function isValidUrl(url: unknown): url is string {
+  return typeof url === "string" && url.length > 0 && url.toLowerCase() !== "null";
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -633,7 +646,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
     // L4: Fetch original report if this is a news article pointing to one
     const needsOriginalFetch = derive(classification, (c: any) =>
-      c?.result && !c.result.isOriginalReport && c.result.originalReportUrl
+      c?.result && !c.result.isOriginalReport && isValidUrl(c.result.originalReportUrl)
     );
     const originalReportUrl = derive(classification, (c: any) => c?.result?.originalReportUrl);
 
@@ -775,7 +788,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         // This URL IS the original report
         targetUrl = item.sourceUrl;
         isDirectOriginal = true;
-      } else if (result.originalReportUrl) {
+      } else if (isValidUrl(result.originalReportUrl)) {
         // This is a news article pointing to an original
         targetUrl = result.originalReportUrl;
         isDirectOriginal = false;
@@ -803,7 +816,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     list.filter((item: any) => {
       const needsFetch = item.classification?.result &&
         !item.classification.result.isOriginalReport &&
-        item.classification.result.originalReportUrl;
+        isValidUrl(item.classification.result.originalReportUrl);
       return needsFetch && item.originalContent?.pending;
     }).length
   );
@@ -814,7 +827,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       // Direct originals are "complete" (no extra fetch needed)
       if (result.isOriginalReport) return true;
       // News articles: complete when original is fetched
-      if (result.originalReportUrl && item.originalContent?.result) return true;
+      if (isValidUrl(result.originalReportUrl) && item.originalContent?.result) return true;
       return false;
     }).length
   );
@@ -849,7 +862,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       let originalUrl: string;
       if (result.isOriginalReport) {
         originalUrl = sourceUrl;
-      } else if (result.originalReportUrl) {
+      } else if (isValidUrl(result.originalReportUrl)) {
         originalUrl = result.originalReportUrl;
       } else {
         continue; // No original URL to track
