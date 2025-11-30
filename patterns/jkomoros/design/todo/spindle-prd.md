@@ -367,8 +367,8 @@ spindle.needsGeneration = spindle.options.length === 0;
 | Spindle create/edit | P0 | Title, prompt, targetOptions |
 | Summary generation | P1 | Auto-generate on output change |
 | Customizable summaryPrompt | P1 | Per-spindle |
-| Export to JSON | P1 | Board + all spindle outputs |
-| Import from JSON | P1 | Resume editing |
+| Export to JSON | P1 | ✅ DONE - Board + all spindle outputs |
+| Import from JSON | P2 | Resume editing (deferred - requires file upload handling) |
 | `generate: false` spindles | P1 | For human-input roots |
 | `{{position}}` template var | P1 | For chapter numbering |
 | Expanded/compact view toggle | P1 | Per-spindle |

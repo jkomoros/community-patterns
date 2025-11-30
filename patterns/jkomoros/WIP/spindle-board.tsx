@@ -558,6 +558,127 @@ export default pattern<SpindleBoardInput>(
     );
 
     // =========================================================================
+    // EXPORT DATA
+    // =========================================================================
+
+    // Compute level for each spindle (root=0, children of root=1, etc.)
+    const level0 = 0; // Root always level 0
+    const level1 = derive(
+      { parentId1, spindle0 },
+      (deps: { parentId1: string | null; spindle0: SpindleConfig }) =>
+        deps.parentId1 === deps.spindle0.id ? 1 : 0
+    );
+    const level2 = derive(
+      { parentId2, spindle0, spindle1 },
+      (deps: { parentId2: string | null; spindle0: SpindleConfig; spindle1: SpindleConfig }) => {
+        if (deps.parentId2 === deps.spindle0.id) return 1;
+        if (deps.parentId2 === deps.spindle1.id) return 2;
+        return 0;
+      }
+    );
+
+    // Create export JSON
+    const exportJson = derive(
+      {
+        boardTitle,
+        boardDescription,
+        spindle0,
+        spindle1,
+        spindle2,
+        output0,
+        output1,
+        output2,
+        summary0,
+        summary1,
+        summary2,
+        isActive0,
+        isActive1,
+        isActive2,
+        level1,
+        level2,
+      },
+      (deps: {
+        boardTitle: string;
+        boardDescription: string;
+        spindle0: SpindleConfig;
+        spindle1: SpindleConfig;
+        spindle2: SpindleConfig;
+        output0: string | null;
+        output1: string | null;
+        output2: string | null;
+        summary0: string | null;
+        summary1: string | null;
+        summary2: string | null;
+        isActive0: boolean;
+        isActive1: boolean;
+        isActive2: boolean;
+        level1: number;
+        level2: number;
+      }) => {
+        const spindles: BoardExport["spindles"] = [];
+
+        if (deps.isActive0) {
+          spindles.push({
+            id: deps.spindle0.id,
+            title: deps.spindle0.title,
+            prompt: deps.spindle0.prompt,
+            output: deps.output0,
+            summary: deps.summary0,
+            parentId: null,
+            level: 0,
+          });
+        }
+
+        if (deps.isActive1) {
+          spindles.push({
+            id: deps.spindle1.id,
+            title: deps.spindle1.title,
+            prompt: deps.spindle1.prompt,
+            output: deps.output1,
+            summary: deps.summary1,
+            parentId: deps.spindle1.parentId,
+            level: deps.level1,
+          });
+        }
+
+        if (deps.isActive2) {
+          spindles.push({
+            id: deps.spindle2.id,
+            title: deps.spindle2.title,
+            prompt: deps.spindle2.prompt,
+            output: deps.output2,
+            summary: deps.summary2,
+            parentId: deps.spindle2.parentId,
+            level: deps.level2,
+          });
+        }
+
+        const exportData: BoardExport = {
+          version: "1.0",
+          exportedAt: new Date().toISOString(),
+          board: {
+            title: deps.boardTitle,
+            description: deps.boardDescription,
+          },
+          spindles,
+        };
+
+        return JSON.stringify(exportData, null, 2);
+      }
+    );
+
+    // Create data URL for download
+    const exportDataUrl = derive(
+      exportJson,
+      (json: string) => `data:application/json;charset=utf-8,${encodeURIComponent(json)}`
+    );
+
+    const exportFilename = derive(
+      boardTitle,
+      (title: string) => `${title.toLowerCase().replace(/\s+/g, "-")}-export.json`
+    );
+
+    // =========================================================================
     // UI HELPERS
     // =========================================================================
 
@@ -607,12 +728,33 @@ export default pattern<SpindleBoardInput>(
         <div style={{ fontFamily: "system-ui, sans-serif", maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
           {/* Board Header */}
           <div style={{ marginBottom: "24px", borderBottom: "2px solid #e5e7eb", paddingBottom: "16px" }}>
-            <h1 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>{boardTitle}</h1>
-            {ifElse(
-              derive(boardDescription, (d: string) => d && d.trim() !== ""),
-              <p style={{ margin: 0, color: "#666" }}>{boardDescription}</p>,
-              null
-            )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <h1 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>{boardTitle}</h1>
+                {ifElse(
+                  derive(boardDescription, (d: string) => d && d.trim() !== ""),
+                  <p style={{ margin: 0, color: "#666" }}>{boardDescription}</p>,
+                  null
+                )}
+              </div>
+              <a
+                href={exportDataUrl}
+                download={exportFilename}
+                style={{
+                  padding: "8px 16px",
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                }}
+              >
+                Export JSON
+              </a>
+            </div>
           </div>
 
           {/* Spindles Container */}
@@ -1039,6 +1181,7 @@ export default pattern<SpindleBoardInput>(
       summary0,
       summary1,
       summary2,
+      exportJson,
     };
   }
 );
