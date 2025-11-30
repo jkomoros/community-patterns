@@ -17,6 +17,7 @@ import PreparedFood from "./prepared-food.tsx";
 import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
 import SmartRubric from "./WIP/smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
+import RedactorWithVault from "./redactor-with-vault.tsx";
 
 type Input = void;
 type Output = {
@@ -205,6 +206,16 @@ const createFavoritesViewer = handler<void, void>((_, __) => {
   return navigateTo(FavoritesViewer({}));
 });
 
+// HACK: Combined vault + redactor pattern while wish("#pii-vault") is broken
+const createRedactorWithVault = handler<void, void>((_, __) => {
+  return navigateTo(RedactorWithVault({
+    title: "PII Redactor",
+    entries: [],
+    inputText: "",
+    llmResponse: "",
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -330,6 +341,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   ⭐ Favorites Viewer
+                </ct-button>
+
+                <ct-button
+                  onClick={createRedactorWithVault()}
+                  size="lg"
+                >
+                  🛡️ PII Redactor
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
