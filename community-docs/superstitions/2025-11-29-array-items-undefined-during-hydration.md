@@ -21,10 +21,15 @@ The array existed and had the correct length, but individual items were `undefin
 1. Framework restores array from storage during page refresh
 2. Array length is restored before individual item data
 3. Derives run during this intermediate state
-4. Items accessed via `.map()` or `.filter()` are `undefined`
-5. Property access on undefined items throws TypeError
+4. Items accessed via `.map()` or `.filter()` are `undefined` OR `null`
+5. Property access on undefined/null items throws TypeError
 6. Error triggers reactive re-evaluation
 7. Re-evaluation hits same error → loop
+
+**UPDATE (confirmed):** Items can be BOTH `undefined` AND `null` during hydration.
+We observed both error messages:
+- `Cannot read properties of undefined (reading 'sourceUrl')`
+- `Cannot read properties of null (reading 'sourceUrl')`
 
 **Why we're uncertain:**
 - Haven't confirmed with framework author
