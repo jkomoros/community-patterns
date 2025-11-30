@@ -1,0 +1,133 @@
+/// <cts-enable />
+import { Default, NAME, pattern, UI } from "commontools";
+
+type CFC<T, C extends string> = T;
+type Secret<T> = CFC<T, "secret">;
+
+// Auth data structure for Google OAuth tokens
+export type Auth = {
+  token: Default<Secret<string>, "">;
+  tokenType: Default<string, "">;
+  scope: Default<string[], []>;
+  expiresIn: Default<number, 0>;
+  expiresAt: Default<number, 0>;
+  refreshToken: Default<Secret<string>, "">;
+  user: Default<{
+    email: string;
+    name: string;
+    picture: string;
+  }, { email: ""; name: ""; picture: "" }>;
+};
+
+interface Input {
+  auth: Default<Auth, {
+    token: "";
+    tokenType: "";
+    scope: [];
+    expiresIn: 0;
+    expiresAt: 0;
+    refreshToken: "";
+    user: { email: ""; name: ""; picture: "" };
+  }>;
+}
+
+/** Google OAuth authentication for Google Calendar API access. #googleCalendarAuth */
+interface Output {
+  auth: Auth;
+}
+
+export default pattern<Input, Output>(
+  ({ auth }) => {
+    return {
+      [NAME]: "Google Calendar Auth",
+      [UI]: (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+            padding: "25px",
+            maxWidth: "600px",
+          }}
+        >
+          <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: "0" }}>
+            Google Calendar Authentication
+          </h2>
+
+          <div
+            style={{
+              padding: "20px",
+              backgroundColor: "#f8f9fa",
+              borderRadius: "8px",
+              border: "1px solid #e0e0e0",
+            }}
+          >
+            <h3 style={{ fontSize: "16px", marginTop: "0" }}>
+              Status:{" "}
+              {auth?.user?.email ? "✅ Authenticated" : "⚠️  Not Authenticated"}
+            </h3>
+
+            {auth?.user?.email
+              ? (
+                <div>
+                  <p style={{ margin: "8px 0" }}>
+                    <strong>Email:</strong> {auth.user.email}
+                  </p>
+                  <p style={{ margin: "8px 0" }}>
+                    <strong>Name:</strong> {auth.user.name}
+                  </p>
+                </div>
+              )
+              : (
+                <p style={{ color: "#666" }}>
+                  Click the button below to authenticate with Google
+                </p>
+              )}
+          </div>
+
+          {auth?.user?.email && (
+            <div
+              style={{
+                padding: "15px",
+                backgroundColor: "#fff3cd",
+                borderRadius: "8px",
+                border: "1px solid #ffc107",
+                fontSize: "14px",
+              }}
+            >
+              <strong>⭐ Favorite this charm</strong> to share your Google Calendar auth
+              across all your calendar patterns! Click the star button in the header
+              above, then any pattern using{" "}
+              <code>wish(&#123; tag: "#googleCalendarAuth" &#125;)</code> will
+              automatically find and use this authentication.
+            </div>
+          )}
+
+          <ct-google-oauth
+            $auth={auth}
+            scopes={[
+              "email",
+              "profile",
+              "https://www.googleapis.com/auth/calendar.readonly",
+            ]}
+          />
+
+          <div
+            style={{
+              padding: "15px",
+              backgroundColor: "#e3f2fd",
+              borderRadius: "8px",
+              fontSize: "14px",
+            }}
+          >
+            <strong>💡 Usage:</strong>{" "}
+            This charm provides Google OAuth authentication for Calendar. Link its{" "}
+            <code>auth</code> output to any calendar importer charm's{" "}
+            <code>auth</code> input.
+          </div>
+        </div>
+      ),
+      auth,
+    };
+  },
+);
