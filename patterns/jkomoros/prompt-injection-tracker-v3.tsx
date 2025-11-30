@@ -818,34 +818,33 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     return sample;
   });
 
+  // L2 Counters: Fixed to properly detect success vs error
+  // Issue: webContent cell has .result property but value can be undefined on error
   const fetchPendingCount = derive(articleFirstUrlProcessing, (list) =>
     list.filter((item: any) => item.sourceUrl && item.webContent?.pending).length
   );
-  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) => {
-    const completed = list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result);
-    // DEBUG: Log the count and why items passed/failed
-    if (DEBUG_LOGGING && list.length > 0) {
-      const withUrl = list.filter((item: any) => item.sourceUrl);
-      const notPending = withUrl.filter((item: any) => !item.webContent?.pending);
-      const hasResult = notPending.filter((item: any) => item.webContent?.result);
-      console.log("[DEBUG:L2-COMPLETED]", JSON.stringify({
-        total: list.length,
-        withUrl: withUrl.length,
-        notPending: notPending.length,
-        hasResult: hasResult.length,
-        // Check first failing item
-        firstNotPendingNoResult: notPending.find((item: any) => !item.webContent?.result) ? {
-          sourceUrl: notPending.find((item: any) => !item.webContent?.result)?.sourceUrl?.slice?.(0, 50),
-          webContentKeys: Object.keys(notPending.find((item: any) => !item.webContent?.result)?.webContent || {}),
-          webContentPending: notPending.find((item: any) => !item.webContent?.result)?.webContent?.pending,
-          webContentResult: notPending.find((item: any) => !item.webContent?.result)?.webContent?.result,
-        } : null,
-      }, null, 2));
-    }
-    return completed.length;
-  });
+  // Success = not pending AND has actual result content
+  const fetchSuccessCount = derive(articleFirstUrlProcessing, (list) =>
+    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
+  );
+  // Error = not pending AND no result (either .error is set OR .result is undefined)
   const fetchErrorCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.error).length
+    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
+  );
+  // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)
+  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) =>
+    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending).length
+  );
+
+  // DEBUG: Log L2 counts
+  const _debugL2Counts = derive(
+    { pending: fetchPendingCount, success: fetchSuccessCount, error: fetchErrorCount, done: fetchCompletedCount },
+    (counts) => {
+      if (DEBUG_LOGGING) {
+        console.log("[DEBUG:L2-COUNTS]", JSON.stringify(counts, null, 2));
+      }
+      return counts;
+    }
   );
 
   // Count classification progress
@@ -1159,7 +1158,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
-            {/* Level 2: Web Fetch */}
+            {/* Level 2: Web Fetch - shows success/total with error indicator */}
             <div style={{
               padding: "6px 10px",
               background: fetchPendingCount > 0 ? "#fef3c7" : fetchErrorCount > 0 ? "#fee2e2" : "#dbeafe",
@@ -1168,7 +1167,12 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L2: Fetch</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {fetchCompletedCount}/{articlesWithUrlsCount}
+                {fetchSuccessCount}/{articlesWithUrlsCount}
+                {fetchErrorCount > 0 && (
+                  <span style={{ color: "#ef4444", fontSize: "11px", marginLeft: "4px" }} title={`${fetchErrorCount} failed - will retry`}>
+                    ⚠️{fetchErrorCount}
+                  </span>
+                )}
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
