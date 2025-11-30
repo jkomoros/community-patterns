@@ -192,7 +192,7 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 3. ~~**Verify fix** with test data~~ → **DONE** - L2 counter works correctly
 4. **Investigate page refresh issues** - See Session 3 findings below
 
-### 🟡 NEW ISSUE: Page Refresh Instability
+### ✅ RESOLVED: Page Refresh Instability & Thrashing
 
 **Nov 29, 2025 - Session 3 Findings:**
 
@@ -205,15 +205,31 @@ After page refresh, observed:
 - **Many storage transaction failures** - Framework struggling with concurrent updates
 - **TypeError: Cannot read properties of undefined (reading 'sourceUrl')** - Array items undefined during hydration
 
-**Hypothesis:** During page refresh/hydration, the mapped arrays have undefined items temporarily, causing:
-1. Counter derives to fail with TypeError
-2. Reactivity loop as framework tries to recover
-3. Transaction failures from too many concurrent writes
+**Nov 29, 2025 - Session 4: ROOT CAUSE IDENTIFIED & FIXED**
 
-**Potential fixes:**
-- Add null checks in counter derives: `list.filter((item: any) => item && item.sourceUrl && ...)`
-- Investigate if this is a framework-level issue with map hydration
-- May need to debounce or batch counter updates
+The reactivity loop and thrashing were caused by **derive() calls inside generateObject/fetchData options**:
+
+```typescript
+// ❌ BAD: derive inside options creates new cells each reactive pass
+const webContent = fetchData({
+  body: derive(url, (u) => ({ url: u })),  // NEW CELL EACH PASS!
+});
+
+// ✅ GOOD: derive outside options, reference by variable
+const webContentBody = derive(url, (u) => ({ url: u }));  // Stable reference
+const webContent = fetchData({
+  body: webContentBody,  // Same cell reference
+});
+```
+
+**Fixes applied:**
+1. Moved derive() calls OUTSIDE of fetchData/generateObject options
+2. Added null checks in counter derives for hydration safety
+3. Disabled DEBUG_LOGGING (debug derives were also contributing to thrashing)
+
+**Result:** Pattern now processes 5 test articles correctly with stable UI, all 4 reports render with summaries.
+
+**Related superstition:** `community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md`
 
 ### Future: Retry Failed Fetches
 
@@ -230,6 +246,7 @@ After page refresh, observed:
   - 5e07160: Fix L2 counter to show success/error counts separately
   - a59cc38: Fix LLM returning "null" string instead of actual null for URLs
   - 6529af6: Fix pipeline metrics and reactivity loop from computed() inside map
+  - 0ea4352: Fix derive() inside map causing reactivity loop and thrashing
 
 ---
 

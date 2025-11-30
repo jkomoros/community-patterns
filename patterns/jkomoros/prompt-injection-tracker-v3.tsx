@@ -474,7 +474,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // DEBUG: Pipeline Instrumentation (for caching investigation)
   // Remove this section once caching issues are resolved
   // ==========================================================================
-  const DEBUG_LOGGING = true; // Set to false to disable logging
+  const DEBUG_LOGGING = false; // Set to false to disable logging
 
   const debugLog = (stage: string, data: any) => {
     if (DEBUG_LOGGING) {
@@ -657,6 +657,9 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     });
 
     // L2: Fetch web content for first URL
+    // IMPORTANT: Move derive OUTSIDE of fetchData options to prevent reactivity loops
+    // (derive inside options creates new cells on each map iteration, causing constant re-evaluation)
+    const webContentBody = derive(firstUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
     const webContent = ifElse(
       firstUrl,
       fetchData<{ content: string; title?: string }>({
@@ -665,13 +668,24 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         options: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: derive(firstUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false })),
+          body: webContentBody,
         },
       }),
       null
     );
 
     // L3: Classify content
+    // IMPORTANT: Move derive OUTSIDE of generateObject to prevent reactivity loops
+    const classificationPrompt = derive(
+      { url: firstUrl, content: webContent },
+      ({ url, content }: any) => {
+        const pageContent = content?.result?.content;
+        if (pageContent) {
+          return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
+        }
+        return `URL: ${url}\n\nClassify based on URL pattern only.`;
+      }
+    );
     const classification = ifElse(
       firstUrl,
       generateObject<{
@@ -681,16 +695,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         briefDescription: string;
       }>({
         system: CONTENT_CLASSIFICATION_SYSTEM,
-        prompt: derive(
-          { url: firstUrl, content: webContent },
-          ({ url, content }: any) => {
-            const pageContent = content?.result?.content;
-            if (pageContent) {
-              return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
-            }
-            return `URL: ${url}\n\nClassify based on URL pattern only.`;
-          }
-        ),
+        prompt: classificationPrompt,
         model: "anthropic:claude-sonnet-4-5",
         schema: CONTENT_CLASSIFICATION_SCHEMA,
       }),
@@ -703,6 +708,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     );
     const originalReportUrl = derive(classification, (c: any) => c?.result?.originalReportUrl);
 
+    // IMPORTANT: Move derive OUTSIDE of fetchData options to prevent reactivity loops
+    const originalContentBody = derive(originalReportUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
     const originalContent = ifElse(
       needsOriginalFetch,
       fetchData<{ content: string; title?: string }>({
@@ -711,7 +718,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         options: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: derive(originalReportUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false })),
+          body: originalContentBody,
         },
       }),
       null
@@ -725,6 +732,18 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       originalContent
     );
 
+    // IMPORTANT: Move derive OUTSIDE of generateObject to prevent reactivity loops
+    const summaryPrompt = derive(
+      { url: firstUrl, originalReportUrl, content: reportContent, isOriginal },
+      ({ url, originalReportUrl, content, isOriginal }: any) => {
+        const targetUrl = isOriginal ? url : (originalReportUrl || url);
+        const pageContent = content?.result?.content;
+        if (pageContent) {
+          return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
+        }
+        return `URL: ${targetUrl}\n\nSummarize based on URL pattern.`;
+      }
+    );
     const summary = ifElse(
       firstUrl,
       generateObject<{
@@ -736,17 +755,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
         canonicalId: string;
       }>({
         system: REPORT_SUMMARY_SYSTEM,
-        prompt: derive(
-          { url: firstUrl, originalReportUrl, content: reportContent, isOriginal },
-          ({ url, originalReportUrl, content, isOriginal }: any) => {
-            const targetUrl = isOriginal ? url : (originalReportUrl || url);
-            const pageContent = content?.result?.content;
-            if (pageContent) {
-              return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
-            }
-            return `URL: ${targetUrl}\n\nSummarize based on URL pattern.`;
-          }
-        ),
+        prompt: summaryPrompt,
         model: "anthropic:claude-sonnet-4-5",
         schema: REPORT_SUMMARY_SCHEMA,
       }),
@@ -1058,6 +1067,27 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
 
   const totalReportCount = derive(finalReportsWithSources, (reports) => reports.length);
+
+  // DEBUG: Log finalReportsWithSources vs uniqueOriginalCount (controlled by flag)
+  const _debugFinalReportsVerbose = derive(
+    { reports: finalReportsWithSources, uniqueCount: uniqueOriginalCount, origUrls: originalReportUrls },
+    ({ reports, uniqueCount, origUrls }) => {
+      if (DEBUG_LOGGING) {
+        console.log("[DEBUG:FINAL-REPORTS]", JSON.stringify({
+          finalReportsCount: reports.length,
+          uniqueOriginalCount: uniqueCount,
+          originalReportUrlsCount: origUrls.length,
+          sampleReport: reports[0] ? {
+            url: reports[0].url?.slice?.(0, 50),
+            hasSummary: !!reports[0].summary,
+            summaryPending: reports[0].summary?.pending,
+            summaryHasResult: !!reports[0].summary?.result,
+          } : null,
+        }, null, 2));
+      }
+      return null;
+    }
+  );
 
   // L5: Count unique reports with completed summaries (deduplicated)
   const reportsWithSummaryCount = derive(finalReportsWithSources, (reports) =>
