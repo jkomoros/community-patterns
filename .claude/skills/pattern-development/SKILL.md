@@ -44,23 +44,29 @@ The pattern-dev skill reads all latest pattern documentation from the labs repo.
 
 ## Space Naming Conventions
 
-When testing patterns with Playwright, use temporary test spaces:
+When testing patterns, use the `claude-` prefix with descriptive names:
 
-**Format:** `test-<username>-<counter>` or `debug-<username>-<counter>`
+**Format:** `claude-<pattern-name>-<MMDD>-<counter>`
 
 **Examples:**
 ```
-test-alice-1
-test-alice-2
-debug-bob-1
-experiment-charlie-1
+claude-counter-1130-1
+claude-prompt-injection-tracker-1130-2
+claude-gmail-importer-1130-1
+claude-shopping-list-1201-1
 ```
 
+**Pattern:**
+- `claude-` prefix identifies AI-created test spaces
+- `<pattern-name>` - the pattern being tested (use hyphens, keep concise)
+- `<MMDD>` - today's date (month-day)
+- `<counter>` - increment when deploying multiple versions same day
+
 **Important:**
-- Increment counter for each new test space during session
 - These are throwaway spaces for testing
-- Use descriptive prefixes (test, debug, experiment, etc.)
-- Include your username to identify your test spaces
+- The descriptive name helps identify what's being tested
+- Increment counter for each new deployment of the same pattern
+- Space names must be alphanumeric + hyphens only (no underscores)
 
 ## Communication Guidelines
 

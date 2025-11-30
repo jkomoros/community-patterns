@@ -33,7 +33,7 @@ Use Playwright to navigate to: http://localhost:8000/SPACE-NAME/CHARM-ID
 
 **Example:**
 ```
-http://localhost:8000/test-space/baedreicqpqie6td...
+http://localhost:8000/claude-counter-1130-1/baedreicqpqie6td...
 ```
 
 ## Test Pattern Functionality
@@ -51,13 +51,24 @@ If you see a login/registration page:
 2. Follow the registration flow
 3. Then navigate back to the pattern URL
 
+## Space Naming Convention
+
+Use descriptive space names with the `claude-` prefix:
+
+**Format:** `claude-<pattern-name>-<MMDD>-<counter>`
+
+**Examples:**
+- `claude-counter-1130-1`
+- `claude-shopping-list-1201-2`
+- `claude-prompt-injection-tracker-1130-1`
+
 ## Testing Workflow
 
 **After deploying a new pattern:**
 ```
-1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space SPACE-NAME pattern.tsx
+1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space claude-my-pattern-1130-1 pattern.tsx
 2. Note the charm ID from output
-3. Use Playwright to navigate to: http://localhost:8000/SPACE-NAME/CHARM-ID
+3. Use Playwright to navigate to: http://localhost:8000/claude-my-pattern-1130-1/CHARM-ID
    ⚠️ MUST be port 8000, MUST include space name
 4. Verify all functionality works
 5. Report to user if tests pass or if issues found

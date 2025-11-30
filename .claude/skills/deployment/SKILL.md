@@ -46,20 +46,26 @@ cd ~/Code/labs
 deno task ct charm new \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
-  --space my-space \
+  --space claude-my-pattern-1130-1 \
   ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
 **⚠️ ALL THREE PARAMETERS ARE REQUIRED:**
 - `--api-url http://localhost:8000` - MUST be 8000 (toolshed), NOT 5173 (shell)
 - `--identity ../community-patterns/claude.key` - Path to identity key at repo root
-- `--space my-space` - Space name (alphanumeric + hyphens only)
+- `--space claude-<pattern>-<MMDD>-<N>` - Use descriptive space names (see naming convention below)
+
+**Space Naming Convention:**
+```
+claude-<pattern-name>-<MMDD>-<counter>
+```
+Examples: `claude-counter-1130-1`, `claude-gmail-importer-1201-2`
 
 This outputs a charm ID like `baedreicqpqie6td...`
 
 **View in browser:**
 ```
-http://localhost:8000/my-space/CHARM-ID
+http://localhost:8000/SPACE-NAME/CHARM-ID
 ```
 
 **⚠️ CRITICAL URL FORMAT:**
@@ -88,7 +94,7 @@ cd ~/Code/labs
 deno task ct charm new \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
-  --space my-space \
+  --space claude-my-pattern-1130-1 \
   ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
@@ -111,7 +117,7 @@ cd ~/Code/labs
 deno task ct charm inspect \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
-  --space my-space \
+  --space claude-my-pattern-1130-1 \
   --charm CHARM-ID
 ```
 
@@ -125,7 +131,7 @@ export CT_IDENTITY=/path/to/community-patterns/claude.key
 
 # Then just:
 cd ~/Code/labs
-deno task ct charm new --space test-space-1 ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
+deno task ct charm new --space claude-counter-1130-1 ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
 ```
 
 ## Deployment Troubleshooting
