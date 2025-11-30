@@ -780,8 +780,9 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
 
   // Filter to only articles that have URLs for aggregation
+  // Note: Added `a &&` null check for page refresh hydration safety
   const contentClassifications = derive(articleFirstUrlProcessing, (articles) => {
-    return articles.filter((a: any) => a.sourceUrl).map((a: any) => ({
+    return articles.filter((a: any) => a && a.sourceUrl).map((a: any) => ({
       sourceUrl: a.sourceUrl,
       webContent: a.webContent,
       classification: a.classification,
