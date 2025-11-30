@@ -212,18 +212,20 @@ Adapt from reward-spinner:
 
 ## Implementation Phases
 
-### Phase 1: Core Structure
-- [ ] Vertical timeline displaying last 30 days (today at top)
-- [ ] Basic day records with date display
-- [ ] Empty circles for unearned days
-- [ ] Goal name display at top
-- [ ] Basic star emoji for earned days
+### Phase 1: Core Structure ✅
+- [x] Vertical timeline displaying days with stars
+- [x] Basic day records with date display
+- [x] Empty circles for unearned days (via ifElse)
+- [x] Goal name display at top
+- [x] Basic star emoji for earned days
+- [x] Award button that adds stars for today
 
-### Phase 2: Award Flow
-- [ ] "Award Star" button for today
-- [ ] Two-step flow (parent enables → child places)
-- [ ] awardEnabled state toggle
-- [ ] Basic star placement on tap
+### Phase 2: Award Flow ✅
+- [x] "Award Star" button for today
+- [x] Two-step flow (parent enables → child places)
+- [x] awardEnabled state toggle
+- [x] Basic star placement on tap
+- [x] Clear instructions for parent/child
 
 ### Phase 3: Magical Stars
 - [ ] Random rotation per star (-15° to +15°, stored in record)
