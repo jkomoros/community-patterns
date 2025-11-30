@@ -569,7 +569,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // DEBUG: Log L1 cell structure
   const _debugL1CellStructure = derive(articleExtractions, (list) => {
     if (!DEBUG_LOGGING) return null;
-    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+    const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const ext = item.extraction;
       return {
         idx,
@@ -591,13 +591,13 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   const pendingCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e.extraction?.pending).length
+    list.filter((e: any) => e && e.extraction?.pending).length
   );
 
   // Completed = not pending (matches what the UI checkmarks show)
   // NOTE: L1 uses !pending (like L3), not !pending && result (like L2)
   const completedCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => !e.extraction?.pending).length
+    list.filter((e: any) => e && !e.extraction?.pending).length
   );
 
   // Collect all extracted links for counting (derive is fine for read-only aggregation)
@@ -605,6 +605,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     const links: string[] = [];
     const seen = new Set<string>();
     for (const item of list) {
+      if (!item) continue; // Skip undefined items during hydration
       const result = item.extraction?.result;
       if (result && result.urls) {
         for (const url of result.urls) {
@@ -624,13 +625,14 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
   // Count articles that have at least one URL (used for L2/L3 metrics)
   const articlesWithUrlsCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e.extraction?.result?.urls?.length > 0).length
+    list.filter((e: any) => e && e.extraction?.result?.urls?.length > 0).length
   );
 
   // Count by classification
   const classificationCounts = derive(articleExtractions, (list) => {
     const counts: Record<string, number> = { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 };
     for (const item of list) {
+      if (!item) continue; // Skip undefined items during hydration
       const classification = item.extraction?.result?.classification as string | undefined;
       if (classification && counts[classification] !== undefined) {
         counts[classification]++;
@@ -794,7 +796,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // DEBUG: Log cell structure for first 3 items to understand caching behavior
   const _debugL2CellStructure = derive(articleFirstUrlProcessing, (list) => {
     if (!DEBUG_LOGGING) return null;
-    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+    const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const wc = item.webContent;
       return {
         idx,
@@ -820,20 +822,21 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
   // L2 Counters: Fixed to properly detect success vs error
   // Issue: webContent cell has .result property but value can be undefined on error
+  // Note: Added `item &&` null checks for page refresh hydration safety
   const fetchPendingCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && item.webContent?.pending).length
+    list.filter((item: any) => item && item.sourceUrl && item.webContent?.pending).length
   );
   // Success = not pending AND has actual result content
   const fetchSuccessCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
+    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
   );
   // Error = not pending AND no result (either .error is set OR .result is undefined)
   const fetchErrorCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
+    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
   );
   // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)
   const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending).length
+    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending).length
   );
 
   // DEBUG: Log L2 counts
@@ -851,7 +854,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // DEBUG: Log L3 cell structure to compare with L2
   const _debugL3CellStructure = derive(contentClassifications, (list) => {
     if (!DEBUG_LOGGING) return null;
-    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+    const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const cl = item.classification;
       return {
         idx,
@@ -874,10 +877,10 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   const classifyPendingCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c.classification?.pending).length
+    list.filter((c: any) => c && c.classification?.pending).length
   );
   const classifyCompletedCount = derive(contentClassifications, (list) => {
-    const completed = list.filter((c: any) => !c.classification?.pending);
+    const completed = list.filter((c: any) => c && !c.classification?.pending);
     // DEBUG: Log L3 completion check
     if (DEBUG_LOGGING && list.length > 0) {
       console.log("[DEBUG:L3-COMPLETED]", JSON.stringify({
@@ -891,10 +894,10 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
 
   // Count originals vs news articles
   const originalCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c.classification?.result?.isOriginalReport).length
+    list.filter((c: any) => c && c.classification?.result?.isOriginalReport).length
   );
   const newsArticleCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c.classification?.result && !c.classification.result.isOriginalReport).length
+    list.filter((c: any) => c && c.classification?.result && !c.classification.result.isOriginalReport).length
   );
 
   // ==========================================================================
@@ -909,6 +912,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     const urls: Array<{ url: string; sourceUrl: string; isDirectOriginal: boolean }> = [];
 
     for (const item of items) {
+      if (!item) continue; // Skip undefined items during hydration
       const result = item.classification?.result;
       if (!result) continue; // Still pending
 
@@ -943,8 +947,10 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // ==========================================================================
 
   // L4: Count original fetches in progress (for news articles pointing to originals)
+  // Note: Added `item &&` null checks for page refresh hydration safety
   const l4PendingCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => {
+      if (!item) return false; // Skip undefined items during hydration
       const needsFetch = item.classification?.result &&
         !item.classification.result.isOriginalReport &&
         isValidUrl(item.classification.result.originalReportUrl);
@@ -953,6 +959,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
   const l4CompletedCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => {
+      if (!item) return false; // Skip undefined items during hydration
       const result = item.classification?.result;
       if (!result) return false;
       // Direct originals are "complete" (no extra fetch needed)
@@ -964,13 +971,14 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
 
   // L5: Count summaries in progress (per article)
+  // Note: Added `item &&` null checks for page refresh hydration safety
   const summaryPendingCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item.summary?.pending).length
+    list.filter((item: any) => item && item.summary?.pending).length
   );
 
   // Count LLM-specific reports
   const llmSpecificCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item.summary?.result?.isLLMSpecific).length
+    list.filter((item: any) => item && item.summary?.result?.isLLMSpecific).length
   );
 
   // ==========================================================================
@@ -985,6 +993,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     }>();
 
     for (const item of items) {
+      if (!item) continue; // Skip undefined items during hydration
       const result = item.classification?.result;
       const sourceUrl = item.sourceUrl as string | null;
       if (!result || !sourceUrl) continue;
@@ -1042,15 +1051,16 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   );
 
   // Count unread reports (reports not in readUrls array)
+  // Note: Added `r &&` null checks for page refresh hydration safety
   const unreadCount = derive(finalReportsWithReadState, (reports) =>
-    reports.filter((r: any) => !r.isRead).length
+    reports.filter((r: any) => r && !r.isRead).length
   );
 
   const totalReportCount = derive(finalReportsWithSources, (reports) => reports.length);
 
   // L5: Count unique reports with completed summaries (deduplicated)
   const reportsWithSummaryCount = derive(finalReportsWithSources, (reports) =>
-    reports.filter((r: any) => r.summary?.result && !r.summary.pending).length
+    reports.filter((r: any) => r && r.summary?.result && !r.summary.pending).length
   );
 
   // ==========================================================================
