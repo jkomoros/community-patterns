@@ -186,14 +186,17 @@ list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.
 
 ### Next Steps
 
-1. **Decide on counter semantics:**
-   - Option A: Count "done" (not pending) - matches L3 approach
-   - Option B: Count "success" (not pending AND no error)
-   - Option C: Show separate counts (success/error/pending)
-
-2. **Implement the fix** for L2 counter
+1. ~~**Decide on counter semantics:**~~ → **Option C chosen**: Show separate counts
+2. ~~**Implement the fix** for L2 counter~~ → **DONE** in this session
 3. **Verify fix** with test data and page refresh
 4. **Test caching behavior** after fix - does cache load correctly?
+
+### Future: Retry Failed Fetches
+
+`fetchData` caches by inputs - failed requests won't automatically retry because inputs don't change. Options:
+- Add "Retry Failed" button with cache-busting timestamp
+- Framework-level retry support (check if exists)
+- Automatic retry with exponential backoff (complex)
 
 ### Files
 
