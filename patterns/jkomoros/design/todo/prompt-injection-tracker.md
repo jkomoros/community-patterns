@@ -1,7 +1,7 @@
 # Prompt Injection Tracker - TODO
 
 ## Status
-**Active Investigation:** Nov 29, 2025 - Debugging caching behavior in pipeline
+**Active Investigation:** Nov 30, 2025 - Real Gmail testing complete, throttling issue identified
 
 ## ACTIVE: Caching Investigation
 
@@ -230,6 +230,33 @@ const webContent = fetchData({
 **Result:** Pattern now processes 5 test articles correctly with stable UI, all 4 reports render with summaries.
 
 **Related superstition:** `community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md`
+
+**Nov 30, 2025 - Session 5: Real Gmail Testing**
+
+Tested pattern with real Gmail data (alex@common.tools Google Alerts for "prompt injection"):
+
+**Results:**
+- ✅ Gmail OAuth worked correctly via `charm link` workaround (CT-1085)
+- ✅ L1 URL extraction: 33/33 emails processed, 66 URLs extracted
+- ⚠️ L2 web fetching: Server overwhelmed by ~60 concurrent fetchData calls
+  - Server crashed with "Socket is in unknown state" error
+  - After restart: 30 errors initially, gradually recovered to ~2 errors
+- ✅ L3 classification: Working - detecting "has-security-links" vs "news-article"
+- ✅ Pipeline architecture is sound - data flows correctly between stages
+
+**Key Finding: fetchData Throttling Needed**
+
+When mapping over 60+ items with fetchData, all requests fire simultaneously, overwhelming the server. Patterns cannot implement throttling themselves (no userland timing for security reasons).
+
+**Filed Issue:** `patterns/jkomoros/issues/ISSUE-FetchData-Throttling-For-Bulk-Operations.md`
+
+Recommended solutions:
+1. Server-side rate limiting on `/api/agent-tools/web-read`
+2. Global concurrency limit in `fetchData` primitive
+
+**Charm IDs (for reference):**
+- Tracker: `baedreib4vmls7zg6ijvpchqjuvqa7auierox64bc2ogalrhdewhdc7n6r4`
+- Gmail Auth: `baedreie4yfvq32lup7vouua6radjfgv4mw6bwkzhsdzgtik4qt3fcxsz7m`
 
 ### Future: Retry Failed Fetches
 
