@@ -431,6 +431,31 @@ const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
   }
 );
 
+// Extra test article for incremental caching tests
+const EXTRA_TEST_ARTICLE: Article = {
+  id: "article-6",
+  title: "Spectre and Meltdown Update",
+  source: "CPU Security Newsletter",
+  content: `
+Update on CPU-level vulnerabilities affecting modern processors.
+
+Recent patches and mitigations for Spectre and Meltdown variants:
+
+Official Intel Advisory: https://www.intel.com/content/www/us/en/security-center/advisory/intel-sa-00088.html
+MITRE CVE Entry: https://nvd.nist.gov/vuln/detail/CVE-2017-5754
+AMD Security Bulletin: https://www.amd.com/en/corporate/product-security
+
+These hardware-level vulnerabilities require both firmware and OS-level patches.
+  `.trim(),
+};
+
+// Handler to add a single extra article (for incremental caching tests)
+const addSingleArticle = handler<unknown, { articles: Cell<Article[]> }>(
+  (_event, { articles }) => {
+    articles.push(EXTRA_TEST_ARTICLE);
+  }
+);
+
 // Handler to toggle read/unread state for a report URL
 const toggleRead = handler<
   unknown,
@@ -1154,21 +1179,37 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             🧪 Test Mode (no Gmail needed)
           </summary>
           <div style={{ padding: "12px", marginTop: "8px" }}>
-            <button
-              onClick={loadTestArticles({ articles })}
-              style={{
-                padding: "8px 16px",
-                background: "#3b82f6",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              Load Test Articles ({TEST_ARTICLES.length})
-            </button>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                onClick={loadTestArticles({ articles })}
+                style={{
+                  padding: "8px 16px",
+                  background: "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                Load Test Articles ({TEST_ARTICLES.length})
+              </button>
+              <button
+                onClick={addSingleArticle({ articles })}
+                style={{
+                  padding: "8px 16px",
+                  background: "#10b981",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+              >
+                + Add 1 Article
+              </button>
+            </div>
             <p style={{ fontSize: "11px", color: "#666", marginTop: "8px" }}>
               Loads sample security newsletter content for testing without Gmail.
+              Use "+ Add 1 Article" to test incremental caching.
             </p>
           </div>
         </details>
