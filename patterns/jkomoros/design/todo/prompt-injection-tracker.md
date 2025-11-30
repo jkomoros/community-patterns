@@ -1,17 +1,33 @@
 # Prompt Injection Tracker - TODO
 
 ## Status
-**Active Investigation:** Nov 30, 2025 - Real Gmail testing complete, throttling issue identified
+**Active:** Nov 30, 2025 - Acceptance testing incremental caching behavior
 
-## ACTIVE: Caching Investigation
+## ✅ RESOLVED: Understanding Framework Caching Behavior
 
-### Problem Statement
+### Key Insight: Computation Re-runs, But Cache Hits Are Fast
 
-Despite following the "dumb map approach" and keeping map chains unbroken, we're seeing unexpected caching behavior with the five-level pipeline when using real Gmail data (~30 emails):
+**Important clarification:** On page refresh, the reactive pipeline DOES re-run all computations. This is expected behavior. However, the framework caches results for:
+- `generateObject` - cached by prompt + schema + model
+- `fetchData` - cached by URL + method + body + headers
 
-1. **Later pipeline stages are slow** - Even with framework caching, processing takes longer than expected
-2. **Page refresh doesn't restore state quickly** - Expected cached results to load instantly
-3. **L2 counter discrepancy** - After cache load, L2 shows 0/28 while L3 shows 28/28
+**What happens on page refresh:**
+1. Input data (articles) is persisted and restored
+2. All reactive computations re-run (maps, derives, etc.)
+3. `generateObject` and `fetchData` calls hit the cache
+4. Results return quickly (no actual LLM calls or network requests)
+5. UI settles to the same final state
+
+**This is NOT a bug** - the computation graph re-executes, but expensive operations are cached. The UI may briefly show "processing..." states during hydration, but quickly settles.
+
+### Previous Investigation (Reference)
+
+Earlier we investigated what appeared to be caching issues. The actual root causes were:
+1. **L2 counter bug** - checking `.result` instead of `!.pending` (FIXED)
+2. **Reactivity thrashing** - `derive()` inside map options creating new cells (FIXED)
+3. **Hydration null checks** - array items undefined during hydration (FIXED)
+
+The "slow page refresh" observation was actually normal behavior - the reactive graph re-runs but cache hits are fast.
 
 ### Pipeline Architecture (for reference)
 
@@ -29,7 +45,54 @@ L4: Fetch original reports (fetchData)
 L5: Summarize reports (generateObject)
 ```
 
-### Observed Symptoms
+---
+
+## ✅ VERIFIED: Incremental Caching Works
+
+### Test Goal
+Verify that when adding a new article to an existing set, only the NEW article triggers LLM calls. Existing articles should use cached results.
+
+### Test Plan - ALL PASSED ✅
+1. ✅ Deploy pattern and load 5 test articles
+2. ✅ Wait for L1 extraction to complete (5/5)
+3. ✅ Add 1 additional article ("Spectre and Meltdown Update")
+4. ✅ Verify only 1 new generateObject call (for the new article)
+5. ✅ Existing 5 articles showed results instantly from cache
+
+### Test Results (Nov 30, 2025)
+
+**Before adding article:**
+- L1: 5/5, L3: 4/4, L5: 3/3
+- 5 articles with completed extractions
+
+**Immediately after clicking "+ Add 1 Article":**
+- L1: 5/6 - Original 5 still show ✅, new article shows ⏳
+- Original articles retained all their extracted URLs instantly
+- **Only 1 new LLM call** - the new "Spectre and Meltdown Update" article
+
+**After processing settled:**
+- L1: 6/6 - All complete
+- New article extracted 3 URLs (Intel, NVD CVE-2017-5754, AMD)
+- Pipeline flowing correctly through L2-L5 for new URLs
+- 14 source URLs → 5 unique reports (deduplication working)
+
+### Conclusion
+
+**Incremental caching is working as designed.** When you add items to an array that's mapped over with `generateObject`:
+- Existing items hit the cache and return results instantly
+- Only new items trigger actual LLM API calls
+- The "dumb map approach" works correctly for incremental updates
+
+### Implementation Notes
+- Added "+ Add 1 Article" button to pattern for testing (commit pending)
+- Extra test article: "Spectre and Meltdown Update" with Intel/NVD/AMD URLs
+- Pattern: `baedreihbjvzxbvphyz6qx5j7tse6a4abykdz2zdyzfyeib7ikd4pcaraia`
+
+---
+
+## Historical Investigation (Archived)
+
+### Observed Symptoms (RESOLVED)
 
 1. **Symptom: L2 counter shows 0/N after page reload**
    - L1: 30/30 ✓
