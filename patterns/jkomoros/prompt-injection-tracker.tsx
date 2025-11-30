@@ -472,6 +472,7 @@ export default pattern<Input, Output>(
         gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
         limit: 100,
         historyId: "",
+        debugMode: false,
       },
       authCharm,  // Pass through from input (can be linked via charm link command)
     });

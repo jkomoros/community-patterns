@@ -289,6 +289,7 @@ export default pattern<InputOutput>(
         gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
         limit: 100,
         historyId: "",
+        debugMode: false,
       },
       authCharm: auth,
     });

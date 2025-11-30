@@ -15,6 +15,7 @@ export default pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
       gmailFilterQuery,
       limit,
       historyId: "",
+      debugMode: false,
     },
     authCharm: null,  // Let importer wish for shared auth
   });
