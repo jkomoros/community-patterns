@@ -7,6 +7,29 @@ import { Cell, computed, Default, handler, ifElse, NAME, OpaqueRef, pattern, UI 
  * A reward calendar for children learning daily habits.
  * Shows a rolling 30-day timeline with gold stars for successful days.
  * Stars appear as magical stickers with random tilts and shimmer effects.
+ *
+ * ## Debug/Testing Mode
+ *
+ * The `debugDate` input allows overriding "today" for testing purposes.
+ * When empty (default), uses the real current date.
+ *
+ * To test with different dates, create a linked date picker charm:
+ *
+ * 1. Deploy this pattern:
+ *    deno task ct charm new star-chart.tsx --api-url http://localhost:8000 \
+ *      --identity ../../claude.key --space jkomoros-test
+ *
+ * 2. Note the charm ID from the deployment output (e.g., "bafy...")
+ *
+ * 3. Create a date picker linked to debugDate:
+ *    deno task ct charm new @anthropic/date-picker --api-url http://localhost:8000 \
+ *      --identity ../../claude.key --space jkomoros-test \
+ *      --argument "date=/jkomoros-test/<charm-id>/debugDate"
+ *
+ * 4. Open the date picker charm to change the Star Chart's "today"
+ *
+ * To clear all data for testing, set days to [] via another linked charm
+ * or redeploy with fresh state.
  */
 
 interface DayRecord {
@@ -20,12 +43,16 @@ interface StarChartInput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
   awardEnabled: Cell<Default<boolean, false>>;
+  // Debug: override "today" for testing (empty string = use real today)
+  // Link a date picker charm to this for debugging
+  debugDate: Cell<Default<string, "">>;
 }
 
 interface StarChartOutput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
   awardEnabled: Cell<Default<boolean, false>>;
+  debugDate: Cell<Default<string, "">>;
 }
 
 // Helper to get today's date as YYYY-MM-DD
@@ -67,13 +94,14 @@ const enableAward = handler<
 // Handler for child to place the star
 const placeStar = handler<
   unknown,
-  { days: Cell<DayRecord[]>; awardEnabled: Cell<boolean> }
->((_, { days, awardEnabled }) => {
+  { days: Cell<DayRecord[]>; awardEnabled: Cell<boolean>; debugDate: Cell<string> }
+>((_, { days, awardEnabled, debugDate }) => {
   // Only works if award is enabled
   if (!awardEnabled.get()) return;
 
   const currentDays = days.get();
-  const todayStr = getTodayString();
+  const override = debugDate.get();
+  const todayStr = override || getTodayString();
 
   // Check if today already has a record
   const existingIndex = currentDays.findIndex((d) => d.date === todayStr);
@@ -96,10 +124,19 @@ const placeStar = handler<
 });
 
 export default pattern<StarChartInput, StarChartOutput>(
-  ({ goalName, days, awardEnabled }) => {
+  ({ goalName, days, awardEnabled, debugDate }) => {
+    // Get effective "today" (real or debug override)
+    // debugDate is a Cell, so use .get() inside computed
+    const effectiveToday = computed(() => {
+      const override = debugDate.get();
+      return override || getTodayString();
+    });
+
     // Check if today already has a star
+    // days is a Cell, use .get() to get the array, then use array methods
+    // effectiveToday is a computed, access it directly (no .get())
     const todayHasStar = computed(() => {
-      const todayStr = getTodayString();
+      const todayStr = effectiveToday as unknown as string;
       const allDays = days.get();
       return allDays.some((d) => d.date === todayStr && d.earned);
     });
@@ -160,7 +197,7 @@ export default pattern<StarChartInput, StarChartOutput>(
                   marginBottom: "12px",
                 }}
               >
-                Today - {formatDateShort(today)}
+                Today - {effectiveToday}
               </div>
 
               {/* If today already has a star, show celebration */}
@@ -210,7 +247,7 @@ export default pattern<StarChartInput, StarChartOutput>(
 
                   {/* Step 2: Child places the star (big button, only when enabled) */}
                   <button
-                    onClick={placeStar({ days, awardEnabled })}
+                    onClick={placeStar({ days, awardEnabled, debugDate })}
                     disabled={ifElse(awardEnabled, false, true)}
                     style={{
                       fontSize: "80px",
@@ -354,6 +391,7 @@ export default pattern<StarChartInput, StarChartOutput>(
       goalName,
       days,
       awardEnabled,
+      debugDate,
     };
   }
 );
