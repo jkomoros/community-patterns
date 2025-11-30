@@ -94,7 +94,10 @@ const createMetaAnalyzer = handler<void, void>((_, __) => {
 
 const createPromptInjectionTracker = handler<void, void>((_, __) => {
   return navigateTo(PromptInjectionTracker({
-    emails: [],
+    gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
+    limit: 50,
+    articles: [],
+    authCharm: null,
   }));
 });
 
@@ -170,9 +173,20 @@ const createPreparedFood = handler<void, void>((_, __) => {
 
 const createHotelMembershipExtractor = handler<void, void>((_, __) => {
   return navigateTo(HotelMembershipExtractor({
+    auth: {
+      token: "",
+      tokenType: "",
+      scope: [],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    },
     memberships: [],
     lastScanAt: 0,
     isScanning: false,
+    maxSearches: 5,
+    currentScanMode: "full",
   }));
 });
 
