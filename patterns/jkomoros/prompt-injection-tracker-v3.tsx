@@ -531,6 +531,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       gmailFilterQuery,
       limit,
       historyId: "",
+      debugMode: DEBUG_LOGGING, // Use same flag as pattern debug logging
     },
     authCharm, // Pass through from input (link via ct charm link)
   });
