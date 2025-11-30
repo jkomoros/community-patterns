@@ -579,6 +579,71 @@ function addNamePII(
 //   - "Smith" → "Anderson"
 ```
 
+### 10. Email Auto-Splitting
+
+When adding an email, split into local part and domain:
+
+```typescript
+const COMMON_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com',
+  'icloud.com', 'aol.com', 'protonmail.com', 'mail.com',
+  'live.com', 'msn.com', 'ymail.com', 'googlemail.com'
+]);
+
+function addEmailPII(
+  registry: PIIRegistry,
+  email: string,
+  session: RedactionSession,
+  pools: NoncePools
+): void {
+  // Add full email
+  const emailEntry: PIIEntry = {
+    category: 'email',
+    value: email,
+    canonical: canonicalize(email).canonical
+  };
+  registry.entries.push(emailEntry);
+
+  // Parse email
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex === -1) return;
+
+  const localPart = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1).toLowerCase();
+
+  // Always add local part (often contains name)
+  const localEntry: PIIEntry = {
+    category: 'name', // Treat as name-like for matching
+    value: localPart,
+    canonical: canonicalize(localPart).canonical
+  };
+  registry.entries.push(localEntry);
+
+  // Add domain only if not a common provider
+  if (!COMMON_EMAIL_DOMAINS.has(domain)) {
+    const domainEntry: PIIEntry = {
+      category: 'custom',
+      value: domain,
+      canonical: canonicalize(domain).canonical
+    };
+    registry.entries.push(domainEntry);
+  }
+}
+
+// Example:
+// addEmailPII(registry, "john.smith@acme-corp.com", session, pools)
+// Creates entries for:
+//   - "john.smith@acme-corp.com" → "alice0@example.com"
+//   - "john.smith" → "Alice" (name-like)
+//   - "acme-corp.com" → "[ITEM-001]" (custom, not common domain)
+//
+// addEmailPII(registry, "john.smith@gmail.com", session, pools)
+// Creates entries for:
+//   - "john.smith@gmail.com" → "alice0@example.com"
+//   - "john.smith" → "Alice" (name-like)
+//   - (gmail.com NOT added - common provider)
+```
+
 ## API Design
 
 ### Core Interface
@@ -705,6 +770,13 @@ const restoredOutput = cell<string>('');
 5. **PII registry as input**: The pattern accepts PII as an input cell. Don't worry about persistence or where it comes from - that's the caller's responsibility.
 
 6. **Custom category nonces**: Use `[ITEM-001]` style for custom PII. Simple and clear.
+
+7. **Email auto-splitting**: When adding an email like `john.smith@company.com`:
+   - Always add the local part (`john.smith`) as a separate name-like entry
+   - Add the domain (`company.com`) UNLESS it's a common provider (gmail.com, hotmail.com, yahoo.com, outlook.com, icloud.com, aol.com, protonmail.com, mail.com, live.com, msn.com)
+   - This prevents over-redaction of common domains while protecting custom/corporate domains
+
+8. **Address handling**: Treat addresses as opaque strings. Don't attempt to parse into components (street, city, zip). Too complex and error-prone.
 
 ### Open (for future consideration)
 
