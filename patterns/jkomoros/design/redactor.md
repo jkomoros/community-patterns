@@ -389,6 +389,196 @@ function restore(
 }
 ```
 
+### 6. Case Preservation
+
+Apply the case pattern from the original matched text to the nonce:
+
+```typescript
+type CasePattern = 'lower' | 'upper' | 'title' | 'mixed';
+
+function detectCasePattern(text: string): CasePattern {
+  const letters = text.replace(/[^a-zA-Z]/g, '');
+  if (!letters) return 'lower';
+
+  const isAllLower = letters === letters.toLowerCase();
+  const isAllUpper = letters === letters.toUpperCase();
+  const isTitle = /^[A-Z][a-z]*(\s+[A-Z][a-z]*)*$/.test(text.trim());
+
+  if (isAllLower) return 'lower';
+  if (isAllUpper) return 'upper';
+  if (isTitle) return 'title';
+  return 'mixed';
+}
+
+function applyCasePattern(text: string, pattern: CasePattern): string {
+  switch (pattern) {
+    case 'lower': return text.toLowerCase();
+    case 'upper': return text.toUpperCase();
+    case 'title': return text.replace(/\b\w/g, c => c.toUpperCase());
+    case 'mixed': return text; // Keep nonce's default case
+    default: return text;
+  }
+}
+
+// Usage in redact():
+const casePattern = detectCasePattern(match.originalText);
+const casedNonce = applyCasePattern(nonce, casePattern);
+```
+
+### 7. Format Preservation
+
+Detect and apply format patterns (primarily for SSNs and phone numbers):
+
+```typescript
+interface FormatPattern {
+  // Positions where separators appear in original
+  separatorPositions: number[];
+  // What separator character was used
+  separator: string;
+  // Total length without separators
+  digitCount: number;
+}
+
+function detectFormatPattern(text: string): FormatPattern | null {
+  const digitsOnly = text.replace(/\D/g, '');
+  if (!digitsOnly) return null;
+
+  const separatorPositions: number[] = [];
+  let digitIndex = 0;
+  let separator = '';
+
+  for (let i = 0; i < text.length; i++) {
+    if (/\d/.test(text[i])) {
+      digitIndex++;
+    } else if (/[-.\s]/.test(text[i])) {
+      separatorPositions.push(digitIndex);
+      if (!separator) separator = text[i];
+    }
+  }
+
+  return {
+    separatorPositions,
+    separator,
+    digitCount: digitsOnly.length
+  };
+}
+
+function applyFormatPattern(digits: string, pattern: FormatPattern | null): string {
+  if (!pattern || pattern.separatorPositions.length === 0) {
+    return digits; // No formatting needed
+  }
+
+  let result = '';
+  let digitIndex = 0;
+
+  for (let i = 0; i < digits.length; i++) {
+    if (pattern.separatorPositions.includes(digitIndex) && digitIndex > 0) {
+      result += pattern.separator;
+    }
+    result += digits[i];
+    digitIndex++;
+  }
+
+  return result;
+}
+
+// Usage: SSN "123456789" with pattern from "123-45-6789" → "900-00-0001"
+```
+
+### 8. Word Boundary Checking
+
+Ensure matches occur at word boundaries to avoid matching substrings:
+
+```typescript
+function isWordBoundary(text: string, index: number): boolean {
+  // Start/end of string is a boundary
+  if (index < 0 || index >= text.length) return true;
+
+  const char = text[index];
+
+  // Whitespace is a boundary
+  if (/\s/.test(char)) return true;
+
+  // Common punctuation is a boundary
+  if (/[.,;:!?@#$%^&*()\[\]{}<>\/\\|`~"'=+\-]/.test(char)) return true;
+
+  return false;
+}
+
+function isValidMatch(
+  text: string,
+  matchStart: number,
+  matchEnd: number
+): boolean {
+  // Check boundary before match
+  const beforeBoundary = isWordBoundary(text, matchStart - 1);
+
+  // Check boundary after match
+  const afterBoundary = isWordBoundary(text, matchEnd);
+
+  return beforeBoundary && afterBoundary;
+}
+
+// Integration with findPIIMatches():
+// After finding a canonical match, verify word boundaries in original text
+if (!isValidMatch(text, expandedSpan.start, expandedSpan.end)) {
+  // Skip this match - not at word boundary
+  continue;
+}
+```
+
+### 9. Partial Name Auto-Splitting
+
+When adding a name, automatically create entries for component parts:
+
+```typescript
+function addNamePII(
+  registry: PIIRegistry,
+  fullName: string,
+  session: RedactionSession,
+  pools: NoncePools
+): void {
+  // Add the full name
+  const fullNameEntry: PIIEntry = {
+    category: 'name',
+    value: fullName,
+    canonical: canonicalize(fullName).canonical
+  };
+  registry.entries.push(fullNameEntry);
+
+  // Generate nonce for full name
+  const fullNonce = generateNonce('name', session, pools);
+  // e.g., "Alice Anderson"
+
+  // Split into components
+  const parts = fullName.trim().split(/\s+/);
+  const nonceParts = fullNonce.trim().split(/\s+/);
+
+  // Add each part as a linked entry
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part.length < 2) continue; // Skip initials
+
+    const partEntry: PIIEntry = {
+      category: 'name',
+      value: part,
+      canonical: canonicalize(part).canonical,
+      // Link to the corresponding nonce part
+      linkedNonce: nonceParts[i] || nonceParts[nonceParts.length - 1]
+    };
+    registry.entries.push(partEntry);
+  }
+}
+
+// Example:
+// addNamePII(registry, "John Michael Smith", session, pools)
+// Creates entries for:
+//   - "John Michael Smith" → "Alice Beth Anderson"
+//   - "John" → "Alice"
+//   - "Michael" → "Beth"
+//   - "Smith" → "Anderson"
+```
+
 ## API Design
 
 ### Core Interface
@@ -500,21 +690,27 @@ const redactedOutput = cell<string>('');
 const restoredOutput = cell<string>('');
 ```
 
-## Open Questions
+## Design Decisions
 
-1. **Persistence**: Should PII registry persist across sessions (with encryption)? Or always start fresh for security?
+### Resolved
 
-2. **Partial name matching**: If PII includes "John Smith", should we also match just "John" or "Smith" alone? Could lead to over-redaction but better privacy.
+1. **Partial name matching**: YES. If PII includes "John Smith", we automatically also match "John" and "Smith" individually. This provides better privacy at the cost of potential over-redaction. When adding a name, we split on whitespace and add each component as a separate PII entry (linked to the same nonce family for consistency).
 
-3. **Context-aware matching**: "John" in "Dear John," vs "John" in "john_doe_123" - should matching be word-boundary aware?
+2. **Case preservation**: YES. If input has "JOHN SMITH", the nonce should also be "ALICE ANDERSON". Analyze the case pattern of the matched text and apply it to the nonce.
 
-4. **Case preservation**: If input has "JOHN SMITH" (shouting), should nonce also be uppercase? Probably yes for realism.
+3. **Format preservation**: YES. If SSN is registered as "123-45-6789" but input has "123456789", the replacement should also be "900000001" (no dashes). Detect the format pattern and apply to nonce.
 
-5. **Format preservation**: SSN written as "123456789" vs "123-45-6789" - both should match, but should replacement match input format?
+4. **Word boundary awareness**: YES. "John" should NOT match inside "Johnson". Matching requires word boundaries (whitespace, punctuation, or start/end of string) on both sides. However, "John" SHOULD match in "John@email.com" since @ is a word boundary.
 
-6. **Multi-language support**: Names in non-Latin scripts? Would need localized nonce pools.
+5. **PII registry as input**: The pattern accepts PII as an input cell. Don't worry about persistence or where it comes from - that's the caller's responsibility.
 
-7. **Audit logging**: Should we log (locally) what was redacted and when? Useful for debugging but creates another sensitive data store.
+6. **Custom category nonces**: Use `[ITEM-001]` style for custom PII. Simple and clear.
+
+### Open (for future consideration)
+
+1. **Multi-language support**: Names in non-Latin scripts would need localized nonce pools. Defer for now.
+
+2. **Audit logging**: Could log what was redacted locally for debugging. Defer - creates another sensitive data store.
 
 ## Future Extensions
 
