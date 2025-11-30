@@ -584,11 +584,24 @@ function addNamePII(
 When adding an email, split into local part and domain:
 
 ```typescript
-const COMMON_EMAIL_DOMAINS = new Set([
-  'gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com',
-  'icloud.com', 'aol.com', 'protonmail.com', 'mail.com',
-  'live.com', 'msn.com', 'ymail.com', 'googlemail.com'
+// Common email provider prefixes (match any TLD)
+// e.g., "gmail" matches gmail.com, gmail.co.uk, gmail.de, etc.
+const COMMON_EMAIL_PROVIDERS = new Set([
+  'gmail', 'hotmail', 'yahoo', 'outlook',
+  'icloud', 'aol', 'protonmail', 'mail',
+  'live', 'msn', 'ymail', 'googlemail'
 ]);
+
+function isCommonEmailDomain(domain: string): boolean {
+  // Extract provider name (everything before first dot)
+  const provider = domain.split('.')[0].toLowerCase();
+  return COMMON_EMAIL_PROVIDERS.has(provider);
+}
+
+// Examples:
+// isCommonEmailDomain("gmail.com") → true
+// isCommonEmailDomain("gmail.co.uk") → true
+// isCommonEmailDomain("acme-corp.com") → false
 
 function addEmailPII(
   registry: PIIRegistry,
@@ -620,7 +633,7 @@ function addEmailPII(
   registry.entries.push(localEntry);
 
   // Add domain only if not a common provider
-  if (!COMMON_EMAIL_DOMAINS.has(domain)) {
+  if (!isCommonEmailDomain(domain)) {
     const domainEntry: PIIEntry = {
       category: 'custom',
       value: domain,
@@ -642,6 +655,12 @@ function addEmailPII(
 //   - "john.smith@gmail.com" → "alice0@example.com"
 //   - "john.smith" → "Alice" (name-like)
 //   - (gmail.com NOT added - common provider)
+//
+// addEmailPII(registry, "john.smith@gmail.co.uk", session, pools)
+// Creates entries for:
+//   - "john.smith@gmail.co.uk" → "alice0@example.com"
+//   - "john.smith" → "Alice" (name-like)
+//   - (gmail.co.uk NOT added - "gmail" prefix is common provider)
 ```
 
 ## API Design
@@ -773,7 +792,8 @@ const restoredOutput = cell<string>('');
 
 7. **Email auto-splitting**: When adding an email like `john.smith@company.com`:
    - Always add the local part (`john.smith`) as a separate name-like entry
-   - Add the domain (`company.com`) UNLESS it's a common provider (gmail.com, hotmail.com, yahoo.com, outlook.com, icloud.com, aol.com, protonmail.com, mail.com, live.com, msn.com)
+   - Add the domain (`company.com`) UNLESS it's a common provider prefix (gmail.*, hotmail.*, yahoo.*, outlook.*, icloud.*, aol.*, protonmail.*, mail.*, live.*, msn.*)
+   - Matches any TLD: gmail.com, gmail.co.uk, gmail.de all excluded
    - This prevents over-redaction of common domains while protecting custom/corporate domains
 
 8. **Address handling**: Treat addresses as opaque strings. Don't attempt to parse into components (street, city, zip). Too complex and error-prone.
