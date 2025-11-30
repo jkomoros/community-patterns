@@ -1,7 +1,89 @@
 # Prompt Injection Tracker - TODO
 
 ## Status
-**Active:** Nov 30, 2025 - Acceptance testing incremental caching behavior
+**Active:** Nov 30, 2025 - Implemented 3-URL-per-article fixed slots approach
+
+## ✅ IMPLEMENTED: 3 URL Slots Per Article (Fixed Slots Approach)
+
+### Problem
+Previously, only the FIRST URL per article was processed through L2-L5. Articles often contain multiple security-related URLs (e.g., Log4j article has 3 links: NVD, Apache advisory, CISA guidance).
+
+### Solution: Fixed Slots (Per Superstition)
+Based on superstition `2025-11-29-map-only-over-cell-arrays-fixed-slots.md`:
+
+**Constraint:** Can only `.map()` over cell arrays, not derive results. So we can't dynamically map over all URLs extracted from an article.
+
+**Solution:** Use fixed slots (3 URLs per article max):
+
+```typescript
+const processArticleUrls = (article: any) => {
+  // Fixed 3 slots - extract up to 3 URLs
+  const url0 = derive(article.extraction, (ext) => ext?.result?.urls?.[0] || null);
+  const url1 = derive(article.extraction, (ext) => ext?.result?.urls?.[1] || null);
+  const url2 = derive(article.extraction, (ext) => ext?.result?.urls?.[2] || null);
+
+  // Process each slot through L2-L5 pipeline
+  const slot0 = processUrlSlot(url0);
+  const slot1 = processUrlSlot(url1);
+  const slot2 = processUrlSlot(url2);
+
+  return { ...article, slots: [slot0, slot1, slot2] };
+};
+```
+
+**Key helper - processUrlSlot():**
+```typescript
+const processUrlSlot = (url: any) => {
+  // L2: Fetch web content (with ifElse for null handling)
+  const webContent = ifElse(url, fetchData({...}), null);
+
+  // L3: Classify content
+  const classification = ifElse(url, generateObject({...}), null);
+
+  // L4: Fetch original if news article
+  const originalContent = ifElse(needsOriginalFetch, fetchData({...}), null);
+
+  // L5: Summarize
+  const summary = ifElse(url, generateObject({...}), null);
+
+  return { sourceUrl: url, webContent, classification, originalContent, summary };
+};
+```
+
+### Test Results (Nov 30, 2025)
+
+**Before (1 URL per article):**
+- 5 articles → 4 URLs processed (1 per article with links)
+
+**After (3 URLs per article):**
+- 5 articles → 11 URLs processed (up to 3 per article)
+- Log4j: 3 URLs (NVD, Apache, CISA)
+- OWASP: 2 URLs
+- Weekly Security: 3 URLs
+- Heartbleed: 3 URLs
+- Product Launch: 0 URLs
+
+**Pipeline flow:**
+- L1: 5/5 articles extracted
+- L2: 0/11 success, 11 fetch errors (external URLs, expected)
+- L3: 11/11 classified
+- Dedupe: 11→9 unique reports
+- L4: 9/9 fetched
+- L5: 9/9 summarized
+
+### Changes Made
+1. Added `processUrlSlot()` helper function (L2-L5 for single URL)
+2. Added `processArticleUrls()` with 3 fixed slots
+3. Changed mapping from `processArticleUrl` to `processArticleUrls`
+4. Updated `contentClassifications` derive to flatten all slots
+5. Added `urlSlotsCount` derive for L2/L3 counters (total slots with URLs)
+6. Added defensive array checks for hydration safety
+
+### Related
+- Superstition: `2025-11-29-map-only-over-cell-arrays-fixed-slots.md`
+- Commit: (pending)
+
+---
 
 ## ✅ RESOLVED: Understanding Framework Caching Behavior
 
