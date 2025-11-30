@@ -583,9 +583,13 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   }));
 
   // Combine extractions from both sources for aggregation (derive is fine for read-only)
+  // Note: Added defensive array checks for when email/manual might not be arrays during hydration
   const articleExtractions = derive(
     { manual: manualArticleExtractions, email: emailArticleExtractions },
-    ({ manual, email }) => [...manual, ...email]
+    ({ manual, email }) => [
+      ...(Array.isArray(manual) ? manual : []),
+      ...(Array.isArray(email) ? email : [])
+    ]
   );
 
   // ==========================================================================
@@ -648,11 +652,6 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   const linkCount = derive(allExtractedLinks, (links) => links.length);
   const reportCount = derive(reports, (list: PromptInjectionReport[]) => list.length);
 
-  // Count articles that have at least one URL (used for L2/L3 metrics)
-  const articlesWithUrlsCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e && e.extraction?.result?.urls?.length > 0).length
-  );
-
   // Count by classification
   const classificationCounts = derive(articleExtractions, (list) => {
     const counts: Record<string, number> = { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 };
@@ -667,26 +666,21 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // ==========================================================================
-  // LEVELS 2-5: Process first URL from each article through the pipeline
+  // LEVELS 2-5: Process URLs from each article through the pipeline
   // CRITICAL: Must map over cell arrays, not derive results!
-  // We map over manualArticleExtractions and emailArticleExtractions separately
+  // We use FIXED SLOTS (3 URLs per article) per superstition:
+  // "2025-11-29-map-only-over-cell-arrays-fixed-slots.md"
   // ==========================================================================
 
-  // Helper: Process L2-L5 for an article extraction
-  // This is applied via .map() to both manual and email extractions
-  const processArticleUrl = (article: any) => {
-    // Get first URL from this article's extraction
-    const firstUrl = derive(article.extraction, (ext: any) => {
-      const urls = ext?.result?.urls || [];
-      return urls[0] || null;
-    });
+  const MAX_URLS_PER_ARTICLE = 3;
 
-    // L2: Fetch web content for first URL
-    // IMPORTANT: Move derive OUTSIDE of fetchData options to prevent reactivity loops
-    // (derive inside options creates new cells on each map iteration, causing constant re-evaluation)
-    const webContentBody = derive(firstUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
+  // Helper: Process a single URL slot through L2→L3→L4→L5
+  // Returns null for all fields if url is null
+  const processUrlSlot = (url: any) => {
+    // L2: Fetch web content
+    const webContentBody = derive(url, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
     const webContent = ifElse(
-      firstUrl,
+      url,
       fetchData<{ content: string; title?: string }>({
         url: "/api/agent-tools/web-read",
         mode: "json",
@@ -700,9 +694,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     );
 
     // L3: Classify content
-    // IMPORTANT: Move derive OUTSIDE of generateObject to prevent reactivity loops
     const classificationPrompt = derive(
-      { url: firstUrl, content: webContent },
+      { url, content: webContent },
       ({ url, content }: any) => {
         const pageContent = content?.result?.content;
         if (pageContent) {
@@ -712,7 +705,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       }
     );
     const classification = ifElse(
-      firstUrl,
+      url,
       generateObject<{
         isOriginalReport: boolean;
         originalReportUrl: string | null;
@@ -733,7 +726,6 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     );
     const originalReportUrl = derive(classification, (c: any) => c?.result?.originalReportUrl);
 
-    // IMPORTANT: Move derive OUTSIDE of fetchData options to prevent reactivity loops
     const originalContentBody = derive(originalReportUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
     const originalContent = ifElse(
       needsOriginalFetch,
@@ -757,9 +749,8 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       originalContent
     );
 
-    // IMPORTANT: Move derive OUTSIDE of generateObject to prevent reactivity loops
     const summaryPrompt = derive(
-      { url: firstUrl, originalReportUrl, content: reportContent, isOriginal },
+      { url, originalReportUrl, content: reportContent, isOriginal },
       ({ url, originalReportUrl, content, isOriginal }: any) => {
         const targetUrl = isOriginal ? url : (originalReportUrl || url);
         const pageContent = content?.result?.content;
@@ -770,7 +761,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
       }
     );
     const summary = ifElse(
-      firstUrl,
+      url,
       generateObject<{
         title: string;
         summary: string;
@@ -788,10 +779,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     );
 
     return {
-      articleId: article.articleId,
-      articleTitle: article.articleTitle,
-      extraction: article.extraction,
-      sourceUrl: firstUrl,
+      sourceUrl: url,
       webContent,
       classification,
       originalReportUrl,
@@ -801,35 +789,79 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     };
   };
 
+  // Helper: Process an article's URLs through L2-L5 using fixed slots
+  // This is applied via .map() to both manual and email extractions
+  const processArticleUrls = (article: any) => {
+    // Extract up to MAX_URLS_PER_ARTICLE URLs as fixed slots
+    const url0 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[0] || null);
+    const url1 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[1] || null);
+    const url2 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[2] || null);
+
+    // Process each slot through the full pipeline
+    const slot0 = processUrlSlot(url0);
+    const slot1 = processUrlSlot(url1);
+    const slot2 = processUrlSlot(url2);
+
+    return {
+      articleId: article.articleId,
+      articleTitle: article.articleTitle,
+      extraction: article.extraction,
+      // Return all 3 slots
+      slots: [slot0, slot1, slot2],
+    };
+  };
+
   // Process manual articles through L2-L5 (maps over cell - reactive!)
-  const manualUrlProcessing = manualArticleExtractions.map(processArticleUrl);
+  // Now processes up to 3 URLs per article using fixed slots
+  const manualUrlProcessing = manualArticleExtractions.map(processArticleUrls);
 
   // Process email articles through L2-L5 (maps over cell - reactive!)
-  const emailUrlProcessing = emailArticleExtractions.map(processArticleUrl);
+  const emailUrlProcessing = emailArticleExtractions.map(processArticleUrls);
 
   // Combine for aggregation (derive is fine for read-only operations)
-  const articleFirstUrlProcessing = derive(
+  // Note: Added defensive array checks for when email/manual might not be arrays during hydration
+  const articleUrlProcessing = derive(
     { manual: manualUrlProcessing, email: emailUrlProcessing },
-    ({ manual, email }) => [...manual, ...email]
+    ({ manual, email }) => [
+      ...(Array.isArray(manual) ? manual : []),
+      ...(Array.isArray(email) ? email : [])
+    ]
   );
 
-  // Filter to only articles that have URLs for aggregation
-  // Note: Added `a &&` null check for page refresh hydration safety
-  const contentClassifications = derive(articleFirstUrlProcessing, (articles) => {
-    return articles.filter((a: any) => a && a.sourceUrl).map((a: any) => ({
-      sourceUrl: a.sourceUrl,
-      webContent: a.webContent,
-      classification: a.classification,
-      originalUrl: a.originalReportUrl,
-      originalContent: a.originalContent,
-      isOriginal: a.isOriginal,
-      summary: a.summary,
-    }));
+  // Flatten all URL slots from all articles into a single list for aggregation
+  // Each article has up to 3 slots, each slot has the full L2-L5 pipeline results
+  // Note: Added null checks for page refresh hydration safety
+  const contentClassifications = derive(articleUrlProcessing, (articles) => {
+    const results: any[] = [];
+    for (const article of articles) {
+      if (!article || !article.slots) continue;
+      for (const slot of article.slots) {
+        if (!slot || !slot.sourceUrl) continue;
+        results.push({
+          articleId: article.articleId,
+          articleTitle: article.articleTitle,
+          sourceUrl: slot.sourceUrl,
+          webContent: slot.webContent,
+          classification: slot.classification,
+          originalUrl: slot.originalReportUrl,
+          originalContent: slot.originalContent,
+          isOriginal: slot.isOriginal,
+          summary: slot.summary,
+        });
+      }
+    }
+    return results;
   });
 
-  // L2: Count web fetch progress (from articleFirstUrlProcessing)
+  // Count total URL slots being processed (for L2/L3 metrics)
+  // Now that we process up to 3 URLs per article, we count total slots with non-null URLs
+  const urlSlotsCount = derive(contentClassifications, (list) =>
+    list.filter((item: any) => item && item.sourceUrl).length
+  );
+
+  // L2: Count web fetch progress (from contentClassifications - the flattened list)
   // DEBUG: Log cell structure for first 3 items to understand caching behavior
-  const _debugL2CellStructure = derive(articleFirstUrlProcessing, (list) => {
+  const _debugL2CellStructure = derive(contentClassifications, (list) => {
     if (!DEBUG_LOGGING) return null;
     const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const wc = item.webContent;
@@ -856,21 +888,21 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // L2 Counters: Fixed to properly detect success vs error
-  // Issue: webContent cell has .result property but value can be undefined on error
-  // Note: Added `item &&` null checks for page refresh hydration safety
-  const fetchPendingCount = derive(articleFirstUrlProcessing, (list) =>
+  // Now counts across all URL slots from all articles
+  // Note: Added null checks for page refresh hydration safety
+  const fetchPendingCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => item && item.sourceUrl && item.webContent?.pending).length
   );
   // Success = not pending AND has actual result content
-  const fetchSuccessCount = derive(articleFirstUrlProcessing, (list) =>
+  const fetchSuccessCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
   );
   // Error = not pending AND no result (either .error is set OR .result is undefined)
-  const fetchErrorCount = derive(articleFirstUrlProcessing, (list) =>
+  const fetchErrorCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
   );
   // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)
-  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) =>
+  const fetchCompletedCount = derive(contentClassifications, (list) =>
     list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending).length
   );
 
@@ -1249,7 +1281,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L2: Fetch</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {fetchSuccessCount}/{articlesWithUrlsCount}
+                {fetchSuccessCount}/{urlSlotsCount}
                 {fetchErrorCount > 0 && (
                   <span style={{ color: "#ef4444", fontSize: "11px", marginLeft: "4px" }} title={`${fetchErrorCount} failed - will retry`}>
                     ⚠️{fetchErrorCount}
@@ -1267,7 +1299,7 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
             }}>
               <div style={{ fontSize: "10px", color: "#666" }}>L3: Classify</div>
               <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                {classifyCompletedCount}/{articlesWithUrlsCount}
+                {classifyCompletedCount}/{urlSlotsCount}
               </div>
             </div>
             <span style={{ color: "#9ca3af", fontSize: "12px" }}>→</span>
