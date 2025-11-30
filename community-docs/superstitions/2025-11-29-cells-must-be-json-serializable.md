@@ -78,3 +78,8 @@ If your value wouldn't survive a `JSON.parse(JSON.stringify(value))` round-trip,
 - **First observed**: 2025-11-29
 - **Confirmed by**: Runtime errors when using Set in cell ("has is not a function")
 - **Needs**: Framework author confirmation on serialization mechanism
+
+## Guestbook
+
+- 2025-11-29 - First observed with Set in cell (original author)
+- 2025-11-30 - Confirmed with Map in redactor pattern session state; got "TypeError: object is not iterable" when trying to iterate Map entries (jkomoros)
