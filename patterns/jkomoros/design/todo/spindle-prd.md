@@ -25,22 +25,45 @@ A spindle is a tool that transforms raw material through controlled rotation. In
 
 ## Core Concepts
 
+### Level-Based Architecture (v2)
+
+**NEW IN V2:** Spindle uses a **level-based** design rather than individual spindle configuration. This simplifies the UI and makes branching intuitive.
+
+```
+Level 0: Synopsis (1 spindle, root, generate=false)
+    ↓ branch=1
+Level 1: Outline (1 spindle)
+    ↓ branch=5
+Level 2: Chapters (5 spindles)
+    ↓ branch=3
+Level 3: Scenes (15 spindles per chapter = 75 total? No - lazy creation)
+```
+
+**Key insight:** You configure LEVELS, not individual spindles. Each level has:
+- A **title** (e.g., "Chapters")
+- A **default prompt** (applied to all spindles at that level)
+- A **branching factor** (how many children per parent)
+
+Spindles are then created automatically based on the tree structure.
+
 ### Spindle
 
 A **spindle** is the atomic unit of generation. It:
 
-1. Takes input from parent spindle(s)
-2. Has its own prompt that describes what to generate
+1. Takes input from its parent spindle's pinned output
+2. Uses the level's default prompt + optional per-spindle extra prompt
 3. Generates `n` options (default: 4)
 4. Has one **pinned/selected** option that becomes its output
-5. Produces an auto-generated **summary** of its output
+5. Auto-appends "Peer X of Y" to help LLM understand position
 
 ```
 ┌─────────────────────────────────────────┐
-│ Spindle: "Story Outline"                │
+│ Chapter 3                               │
+│ Peer 3 of 5 in level | Sibling 3 of 5   │
 ├─────────────────────────────────────────┤
-│ Parent: Synopsis                        │
-│ Prompt: "Create a 5-act story outline"  │
+│ [Parent output: Story Outline...]       │
+│ [Level prompt: Write this chapter]      │
+│ [Extra prompt: Focus on tension]        │
 ├─────────────────────────────────────────┤
 │ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
 │ │Option 1 │ │Option 2 │ │Option 3 │ ...│
@@ -48,229 +71,253 @@ A **spindle** is the atomic unit of generation. It:
 │ │ (gray)  │ │         │ │ (gray)  │    │
 │ └─────────┘ └─────────┘ └─────────┘    │
 ├─────────────────────────────────────────┤
-│ Summary: "Five-act noir structure..."   │
+│ Summary: "Chapter 3 escalates the..."   │
 └─────────────────────────────────────────┘
 ```
 
 ### Board
 
-A **board** is a collection of spindles wired together in a DAG (directed acyclic graph). It represents a complete project like "My Detective Novel".
+A **board** is a collection of levels and spindles forming a tree. It represents a complete project like "My Detective Novel".
 
 Board contains:
 - **Title** and **description**
-- **Spindles** with their parent-child relationships
-- **Settings** (future: defaultSummaryPrompt, default n)
+- **Levels** with their configuration (title, prompt, branching)
+- **Spindles** (created lazily as parents are pinned)
 
-### Options
+### Levels
 
-Each spindle generates `n` options. Options are:
-- **Generated** by the LLM based on the composed prompt
-- **Displayed** side-by-side for comparison
-- **Pinnable** (one at a time) - pinning = selecting
+Each **level** defines:
+
+```typescript
+interface LevelConfig {
+  title: string;           // "Chapters"
+  defaultPrompt: string;   // "Write this chapter based on the outline above"
+  branchFactor: number;    // How many children per parent (1, 2, 4, 5, etc.)
+}
+```
+
+- **Level 0** is always the root (typically synopsis, generate=false)
+- Adding a level creates children for each pinned spindle at the previous level
+- Spindles inherit the level's default prompt
+
+### Automatic Position Suffix
+
+Every spindle's prompt automatically includes position information:
+
+**Format:** `Peer X of Y` where:
+- X = position among siblings (children of same parent)
+- Y = total siblings
+
+**Example for Chapters level with branchFactor=5:**
+- "Write this chapter. Peer 1 of 5"
+- "Write this chapter. Peer 2 of 5"
+- etc.
+
+**If level has total > sibling count, also show:**
+- "Peer 3 of 5 | Spindle 13 of 25 in level"
+
+(Omit the second part if redundant - i.e., if there's only one parent)
+
+### Per-Spindle Extra Prompt
+
+Each spindle can have an optional **extra prompt** for customization:
+
+```
+[Parent output]
+[Level default prompt]
+[Extra prompt if any]
+Peer X of Y
+```
+
+This allows steering individual spindles without changing the level config.
+
+### Lazy Spindle Creation
+
+Spindles are created **lazily** when their parent is pinned:
+
+1. User pins an option on a parent spindle
+2. If a child level exists, child spindles are created for that parent
+3. Child spindles begin generating options
+
+This prevents creating spindles for branches that will never be used.
 
 ### Pinning
 
 **Pinning** is the core selection mechanism:
 
-- **Pin an option** → It becomes the selected output
+- **Pin an option** → It becomes the selected output, triggers child creation
 - **Non-pinned options** → Grayed out visually
-- **Respin (explicit)** → Regenerates all non-pinned options (pinned one survives)
+- **Respin (explicit)** → Regenerates all options fresh
 
 **Auto-respin behavior (when parent output changes):**
-- **Nothing pinned** → Auto-respin ALL options (this is the default state)
+- **Nothing pinned** → Auto-respin ALL options
 - **Something pinned** → Show "stale" indicator, do NOT auto-respin
-- **User clicks "Refresh" on stale spindle** → Clears pin, regenerates all options fresh
+- **User clicks "Refresh" on stale spindle** → Clears pin, regenerates fresh
 
 ### Summary
 
 Each spindle auto-generates a **summary** of its selected output:
 
-- Generated when output changes
-- Uses `summaryPrompt` (customizable per-spindle)
-- Visible to user in compact view
-- Future: Used by peer spindles for context compression
+- Generated when output is pinned
+- Default prompt: "Summarize the above in 2-3 sentences"
+- Visible in compact view
 
 ---
 
 ## Prompt Composition
 
-The actual prompt sent to the LLM is composed from multiple sources:
+The actual prompt sent to the LLM is composed from:
 
 ```
-[Parent 1's selected output]
-[Parent 2's selected output]
-...
-[This spindle's prompt]
-[System suffix for n-up generation]
+[Parent's pinned output]
+
+[Level's default prompt]
+
+[Spindle's extra prompt, if any]
+
+Peer X of Y
 ```
 
 ### System Suffix (auto-appended)
 
 ```
-Generate {n} distinct options for the above request.
+Generate 4 distinct options for the above request.
 Each option should take a meaningfully different approach.
-Wrap each option in <option></option> tags.
 ```
 
 ### Example
 
-**Synopsis Spindle** (root, no parent):
-- Prompt: "A detective in 1920s Chicago discovers her missing sister is running a speakeasy..."
-- Output: Same as prompt (generate: false)
+**Level 0 - Synopsis** (root, generate=false):
+- Output: "A detective in 1920s Chicago discovers her missing sister is running a speakeasy..."
 
-**Outline Spindle** (child of Synopsis):
-- Parent output: "A detective in 1920s Chicago..."
-- Prompt: "Develop this into a 5-act story outline with major plot beats"
-- Composed: `[synopsis text]\n\nDevelop this into a 5-act story outline...`
+**Level 1 - Outline** (branchFactor=1):
+- Default prompt: "Develop this into a 5-act story outline with major plot beats"
+- Composed: `[synopsis]\n\nDevelop this into a 5-act...\n\nPeer 1 of 1`
 
-**Chapter 1 Spindle** (child of Outline):
-- Parent output: The selected outline
-- Prompt: "Now write Chapter 1"
-- Composed: `[full outline]\n\nNow write Chapter 1`
+**Level 2 - Chapters** (branchFactor=5):
+- Default prompt: "Now write this chapter"
+- Chapter 3 composed: `[outline]\n\nNow write this chapter\n\nPeer 3 of 5`
 
 ---
 
 ## Data Model
 
-### Board
+### LevelConfig
 
 ```typescript
-interface Board {
-  id: string;
+interface LevelConfig {
+  id: string;              // Auto-generated UUID
+  title: string;           // "Chapters"
+  defaultPrompt: string;   // "Write this chapter"
+  branchFactor: number;    // 5
+}
+```
+
+### SpindleConfig
+
+```typescript
+interface SpindleConfig {
+  id: string;              // Auto-generated UUID
+  levelIndex: number;      // Which level (0, 1, 2, ...)
+  positionInLevel: number; // 0-based position across entire level
+  siblingIndex: number;    // 0-based position among siblings (same parent)
+  siblingCount: number;    // Total siblings
+  parentId: string | null; // Parent spindle's ID (null for root)
+
+  // Content
+  composedInput: string;   // Parent's pinned output (set by handler)
+  extraPrompt: string;     // Per-spindle customization
+
+  // State
+  pinnedOptionIndex: number; // -1 = none, 0-3 = pinned option
+  pinnedOutput: string;      // The selected option's content
+}
+```
+
+### Board State
+
+```typescript
+interface BoardState {
+  // Metadata
   title: string;
   description: string;
 
-  // All spindles in this board
-  spindles: Spindle[];
+  // Configuration
+  levels: LevelConfig[];
 
-  // Future: Board-level defaults
-  // defaultTargetOptions?: number;
-  // defaultSummaryPrompt?: string;
-  // defaultModel?: string;
-}
-```
-
-### Spindle
-
-```typescript
-interface Spindle {
-  id: string;
-  title: string;
-  description?: string;
-
-  // Generation config
-  prompt: string;
-  targetOptions: number; // Default: 4
-  generate: boolean; // Default: true. If false, output = prompt
-  summaryPrompt: string; // Default: "Summarize the above in 2-3 sentences"
-
-  // Relationships
-  parentIds: string[]; // Usually 1, could be 0 (root) or multiple
-
-  // Position in tree view (for rendering and {{position}} template)
-  level: number; // 0 = root
-  position: number; // Left-to-right within level (0-indexed)
-
-  // Generated content
-  options: SpindleOption[];
-  pinnedOptionId: string | null;
-  summary: string | null;
-
-  // State
-  isStale: boolean; // True if pinned but parent changed
-}
-```
-
-### SpindleOption
-
-```typescript
-interface SpindleOption {
-  id: string;
-  content: string;
-  generatedAt: string; // ISO timestamp
+  // Runtime state (cell arrays for reactivity)
+  spindles: SpindleConfig[];
 }
 ```
 
 ### Computed Properties
 
 ```typescript
-// The selected output (used by children)
-spindle.output = spindle.pinnedOptionId
-  ? spindle.options.find(o => o.id === spindle.pinnedOptionId)?.content
+// Get pinned output for a spindle
+spindle.output = spindle.pinnedOptionIndex >= 0
+  ? spindle.pinnedOutput
   : null;
 
-// Whether this spindle needs attention
-spindle.needsSelection = !spindle.pinnedOptionId && spindle.options.length > 0;
-spindle.needsGeneration = spindle.options.length === 0;
+// Check if spindle needs attention
+spindle.needsSelection = spindle.pinnedOptionIndex < 0;
+
+// Get children of a spindle
+spindle.children = spindles.filter(s => s.parentId === spindle.id);
+
+// Check if has pinned children
+spindle.hasPinnedChildren = spindle.children.some(c => c.pinnedOptionIndex >= 0);
 ```
 
 ---
 
 ## User Flows
 
-### Flow 1: Create New Board
+### Flow 1: Create Board with Root
 
-1. User clicks "New Board"
-2. Enter title: "My Detective Novel"
-3. Enter description: "A noir story set in 1920s Chicago"
-4. Board created with empty spindle list
+1. Board created with default title
+2. Level 0 (root) is auto-created: title="Synopsis", generate=false
+3. User enters synopsis text in root spindle
+4. Root is automatically "pinned" (since generate=false, input=output)
 
-### Flow 2: Add Root Spindle (Synopsis)
+### Flow 2: Add Level (Outline)
 
-1. User clicks "Add Spindle" on empty board
-2. Enter title: "Synopsis"
-3. Enter prompt: "A detective in 1920s Chicago discovers..."
-4. Set `generate: false` (this is just the seed)
-5. Spindle appears at level 0
-6. Output = prompt (no options generated)
+1. User clicks "Add Level"
+2. Modal: Enter title="Story Outline", prompt="Develop into 5-act outline", branch=1
+3. Level created, spindle created as child of root
+4. Spindle generates 4 options
+5. User reviews, pins favorite
 
-### Flow 3: Add Child Spindle (Outline)
+### Flow 3: Add Level (Chapters)
 
-1. User clicks "Add Child" on Synopsis spindle
-2. Enter title: "Story Outline"
-3. Enter prompt: "Develop this into a 5-act story outline with major plot beats, character arcs, and key scenes"
-4. Target options: 4 (default)
-5. Click "Spin"
-6. 4 outline options appear
-7. User reviews, pins their favorite
-8. Summary auto-generates
+1. User clicks "Add Level"
+2. Modal: Enter title="Chapters", prompt="Write this chapter", branch=5
+3. Level created, 5 spindles created as children of Outline
+4. Each spindle generates options with "Peer 1 of 5", "Peer 2 of 5", etc.
+5. User pins favorites for each chapter
 
-### Flow 4: Respin (Not Happy with Options)
+### Flow 4: Add Extra Prompt to Spindle
 
-1. User reviews 4 options, none are quite right
-2. User pins the closest one (Option 2)
-3. User clicks "Respin"
-4. Options 1, 3, 4 regenerate
-5. Option 2 stays (pinned)
-6. User reviews new options
-7. New Option 4 is better, user pins it instead
-8. Output updates, children see new outline
+1. User clicks on Chapter 3 spindle
+2. Enters extra prompt: "This chapter should focus on the confrontation"
+3. Spindle regenerates with extra context
+4. User reviews new options, pins favorite
 
-### Flow 5: Add Chapter Spindles
+### Flow 5: Parent Changes (Stale Detection)
 
-1. User clicks "Add Children" on Outline spindle (or adds them one by one)
-2. Creates "Chapter 1", "Chapter 2", etc.
-3. Each has prompt: "Now write Chapter {{position + 1}}"
-4. `{{position}}` is auto-replaced with the spindle's position (0-indexed)
-5. User spins each chapter
-6. Reviews 4 versions of each chapter
-7. Pins favorites
+1. User has pinned Chapter outputs
+2. User goes back to Outline, pins different option
+3. All Chapter spindles show "STALE" indicator
+4. User can "Refresh" each to respin with new parent
+5. Or keep stale content if they prefer it
 
-### Flow 6: Parent Changes (Stale Detection)
+### Flow 6: Export Board
 
-1. User has pinned Chapter 1 output
-2. User goes back to Outline, changes their selection
-3. Chapter 1 shows "STALE" indicator (yellow border?)
-4. User can click "Refresh" to respin with new parent
-5. Or keep the stale content if they prefer it
-
-### Flow 7: Export Board
-
-1. User clicks "Export"
+1. User clicks "Export JSON"
 2. JSON downloaded containing:
-   - Board metadata
-   - All spindles with their selected outputs as markdown
-3. Can re-import to continue editing
+   - Board metadata (title, description)
+   - Level configs
+   - All spindles with their pinned outputs
+3. Can re-import to continue editing (future)
 
 ---
 
@@ -280,72 +327,75 @@ spindle.needsGeneration = spindle.options.length === 0;
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ My Detective Novel                              [Export]│
-│ A noir story set in 1920s Chicago                      │
+│ My Detective Novel                        [Export JSON] │
+│ A noir story set in 1920s Chicago                       │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
-│  Level 0:  [Synopsis]                                   │
+│  Level 0 - Synopsis                                     │
+│  ┌─────────────────────────────────────┐                │
+│  │ [Synopsis content...]               │                │
+│  └─────────────────────────────────────┘                │
 │                 │                                       │
-│  Level 1:  [Story Outline]                              │
+│  Level 1 - Outline (branch: 1)           [+ Add Level]  │
+│  ┌─────────────────────────────────────┐                │
+│  │ [Outline options... Pin one]        │                │
+│  └─────────────────────────────────────┘                │
 │                 │                                       │
-│            ┌────┴────┬─────────┬─────────┐              │
-│  Level 2:  [Ch 1]  [Ch 2]  [Ch 3]  [Ch 4]  [+ Add]     │
+│  Level 2 - Chapters (branch: 5)                         │
+│  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐                    │
+│  │Ch 1│ │Ch 2│ │Ch 3│ │Ch 4│ │Ch 5│                    │
+│  └────┘ └────┘ └────┘ └────┘ └────┘                    │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Spindle Card (Compact View)
+### Add Level Modal
 
 ```
 ┌─────────────────────────────────────────┐
-│ Story Outline                    [Edit] │
-│ ─────────────────────────────────────── │
-│ "Five-act noir structure focusing on    │
-│ the sisterly bond, with twist ending.." │
-│                             [Expand ▼]  │
+│ Add New Level                           │
+├─────────────────────────────────────────┤
+│ Title: [Chapters                    ]   │
+│                                         │
+│ Default Prompt:                         │
+│ [Write this chapter based on the    ]   │
+│ [outline above.                     ]   │
+│                                         │
+│ Branch Factor: [5  ▼]                   │
+│ (Children per parent)                   │
+│                                         │
+│              [Cancel]  [Add Level]      │
 └─────────────────────────────────────────┘
 ```
 
-### Spindle Card (Expanded View)
+### Spindle Card
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Story Outline                               [Collapse ▲]│
-├─────────────────────────────────────────────────────────┤
-│ Prompt: Develop this into a 5-act story outline with    │
-│ major plot beats, character arcs, and key scenes        │
-├─────────────────────────────────────────────────────────┤
-│ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐   │
-│ │   Option 1    │ │   Option 2    │ │   Option 3    │   │
-│ │               │ │   [PINNED]    │ │               │   │
-│ │  Classic noir │ │  Relationship │ │  Heist-style  │   │
-│ │  structure... │ │  focused...   │ │  escalation...│   │
-│ │               │ │               │ │               │   │
-│ │   (grayed)    │ │               │ │   (grayed)    │   │
-│ └───────────────┘ └───────────────┘ └───────────────┘   │
-│                                                         │
-│                     [Respin]                            │
-├─────────────────────────────────────────────────────────┤
-│ Summary: Five-act noir structure focusing on sisterly   │
-│ bond. Act 1 establishes Mary as detective, Act 2...     │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│ Chapter 3                    [+ Extra]  │
+│ Peer 3 of 5                             │
+├─────────────────────────────────────────┤
+│ ┌─────────┐ ┌─────────┐ ┌─────────┐    │
+│ │Option 1 │ │Option 2 │ │Option 3 │ ...│
+│ │         │ │ [PINNED]│ │         │    │
+│ └─────────┘ └─────────┘ └─────────┘    │
+│                                         │
+│                           [Respin]      │
+├─────────────────────────────────────────┤
+│ Summary: "Chapter 3 introduces..."      │
+└─────────────────────────────────────────┘
 ```
-
-### Option Card States
-
-- **Default**: White background, clickable
-- **Pinned**: Blue border, highlighted, "Pinned" badge
-- **Grayed**: Lower opacity, still readable but de-emphasized
-- **Generating**: Skeleton/shimmer loading state
 
 ### Stale Indicator
 
 ```
 ┌─────────────────────────────────────────┐
-│ Chapter 1                    ⚠️ STALE   │
-│ ─────────────────────────────────────── │
-│ Content based on outdated parent.       │
-│                    [Refresh] [Keep]     │
+│ Chapter 3                    ⚠️ STALE   │
+│ Parent output has changed               │
+│                                         │
+│ [Current pinned content shown...]       │
+│                                         │
+│              [Refresh]  [Keep Anyway]   │
 └─────────────────────────────────────────┘
 ```
 
@@ -353,204 +403,206 @@ spindle.needsGeneration = spindle.options.length === 0;
 
 ## MVP Scope
 
-### In Scope (MVP)
+### In Scope (MVP v2)
 
-| Feature | Priority | Notes |
-|---------|----------|-------|
-| n-up option generation | P0 | Core mechanic |
-| Pin/select options | P0 | Core mechanic |
-| Parent-child chains | P0 | Core mechanic |
-| Respin (regenerate unpinned) | P0 | Core mechanic |
-| Auto-respin on parent change | P0 | With stale detection |
-| Tree view layout | P0 | Fixed levels, no dragging |
-| Board create/edit | P0 | Title, description |
-| Spindle create/edit | P0 | Title, prompt, targetOptions |
-| Summary generation | P1 | Auto-generate on output change |
-| Customizable summaryPrompt | P1 | Per-spindle |
-| Export to JSON | P1 | ✅ DONE - Board + all spindle outputs |
-| Import from JSON | P2 | Resume editing (deferred - requires file upload handling) |
-| `generate: false` spindles | P1 | For human-input roots |
-| `{{position}}` template var | P1 | For chapter numbering |
-| Expanded/compact view toggle | P1 | Per-spindle |
+| Feature | Priority | Status |
+|---------|----------|--------|
+| Level-based architecture | P0 | NEW |
+| Add Level UI | P0 | NEW |
+| Branching factor config | P0 | NEW |
+| Lazy spindle creation | P0 | NEW |
+| Automatic "Peer X of Y" suffix | P0 | NEW |
+| n-up option generation | P0 | ✅ Done |
+| Pin/select options | P0 | ✅ Done |
+| Parent-child chains | P0 | ✅ Done |
+| Respin functionality | P0 | ✅ Done |
+| Stale detection | P0 | ✅ Done |
+| Export to JSON | P1 | ✅ Done |
+| Per-spindle extra prompt | P1 | NEW |
+| Summary generation | P1 | ✅ Done |
 
 ### Out of Scope (Future)
 
 | Feature | Notes |
 |---------|-------|
-| Manual option editing | Edit an option's text directly |
+| Import from JSON | Requires file upload handling |
+| Manual option editing | Edit option text directly |
 | Peers (left/right) | Adjacent spindle summaries for context |
 | Git-style history | Branch, undo, compare versions |
-| Drag-and-drop layout | Spatial canvas positioning |
-| Split output | Auto-create children from structured output |
-| Board templates/forking | Clone a board structure |
-| defaultSummaryPrompt (board-level) | Inheritance hierarchy |
-| Tree-level prompt overrides | Different prompts per level |
-| Model selection | Per-spindle or board-level |
-| "Chat with" refinement | Conversational editing of prompts |
+| Model selection | Per-level or board-level |
+| Collaborative | Real-time multi-user editing |
 
 ---
 
 ## Technical Implementation Notes
 
-### Architecture: Two Patterns
+### Framework Pattern: Dynamic Cell Array
 
-Spindle is implemented as **two separate patterns**:
-
-#### `spindle.tsx` - Single Spindle Component
-
-The atomic unit of generation. Handles:
-- Receiving composed input (from parent outputs)
-- Generating n options via LLM
-- Displaying options for selection
-- Pinning/unpinning
-- Respin functionality
-- Summary generation
-
-**Inputs:**
-- `composedInput: string` - The concatenated parent outputs
-- `prompt: string` - This spindle's specific prompt
-- `targetOptions: number` - How many options to generate
-- `summaryPrompt: string` - How to summarize the output
-
-**Outputs:**
-- `output: string` - The selected/pinned option content
-- `summary: string` - Auto-generated summary
-- `isPinned: boolean` - Whether an option is pinned
-- `isGenerating: boolean` - Whether currently generating
-
-#### `spindle-board.tsx` - Board Orchestrator
-
-Manages the graph of spindles. Handles:
-- Creating/deleting spindles
-- Wiring parent-child relationships
-- Passing composed inputs to child spindles
-- Stale detection and indicators
-- Board-level export/import
-- Tree view layout and navigation
-
-**Key responsibility:** When a parent spindle's output changes:
-- If child has nothing pinned → auto-trigger respin on child
-- If child has something pinned → mark child as stale, wait for explicit user action
-
-### Framework Fit
-
-The Common Tools pattern framework is well-suited for Spindle:
-
-**Good fit:**
-- `generateObject` for structured option generation
-- Reactive cells for spindle state
-- Built-in LLM caching (same prompt = cached result)
-- Persistence via cell state
-- Pattern composition (board instantiates spindle sub-patterns)
-
-**Implementation approach:**
-- `spindle-board` = main pattern, owns the spindle graph
-- `spindle` = sub-pattern, instantiated by board for each node
-- Board passes `composedInput` to each spindle based on parent outputs
-- Spindles are reactive - when `composedInput` changes, they can auto-respin
-
-### Option Generation
+Spindle uses the "empty default + handler" pattern from Common Tools:
 
 ```typescript
-// Compose prompt for LLM
-const composedPrompt = derive(
-  { parentOutputs, spindlePrompt, targetOptions },
-  ({ parentOutputs, spindlePrompt, targetOptions }) => {
-    const parentText = parentOutputs.join('\n\n---\n\n');
-    return `${parentText}\n\n${spindlePrompt}\n\n` +
-      `Generate ${targetOptions} distinct options. ` +
-      `Wrap each in <option></option> tags.`;
-  }
-);
+interface Input {
+  levels: Default<LevelConfig[], []>;     // Start empty
+  spindles: Default<SpindleConfig[], []>; // Start empty
+}
 
-// Generate options
-const generation = generateObject<{ options: string[] }>({
-  prompt: composedPrompt,
-  system: "You are a creative writing assistant...",
+// Handlers modify the arrays
+const addLevel = handler(..., ({ levels, spindles }) => {
+  levels.push(newLevel);
+  // Create spindles for pinned parents
+  for (const parent of pinnedParents) {
+    for (let i = 0; i < branchFactor; i++) {
+      spindles.push({
+        levelIndex: newLevel.index,
+        parentId: parent.id,
+        siblingIndex: i,
+        siblingCount: branchFactor,
+        composedInput: parent.pinnedOutput,
+        // ...
+      });
+    }
+  }
+});
+
+// Map creates reactive generations
+const spindleGenerations = spindles.map((config) => {
+  const prompt = derive(config, (c) =>
+    `${c.composedInput}\n\n${levels[c.levelIndex].defaultPrompt}\n\n${c.extraPrompt}\n\nPeer ${c.siblingIndex + 1} of ${c.siblingCount}`
+  );
+
+  const generation = generateObject({ prompt, ... });
+
+  return { config, generation, options: [...] };
+});
+```
+
+### Pin Handler Flow
+
+When user pins an option:
+
+```typescript
+const pinOption = handler(..., ({ spindles, spindleId, optionIndex, optionContent }) => {
+  // 1. Update this spindle's pinned state
+  const spindle = spindles.find(s => s.id === spindleId);
+  spindle.pinnedOptionIndex = optionIndex;
+  spindle.pinnedOutput = optionContent;
+
+  // 2. Update children's composedInput (triggers regeneration)
+  const children = spindles.filter(s => s.parentId === spindleId);
+  for (const child of children) {
+    child.composedInput = optionContent;
+  }
+
+  // 3. Create new children if next level exists but no children yet
+  const nextLevel = levels[spindle.levelIndex + 1];
+  if (nextLevel && children.length === 0) {
+    for (let i = 0; i < nextLevel.branchFactor; i++) {
+      spindles.push({
+        levelIndex: spindle.levelIndex + 1,
+        parentId: spindle.id,
+        siblingIndex: i,
+        siblingCount: nextLevel.branchFactor,
+        composedInput: optionContent,
+        // ...
+      });
+    }
+  }
+
+  // 4. Trigger reactivity
+  spindles.set([...spindles.get()]);
 });
 ```
 
 ### Stale Detection
 
 ```typescript
-// Track parent output hashes for stale detection
-const parentOutputHash = derive(
-  parentSpindles.map(p => p.output),
-  (outputs) => hashString(outputs.join('|'))
-);
+// Store parent hash when pinning
+spindle.parentHashWhenPinned = hashString(spindle.composedInput);
 
-// Compare to hash when pinned
+// Check for staleness
 const isStale = derive(
-  { currentHash: parentOutputHash, pinnedHash: spindle.pinnedParentHash },
-  ({ currentHash, pinnedHash }) =>
-    spindle.pinnedOptionId && currentHash !== pinnedHash
+  { config, currentComposedInput },
+  ({ config, currentComposedInput }) => {
+    if (config.pinnedOptionIndex < 0) return false;
+    return hashString(currentComposedInput) !== config.parentHashWhenPinned;
+  }
 );
 ```
 
-### Export Format
+### Export Format (v2)
 
 ```json
 {
-  "version": "1.0",
+  "version": "2.0",
   "exportedAt": "2024-11-30T...",
   "board": {
-    "id": "...",
     "title": "My Detective Novel",
     "description": "A noir story..."
   },
+  "levels": [
+    { "id": "l0", "title": "Synopsis", "defaultPrompt": "", "branchFactor": 1 },
+    { "id": "l1", "title": "Outline", "defaultPrompt": "Develop into 5-act outline", "branchFactor": 1 },
+    { "id": "l2", "title": "Chapters", "defaultPrompt": "Write this chapter", "branchFactor": 5 }
+  ],
   "spindles": [
     {
-      "id": "...",
-      "title": "Synopsis",
-      "prompt": "A detective in 1920s Chicago...",
+      "id": "s0",
+      "levelIndex": 0,
+      "positionInLevel": 0,
+      "siblingIndex": 0,
+      "siblingCount": 1,
+      "parentId": null,
       "output": "A detective in 1920s Chicago...",
-      "outputMarkdown": "A detective in 1920s Chicago...",
-      "summary": null,
-      "level": 0,
-      "position": 0,
-      "parentIds": []
+      "summary": null
     },
     {
-      "id": "...",
-      "title": "Story Outline",
-      "prompt": "Develop this into a 5-act outline...",
-      "output": "Act 1: The Discovery\n...",
-      "outputMarkdown": "## Act 1: The Discovery\n...",
-      "summary": "Five-act noir structure...",
-      "level": 1,
-      "position": 0,
-      "parentIds": ["synopsis-id"]
+      "id": "s1",
+      "levelIndex": 1,
+      "positionInLevel": 0,
+      "siblingIndex": 0,
+      "siblingCount": 1,
+      "parentId": "s0",
+      "output": "Act 1: The Discovery...",
+      "summary": "Five-act noir structure..."
+    },
+    {
+      "id": "s2",
+      "levelIndex": 2,
+      "positionInLevel": 0,
+      "siblingIndex": 0,
+      "siblingCount": 5,
+      "parentId": "s1",
+      "output": "Chapter 1 content...",
+      "summary": "Mary discovers..."
     }
+    // ... more spindles
   ]
 }
 ```
 
 ---
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **Multiple parents**: The data model supports multiple parents, but what's the use case? Keep for flexibility or simplify to single parent?
-
-2. **Option count after respin**: If user pins 1 of 4, respin generates 3 new ones. Should we always maintain exactly `targetOptions`, or allow it to grow?
-
-3. **Summary prompt default**: What's a good default? "Summarize in 2-3 sentences"? "Extract key points"?
-
-4. **Stale refresh behavior**: When user clicks "Refresh" on stale spindle:
-   - Clear the pin and regenerate ALL options fresh (decided: yes, this is the behavior)
-
-5. **Root spindle creation**: Should there be a "quick start" that creates Synopsis + Outline spindles with sensible defaults for story creation?
+1. ~~**Individual spindle config vs level config**~~ → Level-based is simpler
+2. ~~**Position template {{position}}**~~ → Auto "Peer X of Y" suffix instead
+3. ~~**When are spindles created?**~~ → Lazily when parent is pinned
+4. ~~**Branching UI**~~ → Configure per-level, not per-spindle
 
 ---
 
-## TODO (Future Enhancements)
+## Changelog
 
-- [ ] **Peers**: Add left/right peer relationships, summary context injection
-- [ ] **History**: Git-style versioning with branch/merge/compare
-- [ ] **Manual editing**: Direct text editing of options
-- [ ] **Split output**: Parse structured output into child spindles
-- [ ] **Templates**: Save board structure as reusable template
-- [ ] **Model selection**: Choose LLM model per-spindle or board
-- [ ] **Drag-and-drop**: Canvas layout with spatial positioning
-- [ ] **Chat refinement**: Conversational prompt editing
-- [ ] **Collaborative**: Real-time multi-user editing
-- [ ] **Export formats**: Markdown, DOCX, PDF in addition to JSON
+### v2.0 (2024-11-30)
+- **NEW:** Level-based architecture replacing individual spindle config
+- **NEW:** Branching factor per level
+- **NEW:** Automatic "Peer X of Y" suffix
+- **NEW:** Lazy spindle creation
+- **NEW:** Per-spindle extra prompt
+- **CHANGED:** Data model to support levels
+- **CHANGED:** Export format to v2.0
+
+### v1.0 (2024-11-30)
+- Initial implementation with fixed slots
+- Basic n-up generation, pinning, stale detection
+- Export JSON functionality
