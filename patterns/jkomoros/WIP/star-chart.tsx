@@ -42,7 +42,8 @@ interface DayRecord {
 interface StarChartInput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
-  awardEnabled: Cell<Default<boolean, false>>;
+  // Trigger for sparkle animation (increments when star placed)
+  sparkleKey: Cell<Default<number, 0>>;
   // Debug: override "today" for testing (empty string = use real today)
   // Link a date picker charm to this for debugging
   debugDate: Cell<Default<string, "">>;
@@ -51,7 +52,7 @@ interface StarChartInput {
 interface StarChartOutput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
-  awardEnabled: Cell<Default<boolean, false>>;
+  sparkleKey: Cell<Default<number, 0>>;
   debugDate: Cell<Default<string, "">>;
 }
 
@@ -83,22 +84,11 @@ function getLastNDays(n: number): string[] {
 const last30Days = getLastNDays(30);
 const today = getTodayString();
 
-// Handler for parent to enable award mode
-const enableAward = handler<
-  unknown,
-  { awardEnabled: Cell<boolean> }
->((_, { awardEnabled }) => {
-  awardEnabled.set(true);
-});
-
-// Handler for child to place the star
+// Handler to place a star for today (single tap)
 const placeStar = handler<
   unknown,
-  { days: Cell<DayRecord[]>; awardEnabled: Cell<boolean>; debugDate: Cell<string> }
->((_, { days, awardEnabled, debugDate }) => {
-  // Only works if award is enabled
-  if (!awardEnabled.get()) return;
-
+  { days: Cell<DayRecord[]>; sparkleKey: Cell<number>; debugDate: Cell<string> }
+>((_, { days, sparkleKey, debugDate }) => {
   const currentDays = days.get();
   const override = debugDate.get();
   const todayStr = override || getTodayString();
@@ -106,8 +96,7 @@ const placeStar = handler<
   // Check if today already has a record
   const existingIndex = currentDays.findIndex((d) => d.date === todayStr);
   if (existingIndex >= 0) {
-    // Already has a star, just disable award mode
-    awardEnabled.set(false);
+    // Already has a star, do nothing
     return;
   }
 
@@ -120,11 +109,12 @@ const placeStar = handler<
     rotation,
   };
   days.set([...currentDays, newRecord]);
-  awardEnabled.set(false);
+  // Trigger sparkle animation
+  sparkleKey.set(sparkleKey.get() + 1);
 });
 
 export default pattern<StarChartInput, StarChartOutput>(
-  ({ goalName, days, awardEnabled, debugDate }) => {
+  ({ goalName, days, sparkleKey, debugDate }) => {
     // Get effective "today" (real or debug override)
     // debugDate is a Cell, so use .get() inside computed
     const effectiveToday = computed(() => {
@@ -186,6 +176,8 @@ export default pattern<StarChartInput, StarChartOutput>(
                 padding: "20px",
                 textAlign: "center",
                 border: "3px dashed #fbbf24",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
               <div
@@ -200,12 +192,23 @@ export default pattern<StarChartInput, StarChartOutput>(
                 Today - {effectiveToday}
               </div>
 
-              {/* If today already has a star, show celebration */}
+              {/* If today already has a star, show with celebration animation */}
               {ifElse(
                 todayHasStar,
-                <div>
+                <div className="star-container" key={sparkleKey}>
+                  {/* Sparkle particles */}
+                  <div className="sparkle-burst">
+                    <div className="sparkle s1">✦</div>
+                    <div className="sparkle s2">✦</div>
+                    <div className="sparkle s3">✦</div>
+                    <div className="sparkle s4">✦</div>
+                    <div className="sparkle s5">✦</div>
+                    <div className="sparkle s6">✦</div>
+                    <div className="sparkle s7">✦</div>
+                    <div className="sparkle s8">✦</div>
+                  </div>
                   <div
-                    className="magical-star"
+                    className="magical-star star-pop"
                     style={{
                       fontSize: "100px",
                       lineHeight: "1",
@@ -227,48 +230,24 @@ export default pattern<StarChartInput, StarChartOutput>(
                   </div>
                 </div>,
                 <div>
-                  {/* Step 1: Parent enables award (small button) */}
+                  {/* Single tap to add star */}
                   <button
-                    onClick={enableAward({ awardEnabled })}
-                    disabled={awardEnabled}
-                    style={{
-                      fontSize: "14px",
-                      background: awardEnabled ? "#e5e7eb" : "#f59e0b",
-                      color: awardEnabled ? "#9ca3af" : "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "8px 16px",
-                      cursor: awardEnabled ? "default" : "pointer",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    {ifElse(awardEnabled, "Ready for star!", "Award Star")}
-                  </button>
-
-                  {/* Step 2: Child places the star (big button, only when enabled) */}
-                  <button
-                    onClick={placeStar({ days, awardEnabled, debugDate })}
-                    disabled={ifElse(awardEnabled, false, true)}
+                    onClick={placeStar({ days, sparkleKey, debugDate })}
                     style={{
                       fontSize: "80px",
-                      background: awardEnabled
-                        ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
-                        : "#e5e7eb",
+                      background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
                       border: "none",
                       borderRadius: "50%",
                       width: "150px",
                       height: "150px",
-                      cursor: awardEnabled ? "pointer" : "default",
-                      boxShadow: awardEnabled
-                        ? "0 8px 24px rgba(251, 191, 36, 0.5)"
-                        : "none",
-                      transition: "all 0.3s ease",
-                      transform: awardEnabled ? "scale(1.1)" : "scale(1)",
+                      cursor: "pointer",
+                      boxShadow: "0 8px 24px rgba(251, 191, 36, 0.5)",
+                      transition: "all 0.2s ease",
                     }}
+                    className="tap-star"
                   >
-                    {ifElse(awardEnabled, "⭐", "○")}
+                    ⭐
                   </button>
-
                   <div
                     style={{
                       fontSize: "14px",
@@ -276,11 +255,7 @@ export default pattern<StarChartInput, StarChartOutput>(
                       marginTop: "12px",
                     }}
                   >
-                    {ifElse(
-                      awardEnabled,
-                      "Tap the star to place it!",
-                      "Parent: tap 'Award Star' first"
-                    )}
+                    Tap to earn your star!
                   </div>
                 </div>
               )}
@@ -382,15 +357,86 @@ export default pattern<StarChartInput, StarChartOutput>(
               }
             }
 
+            @keyframes starPop {
+              0% {
+                transform: scale(0) rotate(-180deg);
+                opacity: 0;
+              }
+              50% {
+                transform: scale(1.3) rotate(10deg);
+              }
+              70% {
+                transform: scale(0.9) rotate(-5deg);
+              }
+              100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+              }
+            }
+
+            @keyframes sparkleOut {
+              0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+              }
+              100% {
+                opacity: 0;
+              }
+            }
+
             .magical-star {
               display: inline-block;
+            }
+
+            .star-pop {
+              animation: starPop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards,
+                         shimmer 3s ease-in-out 0.6s infinite,
+                         jiggle 2s ease-in-out 0.6s infinite !important;
+            }
+
+            .star-container {
+              position: relative;
+            }
+
+            .sparkle-burst {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              pointer-events: none;
+            }
+
+            .sparkle {
+              position: absolute;
+              font-size: 24px;
+              color: #fbbf24;
+              animation: sparkleOut 0.8s ease-out forwards;
+              text-shadow: 0 0 10px #fbbf24;
+            }
+
+            .s1 { transform: translate(-60px, -60px); animation-delay: 0s; }
+            .s2 { transform: translate(60px, -60px); animation-delay: 0.05s; }
+            .s3 { transform: translate(-80px, 0px); animation-delay: 0.1s; }
+            .s4 { transform: translate(80px, 0px); animation-delay: 0.15s; }
+            .s5 { transform: translate(-60px, 60px); animation-delay: 0.2s; }
+            .s6 { transform: translate(60px, 60px); animation-delay: 0.25s; }
+            .s7 { transform: translate(0px, -80px); animation-delay: 0.1s; }
+            .s8 { transform: translate(0px, 80px); animation-delay: 0.15s; }
+
+            .tap-star:active {
+              transform: scale(0.95);
+            }
+
+            .tap-star:hover {
+              transform: scale(1.05);
+              box-shadow: 0 12px 32px rgba(251, 191, 36, 0.6);
             }
           `}</style>
         </ct-screen>
       ),
       goalName,
       days,
-      awardEnabled,
+      sparkleKey,
       debugDate,
     };
   }
