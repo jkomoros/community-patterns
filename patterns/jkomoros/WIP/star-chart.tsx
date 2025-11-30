@@ -19,11 +19,13 @@ interface DayRecord {
 interface StarChartInput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
+  awardEnabled: Cell<Default<boolean, false>>;
 }
 
 interface StarChartOutput {
   goalName: Cell<Default<string, "Gold Star Goal">>;
   days: Cell<Default<DayRecord[], []>>;
+  awardEnabled: Cell<Default<boolean, false>>;
 }
 
 // Helper to get today's date as YYYY-MM-DD
@@ -54,18 +56,30 @@ function getLastNDays(n: number): string[] {
 const last30Days = getLastNDays(30);
 const today = getTodayString();
 
-// Handler to add a star for today
-const awardStar = handler<
+// Handler for parent to enable award mode
+const enableAward = handler<
   unknown,
-  { days: Cell<DayRecord[]> }
->((_, { days }) => {
+  { awardEnabled: Cell<boolean> }
+>((_, { awardEnabled }) => {
+  awardEnabled.set(true);
+});
+
+// Handler for child to place the star
+const placeStar = handler<
+  unknown,
+  { days: Cell<DayRecord[]>; awardEnabled: Cell<boolean> }
+>((_, { days, awardEnabled }) => {
+  // Only works if award is enabled
+  if (!awardEnabled.get()) return;
+
   const currentDays = days.get();
   const todayStr = getTodayString();
 
   // Check if today already has a record
   const existingIndex = currentDays.findIndex((d) => d.date === todayStr);
   if (existingIndex >= 0) {
-    // Already has a star, don't add again
+    // Already has a star, just disable award mode
+    awardEnabled.set(false);
     return;
   }
 
@@ -78,10 +92,11 @@ const awardStar = handler<
     rotation,
   };
   days.set([...currentDays, newRecord]);
+  awardEnabled.set(false);
 });
 
 export default pattern<StarChartInput, StarChartOutput>(
-  ({ goalName, days }) => {
+  ({ goalName, days, awardEnabled }) => {
     return {
       [NAME]: "Star Chart",
       [UI]: (
@@ -119,7 +134,7 @@ export default pattern<StarChartInput, StarChartOutput>(
               </div>
             </div>
 
-            {/* Today's Award Button - always rendered */}
+            {/* Today's Award Section - Two-step flow */}
             <div
               style={{
                 background: "rgba(255,255,255,0.8)",
@@ -141,30 +156,60 @@ export default pattern<StarChartInput, StarChartOutput>(
                 Today - {formatDateShort(today)}
               </div>
 
+              {/* Step 1: Parent enables award (small button) */}
               <button
-                onClick={awardStar({ days })}
+                onClick={enableAward({ awardEnabled })}
+                disabled={awardEnabled}
                 style={{
-                  fontSize: "48px",
-                  background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                  fontSize: "14px",
+                  background: awardEnabled ? "#e5e7eb" : "#f59e0b",
+                  color: awardEnabled ? "#9ca3af" : "white",
                   border: "none",
-                  borderRadius: "50%",
-                  width: "100px",
-                  height: "100px",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(251, 191, 36, 0.4)",
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  cursor: awardEnabled ? "default" : "pointer",
+                  marginBottom: "16px",
                 }}
               >
-                ⭐
+                {ifElse(awardEnabled, "Ready for star!", "Award Star")}
+              </button>
+
+              {/* Step 2: Child places the star (big button, only when enabled) */}
+              <button
+                onClick={placeStar({ days, awardEnabled })}
+                disabled={ifElse(awardEnabled, false, true)}
+                style={{
+                  fontSize: "80px",
+                  background: awardEnabled
+                    ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
+                    : "#e5e7eb",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "150px",
+                  height: "150px",
+                  cursor: awardEnabled ? "pointer" : "default",
+                  boxShadow: awardEnabled
+                    ? "0 8px 24px rgba(251, 191, 36, 0.5)"
+                    : "none",
+                  transition: "all 0.3s ease",
+                  transform: awardEnabled ? "scale(1.1)" : "scale(1)",
+                }}
+              >
+                {ifElse(awardEnabled, "⭐", "○")}
               </button>
 
               <div
                 style={{
                   fontSize: "14px",
                   color: "#92400e",
-                  marginTop: "8px",
+                  marginTop: "12px",
                 }}
               >
-                Tap to award star!
+                {ifElse(
+                  awardEnabled,
+                  "Tap the star to place it!",
+                  "Parent: tap 'Award Star' first"
+                )}
               </div>
             </div>
 
@@ -239,6 +284,7 @@ export default pattern<StarChartInput, StarChartOutput>(
       ),
       goalName,
       days,
+      awardEnabled,
     };
   }
 );
