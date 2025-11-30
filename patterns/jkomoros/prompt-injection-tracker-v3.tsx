@@ -471,6 +471,32 @@ interface TrackerOutput {
 
 export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles, authCharm }) => {
   // ==========================================================================
+  // DEBUG: Pipeline Instrumentation (for caching investigation)
+  // Remove this section once caching issues are resolved
+  // ==========================================================================
+  const DEBUG_LOGGING = true; // Set to false to disable logging
+
+  const debugLog = (stage: string, data: any) => {
+    if (DEBUG_LOGGING) {
+      console.log(`[PIPELINE:${stage}]`, JSON.stringify(data, null, 2));
+    }
+  };
+
+  const debugCellStructure = (name: string, cell: any) => {
+    if (!DEBUG_LOGGING) return;
+    const structure = {
+      hasPending: "pending" in cell,
+      hasResult: "result" in cell,
+      hasError: "error" in cell,
+      pendingValue: cell?.pending,
+      resultType: cell?.result === undefined ? "undefined" : cell?.result === null ? "null" : typeof cell?.result,
+      errorValue: cell?.error,
+      keys: cell ? Object.keys(cell) : [],
+    };
+    console.log(`[CELL:${name}]`, JSON.stringify(structure, null, 2));
+  };
+
+  // ==========================================================================
   // Gmail Integration
   // ==========================================================================
   // WORKAROUND (CT-1085): Pass authCharm from input since wish("#googleAuth") doesn't work
@@ -540,11 +566,36 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   // ==========================================================================
   // Progress tracking
   // ==========================================================================
+  // DEBUG: Log L1 cell structure
+  const _debugL1CellStructure = derive(articleExtractions, (list) => {
+    if (!DEBUG_LOGGING) return null;
+    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+      const ext = item.extraction;
+      return {
+        idx,
+        articleId: item.articleId,
+        extraction: ext ? {
+          hasPendingProp: "pending" in ext,
+          hasResultProp: "result" in ext,
+          hasErrorProp: "error" in ext,
+          pendingValue: ext.pending,
+          resultType: ext.result === undefined ? "undefined" : ext.result === null ? "null" : typeof ext.result,
+          hasUrls: !!ext.result?.urls,
+          urlCount: ext.result?.urls?.length || 0,
+          allKeys: Object.keys(ext),
+        } : "null/undefined",
+      };
+    });
+    console.log("[DEBUG:L1-CELL-STRUCTURE]", JSON.stringify({ totalItems: list.length, sample }, null, 2));
+    return sample;
+  });
+
   const pendingCount = derive(articleExtractions, (list) =>
     list.filter((e: any) => e.extraction?.pending).length
   );
 
   // Completed = not pending (matches what the UI checkmarks show)
+  // NOTE: L1 uses !pending (like L3), not !pending && result (like L2)
   const completedCount = derive(articleExtractions, (list) =>
     list.filter((e: any) => !e.extraction?.pending).length
   );
@@ -740,23 +791,104 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
   });
 
   // L2: Count web fetch progress (from articleFirstUrlProcessing)
+  // DEBUG: Log cell structure for first 3 items to understand caching behavior
+  const _debugL2CellStructure = derive(articleFirstUrlProcessing, (list) => {
+    if (!DEBUG_LOGGING) return null;
+    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+      const wc = item.webContent;
+      return {
+        idx,
+        hasSourceUrl: !!item.sourceUrl,
+        sourceUrl: item.sourceUrl?.slice?.(0, 50) || item.sourceUrl,
+        webContent: wc ? {
+          hasPendingProp: "pending" in wc,
+          hasResultProp: "result" in wc,
+          hasErrorProp: "error" in wc,
+          pendingValue: wc.pending,
+          resultIsNull: wc.result === null,
+          resultIsUndefined: wc.result === undefined,
+          resultType: wc.result === undefined ? "undefined" : wc.result === null ? "null" : typeof wc.result,
+          hasResultContent: !!wc.result?.content,
+          errorValue: wc.error,
+          allKeys: Object.keys(wc),
+        } : "null/undefined",
+      };
+    });
+    console.log("[DEBUG:L2-CELL-STRUCTURE]", JSON.stringify({ totalItems: list.length, sample }, null, 2));
+    return sample;
+  });
+
   const fetchPendingCount = derive(articleFirstUrlProcessing, (list) =>
     list.filter((item: any) => item.sourceUrl && item.webContent?.pending).length
   );
-  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) =>
-    list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
-  );
+  const fetchCompletedCount = derive(articleFirstUrlProcessing, (list) => {
+    const completed = list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result);
+    // DEBUG: Log the count and why items passed/failed
+    if (DEBUG_LOGGING && list.length > 0) {
+      const withUrl = list.filter((item: any) => item.sourceUrl);
+      const notPending = withUrl.filter((item: any) => !item.webContent?.pending);
+      const hasResult = notPending.filter((item: any) => item.webContent?.result);
+      console.log("[DEBUG:L2-COMPLETED]", JSON.stringify({
+        total: list.length,
+        withUrl: withUrl.length,
+        notPending: notPending.length,
+        hasResult: hasResult.length,
+        // Check first failing item
+        firstNotPendingNoResult: notPending.find((item: any) => !item.webContent?.result) ? {
+          sourceUrl: notPending.find((item: any) => !item.webContent?.result)?.sourceUrl?.slice?.(0, 50),
+          webContentKeys: Object.keys(notPending.find((item: any) => !item.webContent?.result)?.webContent || {}),
+          webContentPending: notPending.find((item: any) => !item.webContent?.result)?.webContent?.pending,
+          webContentResult: notPending.find((item: any) => !item.webContent?.result)?.webContent?.result,
+        } : null,
+      }, null, 2));
+    }
+    return completed.length;
+  });
   const fetchErrorCount = derive(articleFirstUrlProcessing, (list) =>
     list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.error).length
   );
 
   // Count classification progress
+  // DEBUG: Log L3 cell structure to compare with L2
+  const _debugL3CellStructure = derive(contentClassifications, (list) => {
+    if (!DEBUG_LOGGING) return null;
+    const sample = list.slice(0, 3).map((item: any, idx: number) => {
+      const cl = item.classification;
+      return {
+        idx,
+        hasSourceUrl: !!item.sourceUrl,
+        classification: cl ? {
+          hasPendingProp: "pending" in cl,
+          hasResultProp: "result" in cl,
+          hasErrorProp: "error" in cl,
+          pendingValue: cl.pending,
+          resultIsNull: cl.result === null,
+          resultIsUndefined: cl.result === undefined,
+          resultType: cl.result === undefined ? "undefined" : cl.result === null ? "null" : typeof cl.result,
+          hasIsOriginalReport: !!cl.result?.isOriginalReport !== undefined,
+          allKeys: Object.keys(cl),
+        } : "null/undefined",
+      };
+    });
+    console.log("[DEBUG:L3-CELL-STRUCTURE]", JSON.stringify({ totalItems: list.length, sample }, null, 2));
+    return sample;
+  });
+
   const classifyPendingCount = derive(contentClassifications, (list) =>
     list.filter((c: any) => c.classification?.pending).length
   );
-  const classifyCompletedCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => !c.classification?.pending).length
-  );
+  const classifyCompletedCount = derive(contentClassifications, (list) => {
+    const completed = list.filter((c: any) => !c.classification?.pending);
+    // DEBUG: Log L3 completion check
+    if (DEBUG_LOGGING && list.length > 0) {
+      console.log("[DEBUG:L3-COMPLETED]", JSON.stringify({
+        total: list.length,
+        notPending: completed.length,
+        // Note: L3 just checks !pending, not .result - this might be the difference!
+      }, null, 2));
+    }
+    return completed.length;
+  });
 
   // Count originals vs news articles
   const originalCount = derive(contentClassifications, (list) =>

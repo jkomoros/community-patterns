@@ -131,17 +131,69 @@ For reproducible testing, we need:
 - Deployment infrastructure hitting ConflictErrors, couldn't deploy fixed version
 - Created this investigation plan
 
+**Nov 29, 2025 - Session 2 (Phase 1 Complete):**
+- Added instrumentation to pattern (DEBUG_LOGGING flag)
+- Deployed instrumented version and tested with 5 test articles
+- **CRITICAL FINDING: L2 counter bug root cause identified!**
+
+### 🔴 ROOT CAUSE IDENTIFIED: L2 Counter Bug
+
+**The Problem:**
+The L2 webContent cell has `.result` property but its VALUE is `undefined` even when `pending` is `false`:
+
+```json
+{
+  "hasPendingProp": true,
+  "hasResultProp": true,      // HAS the property
+  "pendingValue": false,       // NOT pending
+  "resultIsUndefined": true,   // BUT result is UNDEFINED!
+  "allKeys": ["pending", "result", "error"]
+}
+```
+
+**Why L2 fails but L3 works:**
+- L2 check: `!item.webContent?.pending && item.webContent?.result`
+  - `pending` is `false` ✓
+  - `result` is `undefined` (falsy) ✗ → **FAILS**
+- L3 check: `!c.classification?.pending`
+  - `pending` is `false` ✓ → **PASSES**
+
+**Contributing factor:** 422 errors from `/api/agent-tools/web-read`:
+```
+[ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)
+```
+When fetchData fails, `.result` stays `undefined` but `.pending` becomes `false`.
+
+**The Fix:**
+Change L2 counter to match L3's approach - only check `!pending`:
+```typescript
+// Current (broken):
+list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && item.webContent?.result)
+
+// Fixed:
+list.filter((item: any) => item.sourceUrl && !item.webContent?.pending)
+```
+
+Or for "completed successfully" (not including errors):
+```typescript
+list.filter((item: any) => item.sourceUrl && !item.webContent?.pending && !item.webContent?.error)
+```
+
 **Current Status:**
-- Fix for "null" URL committed but not tested with live data
-- L2 counter bug identified but not fixed (user deferred as "cosmetic")
-- Need to set up proper test fixtures for reproducible debugging
+- Root cause IDENTIFIED ✅
+- Fix NOT yet implemented (needs decision on how to count errors)
+- Instrumented pattern deployed for further testing
 
-### Next Steps (for next session)
+### Next Steps
 
-1. **Extract test fixtures** from deployed charm with emails
-2. **Add instrumentation** - console.log at each pipeline stage
-3. **Create minimal reproduction** - strip down to just L1 + L2
-4. **Document cell structure** - what does cached vs fresh look like?
+1. **Decide on counter semantics:**
+   - Option A: Count "done" (not pending) - matches L3 approach
+   - Option B: Count "success" (not pending AND no error)
+   - Option C: Show separate counts (success/error/pending)
+
+2. **Implement the fix** for L2 counter
+3. **Verify fix** with test data and page refresh
+4. **Test caching behavior** after fix - does cache load correctly?
 
 ### Files
 
