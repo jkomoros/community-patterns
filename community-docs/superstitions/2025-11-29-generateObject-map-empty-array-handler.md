@@ -2,7 +2,7 @@
 
 **Date:** 2025-11-29
 **Confidence:** HIGH (verified with working pattern)
-**Related patterns:** `map-test-100-items.tsx`, `prompt-injection-tracker-v3.tsx`
+**Related patterns:** `map-test-100-items.tsx`, `prompt-injection-tracker.tsx`
 
 ## The Problem
 

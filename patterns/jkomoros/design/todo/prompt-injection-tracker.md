@@ -268,7 +268,7 @@ For reproducible testing, we need:
 ### Progress Log
 
 **Nov 29, 2025 - Session 1:**
-- Deployed tracker-v3 with Gmail auth
+- Deployed tracker with Gmail auth
 - Connected to Gmail, fetched 30 emails
 - Observed L2 counter bug: shows 0/28 when L3 shows 28/28
 - Identified "null" URL string bug - FIXED in commit a59cc38
@@ -412,7 +412,7 @@ Recommended solutions:
 
 ### Files
 
-- Pattern: `patterns/jkomoros/prompt-injection-tracker-v3.tsx`
+- Pattern: `patterns/jkomoros/prompt-injection-tracker.tsx`
 - TODO: `patterns/jkomoros/design/todo/prompt-injection-tracker.md` (this file)
 - Related commits:
   - 5e07160: Fix L2 counter to show success/error counts separately
@@ -504,7 +504,7 @@ const extractions = articles.map((article) => ({
 
 ### Phase 1: Start Fresh with Working Pattern ✅ DONE
 
-- [x] Create new `prompt-injection-tracker-v3.tsx` in WIP/
+- [x] Create new `prompt-injection-tracker.tsx` (originally v3 in WIP/)
 - [x] Use `map-test-100-items.tsx` as template (verified working)
 - [x] Start with hardcoded test articles (no Gmail yet)
 - [x] Verify basic map + generateObject flow works
@@ -608,10 +608,12 @@ const reportSummaries = fetchedReports.map((report) => ({
 ## File Structure
 
 ```
-patterns/jkomoros/WIP/
-├── prompt-injection-tracker-v3.tsx    # NEW - Clean implementation
-├── map-test-100-items.tsx             # Reference pattern (verified)
-└── prompt-injection-tracker-*.tsx     # OLD - Archive these
+patterns/jkomoros/
+├── prompt-injection-tracker.tsx       # Main implementation (renamed from v3)
+├── WIP/
+│   └── map-test-100-items.tsx         # Reference pattern (verified)
+└── design/todo/
+    └── prompt-injection-tracker.md    # This file
 ```
 
 ## Testing Checklist

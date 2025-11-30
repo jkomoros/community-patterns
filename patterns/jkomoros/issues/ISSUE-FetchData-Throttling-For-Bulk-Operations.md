@@ -6,7 +6,7 @@ When a pattern maps over many items (30+) with `fetchData` calls, all requests f
 
 ## Observed Behavior
 
-**Context:** Testing `prompt-injection-tracker-v3` with real Gmail data (33 emails → 66 extracted URLs)
+**Context:** Testing `prompt-injection-tracker` with real Gmail data (33 emails → 66 extracted URLs)
 
 **What happened:**
 1. L1 extraction completed successfully (33/33)
