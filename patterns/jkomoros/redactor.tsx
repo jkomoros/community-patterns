@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, NAME, pattern, UI, wish } from "commontools";
 
 // ============================================================================
 // Types
@@ -403,53 +403,85 @@ interface InputSchema {
   llmResponse: Default<string, "">;
 }
 
-// Handler to perform redaction
-const doRedact = handler<
-  unknown,
-  {
-    piiEntries: PIIEntry[];
-    inputText: Cell<string>;
-    redactedText: Cell<string>;
-    sessionState: Cell<RedactionSession | null>;
-  }
->((_event, { piiEntries, inputText, redactedText, sessionState }) => {
-  // Copy to mutable array
-  const entriesCopy = [...piiEntries];
-  const preparedPII = preparePIIEntries(entriesCopy);
-  const session = createSession();
-  const result = redact(inputText.get(), preparedPII, session);
-  redactedText.set(result);
-  sessionState.set(session);
-});
-
-// Handler to perform restoration
-const doRestore = handler<
-  unknown,
-  {
-    llmResponse: Cell<string>;
-    sessionState: Cell<RedactionSession | null>;
-    restoredText: Cell<string>;
-  }
->((_event, { llmResponse, sessionState, restoredText }) => {
-  const session = sessionState.get();
-  if (!session) {
-    restoredText.set("Error: No active session. Redact first.");
-    return;
-  }
-  // Session is already plain objects, use directly
-  const result = restore(llmResponse.get(), session);
-  restoredText.set(result);
-});
+// Type for wish result
+type WishedVault = { entries: PIIEntry[] };
 
 export default pattern<InputSchema>(({ title, piiEntries, inputText, llmResponse }) => {
-  // State cells
-  const redactedText = Cell.of("");
-  const restoredText = Cell.of("");
-  const sessionState = Cell.of<RedactionSession | null>(null);
+  // Wish for a PII vault as fallback if none linked
+  // TODO(CT-1084): Update to wish({ query: "#pii-vault" }) when object syntax bug is fixed
+  const wishedVault = wish<WishedVault>("#pii-vault");
+
+  // Effective PII entries: use linked entries if present, otherwise use wished vault
+  const effectivePII = computed(() => {
+    // If we have directly linked entries, use those
+    if (piiEntries.length > 0) {
+      return [...piiEntries] as PIIEntry[];
+    }
+    // Otherwise try the wished vault
+    const vault = wishedVault;
+    if (vault && vault.entries && vault.entries.length > 0) {
+      return [...vault.entries] as PIIEntry[];
+    }
+    return [] as PIIEntry[];
+  });
 
   // Stats
-  const piiCount = computed(() => piiEntries.length);
-  const hasSession = computed(() => sessionState !== null);
+  const piiCount = computed(() => effectivePII.length);
+  const hasPII = computed(() => effectivePII.length > 0);
+
+  // Auto-redact whenever inputText changes (reactive)
+  // FAIL CLOSED: If no PII entries, output error message instead of passing through
+  const redactionResult = computed(() => {
+    const text = inputText;
+    const entries = effectivePII;
+
+    // Fail closed: require PII entries
+    if (entries.length === 0) {
+      return {
+        redacted: "⚠️ ERROR: No PII vault connected. Cannot safely redact. Please link a PII vault or add entries.",
+        session: null as RedactionSession | null,
+      };
+    }
+
+    // No text to redact
+    if (!text || text.trim() === "") {
+      return {
+        redacted: "",
+        session: null as RedactionSession | null,
+      };
+    }
+
+    // Perform redaction
+    const preparedPII = preparePIIEntries(entries);
+    const session = createSession();
+    const redacted = redact(text, preparedPII, session);
+    return { redacted, session };
+  });
+
+  // Reactive outputs from redaction
+  const redactedText = computed(() => redactionResult.redacted);
+
+  // Auto-restore whenever llmResponse changes (reactive)
+  const restoredText = computed(() => {
+    const response = llmResponse;
+    const session = redactionResult.session;
+
+    // No session means no redaction happened yet
+    if (!session) {
+      if (response && response.trim() !== "") {
+        return "⚠️ ERROR: No active redaction session. Enter input text first.";
+      }
+      return "";
+    }
+
+    // No response to restore
+    if (!response || response.trim() === "") {
+      return "";
+    }
+
+    // Perform restoration
+    return restore(response, session);
+  });
 
   return {
     [NAME]: title,
@@ -457,9 +489,40 @@ export default pattern<InputSchema>(({ title, piiEntries, inputText, llmResponse
       <div style={{ padding: "1rem", maxWidth: "900px" }}>
         <h2 style={{ margin: "0 0 1rem 0" }}>{title}</h2>
 
-        <div style={{ marginBottom: "1rem", fontSize: "13px", color: "#666" }}>
-          {piiCount} PII entries loaded
+        {/* Status bar */}
+        <div style={{ marginBottom: "1rem", fontSize: "13px" }}>
+          {derive(hasPII, (has) =>
+            has ? (
+              <span style={{ color: "#16a34a" }}>
+                ✓ {piiCount} PII entries loaded - auto-redacting
+              </span>
+            ) : (
+              <span style={{ color: "#dc2626", fontWeight: "500" }}>
+                ⚠️ No PII vault connected - FAIL CLOSED MODE
+              </span>
+            )
+          )}
         </div>
+
+        {/* Warning banner when no PII */}
+        {derive(hasPII, (has) =>
+          !has ? (
+            <div
+              style={{
+                padding: "1rem",
+                marginBottom: "1rem",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                color: "#991b1b",
+              }}
+            >
+              <strong>Security Warning:</strong> No PII vault is connected.
+              The redactor will not pass through any text without a vault.
+              Please link a PII vault or favorite one tagged with #pii-vault.
+            </div>
+          ) : null
+        )}
 
         {/* Input section */}
         <div style={{ marginBottom: "1.5rem" }}>
@@ -468,14 +531,11 @@ export default pattern<InputSchema>(({ title, piiEntries, inputText, llmResponse
           </h3>
           <ct-input
             $value={inputText}
-            placeholder="Paste text that may contain PII..."
+            placeholder="Paste or link text that may contain PII..."
           />
-          <ct-button
-            onClick={doRedact({ piiEntries, inputText, redactedText, sessionState })}
-            style="margin-top: 0.5rem;"
-          >
-            Redact PII
-          </ct-button>
+          <div style={{ marginTop: "0.5rem", fontSize: "12px", color: "#666" }}>
+            Redaction happens automatically when text changes
+          </div>
         </div>
 
         {/* Redacted output */}
@@ -502,18 +562,15 @@ export default pattern<InputSchema>(({ title, piiEntries, inputText, llmResponse
         {/* LLM Response section */}
         <div style={{ marginBottom: "1.5rem" }}>
           <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
-            LLM Response (paste response here)
+            LLM Response (paste or link response here)
           </h3>
           <ct-input
             $value={llmResponse}
-            placeholder="Paste LLM response containing nonces..."
+            placeholder="Paste or link LLM response containing nonces..."
           />
-          <ct-button
-            onClick={doRestore({ llmResponse, sessionState, restoredText })}
-            style="margin-top: 0.5rem;"
-          >
-            Restore PII
-          </ct-button>
+          <div style={{ marginTop: "0.5rem", fontSize: "12px", color: "#666" }}>
+            Restoration happens automatically when response changes
+          </div>
         </div>
 
         {/* Restored output */}
