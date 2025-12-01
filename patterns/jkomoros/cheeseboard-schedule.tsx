@@ -344,7 +344,7 @@ const removeFromHistory = handler<
 // PATTERN
 // ============================================================================
 
-export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
+const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
   ({ preferences, history }) => {
     // Fetch pizza schedule
     const cheeseBoardUrl = "https://cheeseboardcollective.coop/home/pizza/pizza-schedule/";
@@ -775,3 +775,22 @@ export default pattern<CheeseboardScheduleInput, CheeseboardScheduleOutput>(
     };
   }
 );
+
+/**
+ * Default values for creating a new CheeseboardSchedule.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  preferences: [] as IngredientPreference[],
+  history: [] as HistoricalPizza[],
+};
+
+/**
+ * Factory function to create a CheeseboardSchedule with sensible defaults.
+ * @example navigateTo(createCheeseboardSchedule());
+ */
+export function createCheeseboardSchedule(overrides?: Partial<typeof defaults>) {
+  return CheeseboardSchedule({ ...defaults, ...overrides });
+}
+
+export default CheeseboardSchedule;

@@ -247,4 +247,18 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
   },
 );
 
+/**
+ * Default values for creating a new MetaAnalyzer.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {};
+
+/**
+ * Factory function to create a MetaAnalyzer with sensible defaults.
+ * @example navigateTo(createMetaAnalyzer());
+ */
+export function createMetaAnalyzer(overrides?: Partial<typeof defaults>) {
+  return MetaAnalyzer({ ...defaults, ...overrides });
+}
+
 export default MetaAnalyzer;
