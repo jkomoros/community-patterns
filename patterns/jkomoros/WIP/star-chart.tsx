@@ -143,9 +143,8 @@ export default pattern<StarChartInput, StarChartOutput>(
         const earliestDate = new Date(earliestStarDate + "T12:00:00");
 
         const result: TimelineDay[] = [];
-        // Start from yesterday, go back to earliest star date
+        // Start from today, go back to earliest star date
         let currentDate = new Date(baseDate);
-        currentDate.setDate(currentDate.getDate() - 1); // Start from yesterday
 
         while (currentDate >= earliestDate) {
           const dateStr = currentDate.toISOString().split("T")[0];
