@@ -2554,8 +2554,6 @@ const defaults = {
   viewPromptSpindleId: "",
   synopsisText: "",
   synopsisIdeasNonce: 0,
-  selectedIdeaIndex: 99,  // 99 = no selection (can't use -1)
-  storedIdeasJson: "",
 };
 
 /**
