@@ -927,21 +927,26 @@ const SpindleBoard = pattern<SpindleBoardInput>(
               placeholder="Enter your story synopsis or seed idea..."
               style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;"
             />
-            <button
-              onClick={setSynopsis({ spindles, synopsisText, levels })}
-              style={{
-                marginTop: "8px",
-                padding: "8px 16px",
-                background: "#eab308",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
-            >
-              Set Synopsis
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px" }}>
+              <button
+                onClick={setSynopsis({ spindles, synopsisText, levels })}
+                style={{
+                  padding: "10px 20px",
+                  background: "#eab308",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                }}
+              >
+                Start Story →
+              </button>
+              <span style={{ fontSize: "13px", color: "#6b7280" }}>
+                Click to begin generating from your synopsis
+              </span>
+            </div>
             {ifElse(
               derive(levels, (lvls: LevelConfig[]) => !lvls || lvls.length <= 1),
               <div
