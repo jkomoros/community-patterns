@@ -123,9 +123,9 @@ Conditional display → Text content, styles, or separate passive elements
 ```yaml
 topic: jsx, handlers, conditional-rendering, onClick, derive, ifElse
 discovered: 2025-01-23
-confirmed_count: 3
-last_confirmed: 2025-11-27
-sessions: [fix-food-recipe-image-extraction-button-error, smart-rubric-phase-5, hotel-membership-extractor-stop-scan]
+confirmed_count: 4
+last_confirmed: 2025-11-30
+sessions: [fix-food-recipe-image-extraction-button-error, smart-rubric-phase-5, hotel-membership-extractor-stop-scan, spindle-board-inspire-me]
 status: folk_wisdom
 stars: ⭐⭐⭐
 ```
@@ -137,6 +137,8 @@ stars: ⭐⭐⭐
 - ✅ 2025-11-25 - Confirmed in smart-rubric-phase-5 with generateObject results. Buttons inside derive block got ReadOnlyAddressError. (smart-rubric-phase-5)
 
 - ✅ 2025-11-27 - **CONFIRMED AGAIN** in hotel-membership-extractor. Added "Stop Scan" button inside derive progress block. Got `ReadOnlyAddressError: Cannot write to read-only address` when clicking. Moved button OUTSIDE derive, used `disabled={derive(isScanning, ...)}` for conditional state. Works perfectly. This pattern is solid! (hotel-membership-extractor-stop-scan)
+
+- ✅ 2025-11-30 - **NEW TECHNIQUE DISCOVERED** in spindle-board "Inspire Me" feature. Needed to render buttons for each LLM-generated idea. Used `.map()` on pre-computed cell instead of inside derive callback: `ideasWithJson.map((idea) => <button onClick={handler(...)} />)`. This works because the onClick is NOT inside a derive callback - it's at top-level JSX mapping over a reactive cell. Also used two-phase selection (click to select index, then separate "Apply" button) to work around read-only data from LLM results. (spindle-board-inspire-me)
 
 ---
 
