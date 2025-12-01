@@ -146,7 +146,7 @@ interface SpindleBoardInput {
 // PATTERN
 // =============================================================================
 
-export default pattern<SpindleBoardInput>(
+const SpindleBoard = pattern<SpindleBoardInput>(
   ({
     boardTitle,
     boardDescription,
@@ -2135,3 +2135,39 @@ export default pattern<SpindleBoardInput>(
     };
   }
 );
+
+// =============================================================================
+// FACTORY FUNCTION
+// =============================================================================
+
+/**
+ * Default values for SpindleBoard creation.
+ * Used by createSpindleBoard factory to avoid manual field enumeration.
+ */
+const defaults = {
+  boardTitle: "My Story Board",
+  boardDescription: "",
+  levels: [DEFAULT_ROOT_LEVEL] as LevelConfig[],
+  spindles: [DEFAULT_ROOT_SPINDLE] as SpindleConfig[],
+  showAddLevelModal: false,
+  newLevelTitle: "",
+  newLevelPrompt: "",
+  newLevelBranch: 1,
+  showEditLevelModal: false,
+  editingLevelIndex: 0,
+  editLevelTitle: "",
+  editLevelPrompt: "",
+  showViewPromptModal: false,
+  viewPromptSpindleId: "",
+  synopsisText: "",
+};
+
+/**
+ * Factory function to create a SpindleBoard with sensible defaults.
+ * @example navigateTo(createSpindleBoard({ boardTitle: "My Story" }));
+ */
+export function createSpindleBoard(overrides?: Partial<typeof defaults>) {
+  return SpindleBoard({ ...defaults, ...overrides });
+}
+
+export default SpindleBoard;
