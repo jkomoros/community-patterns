@@ -1433,12 +1433,13 @@ Make them diverse in genre and tone:
                             ),
                             opacity: ifElse(
                               derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 0),
-                              "0.3",
+                              "0.15",
                               "1"
                             ),
-                            transform: ifElse(result.isPinned0, "scale(1.02)", "scale(1)"),
+                            transform: ifElse(result.isPinned0, "scale(1.03)", "scale(1)"),
                             transition: "all 0.2s ease",
                             position: "relative",
+                            zIndex: ifElse(result.isPinned0, "10", "1"),
                           }}
                         >
                           {ifElse(
@@ -1446,19 +1447,20 @@ Make them diverse in genre and tone:
                             <div
                               style={{
                                 position: "absolute",
-                                top: "-12px",
+                                top: "-16px",
                                 left: "50%",
                                 transform: "translateX(-50%)",
-                                background: "#2563eb",
+                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                                 color: "white",
-                                padding: "4px 16px",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
+                                padding: "8px 20px",
+                                borderRadius: "16px",
+                                fontSize: "14px",
+                                fontWeight: "800",
+                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                letterSpacing: "0.5px",
                               }}
                             >
-                              ✓ PINNED
+                              📌 SELECTED
                             </div>,
                             null
                           )}
@@ -1544,12 +1546,13 @@ Make them diverse in genre and tone:
                             ),
                             opacity: ifElse(
                               derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 1),
-                              "0.3",
+                              "0.15",
                               "1"
                             ),
-                            transform: ifElse(result.isPinned1, "scale(1.02)", "scale(1)"),
+                            transform: ifElse(result.isPinned1, "scale(1.03)", "scale(1)"),
                             transition: "all 0.2s ease",
                             position: "relative",
+                            zIndex: ifElse(result.isPinned1, "10", "1"),
                           }}
                         >
                           {ifElse(
@@ -1557,19 +1560,20 @@ Make them diverse in genre and tone:
                             <div
                               style={{
                                 position: "absolute",
-                                top: "-12px",
+                                top: "-16px",
                                 left: "50%",
                                 transform: "translateX(-50%)",
-                                background: "#2563eb",
+                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                                 color: "white",
-                                padding: "4px 16px",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
+                                padding: "8px 20px",
+                                borderRadius: "16px",
+                                fontSize: "14px",
+                                fontWeight: "800",
+                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                letterSpacing: "0.5px",
                               }}
                             >
-                              ✓ PINNED
+                              📌 SELECTED
                             </div>,
                             null
                           )}
@@ -1655,12 +1659,13 @@ Make them diverse in genre and tone:
                             ),
                             opacity: ifElse(
                               derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 2),
-                              "0.3",
+                              "0.15",
                               "1"
                             ),
-                            transform: ifElse(result.isPinned2, "scale(1.02)", "scale(1)"),
+                            transform: ifElse(result.isPinned2, "scale(1.03)", "scale(1)"),
                             transition: "all 0.2s ease",
                             position: "relative",
+                            zIndex: ifElse(result.isPinned2, "10", "1"),
                           }}
                         >
                           {ifElse(
@@ -1668,19 +1673,20 @@ Make them diverse in genre and tone:
                             <div
                               style={{
                                 position: "absolute",
-                                top: "-12px",
+                                top: "-16px",
                                 left: "50%",
                                 transform: "translateX(-50%)",
-                                background: "#2563eb",
+                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                                 color: "white",
-                                padding: "4px 16px",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
+                                padding: "8px 20px",
+                                borderRadius: "16px",
+                                fontSize: "14px",
+                                fontWeight: "800",
+                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                letterSpacing: "0.5px",
                               }}
                             >
-                              ✓ PINNED
+                              📌 SELECTED
                             </div>,
                             null
                           )}
@@ -1766,12 +1772,13 @@ Make them diverse in genre and tone:
                             ),
                             opacity: ifElse(
                               derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 3),
-                              "0.3",
+                              "0.15",
                               "1"
                             ),
-                            transform: ifElse(result.isPinned3, "scale(1.02)", "scale(1)"),
+                            transform: ifElse(result.isPinned3, "scale(1.03)", "scale(1)"),
                             transition: "all 0.2s ease",
                             position: "relative",
+                            zIndex: ifElse(result.isPinned3, "10", "1"),
                           }}
                         >
                           {ifElse(
@@ -1779,19 +1786,20 @@ Make them diverse in genre and tone:
                             <div
                               style={{
                                 position: "absolute",
-                                top: "-12px",
+                                top: "-16px",
                                 left: "50%",
                                 transform: "translateX(-50%)",
-                                background: "#2563eb",
+                                background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
                                 color: "white",
-                                padding: "4px 16px",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
+                                padding: "8px 20px",
+                                borderRadius: "16px",
+                                fontSize: "14px",
+                                fontWeight: "800",
+                                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.5)",
+                                letterSpacing: "0.5px",
                               }}
                             >
-                              ✓ PINNED
+                              📌 SELECTED
                             </div>,
                             null
                           )}
@@ -1878,7 +1886,7 @@ Make them diverse in genre and tone:
                       >
                         {ifElse(
                           result.hasSummary,
-                          result.summary,
+                          <span>{result.summary}</span>,
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             <div
                               style={{
