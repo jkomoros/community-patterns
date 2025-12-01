@@ -22,6 +22,7 @@ import FavoritesViewer from "./favorites-viewer.tsx";
 import RedactorWithVault from "./redactor-with-vault.tsx";
 import StarChart from "./star-chart.tsx";
 import StoryWeaver from "./story-weaver.tsx";
+import CodenamesHelper from "./codenames-helper.tsx";
 
 type Input = void;
 type Output = {
@@ -51,6 +52,7 @@ const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(Favorit
 const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(RedactorWithVault({})));
 const handleCreateStarChart = handler<void, void>(() => navigateTo(StarChart({})));
 const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(StoryWeaver({})));
+const handleCreateCodenamesHelper = handler<void, void>(() => navigateTo(CodenamesHelper({})));
 
 export default pattern<Input, Output>(
   (_) => {
@@ -145,6 +147,10 @@ export default pattern<Input, Output>(
 
                 <ct-button onClick={handleCreateStoryWeaver()} size="lg">
                   🧵 Story Weaver
+                </ct-button>
+
+                <ct-button onClick={handleCreateCodenamesHelper()} size="lg">
+                  🕵️ Codenames Helper
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
