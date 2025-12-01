@@ -118,20 +118,17 @@ const hasCalendarScope = derive(authCharm, (charm) =>
 
 ## Migration Path
 
-1. **Phase 1: Create unified pattern**
+1. **Phase 1: Create unified pattern** ✅
    - Create `google-auth.tsx` with scope checkboxes
-   - Keep existing `gmail-auth.tsx` and `google-calendar-auth.tsx` working
-   - Both old tags still work
 
-2. **Phase 2: Update importers**
+2. **Phase 2: Update importers** ✅
    - Update `gmail-importer.tsx` to wish for `#googleAuth`
    - Update `google-calendar-importer.tsx` to wish for `#googleAuth`
    - Add scope checking/warnings
 
-3. **Phase 3: Deprecate old patterns**
-   - Mark `gmail-auth.tsx` and `google-calendar-auth.tsx` as deprecated
-   - Add redirect notice pointing to unified pattern
-   - Eventually remove
+3. **Phase 3: Remove old patterns** ✅
+   - Remove `gmail-auth.tsx` and `google-calendar-auth.tsx`
+   - All patterns now use unified `google-auth.tsx`
 
 ## Open Questions
 
@@ -175,6 +172,6 @@ Updated importers to check for required scopes:
 - `WIP/google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar scope
 - `hotel-membership-extractor.tsx` - checks for Gmail scope
 
-Deprecated old auth patterns:
-- `gmail-auth.tsx` - marked deprecated with UI notice
-- `WIP/google-calendar-auth.tsx` - marked deprecated with UI notice
+Removed old auth patterns:
+- `gmail-auth.tsx` - removed (superseded by google-auth.tsx)
+- `WIP/google-calendar-auth.tsx` - removed (superseded by google-auth.tsx)

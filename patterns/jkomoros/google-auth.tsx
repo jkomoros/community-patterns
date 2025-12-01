@@ -44,8 +44,8 @@ type SelectedScopes = {
 
 interface Input {
   selectedScopes: Default<SelectedScopes, {
-    gmail: false;
-    calendar: false;
+    gmail: true;
+    calendar: true;
     drive: false;
     contacts: false;
   }>;
