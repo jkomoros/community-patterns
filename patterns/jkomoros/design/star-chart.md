@@ -1,4 +1,4 @@
-# Star Chart - PRD
+# Star Chart - Design Doc
 
 ## Overview
 
@@ -257,13 +257,12 @@ Adapt from reward-spinner:
 - [x] Simple list with toggle buttons (last 30 days)
 - [x] Back navigation to main view
 
-### Phase 7: Polish (In Progress)
+### Phase 7: Polish ✅
 - [x] Goal name editing (retitling) - tappable header with ✏️ icon
 - [x] Optional goal description - shows in italics below goal name
 - [x] Settings view with ct-input for both fields
-- [ ] Smooth scrolling
-- [ ] Month/week dividers
-- [ ] Edge case handling
+- [x] Fixed timezone bug (local dates vs UTC)
+- [x] Fixed layout overflow (removed minHeight: 100dvh)
 
 ## References
 

@@ -19,6 +19,7 @@ import GoogleCalendarImporter from "./google-calendar-importer.tsx";
 import SmartRubric from "./WIP/smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
 import RedactorWithVault from "./redactor-with-vault.tsx";
+import StarChart from "./star-chart.tsx";
 
 type Input = void;
 type Output = {
@@ -229,6 +230,19 @@ const createRedactorWithVault = handler<void, void>((_, __) => {
   }));
 });
 
+const createStarChart = handler<void, void>((_, __) => {
+  return navigateTo(StarChart({
+    goalName: "Gold Star Goal",
+    goalDescription: "",
+    days: [],
+    viewMode: "main",
+    bestStreak: 0,
+    lastCelebratedMilestone: 0,
+    sparkleKey: 0,
+    debugDate: "",
+  }));
+});
+
 export default pattern<Input, Output>(
   (_) => {
     return {
@@ -368,6 +382,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🛡️ PII Redactor
+                </ct-button>
+
+                <ct-button
+                  onClick={createStarChart()}
+                  size="lg"
+                >
+                  ⭐ Star Chart
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
