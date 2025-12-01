@@ -591,6 +591,24 @@ const isStale = derive(
 
 ---
 
+## TODOs
+
+### UI/UX Improvements
+
+- [ ] **Render markdown as rich text** - Option content should render as formatted markdown (bold, lists, etc.) instead of raw text. Check if there's a Markdown component available.
+
+- [ ] **Make pinned item MUCH more visually distinct** - Currently pinned items only show a checkmark and blue border. Need stronger visual distinction (larger, highlighted, expanded view, etc.)
+
+- [ ] **Move Add Level button to bottom** - Currently at top, should be at bottom after all existing levels
+
+- [ ] **Add way to change prompt for a given level** - Need UI to edit level's default prompt after creation (currently no way to modify)
+
+### Testing/Verification
+
+- [ ] **Verify branching works correctly** - Test with branchFactor > 1 to ensure multiple children are created per parent
+
+---
+
 ## Changelog
 
 ### v2.0 (2024-11-30)
