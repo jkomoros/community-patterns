@@ -352,3 +352,24 @@ Adapt from reward-spinner:
   - Done button to return to main view
 - Description shows in italics below goal name when set
 - Three-way ifElse for viewMode: settings → corrections → main
+
+### 2025-12-01 - Timezone Bug Fix
+
+**Fixed date displaying wrong timezone:**
+- `toISOString()` returns UTC time, not local time
+- When local time is past midnight but UTC is still previous day, dates were wrong
+- Example: At 1am PST on Dec 1, `toISOString()` returns "2024-12-01T09:00:00.000Z" (UTC), but split gives the date as Dec 1 in UTC which might differ from local
+
+**Solution:**
+- Added `formatDateLocal(date)` helper using `getFullYear()`, `getMonth()`, `getDate()`
+- These methods return local timezone values
+- Updated all 4 locations using `toISOString().split("T")[0]`:
+  - `getTodayString()`
+  - `getPreviousDay()`
+  - `timelineData` derive
+  - `correctionsList` derive
+
+**Testing with linked debug charm:**
+- Star chart: `baedreieoufj2ak6ya6abkb27viwpwiect4wo266x53s2bzq5jalb27oqsq`
+- Date picker: `baedreic6l42hkohuffvp6yehclrvf64amcgtywjqnk2k5ouk7gfmul2f5e`
+- Verified dates display correctly and linking works
