@@ -244,6 +244,34 @@ git pull upstream main && \
 git push origin main
 ```
 
+## Step 4.5: Verify README is Up to Date
+
+**IMPORTANT:** Before landing, verify that `patterns/$GITHUB_USER/README.md` is up to date.
+
+```bash
+# Check if any patterns were added/modified
+CHANGED_PATTERNS=$(git diff --name-only $MAIN_REMOTE/main...HEAD -- 'patterns/$GITHUB_USER/*.tsx')
+
+if [ -n "$CHANGED_PATTERNS" ]; then
+  echo "Patterns changed in this branch:"
+  echo "$CHANGED_PATTERNS"
+  echo ""
+  echo "⚠️  Verify README.md includes entries for any NEW patterns!"
+  echo "   Check: patterns/$GITHUB_USER/README.md"
+fi
+```
+
+**What to check:**
+- New patterns should be added to the appropriate section in README.md
+- Pattern descriptions should be accurate and up to date
+- If a pattern was significantly changed, update its description
+- WIP patterns should be documented in the WIP section
+
+**If README needs updating:**
+1. Edit `patterns/$GITHUB_USER/README.md` to add/update pattern entries
+2. Commit the README update
+3. Continue with the merge
+
 ## Important Notes
 
 - **Always uses `--rebase`** for merging (preserves commit history)
@@ -251,3 +279,4 @@ git push origin main
 - **Force-with-lease** is safe - it only pushes if no one else pushed
 - If the PR needs review, stop after Step 3 and wait for approval
 - For self-merging (when you have write access), all steps can run automatically
+- **Always verify README.md** is current with pattern changes
