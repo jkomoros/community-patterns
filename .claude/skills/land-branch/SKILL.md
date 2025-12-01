@@ -23,6 +23,8 @@ description: >
 CURRENT_BRANCH=$(git branch --show-current)
 if [ "$CURRENT_BRANCH" = "main" ]; then
   echo "ERROR: You're on main. Switch to a feature branch first."
+  echo ""
+  echo "If you accidentally committed to main, see 'Recovering from Commits on Main' below."
   exit 1
 fi
 
@@ -35,6 +37,34 @@ fi
 
 echo "Ready to land branch: $CURRENT_BRANCH"
 ```
+
+### Recovering from Commits on Main
+
+If you accidentally made commits directly on `main` instead of a feature branch:
+
+```bash
+# Check how many commits you're ahead of origin/main
+git log --oneline origin/main..HEAD
+
+# Create a new branch with your commits (pick a descriptive name)
+git branch my-feature-branch
+
+# Reset main back to match origin/main
+git reset --hard origin/main
+
+# Switch to your new branch
+git checkout my-feature-branch
+
+# Verify: your commits should now be on the feature branch
+git log --oneline -5
+```
+
+**Why this works:**
+- `git branch` creates a new branch pointing to your current commit
+- `git reset --hard origin/main` moves main back to where it should be
+- Your commits are preserved on the new branch
+
+Now continue with the land-branch workflow from Step 2.
 
 ## Step 2: Pull and Rebase onto Main
 
