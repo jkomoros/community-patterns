@@ -631,6 +631,7 @@ All inputs inside `ifElse()` conditional modals suffer from the two-way binding 
 - **NEW:** Automatic "Peer X of Y" suffix
 - **NEW:** Lazy spindle creation
 - **NEW:** Per-spindle extra prompt
+- **NEW:** Placeholder levels for unpinned parents (dashed cards showing pending levels)
 - **CHANGED:** Data model to support levels
 - **CHANGED:** Export format to v2.0
 
