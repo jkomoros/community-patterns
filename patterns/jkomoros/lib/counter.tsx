@@ -3,29 +3,13 @@ import { Default, NAME, recipe, str, Stream, UI } from "commontools";
 import { decrement, increment, nth, previous } from "./counter-handlers.ts";
 
 interface RecipeState {
-  value: Default<number, 0>;
+  value?: Default<number, 0>;
 }
 
 interface RecipeOutput {
   value: Default<number, 0>;
   increment: Stream<void>;
   decrement: Stream<void>;
-}
-
-/**
- * Default values for creating a new Counter.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  value: 0,
-};
-
-/**
- * Factory function to create a Counter with sensible defaults.
- * @example navigateTo(createCounter({ value: 10 }));
- */
-export function createCounter(overrides?: Partial<typeof defaults>) {
-  return Counter({ ...defaults, ...overrides });
 }
 
 const Counter = recipe<RecipeState, RecipeOutput>((state) => {

@@ -401,14 +401,14 @@ function formatEventDate(startDateTime: string, endDateTime: string, isAllDay: b
 }
 
 interface GoogleCalendarImporterInput {
-  settings: Default<Settings, {
+  settings?: Default<Settings, {
     daysBack: 7;
     daysForward: 30;
     maxResults: 100;
     debugMode: false;
   }>;
   // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
-  authCharm: Default<any, null>;
+  authCharm?: Default<any, null>;
 }
 
 const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
@@ -798,27 +798,5 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
     };
   },
 );
-
-/**
- * Default values for creating a new GoogleCalendarImporter.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  settings: {
-    daysBack: 7,
-    daysForward: 30,
-    maxResults: 100,
-    debugMode: false,
-  },
-  authCharm: null as any,
-};
-
-/**
- * Factory function to create a GoogleCalendarImporter with sensible defaults.
- * @example navigateTo(createGoogleCalendarImporter());
- */
-export function createGoogleCalendarImporter(overrides?: Partial<typeof defaults>) {
-  return GoogleCalendarImporter({ ...defaults, ...overrides });
-}
 
 export default GoogleCalendarImporter;

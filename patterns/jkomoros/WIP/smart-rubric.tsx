@@ -62,12 +62,12 @@ interface SelectionState {
 }
 
 interface RubricInput {
-  title: Default<string, "Decision Rubric">;
-  options: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Cell<Array<Cell<RubricOption>>>
-  dimensions: Default<Dimension[], []>;
-  selection: Default<SelectionState, { value: null }>;
-  quickAddPrompt: Default<string, "">;  // For LLM Quick Add feature - user types here
-  quickAddSubmitted: Default<string, "">;  // Submitted prompt - triggers LLM only when set
+  title?: Default<string, "Decision Rubric">;
+  options?: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Cell<Array<Cell<RubricOption>>>
+  dimensions?: Default<Dimension[], []>;
+  selection?: Default<SelectionState, { value: null }>;
+  quickAddPrompt?: Default<string, "">;  // For LLM Quick Add feature - user types here
+  quickAddSubmitted?: Default<string, "">;  // Submitted prompt - triggers LLM only when set
 }
 
 interface RubricOutput {
@@ -970,26 +970,5 @@ Be precise with categorical values - use exact label matches.`;
     };
   }
 );
-
-/**
- * Default values for creating a new SmartRubric.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  title: "Decision Rubric",
-  options: [] as RubricOption[],
-  dimensions: [] as Dimension[],
-  selection: { value: null } as SelectionState,
-  quickAddPrompt: "",
-  quickAddSubmitted: "",
-};
-
-/**
- * Factory function to create a SmartRubric with sensible defaults.
- * @example navigateTo(createSmartRubric({ title: "My Decision" }));
- */
-export function createSmartRubric(overrides?: Partial<typeof defaults>) {
-  return SmartRubric({ ...defaults, ...overrides });
-}
 
 export default SmartRubric;

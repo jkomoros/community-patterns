@@ -100,10 +100,10 @@ Analyzes patterns across person charms to suggest new custom fields.
 - Suggests field standardization
 
 #### `page-creator.tsx`
-Launcher/home screen for creating new charms. Uses factory functions to instantiate patterns.
+Launcher/home screen for creating new charms. Imports patterns directly and uses optional defaults.
 
 **Interesting features:**
-- Demonstrates factory function idiom for pattern instantiation
+- Demonstrates optional defaults idiom: `Pattern({})` works with all defaults
 - Clean navigation between pattern types
 
 #### `person.tsx`
@@ -274,13 +274,14 @@ See `lib/README.md` for details.
 
 ## Development Notes
 
-### Factory Function Idiom
+### Optional Defaults Idiom
 
-Many patterns export a `create<PatternName>` factory function:
+Patterns use `field?: Default<T, V>` to make fields optional for callers:
 
 ```typescript
-import { createPerson } from "./person.tsx";
-navigateTo(createPerson({ givenName: "Alice" }));
+import Person from "./person.tsx";
+navigateTo(Person({}));                          // All defaults
+navigateTo(Person({ givenName: "Alice" }));      // Override one field
 ```
 
 ### Framework Caching

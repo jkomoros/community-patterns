@@ -140,14 +140,4 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
   };
 });
 
-/**
- * Factory function to create a FavoritesViewer.
- * No defaults needed since pattern takes empty input.
- * See pattern-development skill for idiom documentation.
- * @example navigateTo(createFavoritesViewer());
- */
-export function createFavoritesViewer() {
-  return FavoritesViewer({});
-}
-
 export default FavoritesViewer;

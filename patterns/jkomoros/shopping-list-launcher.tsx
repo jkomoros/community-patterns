@@ -95,9 +95,9 @@ function storeDataToMarkdown(data: StoreData | null): string {
 }
 
 interface LauncherInput {
-  items: Default<ShoppingItem[], []>;
-  storeData: Default<StoreData | null, null>;  // Structured store layout data
-  storeName: Default<string, "Andronico's on Shattuck">;
+  items?: Default<ShoppingItem[], []>;
+  storeData?: Default<StoreData | null, null>;  // Structured store layout data
+  storeName?: Default<string, "Andronico's on Shattuck">;
 }
 
 interface LauncherOutput {
@@ -929,23 +929,5 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     };
   }
 );
-
-/**
- * Default values for creating a new ShoppingListLauncher.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  items: [] as ShoppingItem[],
-  storeData: null as StoreData | null,
-  storeName: "Andronico's on Shattuck",
-};
-
-/**
- * Factory function to create a ShoppingListLauncher with sensible defaults.
- * @example navigateTo(createShoppingListLauncher());
- */
-export function createShoppingListLauncher(overrides?: Partial<typeof defaults>) {
-  return ShoppingListLauncher({ ...defaults, ...overrides });
-}
 
 export default ShoppingListLauncher;

@@ -15,13 +15,12 @@ import {
   UI,
 } from "commontools";
 
-// Import the patterns we'll instantiate - use factory functions to avoid
-// manually specifying all fields (see factory function idiom in pattern-development skill)
+// Import patterns directly - optional defaults make {} work for all fields
 import Note from "./lib/note.tsx";
-import { createPerson as createPersonFactory } from "./person.tsx";
+import Person from "./person.tsx";
 import PageCreator from "./page-creator.tsx";
-import { createStoreMapper as createStoreMapperFactory } from "./store-mapper.tsx";
-import { createFoodRecipe as createFoodRecipeFactory } from "./food-recipe.tsx";
+import StoreMapper from "./store-mapper.tsx";
+import FoodRecipe from "./food-recipe.tsx";
 
 type Input = {
   instructions: Default<string, "">;
@@ -44,7 +43,7 @@ const createNote = handler<
   return result;
 });
 
-// Tool: Create a Person charm - uses factory function to avoid manual field enumeration
+// Tool: Create a Person charm - optional defaults handle missing fields
 const createPerson = handler<
   {
     displayName: string;
@@ -58,7 +57,7 @@ const createPerson = handler<
   { displayName, givenName, familyName, birthday, notes },
   { createdCharms },
 ) => {
-  const result = navigateTo(createPersonFactory({
+  const result = navigateTo(Person({
     displayName,
     givenName: givenName || "",
     familyName: familyName || "",
@@ -79,21 +78,21 @@ const createPageCreator = handler<
   return result;
 });
 
-// Tool: Create a Store Mapper instance - uses factory function to avoid manual field enumeration
+// Tool: Create a Store Mapper instance - optional defaults handle missing fields
 const createStoreMapper = handler<
   {
     storeName?: string;
   },
   { createdCharms: Cell<string[]> }
 >(({ storeName }, { createdCharms }) => {
-  const result = navigateTo(createStoreMapperFactory({
+  const result = navigateTo(StoreMapper({
     storeName: storeName || "",
   }));
   createdCharms.push(`Store Mapper: "${storeName || "Unnamed Store"}"`);
   return result;
 });
 
-// Tool: Create a Food Recipe charm - uses factory function to avoid manual field enumeration
+// Tool: Create a Food Recipe charm - optional defaults handle missing fields
 const createFoodRecipe = handler<
   {
     name?: string;
@@ -101,7 +100,7 @@ const createFoodRecipe = handler<
   },
   { createdCharms: Cell<string[]> }
 >(({ name, notes }, { createdCharms }) => {
-  const result = navigateTo(createFoodRecipeFactory({
+  const result = navigateTo(FoodRecipe({
     name: name || "",
     notes: notes || "",
   }));

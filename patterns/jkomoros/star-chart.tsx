@@ -59,21 +59,21 @@ function getMilestoneForStreak(streak: number): typeof MILESTONES[number] | null
 }
 
 interface StarChartInput {
-  goalName: Cell<Default<string, "Gold Star Goal">>;
+  goalName?: Cell<Default<string, "Gold Star Goal">>;
   // Optional description for the goal (e.g., "No accidents all day!")
-  goalDescription: Cell<Default<string, "">>;
-  days: Cell<Default<DayRecord[], []>>;
+  goalDescription?: Cell<Default<string, "">>;
+  days?: Cell<Default<DayRecord[], []>>;
   // Best streak ever achieved
-  bestStreak: Cell<Default<number, 0>>;
+  bestStreak?: Cell<Default<number, 0>>;
   // Last milestone that was celebrated (to avoid repeating)
-  lastCelebratedMilestone: Cell<Default<number, 0>>;
+  lastCelebratedMilestone?: Cell<Default<number, 0>>;
   // Trigger for sparkle animation (increments when star placed)
-  sparkleKey: Cell<Default<number, 0>>;
+  sparkleKey?: Cell<Default<number, 0>>;
   // Current view mode: main (daily use) or corrections (parent edit mode) or settings (edit goal)
-  viewMode: Cell<Default<"main" | "corrections" | "settings", "main">>;
+  viewMode?: Cell<Default<"main" | "corrections" | "settings", "main">>;
   // Debug: override "today" for testing (empty string = use real today)
   // Link a date picker charm to this for debugging
-  debugDate: Cell<Default<string, "">>;
+  debugDate?: Cell<Default<string, "">>;
 }
 
 interface StarChartOutput {
@@ -1187,28 +1187,5 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
     };
   }
 );
-
-/**
- * Default values for creating a new StarChart.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  goalName: "Gold Star Goal",
-  goalDescription: "",
-  days: [] as DayRecord[],
-  bestStreak: 0,
-  lastCelebratedMilestone: 0,
-  sparkleKey: 0,
-  viewMode: "main" as const,
-  debugDate: "",
-};
-
-/**
- * Factory function to create a StarChart with sensible defaults.
- * @example navigateTo(createStarChart({ goalName: "Dry Night" }));
- */
-export function createStarChart(overrides?: Partial<typeof defaults>) {
-  return StarChart({ ...defaults, ...overrides });
-}
 
 export default StarChart;

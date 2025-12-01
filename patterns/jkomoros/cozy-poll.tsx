@@ -30,11 +30,11 @@ interface VoterCharmRef {
 }
 
 interface PollInput {
-  question: Cell<Default<string, "">>;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
-  nextOptionId: Cell<Default<number, 1>>;
+  question?: Cell<Default<string, "">>;
+  options?: Cell<Default<Option[], []>>;
+  votes?: Cell<Default<Vote[], []>>;
+  voterCharms?: Cell<Default<VoterCharmRef[], []>>;
+  nextOptionId?: Cell<Default<number, 1>>;
 }
 
 interface PollOutput {
@@ -563,25 +563,5 @@ const CozyPoll = pattern<PollInput, PollOutput>(
     };
   }
 );
-
-/**
- * Default values for creating a new CozyPoll.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  question: "",
-  options: [] as Option[],
-  votes: [] as Vote[],
-  voterCharms: [] as VoterCharmRef[],
-  nextOptionId: 1,
-};
-
-/**
- * Factory function to create a CozyPoll with sensible defaults.
- * @example navigateTo(createCozyPoll({ question: "Where should we eat?" }));
- */
-export function createCozyPoll(overrides?: Partial<typeof defaults>) {
-  return CozyPoll({ ...defaults, ...overrides });
-}
 
 export default CozyPoll;
