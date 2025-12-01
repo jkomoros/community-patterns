@@ -15,6 +15,7 @@ import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
 import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
 import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
+import GoogleCalendarImporter from "./google-calendar-importer.tsx";
 import SmartRubric from "./WIP/smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
 import RedactorWithVault from "./redactor-with-vault.tsx";
@@ -191,6 +192,18 @@ const createHotelMembershipExtractor = handler<void, void>((_, __) => {
   }));
 });
 
+const createGoogleCalendarImporter = handler<void, void>((_, __) => {
+  return navigateTo(GoogleCalendarImporter({
+    settings: {
+      daysBack: 7,
+      daysForward: 30,
+      maxResults: 100,
+      debugMode: false,
+    },
+    authCharm: null,
+  }));
+});
+
 const createSmartRubric = handler<void, void>((_, __) => {
   return navigateTo(SmartRubric({
     title: "Decision Rubric",
@@ -327,6 +340,13 @@ export default pattern<Input, Output>(
                   size="lg"
                 >
                   🏨 Hotel Membership Extractor
+                </ct-button>
+
+                <ct-button
+                  onClick={createGoogleCalendarImporter()}
+                  size="lg"
+                >
+                  📅 Google Calendar Importer
                 </ct-button>
 
                 <ct-button
