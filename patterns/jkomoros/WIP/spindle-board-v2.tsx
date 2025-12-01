@@ -120,13 +120,13 @@ interface SpindleBoardInput {
   spindles: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
 
   // Modal state
-  showAddLevelModal: Cell<boolean>;
-  newLevelTitle: Cell<string>;
-  newLevelPrompt: Cell<string>;
-  newLevelBranch: Cell<number>;
+  showAddLevelModal: Default<boolean, false>;
+  newLevelTitle: Default<string, "">;
+  newLevelPrompt: Default<string, "">;
+  newLevelBranch: Default<number, 1>;
 
   // Root synopsis input
-  synopsisText: Cell<string>;
+  synopsisText: Default<string, "">;
 }
 
 // =============================================================================
@@ -152,9 +152,10 @@ export default pattern<SpindleBoardInput>(
     // Set synopsis text (root spindle)
     const setSynopsis = handler<
       unknown,
-      { spindles: Cell<SpindleConfig[]>; text: string }
-    >((_, { spindles, text }) => {
-      const current = spindles.get() || [];
+      { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string> }
+    >((_, { spindles, synopsisText }) => {
+      const text = synopsisText.get() || "";
+      const current = [...(spindles.get() || [])]; // Copy to make mutable
       const rootIdx = current.findIndex((s) => s.levelIndex === 0);
       if (rootIdx >= 0) {
         current[rootIdx] = {
@@ -163,7 +164,7 @@ export default pattern<SpindleBoardInput>(
           pinnedOptionIndex: 0, // Auto-pin for root
           pinnedOutput: text,
         };
-        spindles.set([...current]);
+        spindles.set(current);
       }
     });
 
@@ -175,10 +176,22 @@ export default pattern<SpindleBoardInput>(
         newLevelTitle: Cell<string>;
         newLevelPrompt: Cell<string>;
         newLevelBranch: Cell<number>;
+        levels: Cell<LevelConfig[]>;
       }
-    >((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch }) => {
-      newLevelTitle.set("");
-      newLevelPrompt.set("");
+    >((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels }) => {
+      // Set smart defaults based on current level count
+      const currentLevels = levels.get() || [];
+      const levelNum = currentLevels.length;
+      const defaultTitles = ["Story Outline", "Chapters", "Scenes", "Beats", "Details"];
+      const defaultPrompts = [
+        "Create a detailed story outline based on the synopsis.",
+        "Write chapter summaries based on the outline above.",
+        "Break this chapter into detailed scenes.",
+        "Expand this scene into specific beats and moments.",
+        "Add rich details and descriptions.",
+      ];
+      newLevelTitle.set(defaultTitles[levelNum] || `Level ${levelNum}`);
+      newLevelPrompt.set(defaultPrompts[levelNum] || "Continue developing the story.");
       newLevelBranch.set(1);
       showAddLevelModal.set(true);
     });
@@ -196,22 +209,27 @@ export default pattern<SpindleBoardInput>(
       {
         levels: Cell<LevelConfig[]>;
         spindles: Cell<SpindleConfig[]>;
-        title: string;
-        prompt: string;
-        branchFactor: number;
+        title: Cell<string>;
+        prompt: Cell<string>;
+        branchFactor: Cell<number>;
         showAddLevelModal: Cell<boolean>;
       }
     >((_, { levels, spindles, title, prompt, branchFactor, showAddLevelModal }) => {
+      // Read values from Cells
+      const titleVal = title.get() || "";
+      const promptVal = prompt.get() || "";
+      const branchVal = branchFactor.get() || 1;
+
       const currentLevels = levels.get() || [];
       const currentSpindles = spindles.get() || [];
       const newLevelIndex = currentLevels.length;
 
-      // Create new level
+      // Create new level with actual input values
       const newLevel: LevelConfig = {
         id: generateId(),
-        title: title || `Level ${newLevelIndex}`,
-        defaultPrompt: prompt,
-        branchFactor: Math.max(1, branchFactor),
+        title: titleVal || "Untitled Level",
+        defaultPrompt: promptVal,
+        branchFactor: branchVal,
         isRoot: false,
       };
 
@@ -257,15 +275,17 @@ export default pattern<SpindleBoardInput>(
       {
         spindles: Cell<SpindleConfig[]>;
         levels: Cell<LevelConfig[]>;
-        spindleId: string;
+        spindleId: Cell<string>;
         optionIndex: number;
-        optionContent: string;
+        optionContent: Cell<string>;
       }
     >((_, { spindles, levels, spindleId, optionIndex, optionContent }) => {
-      const currentSpindles = spindles.get() || [];
+      const currentSpindles = [...(spindles.get() || [])]; // Copy to make mutable
       const currentLevels = levels.get() || [];
+      const spindleIdVal = spindleId.get();
+      const optionContentVal = optionContent.get() || "";
 
-      const spindleIdx = currentSpindles.findIndex((s) => s.id === spindleId);
+      const spindleIdx = currentSpindles.findIndex((s) => s.id === spindleIdVal);
       if (spindleIdx < 0) return;
 
       const spindle = currentSpindles[spindleIdx];
@@ -284,18 +304,18 @@ export default pattern<SpindleBoardInput>(
         currentSpindles[spindleIdx] = {
           ...spindle,
           pinnedOptionIndex: optionIndex,
-          pinnedOutput: optionContent,
+          pinnedOutput: optionContentVal,
           parentHashWhenPinned: simpleHash(spindle.composedInput),
         };
 
         // Update children's composedInput
-        const children = currentSpindles.filter((s) => s.parentId === spindleId);
+        const children = currentSpindles.filter((s) => s.parentId === spindleIdVal);
         for (const child of children) {
           const childIdx = currentSpindles.findIndex((s) => s.id === child.id);
           if (childIdx >= 0) {
             currentSpindles[childIdx] = {
               ...currentSpindles[childIdx],
-              composedInput: optionContent,
+              composedInput: optionContentVal,
             };
           }
         }
@@ -317,8 +337,8 @@ export default pattern<SpindleBoardInput>(
               positionInLevel: positionInLevel++,
               siblingIndex: i,
               siblingCount: nextLevel.branchFactor,
-              parentId: spindleId,
-              composedInput: optionContent,
+              parentId: spindleIdVal,
+              composedInput: optionContentVal,
               extraPrompt: "",
               pinnedOptionIndex: -1,
               pinnedOutput: "",
@@ -328,16 +348,17 @@ export default pattern<SpindleBoardInput>(
         }
       }
 
-      spindles.set([...currentSpindles]);
+      spindles.set(currentSpindles);
     });
 
     // Respin a spindle
     const respinSpindle = handler<
       unknown,
-      { spindles: Cell<SpindleConfig[]>; spindleId: string }
+      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
     >((_, { spindles, spindleId }) => {
-      const current = spindles.get() || [];
-      const idx = current.findIndex((s) => s.id === spindleId);
+      const current = [...(spindles.get() || [])]; // Copy to make mutable
+      const spindleIdVal = spindleId.get();
+      const idx = current.findIndex((s) => s.id === spindleIdVal);
       if (idx >= 0) {
         // Clear pin and force regeneration by changing the id
         current[idx] = {
@@ -347,26 +368,28 @@ export default pattern<SpindleBoardInput>(
           pinnedOutput: "",
           parentHashWhenPinned: "",
         };
-        spindles.set([...current]);
+        spindles.set(current);
       }
     });
 
     // Set extra prompt
     const setExtraPrompt = handler<
       unknown,
-      { spindles: Cell<SpindleConfig[]>; spindleId: string; prompt: string }
+      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string>; prompt: Cell<string> }
     >((_, { spindles, spindleId, prompt }) => {
-      const current = spindles.get() || [];
-      const idx = current.findIndex((s) => s.id === spindleId);
+      const current = [...(spindles.get() || [])]; // Copy to make mutable
+      const spindleIdVal = spindleId.get();
+      const promptVal = prompt.get() || "";
+      const idx = current.findIndex((s) => s.id === spindleIdVal);
       if (idx >= 0) {
         current[idx] = {
           ...current[idx],
-          extraPrompt: prompt,
+          extraPrompt: promptVal,
           // Clear pin when prompt changes
           pinnedOptionIndex: -1,
           pinnedOutput: "",
         };
-        spindles.set([...current]);
+        spindles.set(current);
       }
     });
 
@@ -428,12 +451,17 @@ export default pattern<SpindleBoardInput>(
           !deps.isRoot && deps.fullPrompt.trim() !== ""
       );
 
-      // Generate options
-      const generation = generateObject<GenerationResult>({
-        system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
-        prompt: fullPrompt,
-        schema: toSchema<GenerationResult>(),
-      });
+      // Generate options - only when shouldGenerate is true
+      const generation = ifElse(
+        shouldGenerate,
+        generateObject<GenerationResult>({
+          model: "anthropic:claude-sonnet-4-5",
+          system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
+          prompt: fullPrompt,
+          schema: toSchema<GenerationResult>(),
+        }),
+        { pending: false, result: undefined, error: undefined }
+      );
 
       // Extract options (fixed slots)
       const option0 = derive(
@@ -506,17 +534,23 @@ export default pattern<SpindleBoardInput>(
         return currentHash !== c.parentHashWhenPinned;
       });
 
-      // Summary
+      // Summary - only generate when pinned
+      const hasPinnedOutput = derive(pinnedOutput, (o: string | null) => !!o && o.trim() !== "");
       const summaryPrompt = derive(
         pinnedOutput,
         (o: string | null) =>
           o ? `${o}\n\n---\n\nSummarize the above in 2-3 concise sentences.` : ""
       );
-      const summaryGen = generateObject<SummaryResult>({
-        system: "You are a concise summarizer.",
-        prompt: summaryPrompt,
-        schema: toSchema<SummaryResult>(),
-      });
+      const summaryGen = ifElse(
+        hasPinnedOutput,
+        generateObject<SummaryResult>({
+          model: "anthropic:claude-sonnet-4-5",
+          system: "You are a concise summarizer.",
+          prompt: summaryPrompt,
+          schema: toSchema<SummaryResult>(),
+        }),
+        { pending: false, result: undefined }
+      );
       const summary = derive(
         { pinnedOutput, summaryGen },
         (deps: {
@@ -606,6 +640,7 @@ export default pattern<SpindleBoardInput>(
                     newLevelTitle,
                     newLevelPrompt,
                     newLevelBranch,
+                    levels,
                   })}
                   style={{
                     padding: "8px 16px",
@@ -638,10 +673,6 @@ export default pattern<SpindleBoardInput>(
             </div>
             <textarea
               value={synopsisText}
-              onInput={(e: InputEvent) => {
-                const target = e.target as HTMLTextAreaElement;
-                setSynopsis({ spindles, text: target.value });
-              }}
               placeholder="Enter your story synopsis or seed idea..."
               style={{
                 width: "100%",
@@ -653,6 +684,21 @@ export default pattern<SpindleBoardInput>(
                 resize: "vertical",
               }}
             />
+            <button
+              onClick={setSynopsis({ spindles, synopsisText })}
+              style={{
+                marginTop: "8px",
+                padding: "8px 16px",
+                background: "#eab308",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              Set Synopsis
+            </button>
           </div>
 
           {/* Spindle Results */}
