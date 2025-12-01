@@ -1,4 +1,8 @@
 /// <cts-enable />
+/**
+ * @deprecated Use ../google-auth.tsx instead - unified Google auth with configurable scopes.
+ * This pattern is kept for backwards compatibility but will be removed in a future version.
+ */
 import { Default, NAME, pattern, UI } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -51,8 +55,23 @@ export default pattern<Input, Output>(
           }}
         >
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: "0" }}>
-            Google Calendar Authentication
+            Calendar Auth (Deprecated)
           </h2>
+
+          <div
+            style={{
+              padding: "12px",
+              backgroundColor: "#fff3cd",
+              borderRadius: "8px",
+              border: "1px solid #ffc107",
+              fontSize: "14px",
+              marginBottom: "10px",
+            }}
+          >
+            <strong>Note:</strong> This pattern is deprecated. Please use the new{" "}
+            <strong>Google Auth</strong> pattern instead, which supports multiple
+            Google services (Gmail, Calendar, Drive, etc.) with configurable permissions.
+          </div>
 
           <div
             style={{

@@ -1,6 +1,6 @@
 # Unified Google Auth Pattern
 
-## Status: Proposed
+## Status: Implemented
 
 ## Problem
 
@@ -157,7 +157,24 @@ const hasCalendarScope = derive(authCharm, (charm) =>
 
 ## Success Criteria
 
-- [ ] Single auth pattern with scope checkboxes
-- [ ] Both Gmail and Calendar importers work with single favorited auth
-- [ ] Clear UI showing which permissions are enabled
-- [ ] Graceful handling when required scope not granted
+- [x] Single auth pattern with scope checkboxes
+- [x] Both Gmail and Calendar importers work with single favorited auth
+- [x] Clear UI showing which permissions are enabled
+- [x] Graceful handling when required scope not granted
+
+## Implementation Notes (2024)
+
+Created `google-auth.tsx` as the unified auth pattern with:
+- Checkboxes for Gmail, Calendar, Drive, and Contacts scopes
+- Dynamic scope construction based on selections
+- Re-auth detection when new scopes are added
+- Display of granted scopes after authentication
+
+Updated importers to check for required scopes:
+- `gmail-importer.tsx` - checks for Gmail scope, shows warning if missing
+- `WIP/google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar scope
+- `hotel-membership-extractor.tsx` - checks for Gmail scope
+
+Deprecated old auth patterns:
+- `gmail-auth.tsx` - marked deprecated with UI notice
+- `WIP/google-calendar-auth.tsx` - marked deprecated with UI notice

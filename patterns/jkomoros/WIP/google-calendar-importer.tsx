@@ -16,7 +16,7 @@ import {
   UI,
   wish,
 } from "commontools";
-import GoogleCalendarAuth from "./google-calendar-auth.tsx";
+import GoogleAuth from "../google-auth.tsx";
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
@@ -354,10 +354,16 @@ const toggleDebugMode = handler<
   },
 );
 
-// Handler to create a new GoogleCalendarAuth charm and navigate to it
-const createCalendarAuth = handler<unknown, Record<string, never>>(
+// Handler to create a new GoogleAuth charm and navigate to it
+const createGoogleAuth = handler<unknown, Record<string, never>>(
   () => {
-    const calendarAuthCharm = GoogleCalendarAuth({
+    const googleAuthCharm = GoogleAuth({
+      selectedScopes: {
+        gmail: false,
+        calendar: true,  // Pre-select Calendar scope
+        drive: false,
+        contacts: false,
+      },
       auth: {
         token: "",
         tokenType: "",
@@ -368,14 +374,18 @@ const createCalendarAuth = handler<unknown, Record<string, never>>(
         user: { email: "", name: "", picture: "" },
       },
     });
-    return navigateTo(calendarAuthCharm);
+    return navigateTo(googleAuthCharm);
   },
 );
 
-// What we expect from the calendar-auth charm
-type GoogleCalendarAuthCharm = {
+// What we expect from the google-auth charm
+type GoogleAuthCharm = {
   auth: Auth;
+  scopes?: string[];
 };
+
+// Calendar scope URL for checking
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 // Format date for display
 function formatEventDate(startDateTime: string, endDateTime: string, isAllDay: boolean): string {
@@ -405,8 +415,8 @@ export default pattern<{
     const calendars = cell<Calendar[]>([]);
     const showAuth = cell(false);
 
-    // Wish for a favorited auth charm
-    const wishedAuthCharm = wish<GoogleCalendarAuthCharm>("#googleCalendarAuth");
+    // Wish for a favorited auth charm (unified Google auth)
+    const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
 
     // Determine if we have an explicit auth charm provided
     const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
@@ -445,7 +455,19 @@ export default pattern<{
     // Note: Legacy syntax doesn't provide error info, so we just check if auth is missing
     const wishError = derive(
       { hasExplicitAuth, wishedAuthCharm },
-      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleCalendarAuth favorite found" : null
+      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleAuth favorite found" : null
+    );
+
+    // Check if Calendar scope is granted
+    const hasCalendarScope = derive(auth, (a) => {
+      const scopes = a?.scope || [];
+      return scopes.includes(CALENDAR_SCOPE);
+    });
+
+    // Authenticated but missing Calendar scope
+    const missingCalendarScope = derive(
+      { isAuthenticated, hasCalendarScope },
+      ({ isAuthenticated, hasCalendarScope }) => isAuthenticated && !hasCalendarScope
     );
 
     computed(() => {
@@ -515,7 +537,7 @@ export default pattern<{
                     ifElse(
                       usingWishedAuth,
                       <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
-                        ✓ Using shared auth from favorited Google Calendar Auth charm
+                        ✓ Using shared auth from favorited Google Auth charm
                       </div>,
                       <div style={{
                         marginBottom: "15px",
@@ -524,18 +546,18 @@ export default pattern<{
                         borderRadius: "6px",
                         border: "1px solid #ffeeba",
                       }}>
-                        <strong>⚠️ No Google Calendar Auth Found</strong>
+                        <strong>No Google Auth Found</strong>
                         <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                          Create a Google Calendar Auth charm to authenticate:
+                          Create a Google Auth charm to authenticate:
                         </p>
                         <ct-button
-                          onClick={createCalendarAuth({})}
+                          onClick={createGoogleAuth({})}
                           style={{ marginTop: "12px" }}
                         >
-                          Create Calendar Auth
+                          Create Google Auth
                         </ct-button>
                         <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
-                          After authenticating, click the ⭐ star to favorite it, then come back here.
+                          After authenticating, click the star to favorite it, then come back here.
                         </p>
                         {ifElse(
                           derive(wishError, (err) => !!err),
@@ -546,6 +568,25 @@ export default pattern<{
                         )}
                       </div>
                     )
+                  )}
+
+                  {/* Scope warning */}
+                  {ifElse(
+                    missingCalendarScope,
+                    <div style={{
+                      marginBottom: "15px",
+                      padding: "12px",
+                      backgroundColor: "#f8d7da",
+                      borderRadius: "6px",
+                      border: "1px solid #f5c6cb",
+                    }}>
+                      <strong>Calendar Permission Missing</strong>
+                      <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
+                        Your Google Auth charm doesn't have Calendar permission enabled.
+                        Please enable the Calendar checkbox in your Google Auth charm and re-authenticate.
+                      </p>
+                    </div>,
+                    <div />
                   )}
 
                   {/* Render the auth charm if available */}

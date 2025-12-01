@@ -1,13 +1,17 @@
 /// <cts-enable />
 import { Cell, Default, derive, generateObject, getRecipeEnvironment, handler, NAME, navigateTo, pattern, UI, wish } from "commontools";
-import GmailAuth from "./gmail-auth.tsx";
+import GoogleAuth from "./google-auth.tsx";
+
+// Gmail scope URL for checking
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
 // Import Email type and Auth type
 import type { Auth } from "./gmail-importer.tsx";
 
-// What we expect from the gmail-auth charm via wish
+// What we expect from the google-auth charm via wish
 type GoogleAuthCharm = {
   auth: Auth;
+  scopes?: string[];
 };
 
 // ============================================================================
@@ -675,10 +679,16 @@ Be thorough and search for all major hotel brands.`,
   // HANDLERS
   // ============================================================================
 
-  // Handler to create a new GmailAuth charm and navigate to it
-  const createGmailAuth = handler<unknown, Record<string, never>>(
+  // Handler to create a new GoogleAuth charm and navigate to it
+  const createGoogleAuth = handler<unknown, Record<string, never>>(
     () => {
-      const gmailAuthCharm = GmailAuth({
+      const googleAuthCharm = GoogleAuth({
+        selectedScopes: {
+          gmail: true,  // Pre-select Gmail scope
+          calendar: false,
+          drive: false,
+          contacts: false,
+        },
         auth: {
           token: "",
           tokenType: "",
@@ -689,8 +699,20 @@ Be thorough and search for all major hotel brands.`,
           user: { email: "", name: "", picture: "" },
         },
       });
-      return navigateTo(gmailAuthCharm);
+      return navigateTo(googleAuthCharm);
     },
+  );
+
+  // Check if Gmail scope is granted
+  const hasGmailScope = derive(auth, (a) => {
+    const scopes = a?.scope || [];
+    return scopes.includes(GMAIL_SCOPE);
+  });
+
+  // Authenticated but missing Gmail scope
+  const missingGmailScope = derive(
+    [isAuthenticated, hasGmailScope],
+    ([authed, hasScope]: [boolean, boolean]) => authed && !hasScope
   );
 
   // Handler to change scan mode (power user setting)
@@ -832,30 +854,41 @@ Be thorough and search for all major hotel brands.`,
               return (
                 <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px;">
                   <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
-                    🔒 Gmail Authentication Required
+                    Google Authentication Required
                   </div>
                   <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
                     <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
                       Option 1: Link auth directly (recommended)
                     </p>
                     <p style="margin: 0 0 12px 0; fontSize: 13px; color: #666;">
-                      1. Open your Gmail Auth charm and authenticate<br/>
+                      1. Open your Google Auth charm and authenticate<br/>
                       2. Use the shell to link its <code>auth</code> output to this pattern's <code>auth</code> input
                     </p>
                     <hr style="margin: 12px 0; border: none; borderTop: 1px solid #e0e0e0;"/>
                     <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
-                      Option 2: Create new Gmail Auth
+                      Option 2: Create new Google Auth
                     </p>
                     <ct-button
-                      onClick={createGmailAuth({})}
+                      onClick={createGoogleAuth({})}
                       size="default"
                     >
-                      🔐 Create Gmail Auth
+                      Create Google Auth
                     </ct-button>
                   </div>
                 </div>
               );
             })}
+
+            {/* Scope warning */}
+            {derive(missingGmailScope, (missing: boolean) => missing ? (
+              <div style="padding: 12px; background: #f8d7da; border: 1px solid #f5c6cb; borderRadius: 6px;">
+                <strong>Gmail Permission Missing</strong>
+                <p style="margin: 8px 0 0 0; fontSize: 14px;">
+                  Your Google Auth charm doesn't have Gmail permission enabled.
+                  Please enable the Gmail checkbox in your Google Auth charm and re-authenticate.
+                </p>
+              </div>
+            ) : null)}
 
             {/* Scan Mode Indicator */}
             {derive(maxSearches, (max: number) =>

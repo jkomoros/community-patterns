@@ -16,7 +16,7 @@ import {
   UI,
   wish,
 } from "commontools";
-import GmailAuth from "./gmail-auth.tsx";
+import GoogleAuth from "./google-auth.tsx";
 import TurndownService from "turndown";
 
 type CFC<T, C extends string> = T;
@@ -931,10 +931,16 @@ const toggleDebugMode = handler<
   },
 );
 
-// Handler to create a new GmailAuth charm and navigate to it
-const createGmailAuth = handler<unknown, Record<string, never>>(
+// Handler to create a new GoogleAuth charm and navigate to it
+const createGoogleAuth = handler<unknown, Record<string, never>>(
   () => {
-    const gmailAuthCharm = GmailAuth({
+    const googleAuthCharm = GoogleAuth({
+      selectedScopes: {
+        gmail: true,  // Pre-select Gmail scope
+        calendar: false,
+        drive: false,
+        contacts: false,
+      },
       auth: {
         token: "",
         tokenType: "",
@@ -945,14 +951,18 @@ const createGmailAuth = handler<unknown, Record<string, never>>(
         user: { email: "", name: "", picture: "" },
       },
     });
-    return navigateTo(gmailAuthCharm);
+    return navigateTo(googleAuthCharm);
   },
 );
 
-// What we expect from the gmail-auth charm
+// What we expect from the google-auth charm
 type GoogleAuthCharm = {
   auth: Auth;
+  scopes?: string[];
 };
+
+// Gmail scope URL for checking
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
 export default pattern<{
   settings: Default<Settings, {
@@ -1013,6 +1023,18 @@ export default pattern<{
     const wishError = derive(
       { hasExplicitAuth, wishedAuthCharm },
       ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleAuth favorite found" : null
+    );
+
+    // Check if Gmail scope is granted
+    const hasGmailScope = derive(auth, (a) => {
+      const scopes = a?.scope || [];
+      return scopes.includes(GMAIL_SCOPE);
+    });
+
+    // Authenticated but missing Gmail scope
+    const missingGmailScope = derive(
+      { isAuthenticated, hasGmailScope },
+      ({ isAuthenticated, hasGmailScope }) => isAuthenticated && !hasGmailScope
     );
 
     computed(() => {
@@ -1082,7 +1104,7 @@ export default pattern<{
                     ifElse(
                       usingWishedAuth,
                       <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
-                        ✓ Using shared auth from favorited Gmail Auth charm
+                        ✓ Using shared auth from favorited Google Auth charm
                       </div>,
                       <div style={{
                         marginBottom: "15px",
@@ -1091,18 +1113,18 @@ export default pattern<{
                         borderRadius: "6px",
                         border: "1px solid #ffeeba",
                       }}>
-                        <strong>⚠️ No Google Auth Found</strong>
+                        <strong>No Google Auth Found</strong>
                         <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                          Create a Gmail Auth charm to authenticate:
+                          Create a Google Auth charm to authenticate:
                         </p>
                         <ct-button
-                          onClick={createGmailAuth({})}
+                          onClick={createGoogleAuth({})}
                           style={{ marginTop: "12px" }}
                         >
-                          Create Gmail Auth
+                          Create Google Auth
                         </ct-button>
                         <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
-                          After authenticating, click the ⭐ star to favorite it, then come back here.
+                          After authenticating, click the star to favorite it, then come back here.
                         </p>
                         {ifElse(
                           derive(wishError, (err) => !!err),
@@ -1113,6 +1135,25 @@ export default pattern<{
                         )}
                       </div>
                     )
+                  )}
+
+                  {/* Scope warning */}
+                  {ifElse(
+                    missingGmailScope,
+                    <div style={{
+                      marginBottom: "15px",
+                      padding: "12px",
+                      backgroundColor: "#f8d7da",
+                      borderRadius: "6px",
+                      border: "1px solid #f5c6cb",
+                    }}>
+                      <strong>Gmail Permission Missing</strong>
+                      <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
+                        Your Google Auth charm doesn't have Gmail permission enabled.
+                        Please enable the Gmail checkbox in your Google Auth charm and re-authenticate.
+                      </p>
+                    </div>,
+                    <div />
                   )}
 
                   {/* Render the auth charm if available */}
