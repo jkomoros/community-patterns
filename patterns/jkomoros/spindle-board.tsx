@@ -827,8 +827,8 @@ const SpindleBoard = pattern<SpindleBoardInput>(
         }
       );
 
-      // Has summary check
-      const hasSummary = derive(summary, (s: string | null) => s !== null && s !== undefined);
+      // Has summary check - also check for empty string
+      const hasSummary = derive(summary, (s: string | null) => !!s && s.trim() !== "");
 
       // Is this the first peer in its sibling group?
       const isFirstPeer = derive(siblingIndex, (idx: number) => idx === 0);
@@ -1373,9 +1373,38 @@ Make them diverse in genre and tone:
                     </div>
                   </div>
 
-                  {/* Options Grid */}
+                  {/* Options Grid or Loading State */}
                   {ifElse(
-                    derive(result.isGenerating, (g: boolean) => !g),
+                    result.isGenerating,
+                    <div
+                      style={{
+                        padding: "48px 16px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "16px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "40px",
+                          height: "40px",
+                          border: "3px solid #e5e7eb",
+                          borderTopColor: "#3b82f6",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
+                        }}
+                      />
+                      <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                        Generating options...
+                      </div>
+                      <style>{`
+                        @keyframes spin {
+                          to { transform: rotate(360deg); }
+                        }
+                      `}</style>
+                    </div>,
                     <div
                       style={{
                         display: "grid",
@@ -1387,17 +1416,9 @@ Make them diverse in genre and tone:
                       {ifElse(
                         result.hasOption0,
                         <div
-                          onClick={pinOption({
-                            spindles,
-                            levels,
-                            spindleId: result.spindleId,
-                            optionIndex: 0,
-                            optionContent: result.option0,
-                          })}
                           style={{
                             padding: ifElse(result.isPinned0, "16px", "12px"),
                             borderRadius: "8px",
-                            cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               result.isPinned0,
@@ -1437,23 +1458,53 @@ Make them diverse in genre and tone:
                                 boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
                               }}
                             >
-                              ✓ SELECTED
+                              ✓ PINNED
                             </div>,
                             null
                           )}
                           <div
                             style={{
-                              fontSize: ifElse(result.isPinned0, "14px", "12px"),
-                              fontWeight: "600",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
                               marginBottom: "8px",
                               marginTop: ifElse(result.isPinned0, "8px", "0"),
-                              color: ifElse(result.isPinned0, "#1d4ed8", "#666"),
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
                             }}
                           >
-                            Option 1
+                            <div
+                              style={{
+                                fontSize: ifElse(result.isPinned0, "14px", "12px"),
+                                fontWeight: "600",
+                                color: ifElse(result.isPinned0, "#1d4ed8", "#666"),
+                              }}
+                            >
+                              Option 1
+                            </div>
+                            {ifElse(
+                              derive(result.pinnedIdx, (p: number) => p < 0),
+                              <button
+                                onClick={pinOption({
+                                  spindles,
+                                  levels,
+                                  spindleId: result.spindleId,
+                                  optionIndex: 0,
+                                  optionContent: result.option0,
+                                })}
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                📌 Pin
+                              </button>,
+                              null
+                            )}
                           </div>
                           <div
                             style={{
@@ -1476,17 +1527,9 @@ Make them diverse in genre and tone:
                       {ifElse(
                         result.hasOption1,
                         <div
-                          onClick={pinOption({
-                            spindles,
-                            levels,
-                            spindleId: result.spindleId,
-                            optionIndex: 1,
-                            optionContent: result.option1,
-                          })}
                           style={{
                             padding: ifElse(result.isPinned1, "16px", "12px"),
                             borderRadius: "8px",
-                            cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               result.isPinned1,
@@ -1526,23 +1569,53 @@ Make them diverse in genre and tone:
                                 boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
                               }}
                             >
-                              ✓ SELECTED
+                              ✓ PINNED
                             </div>,
                             null
                           )}
                           <div
                             style={{
-                              fontSize: ifElse(result.isPinned1, "14px", "12px"),
-                              fontWeight: "600",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
                               marginBottom: "8px",
                               marginTop: ifElse(result.isPinned1, "8px", "0"),
-                              color: ifElse(result.isPinned1, "#1d4ed8", "#666"),
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
                             }}
                           >
-                            Option 2
+                            <div
+                              style={{
+                                fontSize: ifElse(result.isPinned1, "14px", "12px"),
+                                fontWeight: "600",
+                                color: ifElse(result.isPinned1, "#1d4ed8", "#666"),
+                              }}
+                            >
+                              Option 2
+                            </div>
+                            {ifElse(
+                              derive(result.pinnedIdx, (p: number) => p < 0),
+                              <button
+                                onClick={pinOption({
+                                  spindles,
+                                  levels,
+                                  spindleId: result.spindleId,
+                                  optionIndex: 1,
+                                  optionContent: result.option1,
+                                })}
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                📌 Pin
+                              </button>,
+                              null
+                            )}
                           </div>
                           <div
                             style={{
@@ -1565,17 +1638,9 @@ Make them diverse in genre and tone:
                       {ifElse(
                         result.hasOption2,
                         <div
-                          onClick={pinOption({
-                            spindles,
-                            levels,
-                            spindleId: result.spindleId,
-                            optionIndex: 2,
-                            optionContent: result.option2,
-                          })}
                           style={{
                             padding: ifElse(result.isPinned2, "16px", "12px"),
                             borderRadius: "8px",
-                            cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               result.isPinned2,
@@ -1615,23 +1680,53 @@ Make them diverse in genre and tone:
                                 boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
                               }}
                             >
-                              ✓ SELECTED
+                              ✓ PINNED
                             </div>,
                             null
                           )}
                           <div
                             style={{
-                              fontSize: ifElse(result.isPinned2, "14px", "12px"),
-                              fontWeight: "600",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
                               marginBottom: "8px",
                               marginTop: ifElse(result.isPinned2, "8px", "0"),
-                              color: ifElse(result.isPinned2, "#1d4ed8", "#666"),
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
                             }}
                           >
-                            Option 3
+                            <div
+                              style={{
+                                fontSize: ifElse(result.isPinned2, "14px", "12px"),
+                                fontWeight: "600",
+                                color: ifElse(result.isPinned2, "#1d4ed8", "#666"),
+                              }}
+                            >
+                              Option 3
+                            </div>
+                            {ifElse(
+                              derive(result.pinnedIdx, (p: number) => p < 0),
+                              <button
+                                onClick={pinOption({
+                                  spindles,
+                                  levels,
+                                  spindleId: result.spindleId,
+                                  optionIndex: 2,
+                                  optionContent: result.option2,
+                                })}
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                📌 Pin
+                              </button>,
+                              null
+                            )}
                           </div>
                           <div
                             style={{
@@ -1654,17 +1749,9 @@ Make them diverse in genre and tone:
                       {ifElse(
                         result.hasOption3,
                         <div
-                          onClick={pinOption({
-                            spindles,
-                            levels,
-                            spindleId: result.spindleId,
-                            optionIndex: 3,
-                            optionContent: result.option3,
-                          })}
                           style={{
                             padding: ifElse(result.isPinned3, "16px", "12px"),
                             borderRadius: "8px",
-                            cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               result.isPinned3,
@@ -1704,23 +1791,53 @@ Make them diverse in genre and tone:
                                 boxShadow: "0 2px 8px rgba(37, 99, 235, 0.4)",
                               }}
                             >
-                              ✓ SELECTED
+                              ✓ PINNED
                             </div>,
                             null
                           )}
                           <div
                             style={{
-                              fontSize: ifElse(result.isPinned3, "14px", "12px"),
-                              fontWeight: "600",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
                               marginBottom: "8px",
                               marginTop: ifElse(result.isPinned3, "8px", "0"),
-                              color: ifElse(result.isPinned3, "#1d4ed8", "#666"),
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
                             }}
                           >
-                            Option 4
+                            <div
+                              style={{
+                                fontSize: ifElse(result.isPinned3, "14px", "12px"),
+                                fontWeight: "600",
+                                color: ifElse(result.isPinned3, "#1d4ed8", "#666"),
+                              }}
+                            >
+                              Option 4
+                            </div>
+                            {ifElse(
+                              derive(result.pinnedIdx, (p: number) => p < 0),
+                              <button
+                                onClick={pinOption({
+                                  spindles,
+                                  levels,
+                                  spindleId: result.spindleId,
+                                  optionIndex: 3,
+                                  optionContent: result.option3,
+                                })}
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "#2563eb",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                📌 Pin
+                              </button>,
+                              null
+                            )}
                           </div>
                           <div
                             style={{
@@ -1740,11 +1857,6 @@ Make them diverse in genre and tone:
                         </div>,
                         null
                       )}
-                    </div>,
-                    <div
-                      style={{ padding: "32px", textAlign: "center", color: "#666" }}
-                    >
-                      Generating options...
                     </div>
                   )}
 
@@ -1767,7 +1879,26 @@ Make them diverse in genre and tone:
                         {ifElse(
                           result.hasSummary,
                           result.summary,
-                          <em>Generating...</em>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div
+                              style={{
+                                display: "inline-block",
+                                background: "linear-gradient(90deg, #bbf7d0 0%, #86efac 50%, #bbf7d0 100%)",
+                                backgroundSize: "200% 100%",
+                                animation: "shimmer 1.5s ease-in-out infinite",
+                                padding: "4px 12px",
+                                borderRadius: "4px",
+                              }}
+                            >
+                              Generating summary...
+                            </div>
+                            <style>{`
+                              @keyframes shimmer {
+                                0% { background-position: 200% 0; }
+                                100% { background-position: -200% 0; }
+                              }
+                            `}</style>
+                          </div>
                         )}
                       </div>
                     </div>,
