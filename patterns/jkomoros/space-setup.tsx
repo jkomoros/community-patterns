@@ -15,12 +15,13 @@ import {
   UI,
 } from "commontools";
 
-// Import the patterns we'll instantiate
+// Import the patterns we'll instantiate - use factory functions to avoid
+// manually specifying all fields (see factory function idiom in pattern-development skill)
 import Note from "./lib/note.tsx";
-import Person from "./person.tsx";
+import { createPerson as createPersonFactory } from "./person.tsx";
 import PageCreator from "./page-creator.tsx";
-import StoreMapper from "./store-mapper.tsx";
-import FoodRecipe from "./food-recipe.tsx";
+import { createStoreMapper as createStoreMapperFactory } from "./store-mapper.tsx";
+import { createFoodRecipe as createFoodRecipeFactory } from "./food-recipe.tsx";
 
 type Input = {
   instructions: Default<string, "">;
@@ -43,7 +44,7 @@ const createNote = handler<
   return result;
 });
 
-// Tool: Create a Person charm (from ../recipes repo)
+// Tool: Create a Person charm - uses factory function to avoid manual field enumeration
 const createPerson = handler<
   {
     displayName: string;
@@ -57,19 +58,12 @@ const createPerson = handler<
   { displayName, givenName, familyName, birthday, notes },
   { createdCharms },
 ) => {
-  const result = navigateTo(Person({
+  const result = navigateTo(createPersonFactory({
     displayName,
     givenName: givenName || "",
     familyName: familyName || "",
-    nickname: "",
-    pronouns: "",
-    emails: [],
-    phones: [],
-    socialLinks: [],
     birthday: birthday || "",
-    tags: [],
     notes: notes || "",
-    photoUrl: "",
   }));
   createdCharms.push(`Person: "${displayName}"`);
   return result;
@@ -85,28 +79,21 @@ const createPageCreator = handler<
   return result;
 });
 
-// Tool: Create a Store Mapper instance
+// Tool: Create a Store Mapper instance - uses factory function to avoid manual field enumeration
 const createStoreMapper = handler<
   {
     storeName?: string;
   },
   { createdCharms: Cell<string[]> }
 >(({ storeName }, { createdCharms }) => {
-  const result = navigateTo(StoreMapper({
+  const result = navigateTo(createStoreMapperFactory({
     storeName: storeName || "",
-    aisles: [],
-    specialDepartments: [],
-    unassignedDepartments: ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"],
-    entrances: [],
-    notInStore: [],
-    inCenterAisles: [],
-    itemLocations: [],
   }));
   createdCharms.push(`Store Mapper: "${storeName || "Unnamed Store"}"`);
   return result;
 });
 
-// Tool: Create a Food Recipe charm
+// Tool: Create a Food Recipe charm - uses factory function to avoid manual field enumeration
 const createFoodRecipe = handler<
   {
     name?: string;
@@ -114,22 +101,9 @@ const createFoodRecipe = handler<
   },
   { createdCharms: Cell<string[]> }
 >(({ name, notes }, { createdCharms }) => {
-  const result = navigateTo(FoodRecipe({
+  const result = navigateTo(createFoodRecipeFactory({
     name: name || "",
-    cuisine: "",
-    servings: 4,
-    yield: "",
-    difficulty: "medium" as const,
-    prepTime: 0,
-    cookTime: 0,
-    restTime: 0,
-    holdTime: 0,
-    category: "other" as const,
-    ingredients: [],
-    stepGroups: [],
-    tags: [],
     notes: notes || "",
-    source: "",
   }));
   createdCharms.push(`Recipe: "${name || "Untitled"}"`);
   return result;
