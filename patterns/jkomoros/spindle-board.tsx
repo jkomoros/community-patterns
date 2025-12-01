@@ -1511,7 +1511,6 @@ Make them diverse in genre and tone:
                           <div
                             style={{
                               fontSize: "13px",
-                              whiteSpace: "pre-wrap",
                               maxHeight: ifElse(result.isPinned0, "none", "150px"),
                               overflow: ifElse(result.isPinned0, "visible", "auto"),
                               color: ifElse(
@@ -1521,7 +1520,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            {result.option0}
+                            <ct-markdown content={result.option0} />
                           </div>
                         </div>,
                         null
@@ -1624,7 +1623,6 @@ Make them diverse in genre and tone:
                           <div
                             style={{
                               fontSize: "13px",
-                              whiteSpace: "pre-wrap",
                               maxHeight: ifElse(result.isPinned1, "none", "150px"),
                               overflow: ifElse(result.isPinned1, "visible", "auto"),
                               color: ifElse(
@@ -1634,7 +1632,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            {result.option1}
+                            <ct-markdown content={result.option1} />
                           </div>
                         </div>,
                         null
@@ -1737,7 +1735,6 @@ Make them diverse in genre and tone:
                           <div
                             style={{
                               fontSize: "13px",
-                              whiteSpace: "pre-wrap",
                               maxHeight: ifElse(result.isPinned2, "none", "150px"),
                               overflow: ifElse(result.isPinned2, "visible", "auto"),
                               color: ifElse(
@@ -1747,7 +1744,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            {result.option2}
+                            <ct-markdown content={result.option2} />
                           </div>
                         </div>,
                         null
@@ -1850,7 +1847,6 @@ Make them diverse in genre and tone:
                           <div
                             style={{
                               fontSize: "13px",
-                              whiteSpace: "pre-wrap",
                               maxHeight: ifElse(result.isPinned3, "none", "150px"),
                               overflow: ifElse(result.isPinned3, "visible", "auto"),
                               color: ifElse(
@@ -1860,7 +1856,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            {result.option3}
+                            <ct-markdown content={result.option3} />
                           </div>
                         </div>,
                         null
