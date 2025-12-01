@@ -607,6 +607,10 @@ const isStale = derive(
 
 - [x] **Verify branching works correctly** - **LIMITATION:** branchFactor changes in modal don't persist due to ifElse input binding issue. Smart defaults (branchFactor=1) work, but user modifications are lost. Same limitation as Edit Prompt.
 
+### Future Features
+
+- [ ] **View full composed prompt** - Allow clicking on a spindle to see the FULL prompt sent to generateObject, showing how parent outputs, level prompt, extra prompt, and position suffix are all composed together. Useful for debugging and understanding generation behavior.
+
 ### Known Limitations (ifElse Input Binding)
 
 All inputs inside `ifElse()` conditional modals suffer from the two-way binding issue:

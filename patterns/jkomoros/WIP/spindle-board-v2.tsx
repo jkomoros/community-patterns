@@ -30,6 +30,7 @@ import {
 
 interface LevelConfig {
   id: string;
+  index: number; // Position in level hierarchy (0 = root)
   title: string;
   defaultPrompt: string;
   branchFactor: number;
@@ -67,6 +68,7 @@ const NUM_OPTIONS = 4;
 // Default root level
 const DEFAULT_ROOT_LEVEL: LevelConfig = {
   id: "root",
+  index: 0,
   title: "Synopsis",
   defaultPrompt: "",
   branchFactor: 1,
@@ -160,18 +162,46 @@ export default pattern<SpindleBoardInput>(
     // Set synopsis text (root spindle)
     const setSynopsis = handler<
       unknown,
-      { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string> }
-    >((_, { spindles, synopsisText }) => {
+      { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string>; levels: Cell<LevelConfig[]> }
+    >((_, { spindles, synopsisText, levels }) => {
       const text = synopsisText.get() || "";
       const current = [...(spindles.get() || [])]; // Copy to make mutable
+      const currentLevels = levels.get() || [];
       const rootIdx = current.findIndex((s) => s.levelIndex === 0);
       if (rootIdx >= 0) {
+        const rootSpindle = current[rootIdx];
         current[rootIdx] = {
-          ...current[rootIdx],
+          ...rootSpindle,
           composedInput: text,
           pinnedOptionIndex: 0, // Auto-pin for root
           pinnedOutput: text,
+          parentHashWhenPinned: simpleHash(text),
         };
+
+        // Create children for level 1 if it exists and no children yet
+        const level1 = currentLevels[1];
+        const existingChildren = current.filter((s) => s.parentId === rootSpindle.id);
+        if (level1 && existingChildren.length === 0) {
+          const existingAtLevel1 = current.filter((s) => s.levelIndex === 1);
+          let positionInLevel = existingAtLevel1.length;
+
+          for (let i = 0; i < level1.branchFactor; i++) {
+            current.push({
+              id: generateId(),
+              levelIndex: 1,
+              positionInLevel: positionInLevel++,
+              siblingIndex: i,
+              siblingCount: level1.branchFactor,
+              parentId: rootSpindle.id,
+              composedInput: text,
+              extraPrompt: "",
+              pinnedOptionIndex: -1,
+              pinnedOutput: "",
+              parentHashWhenPinned: "",
+            });
+          }
+        }
+
         spindles.set(current);
       }
     });
@@ -235,6 +265,7 @@ export default pattern<SpindleBoardInput>(
       // Create new level with actual input values
       const newLevel: LevelConfig = {
         id: generateId(),
+        index: newLevelIndex,
         title: titleVal || "Untitled Level",
         defaultPrompt: promptVal,
         branchFactor: branchVal,
@@ -656,6 +687,19 @@ export default pattern<SpindleBoardInput>(
       }
     );
 
+    // Identify levels that have no spindles yet (orphan levels)
+    // Computed at top level to avoid derive-inside-map thrashing issues
+    // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
+    const orphanLevels = derive(
+      { levels, spindles },
+      (deps: { levels: LevelConfig[]; spindles: SpindleConfig[] }) => {
+        const levelIndicesWithSpindles = new Set(deps.spindles.map((s) => s.levelIndex));
+        return deps.levels
+          .filter((level) => !level.isRoot && !levelIndicesWithSpindles.has(level.index))
+          .map((level) => ({ index: level.index, title: level.title }));
+      }
+    );
+
     // =========================================================================
     // UI
     // =========================================================================
@@ -725,7 +769,7 @@ export default pattern<SpindleBoardInput>(
               }}
             />
             <button
-              onClick={setSynopsis({ spindles, synopsisText })}
+              onClick={setSynopsis({ spindles, synopsisText, levels })}
               style={{
                 marginTop: "8px",
                 padding: "8px 16px",
@@ -1242,6 +1286,42 @@ export default pattern<SpindleBoardInput>(
               );
             })}
           </div>
+
+          {/* Placeholder cards for levels without spindles */}
+          {/*
+            Using a single derive block to render all placeholders.
+            Cannot map over derive results, so we render JSX inside the derive callback.
+            See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
+          */}
+          {derive(orphanLevels, (orphans: Array<{ index: number; title: string }>) => {
+            if (!orphans || orphans.length === 0) return null;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+                {orphans.map((level) => (
+                  <div
+                    key={level.index}
+                    style={{
+                      border: "2px dashed #d1d5db",
+                      borderRadius: "8px",
+                      background: "#f9fafb",
+                      padding: "24px",
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontWeight: "600", fontSize: "14px", color: "#6b7280" }}>
+                      Level {level.index} - {level.title}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
+                      ⏳ Waiting for parent level to be pinned
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                      Pin an option in the level above to generate options here
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
 
           {/* Add Level Button */}
           <div
