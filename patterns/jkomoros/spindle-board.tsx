@@ -66,15 +66,33 @@ interface SummaryResult {
 
 const NUM_OPTIONS = 4;
 
-// Default root level
-const DEFAULT_ROOT_LEVEL: LevelConfig = {
-  id: "root",
-  index: 0,
-  title: "Synopsis",
-  defaultPrompt: "",
-  branchFactor: 1,
-  isRoot: true,
-};
+// Default levels - Synopsis → Characters/Themes → Chapters
+const DEFAULT_LEVELS: LevelConfig[] = [
+  {
+    id: "root",
+    index: 0,
+    title: "Synopsis",
+    defaultPrompt: "",
+    branchFactor: 1,
+    isRoot: true,
+  },
+  {
+    id: "characters-themes",
+    index: 1,
+    title: "Characters & Themes",
+    defaultPrompt: "Based on the synopsis, identify the main characters, key plot points, and central themes of this story.",
+    branchFactor: 1,
+    isRoot: false,
+  },
+  {
+    id: "chapters",
+    index: 2,
+    title: "Chapters",
+    defaultPrompt: "Write detailed chapter summaries that develop the characters and themes identified above.",
+    branchFactor: 1,
+    isRoot: false,
+  },
+];
 
 // Default root spindle
 const DEFAULT_ROOT_SPINDLE: SpindleConfig = {
@@ -119,7 +137,7 @@ interface SpindleBoardInput {
   boardDescription: Default<string, "">;
 
   // Dynamic arrays (empty default + handler pattern)
-  levels: Default<LevelConfig[], [typeof DEFAULT_ROOT_LEVEL]>;
+  levels: Default<LevelConfig[], typeof DEFAULT_LEVELS>;
   spindles: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
 
   // Add Level Modal state
@@ -2147,7 +2165,7 @@ const SpindleBoard = pattern<SpindleBoardInput>(
 const defaults = {
   boardTitle: "My Story Board",
   boardDescription: "",
-  levels: [DEFAULT_ROOT_LEVEL] as LevelConfig[],
+  levels: DEFAULT_LEVELS,
   spindles: [DEFAULT_ROOT_SPINDLE] as SpindleConfig[],
   showAddLevelModal: false,
   newLevelTitle: "",
