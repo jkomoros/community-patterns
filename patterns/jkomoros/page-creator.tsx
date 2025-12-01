@@ -17,7 +17,7 @@ import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
 import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
 import GoogleCalendarImporter from "./google-calendar-importer.tsx";
-import SmartRubric from "./WIP/smart-rubric.tsx";
+import SmartRubric from "./smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
 import RedactorWithVault from "./redactor-with-vault.tsx";
 import StarChart from "./star-chart.tsx";
