@@ -180,7 +180,7 @@ const incrementGenerosity = handler<
   }
 );
 
-export default pattern<SpinnerInput, SpinnerOutput>(
+const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
   ({ currentEmoji, isSpinning, generosity, spinSequence, spinCount, payoutAnimationCount, spinHistory }) => {
     // Compute the TADA emoji display from generosity level (0-10 emojis, one per level)
     const tadaDisplay = computed(() =>
@@ -798,3 +798,27 @@ export default pattern<SpinnerInput, SpinnerOutput>(
     };
   }
 );
+
+/**
+ * Default values for creating a new RewardSpinner.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  currentEmoji: "🎁",
+  isSpinning: false,
+  generosity: 10,
+  spinSequence: [] as string[],
+  spinCount: 0,
+  payoutAnimationCount: 0,
+  spinHistory: [] as SpinRecord[],
+};
+
+/**
+ * Factory function to create a RewardSpinner with sensible defaults.
+ * @example navigateTo(createRewardSpinner({ generosity: 5 }));
+ */
+export function createRewardSpinner(overrides?: Partial<typeof defaults>) {
+  return RewardSpinner({ ...defaults, ...overrides });
+}
+
+export default RewardSpinner;

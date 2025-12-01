@@ -749,7 +749,7 @@ const applyWaitTimeSuggestions = handler<
   },
 );
 
-export default pattern<RecipeInput, RecipeOutput>(
+const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
   ({
     name,
     cuisine,
@@ -2324,3 +2324,35 @@ Return suggestions for ALL groups with their IDs preserved.`,
     };
   },
 );
+
+/**
+ * Default values for creating a new FoodRecipe.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  name: "",
+  cuisine: "",
+  servings: 4,
+  yield: "",
+  difficulty: "medium" as const,
+  prepTime: 0,
+  cookTime: 0,
+  restTime: 0,
+  holdTime: 0,
+  category: "other" as const,
+  ingredients: [] as Ingredient[],
+  stepGroups: [] as StepGroup[],
+  tags: [] as string[],
+  notes: "",
+  source: "",
+};
+
+/**
+ * Factory function to create a FoodRecipe with sensible defaults.
+ * @example navigateTo(createFoodRecipe({ name: "Chocolate Cake" }));
+ */
+export function createFoodRecipe(overrides?: Partial<typeof defaults>) {
+  return FoodRecipe({ ...defaults, ...overrides });
+}
+
+export default FoodRecipe;

@@ -190,7 +190,7 @@ function getInitials(name: string): string {
     .slice(0, 3); // Max 3 initials
 }
 
-export default pattern<PollInput, PollOutput>(
+const CozyPoll = pattern<PollInput, PollOutput>(
   ({ question, options, votes, voterCharms, nextOptionId }) => {
 
     // Derived: Organize all votes by option ID and vote type
@@ -563,3 +563,25 @@ export default pattern<PollInput, PollOutput>(
     };
   }
 );
+
+/**
+ * Default values for creating a new CozyPoll.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  question: "",
+  options: [] as Option[],
+  votes: [] as Vote[],
+  voterCharms: [] as VoterCharmRef[],
+  nextOptionId: 1,
+};
+
+/**
+ * Factory function to create a CozyPoll with sensible defaults.
+ * @example navigateTo(createCozyPoll({ question: "Where should we eat?" }));
+ */
+export function createCozyPoll(overrides?: Partial<typeof defaults>) {
+  return CozyPoll({ ...defaults, ...overrides });
+}
+
+export default CozyPoll;
