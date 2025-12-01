@@ -675,7 +675,7 @@ function analyzeOverlap(existingDesc: string, suggestedProducts: string[]): Over
   };
 }
 
-export default pattern<StoreMapInput, StoreMapOutput>(
+const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
   ({ storeName, aisles, specialDepartments, unassignedDepartments, entrances, notInStore, inCenterAisles, itemLocations }) => {
     const uploadedPhotos = cell<ImageData[]>([]);
     const hiddenPhotoIds = cell<Set<string>>(new Set()); // Track deleted photos without splicing array
@@ -2857,3 +2857,28 @@ What common sections might be missing?`,
     };
   }
 );
+
+/**
+ * Default values for creating a new StoreMapper.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  storeName: "",
+  aisles: [] as StoreAisle[],
+  specialDepartments: [] as DepartmentRecord[],
+  unassignedDepartments: ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"] as string[],
+  entrances: [] as Entrance[],
+  notInStore: [] as string[],
+  inCenterAisles: [] as string[],
+  itemLocations: [] as ItemLocation[],
+};
+
+/**
+ * Factory function to create a StoreMapper with sensible defaults.
+ * @example navigateTo(createStoreMapper({ storeName: "Trader Joe's" }));
+ */
+export function createStoreMapper(overrides?: Partial<typeof defaults>) {
+  return StoreMapper({ ...defaults, ...overrides });
+}
+
+export default StoreMapper;
