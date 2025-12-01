@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, ifElse, NAME, OpaqueRef, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * Star Chart Pattern
@@ -62,27 +62,6 @@ function getTodayString(): string {
   return now.toISOString().split("T")[0];
 }
 
-// Helper to format date for display (e.g., "Nov 30")
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr + "T12:00:00");
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// Static list of last 30 days (generated once)
-function getLastNDays(n: number): string[] {
-  const dates: string[] = [];
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  for (let i = 0; i < n; i++) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - i);
-    dates.push(date.toISOString().split("T")[0]);
-  }
-  return dates;
-}
-
-const last30Days = getLastNDays(30);
-const today = getTodayString();
 
 // Handler to place a star for today (single tap)
 const placeStar = handler<
@@ -113,6 +92,14 @@ const placeStar = handler<
   sparkleKey.set(sparkleKey.get() + 1);
 });
 
+// Interface for timeline display
+interface TimelineDay {
+  date: string;      // YYYY-MM-DD
+  displayDate: string; // "Nov 30" format
+  hasStar: boolean;
+  rotation: number;
+}
+
 export default pattern<StarChartInput, StarChartOutput>(
   ({ goalName, days, sparkleKey, debugDate }) => {
     // Get effective "today" (real or debug override)
@@ -130,6 +117,36 @@ export default pattern<StarChartInput, StarChartOutput>(
       const allDays = days.get();
       return allDays.some((d) => d.date === todayStr && d.earned);
     });
+
+    // Generate timeline: last 30 days relative to effective today, with star status
+    // Using derive to pre-compute to avoid computed() inside map (causes infinite loops)
+    const timeline = derive(
+      { days, debugDate },
+      ({ days: daysCell, debugDate: debugDateCell }) => {
+        const daysArray = daysCell.get();
+        const override = typeof debugDateCell === "string" ? debugDateCell : debugDateCell?.get?.() ?? "";
+        const todayStr = override || getTodayString();
+        const baseDate = new Date(todayStr + "T12:00:00");
+
+        const result: TimelineDay[] = [];
+        // Start from yesterday (today is shown separately), go back 30 days
+        for (let i = 1; i <= 30; i++) {
+          const date = new Date(baseDate);
+          date.setDate(baseDate.getDate() - i);
+          const dateStr = date.toISOString().split("T")[0];
+          const displayDate = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+          const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
+          result.push({
+            date: dateStr,
+            displayDate,
+            hasStar: dayRecord?.earned ?? false,
+            rotation: dayRecord?.rotation ?? 0,
+          });
+        }
+        return result;
+      }
+    );
 
     return {
       [NAME]: "Star Chart",
@@ -261,14 +278,8 @@ export default pattern<StarChartInput, StarChartOutput>(
               )}
             </div>
 
-            {/* Timeline of days */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
+            {/* Horizontal Timeline */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <div
                 style={{
                   fontSize: "12px",
@@ -281,53 +292,76 @@ export default pattern<StarChartInput, StarChartOutput>(
                 Recent Days
               </div>
 
-              {/* Show days that have stars */}
-              {days.map((record: OpaqueRef<DayRecord>) => (
+              {/* Horizontal scroll container */}
+              <div
+                style={{
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                  paddingBottom: "8px",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "center",
                     gap: "12px",
-                    padding: "8px 12px",
-                    background: "rgba(255,255,255,0.5)",
-                    borderRadius: "8px",
+                    paddingLeft: "4px",
+                    paddingRight: "4px",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#78350f",
-                      minWidth: "70px",
-                    }}
-                  >
-                    {record.date.substring(5).replace("-", "/")}
-                  </div>
-
-                  {ifElse(
-                    record.earned,
+                  {timeline.map((day: { date: string; displayDate: string; hasStar: boolean; rotation: number }) => (
                     <div
-                      className="magical-star"
                       style={{
-                        fontSize: "32px",
-                        lineHeight: "1",
-                        filter: "drop-shadow(0 0 8px rgba(251, 191, 36, 0.6))",
-                        animation: "shimmer 3s ease-in-out infinite, jiggle 2s ease-in-out infinite",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "6px",
+                        minWidth: "60px",
+                        padding: "8px 4px",
+                        background: "rgba(255,255,255,0.5)",
+                        borderRadius: "12px",
                       }}
                     >
-                      ⭐
-                    </div>,
-                    <div
-                      style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "50%",
-                        border: "2px solid #d4d4d4",
-                        background: "rgba(255,255,255,0.5)",
-                      }}
-                    />
-                  )}
+                      {/* Date label */}
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#78350f",
+                          fontWeight: "500",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {day.displayDate}
+                      </div>
+
+                      {/* Star or empty circle */}
+                      {ifElse(
+                        day.hasStar,
+                        <div
+                          className="magical-star"
+                          style={{
+                            fontSize: "36px",
+                            lineHeight: "1",
+                            filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.5))",
+                            animation: "shimmer 3s ease-in-out infinite",
+                            transform: `rotate(${day.rotation}deg)`,
+                          }}
+                        >
+                          ⭐
+                        </div>,
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            border: "2px dashed #d4d4d4",
+                            background: "rgba(255,255,255,0.3)",
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
