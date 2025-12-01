@@ -132,6 +132,10 @@ interface SpindleBoardInput {
   editingLevelIndex: Default<number, 0>;
   editLevelPrompt: Default<string, "">;
 
+  // View Prompt Modal state
+  showViewPromptModal: Default<boolean, false>;
+  viewPromptSpindleId: Default<string, "">;
+
   // Root synopsis input
   synopsisText: Default<string, "">;
 }
@@ -153,6 +157,8 @@ export default pattern<SpindleBoardInput>(
     showEditLevelModal,
     editingLevelIndex,
     editLevelPrompt,
+    showViewPromptModal,
+    viewPromptSpindleId,
     synopsisText,
   }) => {
     // =========================================================================
@@ -485,6 +491,26 @@ export default pattern<SpindleBoardInput>(
       showEditLevelModal.set(false);
     });
 
+    // Open view prompt modal
+    const openViewPromptModal = handler<
+      unknown,
+      {
+        showViewPromptModal: Cell<boolean>;
+        viewPromptSpindleId: Cell<string>;
+        spindleId: Cell<string>;
+      }
+    >((_, { showViewPromptModal, viewPromptSpindleId, spindleId }) => {
+      viewPromptSpindleId.set(spindleId.get());
+      showViewPromptModal.set(true);
+    });
+
+    // Close view prompt modal
+    const closeViewPromptModal = handler<unknown, { showViewPromptModal: Cell<boolean> }>(
+      (_, { showViewPromptModal }) => {
+        showViewPromptModal.set(false);
+      }
+    );
+
     // =========================================================================
     // REACTIVE PROCESSING
     // =========================================================================
@@ -659,6 +685,7 @@ export default pattern<SpindleBoardInput>(
         config,
         levelConfig,
         isRoot,
+        fullPrompt,
         option0,
         option1,
         option2,
@@ -693,10 +720,41 @@ export default pattern<SpindleBoardInput>(
     const orphanLevels = derive(
       { levels, spindles },
       (deps: { levels: LevelConfig[]; spindles: SpindleConfig[] }) => {
+        if (!deps.levels || !deps.spindles) return [];
         const levelIndicesWithSpindles = new Set(deps.spindles.map((s) => s.levelIndex));
         return deps.levels
-          .filter((level) => !level.isRoot && !levelIndicesWithSpindles.has(level.index))
+          .filter((level) => level && !level.isRoot && !levelIndicesWithSpindles.has(level.index))
           .map((level) => ({ index: level.index, title: level.title }));
+      }
+    );
+
+    // Get prompt details for the selected spindle (for View Prompt modal)
+    // Computed at top level with labeled sections for display
+    const viewPromptDetails = derive(
+      { spindles, levels, viewPromptSpindleId },
+      (deps: {
+        spindles: SpindleConfig[];
+        levels: LevelConfig[];
+        viewPromptSpindleId: string;
+      }) => {
+        if (!deps.spindles || !deps.levels || !deps.viewPromptSpindleId) return null;
+
+        const spindle = deps.spindles.find((s) => s && s.id === deps.viewPromptSpindleId);
+        if (!spindle) return null;
+
+        const level = deps.levels[spindle.levelIndex];
+        if (!level || level.isRoot) return null;
+
+        return {
+          levelTitle: level.title,
+          siblingIndex: spindle.siblingIndex,
+          siblingCount: spindle.siblingCount,
+          parentOutput: spindle.composedInput || "(No parent output)",
+          levelPrompt: level.defaultPrompt || "(No level prompt)",
+          extraPrompt: spindle.extraPrompt || null,
+          positionSuffix: `Peer ${spindle.siblingIndex + 1} of ${spindle.siblingCount}`,
+          generationInstruction: `Generate exactly ${NUM_OPTIONS} distinct options for the above.`,
+        };
       }
     );
 
@@ -874,6 +932,24 @@ export default pattern<SpindleBoardInput>(
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={openViewPromptModal({
+                          showViewPromptModal,
+                          viewPromptSpindleId,
+                          spindleId,
+                        })}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#8b5cf6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                        }}
+                      >
+                        View Prompt
+                      </button>
                       <button
                         onClick={openEditLevelModal({
                           showEditLevelModal,
@@ -1600,6 +1676,261 @@ export default pattern<SpindleBoardInput>(
                     }}
                   >
                     Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>,
+            null
+          )}
+
+          {/* View Prompt Modal */}
+          {ifElse(
+            showViewPromptModal,
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  padding: "24px",
+                  borderRadius: "12px",
+                  width: "600px",
+                  maxWidth: "90%",
+                  maxHeight: "80vh",
+                  overflow: "auto",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <h2 style={{ margin: 0, fontSize: "18px" }}>Full Composed Prompt</h2>
+                  <button
+                    onClick={closeViewPromptModal({ showViewPromptModal })}
+                    style={{
+                      padding: "4px 8px",
+                      background: "#f3f4f6",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "18px",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {ifElse(
+                  derive(viewPromptDetails, (d) => d !== null),
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {/* Header info */}
+                    <div
+                      style={{
+                        padding: "12px",
+                        background: "#f0f9ff",
+                        borderRadius: "6px",
+                        fontSize: "14px",
+                        color: "#0369a1",
+                      }}
+                    >
+                      {derive(viewPromptDetails, (d) =>
+                        d
+                          ? `${d.levelTitle} - ${d.positionSuffix}`
+                          : ""
+                      )}
+                    </div>
+
+                    {/* Section 1: Parent Output */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#6b7280",
+                          marginBottom: "4px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        1. Parent's Pinned Output
+                      </div>
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#fef3c7",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          whiteSpace: "pre-wrap",
+                          maxHeight: "150px",
+                          overflow: "auto",
+                          border: "1px solid #fcd34d",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) => d?.parentOutput || "")}
+                      </div>
+                    </div>
+
+                    {/* Section 2: Level Prompt */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#6b7280",
+                          marginBottom: "4px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        2. Level's Default Prompt
+                      </div>
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#dbeafe",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          whiteSpace: "pre-wrap",
+                          border: "1px solid #93c5fd",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) => d?.levelPrompt || "")}
+                      </div>
+                    </div>
+
+                    {/* Section 3: Extra Prompt (conditional) */}
+                    {ifElse(
+                      derive(viewPromptDetails, (d) => !!d?.extraPrompt),
+                      <div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            color: "#6b7280",
+                            marginBottom: "4px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          3. Extra Prompt (Per-Spindle)
+                        </div>
+                        <div
+                          style={{
+                            padding: "12px",
+                            background: "#fce7f3",
+                            borderRadius: "6px",
+                            fontSize: "13px",
+                            whiteSpace: "pre-wrap",
+                            border: "1px solid #f9a8d4",
+                          }}
+                        >
+                          {derive(viewPromptDetails, (d) => d?.extraPrompt || "")}
+                        </div>
+                      </div>,
+                      null
+                    )}
+
+                    {/* Section 4: Position Suffix */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#6b7280",
+                          marginBottom: "4px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) =>
+                          d?.extraPrompt ? "4. Position Suffix" : "3. Position Suffix"
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#dcfce7",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          border: "1px solid #86efac",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) => d?.positionSuffix || "")}
+                      </div>
+                    </div>
+
+                    {/* Section 5: Generation Instruction */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          color: "#6b7280",
+                          marginBottom: "4px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) =>
+                          d?.extraPrompt
+                            ? "5. Generation Instruction"
+                            : "4. Generation Instruction"
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          padding: "12px",
+                          background: "#f3e8ff",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          fontStyle: "italic",
+                          border: "1px solid #d8b4fe",
+                        }}
+                      >
+                        {derive(viewPromptDetails, (d) => d?.generationInstruction || "")}
+                      </div>
+                    </div>
+                  </div>,
+                  <div style={{ color: "#666", textAlign: "center", padding: "20px" }}>
+                    No prompt details available
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    marginTop: "20px",
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    onClick={closeViewPromptModal({ showViewPromptModal })}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Close
                   </button>
                 </div>
               </div>

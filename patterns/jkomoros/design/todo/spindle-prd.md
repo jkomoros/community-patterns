@@ -609,7 +609,12 @@ const isStale = derive(
 
 ### Future Features
 
-- [ ] **View full composed prompt** - Allow clicking on a spindle to see the FULL prompt sent to generateObject, showing how parent outputs, level prompt, extra prompt, and position suffix are all composed together. Useful for debugging and understanding generation behavior.
+- [x] **View full composed prompt** - **DONE:** Added "View Prompt" button (purple) to spindle header. Opens modal showing labeled, color-coded sections:
+  - Parent's Pinned Output (yellow)
+  - Level's Default Prompt (blue)
+  - Extra Prompt if any (pink)
+  - Position Suffix (green)
+  - Generation Instruction (purple)
 
 ### Known Limitations (ifElse Input Binding)
 
