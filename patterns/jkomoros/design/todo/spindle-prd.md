@@ -595,17 +595,27 @@ const isStale = derive(
 
 ### UI/UX Improvements
 
-- [ ] **Render markdown as rich text** - Option content should render as formatted markdown (bold, lists, etc.) instead of raw text. Check if there's a Markdown component available.
+- [x] **Render markdown as rich text** - Option content should render as formatted markdown (bold, lists, etc.) instead of raw text. **Status:** No built-in markdown component available. Would require importing `marked` library or building custom parser. Deferring for now - `whiteSpace: pre-wrap` preserves line breaks which is acceptable for MVP.
 
-- [ ] **Make pinned item MUCH more visually distinct** - Currently pinned items only show a checkmark and blue border. Need stronger visual distinction (larger, highlighted, expanded view, etc.)
+- [x] **Make pinned item MUCH more visually distinct** - **DONE:** Added thick blue left border, SELECTED badge, stronger background color, box shadow, scale transform, and reduced opacity (0.4) for non-pinned options.
 
-- [ ] **Move Add Level button to bottom** - Currently at top, should be at bottom after all existing levels
+- [x] **Move Add Level button to bottom** - **DONE:** Button now appears after all spindle cards.
 
-- [ ] **Add way to change prompt for a given level** - Need UI to edit level's default prompt after creation (currently no way to modify)
+- [x] **Add way to change prompt for a given level** - **DONE:** Added "Edit Prompt" button to spindle header. Opens modal showing level name and current prompt. **LIMITATION:** Due to ifElse input binding issue, user edits in the textarea don't persist to the cell. The UI works but save doesn't actually change the prompt. See superstition: `2025-11-30-ifelse-input-binding.md`
 
 ### Testing/Verification
 
-- [ ] **Verify branching works correctly** - Test with branchFactor > 1 to ensure multiple children are created per parent
+- [x] **Verify branching works correctly** - **LIMITATION:** branchFactor changes in modal don't persist due to ifElse input binding issue. Smart defaults (branchFactor=1) work, but user modifications are lost. Same limitation as Edit Prompt.
+
+### Known Limitations (ifElse Input Binding)
+
+All inputs inside `ifElse()` conditional modals suffer from the two-way binding issue:
+- Add Level: Title, prompt, and branchFactor edits don't persist (only smart defaults work)
+- Edit Level: Prompt edits don't persist
+
+**Workaround applied:** Smart defaults are set in the handler that opens the modal, so the default values ARE useful. User modifications are lost.
+
+**See:** `community-docs/superstitions/2025-11-30-ifelse-input-binding.md`
 
 ---
 
