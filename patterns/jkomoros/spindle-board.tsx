@@ -165,8 +165,6 @@ interface SpindleBoardInput {
 
   // Synopsis idea generator
   synopsisIdeasNonce: Default<number, 0>;
-  selectedIdeaIndex: Default<number, 99>;  // 99 = no selection (can't use -1)
-  storedIdeasJson: Default<string, "">;
 }
 
 // =============================================================================
@@ -191,8 +189,6 @@ const SpindleBoard = pattern<SpindleBoardInput>(
     viewPromptSpindleId,
     synopsisText,
     synopsisIdeasNonce,
-    selectedIdeaIndex,
-    storedIdeasJson,
   }) => {
     // =========================================================================
     // HANDLERS
@@ -206,29 +202,15 @@ const SpindleBoard = pattern<SpindleBoardInput>(
       synopsisIdeasNonce.set((synopsisIdeasNonce.get() || 0) + 1);
     });
 
-    // Select a synopsis idea - stores index and JSON for later apply
+    // Select a synopsis idea - immediately applies it to synopsis text
     const selectSynopsisIdea = handler<
       unknown,
-      { selectedIdeaIndex: Cell<number>; storedIdeasJson: Cell<string>; ideasJson: string; index: number }
-    >((_, { selectedIdeaIndex, storedIdeasJson, ideasJson, index }) => {
-      selectedIdeaIndex.set(index);
-      storedIdeasJson.set(ideasJson);
-    });
-
-    // Apply the selected synopsis idea to the synopsis text
-    const applySelectedIdea = handler<
-      unknown,
-      { synopsisText: Cell<string>; selectedIdeaIndex: Cell<number>; storedIdeasJson: Cell<string> }
-    >((_, { synopsisText, selectedIdeaIndex, storedIdeasJson }) => {
-      const index = selectedIdeaIndex.get();
-      const json = storedIdeasJson.get();
-      if (index >= 0 && json) {
-        const ideas = JSON.parse(json) as Array<{ title: string; synopsis: string }>;
-        if (ideas[index]) {
-          synopsisText.set(ideas[index].synopsis);
-        }
-      }
-      selectedIdeaIndex.set(99);  // Clear selection (99 = no selection)
+      { synopsisText: Cell<string>; synopsisIdeasNonce: Cell<number>; synopsis: string }
+    >((_, { synopsisText, synopsisIdeasNonce, synopsis }) => {
+      // Immediately set the synopsis text
+      synopsisText.set(synopsis);
+      // Clear nonce to hide the ideas section
+      synopsisIdeasNonce.set(0);
     });
 
     // Set synopsis text (root spindle)
@@ -922,6 +904,12 @@ const SpindleBoard = pattern<SpindleBoardInput>(
       (nonce: number) => nonce > 0
     );
 
+    // Check if story has been started (has children spindles)
+    const hasStartedStory = derive(
+      spindles,
+      (s: SpindleConfig[]) => s.some((sp) => sp.levelIndex > 0)
+    );
+
     const synopsisIdeasPrompt = derive(
       synopsisIdeasNonce,
       (nonce: number) =>
@@ -947,18 +935,15 @@ Make them diverse in genre and tone:
       { pending: false, result: undefined, error: undefined }
     );
 
-    // Pre-compute ideas data with serialized JSON for use outside derive callbacks
+    // Pre-compute ideas data for use outside derive callbacks
     // This allows the onClick to work because it's not inside a derive callback
-    const ideasWithJson = derive(
+    const ideasList = derive(
       synopsisIdeasGeneration,
       (gen: { pending: boolean; result?: SynopsisIdeasResult }) => {
         if (!gen.result?.ideas) return [];
-        const serialized = JSON.stringify(gen.result.ideas);
-        return gen.result.ideas.map((idea, idx) => ({
+        return gen.result.ideas.map((idea) => ({
           title: idea.title,
           synopsis: idea.synopsis,
-          index: idx,
-          serializedJson: serialized,
         }));
       }
     );
@@ -1026,18 +1011,19 @@ Make them diverse in genre and tone:
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
               <button
                 onClick={setSynopsis({ spindles, synopsisText, levels })}
-                style={{
+                disabled={hasStartedStory}
+                style={derive(hasStartedStory, (started: boolean) => ({
                   padding: "10px 20px",
-                  background: "#eab308",
+                  background: started ? "#9ca3af" : "#eab308",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
-                  cursor: "pointer",
+                  cursor: started ? "not-allowed" : "pointer",
                   fontSize: "14px",
                   fontWeight: "600",
-                }}
+                }))}
               >
-                Start Story →
+                {derive(hasStartedStory, (started: boolean) => started ? "Story Started ✓" : "Start Story →")}
               </button>
               <button
                 onClick={generateSynopsisIdeas({ synopsisIdeasNonce })}
@@ -1084,9 +1070,9 @@ Make them diverse in genre and tone:
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     {/* Use .map() on pre-computed cell instead of inside derive callback */}
                     {/* This allows onClick handlers to work because cells aren't read-only */}
-                    {ideasWithJson.map((idea) => (
+                    {ideasList.map((idea) => (
                       <button
-                        onClick={selectSynopsisIdea({ selectedIdeaIndex, storedIdeasJson, ideasJson: idea.serializedJson, index: idea.index })}
+                        onClick={selectSynopsisIdea({ synopsisText, synopsisIdeasNonce, synopsis: idea.synopsis })}
                         style={{
                           padding: "12px",
                           background: "white",
@@ -1106,56 +1092,6 @@ Make them diverse in genre and tone:
                     ))}
                   </div>
                 )}
-              </div>,
-              null
-            )}
-            {/* Selected Idea Preview and Apply Button */}
-            {ifElse(
-              derive(selectedIdeaIndex, (idx: number) => idx < 10),  // 99 = no selection
-              <div
-                style={{
-                  marginTop: "12px",
-                  padding: "16px",
-                  background: "#ecfdf5",
-                  border: "2px solid #10b981",
-                  borderRadius: "8px",
-                }}
-              >
-                <div style={{ fontWeight: "600", marginBottom: "8px", color: "#047857" }}>
-                  ✓ Selected Story Idea
-                </div>
-                {derive(
-                  { selectedIdeaIndex, storedIdeasJson },
-                  (deps: { selectedIdeaIndex: number; storedIdeasJson: string }) => {
-                    if (deps.selectedIdeaIndex >= 10 || !deps.storedIdeasJson) return null;  // 99 = no selection
-                    const ideas = JSON.parse(deps.storedIdeasJson) as Array<{ title: string; synopsis: string }>;
-                    const idea = ideas[deps.selectedIdeaIndex];
-                    if (!idea) return null;
-                    return (
-                      <div>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>{idea.title}</div>
-                        <div style={{ fontSize: "13px", color: "#374151", marginBottom: "12px" }}>
-                          {idea.synopsis}
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
-                <button
-                  onClick={applySelectedIdea({ synopsisText, selectedIdeaIndex, storedIdeasJson })}
-                  style={{
-                    padding: "10px 20px",
-                    background: "#10b981",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                  }}
-                >
-                  Use This Synopsis
-                </button>
               </div>,
               null
             )}
