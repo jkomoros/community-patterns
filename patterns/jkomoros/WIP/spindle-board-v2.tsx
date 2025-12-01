@@ -131,6 +131,7 @@ interface SpindleBoardInput {
   // Edit Level Modal state
   showEditLevelModal: Default<boolean, false>;
   editingLevelIndex: Default<number, 0>;
+  editLevelTitle: Default<string, "">;
   editLevelPrompt: Default<string, "">;
 
   // View Prompt Modal state
@@ -157,6 +158,7 @@ export default pattern<SpindleBoardInput>(
     newLevelBranch,
     showEditLevelModal,
     editingLevelIndex,
+    editLevelTitle,
     editLevelPrompt,
     showViewPromptModal,
     viewPromptSpindleId,
@@ -465,16 +467,18 @@ export default pattern<SpindleBoardInput>(
       {
         showEditLevelModal: Cell<boolean>;
         editingLevelIndex: Cell<number>;
+        editLevelTitle: Cell<string>;
         editLevelPrompt: Cell<string>;
         levels: Cell<LevelConfig[]>;
         levelIndex: Cell<number>;
       }
-    >((_, { showEditLevelModal, editingLevelIndex, editLevelPrompt, levels, levelIndex }) => {
+    >((_, { showEditLevelModal, editingLevelIndex, editLevelTitle, editLevelPrompt, levels, levelIndex }) => {
       const idx = levelIndex.get();
       const currentLevels = levels.get() || [];
       const level = currentLevels[idx];
       if (level) {
         editingLevelIndex.set(idx);
+        editLevelTitle.set(level.title);
         editLevelPrompt.set(level.defaultPrompt);
         showEditLevelModal.set(true);
       }
@@ -487,23 +491,26 @@ export default pattern<SpindleBoardInput>(
       }
     );
 
-    // Save edited level prompt
+    // Save edited level
     const saveEditLevel = handler<
       unknown,
       {
         levels: Cell<LevelConfig[]>;
         editingLevelIndex: Cell<number>;
+        editLevelTitle: Cell<string>;
         editLevelPrompt: Cell<string>;
         showEditLevelModal: Cell<boolean>;
       }
-    >((_, { levels, editingLevelIndex, editLevelPrompt, showEditLevelModal }) => {
+    >((_, { levels, editingLevelIndex, editLevelTitle, editLevelPrompt, showEditLevelModal }) => {
       const idx = editingLevelIndex.get();
+      const newTitle = editLevelTitle.get() || "";
       const newPrompt = editLevelPrompt.get() || "";
       const currentLevels = [...(levels.get() || [])];
 
       if (idx >= 0 && idx < currentLevels.length) {
         currentLevels[idx] = {
           ...currentLevels[idx],
+          title: newTitle,
           defaultPrompt: newPrompt,
         };
         levels.set(currentLevels);
@@ -1067,6 +1074,7 @@ export default pattern<SpindleBoardInput>(
                         onClick={openEditLevelModal({
                           showEditLevelModal,
                           editingLevelIndex,
+                          editLevelTitle,
                           editLevelPrompt,
                           levels,
                           levelIndex: result.levelIndex,
@@ -1774,16 +1782,25 @@ export default pattern<SpindleBoardInput>(
                 }}
               >
                 <h2 style={{ margin: "0 0 16px 0", fontSize: "18px" }}>
-                  Edit Level Prompt
+                  Edit Level
                 </h2>
 
-                <div style={{ marginBottom: "8px", fontSize: "14px", color: "#666" }}>
-                  Level:{" "}
-                  {derive(
-                    { levels, editingLevelIndex },
-                    (deps: { levels: LevelConfig[]; editingLevelIndex: number }) =>
-                      deps.levels[deps.editingLevelIndex]?.title || "Unknown"
-                  )}
+                <div style={{ marginBottom: "16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontWeight: "500",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Title
+                  </label>
+                  <ct-input
+                    $value={editLevelTitle}
+                    placeholder="e.g., Chapters"
+                    style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;"
+                  />
                 </div>
 
                 <div style={{ marginBottom: "16px" }}>
@@ -1797,18 +1814,10 @@ export default pattern<SpindleBoardInput>(
                   >
                     Default Prompt
                   </label>
-                  <textarea
-                    value={editLevelPrompt}
+                  <ct-input
+                    $value={editLevelPrompt}
                     placeholder="Enter the prompt for this level..."
-                    style={{
-                      width: "100%",
-                      padding: "8px 12px",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                      minHeight: "120px",
-                      resize: "vertical",
-                    }}
+                    style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; min-height: 120px;"
                   />
                 </div>
 
@@ -1830,6 +1839,7 @@ export default pattern<SpindleBoardInput>(
                     onClick={saveEditLevel({
                       levels,
                       editingLevelIndex,
+                      editLevelTitle,
                       editLevelPrompt,
                       showEditLevelModal,
                     })}
