@@ -115,7 +115,7 @@ const COMMON_TAGS = [
   "low-sodium",
 ];
 
-export default pattern<PreparedFoodInput, PreparedFoodOutput>(
+const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
   ({
     name,
     servings,
@@ -399,3 +399,30 @@ export default pattern<PreparedFoodInput, PreparedFoodOutput>(
     };
   },
 );
+
+/**
+ * Default values for creating a new PreparedFood.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  name: "",
+  servings: 4,
+  category: "other",
+  dietaryTags: [] as string[],
+  primaryIngredients: [] as string[],
+  description: "",
+  source: "",
+  prepTime: 0,
+  requiresReheating: false,
+  tags: [] as string[],
+};
+
+/**
+ * Factory function to create a PreparedFood with sensible defaults.
+ * @example navigateTo(createPreparedFood({ name: "Store-bought pie" }));
+ */
+export function createPreparedFood(overrides?: Partial<typeof defaults>) {
+  return PreparedFood({ ...defaults, ...overrides });
+}
+
+export default PreparedFood;

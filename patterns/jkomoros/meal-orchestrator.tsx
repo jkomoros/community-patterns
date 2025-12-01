@@ -423,7 +423,7 @@ const applyLinking = handler<
   linkingAnalysisTrigger.set("");
 });
 
-export default pattern<MealOrchestratorInput, MealOrchestratorOutput>(
+const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
   ({
     mealName,
     mealDate,
@@ -1579,3 +1579,31 @@ Be concise and practical in your analysis.`,
     };
   },
 );
+
+/**
+ * Default values for creating a new MealOrchestrator.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  mealName: "",
+  mealDate: "",
+  mealTime: "",
+  guestCount: 4,
+  ovens: [{ rackPositions: 5, physicalRacks: 2 }] as OvenConfig[],
+  stovetopBurners: 4,
+  dietaryProfiles: [] as GuestDietaryProfile[],
+  planningNotes: "",
+  recipes: [] as any[],
+  preparedFoods: [] as any[],
+  notes: "",
+};
+
+/**
+ * Factory function to create a MealOrchestrator with sensible defaults.
+ * @example navigateTo(createMealOrchestrator({ mealName: "Thanksgiving Dinner" }));
+ */
+export function createMealOrchestrator(overrides?: Partial<typeof defaults>) {
+  return MealOrchestrator({ ...defaults, ...overrides });
+}
+
+export default MealOrchestrator;
