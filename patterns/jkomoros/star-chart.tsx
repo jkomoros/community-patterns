@@ -296,7 +296,7 @@ interface TimelineDay {
   rotation: number;
 }
 
-export default pattern<StarChartInput, StarChartOutput>(
+const StarChart = pattern<StarChartInput, StarChartOutput>(
   ({ goalName, goalDescription, days, bestStreak, lastCelebratedMilestone, sparkleKey, viewMode, debugDate }) => {
     // Get effective "today" (real or debug override)
     // debugDate is a Cell, so use .get() inside computed
@@ -1187,3 +1187,28 @@ export default pattern<StarChartInput, StarChartOutput>(
     };
   }
 );
+
+/**
+ * Default values for creating a new StarChart.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  goalName: "Gold Star Goal",
+  goalDescription: "",
+  days: [] as DayRecord[],
+  bestStreak: 0,
+  lastCelebratedMilestone: 0,
+  sparkleKey: 0,
+  viewMode: "main" as const,
+  debugDate: "",
+};
+
+/**
+ * Factory function to create a StarChart with sensible defaults.
+ * @example navigateTo(createStarChart({ goalName: "Dry Night" }));
+ */
+export function createStarChart(overrides?: Partial<typeof defaults>) {
+  return StarChart({ ...defaults, ...overrides });
+}
+
+export default StarChart;

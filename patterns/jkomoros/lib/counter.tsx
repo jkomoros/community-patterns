@@ -12,7 +12,23 @@ interface RecipeOutput {
   decrement: Stream<void>;
 }
 
-export default recipe<RecipeState, RecipeOutput>((state) => {
+/**
+ * Default values for creating a new Counter.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  value: 0,
+};
+
+/**
+ * Factory function to create a Counter with sensible defaults.
+ * @example navigateTo(createCounter({ value: 10 }));
+ */
+export function createCounter(overrides?: Partial<typeof defaults>) {
+  return Counter({ ...defaults, ...overrides });
+}
+
+const Counter = recipe<RecipeState, RecipeOutput>((state) => {
   return {
     [NAME]: str`Simple counter: ${state.value}`,
     [UI]: (
@@ -33,3 +49,5 @@ export default recipe<RecipeState, RecipeOutput>((state) => {
     decrement: decrement(state) as unknown as Stream<void>,
   };
 });
+
+export default Counter;

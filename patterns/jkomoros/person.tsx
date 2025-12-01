@@ -78,6 +78,52 @@ type Output = ProfileData & {
   profile: ProfileData;
 };
 
+/**
+ * Default values for creating a new Person.
+ *
+ * IDIOM: No explicit type annotation here! TypeScript infers the type from the
+ * object literal. The `createPerson` function below calls `Person({...defaults, ...overrides})`,
+ * which is typechecked at compile time. If `defaults` is missing any field that
+ * `Person` requires, the file fails to compile - even if `createPerson` is never called.
+ *
+ * This ensures you can't forget to update defaults when adding new Input fields.
+ *
+ * Notes:
+ * - Arrays of complex types need explicit typing: `[] as EmailEntry[]`
+ * - Union/enum types need `as const`: `viewMode: "main" as const`
+ */
+const defaults = {
+  displayName: "",
+  givenName: "",
+  familyName: "",
+  nickname: "",
+  pronouns: "",
+  emails: [] as EmailEntry[],
+  phones: [] as PhoneEntry[],
+  socialLinks: [] as SocialLink[],
+  birthday: "",
+  tags: [] as string[],
+  notes: "",
+  photoUrl: "",
+};
+
+/**
+ * Factory function to create a Person with sensible defaults.
+ * Import and use this instead of calling Person() directly from other patterns.
+ *
+ * @example
+ * import { createPerson } from "./person.tsx";
+ *
+ * // Create with all defaults
+ * navigateTo(createPerson());
+ *
+ * // Create with some fields set
+ * navigateTo(createPerson({ givenName: "Alice", familyName: "Smith" }));
+ */
+export function createPerson(overrides?: Partial<typeof defaults>) {
+  return Person({ ...defaults, ...overrides });
+}
+
 // Handler for charm link clicks
 const handleCharmLinkClick = handler<
   {

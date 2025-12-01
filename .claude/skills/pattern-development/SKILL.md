@@ -162,6 +162,91 @@ rm -rf ~/Code/labs/packages/toolshed/cache/memory/*.sqlite
 
 **NEVER do this without explicit user permission**
 
+## Factory Function Idiom for Pattern Instantiation
+
+When one pattern needs to instantiate another (like page-creator launching new patterns), use the **factory function idiom** to avoid having to enumerate all Input fields.
+
+### The Problem
+
+The framework requires ALL Input fields to be provided when instantiating a pattern:
+
+```typescript
+// ❌ FRAGILE - Must list every field, breaks when Input changes
+navigateTo(Person({
+  displayName: "",
+  givenName: "",
+  familyName: "",
+  // ... 10 more fields that must be kept in sync
+}));
+```
+
+### The Solution: Factory Functions
+
+Each pattern exports a `create<PatternName>` factory function:
+
+```typescript
+// In person.tsx
+
+// 1. Define defaults with NO explicit type annotation
+//    TypeScript infers the type from the object literal
+const defaults = {
+  displayName: "",
+  givenName: "",
+  familyName: "",
+  emails: [] as EmailEntry[],     // Arrays need type assertion
+  viewMode: "main" as const,      // Unions need `as const`
+  // ... all fields
+};
+
+// 2. Export factory function
+export function createPerson(overrides?: Partial<typeof defaults>) {
+  return Person({ ...defaults, ...overrides });
+}
+```
+
+### Why This Works
+
+**Goal:** Make it impossible to forget updating defaults when Input changes.
+
+**Mechanism:** The `Person({...defaults, ...overrides})` call is typechecked at compile time. If `defaults` is missing any field that `Person` requires:
+
+1. ✅ The pattern file fails to compile
+2. ✅ Deployment fails
+3. ✅ Error clearly shows which field is missing
+4. ✅ Forces you to fix it immediately
+
+**Key insight:** TypeScript checks function bodies at definition time, not call time. So even though `createPerson` may never be called in the file, the error still occurs.
+
+### Usage in Other Patterns
+
+```typescript
+// In page-creator.tsx
+import { createPerson } from "./person.tsx";
+
+const createPersonHandler = handler<void, void>((_, __) => {
+  return navigateTo(createPerson());  // Clean!
+});
+
+// Or with overrides:
+navigateTo(createPerson({ givenName: "Alice" }));
+```
+
+### Important Notes
+
+- **Arrays of complex types** need explicit typing: `[] as EmailEntry[]`
+- **Union/enum types** need `as const`: `viewMode: "main" as const`
+- **No separate runtime type needed** - inference + call-site checking handles it
+- Extra fields in defaults are silently ignored (harmless)
+
+### Verified Behavior
+
+Tested: Removing a field from `defaults` causes immediate compile error:
+```
+TS2345: Property 'givenName' is missing in type '...'
+  return Person({ ...defaults, ...overrides });
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+```
+
 ## Additional Development Skills
 
 For specific workflows, use these skills:
