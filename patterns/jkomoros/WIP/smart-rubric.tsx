@@ -94,7 +94,7 @@ interface QuickAddResponse {
 // Pattern
 // ============================================================================
 
-export default pattern<RubricInput, RubricOutput>(
+const SmartRubric = pattern<RubricInput, RubricOutput>(
   ({ title, options, dimensions, selection, quickAddPrompt, quickAddSubmitted }) => {
     // CRITICAL: Save references to Cells BEFORE entering .map() or derive() contexts
     // Inside .map() and derive(), closures may unwrap Cells to plain values
@@ -970,3 +970,26 @@ Be precise with categorical values - use exact label matches.`;
     };
   }
 );
+
+/**
+ * Default values for creating a new SmartRubric.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  title: "Decision Rubric",
+  options: [] as RubricOption[],
+  dimensions: [] as Dimension[],
+  selection: { value: null } as SelectionState,
+  quickAddPrompt: "",
+  quickAddSubmitted: "",
+};
+
+/**
+ * Factory function to create a SmartRubric with sensible defaults.
+ * @example navigateTo(createSmartRubric({ title: "My Decision" }));
+ */
+export function createSmartRubric(overrides?: Partial<typeof defaults>) {
+  return SmartRubric({ ...defaults, ...overrides });
+}
+
+export default SmartRubric;

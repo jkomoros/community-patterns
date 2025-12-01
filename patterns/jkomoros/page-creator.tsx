@@ -1,25 +1,27 @@
 /// <cts-enable />
 import { handler, NAME, navigateTo, pattern, UI } from "commontools";
 
-import Person from "./person.tsx";
-import Counter from "./lib/counter.tsx";
-import ShoppingListLauncher from "./shopping-list-launcher.tsx";
-import StoreMapper from "./store-mapper.tsx";
-import MetaAnalyzer from "./meta-analyzer.tsx";
-import FoodRecipe from "./food-recipe.tsx";
-import PromptInjectionTracker from "./prompt-injection-tracker.tsx";
-import SubstackSummarizer from "./substack-summarizer.tsx";
-import CozyPoll from "./cozy-poll.tsx";
-import RewardSpinner from "./reward-spinner.tsx";
-import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
-import MealOrchestrator from "./meal-orchestrator.tsx";
-import PreparedFood from "./prepared-food.tsx";
-import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
-import GoogleCalendarImporter from "./google-calendar-importer.tsx";
-import SmartRubric from "./WIP/smart-rubric.tsx";
-import FavoritesViewer from "./favorites-viewer.tsx";
-import RedactorWithVault from "./redactor-with-vault.tsx";
-import StarChart from "./star-chart.tsx";
+// Import factory functions - these use pattern defaults, avoiding manual field enumeration
+// See pattern-development skill for idiom documentation
+import { createPerson } from "./person.tsx";
+import { createCounter } from "./lib/counter.tsx";
+import { createShoppingListLauncher } from "./shopping-list-launcher.tsx";
+import { createStoreMapper } from "./store-mapper.tsx";
+import { createMetaAnalyzer } from "./meta-analyzer.tsx";
+import { createFoodRecipe } from "./food-recipe.tsx";
+import { createPromptInjectionTracker } from "./prompt-injection-tracker.tsx";
+import { createSubstackSummarizer } from "./substack-summarizer.tsx";
+import { createCozyPoll } from "./cozy-poll.tsx";
+import { createRewardSpinner } from "./reward-spinner.tsx";
+import { createCheeseboardSchedule } from "./cheeseboard-schedule.tsx";
+import { createMealOrchestrator } from "./meal-orchestrator.tsx";
+import { createPreparedFood } from "./prepared-food.tsx";
+import { createHotelMembershipExtractor } from "./hotel-membership-extractor.tsx";
+import { createGoogleCalendarImporter } from "./google-calendar-importer.tsx";
+import { createSmartRubric } from "./WIP/smart-rubric.tsx";
+import { createFavoritesViewer } from "./favorites-viewer.tsx";
+import { createRedactorWithVault } from "./redactor-with-vault.tsx";
+import { createStarChart } from "./star-chart.tsx";
 
 type Input = void;
 type Output = {
@@ -27,221 +29,30 @@ type Output = {
   [UI]: unknown;
 };
 
-const createPerson = handler<void, void>((_, __) => {
-  return navigateTo(Person({
-    displayName: "",
-    givenName: "",
-    familyName: "",
-    nickname: "",
-    pronouns: "",
-    emails: [],
-    phones: [],
-    socialLinks: [],
-    birthday: "",
-    tags: [],
-    notes: "",
-    photoUrl: "",
-  }));
-});
+// Handlers use factory functions - no manual field enumeration needed!
+// If a pattern adds new fields, the factory's defaults handle them automatically.
+// If defaults are missing fields, the factory function itself fails to compile.
 
-const createCounter = handler<void, void>((_, __) => {
-  return navigateTo(Counter({
-    value: 0,
-  }));
-});
-
-const createShoppingList = handler<void, void>((_, __) => {
-  return navigateTo(ShoppingListLauncher({
-    items: [],
-    storeData: null,
-    storeName: "Andronico's on Shattuck",
-  }));
-});
-
-const createStoreMapper = handler<void, void>((_, __) => {
-  return navigateTo(StoreMapper({
-    storeName: "",
-    aisles: [],
-    specialDepartments: [],
-    unassignedDepartments: ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"],
-    entrances: [],
-    notInStore: [],
-    inCenterAisles: [],
-    itemLocations: [],
-  }));
-});
-
-const createFoodRecipe = handler<void, void>((_, __) => {
-  return navigateTo(FoodRecipe({
-    name: "",
-    cuisine: "",
-    servings: 4,
-    yield: "",
-    difficulty: "medium" as const,
-    prepTime: 0,
-    cookTime: 0,
-    restTime: 0,
-    holdTime: 0,
-    category: "other" as const,
-    ingredients: [],
-    stepGroups: [],
-    tags: [],
-    notes: "",
-    source: "",
-  }));
-});
-
-const createMetaAnalyzer = handler<void, void>((_, __) => {
-  return navigateTo(MetaAnalyzer({}));
-});
-
-const createPromptInjectionTracker = handler<void, void>((_, __) => {
-  return navigateTo(PromptInjectionTracker({
-    gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
-    limit: 50,
-    articles: [],
-    authCharm: null,
-  }));
-});
-
-const createSubstackSummarizer = handler<void, void>((_, __) => {
-  return navigateTo(SubstackSummarizer({
-    gmailFilterQuery: "label:demo",
-    limit: 50,
-  }));
-});
-
-const createCozyPoll = handler<void, void>((_, __) => {
-  return navigateTo(CozyPoll({
-    question: "",
-    options: [],
-    votes: [],
-    voterCharms: [],
-    nextOptionId: 1,
-  }));
-});
-
-const createRewardSpinner = handler<void, void>((_, __) => {
-  return navigateTo(RewardSpinner({
-    currentEmoji: "🎁",
-    isSpinning: false,
-    generosity: 10,
-    spinSequence: [],
-    spinCount: 0,
-    payoutAnimationCount: 0,
-    spinHistory: [],
-  }));
-});
-
-const createCheeseboardSchedule = handler<void, void>((_, __) => {
-  return navigateTo(CheeseboardSchedule({
-    preferences: [],
-    history: [],
-  }));
-});
-
-const createMealOrchestrator = handler<void, void>((_, __) => {
-  return navigateTo(MealOrchestrator({
-    mealName: "",
-    mealDate: "",
-    mealTime: "",
-    guestCount: 4,
-    ovens: [{
-      rackPositions: 5,
-      physicalRacks: 2
-    }],
-    stovetopBurners: 4,
-    dietaryProfiles: [],
-    planningNotes: "",
-    recipes: [],
-    preparedFoods: [],
-    notes: "",
-  }));
-});
-
-const createPreparedFood = handler<void, void>((_, __) => {
-  return navigateTo(PreparedFood({
-    name: "",
-    servings: 4,
-    category: "other",
-    dietaryTags: [],
-    primaryIngredients: [],
-    description: "",
-    source: "",
-    prepTime: 0,
-    requiresReheating: false,
-    tags: [],
-  }));
-});
-
-const createHotelMembershipExtractor = handler<void, void>((_, __) => {
-  return navigateTo(HotelMembershipExtractor({
-    auth: {
-      token: "",
-      tokenType: "",
-      scope: [],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    },
-    memberships: [],
-    lastScanAt: 0,
-    isScanning: false,
-    maxSearches: 5,
-    currentScanMode: "full",
-  }));
-});
-
-const createGoogleCalendarImporter = handler<void, void>((_, __) => {
-  return navigateTo(GoogleCalendarImporter({
-    settings: {
-      daysBack: 7,
-      daysForward: 30,
-      maxResults: 100,
-      debugMode: false,
-    },
-    authCharm: null,
-  }));
-});
-
-const createSmartRubric = handler<void, void>((_, __) => {
-  return navigateTo(SmartRubric({
-    title: "Decision Rubric",
-    options: [],
-    dimensions: [],
-    selection: { value: null },
-    quickAddPrompt: "",
-    quickAddSubmitted: "",
-  }));
-});
-
-const createFavoritesViewer = handler<void, void>((_, __) => {
-  return navigateTo(FavoritesViewer({}));
-});
-
+const handleCreatePerson = handler<void, void>(() => navigateTo(createPerson()));
+const handleCreateCounter = handler<void, void>(() => navigateTo(createCounter()));
+const handleCreateShoppingList = handler<void, void>(() => navigateTo(createShoppingListLauncher()));
+const handleCreateStoreMapper = handler<void, void>(() => navigateTo(createStoreMapper()));
+const handleCreateFoodRecipe = handler<void, void>(() => navigateTo(createFoodRecipe()));
+const handleCreateMetaAnalyzer = handler<void, void>(() => navigateTo(createMetaAnalyzer()));
+const handleCreatePromptInjectionTracker = handler<void, void>(() => navigateTo(createPromptInjectionTracker()));
+const handleCreateSubstackSummarizer = handler<void, void>(() => navigateTo(createSubstackSummarizer()));
+const handleCreateCozyPoll = handler<void, void>(() => navigateTo(createCozyPoll()));
+const handleCreateRewardSpinner = handler<void, void>(() => navigateTo(createRewardSpinner()));
+const handleCreateCheeseboardSchedule = handler<void, void>(() => navigateTo(createCheeseboardSchedule()));
+const handleCreateMealOrchestrator = handler<void, void>(() => navigateTo(createMealOrchestrator()));
+const handleCreatePreparedFood = handler<void, void>(() => navigateTo(createPreparedFood()));
+const handleCreateHotelMembershipExtractor = handler<void, void>(() => navigateTo(createHotelMembershipExtractor()));
+const handleCreateGoogleCalendarImporter = handler<void, void>(() => navigateTo(createGoogleCalendarImporter()));
+const handleCreateSmartRubric = handler<void, void>(() => navigateTo(createSmartRubric()));
+const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(createFavoritesViewer()));
 // HACK: Combined vault + redactor pattern while wish("#pii-vault") is broken
-const createRedactorWithVault = handler<void, void>((_, __) => {
-  return navigateTo(RedactorWithVault({
-    title: "PII Redactor",
-    entries: [],
-    inputText: "",
-    llmResponse: "",
-  }));
-});
-
-const createStarChart = handler<void, void>((_, __) => {
-  return navigateTo(StarChart({
-    goalName: "Gold Star Goal",
-    goalDescription: "",
-    days: [],
-    viewMode: "main",
-    bestStreak: 0,
-    lastCelebratedMilestone: 0,
-    sparkleKey: 0,
-    debugDate: "",
-  }));
-});
+const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(createRedactorWithVault()));
+const handleCreateStarChart = handler<void, void>(() => navigateTo(createStarChart()));
 
 export default pattern<Input, Output>(
   (_) => {
@@ -258,136 +69,79 @@ export default pattern<Input, Output>(
               <p style="margin: 0; fontSize: 13px; color: #666;">Select a page type to create:</p>
 
               <ct-vstack style="gap: 8px;">
-                <ct-button
-                  onClick={createPerson()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreatePerson()} size="lg">
                   👤 New Person
                 </ct-button>
 
-                <ct-button
-                  onClick={createCounter()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateCounter()} size="lg">
                   🔢 New Counter
                 </ct-button>
 
-                <ct-button
-                  onClick={createShoppingList()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateShoppingList()} size="lg">
                   🛒 Shopping List
                 </ct-button>
 
-                <ct-button
-                  onClick={createStoreMapper()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateStoreMapper()} size="lg">
                   🗺️ Store Mapper
                 </ct-button>
 
-                <ct-button
-                  onClick={createFoodRecipe()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateFoodRecipe()} size="lg">
                   🍳 New Recipe
                 </ct-button>
 
-                <ct-button
-                  onClick={createMetaAnalyzer()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateMetaAnalyzer()} size="lg">
                   ⚡ Field Suggestions (Meta Analyzer)
                 </ct-button>
 
-                <ct-button
-                  onClick={createPromptInjectionTracker()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreatePromptInjectionTracker()} size="lg">
                   🔒 Prompt Injection Tracker
                 </ct-button>
 
-                <ct-button
-                  onClick={createSubstackSummarizer()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateSubstackSummarizer()} size="lg">
                   📧 Substack Summarizer
                 </ct-button>
 
-                <ct-button
-                  onClick={createCozyPoll()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateCozyPoll()} size="lg">
                   🗳️ Cozy Poll
                 </ct-button>
 
-                <ct-button
-                  onClick={createRewardSpinner()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateRewardSpinner()} size="lg">
                   🎰 Reward Spinner
                 </ct-button>
 
-                <ct-button
-                  onClick={createCheeseboardSchedule()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateCheeseboardSchedule()} size="lg">
                   🍕 Cheeseboard Schedule
                 </ct-button>
 
-                <ct-button
-                  onClick={createMealOrchestrator()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateMealOrchestrator()} size="lg">
                   🍽️ Meal Orchestrator
                 </ct-button>
 
-                <ct-button
-                  onClick={createPreparedFood()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreatePreparedFood()} size="lg">
                   🛒 Prepared Food
                 </ct-button>
 
-                <ct-button
-                  onClick={createHotelMembershipExtractor()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateHotelMembershipExtractor()} size="lg">
                   🏨 Hotel Membership Extractor
                 </ct-button>
 
-                <ct-button
-                  onClick={createGoogleCalendarImporter()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateGoogleCalendarImporter()} size="lg">
                   📅 Google Calendar Importer
                 </ct-button>
 
-                <ct-button
-                  onClick={createSmartRubric()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateSmartRubric()} size="lg">
                   📊 Smart Rubric
                 </ct-button>
 
-                <ct-button
-                  onClick={createFavoritesViewer()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateFavoritesViewer()} size="lg">
                   ⭐ Favorites Viewer
                 </ct-button>
 
-                <ct-button
-                  onClick={createRedactorWithVault()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateRedactorWithVault()} size="lg">
                   🛡️ PII Redactor
                 </ct-button>
 
-                <ct-button
-                  onClick={createStarChart()}
-                  size="lg"
-                >
+                <ct-button onClick={handleCreateStarChart()} size="lg">
                   ⭐ Star Chart
                 </ct-button>
               </ct-vstack>

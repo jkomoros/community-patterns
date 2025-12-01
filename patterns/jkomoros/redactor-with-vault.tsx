@@ -277,7 +277,7 @@ function restore(text: string, session: RedactionSession): string {
 // Combined Pattern
 // ============================================================================
 
-export default pattern<InputSchema>(({ title, entries, inputText, llmResponse }) => {
+const RedactorWithVault = pattern<InputSchema>(({ title, entries, inputText, llmResponse }) => {
   // Vault state
   const newCategory = Cell.of<PIICategory>("name");
   const newValue = Cell.of("");
@@ -486,3 +486,24 @@ export default pattern<InputSchema>(({ title, entries, inputText, llmResponse })
     restoredText,
   };
 });
+
+/**
+ * Default values for creating a new RedactorWithVault.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  title: "PII Redactor",
+  entries: [] as PIIEntry[],
+  inputText: "",
+  llmResponse: "",
+};
+
+/**
+ * Factory function to create a RedactorWithVault with sensible defaults.
+ * @example navigateTo(createRedactorWithVault({ title: "My Redactor" }));
+ */
+export function createRedactorWithVault(overrides?: Partial<typeof defaults>) {
+  return RedactorWithVault({ ...defaults, ...overrides });
+}
+
+export default RedactorWithVault;

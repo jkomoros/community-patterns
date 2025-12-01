@@ -250,7 +250,7 @@ Accept: application/json
 // PATTERN
 // ============================================================================
 
-export default pattern<HotelMembershipInput, HotelMembershipOutput>(({
+const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOutput>(({
   auth: inputAuth,
   memberships,
   lastScanAt,
@@ -1206,3 +1206,34 @@ Be thorough and search for all major hotel brands.`,
     ),
   };
 });
+
+/**
+ * Default values for creating a new HotelMembershipExtractor.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  auth: {
+    token: "",
+    tokenType: "",
+    scope: [] as string[],
+    expiresIn: 0,
+    expiresAt: 0,
+    refreshToken: "",
+    user: { email: "", name: "", picture: "" },
+  },
+  memberships: [] as MembershipRecord[],
+  lastScanAt: 0,
+  isScanning: false,
+  maxSearches: 5,
+  currentScanMode: "full" as const,
+};
+
+/**
+ * Factory function to create a HotelMembershipExtractor with sensible defaults.
+ * @example navigateTo(createHotelMembershipExtractor());
+ */
+export function createHotelMembershipExtractor(overrides?: Partial<typeof defaults>) {
+  return HotelMembershipExtractor({ ...defaults, ...overrides });
+}
+
+export default HotelMembershipExtractor;
