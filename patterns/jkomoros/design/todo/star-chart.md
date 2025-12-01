@@ -240,25 +240,27 @@ Adapt from reward-spinner:
 - [x] Stars for earned days, dashed circles for empty days
 - [x] Uses derive() to pre-compute timeline data
 
-### Phase 4: Streak System
-- [ ] Current streak calculation
-- [ ] Streak display prominently
-- [ ] Best streak tracking
-- [ ] Streak protection logic
-- [ ] Dimmed star visual for protected days
+### Phase 4: Streak System ✅
+- [x] Current streak calculation
+- [x] Streak display prominently (🔥 X days!)
+- [x] Best streak tracking
+- [x] Streak protection logic (auto-protect yesterday if 3+ day streak)
+- [x] Dimmed star visual for protected days (opacity + grayscale + tooltip)
 
 ### Phase 5: Celebrations
 - [ ] Milestone detection (3, 7, 14, 30 days)
 - [ ] Milestone celebration animations
 - [ ] Celebration messages
 
-### Phase 6: Corrections View
-- [ ] Toggle to corrections/details view
-- [ ] Simple list with toggle buttons
-- [ ] Back navigation to main view
+### Phase 6: Corrections View ✅
+- [x] Toggle to corrections/details view (viewMode state)
+- [x] Simple list with toggle buttons (last 30 days)
+- [x] Back navigation to main view
 
-### Phase 7: Polish
-- [ ] Goal name editing
+### Phase 7: Polish (In Progress)
+- [x] Goal name editing (retitling) - tappable header with ✏️ icon
+- [x] Optional goal description - shows in italics below goal name
+- [x] Settings view with ct-input for both fields
 - [ ] Smooth scrolling
 - [ ] Month/week dividers
 - [ ] Edge case handling
@@ -314,4 +316,39 @@ Adapt from reward-spinner:
 - String cells may be unwrapped or not - use defensive check:
   `typeof val === "string" ? val : val?.get?.() ?? ""`
 
-**Current charm ID:** baedreibqhryzc47fk3aaxbalyg36hmicozpcsb4glrl6ge7kqwciko6asa
+**Current charm ID:** baedreiekx6msjmb7jbk2zhl5cqo6cflsbpb5tj7s3ifartnnehx6ipkvsm
+
+### 2025-12-01 - Corrections View Implementation
+
+**Implemented Phase 6:**
+- Added `viewMode` state to switch between main and corrections views
+- Created `enterCorrections` and `exitCorrections` handlers for view switching
+- Created `toggleDayStar` handler for toggling stars on past days
+- Added `correctionsList` derive to generate last 30 days with toggle states
+
+**Key insight about handler context vs event:**
+- CommonTools handlers don't reliably pass DOM event attributes (like `data-*`)
+- Solution: Pass dynamic data (like the date) as part of the handler context instead
+- Instead of `onClick={handler(context)} data-date={val}` then reading `event.target.dataset.date`
+- Use `onClick={handler({ ...context, dateToToggle: val })}` and read from context
+
+**Corrections view UI:**
+- "← Back" button to return to main view
+- "Edit Past Days" header with instruction
+- Scrollable list of last 30 days
+- Each row shows date and toggle button (⭐ or ○)
+- Tapping toggles the star state for that day
+
+### 2025-12-01 - Phase 7: Goal Editing
+
+**Added settings view for goal editing:**
+- New `goalDescription` input field (optional)
+- New `viewMode: "settings"` for editing goal name/description
+- Tappable header in main view (with ✏️ icon) enters settings
+- Settings view has:
+  - Back button
+  - Goal Name input (ct-input with $value binding)
+  - Description input (optional, shows placeholder)
+  - Done button to return to main view
+- Description shows in italics below goal name when set
+- Three-way ifElse for viewMode: settings → corrections → main
