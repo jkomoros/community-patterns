@@ -25,7 +25,7 @@ function getPrimaryTag(tagStr: string): string {
   return match ? match[0] : "(no tag)";
 }
 
-export default pattern<Record<string, never>>((_) => {
+const FavoritesViewer = pattern<Record<string, never>>((_) => {
   // TODO(CT-1084): Update to wish({ query: "#favorites" }) when object syntax bug is fixed
   // Currently using legacy string syntax because object syntax compiles to {}
   // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
@@ -139,3 +139,15 @@ export default pattern<Record<string, never>>((_) => {
     ),
   };
 });
+
+/**
+ * Factory function to create a FavoritesViewer.
+ * No defaults needed since pattern takes empty input.
+ * See pattern-development skill for idiom documentation.
+ * @example navigateTo(createFavoritesViewer());
+ */
+export function createFavoritesViewer() {
+  return FavoritesViewer({});
+}
+
+export default FavoritesViewer;
