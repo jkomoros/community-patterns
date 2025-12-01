@@ -7,7 +7,7 @@ interface SubstackInput {
   limit: Default<number, 50>;
 }
 
-export default pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
+const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
   // Import emails from Substack
   // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
   const importer = GmailImporter({
@@ -116,3 +116,22 @@ export default pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
     groupedByNewsletter,
   };
 });
+
+/**
+ * Default values for creating a new SubstackSummarizer.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  gmailFilterQuery: "label:demo",
+  limit: 50,
+};
+
+/**
+ * Factory function to create a SubstackSummarizer with sensible defaults.
+ * @example navigateTo(createSubstackSummarizer());
+ */
+export function createSubstackSummarizer(overrides?: Partial<typeof defaults>) {
+  return SubstackSummarizer({ ...defaults, ...overrides });
+}
+
+export default SubstackSummarizer;

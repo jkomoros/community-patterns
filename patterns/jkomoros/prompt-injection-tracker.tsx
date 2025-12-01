@@ -494,7 +494,7 @@ interface TrackerOutput {
   extractedLinks: string[];
 }
 
-export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles, authCharm }) => {
+const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles, authCharm }) => {
   // ==========================================================================
   // DEBUG: Pipeline Instrumentation (for caching investigation)
   // Remove this section once caching issues are resolved
@@ -1566,3 +1566,24 @@ export default pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, 
     emails: importer.emails,
   };
 });
+
+/**
+ * Default values for creating a new PromptInjectionTracker.
+ * See pattern-development skill for idiom documentation.
+ */
+const defaults = {
+  gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
+  limit: 50,
+  articles: [] as Article[],
+  authCharm: null as any,
+};
+
+/**
+ * Factory function to create a PromptInjectionTracker with sensible defaults.
+ * @example navigateTo(createPromptInjectionTracker());
+ */
+export function createPromptInjectionTracker(overrides?: Partial<typeof defaults>) {
+  return PromptInjectionTracker({ ...defaults, ...overrides });
+}
+
+export default PromptInjectionTracker;
