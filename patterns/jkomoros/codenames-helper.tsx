@@ -177,10 +177,10 @@ function initializeEmptyBoard(): BoardWord[] {
 }
 
 interface CodenamesHelperInput {
-  board: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
-  myTeam: Cell<Default<Team, "red">>;
-  setupMode: Cell<Default<boolean, true>>;
-  selectedWordIndex: Cell<Default<number, 999>>;
+  board?: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
+  myTeam?: Cell<Default<Team, "red">>;
+  setupMode?: Cell<Default<boolean, true>>;
+  selectedWordIndex?: Cell<Default<number, 999>>;
 }
 
 // Initialize once for default
