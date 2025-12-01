@@ -222,8 +222,8 @@ Adapt from reward-spinner:
 
 ### Phase 2: Award Flow ✅
 - [x] "Award Star" button for today
-- [x] Two-step flow (parent enables → child places)
-- [x] awardEnabled state toggle
+- [x] ~~Two-step flow (parent enables → child places)~~ Simplified to single tap
+- [x] ~~awardEnabled state toggle~~ Removed, single tap adds star
 - [x] Basic star placement on tap
 - [x] Clear instructions for parent/child
 
@@ -232,7 +232,13 @@ Adapt from reward-spinner:
 - [x] Golden shimmer CSS animation
 - [x] Subtle jiggle animation
 - [x] Glow/shadow effect
-- [ ] Sparkle burst on placement (adapt from reward-spinner) - deferred
+- [x] Sparkle burst on placement (8 particles with animation)
+
+### Phase 3.5: Horizontal Timeline ✅
+- [x] Horizontal scrollable timeline showing all 30 days
+- [x] Dates displayed above each day slot
+- [x] Stars for earned days, dashed circles for empty days
+- [x] Uses derive() to pre-compute timeline data
 
 ### Phase 4: Streak System
 - [ ] Current streak calculation
@@ -284,3 +290,28 @@ Adapt from reward-spinner:
 - Two-step award flow (parent enables, child places)
 - Magical star effects (shimmer, jiggle, glow via CSS animations)
 - Sparkle burst animation deferred for later
+
+### 2025-12-01 - Horizontal Timeline & Simplification
+
+**Simplified award flow:**
+- Removed two-step parent/child flow
+- Single tap on star button adds star immediately
+- More intuitive for daily use
+
+**Added sparkle burst animation:**
+- 8 sparkle particles (✦) burst outward on star placement
+- Star pops with scale/rotate animation
+- Uses sparkleKey state to trigger animation replay
+
+**Horizontal scrolling timeline:**
+- Changed from vertical list of only starred days to horizontal scroll of ALL days
+- Shows last 30 days with date labels above each slot
+- Stars appear for earned days, dashed circles for empty days
+- Uses derive() to pre-compute timeline data (avoid infinite loops from computed in map)
+
+**Key insight about derive():**
+- Inside derive callback, Cell parameters may still need .get() for arrays
+- String cells may be unwrapped or not - use defensive check:
+  `typeof val === "string" ? val : val?.get?.() ?? ""`
+
+**Current charm ID:** baedreibqhryzc47fk3aaxbalyg36hmicozpcsb4glrl6ge7kqwciko6asa
