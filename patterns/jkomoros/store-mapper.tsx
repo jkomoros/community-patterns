@@ -2440,7 +2440,7 @@ What common sections might be missing?`,
                               >
                                 + Add All {nonConflictCount} New
                               </ct-button>
-                            ) : null}
+                            ) : <></>}
                           </div>
                           <div
                             style={{
@@ -2500,7 +2500,7 @@ What common sections might be missing?`,
                                               ✓ Already in aisle: {overlapAnalysis.overlap.filter(o => o && o.suggested).map(o => o.suggested).join(', ')}
                                             </div>
                                           </div>
-                                        ) : null}
+                                        ) : <></>}
 
                                         {overlapAnalysis && overlapAnalysis.hasNewItems && overlapAnalysis.newItems && overlapAnalysis.newItems.length > 0 ? (
                                           <div style={{ marginBottom: "4px" }}>
@@ -2533,7 +2533,7 @@ What common sections might be missing?`,
                                               );
                                             })}
                                           </div>
-                                        ) : null}
+                                        ) : <></>}
 
                                         {overlapAnalysis && !overlapAnalysis.hasNewItems ? (
                                           <div style={{ color: "#999", fontSize: "10px", fontStyle: "italic" }}>
@@ -2562,7 +2562,7 @@ What common sections might be missing?`,
                                               + Merge Selected into Aisle {extractedAisle.name}
                                             </ct-button>
                                           </div>
-                                        ) : null}
+                                        ) : <></>}
                                       </div>
                                     ) : (
                                       // New aisle - show all products
