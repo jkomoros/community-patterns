@@ -382,6 +382,46 @@ const SpindleBoard = pattern<SpindleBoardInput>(
       showAddLevelModal.set(false);
     });
 
+    // Remove a level (only allowed for the last/bottom level, not root)
+    const removeLevel = handler<
+      unknown,
+      {
+        levels: Cell<LevelConfig[]>;
+        spindles: Cell<SpindleConfig[]>;
+        levelIndex: Cell<number> | number;
+      }
+    >((_, { levels, spindles, levelIndex }) => {
+      const currentLevels = levels.get() || [];
+      const currentSpindles = spindles.get() || [];
+      // Support both Cell and plain number
+      const levelIndexVal = typeof levelIndex === "number" ? levelIndex : levelIndex.get();
+
+      // Safety checks
+      if (levelIndexVal === 0) {
+        console.warn("Cannot remove root level");
+        return;
+      }
+
+      if (levelIndexVal !== currentLevels.length - 1) {
+        console.warn("Can only remove the last level");
+        return;
+      }
+
+      // Remove all spindles at this level
+      const filteredSpindles = currentSpindles.filter(
+        (s) => s.levelIndex !== levelIndexVal
+      );
+
+      // Remove the level
+      const filteredLevels = currentLevels.filter(
+        (_, idx) => idx !== levelIndexVal
+      );
+
+      // Update both
+      spindles.set(filteredSpindles);
+      levels.set(filteredLevels);
+    });
+
     // Pin an option
     const pinOption = handler<
       unknown,
@@ -1275,6 +1315,30 @@ Make them diverse in genre and tone:
                       >
                         Respin
                       </button>
+                      {/* Remove Level button - only for last level */}
+                      {ifElse(
+                        derive(
+                          { levelIndex: result.levelIndex, levels },
+                          (d: { levelIndex: number; levels: LevelConfig[] }) =>
+                            d.levelIndex === (d.levels?.length || 0) - 1
+                        ),
+                        <button
+                          onClick={removeLevel({ levels, spindles, levelIndex: result.levelIndex })}
+                          style={{
+                            padding: "6px 12px",
+                            background: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                          }}
+                          title="Remove this level"
+                        >
+                          🗑️ Remove Level
+                        </button>,
+                        null
+                      )}
                     </div>
                   </div>
 
@@ -1722,35 +1786,62 @@ Make them diverse in genre and tone:
             Cannot map over derive results, so we render JSX inside the derive callback.
             See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
           */}
-          {derive(orphanLevels, (orphans: Array<{ index: number; title: string }>) => {
-            if (!orphans || orphans.length === 0) return null;
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
-                {orphans.map((level) => (
-                  <div
-                    key={level.index}
-                    style={{
-                      border: "2px dashed #d1d5db",
-                      borderRadius: "8px",
-                      background: "#f9fafb",
-                      padding: "24px",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", fontSize: "14px", color: "#6b7280" }}>
-                      Level {level.index} - {level.title}
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
-                      ⏳ Waiting for parent level to be pinned
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
-                      Pin an option in the level above to generate options here
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
+          {derive(
+            { orphanLevels, levels },
+            (deps: { orphanLevels: Array<{ index: number; title: string }>; levels: LevelConfig[] }) => {
+              const orphans = deps.orphanLevels;
+              const totalLevels = deps.levels?.length || 0;
+              if (!orphans || orphans.length === 0) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+                  {orphans.map((level) => {
+                    const isLastLevel = level.index === totalLevels - 1;
+                    return (
+                      <div
+                        key={level.index}
+                        style={{
+                          border: "2px dashed #d1d5db",
+                          borderRadius: "8px",
+                          background: "#f9fafb",
+                          padding: "24px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+                          <div style={{ fontWeight: "600", fontSize: "14px", color: "#6b7280" }}>
+                            Level {level.index} - {level.title}
+                          </div>
+                          {isLastLevel && (
+                            <button
+                              onClick={removeLevel({ levels, spindles, levelIndex: level.index })}
+                              style={{
+                                padding: "2px 8px",
+                                background: "#fee2e2",
+                                color: "#dc2626",
+                                border: "1px solid #fecaca",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                              }}
+                              title="Remove this level"
+                            >
+                              🗑️ Remove
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "8px" }}>
+                          ⏳ Waiting for parent level to be pinned
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "4px" }}>
+                          Pin an option in the level above to generate options here
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+          )}
 
           {/* Add Level Button */}
           <div
