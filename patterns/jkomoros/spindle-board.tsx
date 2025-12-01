@@ -1018,8 +1018,20 @@ Make them diverse in genre and tone:
                 alignItems: "flex-start",
               }}
             >
-              <div>
-                <h1 style={{ margin: "0 0 8px 0", fontSize: "24px" }}>{boardTitle}</h1>
+              <div style={{ flex: 1 }}>
+                <ct-input
+                  $value={boardTitle}
+                  placeholder="Story Board Title"
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                    border: "none",
+                    background: "transparent",
+                    padding: "0",
+                    margin: "0 0 8px 0",
+                    width: "100%",
+                  }}
+                />
                 {ifElse(
                   derive(boardDescription, (d: string) => d && d.trim() !== ""),
                   <p style={{ margin: 0, color: "#666" }}>{boardDescription}</p>,
