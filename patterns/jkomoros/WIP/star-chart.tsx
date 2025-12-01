@@ -118,7 +118,7 @@ export default pattern<StarChartInput, StarChartOutput>(
       return allDays.some((d) => d.date === todayStr && d.earned);
     });
 
-    // Generate timeline: last 30 days relative to effective today, with star status
+    // Generate timeline: dates from first star to yesterday (today shown separately)
     // Using derive to pre-compute to avoid computed() inside map (causes infinite loops)
     const timeline = derive(
       { days, debugDate },
@@ -126,15 +126,30 @@ export default pattern<StarChartInput, StarChartOutput>(
         const daysArray = daysCell.get();
         const override = typeof debugDateCell === "string" ? debugDateCell : debugDateCell?.get?.() ?? "";
         const todayStr = override || getTodayString();
+
+        // Find the earliest star date
+        const starDates = daysArray
+          .filter((d: DayRecord) => d.earned)
+          .map((d: DayRecord) => d.date)
+          .sort();
+
+        // If no stars exist, return empty timeline
+        if (starDates.length === 0) {
+          return [];
+        }
+
+        const earliestStarDate = starDates[0];
         const baseDate = new Date(todayStr + "T12:00:00");
+        const earliestDate = new Date(earliestStarDate + "T12:00:00");
 
         const result: TimelineDay[] = [];
-        // Start from yesterday (today is shown separately), go back 30 days
-        for (let i = 1; i <= 30; i++) {
-          const date = new Date(baseDate);
-          date.setDate(baseDate.getDate() - i);
-          const dateStr = date.toISOString().split("T")[0];
-          const displayDate = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        // Start from yesterday, go back to earliest star date
+        let currentDate = new Date(baseDate);
+        currentDate.setDate(currentDate.getDate() - 1); // Start from yesterday
+
+        while (currentDate >= earliestDate) {
+          const dateStr = currentDate.toISOString().split("T")[0];
+          const displayDate = currentDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
           const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
           result.push({
@@ -143,7 +158,11 @@ export default pattern<StarChartInput, StarChartOutput>(
             hasStar: dayRecord?.earned ?? false,
             rotation: dayRecord?.rotation ?? 0,
           });
+
+          // Move to previous day
+          currentDate.setDate(currentDate.getDate() - 1);
         }
+
         return result;
       }
     );
