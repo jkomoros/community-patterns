@@ -247,6 +247,33 @@ TS2345: Property 'givenName' is missing in type '...'
                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ```
 
+## Updating the Pattern README
+
+**IMPORTANT:** When creating or significantly modifying patterns, update `patterns/$GITHUB_USER/README.md`.
+
+The README serves as an index of all patterns with descriptions of what they do and what's interesting about them.
+
+**When to update:**
+- Creating a new pattern (add to appropriate section)
+- Moving a WIP pattern to stable (move entry from WIP to stable section)
+- Significantly changing a pattern's functionality (update description)
+- Adding interesting new features to a pattern (add to "Interesting features" list)
+
+**What to include:**
+- Pattern filename with brief description
+- "Interesting features" bullet points highlighting notable techniques
+- Placement in appropriate category (Meal Planning, Security, Developer Tools, etc.)
+
+**Example entry:**
+```markdown
+#### `my-pattern.tsx`
+Brief description of what it does.
+
+**Interesting features:**
+- Notable technique or framework feature demonstrated
+- Unique functionality worth highlighting
+```
+
 ## Additional Development Skills
 
 For specific workflows, use these skills:
@@ -255,3 +282,4 @@ For specific workflows, use these skills:
 - **recovery-strategies** - What to do when stuck
 - **git-workflow** - Git operations and PRs
 - **todo-files** - Manage TODO files for complex patterns
+- **land-branch** - Land feature branches (includes README verification)
