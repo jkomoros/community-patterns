@@ -1,8 +1,9 @@
 /// <cts-enable />
 /**
- * SPINDLE BOARD V2 - Level-Based Architecture
+ * STORY WEAVER - Level-Based Architecture
+ * (Formerly Spindle Board)
  *
- * Key changes from v1:
+ * Key features:
  * - Configure LEVELS, not individual spindles
  * - Each level has: title, defaultPrompt, branchFactor
  * - Spindles created lazily when parent is pinned
@@ -136,8 +137,8 @@ function simpleHash(str: string): string {
 // INPUT INTERFACE
 // =============================================================================
 
-interface SpindleBoardInput {
-  boardTitle: Default<string, "My Story Board">;
+interface StoryWeaverInput {
+  boardTitle: Default<string, "My Story Weaver">;
   boardDescription: Default<string, "">;
 
   // Dynamic arrays (empty default + handler pattern)
@@ -176,7 +177,7 @@ interface SpindleBoardInput {
 // PATTERN
 // =============================================================================
 
-const SpindleBoard = pattern<SpindleBoardInput>(
+const StoryWeaver = pattern<StoryWeaverInput>(
   ({
     boardTitle,
     boardDescription,
@@ -2888,11 +2889,11 @@ Make them diverse in genre and tone:
 // =============================================================================
 
 /**
- * Default values for SpindleBoard creation.
- * Used by createSpindleBoard factory to avoid manual field enumeration.
+ * Default values for StoryWeaver creation.
+ * Used by createStoryWeaver factory to avoid manual field enumeration.
  */
 const defaults = {
-  boardTitle: "My Story Board",
+  boardTitle: "My Story Weaver",
   boardDescription: "",
   levels: DEFAULT_LEVELS,
   spindles: [DEFAULT_ROOT_SPINDLE] as SpindleConfig[],
@@ -2914,11 +2915,11 @@ const defaults = {
 };
 
 /**
- * Factory function to create a SpindleBoard with sensible defaults.
- * @example navigateTo(createSpindleBoard({ boardTitle: "My Story" }));
+ * Factory function to create a StoryWeaver with sensible defaults.
+ * @example navigateTo(createStoryWeaver({ boardTitle: "My Story" }));
  */
-export function createSpindleBoard(overrides?: Partial<typeof defaults>) {
-  return SpindleBoard({ ...defaults, ...overrides });
+export function createStoryWeaver(overrides?: Partial<typeof defaults>) {
+  return StoryWeaver({ ...defaults, ...overrides });
 }
 
-export default SpindleBoard;
+export default StoryWeaver;

@@ -22,7 +22,7 @@ import { createSmartRubric } from "./WIP/smart-rubric.tsx";
 import { createFavoritesViewer } from "./favorites-viewer.tsx";
 import { createRedactorWithVault } from "./redactor-with-vault.tsx";
 import { createStarChart } from "./star-chart.tsx";
-import { createSpindleBoard } from "./spindle-board.tsx";
+import { createStoryWeaver } from "./story-weaver.tsx";
 
 type Input = void;
 type Output = {
@@ -54,7 +54,7 @@ const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(createF
 // HACK: Combined vault + redactor pattern while wish("#pii-vault") is broken
 const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(createRedactorWithVault()));
 const handleCreateStarChart = handler<void, void>(() => navigateTo(createStarChart()));
-const handleCreateSpindleBoard = handler<void, void>(() => navigateTo(createSpindleBoard()));
+const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(createStoryWeaver()));
 
 export default pattern<Input, Output>(
   (_) => {
@@ -147,8 +147,8 @@ export default pattern<Input, Output>(
                   ⭐ Star Chart
                 </ct-button>
 
-                <ct-button onClick={handleCreateSpindleBoard()} size="lg">
-                  🌀 Spindle Board
+                <ct-button onClick={handleCreateStoryWeaver()} size="lg">
+                  🧵 Story Weaver
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
