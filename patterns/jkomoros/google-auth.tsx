@@ -105,7 +105,7 @@ export default pattern<Input, Output>(
       { selectedScopes, auth },
       ({ selectedScopes, auth }) => {
         if (!auth?.token) return false;
-        const grantedScopes = auth.scope || [];
+        const grantedScopes: string[] = auth.scope || [];
         for (const [key, enabled] of Object.entries(selectedScopes)) {
           const scopeUrl = SCOPE_MAP[key as keyof typeof SCOPE_MAP];
           if (enabled && scopeUrl && !grantedScopes.includes(scopeUrl)) {

@@ -16,7 +16,7 @@ import {
   UI,
   wish,
 } from "commontools";
-import GoogleAuth from "../google-auth.tsx";
+import GoogleAuth from "./google-auth.tsx";
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
