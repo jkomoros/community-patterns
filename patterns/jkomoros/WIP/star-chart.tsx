@@ -438,7 +438,6 @@ export default pattern<StarChartInput, StarChartOutput>(
               style={{
                 display: "flex",
                 flexDirection: "column",
-                minHeight: "100dvh",
                 padding: "20px",
                 gap: "20px",
               }}
@@ -575,7 +574,6 @@ export default pattern<StarChartInput, StarChartOutput>(
               style={{
                 display: "flex",
                 flexDirection: "column",
-                minHeight: "100dvh",
                 padding: "20px",
                 gap: "16px",
               }}
@@ -683,7 +681,6 @@ export default pattern<StarChartInput, StarChartOutput>(
               style={{
                 display: "flex",
                 flexDirection: "column",
-                minHeight: "100dvh",
                 padding: "20px",
                 gap: "16px",
               }}
