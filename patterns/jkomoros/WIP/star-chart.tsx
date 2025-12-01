@@ -87,17 +87,24 @@ interface StarChartOutput {
   debugDate: Cell<Default<string, "">>;
 }
 
-// Helper to get today's date as YYYY-MM-DD
+// Helper to format a Date as YYYY-MM-DD in local timezone
+function formatDateLocal(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Helper to get today's date as YYYY-MM-DD (local timezone)
 function getTodayString(): string {
-  const now = new Date();
-  return now.toISOString().split("T")[0];
+  return formatDateLocal(new Date());
 }
 
 // Helper to get previous day's date string
 function getPreviousDay(dateStr: string): string {
   const date = new Date(dateStr + "T12:00:00");
   date.setDate(date.getDate() - 1);
-  return date.toISOString().split("T")[0];
+  return formatDateLocal(date);
 }
 
 // Helper to calculate current streak from days array
@@ -351,7 +358,7 @@ export default pattern<StarChartInput, StarChartOutput>(
         for (let i = 0; i < 30; i++) {
           const currentDate = new Date(baseDate);
           currentDate.setDate(baseDate.getDate() - i);
-          const dateStr = currentDate.toISOString().split("T")[0];
+          const dateStr = formatDateLocal(currentDate);
           const displayDate = currentDate.toLocaleDateString("en-US", {
             weekday: "short",
             month: "short",
@@ -400,7 +407,7 @@ export default pattern<StarChartInput, StarChartOutput>(
         let currentDate = new Date(baseDate);
 
         while (currentDate >= earliestDate) {
-          const dateStr = currentDate.toISOString().split("T")[0];
+          const dateStr = formatDateLocal(currentDate);
           const displayDate = currentDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
           const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
