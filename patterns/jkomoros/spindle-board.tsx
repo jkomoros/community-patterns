@@ -160,6 +160,11 @@ interface SpindleBoardInput {
   showViewPromptModal: Default<boolean, false>;
   viewPromptSpindleId: Default<string, "">;
 
+  // Edit Spindle Prompt Modal state
+  showEditSpindlePromptModal: Default<boolean, false>;
+  editingSpindlePromptId: Default<string, "">;
+  editSpindlePromptText: Default<string, "">;
+
   // Root synopsis input
   synopsisText: Default<string, "">;
 
@@ -187,6 +192,9 @@ const SpindleBoard = pattern<SpindleBoardInput>(
     editLevelPrompt,
     showViewPromptModal,
     viewPromptSpindleId,
+    showEditSpindlePromptModal,
+    editingSpindlePromptId,
+    editSpindlePromptText,
     synopsisText,
     synopsisIdeasNonce,
   }) => {
@@ -624,6 +632,86 @@ const SpindleBoard = pattern<SpindleBoardInput>(
       }
     );
 
+    // Open edit spindle prompt modal
+    const openEditSpindlePromptModal = handler<
+      unknown,
+      {
+        showEditSpindlePromptModal: Cell<boolean>;
+        editingSpindlePromptId: Cell<string>;
+        editSpindlePromptText: Cell<string>;
+        spindles: Cell<SpindleConfig[]>;
+        spindleId: Cell<string>;
+      }
+    >((_, { showEditSpindlePromptModal, editingSpindlePromptId, editSpindlePromptText, spindles, spindleId }) => {
+      const id = spindleId.get();
+      const currentSpindles = spindles.get() || [];
+      const spindle = currentSpindles.find((s) => s.id === id);
+      if (spindle) {
+        editingSpindlePromptId.set(id);
+        editSpindlePromptText.set(spindle.extraPrompt || "");
+        showEditSpindlePromptModal.set(true);
+      }
+    });
+
+    // Close edit spindle prompt modal
+    const closeEditSpindlePromptModal = handler<unknown, { showEditSpindlePromptModal: Cell<boolean> }>(
+      (_, { showEditSpindlePromptModal }) => {
+        showEditSpindlePromptModal.set(false);
+      }
+    );
+
+    // Save spindle prompt
+    const saveSpindlePrompt = handler<
+      unknown,
+      {
+        spindles: Cell<SpindleConfig[]>;
+        editingSpindlePromptId: Cell<string>;
+        editSpindlePromptText: Cell<string>;
+        showEditSpindlePromptModal: Cell<boolean>;
+      }
+    >((_, { spindles, editingSpindlePromptId, editSpindlePromptText, showEditSpindlePromptModal }) => {
+      const id = editingSpindlePromptId.get();
+      const newPrompt = editSpindlePromptText.get() || "";
+      const current = [...(spindles.get() || [])];
+      const idx = current.findIndex((s) => s.id === id);
+      if (idx >= 0) {
+        current[idx] = {
+          ...current[idx],
+          extraPrompt: newPrompt,
+          // Clear pin when prompt changes (forces regeneration)
+          pinnedOptionIndex: -1,
+          pinnedOutput: "",
+          parentHashWhenPinned: "",
+        };
+        spindles.set(current);
+      }
+      showEditSpindlePromptModal.set(false);
+    });
+
+    // Clear spindle prompt
+    const clearSpindlePrompt = handler<
+      unknown,
+      {
+        spindles: Cell<SpindleConfig[]>;
+        spindleId: Cell<string>;
+      }
+    >((_, { spindles, spindleId }) => {
+      const id = spindleId.get();
+      const current = [...(spindles.get() || [])];
+      const idx = current.findIndex((s) => s.id === id);
+      if (idx >= 0) {
+        current[idx] = {
+          ...current[idx],
+          extraPrompt: "",
+          // Clear pin when prompt changes (forces regeneration)
+          pinnedOptionIndex: -1,
+          pinnedOutput: "",
+          parentHashWhenPinned: "",
+        };
+        spindles.set(current);
+      }
+    });
+
     // =========================================================================
     // REACTIVE PROCESSING
     // =========================================================================
@@ -775,6 +863,7 @@ const SpindleBoard = pattern<SpindleBoardInput>(
       const levelTitle = derive(levelConfig, (lc) => (lc as LevelConfig)?.title || "Level");
       const levelPrompt = derive(levelConfig, (lc) => (lc as LevelConfig)?.defaultPrompt || "");
       const extraPromptValue = derive(config, (c) => (c as SpindleConfig)?.extraPrompt || "");
+      const hasExtraPrompt = derive(extraPromptValue, (p: string) => !!p && p.trim() !== "");
       const pinnedIdx = derive(config, (c) => (c as SpindleConfig)?.pinnedOptionIndex ?? -1);
 
       // Per-option pinned state
@@ -855,6 +944,7 @@ const SpindleBoard = pattern<SpindleBoardInput>(
         levelTitle,
         levelPrompt,
         extraPrompt: extraPromptValue,
+        hasExtraPrompt,
         pinnedIdx,
         isPinned0,
         isPinned1,
@@ -1184,7 +1274,7 @@ Make them diverse in genre and tone:
                 result.isRoot,
                 null, // Don't show root (it's the synopsis input)
                 <div>
-                  {/* Level Group Header - shown only for first peer */}
+                  {/* Level Group Header - shown only for first peer when multiple peers */}
                   {ifElse(
                     derive(
                       { isFirstPeer: result.isFirstPeer, siblingCount: result.siblingCount },
@@ -1192,19 +1282,77 @@ Make them diverse in genre and tone:
                     ),
                     <div
                       style={{
-                        padding: "12px 16px",
                         marginTop: "8px",
                         marginBottom: "8px",
                         background: derive(result.levelIndex, (idx: number) => levelColors[(idx - 1) % levelColors.length]?.headerBg || "#f3f4f6"),
                         borderLeft: derive(result.levelIndex, (idx: number) => `4px solid ${levelColors[(idx - 1) % levelColors.length]?.border || "#6b7280"}`),
                         borderRadius: "4px",
-                        fontWeight: "600",
-                        fontSize: "14px",
-                        color: "#374151",
+                        overflow: "hidden",
                       }}
                     >
-                      {result.levelTitle}{" "}
-                      {derive(result.siblingCount, (count: number) => `(${count} peers)`)}
+                      {/* Level title and peer count */}
+                      <div
+                        style={{
+                          padding: "12px 16px",
+                          fontWeight: "600",
+                          fontSize: "14px",
+                          color: "#374151",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span>
+                          {result.levelTitle}{" "}
+                          {derive(result.siblingCount, (count: number) => `(${count} peers)`)}
+                        </span>
+                        <button
+                          onClick={openEditLevelModal({
+                            showEditLevelModal,
+                            editingLevelIndex,
+                            editLevelTitle,
+                            editLevelPrompt,
+                            levels,
+                            levelIndex: result.levelIndex,
+                          })}
+                          style={{
+                            padding: "4px 8px",
+                            background: "rgba(0,0,0,0.1)",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            color: "#4b5563",
+                          }}
+                        >
+                          Edit Level Prompt
+                        </button>
+                      </div>
+                      {/* Level Prompt - shared by all peers */}
+                      <div
+                        style={{
+                          padding: "8px 16px 12px 16px",
+                          fontSize: "13px",
+                          color: "#4b5563",
+                          borderTop: "1px solid rgba(0,0,0,0.1)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "600",
+                            color: "#6b7280",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Level Prompt (shared by all peers)
+                        </div>
+                        <div style={{ lineHeight: "1.4" }}>
+                          {result.levelPrompt}
+                        </div>
+                      </div>
                     </div>,
                     null
                   )}
@@ -1354,35 +1502,133 @@ Make them diverse in genre and tone:
                     </div>
                   </div>
 
-                  {/* Prompt Display - always visible above options */}
+                  {/* Level Prompt Display - only when siblingCount === 1 (otherwise shown in group header) */}
+                  {ifElse(
+                    derive(result.siblingCount, (count: number) => count === 1),
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        borderBottom: "1px solid #e5e7eb",
+                        background: "#fafafa",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: "#6b7280",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        Level Prompt
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#374151",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        {result.levelPrompt}
+                      </div>
+                    </div>,
+                    null
+                  )}
+
+                  {/* Spindle Prompt - unique per spindle, always visible */}
                   <div
                     style={{
                       padding: "12px 16px",
                       borderBottom: "1px solid #e5e7eb",
-                      background: "#fafafa",
+                      background: "#f5f3ff",
                     }}
                   >
                     <div
                       style={{
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        color: "#6b7280",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                         marginBottom: "6px",
                       }}
                     >
-                      Prompt
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: "600",
+                          color: "#7c3aed",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Spindle Prompt
+                      </div>
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button
+                          onClick={openEditSpindlePromptModal({
+                            showEditSpindlePromptModal,
+                            editingSpindlePromptId,
+                            editSpindlePromptText,
+                            spindles,
+                            spindleId: result.spindleId,
+                          })}
+                          style={{
+                            padding: "2px 8px",
+                            background: "#8b5cf6",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                          }}
+                        >
+                          Edit
+                        </button>
+                        {ifElse(
+                          result.hasExtraPrompt,
+                          <button
+                            onClick={clearSpindlePrompt({
+                              spindles,
+                              spindleId: result.spindleId,
+                            })}
+                            style={{
+                              padding: "2px 8px",
+                              background: "#fecaca",
+                              color: "#dc2626",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                          >
+                            Clear
+                          </button>,
+                          null
+                        )}
+                      </div>
                     </div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        color: "#374151",
-                        lineHeight: "1.5",
-                      }}
-                    >
-                      {result.levelPrompt}
-                    </div>
+                    {ifElse(
+                      result.hasExtraPrompt,
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "#5b21b6",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        {result.extraPrompt}
+                      </div>,
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#9ca3af",
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No spindle-specific guidance set. Click Edit to add direction unique to this spindle (e.g., "Play up the wings metaphor" or "Focus on character chemistry").
+                      </div>
+                    )}
                   </div>
 
                   {/* Options Grid or Loading State */}
@@ -2533,6 +2779,98 @@ Make them diverse in genre and tone:
             </div>,
             null
           )}
+
+          {/* Edit Spindle Prompt Modal */}
+          {ifElse(
+            showEditSpindlePromptModal,
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  padding: "24px",
+                  borderRadius: "12px",
+                  width: "500px",
+                  maxWidth: "90%",
+                }}
+              >
+                <h2 style={{ margin: "0 0 16px 0", fontSize: "18px", color: "#7c3aed" }}>
+                  Edit Spindle Prompt
+                </h2>
+
+                <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#6b7280" }}>
+                  Add specific guidance for THIS spindle only. This is combined with the level prompt to generate options.
+                  Examples: "Play up the wings metaphor", "Focus on the chemistry between Sarah and Steve", "Make it more suspenseful".
+                </p>
+
+                <div style={{ marginBottom: "16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontWeight: "500",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Spindle Prompt
+                  </label>
+                  <ct-input
+                    $value={editSpindlePromptText}
+                    placeholder="Enter spindle-specific guidance..."
+                    style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; min-height: 120px;"
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={closeEditSpindlePromptModal({ showEditSpindlePromptModal })}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#f3f4f6",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSpindlePrompt({
+                      spindles,
+                      editingSpindlePromptId,
+                      editSpindlePromptText,
+                      showEditSpindlePromptModal,
+                    })}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#8b5cf6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>,
+            null
+          )}
         </div>
       ),
 
@@ -2568,6 +2906,9 @@ const defaults = {
   editLevelPrompt: "",
   showViewPromptModal: false,
   viewPromptSpindleId: "",
+  showEditSpindlePromptModal: false,
+  editingSpindlePromptId: "",
+  editSpindlePromptText: "",
   synopsisText: "",
   synopsisIdeasNonce: 0,
 };
