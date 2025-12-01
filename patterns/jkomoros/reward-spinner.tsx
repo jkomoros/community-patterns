@@ -24,18 +24,18 @@ interface SpinRecord {
 }
 
 interface SpinnerInput {
-  currentEmoji: Cell<Default<string, "🎁">>;
-  isSpinning: Cell<Default<boolean, false>>;
+  currentEmoji?: Cell<Default<string, "🎁">>;
+  isSpinning?: Cell<Default<boolean, false>>;
   // Generosity level: 0 = mostly hugs (95%), 10 = lots of candy (95%)
-  generosity: Cell<Default<number, 10>>;
+  generosity?: Cell<Default<number, 10>>;
   // Sequence of emojis for slot machine animation
-  spinSequence: Cell<Default<string[], []>>;
+  spinSequence?: Cell<Default<string[], []>>;
   // Counter to force animation restart
-  spinCount: Cell<Default<number, 0>>;
+  spinCount?: Cell<Default<number, 0>>;
   // Counter to force payout animation restart
-  payoutAnimationCount: Cell<Default<number, 0>>;
+  payoutAnimationCount?: Cell<Default<number, 0>>;
   // History of all spins (timestamp, generosity level, result)
-  spinHistory: Cell<Default<SpinRecord[], []>>;
+  spinHistory?: Cell<Default<SpinRecord[], []>>;
 }
 
 interface SpinnerOutput {
@@ -798,27 +798,5 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
     };
   }
 );
-
-/**
- * Default values for creating a new RewardSpinner.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  currentEmoji: "🎁",
-  isSpinning: false,
-  generosity: 10,
-  spinSequence: [] as string[],
-  spinCount: 0,
-  payoutAnimationCount: 0,
-  spinHistory: [] as SpinRecord[],
-};
-
-/**
- * Factory function to create a RewardSpinner with sensible defaults.
- * @example navigateTo(createRewardSpinner({ generosity: 5 }));
- */
-export function createRewardSpinner(overrides?: Partial<typeof defaults>) {
-  return RewardSpinner({ ...defaults, ...overrides });
-}
 
 export default RewardSpinner;

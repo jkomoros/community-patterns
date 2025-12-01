@@ -1,28 +1,27 @@
 /// <cts-enable />
 import { handler, NAME, navigateTo, pattern, UI } from "commontools";
 
-// Import factory functions - these use pattern defaults, avoiding manual field enumeration
-// See pattern-development skill for idiom documentation
-import { createPerson } from "./person.tsx";
-import { createCounter } from "./lib/counter.tsx";
-import { createShoppingListLauncher } from "./shopping-list-launcher.tsx";
-import { createStoreMapper } from "./store-mapper.tsx";
-import { createMetaAnalyzer } from "./meta-analyzer.tsx";
-import { createFoodRecipe } from "./food-recipe.tsx";
-import { createPromptInjectionTracker } from "./prompt-injection-tracker.tsx";
-import { createSubstackSummarizer } from "./substack-summarizer.tsx";
-import { createCozyPoll } from "./cozy-poll.tsx";
-import { createRewardSpinner } from "./reward-spinner.tsx";
-import { createCheeseboardSchedule } from "./cheeseboard-schedule.tsx";
-import { createMealOrchestrator } from "./meal-orchestrator.tsx";
-import { createPreparedFood } from "./prepared-food.tsx";
-import { createHotelMembershipExtractor } from "./hotel-membership-extractor.tsx";
-import { createGoogleCalendarImporter } from "./google-calendar-importer.tsx";
-import { createSmartRubric } from "./WIP/smart-rubric.tsx";
-import { createFavoritesViewer } from "./favorites-viewer.tsx";
-import { createRedactorWithVault } from "./redactor-with-vault.tsx";
-import { createStarChart } from "./star-chart.tsx";
-import { createStoryWeaver } from "./story-weaver.tsx";
+// Import patterns directly - optional defaults make {} work for all fields
+import Person from "./person.tsx";
+import Counter from "./lib/counter.tsx";
+import ShoppingListLauncher from "./shopping-list-launcher.tsx";
+import StoreMapper from "./store-mapper.tsx";
+import MetaAnalyzer from "./meta-analyzer.tsx";
+import FoodRecipe from "./food-recipe.tsx";
+import PromptInjectionTracker from "./prompt-injection-tracker.tsx";
+import SubstackSummarizer from "./substack-summarizer.tsx";
+import CozyPoll from "./cozy-poll.tsx";
+import RewardSpinner from "./reward-spinner.tsx";
+import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
+import MealOrchestrator from "./meal-orchestrator.tsx";
+import PreparedFood from "./prepared-food.tsx";
+import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
+import GoogleCalendarImporter from "./google-calendar-importer.tsx";
+import SmartRubric from "./WIP/smart-rubric.tsx";
+import FavoritesViewer from "./favorites-viewer.tsx";
+import RedactorWithVault from "./redactor-with-vault.tsx";
+import StarChart from "./star-chart.tsx";
+import StoryWeaver from "./story-weaver.tsx";
 
 type Input = void;
 type Output = {
@@ -30,31 +29,28 @@ type Output = {
   [UI]: unknown;
 };
 
-// Handlers use factory functions - no manual field enumeration needed!
-// If a pattern adds new fields, the factory's defaults handle them automatically.
-// If defaults are missing fields, the factory function itself fails to compile.
-
-const handleCreatePerson = handler<void, void>(() => navigateTo(createPerson()));
-const handleCreateCounter = handler<void, void>(() => navigateTo(createCounter()));
-const handleCreateShoppingList = handler<void, void>(() => navigateTo(createShoppingListLauncher()));
-const handleCreateStoreMapper = handler<void, void>(() => navigateTo(createStoreMapper()));
-const handleCreateFoodRecipe = handler<void, void>(() => navigateTo(createFoodRecipe()));
-const handleCreateMetaAnalyzer = handler<void, void>(() => navigateTo(createMetaAnalyzer()));
-const handleCreatePromptInjectionTracker = handler<void, void>(() => navigateTo(createPromptInjectionTracker()));
-const handleCreateSubstackSummarizer = handler<void, void>(() => navigateTo(createSubstackSummarizer()));
-const handleCreateCozyPoll = handler<void, void>(() => navigateTo(createCozyPoll()));
-const handleCreateRewardSpinner = handler<void, void>(() => navigateTo(createRewardSpinner()));
-const handleCreateCheeseboardSchedule = handler<void, void>(() => navigateTo(createCheeseboardSchedule()));
-const handleCreateMealOrchestrator = handler<void, void>(() => navigateTo(createMealOrchestrator()));
-const handleCreatePreparedFood = handler<void, void>(() => navigateTo(createPreparedFood()));
-const handleCreateHotelMembershipExtractor = handler<void, void>(() => navigateTo(createHotelMembershipExtractor()));
-const handleCreateGoogleCalendarImporter = handler<void, void>(() => navigateTo(createGoogleCalendarImporter()));
-const handleCreateSmartRubric = handler<void, void>(() => navigateTo(createSmartRubric()));
-const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(createFavoritesViewer()));
+// Handlers call patterns directly with {} - optional defaults handle all fields
+const handleCreatePerson = handler<void, void>(() => navigateTo(Person({})));
+const handleCreateCounter = handler<void, void>(() => navigateTo(Counter({})));
+const handleCreateShoppingList = handler<void, void>(() => navigateTo(ShoppingListLauncher({})));
+const handleCreateStoreMapper = handler<void, void>(() => navigateTo(StoreMapper({})));
+const handleCreateFoodRecipe = handler<void, void>(() => navigateTo(FoodRecipe({})));
+const handleCreateMetaAnalyzer = handler<void, void>(() => navigateTo(MetaAnalyzer({})));
+const handleCreatePromptInjectionTracker = handler<void, void>(() => navigateTo(PromptInjectionTracker({})));
+const handleCreateSubstackSummarizer = handler<void, void>(() => navigateTo(SubstackSummarizer({})));
+const handleCreateCozyPoll = handler<void, void>(() => navigateTo(CozyPoll({})));
+const handleCreateRewardSpinner = handler<void, void>(() => navigateTo(RewardSpinner({})));
+const handleCreateCheeseboardSchedule = handler<void, void>(() => navigateTo(CheeseboardSchedule({})));
+const handleCreateMealOrchestrator = handler<void, void>(() => navigateTo(MealOrchestrator({})));
+const handleCreatePreparedFood = handler<void, void>(() => navigateTo(PreparedFood({})));
+const handleCreateHotelMembershipExtractor = handler<void, void>(() => navigateTo(HotelMembershipExtractor({})));
+const handleCreateGoogleCalendarImporter = handler<void, void>(() => navigateTo(GoogleCalendarImporter({})));
+const handleCreateSmartRubric = handler<void, void>(() => navigateTo(SmartRubric({})));
+const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(FavoritesViewer({})));
 // HACK: Combined vault + redactor pattern while wish("#pii-vault") is broken
-const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(createRedactorWithVault()));
-const handleCreateStarChart = handler<void, void>(() => navigateTo(createStarChart()));
-const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(createStoryWeaver()));
+const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(RedactorWithVault({})));
+const handleCreateStarChart = handler<void, void>(() => navigateTo(StarChart({})));
+const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(StoryWeaver({})));
 
 export default pattern<Input, Output>(
   (_) => {

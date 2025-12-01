@@ -162,13 +162,14 @@ rm -rf ~/Code/labs/packages/toolshed/cache/memory/*.sqlite
 
 **NEVER do this without explicit user permission**
 
-## Factory Function Idiom for Pattern Instantiation
+## Optional Defaults Idiom for Pattern Instantiation
 
-When one pattern needs to instantiate another (like page-creator launching new patterns), use the **factory function idiom** to avoid having to enumerate all Input fields.
+When one pattern needs to instantiate another (like page-creator launching new patterns), use the **optional defaults idiom** with `field?: Default<T, V>`.
+
 
 ### The Problem
 
-The framework requires ALL Input fields to be provided when instantiating a pattern:
+Without defaults, callers must provide ALL Input fields:
 
 ```typescript
 // ❌ FRAGILE - Must list every field, breaks when Input changes
@@ -180,72 +181,59 @@ navigateTo(Person({
 }));
 ```
 
-### The Solution: Factory Functions
+### The Solution: Optional Defaults
 
-Each pattern exports a `create<PatternName>` factory function:
+Add `?` to Input fields that have `Default<T, V>`:
 
 ```typescript
 // In person.tsx
-
-// 1. Define defaults with NO explicit type annotation
-//    TypeScript infers the type from the object literal
-const defaults = {
-  displayName: "",
-  givenName: "",
-  familyName: "",
-  emails: [] as EmailEntry[],     // Arrays need type assertion
-  viewMode: "main" as const,      // Unions need `as const`
-  // ... all fields
+type Input = {
+  displayName?: Default<string, "">;    // Optional for callers
+  givenName?: Default<string, "">;      // Optional for callers
+  birthday?: Default<string, "">;       // Optional for callers
+  emails?: Default<EmailEntry[], []>;   // Optional for callers
 };
 
-// 2. Export factory function
-export function createPerson(overrides?: Partial<typeof defaults>) {
-  return Person({ ...defaults, ...overrides });
-}
+export default pattern<Input, Output>(({ displayName, givenName, ... }) => {
+  // Inside the pattern body, ALL fields are guaranteed present
+  // Required<Input> removes the `?`, Default<> provides values
+  return { ... };
+});
 ```
 
 ### Why This Works
 
-**Goal:** Make it impossible to forget updating defaults when Input changes.
+**Type Flow:**
+1. `Input` has `field?: Default<T, V>` - optional for callers
+2. `PatternFunction<Input, Output>` wraps internal type with `Required<Input>`
+3. Inside pattern body, fields are guaranteed present (Required removes `?`)
+4. Callers see `StripCell<Input>` which preserves the `?`
 
-**Mechanism:** The `Person({...defaults, ...overrides})` call is typechecked at compile time. If `defaults` is missing any field that `Person` requires:
-
-1. ✅ The pattern file fails to compile
-2. ✅ Deployment fails
-3. ✅ Error clearly shows which field is missing
-4. ✅ Forces you to fix it immediately
-
-**Key insight:** TypeScript checks function bodies at definition time, not call time. So even though `createPerson` may never be called in the file, the error still occurs.
+**Result:**
+- ✅ Callers can use `Pattern({})` - all defaults applied
+- ✅ Callers can override specific fields: `Pattern({ title: "Custom" })`
+- ✅ Pattern body has full access to all fields (no undefined checks)
 
 ### Usage in Other Patterns
 
 ```typescript
 // In page-creator.tsx
-import { createPerson } from "./person.tsx";
+import Person from "./person.tsx";
 
-const createPersonHandler = handler<void, void>((_, __) => {
-  return navigateTo(createPerson());  // Clean!
+const createPersonHandler = handler<void, void>(() => {
+  return navigateTo(Person({}));  // Clean! All defaults applied
 });
 
 // Or with overrides:
-navigateTo(createPerson({ givenName: "Alice" }));
+navigateTo(Person({ givenName: "Alice" }));
 ```
 
 ### Important Notes
 
-- **Arrays of complex types** need explicit typing: `[] as EmailEntry[]`
-- **Union/enum types** need `as const`: `viewMode: "main" as const`
-- **No separate runtime type needed** - inference + call-site checking handles it
-- Extra fields in defaults are silently ignored (harmless)
-
-### Verified Behavior
-
-Tested: Removing a field from `defaults` causes immediate compile error:
-```
-TS2345: Property 'givenName' is missing in type '...'
-  return Person({ ...defaults, ...overrides });
-                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-```
+- **Add `?` to EVERY field with `Default<>`** - this makes it optional for callers
+- **Inside the pattern body**, fields are always present (Required<> removes `?`)
+- **No factory functions needed** - import pattern directly and call with `{}`
+- **Type checking still works** - invalid field names or types are caught
 
 ## Updating the Pattern README
 

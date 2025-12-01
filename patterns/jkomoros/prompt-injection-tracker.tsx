@@ -479,14 +479,14 @@ const toggleRead = handler<
 
 interface TrackerInput {
   // Gmail filter query - default to Google Alerts for "prompt injection"
-  gmailFilterQuery: Default<string, 'from:"googlealerts-noreply@google.com" subject:"prompt injection"'>;
+  gmailFilterQuery?: Default<string, 'from:"googlealerts-noreply@google.com" subject:"prompt injection"'>;
   // Max emails to fetch
-  limit: Default<number, 50>;
+  limit?: Default<number, 50>;
   // Manual articles (for testing without Gmail)
-  articles: Default<Article[], []>;
+  articles?: Default<Article[], []>;
   // WORKAROUND (CT-1085): Accept auth charm as direct input since wish doesn't work reliably.
   // Link gmail-auth charm using: deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
-  authCharm: Default<any, null>;
+  authCharm?: Default<any, null>;
 }
 
 interface TrackerOutput {
@@ -1566,24 +1566,5 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     emails: importer.emails,
   };
 });
-
-/**
- * Default values for creating a new PromptInjectionTracker.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  gmailFilterQuery: 'from:"googlealerts-noreply@google.com" subject:"prompt injection"',
-  limit: 50,
-  articles: [] as Article[],
-  authCharm: null as any,
-};
-
-/**
- * Factory function to create a PromptInjectionTracker with sensible defaults.
- * @example navigateTo(createPromptInjectionTracker());
- */
-export function createPromptInjectionTracker(overrides?: Partial<typeof defaults>) {
-  return PromptInjectionTracker({ ...defaults, ...overrides });
-}
 
 export default PromptInjectionTracker;

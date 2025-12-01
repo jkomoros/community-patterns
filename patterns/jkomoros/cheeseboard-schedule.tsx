@@ -48,8 +48,8 @@ interface HistoricalPizza {
 }
 
 interface CheeseboardScheduleInput {
-  preferences: Cell<Default<IngredientPreference[], []>>;
-  history: Cell<Default<HistoricalPizza[], []>>;
+  preferences?: Cell<Default<IngredientPreference[], []>>;
+  history?: Cell<Default<HistoricalPizza[], []>>;
 }
 
 interface CheeseboardScheduleOutput {
@@ -775,22 +775,5 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
     };
   }
 );
-
-/**
- * Default values for creating a new CheeseboardSchedule.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  preferences: [] as IngredientPreference[],
-  history: [] as HistoricalPizza[],
-};
-
-/**
- * Factory function to create a CheeseboardSchedule with sensible defaults.
- * @example navigateTo(createCheeseboardSchedule());
- */
-export function createCheeseboardSchedule(overrides?: Partial<typeof defaults>) {
-  return CheeseboardSchedule({ ...defaults, ...overrides });
-}
 
 export default CheeseboardSchedule;

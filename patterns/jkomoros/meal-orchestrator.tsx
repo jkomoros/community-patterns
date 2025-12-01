@@ -88,29 +88,29 @@ interface PreparedFood {
 }
 
 interface MealOrchestratorInput {
-  mealName: Default<string, "">;
-  mealDate: Default<string, "">; // ISO date: "2024-11-28"
-  mealTime: Default<string, "">; // 24hr time: "18:00"
-  guestCount: Default<number, 4>;
+  mealName?: Default<string, "">;
+  mealDate?: Default<string, "">; // ISO date: "2024-11-28"
+  mealTime?: Default<string, "">; // 24hr time: "18:00"
+  guestCount?: Default<number, 4>;
 
   // Equipment
-  ovens: Default<OvenConfig[], [{
+  ovens?: Default<OvenConfig[], [{
     rackPositions: 5,
     physicalRacks: 2
   }]>;
-  stovetopBurners: Default<number, 4>;
+  stovetopBurners?: Default<number, 4>;
 
   // Dietary requirements
-  dietaryProfiles: Default<GuestDietaryProfile[], []>;
+  dietaryProfiles?: Default<GuestDietaryProfile[], []>;
 
   // Rough Planning (for early-stage brainstorming)
-  planningNotes: Default<string, "">;  // Free-form text for rough ideas
+  planningNotes?: Default<string, "">;  // Free-form text for rough ideas
 
   // Recipes (@ references)
-  recipes: Default<OpaqueRef<FoodRecipe>[], []>;
-  preparedFoods: Default<OpaqueRef<PreparedFood>[], []>;
+  recipes?: Default<OpaqueRef<FoodRecipe>[], []>;
+  preparedFoods?: Default<OpaqueRef<PreparedFood>[], []>;
 
-  notes: Default<string, "">;
+  notes?: Default<string, "">;
 }
 
 interface MealOrchestratorOutput extends MealOrchestratorInput {}
@@ -1579,31 +1579,5 @@ Be concise and practical in your analysis.`,
     };
   },
 );
-
-/**
- * Default values for creating a new MealOrchestrator.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  mealName: "",
-  mealDate: "",
-  mealTime: "",
-  guestCount: 4,
-  ovens: [{ rackPositions: 5, physicalRacks: 2 }] as OvenConfig[],
-  stovetopBurners: 4,
-  dietaryProfiles: [] as GuestDietaryProfile[],
-  planningNotes: "",
-  recipes: [] as any[],
-  preparedFoods: [] as any[],
-  notes: "",
-};
-
-/**
- * Factory function to create a MealOrchestrator with sensible defaults.
- * @example navigateTo(createMealOrchestrator({ mealName: "Thanksgiving Dinner" }));
- */
-export function createMealOrchestrator(overrides?: Partial<typeof defaults>) {
-  return MealOrchestrator({ ...defaults, ...overrides });
-}
 
 export default MealOrchestrator;

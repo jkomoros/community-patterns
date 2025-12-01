@@ -71,7 +71,7 @@ type ScanMode = "full" | "recent";
 interface HotelMembershipInput {
   // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
   // Users can manually link gmail-auth's auth output to this input.
-  auth: Default<Auth, {
+  auth?: Default<Auth, {
     token: "";
     tokenType: "";
     scope: [];
@@ -80,14 +80,14 @@ interface HotelMembershipInput {
     refreshToken: "";
     user: { email: ""; name: ""; picture: "" };
   }>;
-  memberships: Default<MembershipRecord[], []>;
-  lastScanAt: Default<number, 0>;
-  isScanning: Default<boolean, false>;
+  memberships?: Default<MembershipRecord[], []>;
+  lastScanAt?: Default<number, 0>;
+  isScanning?: Default<boolean, false>;
   // Max number of searches to perform. 0 = unlimited (full scan), positive = quick test mode
   // Default to 5 for quick testing - change to 0 for full scans
-  maxSearches: Default<number, 5>;
+  maxSearches?: Default<number, 5>;
   // Current scan mode - persisted to know if last scan was full or recent
-  currentScanMode: Default<ScanMode, "full">;
+  currentScanMode?: Default<ScanMode, "full">;
 }
 
 /**
@@ -1206,34 +1206,5 @@ Be thorough and search for all major hotel brands.`,
     ),
   };
 });
-
-/**
- * Default values for creating a new HotelMembershipExtractor.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  auth: {
-    token: "",
-    tokenType: "",
-    scope: [] as string[],
-    expiresIn: 0,
-    expiresAt: 0,
-    refreshToken: "",
-    user: { email: "", name: "", picture: "" },
-  },
-  memberships: [] as MembershipRecord[],
-  lastScanAt: 0,
-  isScanning: false,
-  maxSearches: 5,
-  currentScanMode: "full" as const,
-};
-
-/**
- * Factory function to create a HotelMembershipExtractor with sensible defaults.
- * @example navigateTo(createHotelMembershipExtractor());
- */
-export function createHotelMembershipExtractor(overrides?: Partial<typeof defaults>) {
-  return HotelMembershipExtractor({ ...defaults, ...overrides });
-}
 
 export default HotelMembershipExtractor;

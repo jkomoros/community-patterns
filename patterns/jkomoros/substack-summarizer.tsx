@@ -3,8 +3,8 @@ import { Default, derive, NAME, pattern, UI } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
 interface SubstackInput {
-  gmailFilterQuery: Default<string, "label:demo">;
-  limit: Default<number, 50>;
+  gmailFilterQuery?: Default<string, "label:demo">;
+  limit?: Default<number, 50>;
 }
 
 const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
@@ -116,22 +116,5 @@ const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) 
     groupedByNewsletter,
   };
 });
-
-/**
- * Default values for creating a new SubstackSummarizer.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  gmailFilterQuery: "label:demo",
-  limit: 50,
-};
-
-/**
- * Factory function to create a SubstackSummarizer with sensible defaults.
- * @example navigateTo(createSubstackSummarizer());
- */
-export function createSubstackSummarizer(overrides?: Partial<typeof defaults>) {
-  return SubstackSummarizer({ ...defaults, ...overrides });
-}
 
 export default SubstackSummarizer;

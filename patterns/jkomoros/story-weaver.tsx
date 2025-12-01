@@ -138,39 +138,39 @@ function simpleHash(str: string): string {
 // =============================================================================
 
 interface StoryWeaverInput {
-  boardTitle: Default<string, "My Story Weaver">;
-  boardDescription: Default<string, "">;
+  boardTitle?: Default<string, "My Story Weaver">;
+  boardDescription?: Default<string, "">;
 
   // Dynamic arrays (empty default + handler pattern)
-  levels: Default<LevelConfig[], typeof DEFAULT_LEVELS>;
-  spindles: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
+  levels?: Default<LevelConfig[], typeof DEFAULT_LEVELS>;
+  spindles?: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
 
   // Add Level Modal state
-  showAddLevelModal: Default<boolean, false>;
-  newLevelTitle: Default<string, "">;
-  newLevelPrompt: Default<string, "">;
-  newLevelBranch: Default<number, 1>;
+  showAddLevelModal?: Default<boolean, false>;
+  newLevelTitle?: Default<string, "">;
+  newLevelPrompt?: Default<string, "">;
+  newLevelBranch?: Default<number, 1>;
 
   // Edit Level Modal state
-  showEditLevelModal: Default<boolean, false>;
-  editingLevelIndex: Default<number, 0>;
-  editLevelTitle: Default<string, "">;
-  editLevelPrompt: Default<string, "">;
+  showEditLevelModal?: Default<boolean, false>;
+  editingLevelIndex?: Default<number, 0>;
+  editLevelTitle?: Default<string, "">;
+  editLevelPrompt?: Default<string, "">;
 
   // View Prompt Modal state
-  showViewPromptModal: Default<boolean, false>;
-  viewPromptSpindleId: Default<string, "">;
+  showViewPromptModal?: Default<boolean, false>;
+  viewPromptSpindleId?: Default<string, "">;
 
   // Edit Spindle Prompt Modal state
-  showEditSpindlePromptModal: Default<boolean, false>;
-  editingSpindlePromptId: Default<string, "">;
-  editSpindlePromptText: Default<string, "">;
+  showEditSpindlePromptModal?: Default<boolean, false>;
+  editingSpindlePromptId?: Default<string, "">;
+  editSpindlePromptText?: Default<string, "">;
 
   // Root synopsis input
-  synopsisText: Default<string, "">;
+  synopsisText?: Default<string, "">;
 
   // Synopsis idea generator
-  synopsisIdeasNonce: Default<number, 0>;
+  synopsisIdeasNonce?: Default<number, 0>;
 }
 
 // =============================================================================
@@ -2887,39 +2887,5 @@ Make them diverse in genre and tone:
 // =============================================================================
 // FACTORY FUNCTION
 // =============================================================================
-
-/**
- * Default values for StoryWeaver creation.
- * Used by createStoryWeaver factory to avoid manual field enumeration.
- */
-const defaults = {
-  boardTitle: "My Story Weaver",
-  boardDescription: "",
-  levels: DEFAULT_LEVELS,
-  spindles: [DEFAULT_ROOT_SPINDLE] as SpindleConfig[],
-  showAddLevelModal: false,
-  newLevelTitle: "",
-  newLevelPrompt: "",
-  newLevelBranch: 1,
-  showEditLevelModal: false,
-  editingLevelIndex: 0,
-  editLevelTitle: "",
-  editLevelPrompt: "",
-  showViewPromptModal: false,
-  viewPromptSpindleId: "",
-  showEditSpindlePromptModal: false,
-  editingSpindlePromptId: "",
-  editSpindlePromptText: "",
-  synopsisText: "",
-  synopsisIdeasNonce: 0,
-};
-
-/**
- * Factory function to create a StoryWeaver with sensible defaults.
- * @example navigateTo(createStoryWeaver({ boardTitle: "My Story" }));
- */
-export function createStoryWeaver(overrides?: Partial<typeof defaults>) {
-  return StoryWeaver({ ...defaults, ...overrides });
-}
 
 export default StoryWeaver;

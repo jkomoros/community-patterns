@@ -68,17 +68,17 @@ interface ItemLocation {
 // - space-setup.tsx
 // - shopping-list-launcher.tsx (2 places: openStoreMapper and viewStoreMap)
 interface StoreMapInput {
-  storeName: Default<string, "">;
-  aisles: Default<StoreAisle[], []>;
-  specialDepartments: Default<DepartmentRecord[], []>; // Assigned departments
-  unassignedDepartments: Default<
+  storeName?: Default<string, "">;
+  aisles?: Default<StoreAisle[], []>;
+  specialDepartments?: Default<DepartmentRecord[], []>; // Assigned departments
+  unassignedDepartments?: Default<
     string[],
     ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"]
   >; // Unassigned
-  entrances: Default<Entrance[], []>;
-  notInStore: Default<string[], []>;
-  inCenterAisles: Default<string[], []>; // Departments marked as being in center aisles (not perimeter)
-  itemLocations: Default<ItemLocation[], []>; // User corrections
+  entrances?: Default<Entrance[], []>;
+  notInStore?: Default<string[], []>;
+  inCenterAisles?: Default<string[], []>; // Departments marked as being in center aisles (not perimeter)
+  itemLocations?: Default<ItemLocation[], []>; // User corrections
 }
 
 interface StoreMapOutput extends StoreMapInput {
@@ -2857,28 +2857,5 @@ What common sections might be missing?`,
     };
   }
 );
-
-/**
- * Default values for creating a new StoreMapper.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  storeName: "",
-  aisles: [] as StoreAisle[],
-  specialDepartments: [] as DepartmentRecord[],
-  unassignedDepartments: ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"] as string[],
-  entrances: [] as Entrance[],
-  notInStore: [] as string[],
-  inCenterAisles: [] as string[],
-  itemLocations: [] as ItemLocation[],
-};
-
-/**
- * Factory function to create a StoreMapper with sensible defaults.
- * @example navigateTo(createStoreMapper({ storeName: "Trader Joe's" }));
- */
-export function createStoreMapper(overrides?: Partial<typeof defaults>) {
-  return StoreMapper({ ...defaults, ...overrides });
-}
 
 export default StoreMapper;

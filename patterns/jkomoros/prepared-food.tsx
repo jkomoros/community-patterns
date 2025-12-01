@@ -13,23 +13,23 @@ import {
 
 interface PreparedFoodInput {
   // Basic Info
-  name: Default<string, "">;
-  servings: Default<number, 4>;
-  category: Default<string, "other">;
+  name?: Default<string, "">;
+  servings?: Default<number, 4>;
+  category?: Default<string, "other">;
 
   // Dietary Info (user-specified since no ingredients to analyze)
-  dietaryTags: Default<string[], []>;
-  primaryIngredients: Default<string[], []>;
+  dietaryTags?: Default<string[], []>;
+  primaryIngredients?: Default<string[], []>;
 
   // Source/Context
-  description: Default<string, "">;
-  source: Default<string, "">;
+  description?: Default<string, "">;
+  source?: Default<string, "">;
 
   // Optional: If it needs minimal work
-  prepTime: Default<number, 0>;
-  requiresReheating: Default<boolean, false>;
+  prepTime?: Default<number, 0>;
+  requiresReheating?: Default<boolean, false>;
 
-  tags: Default<string[], []>;
+  tags?: Default<string[], []>;
 }
 
 interface PreparedFoodOutput extends PreparedFoodInput {
@@ -399,30 +399,5 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
     };
   },
 );
-
-/**
- * Default values for creating a new PreparedFood.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  name: "",
-  servings: 4,
-  category: "other",
-  dietaryTags: [] as string[],
-  primaryIngredients: [] as string[],
-  description: "",
-  source: "",
-  prepTime: 0,
-  requiresReheating: false,
-  tags: [] as string[],
-};
-
-/**
- * Factory function to create a PreparedFood with sensible defaults.
- * @example navigateTo(createPreparedFood({ name: "Store-bought pie" }));
- */
-export function createPreparedFood(overrides?: Partial<typeof defaults>) {
-  return PreparedFood({ ...defaults, ...overrides });
-}
 
 export default PreparedFood;

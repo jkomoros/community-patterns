@@ -121,21 +121,21 @@ interface StepGroup {
 }
 
 interface RecipeInput {
-  name: Default<string, "">;
-  cuisine: Default<string, "">;
-  servings: Default<number, 4>;
-  yield: Default<string, "">; // What the recipe makes (e.g., "12 cookies", "1 loaf")
-  difficulty: Default<"easy" | "medium" | "hard", "medium">;
-  prepTime: Default<number, 0>; // minutes
-  cookTime: Default<number, 0>; // minutes
-  restTime: Default<number, 0>; // Minutes to rest after cooking before serving
-  holdTime: Default<number, 0>; // Minutes dish can wait while maintaining quality
-  category: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">;
-  ingredients: Default<Ingredient[], []>;
-  stepGroups: Default<StepGroup[], []>;
-  tags: Default<string[], []>;
-  notes: Default<string, "">;
-  source: Default<string, "">;
+  name?: Default<string, "">;
+  cuisine?: Default<string, "">;
+  servings?: Default<number, 4>;
+  yield?: Default<string, "">; // What the recipe makes (e.g., "12 cookies", "1 loaf")
+  difficulty?: Default<"easy" | "medium" | "hard", "medium">;
+  prepTime?: Default<number, 0>; // minutes
+  cookTime?: Default<number, 0>; // minutes
+  restTime?: Default<number, 0>; // Minutes to rest after cooking before serving
+  holdTime?: Default<number, 0>; // Minutes dish can wait while maintaining quality
+  category?: Default<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other", "other">;
+  ingredients?: Default<Ingredient[], []>;
+  stepGroups?: Default<StepGroup[], []>;
+  tags?: Default<string[], []>;
+  notes?: Default<string, "">;
+  source?: Default<string, "">;
 }
 
 interface RecipeOutput extends RecipeInput {
@@ -2324,35 +2324,5 @@ Return suggestions for ALL groups with their IDs preserved.`,
     };
   },
 );
-
-/**
- * Default values for creating a new FoodRecipe.
- * See pattern-development skill for idiom documentation.
- */
-const defaults = {
-  name: "",
-  cuisine: "",
-  servings: 4,
-  yield: "",
-  difficulty: "medium" as const,
-  prepTime: 0,
-  cookTime: 0,
-  restTime: 0,
-  holdTime: 0,
-  category: "other" as const,
-  ingredients: [] as Ingredient[],
-  stepGroups: [] as StepGroup[],
-  tags: [] as string[],
-  notes: "",
-  source: "",
-};
-
-/**
- * Factory function to create a FoodRecipe with sensible defaults.
- * @example navigateTo(createFoodRecipe({ name: "Chocolate Cake" }));
- */
-export function createFoodRecipe(overrides?: Partial<typeof defaults>) {
-  return FoodRecipe({ ...defaults, ...overrides });
-}
 
 export default FoodRecipe;
