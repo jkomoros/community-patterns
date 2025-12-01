@@ -119,11 +119,16 @@ interface SpindleBoardInput {
   levels: Default<LevelConfig[], [typeof DEFAULT_ROOT_LEVEL]>;
   spindles: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
 
-  // Modal state
+  // Add Level Modal state
   showAddLevelModal: Default<boolean, false>;
   newLevelTitle: Default<string, "">;
   newLevelPrompt: Default<string, "">;
   newLevelBranch: Default<number, 1>;
+
+  // Edit Level Modal state
+  showEditLevelModal: Default<boolean, false>;
+  editingLevelIndex: Default<number, 0>;
+  editLevelPrompt: Default<string, "">;
 
   // Root synopsis input
   synopsisText: Default<string, "">;
@@ -143,6 +148,9 @@ export default pattern<SpindleBoardInput>(
     newLevelTitle,
     newLevelPrompt,
     newLevelBranch,
+    showEditLevelModal,
+    editingLevelIndex,
+    editLevelPrompt,
     synopsisText,
   }) => {
     // =========================================================================
@@ -393,6 +401,59 @@ export default pattern<SpindleBoardInput>(
       }
     });
 
+    // Open edit level modal
+    const openEditLevelModal = handler<
+      unknown,
+      {
+        showEditLevelModal: Cell<boolean>;
+        editingLevelIndex: Cell<number>;
+        editLevelPrompt: Cell<string>;
+        levels: Cell<LevelConfig[]>;
+        levelIndex: Cell<number>;
+      }
+    >((_, { showEditLevelModal, editingLevelIndex, editLevelPrompt, levels, levelIndex }) => {
+      const idx = levelIndex.get();
+      const currentLevels = levels.get() || [];
+      const level = currentLevels[idx];
+      if (level) {
+        editingLevelIndex.set(idx);
+        editLevelPrompt.set(level.defaultPrompt);
+        showEditLevelModal.set(true);
+      }
+    });
+
+    // Close edit level modal
+    const closeEditLevelModal = handler<unknown, { showEditLevelModal: Cell<boolean> }>(
+      (_, { showEditLevelModal }) => {
+        showEditLevelModal.set(false);
+      }
+    );
+
+    // Save edited level prompt
+    const saveEditLevel = handler<
+      unknown,
+      {
+        levels: Cell<LevelConfig[]>;
+        editingLevelIndex: Cell<number>;
+        editLevelPrompt: Cell<string>;
+        showEditLevelModal: Cell<boolean>;
+      }
+    >((_, { levels, editingLevelIndex, editLevelPrompt, showEditLevelModal }) => {
+      const idx = editingLevelIndex.get();
+      const newPrompt = editLevelPrompt.get() || "";
+      const currentLevels = [...(levels.get() || [])];
+
+      if (idx >= 0 && idx < currentLevels.length) {
+        currentLevels[idx] = {
+          ...currentLevels[idx],
+          defaultPrompt: newPrompt,
+        };
+        levels.set(currentLevels);
+      }
+
+      showEditLevelModal.set(false);
+    });
+
     // =========================================================================
     // REACTIVE PROCESSING
     // =========================================================================
@@ -633,28 +694,7 @@ export default pattern<SpindleBoardInput>(
                   null
                 )}
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  onClick={openAddLevelModal({
-                    showAddLevelModal,
-                    newLevelTitle,
-                    newLevelPrompt,
-                    newLevelBranch,
-                    levels,
-                  })}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                  }}
-                >
-                  + Add Level
-                </button>
-              </div>
+{/* Add Level button moved to bottom */}
             </div>
           </div>
 
@@ -789,19 +829,41 @@ export default pattern<SpindleBoardInput>(
                         )}
                       </div>
                     </div>
-                    <button
-                      onClick={respinSpindle({ spindles, spindleId })}
-                      style={{
-                        padding: "6px 12px",
-                        background: "#3b82f6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Respin
-                    </button>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={openEditLevelModal({
+                          showEditLevelModal,
+                          editingLevelIndex,
+                          editLevelPrompt,
+                          levels,
+                          levelIndex,
+                        })}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#6b7280",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                        }}
+                      >
+                        Edit Prompt
+                      </button>
+                      <button
+                        onClick={respinSpindle({ spindles, spindleId })}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#3b82f6",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Respin
+                      </button>
+                    </div>
                   </div>
 
                   {/* Options Grid */}
@@ -826,39 +888,70 @@ export default pattern<SpindleBoardInput>(
                             optionContent: derive(result, (r) => r.option0 || ""),
                           })}
                           style={{
-                            padding: "12px",
+                            padding: ifElse(isPinned0, "16px", "12px"),
                             borderRadius: "6px",
                             cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               isPinned0,
-                              "2px solid #3b82f6",
+                              "2px solid #2563eb",
                               "1px solid #e5e7eb"
                             ),
-                            background: ifElse(isPinned0, "#eff6ff", "#fff"),
+                            borderLeft: ifElse(
+                              isPinned0,
+                              "6px solid #2563eb",
+                              "1px solid #e5e7eb"
+                            ),
+                            background: ifElse(isPinned0, "#dbeafe", "#fff"),
+                            boxShadow: ifElse(
+                              isPinned0,
+                              "0 4px 12px rgba(37, 99, 235, 0.25)",
+                              "none"
+                            ),
                             opacity: ifElse(
                               derive(pinnedIdx, (p: number) => p >= 0 && p !== 0),
-                              "0.6",
+                              "0.4",
                               "1"
                             ),
+                            transform: ifElse(isPinned0, "scale(1.02)", "scale(1)"),
+                            transition: "all 0.2s ease",
                           }}
                         >
                           <div
                             style={{
-                              fontSize: "12px",
+                              fontSize: ifElse(isPinned0, "14px", "12px"),
                               fontWeight: "600",
                               marginBottom: "8px",
                               color: ifElse(isPinned0, "#1d4ed8", "#666"),
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
                           >
-                            Option 1 {ifElse(isPinned0, "✓", "")}
+                            Option 1{" "}
+                            {ifElse(
+                              isPinned0,
+                              <span
+                                style={{
+                                  background: "#2563eb",
+                                  color: "white",
+                                  padding: "2px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                SELECTED
+                              </span>,
+                              ""
+                            )}
                           </div>
                           <div
                             style={{
                               fontSize: "13px",
                               whiteSpace: "pre-wrap",
-                              maxHeight: "150px",
-                              overflow: "auto",
+                              maxHeight: ifElse(isPinned0, "none", "150px"),
+                              overflow: ifElse(isPinned0, "visible", "auto"),
                             }}
                           >
                             {derive(result, (r) => r.option0)}
@@ -877,39 +970,70 @@ export default pattern<SpindleBoardInput>(
                             optionContent: derive(result, (r) => r.option1 || ""),
                           })}
                           style={{
-                            padding: "12px",
+                            padding: ifElse(isPinned1, "16px", "12px"),
                             borderRadius: "6px",
                             cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               isPinned1,
-                              "2px solid #3b82f6",
+                              "2px solid #2563eb",
                               "1px solid #e5e7eb"
                             ),
-                            background: ifElse(isPinned1, "#eff6ff", "#fff"),
+                            borderLeft: ifElse(
+                              isPinned1,
+                              "6px solid #2563eb",
+                              "1px solid #e5e7eb"
+                            ),
+                            background: ifElse(isPinned1, "#dbeafe", "#fff"),
+                            boxShadow: ifElse(
+                              isPinned1,
+                              "0 4px 12px rgba(37, 99, 235, 0.25)",
+                              "none"
+                            ),
                             opacity: ifElse(
                               derive(pinnedIdx, (p: number) => p >= 0 && p !== 1),
-                              "0.6",
+                              "0.4",
                               "1"
                             ),
+                            transform: ifElse(isPinned1, "scale(1.02)", "scale(1)"),
+                            transition: "all 0.2s ease",
                           }}
                         >
                           <div
                             style={{
-                              fontSize: "12px",
+                              fontSize: ifElse(isPinned1, "14px", "12px"),
                               fontWeight: "600",
                               marginBottom: "8px",
                               color: ifElse(isPinned1, "#1d4ed8", "#666"),
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
                           >
-                            Option 2 {ifElse(isPinned1, "✓", "")}
+                            Option 2{" "}
+                            {ifElse(
+                              isPinned1,
+                              <span
+                                style={{
+                                  background: "#2563eb",
+                                  color: "white",
+                                  padding: "2px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                SELECTED
+                              </span>,
+                              ""
+                            )}
                           </div>
                           <div
                             style={{
                               fontSize: "13px",
                               whiteSpace: "pre-wrap",
-                              maxHeight: "150px",
-                              overflow: "auto",
+                              maxHeight: ifElse(isPinned1, "none", "150px"),
+                              overflow: ifElse(isPinned1, "visible", "auto"),
                             }}
                           >
                             {derive(result, (r) => r.option1)}
@@ -928,39 +1052,70 @@ export default pattern<SpindleBoardInput>(
                             optionContent: derive(result, (r) => r.option2 || ""),
                           })}
                           style={{
-                            padding: "12px",
+                            padding: ifElse(isPinned2, "16px", "12px"),
                             borderRadius: "6px",
                             cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               isPinned2,
-                              "2px solid #3b82f6",
+                              "2px solid #2563eb",
                               "1px solid #e5e7eb"
                             ),
-                            background: ifElse(isPinned2, "#eff6ff", "#fff"),
+                            borderLeft: ifElse(
+                              isPinned2,
+                              "6px solid #2563eb",
+                              "1px solid #e5e7eb"
+                            ),
+                            background: ifElse(isPinned2, "#dbeafe", "#fff"),
+                            boxShadow: ifElse(
+                              isPinned2,
+                              "0 4px 12px rgba(37, 99, 235, 0.25)",
+                              "none"
+                            ),
                             opacity: ifElse(
                               derive(pinnedIdx, (p: number) => p >= 0 && p !== 2),
-                              "0.6",
+                              "0.4",
                               "1"
                             ),
+                            transform: ifElse(isPinned2, "scale(1.02)", "scale(1)"),
+                            transition: "all 0.2s ease",
                           }}
                         >
                           <div
                             style={{
-                              fontSize: "12px",
+                              fontSize: ifElse(isPinned2, "14px", "12px"),
                               fontWeight: "600",
                               marginBottom: "8px",
                               color: ifElse(isPinned2, "#1d4ed8", "#666"),
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
                           >
-                            Option 3 {ifElse(isPinned2, "✓", "")}
+                            Option 3{" "}
+                            {ifElse(
+                              isPinned2,
+                              <span
+                                style={{
+                                  background: "#2563eb",
+                                  color: "white",
+                                  padding: "2px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                SELECTED
+                              </span>,
+                              ""
+                            )}
                           </div>
                           <div
                             style={{
                               fontSize: "13px",
                               whiteSpace: "pre-wrap",
-                              maxHeight: "150px",
-                              overflow: "auto",
+                              maxHeight: ifElse(isPinned2, "none", "150px"),
+                              overflow: ifElse(isPinned2, "visible", "auto"),
                             }}
                           >
                             {derive(result, (r) => r.option2)}
@@ -979,39 +1134,70 @@ export default pattern<SpindleBoardInput>(
                             optionContent: derive(result, (r) => r.option3 || ""),
                           })}
                           style={{
-                            padding: "12px",
+                            padding: ifElse(isPinned3, "16px", "12px"),
                             borderRadius: "6px",
                             cursor: "pointer",
                             minHeight: "80px",
                             border: ifElse(
                               isPinned3,
-                              "2px solid #3b82f6",
+                              "2px solid #2563eb",
                               "1px solid #e5e7eb"
                             ),
-                            background: ifElse(isPinned3, "#eff6ff", "#fff"),
+                            borderLeft: ifElse(
+                              isPinned3,
+                              "6px solid #2563eb",
+                              "1px solid #e5e7eb"
+                            ),
+                            background: ifElse(isPinned3, "#dbeafe", "#fff"),
+                            boxShadow: ifElse(
+                              isPinned3,
+                              "0 4px 12px rgba(37, 99, 235, 0.25)",
+                              "none"
+                            ),
                             opacity: ifElse(
                               derive(pinnedIdx, (p: number) => p >= 0 && p !== 3),
-                              "0.6",
+                              "0.4",
                               "1"
                             ),
+                            transform: ifElse(isPinned3, "scale(1.02)", "scale(1)"),
+                            transition: "all 0.2s ease",
                           }}
                         >
                           <div
                             style={{
-                              fontSize: "12px",
+                              fontSize: ifElse(isPinned3, "14px", "12px"),
                               fontWeight: "600",
                               marginBottom: "8px",
                               color: ifElse(isPinned3, "#1d4ed8", "#666"),
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
                             }}
                           >
-                            Option 4 {ifElse(isPinned3, "✓", "")}
+                            Option 4{" "}
+                            {ifElse(
+                              isPinned3,
+                              <span
+                                style={{
+                                  background: "#2563eb",
+                                  color: "white",
+                                  padding: "2px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                SELECTED
+                              </span>,
+                              ""
+                            )}
                           </div>
                           <div
                             style={{
                               fontSize: "13px",
                               whiteSpace: "pre-wrap",
-                              maxHeight: "150px",
-                              overflow: "auto",
+                              maxHeight: ifElse(isPinned3, "none", "150px"),
+                              overflow: ifElse(isPinned3, "visible", "auto"),
                             }}
                           >
                             {derive(result, (r) => r.option3)}
@@ -1055,6 +1241,38 @@ export default pattern<SpindleBoardInput>(
                 </div>
               );
             })}
+          </div>
+
+          {/* Add Level Button */}
+          <div
+            style={{
+              marginTop: "24px",
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <button
+              onClick={openAddLevelModal({
+                showAddLevelModal,
+                newLevelTitle,
+                newLevelPrompt,
+                newLevelBranch,
+                levels,
+              })}
+              style={{
+                padding: "12px 24px",
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: "500",
+                boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+              }}
+            >
+              + Add Level
+            </button>
           </div>
 
           {/* Add Level Modal */}
@@ -1198,6 +1416,110 @@ export default pattern<SpindleBoardInput>(
                     }}
                   >
                     Add Level
+                  </button>
+                </div>
+              </div>
+            </div>,
+            null
+          )}
+
+          {/* Edit Level Modal */}
+          {ifElse(
+            showEditLevelModal,
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  padding: "24px",
+                  borderRadius: "12px",
+                  width: "400px",
+                  maxWidth: "90%",
+                }}
+              >
+                <h2 style={{ margin: "0 0 16px 0", fontSize: "18px" }}>
+                  Edit Level Prompt
+                </h2>
+
+                <div style={{ marginBottom: "8px", fontSize: "14px", color: "#666" }}>
+                  Level:{" "}
+                  {derive(
+                    { levels, editingLevelIndex },
+                    (deps: { levels: LevelConfig[]; editingLevelIndex: number }) =>
+                      deps.levels[deps.editingLevelIndex]?.title || "Unknown"
+                  )}
+                </div>
+
+                <div style={{ marginBottom: "16px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "4px",
+                      fontWeight: "500",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Default Prompt
+                  </label>
+                  <textarea
+                    value={editLevelPrompt}
+                    placeholder="Enter the prompt for this level..."
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      minHeight: "120px",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={closeEditLevelModal({ showEditLevelModal })}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#f3f4f6",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEditLevel({
+                      levels,
+                      editingLevelIndex,
+                      editLevelPrompt,
+                      showEditLevelModal,
+                    })}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Save Changes
                   </button>
                 </div>
               </div>
