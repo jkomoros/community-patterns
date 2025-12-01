@@ -169,7 +169,7 @@ Created `google-auth.tsx` as the unified auth pattern with:
 
 Updated importers to check for required scopes:
 - `gmail-importer.tsx` - checks for Gmail scope, shows warning if missing
-- `WIP/google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar scope
+- `google-calendar-importer.tsx` - now uses `#googleAuth`, checks for Calendar scope
 - `hotel-membership-extractor.tsx` - checks for Gmail scope
 
 Removed old auth patterns:
