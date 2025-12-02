@@ -282,8 +282,102 @@ github-momentum-tracker.tsx should be used as the reproduction case. The bug can
 
 ---
 
+## Update: 2025-12-02 - Empty URL Hypothesis Tested
+
+Hypothesized that the bug triggers when fetchData URLs are **empty strings** (conditional fetch that should be skipped). Created `fetchdata-empty-url-repro.tsx` to test this theory.
+
+### Test Pattern
+
+```typescript
+const results = ids.map((idCell) => {
+  const apiUrl = derive(
+    { enableFetching, idCell },
+    (values) => {
+      const enabled = /* extract value */;
+      const id = /* extract value */;
+      // Return empty string when not enabled - like github-momentum-tracker without auth
+      return enabled ? `https://jsonplaceholder.typicode.com/users/${id}` : "";
+    }
+  );
+  const userData = fetchData<User>({ url: apiUrl, mode: "json" });
+  return { id: idCell, userData };
+});
+```
+
+### Result: **WORKS** - No Frame mismatch
+
+- Added items with Fetching OFF (empty URLs) → No errors
+- Added multiple items → No errors
+- Toggled fetching ON → Data loaded correctly
+- Toggled back OFF → No errors
+
+**The empty URL hypothesis is DISPROVEN.** Empty URLs alone do not cause Frame mismatch.
+
+---
+
+## Update: 2025-12-02 - Final Verification
+
+Re-tested github-momentum-tracker in fresh space `momentum-final-verify`:
+
+1. Deployed fresh pattern
+2. Did NOT enter auth token (hasAuth = false, URLs become empty)
+3. Added repo "facebook/react"
+
+**Result: FRAME MISMATCH REPRODUCED**
+
+```
+TypeError: Cannot read properties of undefined (reading 'loading')
+TypeError: Cannot read properties of undefined (reading 'data')
+Error: Frame mismatch
+```
+
+### Definitive Conclusion
+
+**github-momentum-tracker.tsx IS the minimal reproduction.**
+
+Despite extensive testing with 10+ simplified repro patterns covering:
+- fetchData inside .map() (1, 3, 10, 12 fetches per item)
+- Dependency chains
+- wish() primitive
+- Imported pattern instantiation
+- Cell<object> input parameters
+- Three-way derives
+- ifElse conditional rendering
+- Empty URL patterns
+- ALL patterns combined
+
+**ALL simplified repros WORK.** Only github-momentum-tracker triggers the bug.
+
+### Implications
+
+The bug is either:
+1. **Pattern-specific** - Something unique about github-momentum-tracker's exact code structure
+2. **Complexity threshold** - Bug only triggers when pattern exceeds a certain complexity
+3. **Emergent interaction** - Combination of features that cannot be isolated
+4. **External dependency** - Something about wish() discovering actual charm data in production
+
+### Recommendation for Framework Author
+
+Please use `github-momentum-tracker.tsx` as the reproduction case:
+
+```bash
+cd labs
+deno task ct charm new ../community-patterns-2/patterns/jkomoros/github-momentum-tracker.tsx \
+  --api-url http://localhost:8000 \
+  --identity ../community-patterns-2/claude.key \
+  --space test-repro
+
+# Then:
+# 1. Navigate to the charm (do NOT enter auth token)
+# 2. Add any repo (e.g., "facebook/react")
+# 3. Observe Frame mismatch errors in console
+```
+
+---
+
 **Questions:**
 1. Is this limitation by design?
 2. Is there a planned feature to support dynamic fetchData allocation?
 3. What's the recommended pattern for "fetch data for each item in a variable-length list"?
 4. Given that simplified repros all work, could this be a timing/race condition specific to real API calls?
+5. What should we investigate in github-momentum-tracker to isolate the trigger?
