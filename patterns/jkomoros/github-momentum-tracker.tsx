@@ -279,41 +279,47 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   const repoDataList = repos.map((repoNameCell) => {
     // Parse the repo name to get owner/repo
     const ref = derive(repoNameCell, (name) => parseGitHubUrl(name));
-    const apiUrl = derive(ref, (r) => r ? `https://api.github.com/repos/${r.owner}/${r.repo}` : "");
 
-    // Only fetch if we have auth and a valid URL
-    const shouldFetch = derive({ hasAuth, apiUrl }, ({ hasAuth, apiUrl }) => hasAuth && !!apiUrl);
-
-    const metadata = ifElse(
-      shouldFetch,
-      fetchData<GitHubRepoMetadata>({
-        url: apiUrl,
-        mode: "json",
-        options: {
-          method: "GET",
-          headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
-        },
-      }),
-      null
+    // Derive URLs that return empty string when no auth OR no valid ref
+    // (fetchData skips fetch when URL is empty - see community-docs superstition)
+    // NOTE: derive() with object params doesn't auto-unwrap cells - must use .get()
+    const apiUrl = derive(
+      { hasAuth, ref },
+      (values) => {
+        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
+        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
+        return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}` : "";
+      }
     );
 
-    // Fetch commit activity (last 52 weeks)
-    const commitActivityUrl = derive(ref, (r) =>
-      r ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity` : ""
+    const commitActivityUrl = derive(
+      { hasAuth, ref },
+      (values) => {
+        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
+        const r = (values.ref as any)?.get ? (values.ref as any).get() : values.ref;
+        return (auth && r) ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity` : "";
+      }
     );
 
-    const commitActivity = ifElse(
-      shouldFetch,
-      fetchData<CommitActivityWeek[]>({
-        url: commitActivityUrl,
-        mode: "json",
-        options: {
-          method: "GET",
-          headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
-        },
-      }),
-      null
-    );
+    // Fetch repo metadata (skipped when URL is empty)
+    const metadata = fetchData<GitHubRepoMetadata>({
+      url: apiUrl,
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
+      },
+    });
+
+    // Fetch commit activity (skipped when URL is empty)
+    const commitActivity = fetchData<CommitActivityWeek[]>({
+      url: commitActivityUrl,
+      mode: "json",
+      options: {
+        method: "GET",
+        headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
+      },
+    });
 
     return { repoName: repoNameCell, ref, metadata, commitActivity };
   });
