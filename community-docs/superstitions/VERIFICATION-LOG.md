@@ -35,8 +35,10 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-01-24-pass-cells-as-handler-params-not-closure.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** medium (confirmed_count=2, detailed guestbook)
+**Notes:** Verified via pattern inspection. smart-rubric.tsx extensively uses this workaround - saves Cell refs before reactive contexts, passes to handlers as parameters. Pattern would break without this approach. Critical pattern for dynamic UI with Cells.
 
 ---
 
