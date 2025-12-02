@@ -427,10 +427,83 @@ All test patterns in `patterns/jkomoros/WIP/`:
 
 ---
 
+## Update: 2025-12-02 - **ROOT CAUSE IDENTIFIED via Binary Search**
+
+Used binary search approach: stripped github-momentum-tracker down, then added code back incrementally.
+
+### Binary Search Results
+
+| Version | What's Added | Result |
+|---------|-------------|--------|
+| v1 | No star samples | ✅ Works |
+| v2 | + samplePages derive (depends on metadata fetchData) | ✅ Works |
+| v3 | + makeSlotUrl + 1 starSample fetchData | ✅ Works |
+| v4 | + ALL 10 starSample fetchData | ✅ Works |
+| v5 | + starHistory aggregate derive (NOT accessed in UI) | ✅ Works |
+| **v6** | **+ UI accesses `starHistory.loading` via derive()** | **❌ FAILS** |
+| Original | Full UI with starHistory.loading/.data access | ❌ FAILS |
+
+### Root Cause
+
+The bug is triggered by this specific combination:
+
+1. `fetchData` created inside `.map()` on a cell array
+2. A derived cell (`starHistory`) aggregates those fetchData results
+3. **UI accesses properties of that derived cell via `derive(starHistory, sh => sh.loading)`**
+
+### Minimal Reproduction
+
+Inside `repos.map()`:
+```typescript
+// This works - fetchData inside map
+const metadata = fetchData<Metadata>({ url: apiUrl, mode: "json" });
+
+// This works - derive that aggregates fetchData results
+const starHistory = derive(
+  { metadata, s0: starSample0, s1: starSample1, ... },
+  (values) => ({ loading: false, data: [...] })
+);
+
+// Return starHistory
+return { repoName, metadata, starHistory };
+```
+
+In UI:
+```typescript
+{repoDataList.map((item) => {
+  const starHistory = item.starHistory;
+
+  // THIS TRIGGERS THE BUG - accessing starHistory via derive() in UI
+  return <div>{derive(starHistory, (sh) => sh.loading ? "..." : sh.data.length)}</div>;
+})}
+```
+
+### Error
+
+```
+TypeError: Cannot read properties of undefined (reading 'loading')
+Error: Frame mismatch
+```
+
+### Analysis
+
+The `starHistory` cell is **undefined** when accessed via `derive()` in the UI render callback, even though it's returned from the data map. This suggests:
+
+1. Derived cells that aggregate fetchData results inside `.map()` don't propagate correctly to the UI layer
+2. There's a timing issue where the cell isn't fully initialized when the UI tries to subscribe to it
+3. The reactive system loses track of the cell reference when crossing from data map to render map
+
+### Reproduction Pattern
+
+`momentum-stripped.tsx` in `patterns/jkomoros/WIP/` provides a clean reproduction:
+- v5 version (without starHistory UI access) works
+- v6 version (with `derive(starHistory, sh => sh.loading)` in UI) fails
+
+Deploy v6 and add a repo without auth to reproduce.
+
+---
+
 **Questions:**
-1. Is this limitation by design?
-2. Is there a planned feature to support dynamic fetchData allocation?
-3. What's the recommended pattern for "fetch data for each item in a variable-length list"?
-4. Given that simplified repros all work, could this be a timing/race condition specific to real API calls?
-5. What should we investigate in github-momentum-tracker to isolate the trigger?
-6. Is there a way to enable debug logging in the framework to see what's different?
+1. Why does the derived cell become undefined when accessed in the UI's map callback?
+2. Is there a workaround to safely access derived cells that aggregate fetchData results?
+3. Should we use a different pattern for aggregating multiple fetchData results inside `.map()`?
