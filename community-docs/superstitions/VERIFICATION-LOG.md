@@ -34,6 +34,15 @@ When a superstition is removed, also remove its entry from this log.
 
 ---
 
+## 2025-11-21-cannot-map-computed-arrays-in-jsx.md
+
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** medium (confirmed_count=2, pattern cleanup failed)
+**Notes:** Minimal repro appeared to work due to auto-unwrapping types, but pattern cleanup on reward-spinner.tsx failed with "mapWithPattern is not a function". Original superstition split - this is the confirmed portion.
+
+---
+
 ## 2025-11-22-at-reference-opaque-ref-arrays.md
 
 **Last verified:** never
