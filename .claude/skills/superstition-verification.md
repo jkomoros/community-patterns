@@ -11,6 +11,23 @@ Superstitions are observations that may be:
 
 This workflow tests each superstition and creates documentation for framework author review.
 
+## CRITICAL: Pattern Cleanup is Required for Disconfirmation
+
+> **⚠️ NEVER disconfirm a superstition based solely on a minimal repro!**
+>
+> Minimal repros can give **false negatives** due to:
+> - Different type signatures (e.g., auto-unwrapping vs explicit `Cell<>`)
+> - Missing complexity that triggers the real issue
+> - Different runtime conditions
+>
+> **The ONLY way to disconfirm a superstition is to:**
+> 1. Find the original pattern(s) that use the workaround
+> 2. Remove the workaround code
+> 3. Test the cleaned pattern in Playwright
+> 4. Verify it still works correctly
+>
+> If you can't find original patterns or can't test the cleanup, you **cannot disconfirm** - at best you can note "unable to verify" in the log.
+
 ## Workflow
 
 ### 1. Select a Superstition
@@ -87,17 +104,35 @@ Test the actual behavior. Does it match the superstition's claim?
 
 **Be wary of false negatives** - a minimal repro might not trigger the issue if it depends on specific conditions.
 
-### 7. Find and Clean Up Original Patterns
+### 7. Find and Clean Up Original Patterns (REQUIRED FOR DISCONFIRMATION)
 
-**This is critical for disconfirmation!**
+> **⚠️ This step is MANDATORY before disconfirming any superstition.**
+>
+> A minimal repro that "works" is NOT sufficient evidence. You MUST verify
+> that the original patterns work without their workarounds.
+
+**Steps:**
 
 1. **Find the original patterns** mentioned in the superstition's `sessions` field
 2. **Look for workaround code** - does the pattern use the "solution" described in the superstition?
 3. **Try removing the workaround** - clean up the pattern to use the "problematic" approach
 4. **Deploy and test in Playwright** - does the pattern still work correctly?
 
-**If cleanup works:** Strong evidence the superstition is invalid
-**If cleanup breaks:** The superstition might be valid for complex cases - file a bug for framework authors or tighten the superstition's scope
+**Outcomes:**
+
+| Cleanup Result | Conclusion |
+|----------------|------------|
+| **Cleanup works** | Strong evidence superstition is invalid - proceed to disconfirm |
+| **Cleanup breaks** | Superstition is VALID - do not disconfirm! Tighten scope or confirm |
+| **No patterns found** | Cannot disconfirm - mark as "unable to verify" |
+
+**Real Example (2025-12-02):**
+
+The superstition "cannot map computed arrays in JSX" had a minimal repro that appeared to work. However, when we tried to remove the workaround from `reward-spinner.tsx`:
+- Cleanup **failed** with `mapWithPattern is not a function`
+- The minimal repro worked because it used auto-unwrapping input types
+- The real pattern with explicit `Cell<>` types triggered the actual bug
+- **Result:** Superstition was CONFIRMED, not disconfirmed
 
 ### 8. Create Verification File
 
@@ -207,10 +242,17 @@ After each verification, consider:
 
 ## Deletion Workflow (for disconfirmed superstitions)
 
-**Only delete after:**
-1. Minimal repro doesn't show the issue
-2. Original pattern cleanup works (if applicable)
-3. Pattern tested in Playwright after cleanup
+> **⚠️ STOP: Have you completed pattern cleanup?**
+>
+> If the answer is "no" or "patterns not found", you CANNOT delete the superstition.
+> A minimal repro that works is NOT sufficient for deletion.
+
+**Prerequisites for deletion (ALL must be true):**
+1. ✅ Minimal repro doesn't show the issue
+2. ✅ Original pattern(s) found in `sessions` field
+3. ✅ Workaround code removed from original pattern(s)
+4. ✅ Cleaned pattern deployed and tested in Playwright
+5. ✅ Pattern works correctly WITHOUT the workaround
 
 **Commit sequence:**
 
@@ -242,7 +284,8 @@ This keeps the verification in git history while not leaving stale files.
 
 ## Important Notes
 
-- **Minimal repros can have false negatives** - complex patterns may trigger issues that minimal repros don't
-- **High-evidence superstitions need high-bar disconfirmation** - don't just trust minimal repro
-- **Pattern cleanup is the strongest evidence** - if you can remove workarounds and patterns still work, that's proof
-- **When in doubt, tighten scope rather than delete** - better to have a narrower superstition than miss a real issue
+- **Minimal repros WILL give false negatives** - this is not theoretical, we've seen it happen. Complex patterns trigger issues that minimal repros don't due to type differences, runtime conditions, and missing complexity.
+- **Pattern cleanup is the ONLY valid evidence for disconfirmation** - if you can remove workarounds and patterns still work after Playwright testing, that's proof. Anything less is insufficient.
+- **High-evidence superstitions need high-bar disconfirmation** - multiple confirmations and guestbook entries mean real developers hit this issue. Don't dismiss based on a minimal repro.
+- **When in doubt, tighten scope rather than delete** - better to have a narrower superstition than miss a real issue.
+- **If cleanup breaks, the superstition is VALID** - even if minimal repro worked. Trust the real-world evidence over synthetic tests.
