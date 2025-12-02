@@ -32,14 +32,39 @@ Create a dedicated auth pattern (like `google-auth.tsx`) that:
 #### How Hard Is It to Get a Token?
 
 **Surprisingly easy!** For public repo data:
-1. Go to github.com → Settings → Developer Settings → Personal Access Tokens
-2. Click "Generate new token (classic)"
-3. Give it a name like "Common Tools GitHub Access"
-4. **No scopes needed!** Public repo data is accessible with a zero-scope token
-5. Click "Generate token", copy it (shown only once)
-6. Paste into the auth pattern
 
-**One token works forever** (or until expiry date you set). Same token works across all patterns.
+**Option A: Fine-Grained Token (Recommended - Safer)**
+1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens
+2. Click "Generate new token"
+3. Name: "Common Tools GitHub Access"
+4. Expiration: Set a reasonable expiry (90 days, 1 year)
+5. Repository access: "Public Repositories (read-only)"
+6. Permissions: No additional permissions needed (public read is default)
+7. Generate, copy, paste
+
+**Option B: Classic Token (Simpler but less safe)**
+1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Name it, set expiration
+4. **Check NO scope boxes** - zero scopes = read-only public access
+5. Generate, copy, paste
+
+#### Security Considerations
+
+**Classic token with no scopes IS safe** (read-only public data), but:
+- ⚠️ Easy to accidentally check a scope box (grants write access!)
+- ⚠️ Classic tokens don't expire by default
+- ⚠️ If leaked, valid until manually revoked
+
+**Fine-grained tokens are better because:**
+- ✅ Explicit read-only permission model
+- ✅ Mandatory expiration
+- ✅ Can limit to specific repos or just public repos
+- ✅ Clearer what permissions you're granting
+
+**Recommendation:** Guide users toward fine-grained tokens in the auth pattern UI.
+
+**One token works forever** (or until expiry). Same token works across all patterns.
 
 #### Auth Pattern Design (`github-auth.tsx`)
 
@@ -330,12 +355,87 @@ interface TrackerOutput {
 - `shopping-list.tsx` - Pattern for list management UI
 - `gmail-importer.tsx` - Shows composing auth pattern inline when not discovered
 
+## Future: Generalized OAuth Component in Framework
+
+Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` component
+(like `<ct-google-oauth>`) that works with arbitrary OAuth providers.
+
+### What Would It Take?
+
+**Framework Changes (Medium-Large effort):**
+
+```typescript
+// Hypothetical usage
+<ct-oauth
+  $auth={auth}
+  provider={{
+    name: "GitHub",
+    authorizationUrl: "https://github.com/login/oauth/authorize",
+    tokenUrl: "https://github.com/login/oauth/access_token",
+    clientId: "your-github-app-client-id",
+    scopes: ["read:user", "repo"],
+    // clientSecret handled server-side
+  }}
+/>
+```
+
+**Server-Side Requirements:**
+1. **OAuth callback endpoint** - Receive auth code from provider redirect
+2. **Token exchange endpoint** - Exchange code for access token (needs client_secret)
+3. **Token refresh endpoint** - Refresh expired tokens
+4. **Secure secret storage** - Client secrets can't be in browser
+
+**Why This Is Harder Than PATs:**
+
+| Aspect | Personal Access Token | OAuth Flow |
+|--------|----------------------|------------|
+| User effort | Create on GitHub, paste | Click button, approve |
+| Server needed | No | Yes (token exchange) |
+| Client secret | Not needed | Required (server-side) |
+| App registration | Not needed | Need GitHub OAuth App |
+| Token refresh | Manual (new token) | Automatic |
+| Security model | User manages token | App manages token |
+
+**Implementation Estimate:**
+
+| Component | Effort | Notes |
+|-----------|--------|-------|
+| `<ct-oauth>` component | 2-3 weeks | UI, state management, redirect handling |
+| Server endpoints | 1-2 weeks | Callback, exchange, refresh |
+| Provider configs | 1 week | GitHub, Google, others |
+| Secret management | 1 week | Secure storage, rotation |
+| Testing | 2 weeks | Each provider has quirks |
+| Security review | 1 week | Required for auth systems |
+| **Total** | **8-11 weeks** | For a robust implementation |
+
+**Provider-Specific Quirks to Handle:**
+- GitHub: Token in response body (not JSON by default!)
+- Google: Refresh tokens only on first auth
+- Microsoft: Different token formats
+- Twitter: OAuth 1.0a (different flow entirely)
+
+### Recommendation
+
+**For this pattern:** Stick with PAT approach
+- Much simpler to implement (days vs months)
+- No server-side changes needed
+- Fine-grained tokens are secure enough
+- Users can manage their own tokens
+
+**For framework long-term:** Generalized OAuth would be valuable
+- Better UX (click to auth vs manual token creation)
+- Could support many providers with config
+- But significant investment
+
+**Middle ground:** If GitHub-specific OAuth is needed later, could add `<ct-github-oauth>` as a one-off (like `<ct-google-oauth>`), then generalize if pattern emerges.
+
 ## Open Questions
 
 1. Should we persist historical data to avoid re-fetching? (Framework caches, but clears eventually)
 2. Should there be a "portfolio score" aggregating all repos?
 3. Should we support GitHub orgs (fetch all repos from an org)?
 4. Export functionality (CSV, image)?
+5. **Should we lobby for `<ct-github-oauth>` component in framework?** (Better UX than PAT)
 
 ## Status
 
