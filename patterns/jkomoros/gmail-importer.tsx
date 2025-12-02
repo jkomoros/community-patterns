@@ -398,14 +398,20 @@ const googleUpdater = handler<unknown, {
     historyId: string;
     debugMode: boolean;
   }>;
+  fetching?: Cell<boolean>;
 }>(
   async (_event, state) => {
+    // Set fetching state if available
+    if (state.fetching) {
+      state.fetching.set(true);
+    }
     const debugMode = state.settings.get().debugMode || false;
 
     debugLog(debugMode, "googleUpdater!");
 
     if (!state.auth.get().token) {
       debugWarn(debugMode, "no token found in auth cell");
+      if (state.fetching) state.fetching.set(false);
       return;
     }
 
@@ -414,13 +420,19 @@ const googleUpdater = handler<unknown, {
 
     debugLog(debugMode, "gmailFilterQuery", gmailFilterQuery);
 
-    const result = await process(
-      state.auth,
-      settings.limit,
-      gmailFilterQuery,
-      { emails: state.emails, settings: state.settings },
-      debugMode,
-    );
+    let result;
+    try {
+      result = await process(
+        state.auth,
+        settings.limit,
+        gmailFilterQuery,
+        { emails: state.emails, settings: state.settings },
+        debugMode,
+      );
+    } finally {
+      // Clear fetching state
+      if (state.fetching) state.fetching.set(false);
+    }
 
     if (!result) return;
 
@@ -977,6 +989,7 @@ export default pattern<{
   ({ settings, authCharm }) => {
     const emails = cell<Confidential<Email[]>>([]);
     const showAuth = cell(false);
+    const fetching = cell(false);
 
     // Wish for a favorited auth charm (used when no explicit authCharm provided)
     // TODO(CT-1084): Update to wish({ query: "#googleAuth" }) when object syntax bug is fixed
@@ -1209,9 +1222,18 @@ export default pattern<{
                 emails,
                 auth,
                 settings,
+                fetching,
               })}
+              disabled={fetching}
             >
-              Fetch Emails
+              {ifElse(
+                fetching,
+                <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <ct-loader size="sm" show-elapsed></ct-loader>
+                  Fetching...
+                </span>,
+                "Fetch Emails"
+              )}
             </ct-button>
           </ct-vstack>
 
