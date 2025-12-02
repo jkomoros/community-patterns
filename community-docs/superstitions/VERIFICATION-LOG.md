@@ -101,14 +101,17 @@ When a superstition is removed, also remove its entry from this log.
 ## 2025-11-22-derive-object-parameter-cell-unwrapping.md
 
 **Last verified:** 2025-12-02
-**Status:** DISPROVED
-**Evidence level:** high (active repro testing)
-**Notes:** ACTIVELY VERIFIED via 2025-11-22-derive-unwrap-test.tsx repro:
-- Single Cell param: type=boolean, hasGet=false (auto-unwrapped) ✓
-- Object param: flag.type=boolean, flag.hasGet=false (ALSO auto-unwrapped!) ✓
-- BOTH approaches auto-unwrap! The superstition is INCORRECT.
-- The original issue may have been due to other factors (timing, specific pattern, etc.)
-- **Consider demoting from folk_wisdom or adding correction notice**
+**Status:** NUANCED (TypeScript types vs runtime)
+**Evidence level:** high (active repro + pattern cleanup attempt)
+**Notes:** Complex findings:
+- **Minimal repro**: Runtime shows auto-unwrapping (hasGet=false) ✓
+- **Pattern cleanup**: TypeScript ERRORS when removing workaround!
+- TypeScript types: `values.board` typed as `Cell<BoardWord[]>`, not `BoardWord[]`
+- Error: "Conversion of type 'Cell<T>' to type 'T' may be a mistake"
+- **Conclusion**: Workaround IS needed for TypeScript, even if runtime auto-unwraps
+- The superstition is correct about NEEDING the workaround for TypeScript
+- Original observation may have conflated TypeScript types with runtime behavior
+- Keep superstition but clarify it's a TypeScript types issue, not necessarily runtime
 
 ---
 
