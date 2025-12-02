@@ -1201,9 +1201,14 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     onClick={triggerExtraction({ notes, extractTrigger })}
                     disabled={extractionPending}
                   >
-                    {extractionPending
-                      ? "Extracting..."
-                      : "Extract Recipe Data"}
+                    {ifElse(
+                      extractionPending,
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        Extracting...
+                      </span>,
+                      "Extract Recipe Data"
+                    )}
                   </ct-button>
                 </div>
               </div>
@@ -1220,7 +1225,16 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 justifyContent: "space-between",
                 alignItems: "center",
               }}>
-                <span>{imageExtractionPending ? "📸 Extracting text from image..." : "📷 Upload an image to extract text"}</span>
+                <span>
+                  {ifElse(
+                    imageExtractionPending,
+                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Extracting text from image...
+                    </span>,
+                    "📷 Upload an image to extract text"
+                  )}
+                </span>
                 <ct-button
                   onClick={applyImageText({ notes, uploadedImage, imageTextResult })}
                   disabled={imageExtractionPending}
@@ -1455,7 +1469,8 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 { pending: analyzer.analysisPending, dc: analyzer.dietaryCompatibility },
                 ({ pending, dc }) => {
                   if (pending) {
-                    return <div style={{ fontStyle: "italic", color: "#666" }}>
+                    return <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <ct-loader size="sm"></ct-loader>
                       Analyzing dietary compatibility...
                     </div>;
                   }
@@ -1529,14 +1544,28 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     disabled={derive(stepGroups, (groups) => groups.length === 0) || timingSuggestionPending}
                     variant="secondary"
                   >
-                    {timingSuggestionPending ? "Analyzing..." : "Organize by Timing"}
+                    {ifElse(
+                      timingSuggestionPending,
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        Analyzing...
+                      </span>,
+                      "Organize by Timing"
+                    )}
                   </ct-button>
                   <ct-button
                     onClick={triggerWaitTimeSuggestion({ stepGroups, waitTimeSuggestionTrigger })}
                     disabled={derive(stepGroups, (groups) => groups.length === 0) || waitTimeSuggestionPending}
                     variant="secondary"
                   >
-                    {waitTimeSuggestionPending ? "Analyzing..." : "Suggest Wait Times"}
+                    {ifElse(
+                      waitTimeSuggestionPending,
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        Analyzing...
+                      </span>,
+                      "Suggest Wait Times"
+                    )}
                   </ct-button>
                   <ct-button onClick={addStepGroup({ stepGroups })}>
                     + Add Group
