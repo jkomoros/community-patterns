@@ -53,36 +53,76 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-11-22-at-reference-opaque-ref-arrays.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** partially_confirmed
+**Evidence level:** medium (active repro testing)
+**Notes:** ACTIVELY VERIFIED. Mixed results:
+- ✅ `wish("#mentionable")` works - returns charms in space (no refresh needed in test)
+- ✅ `ct-prompt-input` @ dropdown appears, inserts markdown `[Name](/of:id)`
+- ❌ `ct-prompt-input` `detail.mentions` is EMPTY (0 items) - can't get Cell refs this way
+- ✅ `ct-code-editor` [[ dropdown appears, inserts wiki-link `[[Name(id)]]`
+- ❌ `ct-code-editor` `onbacklink-create` doesn't fire when selecting from dropdown
+- The superstition's code example using `detail.mentions` is INCORRECT
+- chatbot.tsx just uses the text (parses markdown links), doesn't use mentions array
+- Superstition is good for UI/dropdown documentation but wrong about Cell ref extraction
 
 ---
 
 ## 2025-11-22-ct-code-editor-wiki-link-syntax.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** medium (active repro testing)
+**Notes:** ACTIVELY VERIFIED via 2025-11-22-at-reference-code-editor-test.tsx repro:
+- ✅ `[[` triggers completions dropdown (tested)
+- ✅ Dropdown shows mentionable charms correctly
+- ✅ Selection inserts wiki-link format `[[Name(id)]]`
+- ❌ `onbacklink-create` does NOT fire on dropdown selection (confirmed!)
+- Superstition correctly documents this behavior and the open questions
+- The "CRITICAL FINDING" in the superstition is accurate
 
 ---
 
 ## 2025-11-22-deployment-setsrc-conflicts-use-new-instead.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** high (active repro testing)
+**Notes:** ACTIVELY VERIFIED via 2025-11-22-setsrc-test.tsx repro:
+- Deployed v1 pattern with `charm new` -> shows "v1" ✓
+- Modified pattern to v2, ran `charm setsrc` -> NO ERRORS but still shows "v1" ❌
+- `charm setsrc` silently fails - worse than superstition describes!
+- Deployed v2 with `charm new` -> shows "v2-setsrc" ✓
+- Workaround confirmed: always use `charm new` instead of `setsrc`
+- Superstition is VALID and possibly understates the problem
 
 ---
 
 ## 2025-11-22-derive-object-parameter-cell-unwrapping.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** DISPROVED
+**Evidence level:** high (active repro testing)
+**Notes:** ACTIVELY VERIFIED via 2025-11-22-derive-unwrap-test.tsx repro:
+- Single Cell param: type=boolean, hasGet=false (auto-unwrapped) ✓
+- Object param: flag.type=boolean, flag.hasGet=false (ALSO auto-unwrapped!) ✓
+- BOTH approaches auto-unwrap! The superstition is INCORRECT.
+- The original issue may have been due to other factors (timing, specific pattern, etc.)
+- **Consider demoting from folk_wisdom or adding correction notice**
 
 ---
 
 ## 2025-11-22-generateObject-model-names.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** low (code review, not active testing)
+**Notes:** Verified via code review of models.ts:
+- MODELS registry contains valid names like `anthropic:claude-sonnet-4-5`
+- `findModel()` returns undefined for unregistered names (confirmed in code)
+- Would cause "Cannot read properties of undefined" as described
+- Valid documentation about model name formats
+- Skipped active LLM testing (expensive API calls)
 
 ---
 
