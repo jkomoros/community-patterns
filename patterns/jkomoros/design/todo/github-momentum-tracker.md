@@ -15,10 +15,116 @@ A pattern to track the "momentum" of GitHub repositories by visualizing star gro
 ## Architecture Decisions
 
 ### Authentication Strategy
-- Use `wish` to discover a GitHub auth token charm (e.g., `wish("#githubAuthToken")`)
-- If no auth token found, render a textbox for user to enter one
-- Store token in a cell for reactivity
-- Required for scale (20+ repos) due to GitHub rate limits (60/hr unauth vs 5000/hr auth)
+
+#### The Problem
+GitHub API rate limits:
+- **Unauthenticated**: 60 requests/hour (useless for 20+ repos)
+- **Authenticated**: 5,000 requests/hour (plenty for our use case)
+
+#### Solution: Separate `github-auth.tsx` Pattern
+
+Create a dedicated auth pattern (like `google-auth.tsx`) that:
+1. Walks user through creating a GitHub Personal Access Token (PAT)
+2. Stores the token
+3. Is discoverable via `wish("#githubAuth")`
+4. Can be composed into other patterns that need GitHub API access
+
+#### How Hard Is It to Get a Token?
+
+**Surprisingly easy!** For public repo data:
+1. Go to github.com → Settings → Developer Settings → Personal Access Tokens
+2. Click "Generate new token (classic)"
+3. Give it a name like "Common Tools GitHub Access"
+4. **No scopes needed!** Public repo data is accessible with a zero-scope token
+5. Click "Generate token", copy it (shown only once)
+6. Paste into the auth pattern
+
+**One token works forever** (or until expiry date you set). Same token works across all patterns.
+
+#### Auth Pattern Design (`github-auth.tsx`)
+
+```typescript
+/** GitHub Personal Access Token authentication. #githubAuth */
+interface Output {
+  token: string;
+  isValid: boolean;
+  username: string;      // Fetched via /user endpoint to validate
+  rateLimit: {
+    remaining: number;
+    limit: number;
+    resetAt: string;
+  };
+}
+```
+
+**UI Flow**:
+1. Check if token already exists → Show status (username, rate limit remaining)
+2. If no token or invalid:
+   - Show clear instructions with link to GitHub token page
+   - Textarea for pasting token
+   - "Validate & Save" button
+   - Test token via `GET /user` endpoint
+3. Once valid, show green status + reminder to favorite for discovery
+4. Export `token` for other patterns to use
+
+**Token Validation**:
+```typescript
+// Test token by fetching user info
+const validation = fetchData({
+  url: "https://api.github.com/user",
+  headers: { Authorization: `Bearer ${token}` }
+});
+// If 200 → valid, extract username
+// If 401 → invalid token
+// Also fetch /rate_limit to show remaining quota
+```
+
+#### Composition in Momentum Tracker
+
+```typescript
+// In github-momentum-tracker.tsx
+import GitHubAuth from "./github-auth.tsx";
+
+export default pattern<Input, Output>(({ authCharm, ... }) => {
+  // Try to find existing auth via wish
+  const discoveredAuth = wish<{ token: string }>("#githubAuth");
+
+  // Use discovered auth, or passed-in auth, or show inline auth UI
+  const effectiveToken = derive(
+    { discovered: discoveredAuth, passed: authCharm },
+    ({ discovered, passed }) => discovered?.token || passed?.token || ""
+  );
+
+  const hasAuth = derive(effectiveToken, (t) => !!t);
+
+  // If no auth, compose the auth pattern inline
+  const inlineAuth = GitHubAuth({});
+
+  return {
+    [UI]: (
+      <div>
+        {ifElse(
+          hasAuth,
+          <div>/* Main tracker UI */</div>,
+          <div>
+            <h3>GitHub Authentication Required</h3>
+            <p>To track 20+ repos, you need a GitHub token for API access.</p>
+            {inlineAuth}
+          </div>
+        )}
+      </div>
+    ),
+  };
+});
+```
+
+#### Why a Separate Pattern?
+
+1. **Reusability**: Any pattern needing GitHub API can use it
+2. **Single source of truth**: One token, discoverable everywhere
+3. **Better UX**: User sets up auth once, favorites it, done forever
+4. **Separation of concerns**: Auth logic separate from business logic
+5. **Testability**: Can test auth pattern independently
 
 ### Data Fetching Approach
 
@@ -133,10 +239,21 @@ interface TrackerOutput {
 
 ## Implementation Plan
 
-### Phase 1: Core Infrastructure
-- [ ] Create basic pattern structure with Input/Output types
-- [ ] Implement `wish("#githubAuthToken")` for auth discovery
-- [ ] Create auth token input UI with fallback textbox
+### Phase 0: GitHub Auth Pattern (`github-auth.tsx`)
+- [ ] Create `github-auth.tsx` with basic structure
+- [ ] Add instructions UI with link to GitHub token creation page
+- [ ] Add token input textarea with "Validate" button
+- [ ] Implement token validation via `GET https://api.github.com/user`
+- [ ] Fetch and display rate limit info (`GET /rate_limit`)
+- [ ] Show authenticated status (username, avatar, rate limit remaining)
+- [ ] Add "favorite this charm" reminder for wish discovery
+- [ ] Test: Create token, paste, validate, favorite
+- [ ] Deploy and verify `wish("#githubAuth")` works
+
+### Phase 1: Core Infrastructure (Momentum Tracker)
+- [ ] Create `github-momentum-tracker.tsx` with Input/Output types
+- [ ] Implement `wish("#githubAuth")` for auth discovery
+- [ ] Compose `GitHubAuth` inline as fallback if no wish result
 - [ ] Implement URL parsing function (best-effort, various formats)
 - [ ] Create repo list management UI (add/remove)
 
@@ -207,9 +324,11 @@ interface TrackerOutput {
 ## Similar Work / Reference
 
 - [star-history](https://github.com/star-history/star-history) - Web tool that inspired this
+- `google-auth.tsx` - **Auth pattern to model** - shows wish discovery, OAuth flow, favorite reminder
 - `cheeseboard-schedule.tsx` - Pattern using fetchData for external APIs
 - `prompt-injection-tracker.tsx` - Pattern with multi-level caching pipeline
 - `shopping-list.tsx` - Pattern for list management UI
+- `gmail-importer.tsx` - Shows composing auth pattern inline when not discovered
 
 ## Open Questions
 
