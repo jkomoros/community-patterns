@@ -6,18 +6,6 @@ When a superstition is removed, also remove its entry from this log.
 
 ---
 
-## 2025-01-21-reactivity-recipe-pattern-migration-jsx.md
-
-**Last verified:** 2025-12-02
-**Status:** disconfirmed - awaiting maintainer review
-
-**Summary:** Both claims (direct JSX conditionals don't react, computed arrays can't be mapped) were tested and found to be FALSE in the current framework. Official docs also contradict these claims. Recommendation: delete superstition.
-
-**Verification file:** `verifications/2025-01-21-reactivity-jsx-computed-map.md`
-**Repro:** `repros/2025-01-21-reactivity-jsx-computed-map.tsx`
-
----
-
 ## 2025-01-23-ct-image-input-base64-overhead.md
 
 **Last verified:** never
