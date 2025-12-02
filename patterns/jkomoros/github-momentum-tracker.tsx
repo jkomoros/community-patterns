@@ -54,6 +54,17 @@ interface CommitActivityWeek {
   days: number[];
 }
 
+// Star history types (for star-history.com sampling approach)
+interface StargazerWithDate {
+  starred_at: string;
+  user: { login: string };
+}
+
+interface StarDataPoint {
+  date: string; // ISO date
+  count: number; // Approximate star count at that date
+}
+
 interface MomentumAnalysis {
   trend: "accelerating" | "steady" | "decelerating" | "unknown";
   recentAvg: number; // Average commits per week (last 4 weeks)
@@ -182,6 +193,39 @@ function makeGitHubHeaders(token: string) {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
+}
+
+// Special headers for stargazers with timestamp (star-history.com approach)
+function makeStargazerHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github.v3.star+json", // Returns starred_at timestamp
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+/**
+ * Calculate sample page numbers for star history (star-history.com approach)
+ * Returns 10 evenly distributed page numbers from 1 to totalPages
+ */
+function getSamplePageNumbers(totalStars: number): number[] {
+  const totalPages = Math.ceil(totalStars / 100);
+  if (totalPages <= 10) {
+    // Fetch all pages if < 10
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  // Evenly distributed sample: 1, p/10, 2p/10, ..., p
+  const pages: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const page = Math.max(1, Math.floor((i * totalPages) / 9));
+    if (!pages.includes(page)) {
+      pages.push(page);
+    }
+  }
+  // Ensure we have page 1 and last page
+  if (!pages.includes(1)) pages.unshift(1);
+  if (!pages.includes(totalPages)) pages.push(totalPages);
+  return pages.slice(0, 10);
 }
 
 // =============================================================================
@@ -321,7 +365,140 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
       },
     });
 
-    return { repoName: repoNameCell, ref, metadata, commitActivity };
+    // ==========================================================================
+    // Star History Sampling (star-history.com approach)
+    // Create 10 fixed sample slots, each deriving URL directly from metadata
+    // ==========================================================================
+
+    // Derive sample page numbers directly from metadata (single derive, no chain)
+    const samplePages = derive(
+      { hasAuth, parsedRef: ref, metadata },
+      (values) => {
+        const auth = (values.hasAuth as any)?.get ? (values.hasAuth as any).get() : values.hasAuth;
+        const r = (values.parsedRef as any)?.get ? (values.parsedRef as any).get() : values.parsedRef;
+        const m = (values.metadata as any)?.get ? (values.metadata as any).get() : values.metadata;
+
+        if (!auth || !r || !m?.result?.stargazers_count) {
+          return { owner: "", repo: "", pages: [] as number[] };
+        }
+
+        const totalStars = m.result.stargazers_count;
+        return {
+          owner: r.owner,
+          repo: r.repo,
+          pages: getSamplePageNumbers(totalStars),
+        };
+      }
+    );
+
+    // Create a function that returns URL for a given slot index
+    const makeSlotUrl = (slotIndex: number) =>
+      derive(samplePages, (sp) => {
+        if (!sp.owner || !sp.repo || slotIndex >= sp.pages.length) return "";
+        const page = sp.pages[slotIndex];
+        return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${page}`;
+      });
+
+    // Create 10 explicit fetchData slots for star samples
+    const starSample0 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(0),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample1 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(1),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample2 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(2),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample3 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(3),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample4 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(4),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample5 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(5),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample6 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(6),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample7 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(7),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample8 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(8),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+    const starSample9 = fetchData<StargazerWithDate[]>({
+      url: makeSlotUrl(9),
+      mode: "json",
+      options: { method: "GET", headers: derive(effectiveToken, (t) => makeStargazerHeaders(t)) },
+    });
+
+    // Aggregate star history from all samples
+    const starHistory = derive(
+      {
+        samplePages,
+        s0: starSample0, s1: starSample1, s2: starSample2, s3: starSample3, s4: starSample4,
+        s5: starSample5, s6: starSample6, s7: starSample7, s8: starSample8, s9: starSample9,
+      },
+      (values) => {
+        const sp = (values.samplePages as any)?.get ? (values.samplePages as any).get() : values.samplePages;
+        if (!sp.pages || sp.pages.length === 0) return { loading: false, data: [] as StarDataPoint[] };
+
+        const samples = [
+          values.s0, values.s1, values.s2, values.s3, values.s4,
+          values.s5, values.s6, values.s7, values.s8, values.s9,
+        ];
+
+        // Check if any are still loading
+        const pending = samples.some((s, i) => {
+          if (i >= sp.pages.length) return false;
+          const sample = (s as any)?.get ? (s as any).get() : s;
+          return sample?.pending === true;
+        });
+
+        if (pending) return { loading: true, data: [] as StarDataPoint[] };
+
+        // Collect results
+        const dataPoints: StarDataPoint[] = [];
+        for (let i = 0; i < sp.pages.length && i < 10; i++) {
+          const sample = (samples[i] as any)?.get ? (samples[i] as any).get() : samples[i];
+          const result = sample?.result;
+          if (result && result.length > 0 && result[0]?.starred_at) {
+            // Star count at this page = (page - 1) * 100 (approximation)
+            const pageNum = sp.pages[i];
+            dataPoints.push({
+              date: result[0].starred_at.split("T")[0], // Just the date part
+              count: (pageNum - 1) * 100,
+            });
+          }
+        }
+
+        // Sort by date
+        dataPoints.sort((a, b) => a.date.localeCompare(b.date));
+
+        return { loading: false, data: dataPoints };
+      }
+    );
+
+    return { repoName: repoNameCell, ref, metadata, commitActivity, starHistory, samplePages };
   });
 
   // Count repos
@@ -456,6 +633,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
             {repoDataList.map((item) => {
               const metadata = item.metadata;
               const commitActivity = item.commitActivity;
+              const starHistory = item.starHistory;
               const repoName = item.repoName; // This is a Cell<string>
               const isLoading = derive(metadata, (m) => m?.pending === true);
               const hasError = derive(metadata, (m) => !!m?.error);
@@ -587,7 +765,93 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                     )
                   )}
 
-                  {/* Commit Activity Sparkline */}
+                  {/* Star Growth Sparkline - Main Momentum Indicator */}
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "12px",
+                    backgroundColor: "#fffbeb",
+                    borderRadius: "6px",
+                    border: "1px solid #fcd34d",
+                  }}>
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "8px",
+                    }}>
+                      <span style={{ fontSize: "13px", color: "#92400e", fontWeight: "500" }}>
+                        Star Growth Over Time
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#b45309" }}>
+                        {derive(starHistory, (sh) => {
+                          if (sh.loading) return "Loading...";
+                          if (sh.data.length === 0) return "No data";
+                          const first = sh.data[0];
+                          const last = sh.data[sh.data.length - 1];
+                          return `${first.date} → ${last.date}`;
+                        })}
+                      </span>
+                    </div>
+                    {ifElse(
+                      derive(starHistory, (sh) => sh.loading),
+                      <div style={{ color: "#b45309", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+                        Loading star history...
+                      </div>,
+                      ifElse(
+                        derive(starHistory, (sh) => sh.data.length > 0),
+                        <div style={{
+                          display: "flex",
+                          alignItems: "flex-end",
+                          gap: "2px",
+                          height: "60px",
+                        }}>
+                          {/* Render star history as bars (height = star count at that sample) */}
+                          {derive(starHistory, (sh) => {
+                            const maxCount = Math.max(...sh.data.map(d => d.count), 1);
+                            return sh.data.map((point, i) => {
+                              const heightPercent = (point.count / maxCount) * 100;
+                              return (
+                                <div
+                                  key={i}
+                                  style={{
+                                    flex: 1,
+                                    height: `${Math.max(heightPercent, 5)}%`,
+                                    backgroundColor: "#f59e0b",
+                                    borderRadius: "2px 2px 0 0",
+                                    minHeight: "4px",
+                                  }}
+                                  title={`${point.date}: ~${point.count.toLocaleString()} stars`}
+                                />
+                              );
+                            });
+                          })}
+                        </div>,
+                        <div style={{ color: "#b45309", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+                          No star history data available
+                        </div>
+                      )
+                    )}
+                    {/* Star counts under bars */}
+                    {ifElse(
+                      derive(starHistory, (sh) => sh.data.length > 1),
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: "4px",
+                        fontSize: "10px",
+                        color: "#92400e",
+                      }}>
+                        {derive(starHistory, (sh) => {
+                          if (sh.data.length === 0) return "";
+                          return `~${sh.data[0].count.toLocaleString()} stars`;
+                        })}
+                        {derive(data, (d) => d?.stargazers_count ? `${d.stargazers_count.toLocaleString()} stars now` : "")}
+                      </div>,
+                      null
+                    )}
+                  </div>
+
+                  {/* Commit Activity Heatmap */}
                   <div style={{
                     marginTop: "12px",
                     padding: "12px",
@@ -624,27 +888,33 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                           gap: "2px",
                           height: "50px",
                         }}>
-                          {derive(sparklineData, (data) => {
-                            const maxVal = Math.max(...data, 1);
-                            return data.map((val, i) => {
-                              const heightPercent = (val / maxVal) * 100;
-                              const opacity = 0.5 + (i / data.length) * 0.5;
-                              return (
-                                <div
-                                  key={i}
-                                  style={{
-                                    flex: 1,
-                                    height: `${Math.max(heightPercent, 2)}%`,
-                                    backgroundColor: derive(momentumBadge, (b) => b.color),
-                                    opacity: opacity,
-                                    borderRadius: "2px 2px 0 0",
-                                    minHeight: "2px",
-                                  }}
-                                  title={`Week ${i + 1}: ${val} commits`}
-                                />
-                              );
-                            });
-                          })}
+                          {/* Use derive to produce complete bar elements with pre-computed color */}
+                          {derive(
+                            { sparklineData, momentumBadge },
+                            ({ sparklineData, momentumBadge }) => {
+                              const data = sparklineData;
+                              const badgeColor = momentumBadge?.color || "#6c757d";
+                              const maxVal = Math.max(...data, 1);
+                              return data.map((val, i) => {
+                                const heightPercent = (val / maxVal) * 100;
+                                const opacity = 0.5 + (i / data.length) * 0.5;
+                                return (
+                                  <div
+                                    key={i}
+                                    style={{
+                                      flex: 1,
+                                      height: `${Math.max(heightPercent, 2)}%`,
+                                      backgroundColor: badgeColor,
+                                      opacity: opacity,
+                                      borderRadius: "2px 2px 0 0",
+                                      minHeight: "2px",
+                                    }}
+                                    title={`Week ${i + 1}: ${val} commits`}
+                                  />
+                                );
+                              });
+                            }
+                          )}
                         </div>,
                         <div style={{ color: "#999", fontSize: "13px", textAlign: "center", padding: "8px" }}>
                           No commit activity data
