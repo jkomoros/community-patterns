@@ -1111,9 +1111,10 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               border: "1px solid #f59e0b",
                             }}
                           >
-                            <p style={{ fontSize: "0.75rem", color: "#92400e" }}>
-                              📸 Photo {photoIdx + 1}: Analyzing...
-                            </p>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.75rem", color: "#92400e" }}>
+                              <ct-loader size="sm" show-elapsed></ct-loader>
+                              Photo {photoIdx + 1}: Analyzing...
+                            </div>
                           </div>
                         );
                       }
@@ -1422,10 +1423,14 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   return (
                     <div style={{
                       padding: "1rem",
-                      textAlign: "center",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.75rem",
                       color: "#92400e",
                       fontSize: "0.875rem",
                     }}>
+                      <ct-loader show-elapsed></ct-loader>
                       Analyzing board and generating clues...
                     </div>
                   );
