@@ -17,8 +17,10 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-01-23-jsx-reactive-style-objects.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** low (confirmed_count=1)
+**Notes:** Verified via minimal repro. Individual computed values within style object literal don't react - shows inactive style even when state is active. Single computed returning entire style object works correctly. cheeseboard-schedule.tsx correctly uses workaround.
 
 ---
 
