@@ -1207,7 +1207,8 @@ Make them diverse in genre and tone:
                     synopsisIdeasGeneration,
                     (gen: { pending: boolean }) => gen.pending
                   ),
-                  <div style={{ color: "#6b7280", fontStyle: "italic" }}>
+                  <div style={{ color: "#6b7280", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <ct-loader size="sm" show-elapsed></ct-loader>
                     Generating ideas...
                   </div>,
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1414,7 +1415,10 @@ Make them diverse in genre and tone:
                         <div style={{ fontSize: "12px", color: "#666" }}>
                           {ifElse(
                             result.isGenerating,
-                            "Generating options...",
+                            <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <ct-loader size="sm"></ct-loader>
+                              Generating options...
+                            </span>,
                             ifElse(
                               result.isPinned,
                               derive(result.pinnedIdx, (i: number) => `Option ${i + 1} selected`),
@@ -1645,24 +1649,10 @@ Make them diverse in genre and tone:
                         gap: "16px",
                       }}
                     >
-                      <div
-                        style={{
-                          width: "40px",
-                          height: "40px",
-                          border: "3px solid #e5e7eb",
-                          borderTopColor: "#3b82f6",
-                          borderRadius: "50%",
-                          animation: "spin 1s linear infinite",
-                        }}
-                      />
+                      <ct-loader size="lg" show-elapsed></ct-loader>
                       <div style={{ color: "#6b7280", fontSize: "14px" }}>
                         Generating options...
                       </div>
-                      <style>{`
-                        @keyframes spin {
-                          to { transform: rotate(360deg); }
-                        }
-                      `}</style>
                     </div>,
                     <div
                       style={{
