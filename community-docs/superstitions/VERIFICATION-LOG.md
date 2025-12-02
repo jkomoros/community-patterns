@@ -38,7 +38,7 @@ When a superstition is removed, also remove its entry from this log.
 **Last verified:** 2025-12-02
 **Status:** confirmed
 **Evidence level:** medium (confirmed_count=2, detailed guestbook)
-**Notes:** Verified via pattern inspection. smart-rubric.tsx extensively uses this workaround - saves Cell refs before reactive contexts, passes to handlers as parameters. Pattern would break without this approach. Critical pattern for dynamic UI with Cells.
+**Notes:** **ACTIVELY VERIFIED** via minimal repro deployment. Closure capture fails at COMPILE time: "Accessing an opaque ref via closure is not supported". Handler parameter approach works - Cell.set() succeeds, UI updates reactively. Must use `pattern` not `recipe`. Framework enforces this more strictly than original superstition described.
 
 ---
 
