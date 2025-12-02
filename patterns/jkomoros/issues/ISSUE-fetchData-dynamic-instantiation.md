@@ -375,9 +375,62 @@ deno task ct charm new ../community-patterns-2/patterns/jkomoros/github-momentum
 
 ---
 
+## Update: 2025-12-02 - Exhaustive Structural Testing
+
+Created additional repro patterns testing EVERY structural element from github-momentum-tracker:
+
+### New Repro Patterns Tested (ALL WORK)
+
+| Pattern | What it Tests | Result |
+|---------|--------------|--------|
+| `fetchdata-multi-empty-repro.tsx` | 13 fetchData per item, ALL with empty URLs | ✅ Works |
+| `fetchdata-options-repro.tsx` | fetchData with `options.headers` derived from cell | ✅ Works |
+| `auth-config.tsx` | Helper pattern with its own fetchData (like GitHubAuth) | ✅ Works |
+| `fetchdata-inline-fetch-repro.tsx` | **EXACT structural match** to github-momentum-tracker | ✅ Works |
+
+### The Inline Fetch Repro Matches github-momentum-tracker EXACTLY:
+
+1. ✅ `wish()` for auth discovery
+2. ✅ Inline pattern instantiation (`AuthConfig({})`) that has its own fetchData
+3. ✅ Three-way derive for `effectiveToken` (wish + authCharm + inlineAuth.token)
+4. ✅ `hasAuth` derived from effectiveToken
+5. ✅ fetchData inside `.map()` with empty URLs when no auth
+6. ✅ `options.headers` derived from effectiveToken
+7. ✅ `samplePages` derived from hasAuth + parsedRef + metadata (fetchData result)
+8. ✅ 10 explicit fetchData slots (`slot0`-`slot9`) depending on samplePages
+9. ✅ All slots have `options.headers` derived from effectiveToken
+
+**The inline-fetch-repro is structurally IDENTICAL to github-momentum-tracker** - it just uses JSONPlaceholder instead of GitHub API.
+
+### Final Conclusion
+
+**The bug cannot be isolated to any structural element.**
+
+Every pattern, feature, and combination from github-momentum-tracker works fine when tested in isolation or in combination. The bug only manifests in `github-momentum-tracker.tsx` itself.
+
+### Possible Explanations
+
+1. **File complexity threshold** - Some internal limit triggered by pattern size/complexity
+2. **Specific character/parsing** - Something in github-momentum-tracker's exact source
+3. **GitHub API specifics** - Something about actual GitHub API responses (401 errors, rate limiting)
+4. **Cumulative state corruption** - Bug only triggers after specific charm state history
+5. **Unknown interaction** - Something we haven't identified
+
+### Repro Patterns Location
+
+All test patterns in `patterns/jkomoros/WIP/`:
+- `fetchdata-empty-url-repro.tsx` - empty URL testing
+- `fetchdata-multi-empty-repro.tsx` - 13 empty URLs per item
+- `fetchdata-options-repro.tsx` - options.headers testing
+- `auth-config.tsx` - helper pattern with fetchData
+- `fetchdata-inline-fetch-repro.tsx` - **EXACT structural match**
+
+---
+
 **Questions:**
 1. Is this limitation by design?
 2. Is there a planned feature to support dynamic fetchData allocation?
 3. What's the recommended pattern for "fetch data for each item in a variable-length list"?
 4. Given that simplified repros all work, could this be a timing/race condition specific to real API calls?
 5. What should we investigate in github-momentum-tracker to isolate the trigger?
+6. Is there a way to enable debug logging in the framework to see what's different?
