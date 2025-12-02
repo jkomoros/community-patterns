@@ -1,0 +1,30 @@
+/// <cts-enable />
+/**
+ * Simple config pattern - used as imported dependency for repro testing
+ */
+
+import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+
+interface Input {
+  multiplier?: Default<number, 1>;
+}
+
+interface Output {
+  multiplier: Cell<number>;
+  doubled: Cell<number>;
+}
+
+export default pattern<Input, Output>(({ multiplier }) => {
+  const doubled = derive(multiplier, (m) => m * 2);
+
+  return {
+    [NAME]: "Simple Config",
+    [UI]: (
+      <div style={{ padding: "10px", border: "1px solid #ccc", borderRadius: "4px" }}>
+        <strong>Config:</strong> multiplier = {multiplier}, doubled = {doubled}
+      </div>
+    ),
+    multiplier,
+    doubled,
+  };
+});

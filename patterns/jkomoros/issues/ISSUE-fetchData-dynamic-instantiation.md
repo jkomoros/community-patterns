@@ -221,7 +221,64 @@ The only differences between working repros and failing github-momentum-tracker:
 
 ### Repro Pattern Location
 
-The test patterns are in `patterns/jkomoros/WIP/fetchdata-map-repro.tsx` - they demonstrate that fetchData inside `.map()` CAN work.
+The test patterns are in `patterns/jkomoros/WIP/`:
+- `fetchdata-map-repro.tsx` - basic patterns (all work)
+- `fetchdata-wish-repro.tsx` - tests wish() primitive (works)
+- `fetchdata-imported-pattern-repro.tsx` - tests imported pattern instantiation (works)
+- `fetchdata-cell-input-repro.tsx` - tests Cell<object> input (works)
+- `fetchdata-combined-repro.tsx` - tests ALL patterns combined (works)
+
+---
+
+## Update: 2025-12-02 - Extensive Repro Testing
+
+Tested 7 different repro patterns attempting to isolate the bug. **ALL WORK.**
+
+### Patterns Tested
+
+| Pattern | What it Tests | Space | Result |
+|---------|--------------|-------|--------|
+| Single fetchData | 1 fetch per item | repro-single | ✅ Works |
+| Triple fetchData | 3 fetches per item | repro-triple | ✅ Works |
+| 12 fetchData slots | Many fetches per item | repro-many | ✅ Works |
+| Dependency chain | URL derived from another fetch | repro-deps | ✅ Works |
+| .get() casting | Exact pattern from momentum-tracker | repro-getpattern | ✅ Works |
+| wish() | wish() primitive + fetchData in .map() | repro-wish | ✅ Works |
+| Imported pattern | Inline pattern instantiation | repro-imported | ✅ Works |
+| Cell<object> input | Optional Cell<object> input param | repro-cellinput | ✅ Works |
+| Combined ALL | wish + imported + Cell + ifElse + 10 slots | repro-combined | ✅ Works |
+
+### What We Tested (All Work)
+
+1. **Basic fetchData inside .map()** ✅
+2. **Multiple fetchData per mapped item (up to 12)** ✅
+3. **Dependency chains** (URL derived from another fetch result) ✅
+4. **The exact .get() casting pattern** from github-momentum-tracker ✅
+5. **wish() primitive** with fetchData inside .map() ✅
+6. **Imported pattern instantiation** (like GitHubAuth({})) ✅
+7. **Cell<object> input parameter** (like authCharm) ✅
+8. **Three-way derive combining multiple sources** ✅
+9. **ifElse conditional rendering** ✅
+10. **10 fetchData slots per item** (like starSample0-9) ✅
+
+### Conclusion
+
+**github-momentum-tracker.tsx itself IS the minimal reproduction.**
+
+Every pattern from that file works in isolation and in combination. The Frame mismatch bug cannot be reproduced with simpler patterns.
+
+### Remaining Hypotheses
+
+The bug must be specific to one of:
+
+1. **Real GitHub API interaction** - specific response sizes, timing, auth errors
+2. **Actual charm linkage** - favorites mechanism actually populating authCharm
+3. **Cumulative state** - bug only triggers after specific sequence of operations
+4. **Race condition** - timing-dependent issue with real API latency
+
+### Recommendation
+
+github-momentum-tracker.tsx should be used as the reproduction case. The bug cannot be further simplified.
 
 ---
 
@@ -229,4 +286,4 @@ The test patterns are in `patterns/jkomoros/WIP/fetchdata-map-repro.tsx` - they 
 1. Is this limitation by design?
 2. Is there a planned feature to support dynamic fetchData allocation?
 3. What's the recommended pattern for "fetch data for each item in a variable-length list"?
-4. **NEW:** Could the external charm linkage (`authCharm`) be the trigger? github-momentum-tracker imports a cell from another charm.
+4. Given that simplified repros all work, could this be a timing/race condition specific to real API calls?
