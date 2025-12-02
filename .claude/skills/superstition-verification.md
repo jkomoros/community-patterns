@@ -4,7 +4,7 @@ Use this skill to systematically verify superstitions in `community-docs/superst
 
 ## Purpose
 
-Superstitions are single observations that may be:
+Superstitions are observations that may be:
 - **No longer relevant** (framework fixed it)
 - **Has limitations** (partially correct)
 - **Actually confirmed** (should be promoted)
@@ -21,14 +21,33 @@ Skip superstitions that are:
 - Environment-specific and hard to reproduce (e.g., "MCP Chrome stuck after sleep")
 - About external tools, not the framework itself
 
-### 2. Read and Understand
+### 2. Assess Evidence Weight
+
+**Read the superstition's metadata carefully:**
+
+```yaml
+confirmed_count: 1     # How many times confirmed?
+sessions: [...]        # Which sessions encountered this?
+stars: ⭐              # Rating/importance
+```
+
+**Also check for guestbook entries** - these indicate multiple people have encountered the issue.
+
+**Evidence levels:**
+- **Low evidence** (confirmed_count=1, no guestbook): Minimal repro may be sufficient
+- **Medium evidence** (confirmed_count=2-3, some guestbook): Need to check original patterns
+- **High evidence** (confirmed_count>3, active guestbook): High bar - must clean up original patterns and test thoroughly
+
+**High-evidence superstitions require extra scrutiny** - if minimal repro doesn't reproduce but original patterns have workarounds, the superstition might be valid for complex cases we didn't capture.
+
+### 3. Read and Understand
 
 1. Read the superstition file thoroughly
 2. Understand the **claim** - what behavior is being described?
 3. Understand the **context** - what was the user trying to accomplish?
-4. Note any related docs or patterns mentioned
+4. **Note the original patterns** - which patterns are mentioned in `sessions` or context?
 
-### 3. Investigate
+### 4. Investigate
 
 Use multiple techniques:
 
@@ -43,7 +62,7 @@ Look for relevant code in `~/Code/labs/packages/` that might explain the behavio
 **Check if already documented:**
 The behavior might now be in official docs, making the superstition redundant.
 
-### 4. Create Minimal Repro
+### 5. Create Minimal Repro
 
 Create a minimal pattern that demonstrates the claimed behavior:
 
@@ -54,21 +73,33 @@ The repro should:
 - Include comments explaining what behavior to look for
 - Be deployable and runnable
 
-### 5. Deploy and Test
+### 6. Deploy and Test Minimal Repro
 
 Deploy the repro to a test space:
 ```bash
-deno task ct charm new repros/YYYY-MM-DD-short-name.tsx \
+cd ~/Code/labs && deno task ct charm new [path-to-repro.tsx] \
   --api-url http://localhost:8000 \
-  --identity claude.key \
-  --space superstition-verify-[unique-suffix]
+  --identity [path-to-claude.key] \
+  --space claude-superstition-verify-[unique]
 ```
 
 Test the actual behavior. Does it match the superstition's claim?
 
 **Be wary of false negatives** - a minimal repro might not trigger the issue if it depends on specific conditions.
 
-### 6. Create Verification File
+### 7. Find and Clean Up Original Patterns
+
+**This is critical for disconfirmation!**
+
+1. **Find the original patterns** mentioned in the superstition's `sessions` field
+2. **Look for workaround code** - does the pattern use the "solution" described in the superstition?
+3. **Try removing the workaround** - clean up the pattern to use the "problematic" approach
+4. **Deploy and test in Playwright** - does the pattern still work correctly?
+
+**If cleanup works:** Strong evidence the superstition is invalid
+**If cleanup breaks:** The superstition might be valid for complex cases - file a bug for framework authors or tighten the superstition's scope
+
+### 8. Create Verification File
 
 Create `community-docs/superstitions/verifications/YYYY-MM-DD-short-name.md` using this template:
 
@@ -78,6 +109,7 @@ Create `community-docs/superstitions/verifications/YYYY-MM-DD-short-name.md` usi
 **Superstition:** `../YYYY-MM-DD-full-filename.md`
 **Last verified:** YYYY-MM-DD
 **Status:** awaiting-maintainer-review
+**Evidence level:** low/medium/high (confirmed_count=X, Y guestbook entries)
 
 ---
 
@@ -117,7 +149,14 @@ the situation without reading other files.]
 
 - **Official docs:** [What I found or "no relevant docs found"]
 - **Framework source:** [What I found or "not investigated"]
-- **Deployed repro:** Space `superstition-verify-xyz` - [what happened]
+- **Deployed repro:** Space `xyz` - [what happened]
+
+### Original Pattern Cleanup
+
+- **Pattern:** `patterns/user/pattern-name.tsx`
+- **Workaround found:** [describe the workaround code]
+- **Cleanup attempted:** [what we changed]
+- **Result:** [worked / broke - describe behavior]
 
 ### Assessment
 
@@ -130,23 +169,26 @@ the situation without reading other files.]
 [What you think should happen to this superstition]
 ```
 
-### 7. Check In With Maintainer
+### 9. Check In With Maintainer
 
 Present your findings to the community-patterns maintainer (in the Claude session):
 - Summary of the claim
-- What you found
+- Evidence level
+- What you found in minimal repro
+- What you found in original pattern cleanup
 - Your recommendation
 
-**Wait for maintainer approval before continuing to next superstition.**
+**Wait for maintainer approval before continuing.**
 
-### 8. Update VERIFICATION-LOG.md
+### 10. Update VERIFICATION-LOG.md
 
 Add an entry with:
 - Date verified
+- Evidence level
 - Brief summary of findings
 - Current status
 
-### 9. Iterate on Workflow
+### 11. Iterate on Workflow
 
 After each verification, consider:
 - What worked well?
@@ -158,26 +200,38 @@ After each verification, consider:
 | Finding | Action |
 |---------|--------|
 | **Confirmed** | Add second vote to superstition, may promote to folk-wisdom |
-| **Has limitations** | Update superstition with limitations |
-| **Disconfirmed** | See deletion workflow below |
+| **Has limitations** | Update superstition with narrower scope |
+| **Disconfirmed (low evidence)** | See deletion workflow below |
+| **Disconfirmed (high evidence)** | File bug or tighten scope - don't delete without pattern cleanup proof |
 | **Now in official docs** | Promote to folk-wisdom/blessed with pointer to docs |
 
 ## Deletion Workflow (for disconfirmed superstitions)
 
-When a superstition is disconfirmed:
+**Only delete after:**
+1. Minimal repro doesn't show the issue
+2. Original pattern cleanup works (if applicable)
+3. Pattern tested in Playwright after cleanup
 
-1. **First commit:** Add the verification file and repro
-   - This creates a record in git history of what was tested and why it was disconfirmed
-   - Commit message: "Add verification for [superstition name] - disconfirmed"
+**Commit sequence:**
 
-2. **Second commit:** Delete all related files
+1. **First commit:** Pattern cleanup (if applicable)
+   - Clean up the original pattern(s) that used the workaround
+   - Test thoroughly in Playwright
+   - Commit message: "Clean up [pattern]: remove [superstition] workaround"
+
+2. **Second commit:** Add verification files
+   - Add verification file and repro
+   - This creates a record in git history
+   - Commit message: "Add verification for [superstition] - disconfirmed"
+
+3. **Third commit:** Delete superstition and verification files
    - Delete the superstition file
    - Delete the verification file
    - Delete the repro file
    - Remove entry from VERIFICATION-LOG.md
    - Commit message: "Remove disconfirmed superstition: [name]"
 
-This keeps the verification in git history for reference while not leaving stale files in the repo.
+This keeps the verification in git history while not leaving stale files.
 
 ## File Locations
 
@@ -185,3 +239,10 @@ This keeps the verification in git history for reference while not leaving stale
 - **Verification log:** `community-docs/superstitions/VERIFICATION-LOG.md`
 - **Verification files:** `community-docs/superstitions/verifications/*.md`
 - **Minimal repros:** `community-docs/superstitions/repros/*.tsx`
+
+## Important Notes
+
+- **Minimal repros can have false negatives** - complex patterns may trigger issues that minimal repros don't
+- **High-evidence superstitions need high-bar disconfirmation** - don't just trust minimal repro
+- **Pattern cleanup is the strongest evidence** - if you can remove workarounds and patterns still work, that's proof
+- **When in doubt, tighten scope rather than delete** - better to have a narrower superstition than miss a real issue
