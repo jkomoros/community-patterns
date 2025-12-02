@@ -68,9 +68,13 @@ const clearToken = handler<
 const GITHUB_TOKEN_URL = "https://github.com/settings/tokens/new?description=Common%20Tools%20GitHub%20Access&scopes=";
 
 export default pattern<Input, Output>(({ token }) => {
+  // Only fetch when we have a non-empty token
+  // This prevents 401 errors when the pattern loads without a token
+  const hasToken = derive(token, (t) => !!t && t.length > 0);
+
   // Fetch user info to validate token
   const userResponse = ifElse(
-    token,
+    hasToken,
     fetchData<GitHubUser>({
       url: "https://api.github.com/user",
       mode: "json",
@@ -88,7 +92,7 @@ export default pattern<Input, Output>(({ token }) => {
 
   // Fetch rate limit info
   const rateLimitResponse = ifElse(
-    token,
+    hasToken,
     fetchData<GitHubRateLimit>({
       url: "https://api.github.com/rate_limit",
       mode: "json",
@@ -233,7 +237,7 @@ export default pattern<Input, Output>(({ token }) => {
               }}
             />
             {ifElse(
-              token,
+              hasToken,
               <button
                 onClick={clearToken({ token })}
                 style={{
