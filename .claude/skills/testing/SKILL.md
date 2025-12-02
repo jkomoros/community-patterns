@@ -39,10 +39,11 @@ http://localhost:8000/claude-counter-1130-1/baedreicqpqie6td...
 ## Test Pattern Functionality
 
 Once the page loads:
-1. Take a snapshot to see the UI: `browser_snapshot`
-2. Interact with elements: click buttons, fill inputs, check boxes
-3. Verify behavior: check that counters increment, items are added, etc.
-4. Report any issues found
+1. **Wait briefly before first snapshot** - Sometimes the initial load shows a login/registration screen for a moment. Wait 1-2 seconds before taking your first snapshot to ensure the pattern has fully rendered.
+2. Take a snapshot to see the UI: `browser_snapshot`
+3. Interact with elements: click buttons, fill inputs, check boxes
+4. Verify behavior: check that counters increment, items are added, etc.
+5. Report any issues found
 
 ## Registering (First Time Only)
 
@@ -88,6 +89,15 @@ Use descriptive space names with the `claude-` prefix:
 - Ask them to report any issues
 
 ## Playwright Troubleshooting
+
+**If screenshot shows login/registration screen instead of pattern:**
+
+The page may not have fully loaded. Wait 1-2 seconds before taking the first snapshot:
+```
+Use browser_wait_for with time: 2 before taking the snapshot
+```
+
+This is common when navigating to a pattern URL—the authentication check may briefly show the login screen before the pattern renders.
 
 **If Playwright starts opening many tabs:**
 

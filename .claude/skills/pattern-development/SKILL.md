@@ -133,6 +133,40 @@ echo "Both servers restarted"
 - Toolshed: `/tmp/toolshed-dev.log`
 - Shell: `/tmp/shell-dev.log`
 
+## Debugging with `<ct-cell-context>`
+
+`<ct-cell-context>` is a debugging tool that annotates regions of the page with cell data. It's better than sprinkling `console.log` everywhere because inspection is conditional—users can watch and unwatch values on demand.
+
+**When to use (sparingly, typically 1-2 per pattern):**
+- Important values that are otherwise difficult to access
+- Intermediate calculations or API responses
+- Values you'd otherwise debug with `console.log`
+
+**Usage:**
+```tsx
+<ct-cell-context $cell={result} label="Calculation Result">
+  <div>{result.value}</div>
+</ct-cell-context>
+```
+
+**API:**
+- `$cell` - The Cell to associate with this region
+- `label` - Human-readable name shown in the toolbar (optional)
+- `inline` - Display as inline-block instead of block (optional)
+
+**How to inspect:**
+Hold **Alt** and hover over a cell context region to see the debugging toolbar:
+- **val** - Log the cell value to console and set `globalThis.$cell` to the cell (like Chrome's `$0` for elements)
+- **id** - Log the cell's full address
+- **watch/unwatch** - Subscribe to value changes; updates appear in the debugger's Watch List
+
+**When NOT to use:**
+- Don't wrap every cell—reserve for important values
+- Don't use for trivial or obviously-accessible values
+- If a value is already easy to inspect via the UI, you probably don't need this
+
+**Note:** Every `[UI]` render is automatically wrapped in `ct-cell-context`, so you get top-level charm debugging for free.
+
 ## Working with labs Repository
 
 ❌ **NEVER commit or push to labs** - it's READ-ONLY
