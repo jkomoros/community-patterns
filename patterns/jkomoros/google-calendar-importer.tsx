@@ -270,19 +270,27 @@ const calendarUpdater = handler<unknown, {
     maxResults: number;
     debugMode: boolean;
   }>;
+  fetching?: Cell<boolean>;
 }>(
   async (_event, state) => {
+    // Set fetching state if available
+    if (state.fetching) {
+      state.fetching.set(true);
+    }
     const debugMode = state.settings.get().debugMode || false;
 
     debugLog(debugMode, "calendarUpdater!");
 
     if (!state.auth.get().token) {
       debugWarn(debugMode, "no token found in auth cell");
+      if (state.fetching) state.fetching.set(false);
       return;
     }
 
     const settings = state.settings.get();
     const client = new CalendarClient(state.auth, { debugMode });
+
+    try {
 
     // Get calendar list
     debugLog(debugMode, "Fetching calendar list...");
@@ -332,6 +340,10 @@ const calendarUpdater = handler<unknown, {
 
     debugLog(debugMode, `Total events fetched: ${allEvents.length}`);
     state.events.set(allEvents);
+    } finally {
+      // Clear fetching state
+      if (state.fetching) state.fetching.set(false);
+    }
   },
 );
 
@@ -416,6 +428,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
     const events = cell<Confidential<CalendarEvent[]>>([]);
     const calendars = cell<Calendar[]>([]);
     const showAuth = cell(false);
+    const fetching = cell(false);
 
     // Wish for a favorited auth charm (unified Google auth)
     const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
@@ -654,9 +667,18 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
                     calendars,
                     auth,
                     settings,
+                    fetching,
                   })}
+                  disabled={fetching}
                 >
-                  Fetch Calendar Events
+                  {ifElse(
+                    fetching,
+                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Fetching...
+                    </span>,
+                    "Fetch Calendar Events"
+                  )}
                 </ct-button>
               </ct-vstack>
 
