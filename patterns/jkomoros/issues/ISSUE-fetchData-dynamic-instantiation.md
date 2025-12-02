@@ -495,11 +495,105 @@ The `starHistory` cell is **undefined** when accessed via `derive()` in the UI r
 
 ### Reproduction Pattern
 
-`momentum-stripped.tsx` in `patterns/jkomoros/WIP/` provides a clean reproduction:
-- v5 version (without starHistory UI access) works
-- v6 version (with `derive(starHistory, sh => sh.loading)` in UI) fails
+`momentum-stripped.tsx` in `patterns/jkomoros/WIP/` provides a clean reproduction.
 
-Deploy v6 and add a repo without auth to reproduce.
+**To reproduce:**
+```bash
+cd labs
+deno task ct charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-stripped.tsx \
+  --api-url http://localhost:8000 \
+  --identity ../community-patterns-2/claude.key \
+  --space test-repro
+
+# Then:
+# 1. Navigate to the charm (do NOT enter auth token)
+# 2. Add any repo (e.g., "facebook/react")
+# 3. Observe TypeError and Frame mismatch errors in console
+```
+
+### Full Minimal Reproduction Code
+
+```typescript
+/// <cts-enable />
+import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commontools";
+
+interface Input {
+  items?: Default<string[], []>;
+}
+
+interface Output {
+  items: Cell<string[]>;
+}
+
+const addItem = handler<unknown, { items: Cell<string[]> }>(
+  (_, { items }) => { items.set([...items.get(), "item-" + Date.now()]); }
+);
+
+export default pattern<Input, Output>(({ items }) => {
+  // Map over items - each item gets fetchData
+  const dataList = items.map((itemCell) => {
+    // fetchData inside .map() - this works
+    const fetchResult = fetchData<{ id: number }>({
+      url: derive(itemCell, () => "https://jsonplaceholder.typicode.com/todos/1"),
+      mode: "json",
+    });
+
+    // Derived cell that aggregates fetchData result - this works
+    const aggregated = derive(
+      { fetchResult },
+      (values) => {
+        const fr = (values.fetchResult as any)?.get?.() ?? values.fetchResult;
+        return {
+          loading: fr?.pending === true,
+          data: fr?.result ? [fr.result] : [],
+        };
+      }
+    );
+
+    return { item: itemCell, fetchResult, aggregated };
+  });
+
+  return {
+    [NAME]: "Minimal Repro",
+    [UI]: (
+      <div>
+        <button onClick={addItem({ items })}>Add Item</button>
+        <div>
+          {dataList.map((entry) => {
+            // THIS LINE TRIGGERS THE BUG:
+            // Accessing aggregated.loading via derive() in UI's map callback
+            const aggregated = entry.aggregated;
+            return (
+              <div>
+                Item: {entry.item}
+                {/* This derive() on aggregated causes: TypeError: Cannot read properties of undefined (reading 'loading') */}
+                Status: {derive(aggregated, (a) => a.loading ? "Loading..." : `${a.data.length} items`)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ),
+    items,
+  };
+});
+```
+
+### Key Lines That Trigger Bug
+
+**Line that works (data layer):**
+```typescript
+const aggregated = derive({ fetchResult }, (values) => ({ loading: false, data: [] }));
+return { aggregated };
+```
+
+**Line that fails (UI layer):**
+```typescript
+{derive(aggregated, (a) => a.loading ? "..." : a.data.length)}
+// TypeError: Cannot read properties of undefined (reading 'loading')
+```
+
+The `aggregated` cell is **undefined** when accessed via `derive()` in the UI map callback.
 
 ---
 
