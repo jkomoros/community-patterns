@@ -37,6 +37,73 @@
 
 ---
 
+## 🌐 Future Feature: Crowd-Sourced Search Patterns
+
+**Concept:** Users can share effective search patterns in a public space so everyone's agent does a better job at finding memberships.
+
+Currently `EFFECTIVE_QUERIES` (lines 22-40) is hardcoded. This feature would make it community-powered.
+
+### Design Notes (from framework author)
+
+- Create a **public space** for shared queries
+- Pattern reads from and writes to this public space (the "home space" for queries)
+- **User flow:** "I discovered a new query - are you willing to share it?" → User confirms → Upload to shared space
+
+### Key Considerations
+
+1. **Permission/Consent Flow**: Need explicit user confirmation before sharing queries
+   - Pattern: Agent finds effective query → "This worked! Share with community?" → User approves → Upload
+   - This prevents accidental leakage of queries that might reveal personal info
+
+2. **Blessed Component Needed**: Framework will likely need a blessed/trusted component for this
+   - Users shouldn't be tricked into sharing things they don't want to share
+   - Need a core component that the framework can vouch for safety
+
+3. **Query Structure to Share**:
+   ```typescript
+   interface SharedQuery {
+     query: string;           // The Gmail search query
+     hotelBrand: string;      // Which brand it found memberships for
+     successCount: number;    // How many times it worked
+     contributedBy?: string;  // Optional: who shared it
+     addedAt: number;         // Timestamp
+   }
+   ```
+
+4. **Reading Shared Queries**: Agent would fetch queries from public space at scan time
+   - Merge with hardcoded `EFFECTIVE_QUERIES` as baseline
+   - Community queries extend the knowledge base
+
+### Implementation Sketch
+
+```typescript
+// Public space for shared queries
+const sharedQueriesSpace = "public/hotel-membership-queries";
+
+// Read shared queries (at pattern init or scan start)
+const communityQueries = wish<SharedQuery[]>({
+  space: sharedQueriesSpace,
+  query: "#hotelSearchQueries"
+});
+
+// Merge with hardcoded queries
+const allQueries = derive([communityQueries], (community) => [
+  ...EFFECTIVE_QUERIES,
+  ...(community?.map(q => q.query) || [])
+]);
+
+// Prompt user to share after successful extraction
+// (needs blessed component for safe consent)
+```
+
+### Status: ❌ Not Started - Waiting for Framework Support
+
+- Needs blessed consent component from framework team
+- Public space writing API TBD
+- Consider: moderation? Query validation? Duplicate detection?
+
+---
+
 Development notes and work tracking for the Hotel Membership Extractor pattern.
 
 ## 🚀 RADICAL ARCHITECTURE CHANGE: Agent-Based Design
