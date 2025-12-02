@@ -98,10 +98,12 @@
  *   - Extracts: title, summary, severity, isLLMSpecific, canonicalId
  *   - Framework caches by content - same content never analyzed twice
  *
- * WORKAROUNDS:
- * ------------
- * - CT-1085: wish() favoriting is broken, so authCharm is exposed as a
- *   top-level input and linked via `ct charm link`
+ * AUTH NOTES:
+ * -----------
+ * - If no authCharm is provided, GmailImporter will automatically discover
+ *   a favorited #googleAuth charm using wish() with 3-state UX
+ * - CT-1085 (favorites not persisting) is FIXED for same-space scenarios
+ * - Cross-space auth access is a separate known issue
  */
 import {
   Cell,
@@ -484,8 +486,8 @@ interface TrackerInput {
   limit?: Default<number, 50>;
   // Manual articles (for testing without Gmail)
   articles?: Default<Article[], []>;
-  // WORKAROUND (CT-1085): Accept auth charm as direct input since wish doesn't work reliably.
-  // Link gmail-auth charm using: deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
+  // Optional: explicitly provide auth charm. If null/undefined, GmailImporter
+  // will automatically wish for a favorited #googleAuth charm with 3-state UX.
   authCharm?: Default<any, null>;
 }
 
@@ -524,8 +526,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // ==========================================================================
   // Gmail Integration
   // ==========================================================================
-  // WORKAROUND (CT-1085): Pass authCharm from input since wish("#googleAuth") doesn't work
-  // reliably. Link auth using: deno task ct charm link GMAIL_AUTH_ID TRACKER_ID/authCharm --space YOUR_SPACE
+  // If authCharm is null, GmailImporter will automatically wish for a favorited
+  // #googleAuth charm with 3-state UX (not-found, found-not-auth'd, authenticated)
   const importer = GmailImporter({
     settings: {
       gmailFilterQuery,
@@ -533,7 +535,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       historyId: "",
       debugMode: DEBUG_LOGGING, // Use same flag as pattern debug logging
     },
-    authCharm, // Pass through from input (link via ct charm link)
+    authCharm, // Pass explicit auth or null to use wish-based discovery
   });
 
   // Count for display (emails counted directly from importer)

@@ -992,13 +992,29 @@ export default pattern<{
     const fetching = cell(false);
 
     // Wish for a favorited auth charm (used when no explicit authCharm provided)
-    // TODO(CT-1084): Update to wish({ query: "#googleAuth" }) when object syntax bug is fixed
-    // Currently using legacy string syntax because object syntax compiles to {}
-    // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
-    const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
+    // CT-1084 (object syntax bug) is fixed, so we use the object syntax now
+    const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
     // Determine if we have an explicit auth charm provided
     const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
+
+    // 3-state logic for wished auth:
+    // State 1: "not-found" - wishError exists and no result
+    // State 2: "found-not-authenticated" - result exists but no email
+    // State 3: "authenticated" - result exists with email
+    const wishedAuthState = derive(wishResult, (wr) => {
+      const email = wr?.result?.auth?.user?.email || "";
+      if (email !== "") return "authenticated";
+      if (wr?.result) return "found-not-authenticated";
+      if (wr?.error) return "not-found";
+      return "loading";
+    });
+
+    // Get the wished charm from the result
+    const wishedAuthCharm = derive(wishResult, (wr) => wr?.result || null);
+
+    // Get UI for inline auth rendering (State 2)
+    const wishedAuthUI = derive(wishResult, (wr) => wr?.$UI);
 
     // Get the effective auth charm: explicit one if provided, otherwise wished one
     const effectiveAuthCharm = derive(
@@ -1007,7 +1023,6 @@ export default pattern<{
         if (hasExplicitAuth) {
           return authCharm;
         }
-        // Legacy syntax returns the result directly (not wrapped in { result, error })
         return wishedAuthCharm || null;
       }
     );
@@ -1028,15 +1043,12 @@ export default pattern<{
 
     // Track if we're using wished auth vs explicit
     const usingWishedAuth = derive(
-      { hasExplicitAuth, wishedAuthCharm },
-      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !!wishedAuthCharm
+      { hasExplicitAuth, wishedAuthState },
+      ({ hasExplicitAuth, wishedAuthState }) => !hasExplicitAuth && wishedAuthState === "authenticated"
     );
 
-    // Note: Legacy syntax doesn't provide error info, so we just check if auth is missing
-    const wishError = derive(
-      { hasExplicitAuth, wishedAuthCharm },
-      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleAuth favorite found" : null
-    );
+    // Error from wish (for "not-found" state)
+    const wishError = derive(wishResult, (wr) => wr?.error || null);
 
     // Check if Gmail scope is granted
     const hasGmailScope = derive(auth, (a) => {
@@ -1108,46 +1120,88 @@ export default pattern<{
                     Authentication
                   </h3>
 
-                  {/* Show source of auth */}
+                  {/* Show source of auth - 3 states for wished auth */}
                   {ifElse(
                     hasExplicitAuth,
                     <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
                       Using explicitly linked auth charm
                     </div>,
-                    ifElse(
-                      usingWishedAuth,
-                      <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
-                        ✓ Using shared auth from favorited Google Auth charm
-                      </div>,
-                      <div style={{
-                        marginBottom: "15px",
-                        padding: "12px",
-                        backgroundColor: "#fff3cd",
-                        borderRadius: "6px",
-                        border: "1px solid #ffeeba",
-                      }}>
-                        <strong>No Google Auth Found</strong>
-                        <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                          Create a Google Auth charm to authenticate:
-                        </p>
-                        <ct-button
-                          onClick={createGoogleAuth({})}
-                          style={{ marginTop: "12px" }}
-                        >
-                          Create Google Auth
-                        </ct-button>
-                        <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
-                          After authenticating, click the star to favorite it, then come back here.
-                        </p>
-                        {ifElse(
-                          derive(wishError, (err) => !!err),
-                          <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#856404" }}>
-                            Debug: {wishError}
-                          </p>,
-                          <div />
-                        )}
-                      </div>
-                    )
+                    // Not using explicit auth - show wish-based auth state
+                    derive(wishedAuthState, (state) => {
+                      if (state === "authenticated") {
+                        // State 3: Using wished auth successfully
+                        return (
+                          <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
+                            ✓ Using shared auth from favorited Google Auth charm
+                          </div>
+                        );
+                      }
+
+                      if (state === "found-not-authenticated") {
+                        // State 2: Auth charm found but not logged in - show inline auth
+                        return (
+                          <div style={{
+                            marginBottom: "15px",
+                            padding: "12px",
+                            backgroundColor: "#fff3cd",
+                            borderRadius: "6px",
+                            border: "1px solid #ffeeba",
+                          }}>
+                            <strong>Auth Charm Found - Login Required</strong>
+                            <p style={{ margin: "8px 0 12px 0", fontSize: "14px" }}>
+                              Found your Google Auth charm, but you need to log in:
+                            </p>
+                            <div style={{
+                              padding: "10px",
+                              backgroundColor: "#fff",
+                              borderRadius: "6px",
+                              border: "1px solid #ddd",
+                            }}>
+                              {wishedAuthUI}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (state === "not-found") {
+                        // State 1: No auth charm found
+                        return (
+                          <div style={{
+                            marginBottom: "15px",
+                            padding: "12px",
+                            backgroundColor: "#f8d7da",
+                            borderRadius: "6px",
+                            border: "1px solid #f5c6cb",
+                          }}>
+                            <strong>No Google Auth Found</strong>
+                            <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
+                              Create a Google Auth charm to authenticate:
+                            </p>
+                            <ct-button
+                              onClick={createGoogleAuth({})}
+                              style={{ marginTop: "12px" }}
+                            >
+                              Create Google Auth
+                            </ct-button>
+                            <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
+                              After authenticating, click the star to favorite it, then come back here.
+                            </p>
+                            {derive(wishError, (err) => err ? (
+                              <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#721c24" }}>
+                                {err}
+                              </p>
+                            ) : null)}
+                          </div>
+                        );
+                      }
+
+                      // Loading state
+                      return (
+                        <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
+                          Checking for Google Auth...
+                        </div>
+                      );
+                    })
                   )}
 
                   {/* Scope warning */}
