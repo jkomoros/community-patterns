@@ -275,6 +275,76 @@ After each verification, consider:
 
 This keeps the verification in git history while not leaving stale files.
 
+## Branch and PR Workflow
+
+Some verifications need framework author review; others are clear-cut and can auto-land. To avoid overwhelming the framework author with noise:
+
+### During Verification: Single Branch
+
+Work on a single branch (e.g., `superstition-verification-workflow`). For each verification, use commit messages that indicate the outcome:
+
+**Auto-land commits** (no framework review needed):
+- `Remove disconfirmed superstition: [name]` - pattern cleanup proved it invalid
+- `Confirm superstition: [name]` - confirmed with clear evidence, just documenting
+- `Update superstition scope: [name]` - narrowed based on investigation
+
+**Needs-review commits** (framework author input required):
+- `Add verification for [name] - needs framework review` - unclear if bug or intentional
+- `Confirm superstition: [name] - needs framework review` - confirmed but is it a bug?
+
+### At PR Time: Split Into Two PRs
+
+When ready to create PRs, split the branch:
+
+```bash
+# Create auto-land branch from main
+git checkout main
+git checkout -b superstition-auto-land
+
+# Cherry-pick only auto-land commits
+git cherry-pick <commit1> <commit2> ...
+
+# Create and merge PR immediately (or after quick maintainer review)
+```
+
+```bash
+# Create review branch from main
+git checkout main
+git checkout -b superstition-needs-review
+
+# Cherry-pick only needs-review commits
+git cherry-pick <commit3> <commit4> ...
+
+# Create PR and tag framework author for review
+```
+
+### PR Templates
+
+**Auto-land PR:**
+```markdown
+## Superstition Verifications (Auto-land)
+
+These verifications have clear outcomes and don't need framework author review.
+
+### Changes
+- [x] Removed: `superstition-name` - disconfirmed via pattern cleanup
+- [x] Confirmed: `superstition-name` - documented limitation
+...
+```
+
+**Needs-review PR:**
+```markdown
+## Superstition Verifications (Needs Framework Review)
+
+@framework-author - These verifications need your input. Please check each
+verification file and respond to the "Framework Author Review" section.
+
+### Awaiting Review
+- [ ] `verifications/YYYY-MM-DD-name.md` - Is this behavior intentional?
+- [ ] `verifications/YYYY-MM-DD-other.md` - Bug or working as designed?
+...
+```
+
 ## File Locations
 
 - **Superstitions:** `community-docs/superstitions/*.md`
