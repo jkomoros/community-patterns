@@ -72,41 +72,37 @@ export default pattern<Input, Output>(({ token }) => {
   // This prevents 401 errors when the pattern loads without a token
   const hasToken = derive(token, (t) => !!t && t.length > 0);
 
-  // Fetch user info to validate token
-  const userResponse = ifElse(
-    hasToken,
-    fetchData<GitHubUser>({
-      url: "https://api.github.com/user",
-      mode: "json",
-      options: {
-        method: "GET",
-        headers: derive(token, (t) => ({
-          "Authorization": `Bearer ${t}`,
-          "Accept": "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        })),
-      },
-    }),
-    null
-  );
+  // Derive URLs that are empty when no token (fetchData skips fetch when URL is empty)
+  const userUrl = derive(hasToken, (has) => has ? "https://api.github.com/user" : "");
+  const rateLimitUrl = derive(hasToken, (has) => has ? "https://api.github.com/rate_limit" : "");
 
-  // Fetch rate limit info
-  const rateLimitResponse = ifElse(
-    hasToken,
-    fetchData<GitHubRateLimit>({
-      url: "https://api.github.com/rate_limit",
-      mode: "json",
-      options: {
-        method: "GET",
-        headers: derive(token, (t) => ({
-          "Authorization": `Bearer ${t}`,
-          "Accept": "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        })),
-      },
-    }),
-    null
-  );
+  // Fetch user info to validate token (skipped when URL is empty)
+  const userResponse = fetchData<GitHubUser>({
+    url: userUrl,
+    mode: "json",
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => ({
+        "Authorization": `Bearer ${t}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      })),
+    },
+  });
+
+  // Fetch rate limit info (skipped when URL is empty)
+  const rateLimitResponse = fetchData<GitHubRateLimit>({
+    url: rateLimitUrl,
+    mode: "json",
+    options: {
+      method: "GET",
+      headers: derive(token, (t) => ({
+        "Authorization": `Bearer ${t}`,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      })),
+    },
+  });
 
   // Derive validation status
   const isValid = derive(
