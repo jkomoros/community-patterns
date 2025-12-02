@@ -500,8 +500,9 @@ Be precise with categorical values - use exact label matches.`;
 
                 if (pending && hasSubmittedPrompt) {
                   return (
-                    <div style={{ color: "#004085", padding: "0.5rem" }}>
-                      ⏳ Analyzing description...
+                    <div style={{ color: "#004085", padding: "0.5rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Analyzing description...
                     </div>
                   );
                 }
