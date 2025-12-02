@@ -31,40 +31,27 @@ Create a dedicated auth pattern (like `google-auth.tsx`) that:
 
 #### How Hard Is It to Get a Token?
 
-**Surprisingly easy!** For public repo data:
+**Surprisingly easy!** Using classic tokens (simplest approach):
 
-**Option A: Fine-Grained Token (Recommended - Safer)**
-1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained tokens
-2. Click "Generate new token"
-3. Name: "Common Tools GitHub Access"
-4. Expiration: Set a reasonable expiry (90 days, 1 year)
-5. Repository access: "Public Repositories (read-only)"
-6. Permissions: No additional permissions needed (public read is default)
-7. Generate, copy, paste
-
-**Option B: Classic Token (Simpler but less safe)**
-1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)
+1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → **Tokens (classic)**
 2. Click "Generate new token (classic)"
-3. Name it, set expiration
-4. **Check NO scope boxes** - zero scopes = read-only public access
-5. Generate, copy, paste
-
-#### Security Considerations
-
-**Classic token with no scopes IS safe** (read-only public data), but:
-- ⚠️ Easy to accidentally check a scope box (grants write access!)
-- ⚠️ Classic tokens don't expire by default
-- ⚠️ If leaked, valid until manually revoked
-
-**Fine-grained tokens are better because:**
-- ✅ Explicit read-only permission model
-- ✅ Mandatory expiration
-- ✅ Can limit to specific repos or just public repos
-- ✅ Clearer what permissions you're granting
-
-**Recommendation:** Guide users toward fine-grained tokens in the auth pattern UI.
+3. Name: "Common Tools GitHub Access"
+4. Expiration: Set if desired (or "No expiration" for convenience)
+5. **Scopes: Check NOTHING** - zero scopes = read-only public access
+6. Click "Generate token"
+7. Copy token (shown only once), paste into auth pattern
 
 **One token works forever** (or until expiry). Same token works across all patterns.
+
+#### Security Note
+
+**Classic token with no scopes = read-only access to public data only. Cannot write anything.**
+
+The auth pattern UI should remind users:
+- ⚠️ "Make sure you didn't check any scope boxes"
+- ✅ "No scopes = read-only = safe"
+
+(Fine-grained tokens exist as an alternative with mandatory expiration, but require more setup steps.)
 
 #### Auth Pattern Design (`github-auth.tsx`)
 
