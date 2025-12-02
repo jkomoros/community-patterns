@@ -960,7 +960,14 @@ Be concise and practical in your analysis.`,
                   onClick={triggerRecipeLinking({ planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                   disabled={linkingPending}
                 >
-                  {linkingPending ? "Analyzing..." : "🔗 Link Recipes"}
+                  {ifElse(
+                    linkingPending,
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Analyzing...
+                    </span>,
+                    "🔗 Link Recipes"
+                  )}
                 </ct-button>
               </div>
               <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
@@ -1109,7 +1116,8 @@ Be concise and practical in your analysis.`,
 
                 {ifElse(
                   analysisPending,
-                  <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic" }}>
+                  <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <ct-loader size="sm" show-elapsed></ct-loader>
                     Analyzing menu...
                   </div>,
                   <ct-vstack gap={1}>
