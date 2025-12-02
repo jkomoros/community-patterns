@@ -88,6 +88,26 @@ const activeSlots = repos.map((repo, i) => slots[i]);
 
 **Error:** "Frame mismatch" crash - even pre-created slots fail when the repos array changes
 
+### Attempt 4: Wrapping fetchData in ifElse() inside .map()
+
+Based on how `prompt-injection-tracker` uses `ifElse()` with fetchData:
+
+```typescript
+repos.map((repoNameCell) => {
+  const shouldFetch = derive(repoNameCell, (name) => !!name);
+  const metadata = ifElse(
+    shouldFetch,
+    fetchData<Metadata>({ url: derive(repoNameCell, name => `.../${name}`), mode: "json" }),
+    null
+  );
+  return { metadata };
+});
+```
+
+**Error:** Pattern fails to render entirely - blank page, 593+ storage events, no UI.
+
+**Finding:** `ifElse()` doesn't help when fetchData is **inside** `.map()`. The prompt-injection-tracker pattern works because their fetchData calls are at the **top level** (outside any `.map()`), with fixed slots.
+
 ## Technical Analysis
 
 The `fetchData` primitive appears to require:
@@ -132,6 +152,29 @@ Currently using "fixed maximum slots" approach with 10 pre-created fetchData cal
 ## Impact
 
 This limitation blocks the entire class of "multi-item tracker" patterns where each item needs independent data fetching.
+
+---
+
+## Update: 2025-12-02 - Bug Persists After Framework Fix
+
+Framework author confirmed "frame mismatch" was a bug and claimed it was "fixed on main". After testing with latest labs (pulled same day):
+
+**Test:** Deployed github-momentum-tracker to fresh space `momentum-clean-1202`, added 2 repos.
+
+**Result:** Same errors persist:
+```
+TypeError: Cannot read properties of undefined (reading 'loading')
+TypeError: Cannot read properties of undefined (reading 'data')
+Error: Frame mismatch
+```
+
+**Observed behavior:**
+- UI renders 2 repo cards with correct repo names
+- All data fields show "—" or "No data"
+- fetchData results inside .map() are undefined
+- Frame mismatch errors in console
+
+The fix may have addressed a different "frame mismatch" issue (one that occurred on every load), but the dynamic fetchData instantiation problem remains.
 
 ---
 

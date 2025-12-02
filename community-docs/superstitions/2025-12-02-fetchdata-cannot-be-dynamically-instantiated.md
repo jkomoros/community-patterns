@@ -78,6 +78,33 @@ repos.map((repo, i) => slots[i]); // Map repos to fixed slots
 ```
 **Result:** Frame mismatch crash - even pre-created slots don't work when repos array changes
 
+### Approach 4: Wrapping fetchData in ifElse() inside .map()
+
+Based on how `prompt-injection-tracker` uses `ifElse()` for conditional fetchData, we tried wrapping fetchData calls in `ifElse()`:
+
+```typescript
+repos.map((repoNameCell) => {
+  const shouldFetch = derive(repoNameCell, (name) => !!name);
+
+  // Wrap fetchData in ifElse
+  const metadata = ifElse(
+    shouldFetch,
+    fetchData<Metadata>({
+      url: derive(repoNameCell, name => `.../${name}`),
+      mode: "json"
+    }),
+    null
+  );
+  return { metadata };
+});
+```
+
+**Result:** Pattern fails to render entirely - blank page with only header visible. Massive storage events (593+) but no UI output.
+
+**Why it fails:** The `ifElse()` wrapper doesn't help because the `fetchData()` call is still **being created inside** the `.map()` callback. The issue isn't about whether to execute the fetch - it's that the fetchData slot allocation happens at the wrong time (during reactive callback execution, not during static pattern evaluation).
+
+**Key insight from prompt-injection-tracker:** They use `ifElse()` with fetchData, but their fetchData calls are at the **top level** of the pattern (outside any `.map()`), with fixed slots. The `.map()` only renders the results.
+
 ## Workarounds
 
 ### Workaround 1: Single fetchData with All Data
@@ -90,14 +117,38 @@ const allRepoData = fetchData({
 ```
 **Limitation:** Requires a backend that supports batch queries.
 
-### Workaround 2: Fixed Maximum Repos
-Pre-create a fixed number of fetchData slots (e.g., 10) and show/hide based on actual repos:
+### Workaround 2: Fixed Maximum Repos at Top Level (RECOMMENDED)
+Pre-create a fixed number of fetchData slots **at the top level** (outside any `.map()`) and derive URLs from the array:
+
 ```typescript
-const slot0 = fetchData({ url: derive(repos, (rs) => rs[0] ? `.../${rs[0]}` : "") });
-const slot1 = fetchData({ url: derive(repos, (rs) => rs[1] ? `.../${rs[1]}` : "") });
-// ... up to max slots
+export default pattern<Input, Output>(({ repos }) => {
+  // Fixed slots at top level - these are evaluated once during pattern init
+  const slot0_url = derive(repos, (rs) => rs[0] ? `.../${rs[0]}` : "");
+  const slot0 = fetchData({ url: slot0_url, mode: "json" });
+
+  const slot1_url = derive(repos, (rs) => rs[1] ? `.../${rs[1]}` : "");
+  const slot1 = fetchData({ url: slot1_url, mode: "json" });
+
+  // ... up to max slots (e.g., 5-10 repos)
+
+  // Collect results into an array for rendering
+  const allSlots = [slot0, slot1, /* ... */];
+
+  return {
+    [UI]: (
+      <div>
+        {allSlots.map((slot, i) => (
+          // Render only slots that have data
+          ifElse(slot?.result, <RepoCard data={slot} />, null)
+        ))}
+      </div>
+    )
+  };
+});
 ```
+
 **Limitation:** Hard-coded maximum, wasted resources for unused slots.
+**Why it works:** fetchData slots are created at pattern evaluation time, not inside reactive callbacks.
 
 ### Workaround 3: External State Management
 Store fetched data in a cell that persists across renders, fetch via handler:
