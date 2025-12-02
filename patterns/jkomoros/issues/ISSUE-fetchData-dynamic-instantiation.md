@@ -178,7 +178,55 @@ The fix may have addressed a different "frame mismatch" issue (one that occurred
 
 ---
 
+## Update: 2025-12-02 - Minimal Repro Attempts
+
+Attempted to create a minimal reproduction to isolate the bug. Tested the following patterns in fresh spaces:
+
+### Patterns Tested (ALL WORKED - no Frame mismatch)
+
+| Pattern | fetchData per item | Dependency chain? | .get() casting? | Space |
+|---------|-------------------|------------------|----------------|-------|
+| Single fetch | 1 | No | No | repro-single |
+| Triple fetch | 3 | No | No | repro-triple |
+| 12 fetch slots | 12 | No | No | repro-many |
+| Dependency chain | 6 | Yes | No | repro-deps |
+| .get() casting | 6 | Yes | Yes | repro-getpattern |
+
+### What We Tested
+
+1. **Basic fetchData inside .map()** - Works fine
+2. **Multiple fetchData per mapped item** - Works fine
+3. **Dependency chains** (one fetch's URL derived from another fetch's result) - Works fine
+4. **External flag dependency** (simulating authCharm) - Works fine
+5. **The exact .get() casting pattern** from github-momentum-tracker:
+   ```typescript
+   const flag = (values.hasFlag as any)?.get ? (values.hasFlag as any).get() : values.hasFlag;
+   ```
+   - Works fine
+
+### Conclusion
+
+**github-momentum-tracker.tsx itself IS the minimal reproduction.**
+
+Every pattern from that file works in isolation. The bug cannot be reproduced with simpler patterns.
+
+### Remaining Candidates
+
+The only differences between working repros and failing github-momentum-tracker:
+
+1. **External charm linkage** - `authCharm` from favorites (a cell that links to another charm instance)
+2. **Specific combination** - all patterns together with full complexity
+3. **Async timing/race condition** - something about real GitHub API response timing vs JSONPlaceholder
+4. **Pattern size/complexity** - some threshold effect
+
+### Repro Pattern Location
+
+The test patterns are in `patterns/jkomoros/WIP/fetchdata-map-repro.tsx` - they demonstrate that fetchData inside `.map()` CAN work.
+
+---
+
 **Questions:**
 1. Is this limitation by design?
 2. Is there a planned feature to support dynamic fetchData allocation?
 3. What's the recommended pattern for "fetch data for each item in a variable-length list"?
+4. **NEW:** Could the external charm linkage (`authCharm`) be the trigger? github-momentum-tracker imports a cell from another charm.
