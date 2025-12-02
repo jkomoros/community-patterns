@@ -173,7 +173,14 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                   disabled={analysisPending}
                   variant="secondary"
                 >
-                  {analysisPending ? "Analyzing..." : "Analyze Profiles"}
+                  {ifElse(
+                    analysisPending,
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Analyzing...
+                    </span>,
+                    "Analyze Profiles"
+                  )}
                 </ct-button>
               </ct-hstack>
 
