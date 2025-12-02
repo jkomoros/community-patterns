@@ -26,8 +26,10 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-01-24-check-pattern-callers-when-changing-inputs.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** low (confirmed_count=1)
+**Notes:** Valid development workflow guidance. This is standard TypeScript behavior - when you change a pattern's input interface, callers need to be updated. Not framework-specific, just good software engineering practice. Worth keeping as documentation.
 
 ---
 
