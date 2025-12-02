@@ -954,8 +954,9 @@ Be thorough and search for all major hotel brands.`,
             {derive([isScanning, agentPending], ([scanning, pending]) =>
               scanning && pending ? (
                 <div style="padding: 16px; background: #dbeafe; border: 1px solid #3b82f6; borderRadius: 8px;">
-                  <div style="fontWeight: 600; marginBottom: 12px; textAlign: center;">
-                    🤖 AI Agent Working...
+                  <div style="fontWeight: 600; marginBottom: 12px; textAlign: center; display: flex; alignItems: center; justifyContent: center; gap: 12px;">
+                    <ct-loader show-elapsed></ct-loader>
+                    AI Agent Working...
                   </div>
 
                   {/* Current Activity */}
@@ -969,7 +970,10 @@ Be thorough and search for all major hotel brands.`,
                       </div>
                     ) : (
                       <div style="padding: 8px; background: #bfdbfe; borderRadius: 4px; marginBottom: 12px;">
-                        <div style="fontSize: 12px; color: #1e40af;">💭 Analyzing emails...</div>
+                        <div style="fontSize: 12px; color: #1e40af; display: flex; alignItems: center; gap: 8px;">
+                          <ct-loader size="sm"></ct-loader>
+                          Analyzing emails...
+                        </div>
                       </div>
                     )
                   )}
