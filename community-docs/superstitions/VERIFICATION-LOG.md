@@ -8,8 +8,10 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-01-23-ct-image-input-base64-overhead.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed
+**Evidence level:** low (confirmed_count=1)
+**Notes:** Valid guidance. ct-image-input compresses to maxSizeBytes target (raw bytes), then base64 encodes. Pattern developers must account for ~33% base64 overhead when interfacing with APIs that have encoded size limits. food-recipe.tsx correctly uses 75% of API limit.
 
 ---
 
