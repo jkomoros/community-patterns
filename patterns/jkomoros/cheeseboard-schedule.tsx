@@ -1,6 +1,10 @@
 /// <cts-enable />
 import { Cell, computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI } from "commontools";
 
+// ct-loader is a Web Component for showing loading spinners
+// Properties: size="sm"|"md"|"lg", show-elapsed (boolean attr), show-stop (boolean attr)
+// Events: ct-stop (fired when stop button clicked)
+
 /**
  * Cheeseboard Pizza Schedule with Ingredient Preferences
  *
@@ -348,7 +352,7 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
   ({ preferences, history }) => {
     // Fetch pizza schedule
     const cheeseBoardUrl = "https://cheeseboardcollective.coop/home/pizza/pizza-schedule/";
-    const { result } = fetchData<WebReadResult>({
+    const { result, pending } = fetchData<WebReadResult>({
       url: "/api/agent-tools/web-read",
       mode: "json",
       options: {
@@ -391,6 +395,14 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
           </p>
 
           <div style={{ marginTop: "1.5rem" }}>
+            {ifElse(
+              pending,
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "2rem", justifyContent: "center" }}>
+                <ct-loader show-elapsed></ct-loader>
+                <span style={{ color: "#666" }}>Fetching pizza schedule...</span>
+              </div>,
+              null
+            )}
             {pizzaList.map((pizza) => {
               // Calculate score for this pizza
               const score = computed(() => {
