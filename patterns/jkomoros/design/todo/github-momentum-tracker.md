@@ -426,6 +426,181 @@ Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` c
 
 ## Status
 
-**Current Phase**: Design Complete, Ready for Implementation
+**Current Phase**: Refactoring - Multi-Repo Architecture Fix
 
-**Next Action**: Start Phase 1 - Core Infrastructure
+**Previous Progress**:
+- ✅ Phase 0: `github-auth.tsx` complete and working
+- ✅ Phase 1-2: Core infrastructure with URL parsing, repo management, GitHub API
+- ✅ Star history sampling implemented (star-history.com approach with 10 sample pages)
+- ✅ Commit activity heatmap working
+- ✅ Single repo works correctly
+
+**Current Issue**: Multi-repo star history not working
+
+---
+
+## Architecture Refactor: Multi-Repo Fix (December 2024)
+
+### The Problem
+
+**Observed behavior**: When multiple repos are added, only the first repo (`repos[0]`) gets its star history fetched. Subsequent repos show "No data" even though they're in the list.
+
+**Root cause**: The current architecture uses `repos.map()` with `fetchData` calls inside the map. When the `repos` array changes (e.g., first repo removed, second repo becomes `repos[0]`), the fetchData calls don't re-trigger - they're somehow "locked" to the original data.
+
+**Evidence**:
+- Network requests show stargazer API calls only for `anthropics/claude-code` (original repos[0])
+- After removing claude-code and keeping only `facebook/react`, NO new API requests are made for react
+- Console errors: `TypeError: Cannot read properties of undefined (reading 'data')`
+
+### Why `.map()` + `fetchData` Doesn't Work
+
+The framework's `.map()` creates derived cells for each item, but `fetchData` calls within the map don't properly re-initialize when:
+1. Array items are reordered (removing first item shifts all indices)
+2. New items are added to positions that previously existed
+3. The reactive graph for the "old" items may be cached incorrectly
+
+This is likely a framework limitation with how `.map()` interacts with side-effectful operations like `fetchData`.
+
+### The Solution: Pattern Composition with `ct-render`
+
+**Architecture change**: Split into two patterns:
+
+1. **`github-repo-card.tsx`** (NEW) - Pattern for ONE repo's complete stats
+   - Input: `{ repoName: string, token: string }`
+   - Handles all fetching for that single repo:
+     - Repo metadata (`/repos/{owner}/{repo}`)
+     - Star history (10 sampled stargazer pages)
+     - Commit activity (`/stats/commit_activity`)
+   - Renders the card UI with sparklines
+   - Each instance has its **own reactive graph** with **own fetchData calls**
+
+2. **`github-momentum-tracker.tsx`** (REFACTORED) - Orchestrator pattern
+   - Manages list of repo names
+   - Handles authentication (wish + inline fallback)
+   - Uses `ct-render` to instantiate a `github-repo-card` for each repo
+   - Each card is a **true pattern instance** (not a derived cell)
+
+### Why `ct-render` Solves This
+
+From COMPONENTS.md:
+> The `ct-render` component displays pattern instances within another pattern. Use this for **pattern composition** - combining multiple patterns together in a single pattern.
+
+Key insight from docs:
+> Use **ct-render** when the pattern wasn't instantiated from within this pattern but was passed in or **was stored in a list**.
+
+Each `ct-render` instance:
+- Has its own complete reactive graph
+- Has its own independent `fetchData` calls
+- Properly initializes when created, cleans up when removed
+- No shared mutable state between instances
+
+### Implementation Plan
+
+**Phase 7: Multi-Repo Architecture Fix**
+
+- [ ] Create `github-repo-card.tsx` pattern
+  - [ ] Move all single-repo fetching logic from tracker
+  - [ ] Move star history sampling (10 fetchData slots)
+  - [ ] Move commit activity fetching
+  - [ ] Move momentum calculation
+  - [ ] Move card UI rendering
+  - [ ] Input: `{ repoName: string, token: string }`
+  - [ ] Output: `{ /* expose relevant data if needed */ }`
+
+- [ ] Refactor `github-momentum-tracker.tsx`
+  - [ ] Keep: Auth logic (wish + inline fallback)
+  - [ ] Keep: Repo list management (add/remove)
+  - [ ] Keep: URL parsing utilities
+  - [ ] Change: Use `ct-render` to render repo cards
+  - [ ] Change: Pass `token` and `repoName` to each card instance
+
+- [ ] Test multi-repo functionality
+  - [ ] Add `facebook/react` (large, old repo)
+  - [ ] Add `anthropics/claude-code` (new repo)
+  - [ ] Verify both show star history
+  - [ ] Verify removing one doesn't break the other
+  - [ ] Verify adding 5+ repos works
+
+### Code Sketch
+
+**github-repo-card.tsx:**
+```typescript
+interface Input {
+  repoName: string;
+  token: string;
+}
+
+export default pattern<Input, Output>(({ repoName, token }) => {
+  const ref = derive(repoName, (name) => parseGitHubUrl(name));
+
+  // All fetchData calls for this ONE repo
+  const metadata = fetchData<GitHubRepoMetadata>({ ... });
+  const commitActivity = fetchData<CommitActivityWeek[]>({ ... });
+
+  // 10 star sample slots
+  const starSample0 = fetchData<StargazerWithDate[]>({ ... });
+  // ... starSample1-9
+
+  const starHistory = derive({ ... }, aggregateStarHistory);
+  const momentum = derive(commitData, calculateMomentum);
+
+  return {
+    [NAME]: derive(repoName, (n) => `Repo: ${n}`),
+    [UI]: (/* Card UI with sparklines */),
+    // Export data if parent needs it
+    metadata,
+    momentum,
+  };
+});
+```
+
+**github-momentum-tracker.tsx (refactored):**
+```typescript
+import RepoCard from "./github-repo-card.tsx";
+
+export default pattern<Input, Output>(({ repos, authCharm }) => {
+  // Auth logic (unchanged)
+  const effectiveToken = derive(...);
+
+  // Create card instances - each is a full pattern
+  const repoCards = repos.map((repoName) => {
+    return RepoCard({ repoName, token: effectiveToken });
+  });
+
+  return {
+    [NAME]: "GitHub Momentum Tracker",
+    [UI]: (
+      <div>
+        {/* Auth UI */}
+        {/* Repo input UI */}
+
+        {/* Render each card using ct-render */}
+        {repoCards.map((card) => (
+          <ct-render $cell={card} />
+        ))}
+      </div>
+    ),
+    repos,
+  };
+});
+```
+
+### Benefits of This Architecture
+
+1. **Each repo is isolated** - No shared fetchData state between repos
+2. **Proper cleanup** - Removing a repo properly disposes its pattern instance
+3. **Independent loading** - Each card shows its own loading state
+4. **Reusable** - `github-repo-card` can be used standalone
+5. **Testable** - Can test single repo card in isolation
+6. **Scalable** - No limit on number of repos (within API rate limits)
+
+### Alternative Considered: 10 Fixed Repo Slots
+
+Could have 10 sets of fetchData (100 total) for up to 10 repos. Rejected because:
+- Arbitrary limit (why 10?)
+- Lots of boilerplate code
+- Same fundamental reactivity issue might persist
+
+### Next Action
+
+Start Phase 7: Create `github-repo-card.tsx`
