@@ -54,6 +54,13 @@ interface CommitActivityWeek {
   days: number[];
 }
 
+interface MomentumAnalysis {
+  trend: "accelerating" | "steady" | "decelerating" | "unknown";
+  recentAvg: number; // Average commits per week (last 4 weeks)
+  olderAvg: number; // Average commits per week (weeks 5-12)
+  changePercent: number; // Percentage change
+}
+
 interface Input {
   repos?: Default<string[], []>; // List of "owner/repo" strings
   authCharm?: Cell<{ token: string }>; // Optional linked auth charm
@@ -178,6 +185,48 @@ function makeGitHubHeaders(token: string) {
 }
 
 // =============================================================================
+// MOMENTUM CALCULATION
+// =============================================================================
+
+/**
+ * Analyze commit activity to determine momentum trend
+ * Compares recent 4 weeks to prior 8 weeks
+ */
+function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): MomentumAnalysis {
+  if (!weeks || weeks.length < 12) {
+    return { trend: "unknown", recentAvg: 0, olderAvg: 0, changePercent: 0 };
+  }
+
+  // Get last 12 weeks (most recent at end of array)
+  const last12 = weeks.slice(-12);
+  const recent4 = last12.slice(-4);
+  const older8 = last12.slice(0, 8);
+
+  const recentAvg = recent4.reduce((sum, w) => sum + w.total, 0) / 4;
+  const olderAvg = older8.reduce((sum, w) => sum + w.total, 0) / 8;
+
+  // Avoid division by zero
+  if (olderAvg === 0) {
+    return {
+      trend: recentAvg > 0 ? "accelerating" : "steady",
+      recentAvg,
+      olderAvg,
+      changePercent: recentAvg > 0 ? 100 : 0,
+    };
+  }
+
+  const changePercent = ((recentAvg - olderAvg) / olderAvg) * 100;
+
+  // Threshold: >20% increase = accelerating, >20% decrease = decelerating
+  let trend: MomentumAnalysis["trend"] = "steady";
+  if (changePercent > 20) trend = "accelerating";
+  else if (changePercent < -20) trend = "decelerating";
+
+  return { trend, recentAvg, olderAvg, changePercent };
+}
+
+
+// =============================================================================
 // PATTERN
 // =============================================================================
 
@@ -192,21 +241,34 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
   // Try to find existing GitHub auth via wish
   const discoveredAuth = wish<{ token: string }>("#githubAuth");
 
-  // Use discovered auth, or passed-in auth
-  // Note: wish returns Cell values, so we access properties directly in derive
+  // Inline auth for when no token is available
+  const inlineAuth = GitHubAuth({});
+
+  // Use discovered auth, passed-in auth, or inline auth
+  // IMPORTANT: derive() with object params does NOT auto-unwrap cells!
+  // Must call .get() on each value (see community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md)
   const effectiveToken = derive(
-    { discovered: discoveredAuth, passed: authCharm },
-    ({ discovered, passed }: { discovered: { token: string } | null; passed: { token: string } | null }) => {
+    { discovered: discoveredAuth, passed: authCharm, inline: inlineAuth.token },
+    (values) => {
+      // Safe unwrapping that handles both Cell and plain values
+      const discovered = (values.discovered as any)?.get
+        ? (values.discovered as any).get()
+        : values.discovered;
+      const passed = (values.passed as any)?.get
+        ? (values.passed as any).get()
+        : values.passed;
+      const inline = (values.inline as any)?.get
+        ? (values.inline as any).get()
+        : values.inline;
+
       if (discovered?.token) return discovered.token;
       if (passed?.token) return passed.token;
+      if (inline) return inline;
       return "";
     }
   );
 
   const hasAuth = derive(effectiveToken, (t) => !!t);
-
-  // Inline auth for when no token is available
-  const inlineAuth = GitHubAuth({});
 
   // ==========================================================================
   // Repo Data Fetching
@@ -235,7 +297,25 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
       null
     );
 
-    return { repoName: repoNameCell, ref, metadata };
+    // Fetch commit activity (last 52 weeks)
+    const commitActivityUrl = derive(ref, (r) =>
+      r ? `https://api.github.com/repos/${r.owner}/${r.repo}/stats/commit_activity` : ""
+    );
+
+    const commitActivity = ifElse(
+      shouldFetch,
+      fetchData<CommitActivityWeek[]>({
+        url: commitActivityUrl,
+        mode: "json",
+        options: {
+          method: "GET",
+          headers: derive(effectiveToken, (t) => makeGitHubHeaders(t)),
+        },
+      }),
+      null
+    );
+
+    return { repoName: repoNameCell, ref, metadata, commitActivity };
   });
 
   // Count repos
@@ -303,23 +383,12 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
           <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#666" }}>
             Paste GitHub URLs or owner/repo references (one per line or comma-separated)
           </p>
-          <textarea
-            value={inputText}
-            placeholder="anthropics/claude-code
-https://github.com/facebook/react
-owner/repo"
+          <ct-input
+            $value={inputText}
+            placeholder="anthropics/claude-code, facebook/react, owner/repo"
             style={{
               width: "100%",
-              minHeight: "80px",
-              padding: "12px",
-              border: "1px solid #dee2e6",
-              borderRadius: "6px",
-              fontSize: "14px",
-              fontFamily: "monospace",
-              resize: "vertical",
-              boxSizing: "border-box",
             }}
-            onChange={(e: any) => inputText.set(e.target.value)}
           />
           <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
             <button
@@ -380,16 +449,41 @@ owner/repo"
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {repoDataList.map((item) => {
               const metadata = item.metadata;
+              const commitActivity = item.commitActivity;
               const repoName = item.repoName; // This is a Cell<string>
               const isLoading = derive(metadata, (m) => m?.pending === true);
               const hasError = derive(metadata, (m) => !!m?.error);
               const data = derive(metadata, (m) => m?.result);
+
+              // Commit activity data
+              const commitData = derive(commitActivity, (ca) => ca?.result || []);
+              const isCommitLoading = derive(commitActivity, (ca) => ca?.pending === true);
+
+              // Calculate momentum from commit activity
+              const momentum = derive(commitData, (weeks) => calculateMomentum(weeks));
+
+              // Get last 12 weeks for sparkline display
+              const sparklineData = derive(commitData, (weeks) => {
+                if (!weeks || weeks.length === 0) return [];
+                return weeks.slice(-12).map((w) => w.total);
+              });
 
               // Build href - use data.html_url if available, else construct from repoName
               const repoHref = derive(
                 { data, repoName },
                 ({ data, repoName }) => data?.html_url || `https://github.com/${repoName}`
               );
+
+              // Momentum badge styling
+              const momentumBadge = derive(momentum, (m) => {
+                const styles: Record<string, { bg: string; color: string; label: string; icon: string }> = {
+                  accelerating: { bg: "#d4edda", color: "#28a745", label: "Accelerating", icon: "↗" },
+                  steady: { bg: "#e2e3e5", color: "#6c757d", label: "Steady", icon: "→" },
+                  decelerating: { bg: "#f8d7da", color: "#dc3545", label: "Decelerating", icon: "↘" },
+                  unknown: { bg: "#e9ecef", color: "#6c757d", label: "Unknown", icon: "?" },
+                };
+                return styles[m.trend] || styles.unknown;
+              });
 
               return (
                 <div style={{
@@ -405,20 +499,33 @@ owner/repo"
                     alignItems: "flex-start",
                     marginBottom: "12px",
                   }}>
-                    <div>
-                      <a
-                        href={repoHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: "18px",
-                          fontWeight: "600",
-                          color: "#0366d6",
-                          textDecoration: "none",
-                        }}
-                      >
-                        {repoName}
-                      </a>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <a
+                          href={repoHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: "600",
+                            color: "#0366d6",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {repoName}
+                        </a>
+                        {/* Momentum Badge */}
+                        <span style={{
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          backgroundColor: derive(momentumBadge, (b) => b.bg),
+                          color: derive(momentumBadge, (b) => b.color),
+                        }}>
+                          {derive(momentumBadge, (b) => `${b.icon} ${b.label}`)}
+                        </span>
+                      </div>
                       {ifElse(
                         data,
                         <p style={{
@@ -474,17 +581,90 @@ owner/repo"
                     )
                   )}
 
-                  {/* Placeholder for sparkline and momentum indicator */}
+                  {/* Commit Activity Sparkline */}
                   <div style={{
                     marginTop: "12px",
-                    padding: "20px",
+                    padding: "12px",
                     backgroundColor: "#f8f9fa",
                     borderRadius: "6px",
-                    textAlign: "center",
-                    color: "#999",
-                    fontSize: "13px",
                   }}>
-                    [Sparkline and momentum indicator coming soon]
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "8px",
+                    }}>
+                      <span style={{ fontSize: "13px", color: "#666", fontWeight: "500" }}>
+                        Commit Activity (last 12 weeks)
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#999" }}>
+                        {derive(momentum, (m) =>
+                          m.trend !== "unknown"
+                            ? `${m.changePercent > 0 ? "+" : ""}${m.changePercent.toFixed(0)}% vs prior 8 weeks`
+                            : "Insufficient data"
+                        )}
+                      </span>
+                    </div>
+                    {ifElse(
+                      isCommitLoading,
+                      <div style={{ color: "#999", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+                        Loading commit data...
+                      </div>,
+                      ifElse(
+                        derive(sparklineData, (d) => d.length > 0),
+                        <div style={{
+                          display: "flex",
+                          alignItems: "flex-end",
+                          gap: "2px",
+                          height: "50px",
+                        }}>
+                          {derive(sparklineData, (data) => {
+                            const maxVal = Math.max(...data, 1);
+                            return data.map((val, i) => {
+                              const heightPercent = (val / maxVal) * 100;
+                              const opacity = 0.5 + (i / data.length) * 0.5;
+                              return (
+                                <div
+                                  key={i}
+                                  style={{
+                                    flex: 1,
+                                    height: `${Math.max(heightPercent, 2)}%`,
+                                    backgroundColor: derive(momentumBadge, (b) => b.color),
+                                    opacity: opacity,
+                                    borderRadius: "2px 2px 0 0",
+                                    minHeight: "2px",
+                                  }}
+                                  title={`Week ${i + 1}: ${val} commits`}
+                                />
+                              );
+                            });
+                          })}
+                        </div>,
+                        <div style={{ color: "#999", fontSize: "13px", textAlign: "center", padding: "8px" }}>
+                          No commit activity data
+                        </div>
+                      )
+                    )}
+                    {/* Weekly totals under bars */}
+                    {ifElse(
+                      derive(sparklineData, (d) => d.length > 0),
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: "4px",
+                        fontSize: "10px",
+                        color: "#999",
+                      }}>
+                        <span>12 weeks ago</span>
+                        <span>
+                          {derive(sparklineData, (d) =>
+                            d.length > 0 ? `${d[d.length - 1]} commits this week` : ""
+                          )}
+                        </span>
+                        <span>now</span>
+                      </div>,
+                      null
+                    )}
                   </div>
                 </div>
               );

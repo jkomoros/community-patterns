@@ -53,7 +53,7 @@ const saveToken = handler<
   { detail: { value: string } },
   { token: Cell<string> }
 >(({ detail }, { token }) => {
-  token.set(detail.value?.trim() || "");
+  token.set(detail?.value?.trim() || "");
 });
 
 // Handler to clear token
@@ -224,18 +224,12 @@ export default pattern<Input, Output>(({ token }) => {
             Personal Access Token
           </label>
           <div style={{ display: "flex", gap: "8px" }}>
-            <input
+            <ct-input
               type="password"
-              value={token}
+              $value={token}
               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              onChange={saveToken({ token })}
               style={{
                 flex: 1,
-                padding: "8px 12px",
-                border: "1px solid #dee2e6",
-                borderRadius: "6px",
-                fontSize: "14px",
-                fontFamily: "monospace",
               }}
             />
             {ifElse(

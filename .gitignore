@@ -11,6 +11,9 @@
 claude.key
 **/claude.key
 .passphrase
+.github-token
+*.SECRET.*
+*.secret.*
 
 # Node modules and Deno
 node_modules/
