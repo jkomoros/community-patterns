@@ -128,29 +128,56 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-11-22-llm-generateObject-reactive-map-derive.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** context_dependent
+**Evidence level:** low (not actively tested, but related superstition disproved)
+**Notes:** The superstition's own UPDATE says direct access works for text content.
+- Original claim: need derive() for nested property access in .map()
+- Update says: text content works without derive()
+- May only apply to async-loading image data
+- Related: derive-object-parameter-cell-unwrapping was DISPROVED (auto-unwraps)
+- Likely the original issue was timing-related for async images, not derive behavior
+- Needs active testing with images to fully verify
 
 ---
 
 ## 2025-11-22-patterns-pass-cells-not-charm-refs.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed (architectural guidance)
+**Evidence level:** low (code review, not active testing)
+**Notes:** This is design guidance, not a bug workaround:
+- No "self" reference mechanism exists in patterns (confirmed by code review)
+- Passing individual cells is the documented approach (instantiate-recipe.tsx)
+- Creates snapshot, not live-link (expected behavior)
+- Valid architectural pattern for pattern composition
 
 ---
 
 ## 2025-11-22-space-name-character-requirements.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** confirmed (expected behavior)
+**Evidence level:** low (logical reasoning)
+**Notes:** Self-evident URL routing behavior:
+- "/" in space name conflicts with URL path segments
+- URL format is `/:spaceName/:charmId` so "/" would break parsing
+- Not a bug, just a constraint from URL structure
+- Valid documentation about naming requirements
 
 ---
 
 ## 2025-11-24-default-only-at-array-level-not-nested.md
 
-**Last verified:** never
-**Status:** pending
+**Last verified:** 2025-12-02
+**Status:** DISPROVED
+**Evidence level:** high (active repro testing)
+**Notes:** ACTIVELY VERIFIED via 2025-11-24-nested-default-test.tsx repro:
+- Pattern with nested Default<> COMPILED without TypeScript errors ✓
+- Push to array with nested Default<> WORKED at runtime ✓
+- Count increased from 0 to 1 after push
+- The superstition is INCORRECT or context-specific
+- May have been a different issue in original observation
 
 ---
 
