@@ -898,8 +898,18 @@ Be thorough and search for all major hotel brands.`,
         <ct-vscroll flex showScrollbar>
           <ct-vstack style="padding: 16px; gap: 16px;">
             {/* Auth Status */}
-            {derive([isAuthenticated, authSource], ([authenticated, source]) => {
+            {derive([isAuthenticated, authSource, hasAuthError], ([authenticated, source, authError]) => {
               if (authenticated) {
+                // Show warning if token is expired (auth error detected)
+                if (authError) {
+                  return (
+                    <div style="padding: 12px; background: #fef3c7; border: 1px solid #fde68a; borderRadius: 8px;">
+                      <div style="fontSize: 14px; color: #92400e; textAlign: center;">
+                        ⚠️ Gmail token expired {source === "direct" ? "(linked)" : "(shared)"} - re-authenticate below
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; borderRadius: 8px;">
                     <div style="fontSize: 14px; color: #166534; textAlign: center;">
