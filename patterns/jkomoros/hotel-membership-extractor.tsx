@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, generateObject, getRecipeEnvironment, handler, NAME, navigateTo, pattern, UI, wish } from "commontools";
+import { Cell, Default, derive, generateObject, getRecipeEnvironment, handler, ifElse, NAME, navigateTo, pattern, UI, wish } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
 
 // Gmail scope URL for checking
@@ -925,7 +925,8 @@ Be thorough and search for all major hotel brands.`,
 
 
             {/* Scan Buttons - only show when authenticated */}
-            {derive(isAuthenticated, (auth) => auth ? (
+            {ifElse(
+              isAuthenticated,
               <div style="display: flex; gap: 8px; flexWrap: wrap;">
                 {/* Full Scan Button */}
                 <ct-button
@@ -954,8 +955,9 @@ Be thorough and search for all major hotel brands.`,
                     return "📅 Check Recent";
                   })}
                 </ct-button>
-              </div>
-            ) : null)}
+              </div>,
+              null
+            )}
 
             {/* Scan mode info */}
             {derive([isScanning, currentScanMode], ([scanning, mode]: [boolean, ScanMode]) =>
