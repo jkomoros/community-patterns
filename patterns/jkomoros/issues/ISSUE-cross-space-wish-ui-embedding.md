@@ -44,7 +44,16 @@ const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
 The `ct-cell-link` component should include the source space in its `href` or navigation logic when rendering a cross-space charm reference.
 
+## Same-Space Navigation Works
+
+When the consuming pattern is in the **same space** as the wished charm, ct-cell-link navigation works correctly:
+- Wish Auth Test in `jkomoros` → click link → navigates to `jkomoros/CHARM-ID` ✅
+- Google Auth UI renders correctly
+
+The bug only occurs for **cross-space** navigation.
+
 ## Test Charm IDs (2025-12-03)
 
 - Google Auth (jkomoros): `baedreibukx2stqm3abpjl2jlqpecvmod3pwcasivx5xmrr5sfushsfcpfm`
-- Wish Auth Test (different-space): `baedreiezrauecddrndwx6nucdyqesltmf4hbhhcjdwj5uacw32anf7bra4`
+- Wish Auth Test same-space (jkomoros): `baedreihtjpkr7i4ln4k7iso263n25kgajbi2jefen5dvyaxstcbrwb4lii` ✅
+- Wish Auth Test cross-space (different-space): `baedreiezrauecddrndwx6nucdyqesltmf4hbhhcjdwj5uacw32anf7bra4` ❌
