@@ -140,7 +140,7 @@ stars: ⭐⭐⭐
 
 - ✅ 2025-11-30 - **NEW TECHNIQUE DISCOVERED** in spindle-board "Inspire Me" feature. Needed to render buttons for each LLM-generated idea. Used `.map()` on pre-computed cell instead of inside derive callback: `ideasWithJson.map((idea) => <button onClick={handler(...)} />)`. This works because the onClick is NOT inside a derive callback - it's at top-level JSX mapping over a reactive cell. Also used two-phase selection (click to select index, then separate "Apply" button) to work around read-only data from LLM results. (spindle-board-inspire-me)
 
-- ⏳ 2025-12-03 - **TENTATIVE: ifElse() with simple cell may work for conditional buttons**. hotel-membership-extractor had `derive(isAuthenticated, (auth) => auth ? <buttons> : null)` causing ReadOnlyAddressError. Changed to `ifElse(isAuthenticated, <buttons>, null)` - compiles successfully. Key difference: ifElse with a plain cell (not a derived parameter) may not create the read-only context that derive() does. **NEEDS USER CONFIRMATION** that clicking buttons actually works. (fix-hide-cross-space-wish-auth)
+- ✅ 2025-12-03 - **CONFIRMED: ifElse() with simple cell WORKS for conditional buttons**. hotel-membership-extractor had `derive(isAuthenticated, (auth) => auth ? <buttons> : null)` causing ReadOnlyAddressError. Changed to `ifElse(isAuthenticated, <buttons>, null)` - **clicking Quick Scan worked without ReadOnlyAddressError**. Key difference: ifElse with a plain cell (not a derived parameter) doesn't create the read-only context that derive() does. This is a valid workaround when you need conditional button rendering! (fix-hide-cross-space-wish-auth)
 
 ---
 
