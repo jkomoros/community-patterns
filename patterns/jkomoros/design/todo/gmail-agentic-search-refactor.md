@@ -287,3 +287,80 @@ The composition pattern works well:
 - Specialized pattern adds custom tools, custom state, custom UI
 - State-bound handlers allow child to pass tools that modify its own state
 - Embedding `{searcher}` in UI renders the base pattern's full UI
+
+## Phase 2: Improvements (2025-12-03)
+
+After validating the design with two patterns (hotel-membership-gmail-agent, favorite-foods-gmail-agent), identified several improvements:
+
+### Improvement 1: `createReportTool` Helper
+**Status:** [x] Completed
+
+**Problem:** Both specialized patterns have nearly identical "report" tool structures:
+- `reportMembership` - saves hotel membership to list
+- `reportFood` - saves food preference to list
+
+**Solution:** Create a `createReportTool` helper that:
+- Takes: `{ name, description, inputSchema, stateCell, idPrefix, dedupeKey }`
+- Returns: A properly-typed handler that handles deduplication and saves to state
+- Handles common patterns: ID generation, duplicate detection, timestamping
+
+**Example usage:**
+```typescript
+const reportMembership = createReportTool({
+  name: "reportMembership",
+  description: "Report a found membership number",
+  stateCell: memberships,
+  idPrefix: "membership",
+  dedupeKey: (item) => `${item.brand}-${item.memberNumber}`,
+});
+```
+
+### Improvement 2: Expose UI Pieces
+**Status:** [x] Completed
+
+**Problem:** Currently, specialized patterns can only:
+1. Use the entire base UI via `{searcher}` embedding
+2. Build completely custom UI
+
+**Solution:** Expose individual UI pieces from base pattern:
+- `authUI` - The auth status and connect/disconnect buttons
+- `progressUI` - The search progress display
+- `controlsUI` - The scan/stop buttons
+
+**Benefits:**
+- More flexible composition
+- Specialized patterns can mix base UI pieces with custom sections
+- Don't need to rebuild common UI
+
+### Improvement 3: Token Validation on Scan Start
+**Status:** [x] Completed
+
+**Problem:** If Gmail token is expired, the first search fails with 401. User sees confusing error.
+
+**Solution:**
+1. On scan start, make a lightweight Gmail API call (list 1 email)
+2. If 401, show "Token expired, please re-authenticate" message
+3. Don't start the agent until we know auth is valid
+
+### Improvement 4: Auth State Accuracy
+**Status:** [x] Completed
+
+**Problem:** Auth UI shows "Gmail connected" even when token is actually expired.
+
+**Solution:**
+1. Store token expiry time (if available from auth response)
+2. Check expiry before showing "connected" status
+3. Or: periodically validate token in background
+4. Show "Token may have expired" warning if uncertain
+
+### Implementation Order
+1. **Expose UI Pieces** - Most immediately useful, low risk
+2. **createReportTool Helper** - Reduces boilerplate, higher complexity
+3. **Token Validation** - Quality-of-life improvement
+4. **Auth State Accuracy** - Depends on auth charm behavior, may need investigation
+
+### Files to Update
+- `gmail-agentic-search.tsx` - Add UI piece exports, token validation
+- `hotel-membership-gmail-agent.tsx` - Use createReportTool if implemented
+- `favorite-foods-gmail-agent.tsx` - Use createReportTool if implemented
+- New: `lib/gmail-report-tool.ts` (optional) - For createReportTool helper

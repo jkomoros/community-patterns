@@ -6,15 +6,13 @@
  * Looks for restaurant reservations, food delivery orders, recipe emails, etc.
  */
 import {
-  Cell,
   Default,
   derive,
-  handler,
   NAME,
   pattern,
   UI,
 } from "commontools";
-import GmailAgenticSearch from "./gmail-agentic-search.tsx";
+import GmailAgenticSearch, { createReportTool } from "./gmail-agentic-search.tsx";
 
 // ============================================================================
 // SUGGESTED QUERIES
@@ -44,6 +42,17 @@ interface FoodPreference {
   sourceEmailSubject: string;
   sourceEmailDate: string;
   extractedAt: number;
+  notes?: string;
+}
+
+// Input type for the reportFood tool
+interface FoodInput {
+  foodName: string;
+  category: string;
+  confidence: number;
+  sourceEmailId: string;
+  sourceEmailSubject: string;
+  sourceEmailDate: string;
   notes?: string;
 }
 
@@ -95,57 +104,22 @@ const FOODS_RESULT_SCHEMA = {
 const FavoriteFoodsExtractor = pattern<FavoriteFoodsInput, FavoriteFoodsOutput>(
   ({ foods, lastScanAt, isScanning, maxSearches }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Food Preference
+    // CUSTOM TOOL: Report Food Preference (using createReportTool helper)
     // ========================================================================
-    const reportFoodHandler = handler<
-      {
-        foodName: string;
-        category: string;
-        confidence: number;
-        sourceEmailId: string;
-        sourceEmailSubject: string;
-        sourceEmailDate: string;
-        notes?: string;
-        result?: Cell<any>;
-      },
-      { foods: Cell<Default<FoodPreference[], []>> }
-    >((input, state) => {
-      const currentFoods = state.foods.get() || [];
-
-      // Deduplication by food name (case-insensitive)
-      const key = input.foodName.toLowerCase();
-      const existingKeys = new Set(
-        currentFoods.map((f) => f.foodName.toLowerCase()),
-      );
-
-      let resultMessage: string;
-
-      if (existingKeys.has(key)) {
-        console.log(`[ReportFood] Duplicate skipped: ${input.foodName}`);
-        resultMessage = `Duplicate: ${input.foodName} already saved`;
-      } else {
-        const newFood: FoodPreference = {
-          id: `food-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          foodName: input.foodName,
-          category: input.category,
-          confidence: input.confidence,
-          sourceEmailId: input.sourceEmailId,
-          sourceEmailSubject: input.sourceEmailSubject,
-          sourceEmailDate: input.sourceEmailDate,
-          extractedAt: Date.now(),
-          notes: input.notes,
-        };
-
-        state.foods.set([...currentFoods, newFood]);
-        console.log(`[ReportFood] SAVED: ${input.foodName} (${input.category})`);
-        resultMessage = `Saved: ${input.foodName} (${input.category})`;
-      }
-
-      if (input.result) {
-        input.result.set({ success: true, message: resultMessage });
-      }
-
-      return { success: true, message: resultMessage };
+    const reportFoodHandler = createReportTool<FoodInput, FoodPreference>({
+      idPrefix: "food",
+      dedupeKey: (input) => input.foodName,
+      toRecord: (input, id, timestamp) => ({
+        id,
+        foodName: input.foodName,
+        category: input.category,
+        confidence: input.confidence,
+        sourceEmailId: input.sourceEmailId,
+        sourceEmailSubject: input.sourceEmailSubject,
+        sourceEmailDate: input.sourceEmailDate,
+        extractedAt: timestamp,
+        notes: input.notes,
+      }),
     });
 
     // ========================================================================
@@ -213,7 +187,7 @@ Report each discovery immediately. Focus on patterns - if someone orders from th
         reportFood: {
           description:
             "Report a discovered food preference. Call this IMMEDIATELY when you identify a food the user likes.",
-          handler: reportFoodHandler({ foods }),
+          handler: reportFoodHandler({ items: foods }),
         },
       },
       title: "🍕 Favorite Foods Finder",
