@@ -419,6 +419,20 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
         return limitResult;
       }
 
+      // Don't continue if we're already in auth error state
+      if (currentProgress.status === "auth_error") {
+        const authErrorResult = {
+          success: false,
+          authError: true,
+          message: currentProgress.authError || "Authentication required",
+          emails: [],
+        };
+        if (input.result) {
+          input.result.set(authErrorResult);
+        }
+        return authErrorResult;
+      }
+
       // Update progress: starting new search
       state.progress.set({
         ...currentProgress,
@@ -1085,10 +1099,10 @@ Be thorough and search for all major hotel brands.`,
                     ⚠️ Gmail Authentication Required
                   </div>
                   <div style="fontSize: 13px; color: #78350f; marginBottom: 12px;">
-                    {progress.authError || "Your Gmail access has expired."}
+                    {progress.authError || "Your Gmail access has expired."} Re-authenticate below:
                   </div>
-                  <div style="fontSize: 12px; color: #92400e;">
-                    <strong>To fix:</strong> Go to your Google Auth charm and click "Authenticate with Google" again.
+                  <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
+                    {wishedAuthUI}
                   </div>
                 </div>
               ) : null
