@@ -77,11 +77,15 @@ Use descriptive space names with the `claude-` prefix:
 
 **After updating a pattern:**
 ```
-1. Deploy NEW instance with ct charm new (DON'T use setsrc - framework bug)
+1. Deploy NEW instance with `charm new` (see warning below)
 2. Note the NEW charm ID
 3. Use Playwright to test at http://localhost:8000/SPACE-NAME/NEW-CHARM-ID
 4. Test that changes work as expected
 ```
+
+**🚨 NEVER use `charm setsrc` to update patterns!**
+
+`charm setsrc` corrupts charm state and causes charms to render blank on direct navigation. ALWAYS use `charm new` to deploy a fresh instance instead. Getting a new charm ID each time is expected and correct.
 
 **When Playwright unavailable:**
 - Suggest user test manually in browser

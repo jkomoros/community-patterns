@@ -17,10 +17,20 @@ description: >
 3. **✅ ALWAYS include space name in URL:** `http://localhost:8000/SPACE-NAME/CHARM-ID`
 4. **❌ NEVER use:** `http://localhost:8000/CHARM-ID` (missing space name)
 5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`, `--space`
-6. **❌ NEVER use `charm setsrc`** - Known framework bug causes conflicts. Use `charm new` instead.
-7. **✅ ALWAYS use `deno task ct`** - Never just `ct` directly
+6. **✅ ALWAYS use `deno task ct`** - Never just `ct` directly
 
 **If you violate these rules, the pattern will not work. No exceptions.**
+
+## 🚨 NEVER USE `charm setsrc` - ALWAYS USE `charm new`
+
+**This is the #1 cause of broken charm instances.**
+
+`charm setsrc` has a known framework bug that corrupts charm state. Symptoms include:
+- Charm shows blank when navigated to directly
+- Conflict errors during updates
+- Charm data exists but UI won't render
+
+**ALWAYS deploy fresh instances with `charm new` instead.** Each deployment gets a new charm ID - this is expected and correct. See the "Update Deployed Pattern" section below.
 
 ## Test Syntax
 
