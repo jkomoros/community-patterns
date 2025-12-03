@@ -268,13 +268,30 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
   // Fallback: wish("#googleAuth") still attempted for when CT-1085 is fixed.
   // ============================================================================
 
-  // Try wish as fallback (will work once CT-1085 is fixed)
-  const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
+  // Try wish as fallback - use object syntax to get $UI for inline rendering
+  const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
   // Check if we have auth from either source
   const hasDirectAuth = derive(inputAuth, (a: Auth) => !!(a?.token));
-  const wishedAuth = derive(wishedAuthCharm, (charm: GoogleAuthCharm | undefined) => charm?.auth);
+
+  // 3-state logic for wished auth (like gmail-importer):
+  // State 1: "not-found" - wishError exists and no result
+  // State 2: "found-not-authenticated" - result exists but no email
+  // State 3: "authenticated" - result exists with email
+  const wishedAuthState = derive(wishResult, (wr) => {
+    const email = wr?.result?.auth?.user?.email || "";
+    if (email !== "") return "authenticated";
+    if (wr?.result) return "found-not-authenticated";
+    if (wr?.error) return "not-found";
+    return "loading";
+  });
+
+  // Get auth from wish result
+  const wishedAuth = derive(wishResult, (wr) => wr?.result?.auth);
   const hasWishedAuth = derive(wishedAuth, (a: Auth | undefined) => !!(a?.token));
+
+  // Get UI for inline auth rendering (for "found-not-authenticated" state)
+  const wishedAuthUI = derive(wishResult, (wr) => wr?.$UI);
 
   // Use input auth if provided, otherwise try wish
   const auth = derive([inputAuth, wishedAuth], ([directAuth, wished]: [Auth, Auth | undefined]) => {
@@ -837,7 +854,7 @@ Be thorough and search for all major hotel brands.`,
             See: community-docs/superstitions/2025-12-02-wish-cross-space-embed-in-jsx.md
             Remove this when CT-1090 is fixed. */}
         <div style={{ display: "none" }}>
-          {wishedAuthCharm}
+          {wishResult}
           {wishedMembershipsCharm}
         </div>
         <div slot="header">
@@ -858,23 +875,41 @@ Be thorough and search for all major hotel brands.`,
                 );
               }
 
-              return (
-                <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 8px;">
-                  <div style="fontSize: 14px; color: #475569; marginBottom: 12px; textAlign: center;">
-                    Connect your Gmail to scan for hotel memberships
+              // Show different UI based on wish state
+              return derive(wishedAuthState, (state) => {
+                if (state === "found-not-authenticated") {
+                  // State 2: Auth charm found but not logged in - show inline auth
+                  return (
+                    <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 8px;">
+                      <div style="fontSize: 14px; color: #475569; marginBottom: 12px; textAlign: center;">
+                        Sign in to your Google account
+                      </div>
+                      <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
+                        {wishedAuthUI}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // State 1: No auth charm found - show create button
+                return (
+                  <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 8px;">
+                    <div style="fontSize: 14px; color: #475569; marginBottom: 12px; textAlign: center;">
+                      Connect your Gmail to scan for hotel memberships
+                    </div>
+                    <ct-button
+                      onClick={createGoogleAuth({})}
+                      size="lg"
+                      style="width: 100%;"
+                    >
+                      Connect Gmail
+                    </ct-button>
+                    <div style="fontSize: 11px; color: #94a3b8; marginTop: 8px; textAlign: center;">
+                      After connecting, favorite the auth charm to share it
+                    </div>
                   </div>
-                  <ct-button
-                    onClick={createGoogleAuth({})}
-                    size="lg"
-                    style="width: 100%;"
-                  >
-                    Connect Gmail
-                  </ct-button>
-                  <div style="fontSize: 11px; color: #94a3b8; marginTop: 8px; textAlign: center;">
-                    Or link an existing Google Auth charm
-                  </div>
-                </div>
-              );
+                );
+              });
             })}
 
             {/* Scope warning */}
@@ -1185,6 +1220,7 @@ Be thorough and search for all major hotel brands.`,
                 <div style="fontFamily: monospace;">Is Authenticated: {derive(isAuthenticated, (a) => a ? "Yes ✓" : "No")}</div>
                 <div style="fontFamily: monospace;">Auth Source: {authSource}</div>
                 <div style="fontFamily: monospace;">Has Direct Auth: {derive(hasDirectAuth, (h) => h ? "Yes ✓" : "No")}</div>
+                <div style="fontFamily: monospace;">Wished Auth State: {wishedAuthState}</div>
                 <div style="fontFamily: monospace;">Has Wished Auth: {derive(hasWishedAuth, (h) => h ? "Yes ✓" : "No")}</div>
                 <div style="fontFamily: monospace;">Auth User: {derive(auth, (a) => a?.user?.email || "none")}</div>
                 <div style="fontFamily: monospace;">Is Scanning: {derive(isScanning, (s) => s ? "Yes ⏳" : "No")}</div>
