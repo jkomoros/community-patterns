@@ -20,11 +20,6 @@ import {
 import FoodRecipe from "./food-recipe.tsx";
 import PreparedFood from "./prepared-food.tsx";
 
-// Helper for wish with proper typing
-function schemaifyWish<T>(path: string) {
-  return wish<T>(path);
-}
-
 // Oven configuration
 interface OvenConfig {
   rackPositions: number; // 3-7 vertical positions
@@ -438,7 +433,7 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     notes,
   }) => {
     // Get mentionable charms for @ references
-    const mentionable = schemaifyWish<any[]>("#mentionable");
+    const mentionable = wish<any[]>("#mentionable");
 
     // Track charms created by this meal orchestrator
     // These will be exported as mentionable so they become discoverable
