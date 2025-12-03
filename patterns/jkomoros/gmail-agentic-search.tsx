@@ -685,6 +685,11 @@ Be thorough in your searches. Try multiple queries if needed.`;
       );
     });
 
+    // Pre-bind handlers (important: must be done outside of derive callbacks)
+    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress });
+    const boundStopScan = stopScan({ lastScanAt, isScanning });
+    const boundCompleteScan = completeScan({ lastScanAt, isScanning });
+
     // ========================================================================
     // UI
     // ========================================================================
@@ -709,8 +714,8 @@ Be thorough in your searches. Try multiple queries if needed.`;
       lastScanAt,
 
       // Actions
-      startScan: startScan({ isScanning, isAuthenticated, progress: searchProgress }),
-      stopScan: stopScan({ lastScanAt, isScanning }),
+      startScan: boundStartScan,
+      stopScan: boundStopScan,
 
       [UI]: (
         <ct-screen>
@@ -874,7 +879,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
               {ifElse(
                 isAuthenticated,
                 <ct-button
-                  onClick={startScan({ isScanning, isAuthenticated, progress: searchProgress })}
+                  onClick={boundStartScan}
                   size="lg"
                   style="width: 100%;"
                   disabled={isScanning}
@@ -890,7 +895,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
               {ifElse(
                 isScanning,
                 <ct-button
-                  onClick={stopScan({ lastScanAt, isScanning })}
+                  onClick={boundStopScan}
                   variant="secondary"
                   size="lg"
                   style="width: 100%;"
@@ -1080,7 +1085,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                       {derive(agentResult, (r) => r?.summary || "")}
                     </div>
                     <ct-button
-                      onClick={completeScan({ lastScanAt, isScanning })}
+                      onClick={boundCompleteScan}
                       size="lg"
                       style="width: 100%; margin-top: 12px;"
                     >

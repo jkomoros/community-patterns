@@ -269,9 +269,17 @@ Create `lib/gmail-utils.ts` with:
 6. **Progress UI**: Working - Shows completed searches with email counts
 7. **Custom UI**: Working - Displays membership with brand grouping
 
-### Known Issues
-1. **isScanning state not resetting**: After "Done" button click, UI still shows "Scanning..." button disabled instead of returning to "Scan" button. The `isScanning` flag is not being properly reset when agent completes.
-2. **ReadOnlyAddressError on Done click**: Console shows error when clicking Done button - may be related to trying to set a derived/readonly value.
+### Known Issues (FIXED)
+1. ~~**isScanning state not resetting**~~: Fixed by pre-binding handlers outside of derive callbacks.
+2. ~~**ReadOnlyAddressError on Done click**~~: Fixed - was caused by binding handlers inside derive callbacks which caused cell references to become stale/readonly.
+
+**Root cause**: Handler bindings like `completeScan({ lastScanAt, isScanning })` inside a `derive()` callback can cause issues with cell references. The fix was to pre-bind all handlers outside the return statement:
+```typescript
+// Pre-bind handlers (important: must be done outside of derive callbacks)
+const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress });
+const boundStopScan = stopScan({ lastScanAt, isScanning });
+const boundCompleteScan = completeScan({ lastScanAt, isScanning });
+```
 
 ### Architecture Validation
 The composition pattern works well:
