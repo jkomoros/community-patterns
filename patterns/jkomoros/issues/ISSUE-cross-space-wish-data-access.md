@@ -107,6 +107,49 @@ Deploy all patterns that need shared auth to the same space as the auth charm. N
 
 The workarounds in `hotel-membership-extractor.tsx`, `prompt-injection-tracker.tsx`, and `gmail-importer.tsx` that reference CT-1085 can be partially removed (same-space now works), but cross-space access still needs this new bug fixed.
 
+## Clean Test Reproduction (2025-12-02)
+
+In response to framework developer feedback that the bug couldn't be reproduced and might be caused by "interfering data in favorites", performed a completely clean test:
+
+1. **Cleared all data**: Deleted all spaces and sqlite database
+2. **Fresh deployment**: Deployed google-auth.tsx to fresh space "space-a"
+3. **New authentication**: Completed full OAuth flow, authenticated as jkomoros@gmail.com
+4. **Favorited**: Single favorite, no other data
+5. **Same-space test**: Deployed wish-auth-test.tsx to space-a
+   - **Result: ✅ Works** - Full auth data accessible
+6. **Cross-space test**: Deployed wish-auth-test.tsx to space-b
+   - **Result: ❌ Fails** - Only `$UI` visible, no `result` data
+
+### Clean Test Charm IDs (2025-12-02)
+
+- google-auth (space-a): `baedreiekl6ppdjgmrfxbd3iobbqh6nj2vvznft42vsajbnjcxwzigq7mge`
+- wish-auth-test same-space (space-a): `baedreibazwea7dwuvbcdr5r7klqrzgyruuku2xjeqtcksntv7y5frpg6we` - ✅ WORKS
+- wish-auth-test cross-space (space-b): `baedreidu4yeck3hplpyqifbcccbezv7fe5ktil2pvwqpmq2esrrudnmjri` - ❌ FAILS
+
+### Clean Test Debug Output Comparison
+
+**Same-space (space-a → space-a):**
+```json
+{
+  "result": {
+    "auth": {
+      "token": "ya29...",
+      "user": { "email": "jkomoros@gmail.com", "name": "Alex Komoroske" }
+    }
+  },
+  "$UI": { "type": "vnode", "name": "ct-cell-link", "props": {...}, "children": [...] }
+}
+```
+
+**Cross-space (space-a → space-b):**
+```json
+{
+  "$UI": { "type": "vnode", "name": "ct-cell-link", "props": {}, "children": [] }
+}
+```
+
+**Conclusion**: Bug is NOT caused by interfering data. It's a genuine cross-space data access issue reproducible with a completely clean setup.
+
 ## Notes
 
 - The charm IS found cross-space (has `$UI` for linking)
