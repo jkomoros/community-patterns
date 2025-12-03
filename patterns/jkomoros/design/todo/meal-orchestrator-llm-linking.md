@@ -376,7 +376,7 @@ export type MentionableCharm = {
 - Contains forward and back references
 
 ### Current Mentionable Usage
-- Line 246: `const mentionable = schemaifyWish<any[]>("#mentionable")`
+- `const mentionable = wish<any[]>("#mentionable")`
 - Used for ct-code-editor @ references
 - Already working for recipes and prepared foods sections
 

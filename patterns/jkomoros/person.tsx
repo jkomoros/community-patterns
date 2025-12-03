@@ -113,11 +113,6 @@ const handleNewBacklink = handler<
   }
 });
 
-// Helper function to create schemaified wish
-function schemaifyWish<T>(path: string, def: T) {
-  return derive(wish<T>(path) as T, (i) => i ?? def);
-}
-
 // Handler to update text fields
 const updateField = handler<
   { detail: { value: string } },
@@ -372,10 +367,7 @@ const Person = recipe<Input, Output>(
     photoUrl,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = schemaifyWish<MentionableCharm[]>(
-      "#mentionable",
-      [],
-    );
+    const mentionable = wish<MentionableCharm[]>("#mentionable");
     const mentioned = cell<MentionableCharm[]>([]);
 
     // The only way to serialize a pattern, apparently?
