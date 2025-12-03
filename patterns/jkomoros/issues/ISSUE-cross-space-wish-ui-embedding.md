@@ -52,8 +52,17 @@ When the consuming pattern is in the **same space** as the wished charm, ct-cell
 
 The bug only occurs for **cross-space** navigation.
 
-## Test Charm IDs (2025-12-03)
+## Test Charm IDs (2025-12-03, re-confirmed)
 
-- Google Auth (jkomoros): `baedreibukx2stqm3abpjl2jlqpecvmod3pwcasivx5xmrr5sfushsfcpfm`
-- Wish Auth Test same-space (jkomoros): `baedreihtjpkr7i4ln4k7iso263n25kgajbi2jefen5dvyaxstcbrwb4lii` ✅
-- Wish Auth Test cross-space (different-space): `baedreiezrauecddrndwx6nucdyqesltmf4hbhhcjdwj5uacw32anf7bra4` ❌
+Fresh reproduction after clearing all SQLite spaces:
+
+- Google Auth (jkomoros): `baedreidaphbnft7rtwcwfxt76cfnegqeqq5pibiuhrto7ezm6667ch66kq`
+- Wish Auth Test same-space (jkomoros): `baedreialwttndccnsefyghgweqbu6faawdsmjd4exeqbr4r5nrhwsqfiwe` ✅
+- Wish Auth Test cross-space (different-space): `baedreigslpbwpmqwkhjnxk3mhcgkmoocx7mtz7acyjepzwjeqhkadlgd7y` ❌
+
+**Reproduction steps:**
+1. Cross-space wish correctly finds Google Auth from `jkomoros` while in `different-space`
+2. Click "Google Auth #ch66kq" link
+3. **Actual**: Navigates to `different-space/baedreidaphbnft7rtwcwfxt76cfnegqeqq5pibiuhrto7ezm6667ch66kq` (WRONG)
+4. **Expected**: Should navigate to `jkomoros/baedreidaphbnft7rtwcwfxt76cfnegqeqq5pibiuhrto7ezm6667ch66kq`
+5. Page shows blank because charm doesn't exist in `different-space`
