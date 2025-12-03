@@ -291,7 +291,9 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
   const hasWishedAuth = derive(wishedAuth, (a: Auth | undefined) => !!(a?.token));
 
   // Get UI for inline auth rendering (for "found-not-authenticated" state)
-  const wishedAuthUI = derive(wishResult, (wr) => wr?.$UI);
+  // Note: wishResult.$UI shows ALL matching favorites, we want just the first.
+  // wishResult.result is a Cell reference to the first matching charm.
+  // We'll render it directly in JSX instead of using $UI which shows all matches.
 
   // Use input auth if provided, otherwise try wish
   const auth = derive([inputAuth, wishedAuth], ([directAuth, wished]: [Auth, Auth | undefined]) => {
@@ -929,7 +931,7 @@ Be thorough and search for all major hotel brands.`,
                         Sign in to your Google account
                       </div>
                       <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
-                        {wishedAuthUI}
+                        <ct-cell-link $cell={wishResult.result} />
                       </div>
                     </div>
                   );
@@ -1119,7 +1121,7 @@ Be thorough and search for all major hotel brands.`,
                   Your Gmail token has expired. Re-authenticate below:
                 </div>
                 <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
-                  {wishedAuthUI}
+                  <ct-cell-link $cell={wishResult.result} />
                 </div>
               </div>,
               null
