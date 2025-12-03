@@ -118,6 +118,11 @@ export interface GmailAgenticSearchOutput {
   [NAME]: string;
   [UI]: JSX.Element;
 
+  // UI Pieces (for custom composition)
+  authUI: JSX.Element;       // Auth status and connect/login UI
+  progressUI: JSX.Element;   // Search progress during scanning
+  controlsUI: JSX.Element;   // Scan/Stop buttons
+
   // Auth state (exposed for embedding patterns)
   auth: Auth;
   isAuthenticated: boolean;
@@ -140,8 +145,123 @@ export interface GmailAgenticSearchOutput {
 }
 
 // ============================================================================
+// CREATE REPORT TOOL HELPER
+// ============================================================================
+
+/**
+ * Configuration for createReportTool
+ */
+export interface ReportToolConfig<T extends Record<string, any>> {
+  /** Prefix for generated IDs (e.g., "membership", "food") */
+  idPrefix: string;
+
+  /** Function to generate a deduplication key from input */
+  dedupeKey: (input: T) => string;
+
+  /** Transform input to the stored record (add id, timestamp, etc.) */
+  toRecord: (input: T, id: string, timestamp: number) => T & { id: string };
+}
+
+/**
+ * Creates a report tool handler for saving items to a list with deduplication.
+ *
+ * Usage:
+ * ```typescript
+ * const reportMembershipHandler = createReportTool<MembershipInput, MembershipRecord>({
+ *   idPrefix: "membership",
+ *   dedupeKey: (input) => `${input.brand}-${input.memberNumber}`,
+ *   toRecord: (input, id, timestamp) => ({
+ *     ...input,
+ *     id,
+ *     savedAt: timestamp,
+ *   }),
+ * });
+ *
+ * // Use in pattern:
+ * const boundHandler = reportMembershipHandler({ items: membershipsCell });
+ * ```
+ */
+export function createReportTool<
+  TInput extends Record<string, any>,
+  TRecord extends { id: string },
+>(config: ReportToolConfig<TInput>) {
+  return handler<
+    TInput & { result?: Cell<any> },
+    { items: Cell<TRecord[]> }
+  >((input, state) => {
+    const currentItems = state.items.get() || [];
+
+    // Generate dedup key
+    const key = config.dedupeKey(input).toLowerCase();
+    const existingKeys = new Set(
+      currentItems.map((item) => config.dedupeKey(item as unknown as TInput).toLowerCase()),
+    );
+
+    let resultMessage: string;
+
+    if (existingKeys.has(key)) {
+      console.log(`[ReportTool] Duplicate skipped: ${key}`);
+      resultMessage = `Duplicate: ${key} already saved`;
+    } else {
+      // Generate unique ID
+      const id = `${config.idPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const timestamp = Date.now();
+
+      // Transform to record
+      const newRecord = config.toRecord(input, id, timestamp) as unknown as TRecord;
+
+      state.items.set([...currentItems, newRecord]);
+      console.log(`[ReportTool] SAVED: ${key}`);
+      resultMessage = `Saved: ${key}`;
+    }
+
+    // Write result if cell provided
+    const resultCell = (input as any).result;
+    if (resultCell) {
+      resultCell.set({ success: true, message: resultMessage });
+    }
+
+    return { success: true, message: resultMessage };
+  });
+}
+
+// ============================================================================
 // GMAIL UTILITIES
 // ============================================================================
+
+/**
+ * Validates a Gmail token by making a lightweight API call.
+ * Returns { valid: true } or { valid: false, error: string }.
+ */
+async function validateGmailToken(
+  token: string,
+): Promise<{ valid: boolean; error?: string }> {
+  if (!token) {
+    return { valid: false, error: "No token provided" };
+  }
+
+  try {
+    // Make a lightweight call: get profile (very fast, minimal data)
+    const res = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+
+    if (res.ok) {
+      return { valid: true };
+    }
+
+    if (res.status === 401) {
+      return { valid: false, error: "Token expired. Please re-authenticate." };
+    }
+
+    return { valid: false, error: `Gmail API error: ${res.status}` };
+  } catch (err) {
+    return { valid: false, error: `Network error: ${err}` };
+  }
+}
 
 async function fetchGmailEmails(
   token: string,
@@ -357,6 +477,14 @@ const GmailAgenticSearch = pattern<
       auth,
       (a) => !!(a && a.token && a.user && a.user.email),
     );
+
+    // Check if token may be expired based on expiresAt timestamp
+    const tokenMayBeExpired = derive(auth, (a) => {
+      if (!a?.expiresAt) return false;
+      // Add 5 minute buffer - if within 5 min of expiry, consider it potentially expired
+      const bufferMs = 5 * 60 * 1000;
+      return Date.now() > (a.expiresAt - bufferMs);
+    });
 
     const hasGmailScope = derive(auth, (a) => {
       const scopes = a?.scope || [];
@@ -633,10 +761,31 @@ Be thorough in your searches. Try multiple queries if needed.`;
         isScanning: Cell<Default<boolean, false>>;
         isAuthenticated: Cell<boolean>;
         progress: Cell<SearchProgress>;
+        auth: Cell<Auth>;
       }
-    >((_, state) => {
+    >(async (_, state) => {
       if (!state.isAuthenticated.get()) return;
-      console.log("[GmailAgenticSearch] Starting scan");
+
+      const authData = state.auth.get();
+      const token = authData?.token;
+
+      // Validate token before starting scan
+      console.log("[GmailAgenticSearch] Validating token before scan...");
+      const validation = await validateGmailToken(token);
+
+      if (!validation.valid) {
+        console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
+        state.progress.set({
+          currentQuery: "",
+          completedQueries: [],
+          status: "auth_error",
+          searchCount: 0,
+          authError: validation.error,
+        });
+        return;
+      }
+
+      console.log("[GmailAgenticSearch] Token valid, starting scan");
       state.progress.set({
         currentQuery: "",
         completedQueries: [],
@@ -676,26 +825,480 @@ Be thorough in your searches. Try multiple queries if needed.`;
       ([scanning, pending, result]) => scanning && !pending && !!result,
     );
 
-    // Detect auth errors from agent result
-    const hasAuthError = derive(agentResult, (r) => {
-      const summary = r?.summary || "";
-      return (
-        summary.includes("401") ||
-        summary.toLowerCase().includes("authentication error")
-      );
-    });
+    // Detect auth errors from agent result or token validation
+    const hasAuthError = derive(
+      [agentResult, searchProgress],
+      ([r, progress]: [any, SearchProgress]) => {
+        // Check progress status first (from token validation)
+        if (progress?.status === "auth_error") {
+          return true;
+        }
+        // Check agent result
+        const summary = r?.summary || "";
+        return (
+          summary.includes("401") ||
+          summary.toLowerCase().includes("authentication error")
+        );
+      },
+    );
+
+    // Get the specific auth error message
+    const authErrorMessage = derive(
+      [searchProgress, agentResult],
+      ([progress, result]: [SearchProgress, any]) => {
+        if (progress?.authError) {
+          return progress.authError;
+        }
+        const summary = result?.summary || "";
+        if (summary.includes("401")) {
+          return "Token expired. Please re-authenticate.";
+        }
+        if (summary.toLowerCase().includes("authentication error")) {
+          return "Authentication error. Please re-authenticate.";
+        }
+        return "";
+      },
+    );
 
     // Pre-bind handlers (important: must be done outside of derive callbacks)
-    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress });
+    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth });
     const boundStopScan = stopScan({ lastScanAt, isScanning });
     const boundCompleteScan = completeScan({ lastScanAt, isScanning });
 
     // ========================================================================
-    // UI
+    // UI PIECES (extracted for flexible composition)
+    // ========================================================================
+
+    // Auth UI - shows auth status, login buttons, or connect Gmail prompt
+    const authUI = (
+      <div>
+        {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
+        <div style={{ display: "none" }}>{wishResult}</div>
+
+        {/* Auth Status */}
+        {derive(
+          [isAuthenticated, hasAuthError, tokenMayBeExpired],
+          ([authenticated, authError, mayBeExpired]) => {
+            if (authenticated) {
+              if (authError) {
+                return (
+                  <div
+                    style={{
+                      padding: "12px",
+                      background: "#fef3c7",
+                      border: "1px solid #fde68a",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#92400e",
+                        textAlign: "center",
+                      }}
+                    >
+                      ⚠️ {authErrorMessage}
+                    </div>
+                  </div>
+                );
+              }
+              if (mayBeExpired) {
+                return (
+                  <div
+                    style={{
+                      padding: "12px",
+                      background: "#fef3c7",
+                      border: "1px solid #fde68a",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#92400e",
+                        textAlign: "center",
+                      }}
+                    >
+                      ⚠️ Gmail token may have expired - will verify on scan
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  style={{
+                    padding: "12px",
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#166534",
+                      textAlign: "center",
+                    }}
+                  >
+                    ✓ Gmail connected
+                  </div>
+                </div>
+              );
+            }
+
+            // Show auth UI based on wish state
+            return derive(wishedAuthState, (state) => {
+              if (state === "found-not-authenticated") {
+                return (
+                  <div
+                    style={{
+                      padding: "16px",
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#475569",
+                        marginBottom: "12px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Sign in to your Google account
+                    </div>
+                    <div
+                      style={{
+                        padding: "12px",
+                        background: "white",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      {wishResult.result}
+                    </div>
+                  </div>
+                );
+              }
+
+              // No auth charm found
+              return (
+                <div
+                  style={{
+                    padding: "16px",
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#475569",
+                      marginBottom: "12px",
+                      textAlign: "center",
+                    }}
+                  >
+                    Connect your Gmail to start searching
+                  </div>
+                  <ct-button
+                    onClick={createGoogleAuth({})}
+                    size="lg"
+                    style="width: 100%;"
+                  >
+                    Connect Gmail
+                  </ct-button>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "#94a3b8",
+                      marginTop: "8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    After connecting, favorite the auth charm to share it
+                  </div>
+                </div>
+              );
+            });
+          },
+        )}
+
+        {/* Scope warning */}
+        {derive(missingGmailScope, (missing: boolean) =>
+          missing ? (
+            <div
+              style={{
+                padding: "12px",
+                background: "#f8d7da",
+                border: "1px solid #f5c6cb",
+                borderRadius: "6px",
+                marginTop: "8px",
+              }}
+            >
+              <strong>Gmail Permission Missing</strong>
+              <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
+                Enable Gmail in your Google Auth charm and re-authenticate.
+              </p>
+            </div>
+          ) : null,
+        )}
+      </div>
+    );
+
+    // Controls UI - scan and stop buttons
+    const controlsUI = (
+      <div>
+        {/* Scan Button */}
+        {ifElse(
+          isAuthenticated,
+          <ct-button
+            onClick={boundStartScan}
+            size="lg"
+            style="width: 100%;"
+            disabled={isScanning}
+          >
+            {derive(isScanning, (scanning: boolean) =>
+              scanning ? "⏳ Scanning..." : scanButtonLabel,
+            )}
+          </ct-button>,
+          null,
+        )}
+
+        {/* Stop Button */}
+        {ifElse(
+          isScanning,
+          <ct-button
+            onClick={boundStopScan}
+            variant="secondary"
+            size="lg"
+            style="width: 100%; margin-top: 8px;"
+          >
+            ⏹ Stop Scan
+          </ct-button>,
+          null,
+        )}
+      </div>
+    );
+
+    // Progress UI - shows search progress and completion
+    const progressUI = (
+      <div>
+        {/* Progress during scanning */}
+        {derive([isScanning, agentPending], ([scanning, pending]) =>
+          scanning && pending ? (
+            <div
+              style={{
+                padding: "16px",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "600",
+                  marginBottom: "12px",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "12px",
+                  color: "#475569",
+                }}
+              >
+                <ct-loader show-elapsed></ct-loader>
+                Scanning emails...
+              </div>
+
+              {/* Current Activity */}
+              {derive(searchProgress, (progress: SearchProgress) =>
+                progress.currentQuery ? (
+                  <div
+                    style={{
+                      padding: "8px",
+                      background: "#f1f5f9",
+                      borderRadius: "4px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#475569",
+                        fontWeight: "600",
+                      }}
+                    >
+                      🔍 Currently searching:
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#334155",
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {progress.currentQuery}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: "8px",
+                      background: "#f1f5f9",
+                      borderRadius: "4px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#475569",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <ct-loader size="sm"></ct-loader>
+                      Analyzing emails...
+                    </div>
+                  </div>
+                ),
+              )}
+
+              {/* Completed Searches */}
+              {derive(searchProgress, (progress: SearchProgress) =>
+                progress.completedQueries.length > 0 ? (
+                  <div style={{ marginTop: "8px" }}>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#475569",
+                        fontWeight: "600",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      ✅ Completed searches ({progress.completedQueries.length}
+                      ):
+                    </div>
+                    <div
+                      style={{
+                        maxHeight: "120px",
+                        overflowY: "auto",
+                        fontSize: "11px",
+                        color: "#3b82f6",
+                      }}
+                    >
+                      {[...progress.completedQueries]
+                        .reverse()
+                        .slice(0, 5)
+                        .map(
+                          (
+                            q: { query: string; emailCount: number },
+                            i: number,
+                          ) => (
+                            <div
+                              key={i}
+                              style={{
+                                padding: "2px 0",
+                                borderBottom: "1px solid #dbeafe",
+                              }}
+                            >
+                              <span style={{ fontFamily: "monospace" }}>
+                                {q?.query
+                                  ? q.query.length > 50
+                                    ? q.query.substring(0, 50) + "..."
+                                    : q.query
+                                  : "unknown"}
+                              </span>
+                              <span
+                                style={{
+                                  marginLeft: "8px",
+                                  color: "#059669",
+                                }}
+                              >
+                                ({q?.emailCount ?? 0} emails)
+                              </span>
+                            </div>
+                          ),
+                        )}
+                    </div>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          ) : null,
+        )}
+
+        {/* Scan Complete */}
+        {derive(scanCompleted, (completed) =>
+          completed ? (
+            <div
+              style={{
+                padding: "16px",
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "8px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  color: "#166534",
+                  marginBottom: "12px",
+                  textAlign: "center",
+                }}
+              >
+                ✓ Scan Complete
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#059669",
+                  textAlign: "center",
+                  fontStyle: "italic",
+                }}
+              >
+                {derive(agentResult, (r) => r?.summary || "")}
+              </div>
+              <ct-button
+                onClick={boundCompleteScan}
+                size="lg"
+                style="width: 100%; margin-top: 12px;"
+              >
+                ✓ Done
+              </ct-button>
+            </div>
+          ) : null,
+        )}
+      </div>
+    );
+
+    // Stats UI - last scan timestamp
+    const statsUI = (
+      <div style={{ fontSize: "13px", color: "#666" }}>
+        {derive(lastScanAt, (ts) =>
+          ts > 0 ? (
+            <div>Last Scan: {new Date(ts).toLocaleString()}</div>
+          ) : null,
+        )}
+      </div>
+    );
+
+    // ========================================================================
+    // RETURN
     // ========================================================================
 
     return {
       [NAME]: title,
+
+      // UI Pieces (for custom composition)
+      authUI,
+      controlsUI,
+      progressUI,
 
       // Auth state (exposed for embedding patterns)
       auth,
@@ -717,392 +1320,19 @@ Be thorough in your searches. Try multiple queries if needed.`;
       startScan: boundStartScan,
       stopScan: boundStopScan,
 
+      // Full UI (composed from pieces)
       [UI]: (
         <ct-screen>
-          {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
-          <div style={{ display: "none" }}>{wishResult}</div>
-
           <div slot="header">
             <h2 style={{ margin: "0", fontSize: "18px" }}>{title}</h2>
           </div>
 
           <ct-vscroll flex showScrollbar>
             <ct-vstack style="padding: 16px; gap: 16px;">
-              {/* Auth Status */}
-              {derive(
-                [isAuthenticated, hasAuthError],
-                ([authenticated, authError]) => {
-                  if (authenticated) {
-                    if (authError) {
-                      return (
-                        <div
-                          style={{
-                            padding: "12px",
-                            background: "#fef3c7",
-                            border: "1px solid #fde68a",
-                            borderRadius: "8px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              color: "#92400e",
-                              textAlign: "center",
-                            }}
-                          >
-                            ⚠️ Gmail token expired - re-authenticate below
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div
-                        style={{
-                          padding: "12px",
-                          background: "#f0fdf4",
-                          border: "1px solid #bbf7d0",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            color: "#166534",
-                            textAlign: "center",
-                          }}
-                        >
-                          ✓ Gmail connected
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  // Show auth UI based on wish state
-                  return derive(wishedAuthState, (state) => {
-                    if (state === "found-not-authenticated") {
-                      return (
-                        <div
-                          style={{
-                            padding: "16px",
-                            background: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "8px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "14px",
-                              color: "#475569",
-                              marginBottom: "12px",
-                              textAlign: "center",
-                            }}
-                          >
-                            Sign in to your Google account
-                          </div>
-                          <div
-                            style={{
-                              padding: "12px",
-                              background: "white",
-                              borderRadius: "6px",
-                              border: "1px solid #e2e8f0",
-                            }}
-                          >
-                            {wishResult.result}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // No auth charm found
-                    return (
-                      <div
-                        style={{
-                          padding: "16px",
-                          background: "#f8fafc",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            color: "#475569",
-                            marginBottom: "12px",
-                            textAlign: "center",
-                          }}
-                        >
-                          Connect your Gmail to start searching
-                        </div>
-                        <ct-button
-                          onClick={createGoogleAuth({})}
-                          size="lg"
-                          style="width: 100%;"
-                        >
-                          Connect Gmail
-                        </ct-button>
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            color: "#94a3b8",
-                            marginTop: "8px",
-                            textAlign: "center",
-                          }}
-                        >
-                          After connecting, favorite the auth charm to share it
-                        </div>
-                      </div>
-                    );
-                  });
-                },
-              )}
-
-              {/* Scope warning */}
-              {derive(missingGmailScope, (missing: boolean) =>
-                missing ? (
-                  <div
-                    style={{
-                      padding: "12px",
-                      background: "#f8d7da",
-                      border: "1px solid #f5c6cb",
-                      borderRadius: "6px",
-                    }}
-                  >
-                    <strong>Gmail Permission Missing</strong>
-                    <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                      Enable Gmail in your Google Auth charm and re-authenticate.
-                    </p>
-                  </div>
-                ) : null,
-              )}
-
-              {/* Scan Button */}
-              {ifElse(
-                isAuthenticated,
-                <ct-button
-                  onClick={boundStartScan}
-                  size="lg"
-                  style="width: 100%;"
-                  disabled={isScanning}
-                >
-                  {derive(isScanning, (scanning: boolean) =>
-                    scanning ? "⏳ Scanning..." : scanButtonLabel,
-                  )}
-                </ct-button>,
-                null,
-              )}
-
-              {/* Stop Button */}
-              {ifElse(
-                isScanning,
-                <ct-button
-                  onClick={boundStopScan}
-                  variant="secondary"
-                  size="lg"
-                  style="width: 100%;"
-                >
-                  ⏹ Stop Scan
-                </ct-button>,
-                null,
-              )}
-
-              {/* Progress */}
-              {derive([isScanning, agentPending], ([scanning, pending]) =>
-                scanning && pending ? (
-                  <div
-                    style={{
-                      padding: "16px",
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontWeight: "600",
-                        marginBottom: "12px",
-                        textAlign: "center",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "12px",
-                        color: "#475569",
-                      }}
-                    >
-                      <ct-loader show-elapsed></ct-loader>
-                      Scanning emails...
-                    </div>
-
-                    {/* Current Activity */}
-                    {derive(searchProgress, (progress: SearchProgress) =>
-                      progress.currentQuery ? (
-                        <div
-                          style={{
-                            padding: "8px",
-                            background: "#f1f5f9",
-                            borderRadius: "4px",
-                            marginBottom: "12px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              fontWeight: "600",
-                            }}
-                          >
-                            🔍 Currently searching:
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "13px",
-                              color: "#334155",
-                              fontFamily: "monospace",
-                              wordBreak: "break-all",
-                            }}
-                          >
-                            {progress.currentQuery}
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            padding: "8px",
-                            background: "#f1f5f9",
-                            borderRadius: "4px",
-                            marginBottom: "12px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                            }}
-                          >
-                            <ct-loader size="sm"></ct-loader>
-                            Analyzing emails...
-                          </div>
-                        </div>
-                      ),
-                    )}
-
-                    {/* Completed Searches */}
-                    {derive(searchProgress, (progress: SearchProgress) =>
-                      progress.completedQueries.length > 0 ? (
-                        <div style={{ marginTop: "8px" }}>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              fontWeight: "600",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            ✅ Completed searches (
-                            {progress.completedQueries.length}):
-                          </div>
-                          <div
-                            style={{
-                              maxHeight: "120px",
-                              overflowY: "auto",
-                              fontSize: "11px",
-                              color: "#3b82f6",
-                            }}
-                          >
-                            {[...progress.completedQueries]
-                              .reverse()
-                              .slice(0, 5)
-                              .map(
-                                (
-                                  q: { query: string; emailCount: number },
-                                  i: number,
-                                ) => (
-                                  <div
-                                    key={i}
-                                    style={{
-                                      padding: "2px 0",
-                                      borderBottom: "1px solid #dbeafe",
-                                    }}
-                                  >
-                                    <span style={{ fontFamily: "monospace" }}>
-                                      {q?.query
-                                        ? q.query.length > 50
-                                          ? q.query.substring(0, 50) + "..."
-                                          : q.query
-                                        : "unknown"}
-                                    </span>
-                                    <span
-                                      style={{
-                                        marginLeft: "8px",
-                                        color: "#059669",
-                                      }}
-                                    >
-                                      ({q?.emailCount ?? 0} emails)
-                                    </span>
-                                  </div>
-                                ),
-                              )}
-                          </div>
-                        </div>
-                      ) : null,
-                    )}
-                  </div>
-                ) : null,
-              )}
-
-              {/* Scan Complete */}
-              {derive(scanCompleted, (completed) =>
-                completed ? (
-                  <div
-                    style={{
-                      padding: "16px",
-                      background: "#f0fdf4",
-                      border: "1px solid #bbf7d0",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: "600",
-                        color: "#166534",
-                        marginBottom: "12px",
-                        textAlign: "center",
-                      }}
-                    >
-                      ✓ Scan Complete
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "#059669",
-                        textAlign: "center",
-                        fontStyle: "italic",
-                      }}
-                    >
-                      {derive(agentResult, (r) => r?.summary || "")}
-                    </div>
-                    <ct-button
-                      onClick={boundCompleteScan}
-                      size="lg"
-                      style="width: 100%; margin-top: 12px;"
-                    >
-                      ✓ Done
-                    </ct-button>
-                  </div>
-                ) : null,
-              )}
-
-              {/* Stats */}
-              <div style={{ fontSize: "13px", color: "#666" }}>
-                {derive(lastScanAt, (ts) =>
-                  ts > 0 ? (
-                    <div>Last Scan: {new Date(ts).toLocaleString()}</div>
-                  ) : null,
-                )}
-              </div>
+              {authUI}
+              {controlsUI}
+              {progressUI}
+              {statsUI}
             </ct-vstack>
           </ct-vscroll>
         </ct-screen>

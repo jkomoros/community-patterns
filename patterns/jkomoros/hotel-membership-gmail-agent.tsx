@@ -8,17 +8,13 @@
  * Usage: wish("#hotelMemberships") to get discovered memberships.
  */
 import {
-  Cell,
   Default,
   derive,
-  handler,
-  ifElse,
   NAME,
   pattern,
   UI,
-  wish,
 } from "commontools";
-import GmailAgenticSearch, { type Auth, type SearchProgress } from "./gmail-agentic-search.tsx";
+import GmailAgenticSearch, { createReportTool } from "./gmail-agentic-search.tsx";
 
 // ============================================================================
 // EFFECTIVE QUERY HINTS
@@ -52,6 +48,18 @@ interface MembershipRecord {
   sourceEmailSubject: string;
   extractedAt: number;
   confidence?: number;
+}
+
+// Input type for the reportMembership tool
+interface MembershipInput {
+  hotelBrand: string;
+  programName: string;
+  membershipNumber: string;
+  tier?: string;
+  sourceEmailId: string;
+  sourceEmailSubject: string;
+  sourceEmailDate: string;
+  confidence: number;
 }
 
 interface HotelMembershipInput {
@@ -102,65 +110,23 @@ const HOTEL_RESULT_SCHEMA = {
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
   ({ memberships, lastScanAt, isScanning, maxSearches }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Membership
+    // CUSTOM TOOL: Report Membership (using createReportTool helper)
     // ========================================================================
-    const reportMembershipHandler = handler<
-      {
-        hotelBrand: string;
-        programName: string;
-        membershipNumber: string;
-        tier?: string;
-        sourceEmailId: string;
-        sourceEmailSubject: string;
-        sourceEmailDate: string;
-        confidence: number;
-        result?: Cell<any>;
-      },
-      { memberships: Cell<Default<MembershipRecord[], []>> }
-    >((input, state) => {
-      const currentMemberships = state.memberships.get() || [];
-
-      // Deduplication
-      const key = `${input.hotelBrand.toLowerCase()}:${input.membershipNumber}`;
-      const existingKeys = new Set(
-        currentMemberships.map(
-          (m) => `${m.hotelBrand.toLowerCase()}:${m.membershipNumber}`,
-        ),
-      );
-
-      let resultMessage: string;
-
-      if (existingKeys.has(key)) {
-        console.log(
-          `[ReportMembership] Duplicate skipped: ${input.hotelBrand} ${input.membershipNumber}`,
-        );
-        resultMessage = `Duplicate: ${input.hotelBrand} ${input.membershipNumber} already saved`;
-      } else {
-        const newMembership: MembershipRecord = {
-          id: `${input.hotelBrand}-${input.membershipNumber}-${Date.now()}`,
-          hotelBrand: input.hotelBrand,
-          programName: input.programName,
-          membershipNumber: input.membershipNumber,
-          tier: input.tier,
-          sourceEmailId: input.sourceEmailId,
-          sourceEmailDate: input.sourceEmailDate,
-          sourceEmailSubject: input.sourceEmailSubject,
-          extractedAt: Date.now(),
-          confidence: input.confidence,
-        };
-
-        state.memberships.set([...currentMemberships, newMembership]);
-        console.log(
-          `[ReportMembership] SAVED: ${input.hotelBrand} ${input.membershipNumber}`,
-        );
-        resultMessage = `Saved: ${input.hotelBrand} ${input.membershipNumber}`;
-      }
-
-      if (input.result) {
-        input.result.set({ success: true, message: resultMessage });
-      }
-
-      return { success: true, message: resultMessage };
+    const reportMembershipHandler = createReportTool<MembershipInput, MembershipRecord>({
+      idPrefix: "membership",
+      dedupeKey: (input) => `${input.hotelBrand}:${input.membershipNumber}`,
+      toRecord: (input, id, timestamp) => ({
+        id,
+        hotelBrand: input.hotelBrand,
+        programName: input.programName,
+        membershipNumber: input.membershipNumber,
+        tier: input.tier,
+        sourceEmailId: input.sourceEmailId,
+        sourceEmailDate: input.sourceEmailDate,
+        sourceEmailSubject: input.sourceEmailSubject,
+        extractedAt: timestamp,
+        confidence: input.confidence,
+      }),
     });
 
     // ========================================================================
@@ -239,7 +205,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
         reportMembership: {
           description:
             "Report a found membership number. Call this IMMEDIATELY when you find a valid membership number. It will be saved automatically.",
-          handler: reportMembershipHandler({ memberships }),
+          handler: reportMembershipHandler({ items: memberships }),
         },
       },
       title: "🏨 Hotel Membership Extractor",
