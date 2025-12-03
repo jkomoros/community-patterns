@@ -947,15 +947,16 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Stop Scan Button - OUTSIDE derive to avoid ReadOnlyAddressError */}
-            <ct-button
-              onClick={stopScan({ lastScanAt, isScanning })}
-              size="sm"
-              style="background: #ef4444; fontSize: 12px; width: 100%;"
-              disabled={derive(isScanning, (scanning) => !scanning)}
-            >
-              {derive(isScanning, (scanning) => scanning ? "⏹ Stop Scan" : "Not scanning")}
-            </ct-button>
+            {/* Stop Scan Button - only visible when scanning */}
+            {derive(isScanning, (scanning) => scanning ? (
+              <ct-button
+                onClick={stopScan({ lastScanAt, isScanning })}
+                size="sm"
+                style="background: #ef4444; fontSize: 12px; width: 100%;"
+              >
+                ⏹ Stop Scan
+              </ct-button>
+            ) : null)}
 
             {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
@@ -1039,15 +1040,16 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Done button OUTSIDE derive to avoid ReadOnlyAddressError */}
-            <ct-button
-              onClick={completeScan({ lastScanAt, isScanning })}
-              size="lg"
-              style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
-              disabled={derive(scanCompleted, (completed) => !completed)}
-            >
-              {derive(scanCompleted, (completed) => completed ? "✓ Done" : "Scan not complete")}
-            </ct-button>
+            {/* Done button - only visible when scan is complete */}
+            {derive(scanCompleted, (completed) => completed ? (
+              <ct-button
+                onClick={completeScan({ lastScanAt, isScanning })}
+                size="lg"
+                style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+              >
+                ✓ Done
+              </ct-button>
+            ) : null)}
 
             {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
