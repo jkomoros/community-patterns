@@ -21,11 +21,11 @@ type Input = {
   content?: Cell<Default<string, "">>;
 };
 
+/** Represents a small #note a user took to remember some text. */
 type Output = {
   mentioned: Default<Array<MentionableCharm>, []>;
   backlinks: MentionableCharm[];
 
-  /** The content of the note */
   content: Default<string, "">;
   grep: Stream<{ query: string }>;
   translate: Stream<{ language: string }>;
@@ -100,16 +100,11 @@ const handleCharmLinkClicked = handler<void, { charm: Cell<MentionableCharm> }>(
   },
 );
 
-function schemaifyWish<T>(path: string, def: T) {
-  return derive(wish<T>(path) as T, (i) => i ?? def);
-}
-
 const Note = recipe<Input, Output>(
   "Note",
   ({ title, content }) => {
-    const mentionable = schemaifyWish<MentionableCharm[]>(
+    const mentionable = wish<Default<MentionableCharm[], []>>(
       "#mentionable",
-      [],
     );
     const mentioned = cell<MentionableCharm[]>([]);
 
