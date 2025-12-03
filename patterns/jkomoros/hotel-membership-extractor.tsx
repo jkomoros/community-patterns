@@ -859,28 +859,19 @@ Be thorough and search for all major hotel brands.`,
               }
 
               return (
-                <div style="padding: 24px; background: #fee2e2; border: 3px solid #dc2626; borderRadius: 12px;">
-                  <div style="fontSize: 20px; fontWeight: 700; color: #991b1b; textAlign: center; marginBottom: 16px;">
-                    Google Authentication Required
+                <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 8px;">
+                  <div style="fontSize: 14px; color: #475569; marginBottom: 12px; textAlign: center;">
+                    Connect your Gmail to scan for hotel memberships
                   </div>
-                  <div style="padding: 16px; background: white; borderRadius: 8px; border: 1px solid #fca5a5;">
-                    <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
-                      Option 1: Link auth directly (recommended)
-                    </p>
-                    <p style="margin: 0 0 12px 0; fontSize: 13px; color: #666;">
-                      1. Open your Google Auth charm and authenticate<br/>
-                      2. Use the shell to link its <code>auth</code> output to this pattern's <code>auth</code> input
-                    </p>
-                    <hr style="margin: 12px 0; border: none; borderTop: 1px solid #e0e0e0;"/>
-                    <p style="margin: 0 0 12px 0; fontSize: 14px; fontWeight: 600;">
-                      Option 2: Create new Google Auth
-                    </p>
-                    <ct-button
-                      onClick={createGoogleAuth({})}
-                      size="default"
-                    >
-                      Create Google Auth
-                    </ct-button>
+                  <ct-button
+                    onClick={createGoogleAuth({})}
+                    size="lg"
+                    style="width: 100%;"
+                  >
+                    Connect Gmail
+                  </ct-button>
+                  <div style="fontSize: 11px; color: #94a3b8; marginTop: 8px; textAlign: center;">
+                    Or link an existing Google Auth charm
                   </div>
                 </div>
               );
@@ -897,52 +888,45 @@ Be thorough and search for all major hotel brands.`,
               </div>
             ) : null)}
 
-            {/* Scan Mode Indicator */}
-            {derive(maxSearches, (max: number) =>
-              max > 0 ? (
-                <div style="padding: 8px 12px; background: #fef3c7; border: 1px solid #f59e0b; borderRadius: 6px; fontSize: 12px; color: #92400e; textAlign: center;">
-                  ⚡ Quick Test Mode: {max} searches max
-                </div>
-              ) : null
-            )}
 
-            {/* Scan Buttons */}
-            <div style="display: flex; gap: 8px; flexWrap: wrap;">
-              {/* Full Scan Button */}
-              <ct-button
-                onClick={startScan({ mode: "full", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
-                size="lg"
-                style="flex: 1; minWidth: 140px;"
-                disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
-              >
-                {derive([isAuthenticated, isScanning, maxSearches], ([auth, scanning, max]: [boolean, boolean, number]) => {
-                  if (!auth) return "🔒 Authenticate First";
-                  if (scanning) return "⏳ Scanning...";
-                  if (max > 0) return `⚡ Quick Scan`;
-                  return "🔍 Full Scan";
-                })}
-              </ct-button>
+            {/* Scan Buttons - only show when authenticated */}
+            {derive(isAuthenticated, (auth) => auth ? (
+              <div style="display: flex; gap: 8px; flexWrap: wrap;">
+                {/* Full Scan Button */}
+                <ct-button
+                  onClick={startScan({ mode: "full", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
+                  size="lg"
+                  style="flex: 1; minWidth: 140px;"
+                  disabled={isScanning}
+                >
+                  {derive([isScanning, maxSearches], ([scanning, max]: [boolean, number]) => {
+                    if (scanning) return "⏳ Scanning...";
+                    if (max > 0) return `⚡ Quick Scan`;
+                    return "🔍 Full Scan";
+                  })}
+                </ct-button>
 
-              {/* Check Recent Button */}
-              <ct-button
-                onClick={startScan({ mode: "recent", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
-                size="lg"
-                style="flex: 1; minWidth: 140px; background: #8b5cf6;"
-                disabled={derive([isAuthenticated, isScanning], ([auth, scanning]) => !auth || scanning)}
-              >
-                {derive([isAuthenticated, isScanning], ([auth, scanning]: [boolean, boolean]) => {
-                  if (!auth) return "🔒 Auth Required";
-                  if (scanning) return "⏳ Scanning...";
-                  return "📅 Check Recent";
-                })}
-              </ct-button>
-            </div>
+                {/* Check Recent Button */}
+                <ct-button
+                  onClick={startScan({ mode: "recent", isScanning, isAuthenticated, progress: searchProgress, maxSearches, currentScanMode })}
+                  size="lg"
+                  style="flex: 1; minWidth: 140px;"
+                  variant="secondary"
+                  disabled={isScanning}
+                >
+                  {derive(isScanning, (scanning: boolean) => {
+                    if (scanning) return "⏳ Scanning...";
+                    return "📅 Check Recent";
+                  })}
+                </ct-button>
+              </div>
+            ) : null)}
 
             {/* Scan mode info */}
             {derive([isScanning, currentScanMode], ([scanning, mode]: [boolean, ScanMode]) =>
               scanning ? (
-                <div style="padding: 8px 12px; background: #f3e8ff; border: 1px solid #8b5cf6; borderRadius: 6px; fontSize: 12px; color: #6b21a8; textAlign: center;">
-                  {mode === "recent" ? "📅 Recent mode: searching last 7 days only" : "🔍 Full mode: searching all time"}
+                <div style="padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 6px; fontSize: 12px; color: #64748b; textAlign: center;">
+                  {mode === "recent" ? "Searching last 7 days" : "Searching all emails"}
                 </div>
               ) : null
             )}
@@ -961,24 +945,24 @@ Be thorough and search for all major hotel brands.`,
             {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
               scanning && pending ? (
-                <div style="padding: 16px; background: #dbeafe; border: 1px solid #3b82f6; borderRadius: 8px;">
-                  <div style="fontWeight: 600; marginBottom: 12px; textAlign: center; display: flex; alignItems: center; justifyContent: center; gap: 12px;">
+                <div style="padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; borderRadius: 8px;">
+                  <div style="fontWeight: 600; marginBottom: 12px; textAlign: center; display: flex; alignItems: center; justifyContent: center; gap: 12px; color: #475569;">
                     <ct-loader show-elapsed></ct-loader>
-                    AI Agent Working...
+                    Scanning emails...
                   </div>
 
                   {/* Current Activity */}
                   {derive(searchProgress, (progress: SearchProgress) =>
                     progress.currentQuery ? (
-                      <div style="padding: 8px; background: #bfdbfe; borderRadius: 4px; marginBottom: 12px;">
-                        <div style="fontSize: 12px; color: #1e40af; fontWeight: 600;">🔍 Currently searching:</div>
-                        <div style="fontSize: 13px; color: #1e3a8a; fontFamily: monospace; wordBreak: break-all;">
+                      <div style="padding: 8px; background: #f1f5f9; borderRadius: 4px; marginBottom: 12px;">
+                        <div style="fontSize: 12px; color: #475569; fontWeight: 600;">🔍 Currently searching:</div>
+                        <div style="fontSize: 13px; color: #334155; fontFamily: monospace; wordBreak: break-all;">
                           {progress.currentQuery}
                         </div>
                       </div>
                     ) : (
-                      <div style="padding: 8px; background: #bfdbfe; borderRadius: 4px; marginBottom: 12px;">
-                        <div style="fontSize: 12px; color: #1e40af; display: flex; alignItems: center; gap: 8px;">
+                      <div style="padding: 8px; background: #f1f5f9; borderRadius: 4px; marginBottom: 12px;">
+                        <div style="fontSize: 12px; color: #475569; display: flex; alignItems: center; gap: 8px;">
                           <ct-loader size="sm"></ct-loader>
                           Analyzing emails...
                         </div>
@@ -990,7 +974,7 @@ Be thorough and search for all major hotel brands.`,
                   {derive(searchProgress, (progress: SearchProgress) =>
                     progress.completedQueries.length > 0 ? (
                       <div style="marginTop: 8px;">
-                        <div style="fontSize: 12px; color: #1e40af; fontWeight: 600; marginBottom: 4px;">
+                        <div style="fontSize: 12px; color: #475569; fontWeight: 600; marginBottom: 4px;">
                           ✅ Completed searches ({progress.completedQueries.length}):
                         </div>
                         <div style="maxHeight: 120px; overflowY: auto; fontSize: 11px; color: #3b82f6;">
@@ -1007,7 +991,7 @@ Be thorough and search for all major hotel brands.`,
                             </div>
                           )}
                         </div>
-                        <div style="marginTop: 8px; fontSize: 12px; color: #1e3a8a; fontWeight: 600;">
+                        <div style="marginTop: 8px; fontSize: 12px; color: #334155; fontWeight: 600;">
                           📊 Total: {progress.completedQueries.reduce((sum: number, q: { emailCount: number }) => sum + q.emailCount, 0)} emails searched
                         </div>
                       </div>
