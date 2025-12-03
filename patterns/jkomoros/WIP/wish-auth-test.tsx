@@ -64,6 +64,8 @@ export default pattern<Record<string, never>>((_) => {
       <div style={{ padding: "20px", maxWidth: "600px" }}>
         <h2 style={{ marginTop: 0 }}>Wish Auth Test</h2>
 
+        {wishResult}
+
         {/* State-based UI */}
         {derive(authState, (state) => {
           if (state === "loading") {

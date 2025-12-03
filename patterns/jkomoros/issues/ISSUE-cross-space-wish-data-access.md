@@ -150,8 +150,43 @@ In response to framework developer feedback that the bug couldn't be reproduced 
 
 **Conclusion**: Bug is NOT caused by interfering data. It's a genuine cross-space data access issue reproducible with a completely clean setup.
 
+## Root Cause (Ben, 2025-12-02)
+
+**The issue is about charm lifecycle, not favorites or cross-space linking mechanics.**
+
+- When two charms are in the **same space**, accessing one from another works because both are already running
+- When you **wish cross-space**, the target charm isn't running
+- Unless you explicitly trigger it to start, you only get a UI snapshot—no live data
+
+### Workaround
+
+Embedding the wish result in the VDom tree causes the charm to start:
+
+```tsx
+return {
+  [UI]: (
+    <div>
+      {wishResult}  {/* <-- This one line triggers the cross-space charm to start */}
+      {/* rest of UI */}
+    </div>
+  ),
+};
+```
+
+### Why This Feels Wrong
+
+- You shouldn't need to include UI markup just to access data
+- `derive`/`computed` accessing the wish result doesn't trigger a start—only inclusion in markup works
+- This is inconsistent and unintuitive
+- The behaviour difference between same-space and cross-space access is non-obvious
+
+### Open Questions for Framework
+
+1. Cross-space charms should probably auto-start when accessed. Where does this fix belong—inside `wish`?
+2. Why didn't `derive`/`computed` accessing the wish result trigger a start? Only inclusion in markup worked.
+
 ## Notes
 
 - The charm IS found cross-space (has `$UI` for linking)
-- Only the `result` data is inaccessible cross-space
-- This may be by design (spaces are isolated?) or a bug in how Cell references resolve
+- Only the `result` data is inaccessible until the charm starts
+- **Workaround**: Add `{wishResult}` to JSX to trigger charm startup
