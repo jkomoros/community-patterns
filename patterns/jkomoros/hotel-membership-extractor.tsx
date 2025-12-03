@@ -824,6 +824,13 @@ Be thorough and search for all major hotel brands.`,
     ([scanning, pending, result]) => scanning && !pending && !!result
   );
 
+  // Derive auth error from agent result - reactive approach!
+  // The agent's summary mentions "401" or "authentication error" when Gmail auth fails
+  const hasAuthError = derive(agentResult, (r) => {
+    const summary = r?.summary || "";
+    return summary.includes("401") || summary.toLowerCase().includes("authentication error");
+  });
+
   // Use allMemberships (local + wished) for display
   const totalMemberships = derive(allMemberships, (list) => list?.length || 0);
   const localMembershipCount = derive(memberships, (list) => list?.length || 0);
@@ -1091,21 +1098,21 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
-            {/* Auth Error - show when Gmail returns 401 */}
-            {derive(searchProgress, (progress: SearchProgress) =>
-              progress.status === "auth_error" ? (
-                <div style="padding: 16px; background: #fef3c7; border: 1px solid #fde68a; borderRadius: 8px;">
-                  <div style="fontSize: 14px; fontWeight: 600; color: #92400e; marginBottom: 8px;">
-                    ⚠️ Gmail Authentication Required
-                  </div>
-                  <div style="fontSize: 13px; color: #78350f; marginBottom: 12px;">
-                    {progress.authError || "Your Gmail access has expired."} Re-authenticate below:
-                  </div>
-                  <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
-                    {wishedAuthUI}
-                  </div>
+            {/* Auth Error - show when agent result indicates 401 error */}
+            {ifElse(
+              hasAuthError,
+              <div style="padding: 16px; background: #fef3c7; border: 1px solid #fde68a; borderRadius: 8px;">
+                <div style="fontSize: 14px; fontWeight: 600; color: #92400e; marginBottom: 8px;">
+                  ⚠️ Gmail Authentication Required
                 </div>
-              ) : null
+                <div style="fontSize: 13px; color: #78350f; marginBottom: 12px;">
+                  Your Gmail token has expired. Re-authenticate below:
+                </div>
+                <div style="padding: 12px; background: white; borderRadius: 6px; border: 1px solid #e2e8f0;">
+                  {wishedAuthUI}
+                </div>
+              </div>,
+              null
             )}
 
             {/* Done button - only visible when scan is complete */}
@@ -1279,9 +1286,10 @@ Be thorough and search for all major hotel brands.`,
                 <div style="fontFamily: monospace;">Agent Has Result: {derive(agentResult, (r) => r ? "Yes ✓" : "No")}</div>
                 <div style="fontFamily: monospace;">Memberships Found (agent count): {derive(agentResult, (r) => r?.membershipsFound || 0)}</div>
                 <div style="fontFamily: monospace;">Searches Performed: {derive(agentResult, (r) =>
-                  r?.searchesPerformed?.map((s: any) => `${s.query} (${s.emailsFound})`).join(", ") || "none"
+                  r?.searchesPerformed?.map((s: any) => `${s?.query || "?"} (${s?.emailsFound ?? 0})`).join(", ") || "none"
                 )}</div>
                 <div style="fontFamily: monospace;">Agent Summary: {derive(agentResult, (r) => r?.summary?.substring(0, 100) || "none")}</div>
+                <div style="fontFamily: monospace;">Has Auth Error: {derive(hasAuthError, (h) => h ? "Yes ⚠️" : "No")}</div>
               </ct-vstack>
             </details>
           </ct-vstack>
