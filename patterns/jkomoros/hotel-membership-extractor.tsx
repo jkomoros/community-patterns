@@ -850,9 +850,9 @@ Be thorough and search for all major hotel brands.`,
             {derive([isAuthenticated, authSource], ([authenticated, source]) => {
               if (authenticated) {
                 return (
-                  <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; borderRadius: 8px;">
-                    <div style="fontSize: 14px; color: #065f46; textAlign: center;">
-                      ✅ Gmail connected {source === "direct" ? "(linked)" : "(via wish)"}
+                  <div style="padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; borderRadius: 8px;">
+                    <div style="fontSize: 14px; color: #166534; textAlign: center;">
+                      ✓ Gmail connected {source === "direct" ? "(linked)" : "(shared)"}
                     </div>
                   </div>
                 );
@@ -1005,9 +1005,9 @@ Be thorough and search for all major hotel brands.`,
             {/* Display info inside derive (read-only) */}
             {derive(scanCompleted, (completed) =>
               completed ? (
-                <div style="padding: 16px; background: #d1fae5; border: 3px solid #10b981; borderRadius: 12px;">
-                  <div style="fontSize: 16px; fontWeight: 600; color: #065f46; marginBottom: 12px; textAlign: center;">
-                    ✅ Scan Complete!
+                <div style="padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; borderRadius: 8px;">
+                  <div style="fontSize: 16px; fontWeight: 600; color: #166534; marginBottom: 12px; textAlign: center;">
+                    ✓ Scan Complete
                   </div>
 
                   <div style="background: white; borderRadius: 8px; padding: 12px; marginBottom: 12px;">
@@ -1053,9 +1053,9 @@ Be thorough and search for all major hotel brands.`,
             {/* Multi-Account Warning */}
             {derive([hasMultipleAccounts, brandsWithMultipleAccounts], ([hasMulti, multiBrands]) =>
               hasMulti ? (
-                <div style="padding: 16px; background: #fef3c7; border: 2px solid #f59e0b; borderRadius: 8px; marginBottom: 16px;">
-                  <div style="fontSize: 14px; fontWeight: 700; color: #92400e; marginBottom: 8px;">
-                    ⚠️ Multiple Accounts Detected
+                <div style="padding: 16px; background: #fffbeb; border: 1px solid #fde68a; borderRadius: 8px; marginBottom: 16px;">
+                  <div style="fontSize: 14px; fontWeight: 600; color: #92400e; marginBottom: 8px;">
+                    Multiple Accounts Detected
                   </div>
                   <div style="fontSize: 13px; color: #78350f;">
                     {Object.entries(multiBrands).map(([brand, data], brandIdx) => (
