@@ -1,9 +1,9 @@
 ---
 topic: reactivity
 discovered: 2025-12-02
-confirmed_count: 1
+confirmed_count: 2
 last_confirmed: 2025-12-02
-sessions: [investigate-favorites-bug-ct-1090]
+sessions: [investigate-favorites-bug-ct-1090, hide-cross-space-wish-auth]
 related_labs_docs: none
 status: superstition
 stars: ⭐
@@ -77,7 +77,7 @@ return {
   ),
 };
 
-// After (works cross-space)
+// After (works cross-space) - VISIBLE version
 return {
   [UI]: (
     <div>
@@ -86,9 +86,21 @@ return {
     </div>
   ),
 };
+
+// After (works cross-space) - HIDDEN version (recommended)
+return {
+  [UI]: (
+    <div>
+      <div style={{ display: "none" }}>{wishResult}</div>  {/* Hidden but still triggers startup */}
+      {derive(wishResult, (wr) => wr?.result?.auth?.user?.email)}  // Now works!
+    </div>
+  ),
+};
 ```
 
 The `{wishResult}` renders as a link to the charm (e.g., "Google Auth #gq7mge").
+To hide it while still triggering the charm startup, wrap it in a `<div style={{ display: "none" }}>`.
+**Confirmed working** in gmail-importer.tsx and wish-auth-test.tsx.
 
 ## Why This Feels Wrong
 
@@ -118,8 +130,8 @@ The `{wishResult}` renders as a link to the charm (e.g., "Google Auth #gq7mge").
 ## Notes
 
 - Same-space wish works without this workaround
-- The embedded `{wishResult}` is visible in UI as a charm link
-- If you don't want visible UI, you may need to hide it with CSS (untested)
+- The embedded `{wishResult}` renders as a visible charm link by default
+- **To hide**: Wrap in `<div style={{ display: "none" }}>{wishResult}</div>` - confirmed working!
 
 ---
 

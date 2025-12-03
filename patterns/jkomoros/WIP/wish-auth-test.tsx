@@ -64,7 +64,10 @@ export default pattern<Record<string, never>>((_) => {
       <div style={{ padding: "20px", maxWidth: "600px" }}>
         <h2 style={{ marginTop: 0 }}>Wish Auth Test</h2>
 
-        {wishResult}
+        {/* TEMPORARY WORKAROUND (CT-1090): Embed wishResult to trigger cross-space charm startup.
+            See: community-docs/superstitions/2025-12-02-wish-cross-space-embed-in-jsx.md
+            Remove this when CT-1090 is fixed. */}
+        <div style={{ display: "none" }}>{wishResult}</div>
 
         {/* State-based UI */}
         {derive(authState, (state) => {

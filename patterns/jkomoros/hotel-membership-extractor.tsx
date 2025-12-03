@@ -836,8 +836,10 @@ Be thorough and search for all major hotel brands.`,
         {/* TEMPORARY WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup.
             See: community-docs/superstitions/2025-12-02-wish-cross-space-embed-in-jsx.md
             Remove this when CT-1090 is fixed. */}
-        {wishedAuthCharm}
-        {wishedMembershipsCharm}
+        <div style={{ display: "none" }}>
+          {wishedAuthCharm}
+          {wishedMembershipsCharm}
+        </div>
         <div slot="header">
           <h2 style="margin: 0; fontSize: 18px;">Hotel Memberships</h2>
         </div>
