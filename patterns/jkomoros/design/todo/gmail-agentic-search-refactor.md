@@ -213,7 +213,7 @@ Create `lib/gmail-utils.ts` with:
 - [x] Analysis
 - [x] Design
 - [x] Implementation
-- [ ] Testing
+- [x] Testing
 
 ## Implementation Notes (2025-12-03)
 
@@ -245,6 +245,37 @@ Create `lib/gmail-utils.ts` with:
 - Future specialized patterns would only need ~300 lines each
 
 ### Next Steps
-- [ ] Deploy and test both patterns
+- [x] Deploy and test both patterns
 - [ ] Create another Gmail searcher to validate the pattern (e.g., receipt extractor)
 - [ ] Consider extracting GmailClient class to shared lib
+
+## Testing Notes (2025-12-03)
+
+### Deployment
+- Deployed `hotel-membership-extractor-v2.tsx` to `jkomoros-test` space
+- Charm ID: `baedreidbuqf5m7sduxy3wujpvrqj3at5aqg6q2unfsvpy3wtbyc6yu555a`
+
+### Test Results - PASSED
+1. **Auth via wish**: Working - "Gmail connected" shown after favoriting GoogleAuth charm
+2. **Agent execution**: Working - Agent runs with searchGmail tool
+3. **searchGmail tool**: Working - Found emails from hotel brands:
+   - Marriott: 20 emails
+   - Hilton: 20 emails
+   - Hyatt: 6 emails
+   - IHG: 23 emails
+   - Accor: 0 emails
+4. **reportMembership tool**: Working - Saved membership successfully
+5. **Membership found**: Hilton Honors #650697007 (Silver tier)
+6. **Progress UI**: Working - Shows completed searches with email counts
+7. **Custom UI**: Working - Displays membership with brand grouping
+
+### Known Issues
+1. **isScanning state not resetting**: After "Done" button click, UI still shows "Scanning..." button disabled instead of returning to "Scan" button. The `isScanning` flag is not being properly reset when agent completes.
+2. **ReadOnlyAddressError on Done click**: Console shows error when clicking Done button - may be related to trying to set a derived/readonly value.
+
+### Architecture Validation
+The composition pattern works well:
+- Base pattern handles auth, searchGmail tool, progress tracking
+- Specialized pattern adds custom tools, custom state, custom UI
+- State-bound handlers allow child to pass tools that modify its own state
+- Embedding `{searcher}` in UI renders the base pattern's full UI
