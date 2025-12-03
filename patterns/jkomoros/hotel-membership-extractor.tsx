@@ -371,8 +371,9 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
   interface SearchProgress {
     currentQuery: string;
     completedQueries: { query: string; emailCount: number; timestamp: number }[];
-    status: "idle" | "searching" | "analyzing" | "limit_reached";
+    status: "idle" | "searching" | "analyzing" | "limit_reached" | "auth_error";
     searchCount: number;  // Track total searches performed
+    authError?: string;   // Track auth errors to show user guidance
   }
 
   const searchProgress = Cell.of<SearchProgress>({
@@ -380,6 +381,7 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
     completedQueries: [],
     status: "idle",
     searchCount: 0,
+    authError: undefined,
   });
 
   // ============================================================================
@@ -460,7 +462,18 @@ const HotelMembershipExtractor = pattern<HotelMembershipInput, HotelMembershipOu
           });
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
-          resultData = { error: String(err), emails: [] };
+          const errorStr = String(err);
+          resultData = { error: errorStr, emails: [] };
+
+          // Detect auth errors (401) and update progress to show user guidance
+          if (errorStr.includes("401")) {
+            const updatedProgress = state.progress.get();
+            state.progress.set({
+              ...updatedProgress,
+              status: "auth_error",
+              authError: "Gmail token expired or invalid. Please re-authenticate with Google.",
+            });
+          }
         }
       }
 
@@ -969,15 +982,18 @@ Be thorough and search for all major hotel brands.`,
             )}
 
             {/* Stop Scan Button - only visible when scanning */}
-            {derive(isScanning, (scanning) => scanning ? (
+            {ifElse(
+              isScanning,
               <ct-button
                 onClick={stopScan({ lastScanAt, isScanning })}
-                size="sm"
-                style="background: #ef4444; fontSize: 12px; width: 100%;"
+                variant="secondary"
+                size="lg"
+                style="width: 100%;"
               >
                 ⏹ Stop Scan
-              </ct-button>
-            ) : null)}
+              </ct-button>,
+              null
+            )}
 
             {/* Progress - Real-time search activity */}
             {derive([isScanning, agentPending], ([scanning, pending]) =>
@@ -1061,16 +1077,35 @@ Be thorough and search for all major hotel brands.`,
               ) : null
             )}
 
+            {/* Auth Error - show when Gmail returns 401 */}
+            {derive(searchProgress, (progress: SearchProgress) =>
+              progress.status === "auth_error" ? (
+                <div style="padding: 16px; background: #fef3c7; border: 1px solid #fde68a; borderRadius: 8px;">
+                  <div style="fontSize: 14px; fontWeight: 600; color: #92400e; marginBottom: 8px;">
+                    ⚠️ Gmail Authentication Required
+                  </div>
+                  <div style="fontSize: 13px; color: #78350f; marginBottom: 12px;">
+                    {progress.authError || "Your Gmail access has expired."}
+                  </div>
+                  <div style="fontSize: 12px; color: #92400e;">
+                    <strong>To fix:</strong> Go to your Google Auth charm and click "Authenticate with Google" again.
+                  </div>
+                </div>
+              ) : null
+            )}
+
             {/* Done button - only visible when scan is complete */}
-            {derive(scanCompleted, (completed) => completed ? (
+            {ifElse(
+              scanCompleted,
               <ct-button
                 onClick={completeScan({ lastScanAt, isScanning })}
                 size="lg"
-                style="background: #10b981; color: white; fontWeight: 700; width: 100%;"
+                style="width: 100%;"
               >
                 ✓ Done
-              </ct-button>
-            ) : null)}
+              </ct-button>,
+              null
+            )}
 
             {/* Stats */}
             <div style="fontSize: 13px; color: #666;">
