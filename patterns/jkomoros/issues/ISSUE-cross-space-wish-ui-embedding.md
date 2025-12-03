@@ -1,25 +1,50 @@
-# Feature Request: ct-cell-link Should Handle Cross-Space Navigation
+# Bug: ct-cell-link Navigates to Wrong Space for Cross-Space Charms
 
 ## Problem
 
-When using `wish()` to find a charm in another space, the `$UI` property renders as a `ct-cell-link` (or similar component). Clicking these links fails because they attempt to navigate within the current space rather than to the charm's actual space.
+When using `wish()` to find a charm in another space, clicking the rendered `ct-cell-link` navigates to the **current space** with the charm ID, instead of the **source space** where the charm actually exists. This results in a blank page.
 
-## Reproduction
+## Confirmed Reproduction (2025-12-03)
+
+**Setup:**
+1. Deploy `google-auth.tsx` to space `jkomoros`, favorite it
+2. Deploy `wish-auth-test.tsx` to space `different-space`
+3. The wish correctly finds the Google Auth charm cross-space
+4. Click the "Google Auth #sfcpfm" link
+
+**Actual Result:**
+- Navigates to: `http://localhost:8000/different-space/baedreibukx2stqm3abpjl2jlqpecvmod3pwcasivx5xmrr5sfushsfcpfm`
+- Page shows blank (charm doesn't exist in `different-space`)
+
+**Expected Result:**
+- Should navigate to: `http://localhost:8000/jkomoros/baedreibukx2stqm3abpjl2jlqpecvmod3pwcasivx5xmrr5sfushsfcpfm`
+- Page should show the Google Auth charm UI
+
+## Root Cause
+
+The `ct-cell-link` component doesn't include the source space in its navigation. It assumes the charm is in the current space.
+
+## Code Pattern
 
 ```tsx
 const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
-const wishedAuthUI = derive(wishResult, (wr) => wr?.$UI);
 
-// Renders links like "Google Auth #gq7mge"
-// Clicking navigates to current-space/baedrei...gq7mge (fails)
-// Should navigate to original-space/baedrei...gq7mge
-{wishedAuthUI}
+// Renders ct-cell-link like "Google Auth #sfcpfm"
+// Link href is just the charm ID, missing the source space
+{wishResult.result}
 ```
 
-## Expected Behavior
+## Impact
 
-The rendered link component should include the source space and navigate correctly cross-space.
+- Users cannot navigate to cross-space charms via ct-cell-link
+- The "favorite once, use everywhere" pattern breaks for UI navigation
+- Workaround: manually construct URLs with correct space name
 
-## Use Case
+## Suggested Fix
 
-Pattern uses `wish({ query: "#googleAuth" })` to find a shared auth charm. When the OAuth token expires, we show the `$UI` so users can navigate to re-authenticate. Currently the links don't work cross-space.
+The `ct-cell-link` component should include the source space in its `href` or navigation logic when rendering a cross-space charm reference.
+
+## Test Charm IDs (2025-12-03)
+
+- Google Auth (jkomoros): `baedreibukx2stqm3abpjl2jlqpecvmod3pwcasivx5xmrr5sfushsfcpfm`
+- Wish Auth Test (different-space): `baedreiezrauecddrndwx6nucdyqesltmf4hbhhcjdwj5uacw32anf7bra4`
