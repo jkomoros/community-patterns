@@ -1034,17 +1034,6 @@ export default pattern<{
     // See: community-docs/superstitions/2025-01-24-pass-cells-as-handler-params-not-closure.md
     const auth = effectiveAuthCharm.auth;
 
-    // Default auth values for display when no charm is available
-    const defaultAuth = {
-      token: "",
-      tokenType: "",
-      scope: [] as string[],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    };
-
     const isAuthenticated = derive(auth, (a) => a?.user?.email ? true : false);
 
     // Track if we're using wished auth vs explicit
