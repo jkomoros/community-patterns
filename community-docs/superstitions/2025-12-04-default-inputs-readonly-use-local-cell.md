@@ -144,7 +144,13 @@ Discovered while implementing multi-account Gmail auth dropdown:
 
 - `gmail-importer.tsx` - Account type dropdown
 - `gmail-agentic-search.tsx` - Account type dropdown
-- Playwright test: Select "Personal" → "Work" → "Any Account", verify wish tag changes reactively
+- **Playwright test (2025-12-04):**
+  - URL: `http://localhost:8000/jkomoros-test/baedreicakmkuv2gqy2yobyl2327qsjcvcgwyddszsjgw2on3dz6wsn4e4m`
+  - Selected "Personal" → title changed to "unauthorized" (looking for #googleAuthPersonal)
+  - Selected "Work" → title stayed "unauthorized" (looking for #googleAuthWork)
+  - Selected "Any Account" → title changed to "jkomoros@gmail.com" (found #googleAuth)
+  - Console logged: `[GmailImporter] Account type changed to: personal/work/default`
+  - **CONFIRMED WORKING** - Reactive wish switches auth correctly
 
 ---
 
