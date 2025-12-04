@@ -175,34 +175,43 @@ const searcher = GmailAgenticSearch({ accountType: "personal" });
 const searcher = GmailAgenticSearch({ accountType: "work" });
 ```
 
-## Open Questions
+## Test Results (2025-12-04)
 
-1. **Reactive wish queries?** Can `wish()` take a reactive Cell for the query?
-   - If YES: Pattern can switch accounts dynamically
-   - If NO: Account type must be static at pattern instantiation
-   - Need to test this
+### Multiple Tags: CONFIRMED WORKING
 
-2. **Fallback behavior?** If user wishes for `#googleAuthWork` but hasn't set one up:
-   - Option A: Fall back to `#googleAuth` (any account)
-   - Option B: Show error/prompt to set up work account
-   - Option C: Configurable per-pattern
-   - **Recommendation:** Option A for simplicity
+Tested with `wish-tag-test.tsx` and `multi-tag-source.tsx`:
+- Pattern with `/** ... #testTag1 #testTag2 */` in Output description
+- Favorited the charm
+- Both `wish({ query: "#testTag1" })` and `wish({ query: "#testTag2" })` found it
 
-3. **UI for account selection?** Should gmail patterns expose UI to switch accounts?
-   - Option A: Static at charm creation time
-   - Option B: Dropdown in settings UI to pick account
-   - **Recommendation:** Start with A, add B later if needed
+**Result:** Multiple tags in a single description work correctly.
 
-4. **Multiple tags work?** Verify that `#googleAuth #googleAuthPersonal` both match:
-   - `wish({ query: "#googleAuth" })` should find it
-   - `wish({ query: "#googleAuthPersonal" })` should find it
-   - Need to test this
+### Reactive Wish Queries: NOT SUPPORTED
 
-5. **Visual differentiation?** How should users distinguish personal vs work auth charms?
-   - Color coding (blue=personal, red=work)?
-   - Icon/badge?
-   - Account email in title?
-   - **Recommendation:** Email in title + color indicator
+`wish()` takes a static string query at pattern instantiation time.
+- Cannot pass a Cell/reactive value to change the query dynamically
+- Account selection must be determined at charm creation time
+- To switch accounts, user must create a new charm instance
+
+## Resolved Questions
+
+1. **Reactive wish queries?** ❌ NO - wish() is static at instantiation
+   - Account type must be set when creating the charm
+   - Cannot switch accounts within a running charm
+   - This is acceptable for most use cases
+
+2. **Multiple tags work?** ✅ YES - confirmed via testing
+   - `#googleAuth #googleAuthPersonal` will match both queries
+   - Core design is validated
+
+3. **Fallback behavior?** User preference: Show error/prompt
+   - If user explicitly wishes for `#googleAuthWork`, require setup
+   - Don't silently fall back to wrong account
+
+4. **Visual differentiation?** Color + email
+   - Blue badge/text for personal
+   - Red badge/text for work
+   - Email address in charm title
 
 ## Alternative Approaches Considered
 
@@ -231,17 +240,17 @@ One `google-auth` charm stores multiple accounts internally with a selector UI.
 1. **Phase 1: Core Infrastructure**
    - [ ] Create `google-auth-personal.tsx`
    - [ ] Create `google-auth-work.tsx`
-   - [ ] Test that multiple tags work with wish
-   - [ ] Test composition approach
+   - [x] Test that multiple tags work with wish (CONFIRMED 2025-12-04)
+   - [ ] Test composition approach with actual google-auth
 
 2. **Phase 2: Gmail Pattern Updates**
    - [ ] Add `accountType` input to `gmail-agentic-search.tsx`
    - [ ] Update wish logic to use appropriate tag
    - [ ] Update other gmail patterns (importer, etc.)
 
-3. **Phase 3: Polish**
-   - [ ] Add visual differentiation (color, icons)
-   - [ ] Add fallback logic
+3. **Phase 3: Future Improvements**
+   - [ ] Add visual differentiation (color badge + email in title)
+   - [ ] Consider helper pattern for account selection UI
    - [ ] Update documentation/README
 
 ## Testing Strategy
