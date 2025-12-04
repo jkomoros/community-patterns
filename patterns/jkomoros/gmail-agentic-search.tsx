@@ -24,6 +24,7 @@
  * ```
  */
 import {
+  cell,
   Cell,
   Default,
   derive,
@@ -478,9 +479,15 @@ const GmailAgenticSearch = pattern<
     // Check if we have direct auth input (CT-1085 workaround)
     const hasDirectAuth = derive(inputAuth, (a: Auth) => !!(a?.token));
 
-    // Build reactive wish tag based on accountType
+    // Local writable cell for account type selection
+    // Input `accountType` may be read-only (Default cells are read-only when using default value)
+    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+    // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
+    const selectedAccountType = cell<"default" | "personal" | "work">("default");
+
+    // Build reactive wish tag based on local selectedAccountType (writable)
     // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
-    const wishTag = derive(accountType, (type: "default" | "personal" | "work") => {
+    const wishTag = derive(selectedAccountType, (type: "default" | "personal" | "work") => {
       switch (type) {
         case "personal": return "#googleAuthPersonal";
         case "work": return "#googleAuthWork";
@@ -578,13 +585,14 @@ const GmailAgenticSearch = pattern<
       return navigateTo(googleAuthCharm);
     });
 
-    // Handler to change account type
+    // Handler to change account type (writes to local writable cell)
     const setAccountType = handler<
       { target: { value: string } },
-      { accountType: Cell<"default" | "personal" | "work"> }
+      { selectedType: Cell<"default" | "personal" | "work"> }
     >((event, state) => {
       const newType = event.target.value as "default" | "personal" | "work";
-      state.accountType.set(newType);
+      console.log("[GmailAgenticSearch] Account type changed to:", newType);
+      state.selectedType.set(newType);
     });
 
     // ========================================================================
@@ -954,7 +962,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
           >
             <span style={{ color: "#64748b" }}>Account:</span>
             <select
-              onChange={setAccountType({ accountType })}
+              onChange={setAccountType({ selectedType: selectedAccountType })}
               style={{
                 padding: "4px 8px",
                 borderRadius: "4px",
@@ -964,17 +972,17 @@ Be thorough in your searches. Try multiple queries if needed.`;
                 cursor: "pointer",
               }}
             >
-              <option value="default" selected={derive(accountType, (t: string) => t === "default")}>
+              <option value="default" selected={derive(selectedAccountType, (t: string) => t === "default")}>
                 Any Google Account
               </option>
-              <option value="personal" selected={derive(accountType, (t: string) => t === "personal")}>
+              <option value="personal" selected={derive(selectedAccountType, (t: string) => t === "personal")}>
                 Personal Account
               </option>
-              <option value="work" selected={derive(accountType, (t: string) => t === "work")}>
+              <option value="work" selected={derive(selectedAccountType, (t: string) => t === "work")}>
                 Work Account
               </option>
             </select>
-            {derive(accountType, (type: string) => type !== "default" ? (
+            {derive(selectedAccountType, (type: string) => type !== "default" ? (
               <span style={{ color: "#94a3b8", fontSize: "11px" }}>
                 (using #{type === "personal" ? "googleAuthPersonal" : "googleAuthWork"})
               </span>

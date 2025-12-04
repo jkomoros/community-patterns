@@ -303,7 +303,7 @@ If user has an existing `google-auth` charm and wants to classify it:
 - [x] Reactive wish based on accountType
 - [x] Update hotel-membership-gmail-agent to use accountType
 - [x] Update gmail-importer to use accountType
-- [ ] Fix UI dropdown write (Default cell is read-only - framework limitation)
+- [x] Fix UI dropdown write (used local writable cell pattern from community-docs)
 
 ### Phase 3: Future
 - [ ] Scope-based tags (#googleAuthGmail, etc.)

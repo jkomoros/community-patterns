@@ -996,8 +996,24 @@ export default pattern<{
     const showAuth = cell(false);
     const fetching = cell(false);
 
-    // Dynamic wish tag based on accountType for multi-account support
-    const wishTag = derive(accountType, (type: AccountType) => {
+    // Local writable cell for account type selection
+    // Input `accountType` may be read-only (Default cells are read-only when using default value)
+    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+    // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
+    const selectedAccountType = cell<AccountType>("default");
+
+    // Handler to change account type (writes to local writable cell)
+    const setAccountType = handler<
+      { target: { value: string } },
+      { selectedType: Cell<AccountType> }
+    >((event, state) => {
+      const newType = event.target.value as AccountType;
+      console.log("[GmailImporter] Account type changed to:", newType);
+      state.selectedType.set(newType);
+    });
+
+    // Dynamic wish tag based on selectedAccountType (writable local cell)
+    const wishTag = derive(selectedAccountType, (type: AccountType) => {
       switch (type) {
         case "personal":
           return "#googleAuthPersonal";
@@ -1097,13 +1113,13 @@ export default pattern<{
 
               {/* Account type selector for multi-account support */}
               <select
-                value={accountType}
+                onChange={setAccountType({ selectedType: selectedAccountType })}
                 style={{
                   padding: "4px 8px",
                   borderRadius: "4px",
                   border: "1px solid #d1d5db",
                   fontSize: "12px",
-                  backgroundColor: derive(accountType, (type: AccountType) => {
+                  backgroundColor: derive(selectedAccountType, (type: AccountType) => {
                     switch (type) {
                       case "personal":
                         return "#dbeafe"; // blue tint
@@ -1115,9 +1131,9 @@ export default pattern<{
                   }),
                 }}
               >
-                <option value="default">Any Account</option>
-                <option value="personal">Personal</option>
-                <option value="work">Work</option>
+                <option value="default" selected={derive(selectedAccountType, (t: string) => t === "default")}>Any Account</option>
+                <option value="personal" selected={derive(selectedAccountType, (t: string) => t === "personal")}>Personal</option>
+                <option value="work" selected={derive(selectedAccountType, (t: string) => t === "work")}>Work</option>
               </select>
 
               {/* Red/Green status dot */}
