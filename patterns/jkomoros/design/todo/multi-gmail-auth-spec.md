@@ -186,19 +186,23 @@ Tested with `wish-tag-test.tsx` and `multi-tag-source.tsx`:
 
 **Result:** Multiple tags in a single description work correctly.
 
-### Reactive Wish Queries: NOT SUPPORTED
+### Reactive Wish Queries: CONFIRMED WORKING
 
-`wish()` takes a static string query at pattern instantiation time.
-- Cannot pass a Cell/reactive value to change the query dynamically
-- Account selection must be determined at charm creation time
-- To switch accounts, user must create a new charm instance
+Tested with `reactive-wish-test.tsx`:
+- Passed a Cell<string> to `wish({ query: selectedTag })`
+- Clicking buttons to change the tag re-evaluated the wish
+- `#testTag1` → found multi-tag-value
+- `#googleAuth` → no match (N/A)
+- `#testTag1` → found multi-tag-value again
+
+**Result:** Reactive wishes WORK! Patterns can switch accounts dynamically.
 
 ## Resolved Questions
 
-1. **Reactive wish queries?** ❌ NO - wish() is static at instantiation
-   - Account type must be set when creating the charm
-   - Cannot switch accounts within a running charm
-   - This is acceptable for most use cases
+1. **Reactive wish queries?** ✅ YES - wish() re-evaluates when query Cell changes
+   - Patterns CAN switch accounts dynamically
+   - User doesn't need to create new charm to change account
+   - Opens up account selector UI possibilities
 
 2. **Multiple tags work?** ✅ YES - confirmed via testing
    - `#googleAuth #googleAuthPersonal` will match both queries
