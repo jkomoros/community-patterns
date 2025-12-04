@@ -301,8 +301,8 @@ If user has an existing `google-auth` charm and wants to classify it:
 - [x] Add `accountType` input to `gmail-agentic-search.tsx`
 - [x] Add account selector dropdown UI
 - [x] Reactive wish based on accountType
+- [x] Update hotel-membership-gmail-agent to use accountType
 - [ ] Fix UI dropdown write (Default cell is read-only - framework limitation)
-- [ ] Update hotel-membership-gmail-agent to use accountType
 - [ ] Update gmail-importer to use accountType
 
 ### Phase 3: Future
