@@ -3,9 +3,42 @@
 **Date:** 2025-11-22
 **Author:** jkomoros
 **Pattern:** codenames-helper
-**Status:** ⬆️ PROMOTED TO FOLK WISDOM (2025-11-22)
+**Status:** NEEDS INVESTIGATION (2025-12-03)
 
-**NOTE:** This superstition has been promoted to folk_wisdom after confirming the same behavior in two independent contexts. See: `community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md`
+## Framework Author Response (seefeldb, 2025-12-03)
+
+> "this one is hard to tell without seeing what `flag` and `count` are defined as. If they are indeed `Cell`, then it's a bug that they get unwrapped."
+>
+> "there's a bunch of TS magic going on here, so maybe it's doing the wrong thing, or some crosstalk with the transformer. worth investigating, clearly TS and the runtime shouldn't disagree as documented here."
+
+### Repro Context (from `repros/2025-11-22-derive-unwrap-test.tsx`)
+
+```tsx
+interface Input {
+  flag: Default<boolean, false>;  // Cell from pattern input
+  count: Default<number, 42>;     // Cell from pattern input
+}
+
+export default pattern<Input, Output>(
+  ({ flag, count }) => {  // flag and count are Cells
+    const objectResult = derive({ flag, count }, (values) => {
+      // Runtime: values.flag is boolean (hasGet=false) - UNWRAPPED!
+      // TypeScript: values.flag is Cell<boolean> - requires .get()
+    });
+  }
+);
+```
+
+### Test Results
+
+- **Runtime:** `hasGet=false` (auto-unwrapped)
+- **TypeScript:** Types show `Cell<boolean>`, requires `.get()` to compile
+
+**This is a types/runtime mismatch that needs investigation.**
+
+---
+
+**NOTE:** This superstition was promoted to folk_wisdom but the behavior may be more nuanced than originally documented. See: `community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md`
 
 ## Summary
 

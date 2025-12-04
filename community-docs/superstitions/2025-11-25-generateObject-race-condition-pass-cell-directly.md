@@ -5,8 +5,17 @@ confirmed_count: 1
 last_confirmed: 2025-11-25
 sessions: [smart-rubric-phase-5]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
+status: confirmed_bug
 stars: ⭐⭐⭐
+---
+
+# CONFIRMED RUNTIME BUG (Framework Author: seefeldb, 2025-12-03)
+
+**Both derive() and direct Cell should work.** The fact that they don't in certain contexts is a **runtime bug**.
+
+Framework author response (PR #93):
+> "both of those should work, so this is a bug in the runtime"
+
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
