@@ -51,6 +51,10 @@ const ReactiveWishTest = pattern<TestInput>(({ selectedTag }) => {
     tag.set("#googleAuth");
   });
 
+  const setPlusTag = handler<unknown, { tag: Cell<string> }>((_, { tag }) => {
+    tag.set("#testGmail+Calendar");
+  });
+
   return {
     [NAME]: "Reactive Wish Test",
     [UI]: (
@@ -74,10 +78,11 @@ const ReactiveWishTest = pattern<TestInput>(({ selectedTag }) => {
             <strong>Selected Tag:</strong> <code>{selectedTag}</code>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
             <button onClick={setTag1({ tag: selectedTag })}>#testTag1</button>
             <button onClick={setTag2({ tag: selectedTag })}>#testTag2</button>
             <button onClick={setGoogleAuth({ tag: selectedTag })}>#googleAuth</button>
+            <button onClick={setPlusTag({ tag: selectedTag })}>#testGmail+Calendar</button>
           </div>
 
           <h3 style={{ margin: "0 0 12px 0" }}>Wish Result</h3>

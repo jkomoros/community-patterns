@@ -13,42 +13,91 @@ Users may have multiple Google accounts (personal, work, possibly multiple of ea
 1. Support multiple Gmail accounts (personal, work, etc.)
 2. Work seamlessly for single-account users (no extra complexity)
 3. Allow patterns to specify which account type they want
-4. Use the existing wish system with tags
+4. Support both pre-hoc (choose type before login) and post-hoc (classify after login) flows
+5. Use the existing wish system with tags
 
-## How Wishes Work (Background)
+## Test Results (2025-12-04)
 
-From FAVORITES.md:
+### Multiple Tags: ✅ CONFIRMED WORKING
+
+Tested with `wish-tag-test.tsx` and `multi-tag-source.tsx`:
+- Pattern with `/** ... #testTag1 #testTag2 */` in Output description
+- Favorited the charm
+- Both `wish({ query: "#testTag1" })` and `wish({ query: "#testTag2" })` found it
+
+### Reactive Wish Queries: ✅ CONFIRMED WORKING
+
+Tested with `reactive-wish-test.tsx`:
+- Passed a Cell<string> to `wish({ query: selectedTag })`
+- Changing the cell value re-evaluates the wish dynamically
+- Patterns CAN switch accounts on-the-fly with a dropdown
+
+### Hashtag Character Limitations: ⚠️ IMPORTANT
+
+**From framework source (`wish.ts` line 245):**
 ```typescript
-/** Represents a small #note a user took to remember some text. */
-type Output = { ... }
-
-// Later:
-const wishResult = wish<{ content: string }>({ query: "#note" });
+entry.tag?.toLowerCase().matchAll(/#([a-z0-9-]+)/g)
 ```
 
-- Tags are embedded in type/schema descriptions
-- `wish()` searches for favorited charms matching the tag
-- Multiple tags in one description should work: `#googleAuth #googleAuthPersonal`
+**Only these characters are allowed in hashtags:**
+- Lowercase letters: `a-z`
+- Numbers: `0-9`
+- Hyphens: `-`
 
-## Proposed Design
+**NOT allowed:** `+`, `_`, spaces, uppercase (converted to lowercase)
 
-### Approach: Tagged Auth Variants
+**Implications for scope tags:**
+- ❌ `#googleAuth+Gmail` - won't work
+- ❌ `#googleAuth_Gmail` - won't work
+- ✅ `#googleAuthGmail` - works (camelCase lowercased)
+- ✅ `#googleauth-gmail` - works (hyphens)
 
-Create wrapper patterns that compose `google-auth.tsx` and add specific tags.
+## Design: Two Classification Flows
+
+### Pre-hoc Classification (User Knows Beforehand)
+
+User creates a typed auth pattern directly:
+
+```
+User creates "Google Auth (Work)"
+    → Logs in with work account
+    → Favorites it
+    → Tagged with #googleAuth #googleAuthWork
+```
+
+### Post-hoc Classification (Classify After Login)
+
+User logs in first, then classifies:
+
+```
+User creates "Google Auth Switcher"
+    → Logs in with any account
+    → Sees: "alex@gmail.com - What type is this?"
+    → Clicks [Personal] or [Work]
+    → Switcher creates wrapper pattern
+    → Navigates to wrapper for favoriting
+```
+
+**Why post-hoc is better UX:**
+- User sees actual email before classifying
+- Prevents "oops, logged into wrong account" mistakes
+- More natural flow
+
+## Architecture
 
 ### Pattern Structure
 
 ```
 patterns/jkomoros/
-├── google-auth.tsx                 # Base - tag: #googleAuth (unchanged)
-├── google-auth-personal.tsx        # NEW - tags: #googleAuth #googleAuthPersonal
-├── google-auth-work.tsx            # NEW - tags: #googleAuth #googleAuthWork
-└── gmail-*.tsx                     # Updated to support account selection
+├── google-auth.tsx              # Base OAuth (unchanged) - #googleAuth
+├── google-auth-personal.tsx     # Wrapper - #googleAuth #googleAuthPersonal
+├── google-auth-work.tsx         # Wrapper - #googleAuth #googleAuthWork
+├── google-auth-switcher.tsx     # Post-hoc classifier (creates wrappers)
+└── gmail-*.tsx                  # Accept accountType, use reactive wish
 ```
 
-### 1. Base google-auth.tsx (UNCHANGED)
+### 1. Base `google-auth.tsx` (UNCHANGED)
 
-The existing pattern stays as-is:
 ```typescript
 /** Google OAuth authentication for Google APIs. #googleAuth */
 interface Output {
@@ -58,28 +107,43 @@ interface Output {
 }
 ```
 
-- Single-account users only need this
-- Continue to wish for `#googleAuth`
-
-### 2. google-auth-personal.tsx (NEW)
+### 2. Wrapper Pattern: `google-auth-personal.tsx`
 
 ```typescript
-/** Personal Google account authentication. #googleAuth #googleAuthPersonal */
+/** Personal Google account. #googleAuth #googleAuthPersonal */
 interface Output {
   auth: Auth;
   accountType: "personal";
 }
 
 const GoogleAuthPersonal = pattern<Input, Output>(({ auth }) => {
-  // Compose base google-auth
+  // Compose OR link to base google-auth
   const baseAuth = GoogleAuth({ auth });
 
   return {
-    [NAME]: "Google Auth (Personal)",
+    [NAME]: derive(baseAuth.auth, (a) =>
+      `Google Auth (Personal) - ${a?.user?.email || "Not logged in"}`
+    ),
     [UI]: (
       <div>
-        <div style={{ ... }}>
-          <span style={{ color: "#3b82f6" }}>Personal Account</span>
+        <div style={{
+          padding: "8px 12px",
+          background: "#dbeafe",
+          borderRadius: "6px",
+          marginBottom: "12px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <span style={{
+            background: "#3b82f6",
+            color: "white",
+            padding: "2px 8px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            fontWeight: "600"
+          }}>PERSONAL</span>
+          <span>{derive(baseAuth.auth, (a) => a?.user?.email || "")}</span>
         </div>
         {baseAuth}
       </div>
@@ -90,46 +154,73 @@ const GoogleAuthPersonal = pattern<Input, Output>(({ auth }) => {
 });
 ```
 
-### 3. google-auth-work.tsx (NEW)
+### 3. Wrapper Pattern: `google-auth-work.tsx`
+
+Same as personal, but with:
+- Tag: `#googleAuth #googleAuthWork`
+- Badge: Red background, "WORK" label
+- `accountType: "work"`
+
+### 4. Switcher Pattern: `google-auth-switcher.tsx`
 
 ```typescript
-/** Work Google account authentication. #googleAuth #googleAuthWork */
-interface Output {
-  auth: Auth;
-  accountType: "work";
-}
-
-const GoogleAuthWork = pattern<Input, Output>(({ auth }) => {
+const GoogleAuthSwitcher = pattern<Input, Output>(({ auth }) => {
   const baseAuth = GoogleAuth({ auth });
+  const isLoggedIn = derive(baseAuth.auth, (a) => !!a?.user?.email);
+
+  const createPersonalWrapper = handler<...>((...) => {
+    // Create GoogleAuthPersonal with linked auth
+    const wrapper = GoogleAuthPersonal({ auth: baseAuth.auth });
+    navigateTo(wrapper);
+  });
+
+  const createWorkWrapper = handler<...>((...) => {
+    // Create GoogleAuthWork with linked auth
+    const wrapper = GoogleAuthWork({ auth: baseAuth.auth });
+    navigateTo(wrapper);
+  });
 
   return {
-    [NAME]: "Google Auth (Work)",
+    [NAME]: "Google Auth Setup",
     [UI]: (
       <div>
-        <div style={{ ... }}>
-          <span style={{ color: "#dc2626" }}>Work Account</span>
-        </div>
         {baseAuth}
+
+        {/* Show classification buttons after login */}
+        {ifElse(isLoggedIn, (
+          <div style={{ marginTop: "16px", padding: "16px", background: "#f8fafc" }}>
+            <h3>What type of account is this?</h3>
+            <p>Logged in as: {derive(baseAuth.auth, a => a?.user?.email)}</p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={createPersonalWrapper({})}>
+                Personal Account
+              </button>
+              <button onClick={createWorkWrapper({})}>
+                Work Account
+              </button>
+            </div>
+            <p style={{ fontSize: "12px", color: "#666" }}>
+              Or favorite this charm directly for generic #googleAuth access
+            </p>
+          </div>
+        ), null)}
       </div>
     ),
     auth: baseAuth.auth,
-    accountType: "work",
   };
 });
 ```
 
-### 4. Gmail Patterns - Account Selection
-
-Update gmail patterns to accept an `accountType` parameter:
+### 5. Gmail Patterns - Dynamic Account Selection
 
 ```typescript
-interface GmailPatternInput {
+interface GmailAgenticSearchInput {
   // ... existing inputs
   accountType?: Default<"default" | "personal" | "work", "default">;
 }
 
-const GmailPattern = pattern<...>(({ accountType, ... }) => {
-  // Determine which tag to wish for
+const GmailAgenticSearch = pattern<...>(({ accountType, ... }) => {
+  // Dynamic wish tag based on accountType
   const wishTag = derive(accountType, (type) => {
     switch (type) {
       case "personal": return "#googleAuthPersonal";
@@ -138,144 +229,95 @@ const GmailPattern = pattern<...>(({ accountType, ... }) => {
     }
   });
 
-  // Wish for the appropriate auth
-  // NOTE: wish() may not support reactive tags - see open questions
+  // Reactive wish - re-evaluates when accountType changes!
   const wishResult = wish<GoogleAuthCharm>({ query: wishTag });
 
-  // ... rest of pattern
+  // ... rest of pattern with account selector dropdown
 });
 ```
 
-## User Flow
+## Scope Tags (Future Enhancement)
 
-### Single Account User (No Change)
-1. User creates `google-auth` charm
-2. Authenticates with their one account
-3. Favorites it
-4. Gmail patterns find it via `#googleAuth`
+Same tagging system can support OAuth scopes:
 
-### Multi-Account User
-1. User creates `google-auth-personal` charm → authenticates with personal account → favorites
-2. User creates `google-auth-work` charm → authenticates with work account → favorites
-3. Gmail patterns can now specify which one they want:
-   - Default: finds first `#googleAuth` (either one)
-   - Personal: finds `#googleAuthPersonal` specifically
-   - Work: finds `#googleAuthWork` specifically
-
-### Pattern-Level Selection
-When composing a Gmail pattern:
 ```typescript
-// Use default (any authenticated Google account)
-const searcher = GmailAgenticSearch({});
-
-// Use personal account specifically
-const searcher = GmailAgenticSearch({ accountType: "personal" });
-
-// Use work account specifically
-const searcher = GmailAgenticSearch({ accountType: "work" });
+/** Gmail-only auth. #googleAuth #googleAuthGmail */
+/** Calendar auth. #googleAuth #googleAuthCalendar */
+/** Gmail+Calendar auth. #googleAuth #googleAuthGmail #googleAuthCalendar */
 ```
 
-## Test Results (2025-12-04)
+**Tag naming (valid characters: a-z, 0-9, -):**
+- `#googleAuthGmail` or `#googleauth-gmail`
+- `#googleAuthCalendar` or `#googleauth-calendar`
+- `#googleAuthGmailCalendar` or `#googleauth-gmail-calendar`
 
-### Multiple Tags: CONFIRMED WORKING
+Patterns could wish for specific scopes:
+```typescript
+// Gmail pattern needs gmail scope
+const auth = wish({ query: "#googleAuthGmail" });
 
-Tested with `wish-tag-test.tsx` and `multi-tag-source.tsx`:
-- Pattern with `/** ... #testTag1 #testTag2 */` in Output description
-- Favorited the charm
-- Both `wish({ query: "#testTag1" })` and `wish({ query: "#testTag2" })` found it
+// Calendar pattern needs calendar scope
+const auth = wish({ query: "#googleAuthCalendar" });
+```
 
-**Result:** Multiple tags in a single description work correctly.
+## User Flows
 
-### Reactive Wish Queries: CONFIRMED WORKING
+### Single Account User (No Change)
+1. Create `google-auth` or `google-auth-switcher`
+2. Log in
+3. Favorite it (skip classification if desired)
+4. Gmail patterns find it via `#googleAuth`
 
-Tested with `reactive-wish-test.tsx`:
-- Passed a Cell<string> to `wish({ query: selectedTag })`
-- Clicking buttons to change the tag re-evaluated the wish
-- `#testTag1` → found multi-tag-value
-- `#googleAuth` → no match (N/A)
-- `#testTag1` → found multi-tag-value again
+### Multi-Account User (Pre-hoc)
+1. Create `google-auth-personal` → log in with personal → favorite
+2. Create `google-auth-work` → log in with work → favorite
+3. Gmail patterns wish for specific type
 
-**Result:** Reactive wishes WORK! Patterns can switch accounts dynamically.
+### Multi-Account User (Post-hoc)
+1. Create `google-auth-switcher` → log in
+2. Click "Personal" or "Work"
+3. Wrapper created, navigate to it, favorite it
+4. Repeat for other account
 
-## Resolved Questions
-
-1. **Reactive wish queries?** ✅ YES - wish() re-evaluates when query Cell changes
-   - Patterns CAN switch accounts dynamically
-   - User doesn't need to create new charm to change account
-   - Opens up account selector UI possibilities
-
-2. **Multiple tags work?** ✅ YES - confirmed via testing
-   - `#googleAuth #googleAuthPersonal` will match both queries
-   - Core design is validated
-
-3. **Fallback behavior?** User preference: Show error/prompt
-   - If user explicitly wishes for `#googleAuthWork`, require setup
-   - Don't silently fall back to wrong account
-
-4. **Visual differentiation?** Color + email
-   - Blue badge/text for personal
-   - Red badge/text for work
-   - Email address in charm title
-
-## Alternative Approaches Considered
-
-### A. Single Auth Pattern with Multiple Accounts
-One `google-auth` charm stores multiple accounts internally with a selector UI.
-- **Pro:** Single charm to manage
-- **Con:** Complex internal state, wish can't distinguish accounts
-
-### B. Account Parameter on Auth Pattern
-`google-auth` takes an `accountType` input.
-- **Pro:** Reuses single pattern
-- **Con:** Each deployed charm is still tied to ONE account; doesn't help wish selection
-
-### C. Completely Separate Patterns
-`gmail-auth-personal.tsx` and `gmail-auth-work.tsx` that don't compose.
-- **Pro:** Simple
-- **Con:** Code duplication, harder to maintain
-
-**Selected Approach:** Tagged Auth Variants (compose base + add tags)
-- Minimal code duplication
-- Tags work with existing wish system
-- Clear separation of concerns
+### Existing Auth Classification
+If user has an existing `google-auth` charm and wants to classify it:
+1. Create `google-auth-personal` or `google-auth-work`
+2. Link its `auth` input to the existing charm's `auth` output
+3. Favorite the wrapper
+4. Original charm can stay favorited as generic fallback
 
 ## Implementation Plan
 
-1. **Phase 1: Core Infrastructure**
-   - [ ] Create `google-auth-personal.tsx`
-   - [ ] Create `google-auth-work.tsx`
-   - [x] Test that multiple tags work with wish (CONFIRMED 2025-12-04)
-   - [ ] Test composition approach with actual google-auth
+### Phase 1: Core Infrastructure
+- [ ] Create `google-auth-personal.tsx` (wrapper with #googleAuthPersonal)
+- [ ] Create `google-auth-work.tsx` (wrapper with #googleAuthWork)
+- [ ] Test wrapper composition with actual google-auth
+- [x] Test multiple tags work (CONFIRMED)
+- [x] Test reactive wishes work (CONFIRMED)
+- [x] Verify hashtag character limitations (a-z, 0-9, - only)
 
-2. **Phase 2: Gmail Pattern Updates**
-   - [ ] Add `accountType` input to `gmail-agentic-search.tsx`
-   - [ ] Update wish logic to use appropriate tag
-   - [ ] Update other gmail patterns (importer, etc.)
+### Phase 2: Switcher & Gmail Updates
+- [ ] Create `google-auth-switcher.tsx` (post-hoc classification)
+- [ ] Add `accountType` input to `gmail-agentic-search.tsx`
+- [ ] Add account selector dropdown UI
+- [ ] Update other gmail patterns
 
-3. **Phase 3: Future Improvements**
-   - [ ] Add visual differentiation (color badge + email in title)
-   - [ ] Consider helper pattern for account selection UI
-   - [ ] Update documentation/README
+### Phase 3: Future
+- [ ] Scope-based tags (#googleAuthGmail, etc.)
+- [ ] Combined account+scope tags
+- [ ] Update documentation
 
-## Testing Strategy
+## Key Decisions
 
-1. **Unit Tests**
-   - Create personal auth charm, verify `#googleAuthPersonal` tag works
-   - Create work auth charm, verify `#googleAuthWork` tag works
-   - Verify both also match `#googleAuth`
-
-2. **Integration Tests**
-   - Gmail pattern with `accountType: "personal"` finds personal auth
-   - Gmail pattern with `accountType: "work"` finds work auth
-   - Gmail pattern with `accountType: "default"` finds any auth
-
-3. **User Flow Tests**
-   - Multi-account setup and usage
-   - Single-account backward compatibility
+1. **Classification timing:** Support BOTH pre-hoc and post-hoc
+2. **Wrapper vs modify:** Wrappers are cleaner - original stays as fallback
+3. **Fallback behavior:** If user explicitly requests work, require setup (no silent fallback)
+4. **Visual style:** Color badge (blue=personal, red=work) + email in title
+5. **Hashtag format:** Use camelCase or hyphens (no + or _)
 
 ## Risk Mitigation
 
-1. **Breaking existing users:** The default behavior (`#googleAuth`) is unchanged
-2. **Multiple matches:** First match wins (existing behavior)
-3. **Cross-space wish:** CT-1090 workaround still needed (embed in JSX)
-4. **Self-referential wish:** Avoided by not wishing for auth in auth patterns
+1. **Breaking existing users:** Default `#googleAuth` unchanged
+2. **Cross-space wish:** CT-1090 workaround still needed
+3. **Character limitations:** Document that + doesn't work in tags
+4. **Multiple matches:** First match wins (existing behavior)
