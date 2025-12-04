@@ -18,7 +18,7 @@ import {
   UI,
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
-import GmailAgenticSearch, { createReportTool, type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
+import GmailAgenticSearch, { createReportTool, type SearchProgress, type DebugLogEntry, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
 
 // Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
 type ScanMode = "full" | "recent";
@@ -417,26 +417,48 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               {/* Auth UI from base pattern */}
               {searcher.authUI}
 
-              {/* Custom Scan Buttons with mode support */}
-              {/* Always render buttons - use disabled when not authenticated or scanning */}
-              <div style={{ display: "flex", gap: "8px" }}>
-                <ct-button
-                  onClick={startFullScan}
-                  size="lg"
-                  style="flex: 1;"
-                  disabled={buttonsDisabled}
-                >
-                  {fullScanLabel}
-                </ct-button>
-                <ct-button
-                  onClick={startRecentScan}
-                  variant="secondary"
-                  size="lg"
-                  style="flex: 1;"
-                  disabled={buttonsDisabled}
-                >
-                  📅 Check Recent
-                </ct-button>
+              {/* Scan Mode Selection - Custom buttons with mode support */}
+              <div style={{
+                padding: "16px",
+                background: "#f8fafc",
+                borderRadius: "8px",
+                border: "1px solid #e2e8f0",
+              }}>
+                <div style={{
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  marginBottom: "12px",
+                  color: "#475569",
+                }}>
+                  Scan Mode
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <ct-button
+                    onClick={startFullScan}
+                    size="lg"
+                    style="flex: 1;"
+                    disabled={buttonsDisabled}
+                  >
+                    {fullScanLabel}
+                  </ct-button>
+                  <ct-button
+                    onClick={startRecentScan}
+                    variant="secondary"
+                    size="lg"
+                    style="flex: 1;"
+                    disabled={buttonsDisabled}
+                  >
+                    📅 Check Recent
+                  </ct-button>
+                </div>
+                <div style={{
+                  fontSize: "11px",
+                  color: "#94a3b8",
+                  marginTop: "8px",
+                  textAlign: "center",
+                }}>
+                  Full = all emails • Recent = last 7 days only
+                </div>
               </div>
 
               {/* Stop button when scanning */}
@@ -630,6 +652,9 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                   ));
                 })}
               </div>
+
+              {/* Agent Activity Log - from base searcher */}
+              {searcher.debugUI}
 
               {/* Debug Info */}
               <details style={{ marginTop: "16px" }}>

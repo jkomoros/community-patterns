@@ -70,6 +70,14 @@ export interface SearchProgress {
   authError?: string;
 }
 
+// Debug log entry for tracking agent activity
+export interface DebugLogEntry {
+  timestamp: number;
+  type: "info" | "search_start" | "search_result" | "error" | "summary";
+  message: string;
+  details?: any;
+}
+
 // What we expect from the google-auth charm via wish
 type GoogleAuthCharm = {
   auth: Auth;
@@ -125,6 +133,9 @@ export interface GmailAgenticSearchInput {
     searchCount: 0;
   }>;
 
+  // Debug log - tracks agent activity for debugging
+  debugLog?: Default<DebugLogEntry[], []>;
+
   // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
   // Users can manually link gmail-auth's auth output to this input.
   // If provided, this takes precedence over wish-based auth.
@@ -162,6 +173,10 @@ export interface GmailAgenticSearchOutput {
 
   // Progress
   searchProgress: SearchProgress;
+
+  // Debug log
+  debugLog: DebugLogEntry[];
+  debugUI: JSX.Element;  // Collapsible debug log UI
 
   // Timestamps
   lastScanAt: number;
@@ -469,6 +484,7 @@ const GmailAgenticSearch = pattern<
     isScanning,
     lastScanAt,
     searchProgress,  // Can be passed in for parent coordination
+    debugLog,         // Debug log for tracking agent activity
     auth: inputAuth,  // CT-1085 workaround: direct auth input
     accountType,      // Multi-account support: "default" | "personal" | "work"
   }) => {
@@ -602,6 +618,22 @@ const GmailAgenticSearch = pattern<
     // by passing in their own cell
 
     // ========================================================================
+    // DEBUG LOG HELPERS
+    // ========================================================================
+
+    // Helper to add a debug log entry
+    const addDebugLogEntry = (
+      logCell: Cell<DebugLogEntry[]>,
+      entry: Omit<DebugLogEntry, "timestamp">,
+    ) => {
+      const current = logCell.get() || [];
+      logCell.set([
+        ...current,
+        { ...entry, timestamp: Date.now() },
+      ]);
+    };
+
+    // ========================================================================
     // SEARCH GMAIL TOOL
     // ========================================================================
 
@@ -611,6 +643,7 @@ const GmailAgenticSearch = pattern<
         auth: Cell<Auth>;
         progress: Cell<SearchProgress>;
         maxSearches: Cell<Default<number, 0>>;
+        debugLog: Cell<DebugLogEntry[]>;
       }
     >(async (input, state) => {
       const authData = state.auth.get();
@@ -618,9 +651,20 @@ const GmailAgenticSearch = pattern<
       const max = state.maxSearches.get();
       const currentProgress = state.progress.get();
 
+      // Log the search attempt
+      addDebugLogEntry(state.debugLog, {
+        type: "search_start",
+        message: `Searching Gmail: "${input.query}"`,
+        details: { query: input.query, searchCount: currentProgress.searchCount },
+      });
+
       // Check if we've hit the search limit
       if (max > 0 && currentProgress.searchCount >= max) {
         console.log(`[SearchGmail Tool] Search limit reached (${max})`);
+        addDebugLogEntry(state.debugLog, {
+          type: "info",
+          message: `Search limit reached (${max})`,
+        });
         const limitResult = {
           success: false,
           limitReached: true,
@@ -661,12 +705,26 @@ const GmailAgenticSearch = pattern<
       let resultData: any;
 
       if (!token) {
+        addDebugLogEntry(state.debugLog, {
+          type: "error",
+          message: "Not authenticated - no token available",
+        });
         resultData = { error: "Not authenticated", emails: [] };
       } else {
         try {
           console.log(`[SearchGmail Tool] Searching: ${input.query}`);
           const emails = await fetchGmailEmails(token, input.query, 30);
           console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
+
+          // Log the search results
+          addDebugLogEntry(state.debugLog, {
+            type: "search_result",
+            message: `Found ${emails.length} emails for "${input.query}"`,
+            details: {
+              emailCount: emails.length,
+              subjects: emails.slice(0, 5).map(e => e.subject),
+            },
+          });
 
           resultData = {
             success: true,
@@ -699,6 +757,10 @@ const GmailAgenticSearch = pattern<
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
           const errorStr = String(err);
+          addDebugLogEntry(state.debugLog, {
+            type: "error",
+            message: `Search error: ${errorStr}`,
+          });
           resultData = { error: errorStr, emails: [] };
 
           // Detect auth errors (401)
@@ -766,6 +828,7 @@ const GmailAgenticSearch = pattern<
             auth,
             progress: searchProgress,
             maxSearches,
+            debugLog,
           }),
         },
       };
@@ -833,6 +896,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
         isAuthenticated: Cell<boolean>;
         progress: Cell<SearchProgress>;
         auth: Cell<Auth>;
+        debugLog: Cell<DebugLogEntry[]>;
       }
     >(async (_, state) => {
       if (!state.isAuthenticated.get()) return;
@@ -840,12 +904,28 @@ Be thorough in your searches. Try multiple queries if needed.`;
       const authData = state.auth.get();
       const token = authData?.token;
 
+      // Clear debug log and add scan start entry
+      state.debugLog.set([]);
+      addDebugLogEntry(state.debugLog, {
+        type: "info",
+        message: "Starting new scan...",
+        details: { email: authData?.user?.email },
+      });
+
       // Validate token before starting scan
       console.log("[GmailAgenticSearch] Validating token before scan...");
+      addDebugLogEntry(state.debugLog, {
+        type: "info",
+        message: "Validating Gmail token...",
+      });
       const validation = await validateGmailToken(token);
 
       if (!validation.valid) {
         console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
+        addDebugLogEntry(state.debugLog, {
+          type: "error",
+          message: `Token validation failed: ${validation.error}`,
+        });
         state.progress.set({
           currentQuery: "",
           completedQueries: [],
@@ -857,6 +937,10 @@ Be thorough in your searches. Try multiple queries if needed.`;
       }
 
       console.log("[GmailAgenticSearch] Token valid, starting scan");
+      addDebugLogEntry(state.debugLog, {
+        type: "info",
+        message: "Token valid - starting agent...",
+      });
       state.progress.set({
         currentQuery: "",
         completedQueries: [],
@@ -932,9 +1016,15 @@ Be thorough in your searches. Try multiple queries if needed.`;
     );
 
     // Pre-bind handlers (important: must be done outside of derive callbacks)
-    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth });
+    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog });
     const boundStopScan = stopScan({ lastScanAt, isScanning });
     const boundCompleteScan = completeScan({ lastScanAt, isScanning });
+
+    // Track if debug log is expanded (local UI state)
+    const debugExpanded = cell(false);
+    const toggleDebug = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
+      state.expanded.set(!state.expanded.get());
+    });
 
     // ========================================================================
     // UI PIECES (extracted for flexible composition)
@@ -1405,6 +1495,100 @@ Be thorough in your searches. Try multiple queries if needed.`;
       </div>
     );
 
+    // Debug UI - collapsible log of agent activity
+    const debugUI = (
+      <div style={{ marginTop: "8px" }}>
+        {derive(debugLog, (log: DebugLogEntry[]) =>
+          log && log.length > 0 ? (
+            <div
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header - clickable to toggle */}
+              <div
+                onClick={toggleDebug({ expanded: debugExpanded })}
+                style={{
+                  padding: "8px 12px",
+                  background: "#f8fafc",
+                  borderBottom: "1px solid #e2e8f0",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  color: "#475569",
+                }}
+              >
+                <span>
+                  {derive(debugExpanded, (e: boolean) => e ? "▼" : "▶")} Debug Log ({log.length} entries)
+                </span>
+                <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                  click to {derive(debugExpanded, (e: boolean) => e ? "collapse" : "expand")}
+                </span>
+              </div>
+
+              {/* Content - shown when expanded */}
+              {derive(debugExpanded, (expanded: boolean) =>
+                expanded ? (
+                  <div
+                    style={{
+                      maxHeight: "300px",
+                      overflowY: "auto",
+                      background: "#1e293b",
+                      padding: "12px",
+                      fontFamily: "monospace",
+                      fontSize: "11px",
+                    }}
+                  >
+                    {log.map((entry: DebugLogEntry, i: number) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: "4px 0",
+                          borderBottom: "1px solid #334155",
+                          color: entry.type === "error" ? "#f87171" :
+                                 entry.type === "search_start" ? "#60a5fa" :
+                                 entry.type === "search_result" ? "#4ade80" :
+                                 "#e2e8f0",
+                        }}
+                      >
+                        <span style={{ color: "#64748b" }}>
+                          {new Date(entry.timestamp).toLocaleTimeString()}
+                        </span>
+                        {" "}
+                        <span style={{
+                          padding: "1px 4px",
+                          borderRadius: "3px",
+                          fontSize: "10px",
+                          background: entry.type === "error" ? "#7f1d1d" :
+                                      entry.type === "search_start" ? "#1e3a5f" :
+                                      entry.type === "search_result" ? "#14532d" :
+                                      "#334155",
+                        }}>
+                          {entry.type}
+                        </span>
+                        {" "}
+                        {entry.message}
+                        {entry.details && (
+                          <div style={{ marginLeft: "16px", color: "#94a3b8", fontSize: "10px" }}>
+                            {JSON.stringify(entry.details, null, 2)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : null
+        )}
+      </div>
+    );
+
     // ========================================================================
     // RETURN
     // ========================================================================
@@ -1416,6 +1600,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
       authUI,
       controlsUI,
       progressUI,
+      debugUI,
 
       // Auth state (exposed for embedding patterns)
       auth,
@@ -1430,6 +1615,9 @@ Be thorough in your searches. Try multiple queries if needed.`;
 
       // Progress
       searchProgress,
+
+      // Debug log
+      debugLog,
 
       // Timestamps
       lastScanAt,
@@ -1451,6 +1639,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
               {controlsUI}
               {progressUI}
               {statsUI}
+              {debugUI}
             </ct-vstack>
           </ct-vscroll>
         </ct-screen>
