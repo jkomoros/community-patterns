@@ -417,3 +417,30 @@ All four Phase 2 improvements are implemented and working:
 - ✅ Exposed UI pieces (authUI, controlsUI, progressUI)
 - ✅ Token validation on scan start - prevents confusing 401 errors
 - ✅ Auth state accuracy - tokenMayBeExpired derive implemented
+
+### Outstanding Issue: Progress UI Not Showing During Scan
+
+**Problem:** The progress UI (showing "Scanning emails...", current query, completed searches) doesn't appear during scanning.
+
+**Root Cause:** The progress UI condition is `scanning && pending`:
+```typescript
+{derive([isScanning, agentPending], ([scanning, pending]) =>
+  scanning && pending ? ( ... ) : null
+)}
+```
+
+But `agentPending` from generateObject is `false` even while tool calls are actively running:
+- Debug shows: Is Scanning: Yes ⏳, Agent Pending: No ✓
+- Console shows tool calls executing (searchGmail running, finding emails)
+- `agentPending` doesn't reflect tool execution state - may only be true during initial prompt processing
+
+**Attempted Fix:** Changing condition to just `isScanning`:
+```typescript
+{derive(isScanning, (scanning) => scanning ? ( ... ) : null)}
+```
+**Result:** Caused "Too many iterations: 101" error - reactive loop
+
+**Next Steps:**
+1. Investigate why `agentPending` is false during tool execution
+2. Consider alternative ways to show progress (track via searchProgress cell changes)
+3. May need framework-level fix if agentPending behavior is incorrect
