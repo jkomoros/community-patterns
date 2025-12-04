@@ -145,4 +145,41 @@ Discovered while building prompt-injection-tracker-v3:
 
 ---
 
+## Framework Author Response (seefeldb, 2025-12-03)
+
+> "default propagation bug, hopefully Robin's bug fixes it"
+
+### Test Results (Dec 3, 2025)
+
+Testing with `2025-12-03-prepopulated-defaults-test.tsx`:
+
+| Approach | Items | generateObject Results |
+|----------|-------|------------------------|
+| `Default<T[], typeof CONST>` | 0 items | N/A (array empty!) |
+| Empty default + handler | 3 items | ✅ All work correctly |
+
+**Key finding:** The `typeof CONST` default syntax doesn't populate the array at all in our test. This might be a separate issue from the original superstition, or the same "default propagation bug" Berni mentioned.
+
+### Recommendation
+
+**Use the handler pattern until Robin's fix lands:**
+
+```typescript
+// Start with empty array
+items: Default<Item[], []>;
+
+// Load via handler
+const loadItems = handler<unknown, { items: Cell<Item[]> }>(
+  (_, { items }) => {
+    for (const item of DATA) items.push(item);
+  }
+);
+```
+
+### Repro
+
+See: `community-docs/superstitions/repros/2025-12-03-prepopulated-defaults-test.tsx`
+
+---
+
 **Confidence level:** HIGH (clear A/B test, reproducible)
