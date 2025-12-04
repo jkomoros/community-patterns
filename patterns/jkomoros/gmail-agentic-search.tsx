@@ -111,6 +111,19 @@ export interface GmailAgenticSearchInput {
   // State persistence
   isScanning?: Default<boolean, false>;
   lastScanAt?: Default<number, 0>;
+
+  // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
+  // Users can manually link gmail-auth's auth output to this input.
+  // If provided, this takes precedence over wish-based auth.
+  auth?: Default<Auth, {
+    token: "";
+    tokenType: "";
+    scope: [];
+    expiresIn: 0;
+    expiresAt: 0;
+    refreshToken: "";
+    user: { email: ""; name: ""; picture: "" };
+  }>;
 }
 
 export interface GmailAgenticSearchOutput {
@@ -127,6 +140,7 @@ export interface GmailAgenticSearchOutput {
   auth: Auth;
   isAuthenticated: boolean;
   hasGmailScope: boolean;
+  authSource: "direct" | "wish" | "none";  // Where auth came from
 
   // Agent state
   agentResult: any;
@@ -441,12 +455,16 @@ const GmailAgenticSearch = pattern<
     maxSearches,
     isScanning,
     lastScanAt,
+    auth: inputAuth,  // CT-1085 workaround: direct auth input
   }) => {
     // ========================================================================
     // AUTH HANDLING
     // ========================================================================
 
-    // Wish for auth charm
+    // Check if we have direct auth input (CT-1085 workaround)
+    const hasDirectAuth = derive(inputAuth, (a: Auth) => !!(a?.token));
+
+    // Wish for auth charm as fallback
     const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
     // 3-state logic for wished auth
@@ -459,9 +477,20 @@ const GmailAgenticSearch = pattern<
     });
 
     // Get auth from wish result
-    const auth = derive(wishResult, (wr) => {
-      const a = wr?.result?.auth;
-      if (a?.token) return a;
+    const wishedAuth = derive(wishResult, (wr) => wr?.result?.auth);
+    const hasWishedAuth = derive(wishedAuth, (a: Auth | undefined) => !!(a?.token));
+
+    // Combine auth: prefer direct input, fall back to wish
+    const auth = derive([inputAuth, wishedAuth], ([directAuth, wished]: [Auth, Auth | undefined]) => {
+      // Prefer direct input auth if it has a token
+      if (directAuth?.token) {
+        return directAuth;
+      }
+      // Fall back to wished auth
+      if (wished?.token) {
+        return wished;
+      }
+      // Return empty auth
       return {
         token: "",
         tokenType: "",
@@ -472,6 +501,13 @@ const GmailAgenticSearch = pattern<
         user: { email: "", name: "", picture: "" },
       };
     });
+
+    // Track where auth came from
+    const authSource = derive(
+      [hasDirectAuth, hasWishedAuth],
+      ([direct, wished]: [boolean, boolean]) =>
+        direct ? "direct" : wished ? "wish" : "none"
+    ) as Cell<"direct" | "wish" | "none">;
 
     const isAuthenticated = derive(
       auth,
@@ -940,7 +976,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                       textAlign: "center",
                     }}
                   >
-                    ✓ Gmail connected
+                    ✓ Gmail connected {derive(authSource, (src) => src === "direct" ? "(linked)" : "(shared)")}
                   </div>
                 </div>
               );
@@ -1306,6 +1342,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
       auth,
       isAuthenticated,
       hasGmailScope,
+      authSource,
 
       // Agent state
       agentResult,
