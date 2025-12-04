@@ -463,7 +463,7 @@ Also set `status: "searching"` immediately in `startScan` handler so progress UI
 ## Phase 3: Future Improvements
 
 ### Improvement 5: Agent Activity Log
-**Status:** [ ] Not started
+**Status:** [x] Implemented (2025-12-04)
 
 **Problem:** The current progress UI only shows search queries and email counts. Users can't see:
 - What the LLM is "thinking" at each step
@@ -471,49 +471,57 @@ Also set `status: "searching"` immediately in `startScan` handler so progress UI
 - Why the LLM decided to make certain searches
 - Full audit trail of agent decisions
 
-**Solution:** Add an optional activity log that shows:
-1. **Agent reasoning**: Brief summary of what the agent is trying to do
-2. **Tool calls**: Which tool, with what parameters, and results
-3. **Decisions**: "Examining email about X", "Skipping promotional email"
-4. **Findings**: "Found membership number in email from Date"
+**Implemented Solution:**
+Added `debugLog` cell and `debugUI` component:
 
-**Implementation Ideas:**
-- Add `activityLog: string[]` cell to track events
-- Have the agent output reasoning via a `logActivity` tool
-- Display in collapsible "Activity Log" section below progress UI
-- Consider: streaming/real-time vs batch updates
-- Consider: verbose mode toggle for debugging
+1. **DebugLogEntry type**: Tracks timestamp, type (info/search_start/search_result/error/summary), message, and optional details
+2. **addDebugLogEntry helper**: Adds entries to the debug log cell
+3. **Logging in searchGmailHandler**: Logs search start, results (with first 5 subject lines), and errors
+4. **Logging in startScan**: Logs scan start, token validation
+5. **Collapsible debugUI**: Terminal-style dark theme, color-coded by entry type
 
-**Example UI:**
+**Example output:**
 ```
-▼ Activity Log (12 entries)
-  [10:45:23] Starting search for Marriott memberships
-  [10:45:24] Searching: from:marriott "member" OR "membership"
-  [10:45:25] Found 20 emails from Marriott
-  [10:45:26] Examining: "Your Marriott Bonvoy statement" (Nov 2024)
-  [10:45:27] Found membership: #361200343 (Platinum Elite)
-  [10:45:28] Examining: "Welcome to Marriott Bonvoy" (Mar 2023)
-  [10:45:29] Found membership: #181938366 (Gold)
-  [10:45:30] Duplicate detected, skipping...
+▼ Debug Log (8 entries)
+  10:45:23 [info] Starting new scan...
+  10:45:24 [info] Validating Gmail token...
+  10:45:25 [info] Token valid - starting agent...
+  10:45:26 [search_start] Searching Gmail: "from:marriott.com"
+  10:45:27 [search_result] Found 20 emails for "from:marriott.com"
+  10:45:28 [search_start] Searching Gmail: "from:hilton.com"
   ...
 ```
 
-**Benefits:**
-- Transparency: Users can see exactly what the agent is doing
-- Debugging: Easier to diagnose when agent misses something
-- Trust: Users feel more confident with visible reasoning
-- Learning: Users can see patterns in their own email data
+**Benefits achieved:**
+- ✅ Transparency: Users see all tool calls
+- ✅ Debugging: Shows what searches happened and results
+- ✅ Collapsible: Doesn't clutter UI by default
 
-**Challenges:**
-- Token overhead: Need LLM to output activity info, costs tokens
-- UI complexity: Log could get very long, need good UX
-- Performance: Real-time updates vs batching
+**What's NOT included (deferred):**
+- LLM reasoning: Would require additional LLM calls (expensive)
+- "What the agent is thinking": generateObject doesn't expose internal reasoning
 
-**Workaround until implemented:**
-- Console.log statements (currently present) provide basic debugging
-- Users can check browser dev tools console
+### Improvement 6: LLM Progress Summaries
+**Status:** [ ] Deferred (expensive)
 
-### Improvement 6: Shared Cell for Pattern Composition (DOCUMENTED)
+**Problem:** While the debug log shows tool calls, it doesn't show what the LLM is deciding or reasoning about.
+
+**Why deferred:**
+- Would require making additional LLM calls during agent execution
+- Each "thinking step" summary would cost tokens and add latency
+- The `generateObject` API doesn't expose streaming internal reasoning
+
+**Possible future approaches:**
+1. **logThinking tool**: Give the agent a tool to explicitly log reasoning (uses tokens)
+2. **Streaming API**: If generateObject supports streaming in the future, capture reasoning tokens
+3. **Post-hoc summary**: After scan completes, ask LLM to summarize what it did (cheaper, delayed)
+
+For now, users can see:
+- Debug log with all tool calls
+- Console logs in browser dev tools
+- Agent's final summary in agentResult
+
+### Improvement 7: Shared Cell for Pattern Composition (DOCUMENTED)
 **Status:** [x] Documented as superstition
 
 When composing patterns, share cells as inputs for coordinated state rather than having child patterns create internal cells. See:
