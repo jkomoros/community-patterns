@@ -1,5 +1,24 @@
 # Input Two-Way Binding May Not Work Inside ifElse Conditionals
 
+## Framework Author Response (seefeldb, 2025-12-03)
+
+> "that's a bug, and a very strange one."
+
+Berni suggested a test to narrow down if the transformer is doing something unexpected:
+
+```tsx
+// Pull UI generation out of ifElse to see if transformation affects it
+const inputUI = (<div><ct-input $value={inputValue} />...</div>);
+
+return {
+  [UI]: (<div>{ifElse(showInput, inputUI, <div>Hidden</div>)}</div>)
+}
+```
+
+**Status:** CONFIRMED BUG - needs investigation into transformer behavior
+
+---
+
 ## Observation
 
 When using `<input>` or `<textarea>` elements with `value={cell}` inside the conditional branch of an `ifElse()`, the two-way binding appears not to work. The user can type in the input (visually), but the cell value doesn't update.

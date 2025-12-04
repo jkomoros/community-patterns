@@ -5,8 +5,20 @@ confirmed_count: 1
 last_confirmed: 2025-11-27
 sessions: [hotel-membership-extractor-agent]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
+status: intentional_design
 stars: ⭐
+---
+
+# Framework Author Clarification (seefeldb, 2025-12-03)
+
+> "that's a hack we added for handlers as tools, but in this example you should make a pattern and use `patternTool` to pass it in. Generally handlers are for when we have side effects (like adding something to a list) and pure computation should be patterns."
+
+**Key takeaway:**
+- **Pure computation** → Use `pattern` + `patternTool`
+- **Side effects** (modifying state, adding to lists) → Use `handler` + `result.set()`
+
+See also: `2025-12-03-use-patternTool-for-pure-computation.md`
+
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
