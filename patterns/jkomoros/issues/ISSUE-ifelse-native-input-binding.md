@@ -1,4 +1,4 @@
-# Bug: Native `<input value={cell}>` binding fails inside ifElse branches
+# Bug: Native `<input value={cell}>` binding fails inside ifElse branches (CT-1096)
 
 ## Summary
 

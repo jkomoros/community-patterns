@@ -1,4 +1,4 @@
-# Bug: derive() TypeScript types don't match runtime behavior
+# Bug: derive() TypeScript types don't match runtime behavior (CT-1097)
 
 ## Summary
 
