@@ -297,10 +297,13 @@ If user has an existing `google-auth` charm and wants to classify it:
 - [x] Verify hashtag character limitations (a-z, 0-9, - only)
 - [x] Create `google-auth-switcher.tsx` (post-hoc classification)
 
-### Phase 2: Gmail Updates
-- [ ] Add `accountType` input to `gmail-agentic-search.tsx`
-- [ ] Add account selector dropdown UI
-- [ ] Update other gmail patterns
+### Phase 2: Gmail Updates (IN PROGRESS)
+- [x] Add `accountType` input to `gmail-agentic-search.tsx`
+- [x] Add account selector dropdown UI
+- [x] Reactive wish based on accountType
+- [ ] Fix UI dropdown write (Default cell is read-only - framework limitation)
+- [ ] Update hotel-membership-gmail-agent to use accountType
+- [ ] Update gmail-importer to use accountType
 
 ### Phase 3: Future
 - [ ] Scope-based tags (#googleAuthGmail, etc.)
