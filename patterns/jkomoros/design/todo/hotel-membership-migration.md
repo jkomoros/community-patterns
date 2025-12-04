@@ -8,10 +8,9 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 
 ### Base Pattern (gmail-agentic-search.tsx)
 
-- [ ] **1. Direct auth input (CT-1085 workaround)** - Accept auth as direct input for when wish doesn't work
-  - Status: Not started
-  - Location in old: lines 74-82, 269-326
-  - Notes: Allows users to manually link auth when favorites don't persist
+- [x] **1. Direct auth input (CT-1085 workaround)** - Accept auth as direct input for when wish doesn't work
+  - Status: DONE (commit b97831e)
+  - Notes: Added `auth` input prop, `authSource` output, shows "(linked)" vs "(shared)" in UI
 
 - [x] **2. Auth error detection (401)** - Already in base pattern
   - Status: DONE - already exists in base (hasAuthError, authErrorMessage)
@@ -23,36 +22,33 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
   - Status: DONE - progressUI shows current query and completed searches
 
 - [ ] **5. "Recent" scan mode (last 7 days)** - Could be useful for base pattern
-  - Status: Not started
-  - Location in old: lines 506-514, 517-587
-  - Notes: Allows quick scans of just recent emails
+  - Status: SKIPPED - lower priority, can add later if needed
+  - Notes: Would allow quick incremental scans of just recent emails
 
 ### Hotel-Specific (hotel-membership-gmail-agent.tsx)
 
-- [ ] **6. Wish import from other charms** - Merge memberships from other extractors
-  - Status: Not started
-  - Location in old: lines 331-367
+- [x] **6. Wish import from other charms** - Merge memberships from other extractors
+  - Status: DONE (commit 84046e5)
   - Notes: Uses `wish("#hotelMemberships")` to get memberships from other charms
 
-- [ ] **7. Multi-account detection** - Warn when same brand has multiple numbers
-  - Status: Not started
-  - Location in old: lines 852-872, 1159-1196
-  - Notes: Nice-to-have UI feature
+- [x] **7. Multi-account detection** - Warn when same brand has multiple numbers
+  - Status: DONE (commit 84046e5)
+  - Notes: Shows warning UI with details about multiple accounts
 
 - [ ] **8. Scan mode selector UI** - Quick/Normal/Full modes
-  - Status: Not started
-  - Location in old: lines 765-771, 1255-1289
-  - Notes: Debug UI feature, lower priority
+  - Status: SKIPPED - Debug feature, lower priority
+  - Notes: Already has maxSearches input, users can change it
 
 ## Progress Log
 
 - 2025-12-03: Created TODO, analyzed both files
-- Features 2, 3, 4 already exist in base pattern
+- 2025-12-03: Features 2, 3, 4 already exist in base pattern
+- 2025-12-03: Added direct auth input to base pattern (commit b97831e)
+- 2025-12-03: Added wish import and multi-account detection to hotel pattern (commit 84046e5)
+- 2025-12-03: Fixed authSource type annotation (commit 297ab93)
+- 2025-12-03: Tested in Playwright - all features working
+- 2025-12-03: Ready to remove old hotel-membership-extractor.tsx
 
-## Next Steps
+## Migration Complete
 
-1. Start with Direct auth input (#1) - most impactful for usability
-2. Then Wish import (#6) - hotel-specific
-3. Then Multi-account detection (#7) - hotel-specific
-4. Consider "Recent" scan mode (#5) for base pattern
-5. Scan mode selector (#8) - low priority
+All critical features have been migrated. The old `hotel-membership-extractor.tsx` can be deleted.
