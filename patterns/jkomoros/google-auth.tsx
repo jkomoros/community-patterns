@@ -1,7 +1,5 @@
 /// <cts-enable />
-import { cell, Cell, Default, derive, handler, NAME, navigateTo, pattern, UI } from "commontools";
-import GoogleAuthPersonal from "./google-auth-personal.tsx";
-import GoogleAuthWork from "./google-auth-work.tsx";
+import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
@@ -82,26 +80,6 @@ const toggleScope = handler<
     });
   },
 );
-
-// Handler to classify as personal account
-const classifyAsPersonal = handler<
-  unknown,
-  { auth: Cell<Auth>; selectedScopes: Cell<SelectedScopes> }
->((_event, { auth, selectedScopes }) => {
-  // Create personal wrapper with the current auth and navigate to it
-  const wrapper = GoogleAuthPersonal({ auth: auth.get(), selectedScopes: selectedScopes.get() });
-  navigateTo(wrapper);
-});
-
-// Handler to classify as work account
-const classifyAsWork = handler<
-  unknown,
-  { auth: Cell<Auth>; selectedScopes: Cell<SelectedScopes> }
->((_event, { auth, selectedScopes }) => {
-  // Create work wrapper with the current auth and navigate to it
-  const wrapper = GoogleAuthWork({ auth: auth.get(), selectedScopes: selectedScopes.get() });
-  navigateTo(wrapper);
-});
 
 export default pattern<Input, Output>(
   ({ auth, selectedScopes }) => {
@@ -189,13 +167,19 @@ export default pattern<Input, Output>(
           <div
             style={{
               padding: "20px",
-              backgroundColor: "#f0f4f8",
+              backgroundColor: auth?.user?.email ? "#e5e7eb" : "#f0f4f8",
               borderRadius: "8px",
               border: "1px solid #d0d7de",
+              opacity: auth?.user?.email ? 0.7 : 1,
             }}
           >
             <h4 style={{ marginTop: "0", marginBottom: "12px" }}>
               Permissions
+              {auth?.user?.email && (
+                <span style={{ fontWeight: "normal", fontSize: "12px", color: "#6b7280", marginLeft: "8px" }}>
+                  (locked while authenticated)
+                </span>
+              )}
             </h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {Object.entries(SCOPE_DESCRIPTIONS).map(([key, description]) => (
@@ -204,13 +188,15 @@ export default pattern<Input, Output>(
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
-                    cursor: "pointer",
+                    cursor: auth?.user?.email ? "not-allowed" : "pointer",
+                    color: auth?.user?.email ? "#9ca3af" : "inherit",
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={derive(selectedScopes, (s) => s[key as keyof SelectedScopes])}
                     onChange={toggleScope({ selectedScopes, scopeKey: key })}
+                    disabled={derive(auth, (a) => !!a?.user?.email)}
                   />
                   <span>{description}</span>
                 </label>
@@ -234,58 +220,21 @@ export default pattern<Input, Output>(
             </div>
           )}
 
-          {/* Classification CTA - Main action after login */}
+          {/* Favorite reminder */}
           {auth?.user?.email && (
             <div
               style={{
-                padding: "20px",
-                backgroundColor: "#fff3cd",
-                borderRadius: "12px",
-                border: "2px solid #ffc107",
-                textAlign: "center",
+                padding: "15px",
+                backgroundColor: "#d4edda",
+                borderRadius: "8px",
+                border: "1px solid #28a745",
+                fontSize: "14px",
               }}
             >
-              <h3 style={{ margin: "0 0 12px 0", fontSize: "18px" }}>
-                What type of account is this?
-              </h3>
-              <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#666" }}>
-                Classify this account so patterns can find the right one
-              </p>
-              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                <button
-                  onClick={classifyAsPersonal({ auth, selectedScopes })}
-                  style={{
-                    padding: "12px 24px",
-                    fontSize: "16px",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Personal Account
-                </button>
-                <button
-                  onClick={classifyAsWork({ auth, selectedScopes })}
-                  style={{
-                    padding: "12px 24px",
-                    fontSize: "16px",
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Work Account
-                </button>
-              </div>
-              <p style={{ margin: "16px 0 0 0", fontSize: "12px", color: "#888" }}>
-                You'll be taken to the classified version to favorite it
-              </p>
+              <strong>Favorite this charm</strong> to share your Google auth
+              across all your patterns! Any pattern using{" "}
+              <code>wish("#googleAuth")</code> will automatically find and use
+              this authentication.
             </div>
           )}
 

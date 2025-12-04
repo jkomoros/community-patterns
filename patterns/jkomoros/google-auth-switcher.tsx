@@ -91,25 +91,23 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
     ),
     [UI]: (
       <div>
-        {/* Embed base auth UI */}
-        {baseAuth}
-
-        {/* Show classification buttons after login */}
+        {/* CLASSIFICATION CTA - Show at TOP after login */}
         {derive(isLoggedIn, (loggedIn) =>
           loggedIn ? (
             <div
               style={{
-                marginTop: "16px",
-                padding: "20px",
-                background: "#f8fafc",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
+                marginBottom: "20px",
+                padding: "24px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                borderRadius: "12px",
+                color: "white",
+                boxShadow: "0 4px 15px rgba(102, 126, 234, 0.4)",
               }}
             >
-              <h3 style={{ margin: "0 0 12px 0", fontSize: "18px" }}>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "20px", fontWeight: "bold" }}>
                 What type of account is this?
               </h3>
-              <p style={{ margin: "0 0 16px 0", color: "#64748b" }}>
+              <p style={{ margin: "0 0 16px 0", opacity: 0.9 }}>
                 Logged in as: <strong>{userEmail}</strong>
               </p>
 
@@ -120,14 +118,15 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
                     selectedScopes,
                   })}
                   style={{
-                    padding: "12px 24px",
+                    padding: "14px 28px",
                     background: "#3b82f6",
                     color: "white",
-                    border: "none",
-                    borderRadius: "6px",
+                    border: "2px solid white",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                   }}
                 >
                   Personal Account
@@ -138,14 +137,15 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
                     selectedScopes,
                   })}
                   style={{
-                    padding: "12px 24px",
+                    padding: "14px 28px",
                     background: "#dc2626",
                     color: "white",
-                    border: "none",
-                    borderRadius: "6px",
+                    border: "2px solid white",
+                    borderRadius: "8px",
                     cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "600",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                   }}
                 >
                   Work Account
@@ -156,16 +156,18 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
                 style={{
                   margin: "0",
                   fontSize: "13px",
-                  color: "#94a3b8",
+                  opacity: 0.8,
                   fontStyle: "italic",
                 }}
               >
-                Or favorite this charm directly for generic #googleAuth access
-                (works if you only have one account).
+                This will create a tagged wrapper and navigate you there to favorite.
               </p>
             </div>
           ) : null
         )}
+
+        {/* Embed base auth UI */}
+        {baseAuth}
       </div>
     ),
     auth: baseAuth.auth,
