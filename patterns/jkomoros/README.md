@@ -71,14 +71,16 @@ Import calendar events from Google Calendar.
 - Event listing and filtering
 - Date range queries
 
-#### `hotel-membership-extractor.tsx`
+#### `hotel-membership-gmail-agent.tsx`
 Extract hotel loyalty membership numbers from Gmail using LLM analysis.
+Composes the `gmail-agentic-search.tsx` base pattern.
 
 **Interesting features:**
-- Gmail search with effective query hints
-- LLM-powered membership number extraction
+- Pattern composition using GmailAgenticSearch base pattern
+- Agentic LLM-driven Gmail search with tool use
 - Multi-brand support (Hilton, Marriott, Hyatt, IHG, Accor)
-- Confidence scoring for extractions
+- Quick Scan (full search) and Check Recent (7-day) modes
+- Shared Google Auth via wish("#googleAuth")
 
 #### `meal-orchestrator.tsx`
 Plan multi-recipe meals with equipment scheduling and dietary analysis. Links to food-recipe and prepared-food charms.
