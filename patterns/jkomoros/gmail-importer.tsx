@@ -1027,17 +1027,23 @@ export default pattern<{
       }
     );
 
-    // Extract auth data from the effective auth charm
-    const auth = derive(effectiveAuthCharm, (charm) =>
-      charm?.auth || {
-        token: "",
-        tokenType: "",
-        scope: [],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      });
+    // Access auth directly from the effective charm (NOT derived!)
+    // By accessing .auth as a property path rather than deriving it,
+    // the framework maintains the live Cell reference that can be written to.
+    // This is critical for token refresh to persist back to the source charm.
+    // See: community-docs/superstitions/2025-01-24-pass-cells-as-handler-params-not-closure.md
+    const auth = effectiveAuthCharm.auth;
+
+    // Default auth values for display when no charm is available
+    const defaultAuth = {
+      token: "",
+      tokenType: "",
+      scope: [] as string[],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    };
 
     const isAuthenticated = derive(auth, (a) => a?.user?.email ? true : false);
 
