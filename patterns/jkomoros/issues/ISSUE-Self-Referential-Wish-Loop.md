@@ -126,18 +126,38 @@ When a composed pattern has a self-referential wish, the reactive graph may crea
 - **Debug time:** Hours (we spent significant time before identifying the cause)
 - **Affected patterns:** Any pattern using wish for data aggregation
 
+## Framework Author Feedback (2025-12-04)
+
+> "Unrelated observation: The createReportTool handler factory won't work as expected once we do proper sandboxing (in particular the passing of functions and then creating handlers by closing over the passed in config). Interesting signal, we need some other way to generate these."
+>
+> "There's a lot going on here, but IIUC what happens is that we keep merging the local list with the merged list (that also includes the locals after one run) and maybe the result is unstable and so not idempotent and thus we indeed have an infinite loop. However, those kinds we would detect (and you get the 101 iterations error)."
+
+**Key insight:** The merge operation may produce unstable results because:
+1. First run: merge(local, wished=[]) → merged contains local
+2. Wish resolves to this charm's output (which now contains merged)
+3. Second run: merge(local, wished=merged) → new merged with duplicates handled
+4. If the result differs from step 1, the reactive system re-runs
+5. Repeat...
+
+The framework normally detects these with "101 iterations error" but something about this case may bypass that detection.
+
 ## Related
 
 - Superstition: `community-docs/superstitions/2025-12-04-self-referential-wish-causes-infinite-loop.md`
-- Pattern: `patterns/jkomoros/hotel-membership-gmail-agent.tsx`
+- Original pattern: `patterns/jkomoros/hotel-membership-gmail-agent.tsx`
+- Minimal repro: `patterns/jkomoros/WIP/self-referential-wish-repro.tsx`
+- Full problematic code: `~/Downloads/hotel-membership-problematic.tsx`
+- Full base pattern: `~/Downloads/gmail-agentic-search-problematic.tsx`
 
 ## Environment
 
 - Framework: CommonTools
 - Pattern file: hotel-membership-gmail-agent.tsx
 - Date discovered: 2025-12-04
+- Ticket: CT-1098
 
 ---
 
 **Filed by:** Claude Code session (hotel-membership-migration-check-recent)
 **Date:** 2025-12-04
+**Updated:** 2025-12-04 (added framework author feedback and minimal repro)
