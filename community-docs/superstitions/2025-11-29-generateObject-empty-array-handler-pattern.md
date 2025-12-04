@@ -5,8 +5,16 @@ confirmed_count: 1
 last_confirmed: 2025-11-29
 sessions: [prompt-injection-tracker-v3]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
+status: confirmed_bug
 stars: ⭐⭐⭐⭐
+---
+
+# CONFIRMED BUG (Framework Author: seefeldb, 2025-12-03)
+
+> "default propagation bug, hopefully robin's bug fixes it"
+
+**This is a known default propagation bug.** Robin may have a fix in progress. Use the empty array + handler workaround until fixed.
+
 ---
 
 # ⚠️ SUPERSTITION - NEEDS VERIFICATION
