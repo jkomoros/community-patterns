@@ -87,21 +87,26 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
         {/* Embed the base auth UI */}
         {baseAuth}
 
-        {/* Additional guidance */}
+        {/* Prominent favorite CTA */}
         {derive(baseAuth.auth, (a) => a?.user?.email) && (
           <div
             style={{
               marginTop: "16px",
-              padding: "12px",
-              background: "#eff6ff",
-              borderRadius: "8px",
-              fontSize: "14px",
+              padding: "20px",
+              background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
+              borderRadius: "12px",
+              border: "2px solid #3b82f6",
+              textAlign: "center",
             }}
           >
-            <strong>Personal Account</strong>
-            <p style={{ margin: "8px 0 0 0" }}>
-              Favorite this charm to use it for personal Gmail access.
-              Patterns can find it via <code>#googleAuthPersonal</code>.
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", color: "#1e40af" }}>
+              Favorite This Charm!
+            </h3>
+            <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#3b82f6" }}>
+              Click the star to save your personal Google auth
+            </p>
+            <p style={{ margin: "0", fontSize: "13px", color: "#64748b" }}>
+              Patterns can then find it via <code style={{ background: "#e0e7ff", padding: "2px 6px", borderRadius: "4px" }}>#googleAuthPersonal</code>
             </p>
           </div>
         )}
