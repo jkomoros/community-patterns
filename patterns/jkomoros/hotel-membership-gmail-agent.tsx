@@ -13,6 +13,7 @@ import {
   NAME,
   pattern,
   UI,
+  wish,
 } from "commontools";
 import GmailAgenticSearch, { createReportTool } from "./gmail-agentic-search.tsx";
 
@@ -130,6 +131,83 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
     });
 
     // ========================================================================
+    // WISH IMPORT: Find existing memberships from other charms
+    // ========================================================================
+
+    // Wish for existing memberships from other hotel-membership charms
+    const wishedMembershipsCharm = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
+
+    // Extract wished memberships (if any)
+    const wishedMemberships = derive(wishedMembershipsCharm, (wishState: { result?: HotelMembershipOutput; error?: any }) =>
+      wishState?.result?.memberships || []
+    );
+
+    // Merge local memberships with wished memberships (deduplicated by brand+number)
+    const allMemberships = derive(
+      [memberships, wishedMemberships],
+      ([local, wished]: [MembershipRecord[], MembershipRecord[]]) => {
+        const seen = new Set<string>();
+        const merged: MembershipRecord[] = [];
+
+        // Add local memberships first (they take precedence)
+        for (const m of (local || [])) {
+          const key = `${m.hotelBrand}:${m.membershipNumber}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(m);
+          }
+        }
+
+        // Add wished memberships that we don't already have
+        for (const m of (wished || [])) {
+          const key = `${m.hotelBrand}:${m.membershipNumber}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push({ ...m, _fromWish: true } as MembershipRecord & { _fromWish?: boolean });
+          }
+        }
+
+        return merged;
+      }
+    );
+
+    // Track counts
+    const localMembershipCount = derive(memberships, (list) => list?.length || 0);
+    const wishedMembershipCount = derive(wishedMemberships, (list) => list?.length || 0);
+    const hasWishedMemberships = derive(wishedMemberships, (list) => (list?.length || 0) > 0);
+
+    // ========================================================================
+    // MULTI-ACCOUNT DETECTION
+    // ========================================================================
+
+    // Find brands with multiple different membership numbers
+    const brandsWithMultipleAccounts = derive(allMemberships, (list: MembershipRecord[]) => {
+      const brandNumbers: Record<string, Set<string>> = {};
+
+      for (const m of (list || [])) {
+        if (!brandNumbers[m.hotelBrand]) {
+          brandNumbers[m.hotelBrand] = new Set();
+        }
+        brandNumbers[m.hotelBrand].add(m.membershipNumber);
+      }
+
+      const multiAccountBrands: Record<string, { numbers: string[]; memberships: MembershipRecord[] }> = {};
+
+      for (const [brand, numbers] of Object.entries(brandNumbers)) {
+        if (numbers.size > 1) {
+          multiAccountBrands[brand] = {
+            numbers: Array.from(numbers),
+            memberships: (list || []).filter(m => m.hotelBrand === brand),
+          };
+        }
+      }
+
+      return multiAccountBrands;
+    });
+
+    const hasMultipleAccounts = derive(brandsWithMultipleAccounts, (brands) => Object.keys(brands).length > 0);
+
+    // ========================================================================
     // DYNAMIC AGENT GOAL
     // ========================================================================
     const agentGoal = derive(
@@ -218,9 +296,10 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
     // ========================================================================
     // DERIVED VALUES
     // ========================================================================
-    const totalMemberships = derive(memberships, (list) => list?.length || 0);
+    // Use allMemberships (local + imported) for display
+    const totalMemberships = derive(allMemberships, (list) => list?.length || 0);
 
-    const groupedMemberships = derive(memberships, (list: MembershipRecord[]) => {
+    const groupedMemberships = derive(allMemberships, (list: MembershipRecord[]) => {
       const groups: Record<string, MembershipRecord[]> = {};
       if (!list) return groups;
       for (const m of list) {
@@ -244,6 +323,11 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
 
       [UI]: (
         <ct-screen>
+          {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
+          <div style={{ display: "none" }}>
+            {wishedMembershipsCharm}
+          </div>
+
           <div slot="header">
             <h2 style={{ margin: "0", fontSize: "18px" }}>Hotel Memberships</h2>
           </div>
@@ -256,7 +340,54 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               {/* Stats */}
               <div style={{ fontSize: "13px", color: "#666" }}>
                 <div>Total Memberships: {totalMemberships}</div>
+                {derive([localMembershipCount, wishedMembershipCount], ([local, wished]) =>
+                  wished > 0 ? (
+                    <div style={{ fontSize: "11px", color: "#888" }}>
+                      ({local} local, {wished} imported from other charms)
+                    </div>
+                  ) : null
+                )}
               </div>
+
+              {/* Multi-Account Warning */}
+              {derive([hasMultipleAccounts, brandsWithMultipleAccounts], ([hasMulti, multiBrands]) =>
+                hasMulti ? (
+                  <div style={{
+                    padding: "16px",
+                    background: "#fffbeb",
+                    border: "1px solid #fde68a",
+                    borderRadius: "8px",
+                  }}>
+                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#92400e", marginBottom: "8px" }}>
+                      Multiple Accounts Detected
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#78350f" }}>
+                      {Object.entries(multiBrands).map(([brand, data], brandIdx) => (
+                        <div key={brandIdx} style={{ marginBottom: "8px", padding: "8px", background: "white", borderRadius: "4px" }}>
+                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>{brand}</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            Found {data.numbers.length} different membership numbers:
+                            <ul style={{ margin: "4px 0 0 16px", padding: "0" }}>
+                              {data.numbers.map((num: string, i: number) => {
+                                const membership = data.memberships.find((m: MembershipRecord) => m.membershipNumber === num);
+                                return (
+                                  <li key={i} style={{ marginBottom: "2px" }}>
+                                    <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: "2px" }}>{num}</code>
+                                    {membership?.tier && <span style={{ marginLeft: "4px" }}>({membership.tier})</span>}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#92400e", marginTop: "4px", fontStyle: "italic" }}>
+                            This could be: old vs new account, family member, or work vs personal
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              )}
 
               {/* Memberships List - Hotel-specific UI */}
               <div>
@@ -305,8 +436,9 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                           <div
                             style={{
                               padding: "8px",
-                              background: "#f8f9fa",
+                              background: (m as any)._fromWish ? "#e0f2fe" : "#f8f9fa",
                               borderRadius: "4px",
+                              border: (m as any)._fromWish ? "1px dashed #0ea5e9" : "none",
                             }}
                           >
                             <div
@@ -314,9 +446,23 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                                 fontWeight: "600",
                                 fontSize: "13px",
                                 marginBottom: "4px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
                               }}
                             >
                               {m.programName}
+                              {(m as any)._fromWish && (
+                                <span style={{
+                                  fontSize: "10px",
+                                  background: "#0ea5e9",
+                                  color: "white",
+                                  padding: "2px 6px",
+                                  borderRadius: "10px",
+                                }}>
+                                  imported
+                                </span>
+                              )}
                             </div>
                             <div style={{ marginBottom: "4px" }}>
                               <code
@@ -378,6 +524,9 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                     )}
                   </div>
                   <div style={{ fontFamily: "monospace" }}>
+                    Auth Source: {searcher.authSource}
+                  </div>
+                  <div style={{ fontFamily: "monospace" }}>
                     Is Scanning:{" "}
                     {derive(searcher.isScanning, (s) => (s ? "Yes ⏳" : "No"))}
                   </div>
@@ -393,6 +542,15 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                   </div>
                   <div style={{ fontFamily: "monospace" }}>
                     Max Searches: {maxSearches}
+                  </div>
+                  <div style={{ fontFamily: "monospace" }}>
+                    Local Memberships: {localMembershipCount}
+                  </div>
+                  <div style={{ fontFamily: "monospace" }}>
+                    Imported Memberships: {wishedMembershipCount}
+                  </div>
+                  <div style={{ fontFamily: "monospace" }}>
+                    Has Multiple Accounts: {derive(hasMultipleAccounts, (h) => h ? "Yes ⚠️" : "No")}
                   </div>
                 </ct-vstack>
               </details>
