@@ -38,7 +38,13 @@ export default pattern(({ items, title }) => {
 
 `computed()` and `derive()` are **the same thing** (derive is the older name). They create reactive derived values that automatically update.
 
+**Mental Model:** Think of these like React's `useMemo` - reactive computations that re-run when dependencies change.
+
 ```typescript
+// React useMemo (for comparison)
+const doubled = useMemo(() => count * 2, [count]);
+
+// CommonTools computed/derive (similar concept)
 const completedTasks = computed(() => items.filter(t => t.done));
 const totalPrice = computed(() => items.reduce((sum, i) => sum + i.price, 0));
 ```

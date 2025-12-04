@@ -1,34 +1,36 @@
-# Folk Wisdom: derive() with Object Parameter Doesn't Auto-Unwrap Cells
+# Folk Wisdom: derive() Works Like React's useMemo
 
 **Date Created:** 2025-11-22
-**Original Author:** jkomoros
-**Status:** Folk Wisdom (multiple confirmations)
-**Promoted From:** Superstition (2025-11-22)
+**Updated:** 2025-12-04
+**Status:** Folk Wisdom (framework author clarified)
 
 ## Summary
 
-When using `derive()` with a single Cell, the framework automatically unwraps the value. However, when passing multiple Cells as an object, the framework passes the Cell objects themselves and does NOT unwrap them automatically.
+`derive()` is analogous to React's `useMemo` - it creates a reactive computation that re-runs when dependencies change. Values passed to the callback are directly usable without any special unwrapping.
 
-## Confirmed Instances
+## Mental Model
 
-### Instance 1: AI Clue Generation (codenames-helper)
-- **Location:** patterns/jkomoros/WIP/codenames-helper.tsx (lines 450-485)
-- **Bug:** AI clue generation silently failed because `values.setupMode` was always truthy (Cell object)
-- **Fix:** Manual .get() calls on all Cell values
-- **Test Space:** test-jkomoros-27 (debug), test-jkomoros-28 (fixed)
+Think of `derive()` like `useMemo`:
 
-### Instance 2: AI Extraction Preview (codenames-helper)
-- **Location:** patterns/jkomoros/WIP/codenames-helper.tsx (lines 986-996)
-- **Bug:** Board words preview showed dashes because `result.boardWords` was undefined (accessing property on Cell object)
-- **Fix:** Manual .get() calls on pending, result, and approvalState
-- **Test Space:** test-jkomoros-29 (fixed)
+```typescript
+// React useMemo
+const doubled = useMemo(() => count * 2, [count]);
 
-## Observed Behavior
+// CommonTools derive (similar concept)
+const doubled = derive(count, (value) => value * 2);
+```
 
-### Works (Single Cell)
+Both:
+- Take dependencies and a computation function
+- Re-run when dependencies change
+- Return the computed value
+
+## Usage
+
+### Single Dependency
 ```typescript
 const message = derive(setupMode, (value) => {
-  // value is a boolean, already unwrapped ✓
+  // value is directly usable as boolean
   if (value) {
     return "Setup mode active";
   }
@@ -36,92 +38,39 @@ const message = derive(setupMode, (value) => {
 });
 ```
 
-### Doesn't Work (Object Parameter)
+### Multiple Dependencies (Object)
 ```typescript
 const prompt = derive({ board, setupMode, myTeam }, (values) => {
-  // BUG: values.setupMode is a CellImpl object, not a boolean!
-  if (values.setupMode) {  // Always truthy because Cell object exists
+  // values.setupMode is directly usable as boolean
+  // values.board is directly usable as your data type
+  if (values.setupMode) {
     return "Not in game mode yet.";
   }
-  // This code never executes
+  return `Board has ${values.board.length} words`;
 });
 ```
 
-### Fix (Manual Unwrapping)
-```typescript
-const prompt = derive({ board, setupMode, myTeam }, (values) => {
-  // Manually unwrap each Cell value
-  const setupModeValue = values.setupMode.get();
-  const boardData = values.board.get();
-  const myTeamValue = values.myTeam.get();
+## TypeScript Types
 
-  // Now use the unwrapped values
-  if (setupModeValue) {
-    return "Not in game mode yet.";
-  }
-  // Works correctly!
-});
-```
+The types use `OpaqueRef<T>` which is defined as `OpaqueCell<T> & T`. This means:
+- TypeScript sees it as compatible with `T`
+- You can use values directly without `.get()`
+- No type assertions or `@ts-ignore` needed
 
-### Defensive Coding Pattern
-```typescript
-// Safe unwrapping that handles both Cell and plain values
-const prompt = derive({ board, setupMode, myTeam }, (values) => {
-  const setupModeValue = (values.setupMode as any).get
-    ? (values.setupMode as any).get()
-    : values.setupMode;
-  const boardData = (values.board as any).get
-    ? (values.board as any).get()
-    : values.board;
-  const myTeamValue = (values.myTeam as any).get
-    ? (values.myTeam as any).get()
-    : values.myTeam;
+## Historical Note
 
-  // Use unwrapped values safely
-});
-```
+Earlier documentation incorrectly suggested that object parameters required manual `.get()` calls. This was based on misinterpreted observations. The framework author clarified (Dec 2025) that:
 
-## Technical Details
+1. Values ARE directly usable without `.get()`
+2. The `OpaqueRef<T> & T` type means values work as `T`
+3. The `useMemo` analogy is more accurate than "wrapping/unwrapping"
 
-When debugging with console.log, Cell objects appear as:
-```
-setupMode: <ref *2> CellImpl {
-  runtime: <ref *1> Runtime { ... },
-  tx: undefined,
-  synced: true,
-  ...
-}
-```
+## See Also
 
-This confirms the framework is passing Cell objects, not primitive values.
+- `computed()` - Even closer to `useMemo`, preferred for new code
+- Framework docs on reactivity
 
-## Rule of Thumb
+## Framework Author Guidance
 
-- **Single Cell:** `derive(cell, callback)` → value is unwrapped automatically ✓
-- **Multiple Cells (Object):** `derive({ cell1, cell2 }, callback)` → must call `.get()` manually on each value ✗
-- **Always check types** when using derive() with objects if unexpected behavior occurs
-- **Symptom:** Conditions on Cell values are always truthy, or accessing properties returns undefined
-
-## Common Bugs This Causes
-
-1. **Always-truthy conditionals**: `if (values.someCell)` always executes because Cell object exists
-2. **Undefined property access**: `values.cellWithObject.property` returns undefined
-3. **Silent failures**: Logic appears correct but never executes the expected branch
-4. **Type errors**: Trying to use Cell object as if it were the underlying value
-
-## Questions for Framework Authors
-
-1. Is this intentional behavior or a framework limitation?
-2. Would it be possible to auto-unwrap Cell values in object parameters?
-3. Are there performance or architectural reasons for this design?
-4. Should this be documented in official framework docs?
-
-## Related Patterns
-
-- codenames-helper.tsx: AI clue generation (lines 450-485)
-- codenames-helper.tsx: AI extraction preview (lines 986-996)
-- Any pattern using derive() with multiple Cells as an object parameter
-
-## Community Notes
-
-This behavior was discovered independently in two different parts of the same pattern, both causing real bugs that required the same fix. The consistency of this behavior across different contexts suggests it's a fundamental framework design choice rather than a bug.
+> "We shouldn't even talk about wrapping or unwrapping until we introduce explicit opaqueness markers. It's really a lot more like useMemo in React, so we could try that analogy (and computed is even closer to that FWIW)."
+> — seefeldb (2025-12-04)

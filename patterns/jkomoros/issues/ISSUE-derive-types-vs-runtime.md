@@ -1,68 +1,36 @@
-# Bug: derive() TypeScript types don't match runtime behavior (CT-1097)
+# RESOLVED: derive() TypeScript types (CT-1097)
 
-## Summary
+## Status: RESOLVED - Not a Bug
 
-`derive()` with object parameters has TypeScript types that say `Cell<T>`, but runtime auto-unwraps to `T`. This forces developers to either:
-- Use `.get()` (satisfies TS but is unnecessary at runtime)
-- Use `// @ts-ignore` (works at runtime but loses type safety)
+The framework author investigated and found the types ARE correct.
 
-## Minimal Repro
+## Original Concern
 
-```tsx
-import { Cell, derive, pattern } from "commontools";
+We thought `derive()` with object parameters had TypeScript types that said `Cell<T>`, but runtime auto-unwrapped to `T`.
 
-interface Input {
-  flag: Default<boolean, true>;
-  count: Default<number, 42>;
-}
+## Framework Author Response (2025-12-04)
 
-export default pattern<Input, ...>(({ flag, count }) => {
-  const result = derive({ flag, count }, (values) => {
-    // TypeScript thinks: values.flag is Cell<boolean>, values.count is Cell<number>
-    // Runtime reality: values.flag is boolean, values.count is number
+> "Just tried to repro by creating a test.tsx file in packages/patterns on main and IDE shows me [OpaqueRef & T] which is actually OpaqueRef, which because of the & is really basically T."
+>
+> "Either way, it's not a Cell and there is no TS error when omitting .get(). There is also a unit test that explicitly tests this scenario."
+>
+> "So might be worth double checking your environment. Or the problem is upstream in the prompt and how we explain derive. We shouldn't even talk about wrapping or unwrapping until we introduce explicit opaqueness markers. It's really a lot more like useMemo in React, so we could try that analogy (and computed is even closer to that FWIW)."
 
-    // This causes TS error but WORKS at runtime:
-    return values.flag ? values.count * 2 : 0;  // Returns 84
+## Resolution
 
-    // This satisfies TS but is UNNECESSARY at runtime:
-    return values.flag.get() ? values.count.get() * 2 : 0;
-  });
-});
-```
+1. **Types are correct**: `OpaqueRef<T> & T` is essentially `T`
+2. **No `.get()` needed**: Values are directly usable
+3. **Mental model**: Think of `derive()` like React's `useMemo`
+4. **Documentation updated**: Folk wisdom now uses correct analogy
 
-## Test Results
+## What We Learned
 
-| Test | typeof at runtime | hasGet() method | Direct use works |
-|------|-------------------|-----------------|------------------|
-| Single Cell `derive(flag, ...)` | boolean | NO | ✅ Yes |
-| Object param `values.flag` | boolean | NO | ✅ Yes |
-| Object param `values.count` | number | NO | ✅ Yes |
+- Don't use "wrapping/unwrapping" language for derive
+- `derive()` is like `useMemo` - reactive computation with dependencies
+- `computed()` is even closer to `useMemo`
+- When in doubt, test in a clean environment
 
-**Expression `flag ? count*2 : 0`:** Returns `84` without `.get()` - values ARE auto-unwrapped!
+## Related Updates
 
-## Framework Author Response
-
-> "If they are indeed `Cell`, then it's a bug that they get unwrapped. there's a bunch of TS magic going on here, so maybe it's doing the wrong thing, or some crosstalk with the transformer. worth investigating, clearly TS and the runtime shouldn't disagree as documented here."
-
-— seefeldb (2025-12-03)
-
-## Expected Behavior
-
-Either:
-1. **Fix types:** `derive({ a, b }, (values) => ...)` should type `values.a` as `T`, not `Cell<T>`
-2. **Fix runtime:** Pass actual Cell objects (with `.get()`) to match the types
-
-## Workaround
-
-Use `// @ts-ignore` or type assertions to silence TS errors:
-
-```tsx
-const result = derive({ flag, count }, (values) => {
-  // @ts-ignore - runtime auto-unwraps despite types saying Cell
-  return values.flag ? values.count * 2 : 0;
-});
-```
-
-## Full Repro Pattern
-
-See: `community-docs/superstitions/repros/2025-12-03-derive-types-vs-runtime-test.tsx`
+- Updated: `community-docs/folk_wisdom/derive-object-parameter-cell-unwrapping.md`
+- Superseded: `community-docs/superstitions/2025-11-22-derive-object-parameter-cell-unwrapping.md`
