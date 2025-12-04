@@ -505,9 +505,9 @@ const GmailAgenticSearch = pattern<
     // Track where auth came from
     const authSource = derive(
       [hasDirectAuth, hasWishedAuth],
-      ([direct, wished]: [boolean, boolean]) =>
+      ([direct, wished]: [boolean, boolean]): "direct" | "wish" | "none" =>
         direct ? "direct" : wished ? "wish" : "none"
-    ) as Cell<"direct" | "wish" | "none">;
+    );
 
     const isAuthenticated = derive(
       auth,
