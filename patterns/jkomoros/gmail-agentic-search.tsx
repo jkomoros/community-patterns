@@ -976,7 +976,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                       textAlign: "center",
                     }}
                   >
-                    ✓ Gmail connected {derive(authSource, (src) => src === "direct" ? "(linked)" : "(shared)")}
+                    ✓ Gmail connected {derive(authSource, (src: "direct" | "wish" | "none") => src === "direct" ? "(linked)" : "(shared)")}
                   </div>
                 </div>
               );
