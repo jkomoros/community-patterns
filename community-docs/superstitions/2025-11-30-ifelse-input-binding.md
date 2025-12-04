@@ -1,5 +1,28 @@
 # Input Two-Way Binding May Not Work Inside ifElse Conditionals
 
+## Framework Author Response (seefeldb, 2025-12-03)
+
+> "that's a bug, and a very strange one."
+
+## NARROWING TEST RESULTS (2025-12-03)
+
+**The bug is specific to native `<input>` elements, NOT `<ct-input>`!**
+
+| Input Type | In ifElse | Result |
+|------------|-----------|--------|
+| `<input value={cell}>` | Yes | ❌ Cell stays empty |
+| `<ct-input $value={cell}>` | Yes | ✅ Cell updates correctly |
+
+**Repro:** `repros/2025-12-03-ifelse-binding-native-input-test.tsx`
+
+### Workaround
+
+Use `<ct-input $value={cell}>` instead of native `<input value={cell}>` inside ifElse branches.
+
+**Status:** CONFIRMED BUG - specific to native HTML inputs in ifElse
+
+---
+
 ## Observation
 
 When using `<input>` or `<textarea>` elements with `value={cell}` inside the conditional branch of an `ifElse()`, the two-way binding appears not to work. The user can type in the input (visually), but the cell value doesn't update.
