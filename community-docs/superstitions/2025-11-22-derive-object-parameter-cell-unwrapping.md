@@ -109,3 +109,32 @@ This bug caused AI clue generation to silently fail. The derive() callback alway
 - Tested in: test-jkomoros-27 (debug logging added)
 - Fixed in: test-jkomoros-28
 - Confirmed with browser console inspection showing CellImpl objects
+
+---
+
+## ⚠️ UPDATE (Dec 3, 2025): TYPES BUG CONFIRMED
+
+**Testing with `2025-12-03-derive-types-vs-runtime-test.tsx` showed:**
+
+| Test | typeof | hasGet() | Result |
+|------|--------|----------|--------|
+| Single Cell `derive(flag, ...)` | boolean | NO | Auto-unwrapped |
+| Object `flag` | boolean | NO | Auto-unwrapped |
+| Object `count` | number | NO | Auto-unwrapped |
+| Direct use `flag ? count*2 : 0` | - | - | ✅ Works = 84 |
+
+**Both single Cell AND object params ARE auto-unwrapped at runtime!**
+
+### Framework Author Response (seefeldb, 2025-12-03)
+
+> "If they are indeed `Cell`, then it's a bug that they get unwrapped. there's a bunch of TS magic going on here, so maybe it's doing the wrong thing, or some crosstalk with the transformer. worth investigating, clearly TS and the runtime shouldn't disagree as documented here."
+
+### Conclusion
+
+- **Original superstition was WRONG** - Object params DO auto-unwrap
+- **This is a TypeScript types bug** - TS says `Cell<T>`, runtime gives `T`
+- **Workaround:** Use values directly without `.get()`, ignore TS errors with `// @ts-ignore`
+
+### Repro
+
+See: `community-docs/superstitions/repros/2025-12-03-derive-types-vs-runtime-test.tsx`
