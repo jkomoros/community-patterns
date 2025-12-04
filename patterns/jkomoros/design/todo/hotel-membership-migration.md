@@ -21,9 +21,9 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 - [x] **4. Detailed progress UI** - Already in base pattern
   - Status: DONE - progressUI shows current query and completed searches
 
-- [ ] **5. "Recent" scan mode (last 7 days)** - Could be useful for base pattern
-  - Status: SKIPPED - lower priority, can add later if needed
-  - Notes: Would allow quick incremental scans of just recent emails
+- [x] **5. "Recent" scan mode (last 7 days)** - Added to hotel pattern
+  - Status: DONE (in hotel-membership-gmail-agent.tsx)
+  - Notes: "Check Recent" button searches last 7 days, focuses on brands not yet found
 
 ### Hotel-Specific (hotel-membership-gmail-agent.tsx)
 
@@ -48,6 +48,7 @@ Migrate features from the old `hotel-membership-extractor.tsx` to either:
 - 2025-12-03: Fixed authSource type annotation (commit 297ab93)
 - 2025-12-03: Tested in Playwright - all features working
 - 2025-12-03: Ready to remove old hotel-membership-extractor.tsx
+- 2025-12-03: Added "Check Recent" scan mode to hotel pattern
 
 ## Migration Complete
 
