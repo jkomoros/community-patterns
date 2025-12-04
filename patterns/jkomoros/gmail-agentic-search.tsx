@@ -187,85 +187,54 @@ export interface GmailAgenticSearchOutput {
 }
 
 // ============================================================================
-// CREATE REPORT TOOL HELPER
+// NOTE: createReportTool HAS BEEN REMOVED
 // ============================================================================
-
-/**
- * Configuration for createReportTool
- */
-export interface ReportToolConfig<T extends Record<string, any>> {
-  /** Prefix for generated IDs (e.g., "membership", "food") */
-  idPrefix: string;
-
-  /** Function to generate a deduplication key from input */
-  dedupeKey: (input: T) => string;
-
-  /** Transform input to the stored record (add id, timestamp, etc.) */
-  toRecord: (input: T, id: string, timestamp: number) => T & { id: string };
-}
-
-/**
- * Creates a report tool handler for saving items to a list with deduplication.
- *
- * Usage:
- * ```typescript
- * const reportMembershipHandler = createReportTool<MembershipInput, MembershipRecord>({
- *   idPrefix: "membership",
- *   dedupeKey: (input) => `${input.brand}-${input.memberNumber}`,
- *   toRecord: (input, id, timestamp) => ({
- *     ...input,
- *     id,
- *     savedAt: timestamp,
- *   }),
- * });
- *
- * // Use in pattern:
- * const boundHandler = reportMembershipHandler({ items: membershipsCell });
- * ```
- */
-export function createReportTool<
-  TInput extends Record<string, any>,
-  TRecord extends { id: string },
->(config: ReportToolConfig<TInput>) {
-  return handler<
-    TInput & { result?: Cell<any> },
-    { items: Cell<TRecord[]> }
-  >((input, state) => {
-    const currentItems = state.items.get() || [];
-
-    // Generate dedup key
-    const key = config.dedupeKey(input).toLowerCase();
-    const existingKeys = new Set(
-      currentItems.map((item) => config.dedupeKey(item as unknown as TInput).toLowerCase()),
-    );
-
-    let resultMessage: string;
-
-    if (existingKeys.has(key)) {
-      console.log(`[ReportTool] Duplicate skipped: ${key}`);
-      resultMessage = `Duplicate: ${key} already saved`;
-    } else {
-      // Generate unique ID
-      const id = `${config.idPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const timestamp = Date.now();
-
-      // Transform to record
-      const newRecord = config.toRecord(input, id, timestamp) as unknown as TRecord;
-
-      state.items.set([...currentItems, newRecord]);
-      console.log(`[ReportTool] SAVED: ${key}`);
-      resultMessage = `Saved: ${key}`;
-    }
-
-    // Write result if cell provided
-    const resultCell = (input as any).result;
-    if (resultCell) {
-      resultCell.set({ success: true, message: resultMessage });
-    }
-
-    return { success: true, message: resultMessage };
-  });
-}
+//
+// The createReportTool factory function was removed because it passes functions
+// as config, which won't work with future framework sandboxing.
+//
+// INSTEAD: Use inline handlers in your pattern. Example:
+//
+// ```typescript
+// const reportHandler = handler<
+//   { field1: string; field2: string; result?: Cell<any> },
+//   { items: Cell<MyRecord[]> }
+// >((input, state) => {
+//   const currentItems = state.items.get() || [];
+//
+//   // Dedup logic INLINE (not passed as config function)
+//   const dedupeKey = `${input.field1}:${input.field2}`.toLowerCase();
+//   const existingKeys = new Set(currentItems.map(i => `${i.field1}:${i.field2}`.toLowerCase()));
+//
+//   if (!existingKeys.has(dedupeKey)) {
+//     const id = `record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+//     const newRecord = {
+//       id,
+//       field1: input.field1,
+//       field2: input.field2,
+//       // ... all transformation logic INLINE
+//     };
+//     state.items.set([...currentItems, newRecord]);
+//   }
+//
+//   // Write to result cell if provided (for LLM tool response)
+//   if (input.result) {
+//     input.result.set({ success: true });
+//   }
+//   return { success: true };
+// });
+//
+// // Use in additionalTools:
+// additionalTools: {
+//   reportItem: {
+//     description: "Report a found item",
+//     handler: reportHandler({ items: myItemsCell }),
+//   },
+// }
+// ```
+//
+// See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
+// See: hotel-membership-gmail-agent.tsx and favorite-foods-gmail-agent.tsx for examples
 
 // ============================================================================
 // GMAIL UTILITIES
