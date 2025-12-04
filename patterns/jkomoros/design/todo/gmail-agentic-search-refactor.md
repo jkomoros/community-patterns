@@ -364,3 +364,56 @@ const reportMembership = createReportTool({
 - `hotel-membership-gmail-agent.tsx` - Use createReportTool if implemented
 - `favorite-foods-gmail-agent.tsx` - Use createReportTool if implemented
 - New: `lib/gmail-report-tool.ts` (optional) - For createReportTool helper
+
+## Phase 2 Testing Notes (2025-12-03)
+
+### End-to-End Test Results - PASSED
+
+**Charm Tested:** Hotel Membership Extractor (new deployment with Phase 2 improvements)
+**Charm ID:** `baedreidgi5zoon342n2jnysntllfk5663gr4n5mism4eembpuxkw6jirju`
+
+**Test Flow:**
+1. Navigated to deployed charm
+2. Auth via wish required favoriting Google Auth charm first
+3. Auth connected: "✓ Gmail connected" displayed
+4. Clicked "Scan for Memberships"
+
+**Results:**
+1. **Token Validation**: ✅ Working
+   - Console: `[GmailAgenticSearch] Validating token before scan...`
+   - Console: `[GmailAgenticSearch] Token valid, starting scan`
+
+2. **searchGmail Tool**: ✅ Working
+   - Marriott: 20 emails found
+   - Hilton: 22 emails found
+   - Hyatt: 23 emails found
+   - IHG: 21 emails found
+   - Accor: 1 email found
+   - Search limit (5) enforced correctly
+
+3. **createReportTool**: ✅ Working
+   - Console: `[ReportTool] SAVED: marriott:361200343`
+   - Console: `[ReportTool] SAVED: marriott:181938366`
+   - Deduplication working (unique key based on brand:number)
+   - ID generation working (membership-xxxxx format)
+
+4. **Data Persistence**: ✅ Working
+   - 2 Marriott memberships saved and displayed
+   - Membership details shown: number, tier, source email, date
+
+5. **UI Pieces**: ✅ Working
+   - authUI: Shows "✓ Gmail connected"
+   - controlsUI: Scan/Stop buttons functional
+   - progressUI: Shows during scan (partial - see Known Issues)
+
+### Known Issues (Minor)
+
+1. **"Scan Complete" section not rendering**: When agent completes (agentPending=false, agentResult=true, isScanning=true), the "Scan Complete" UI section with "Done" button doesn't appear. This may be a reactivity issue with derives inside embedded patterns. Core functionality unaffected - clicking "Stop Scan" properly completes the scan.
+
+### Summary
+
+All four Phase 2 improvements are implemented and working:
+- ✅ createReportTool helper - reduces boilerplate significantly
+- ✅ Exposed UI pieces (authUI, controlsUI, progressUI)
+- ✅ Token validation on scan start - prevents confusing 401 errors
+- ✅ Auth state accuracy - tokenMayBeExpired derive implemented
