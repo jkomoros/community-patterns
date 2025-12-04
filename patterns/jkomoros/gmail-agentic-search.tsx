@@ -98,6 +98,10 @@ export interface GmailAgenticSearchInput {
   // JSON schema for agent's structured output
   resultSchema?: Default<object, {}>;
 
+  // Account type for multi-account support
+  // "default" = any #googleAuth, "personal" = #googleAuthPersonal, "work" = #googleAuthWork
+  accountType?: Default<"default" | "personal" | "work", "default">;
+
   // Additional tools beyond searchGmail
   additionalTools?: Default<Record<string, ToolDefinition>, {}>;
 
@@ -465,6 +469,7 @@ const GmailAgenticSearch = pattern<
     lastScanAt,
     searchProgress,  // Can be passed in for parent coordination
     auth: inputAuth,  // CT-1085 workaround: direct auth input
+    accountType,      // Multi-account support: "default" | "personal" | "work"
   }) => {
     // ========================================================================
     // AUTH HANDLING
@@ -473,8 +478,18 @@ const GmailAgenticSearch = pattern<
     // Check if we have direct auth input (CT-1085 workaround)
     const hasDirectAuth = derive(inputAuth, (a: Auth) => !!(a?.token));
 
-    // Wish for auth charm as fallback
-    const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
+    // Build reactive wish tag based on accountType
+    // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
+    const wishTag = derive(accountType, (type: "default" | "personal" | "work") => {
+      switch (type) {
+        case "personal": return "#googleAuthPersonal";
+        case "work": return "#googleAuthWork";
+        default: return "#googleAuth";
+      }
+    });
+
+    // Wish for auth charm as fallback (reactive - re-evaluates when accountType changes)
+    const wishResult = wish<GoogleAuthCharm>({ query: wishTag });
 
     // 3-state logic for wished auth
     const wishedAuthState = derive(wishResult, (wr) => {
@@ -561,6 +576,15 @@ const GmailAgenticSearch = pattern<
         },
       });
       return navigateTo(googleAuthCharm);
+    });
+
+    // Handler to change account type
+    const setAccountType = handler<
+      { target: { value: string } },
+      { accountType: Cell<"default" | "personal" | "work"> }
+    >((event, state) => {
+      const newType = event.target.value as "default" | "personal" | "work";
+      state.accountType.set(newType);
     });
 
     // ========================================================================
@@ -913,6 +937,50 @@ Be thorough in your searches. Try multiple queries if needed.`;
       <div>
         {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
         <div style={{ display: "none" }}>{wishResult}</div>
+
+        {/* Account Type Selector (only shown if not using direct auth) */}
+        {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
+          <div
+            style={{
+              marginBottom: "12px",
+              padding: "8px 12px",
+              background: "#f8fafc",
+              borderRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontSize: "13px",
+            }}
+          >
+            <span style={{ color: "#64748b" }}>Account:</span>
+            <select
+              onChange={setAccountType({ accountType })}
+              style={{
+                padding: "4px 8px",
+                borderRadius: "4px",
+                border: "1px solid #e2e8f0",
+                background: "white",
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              <option value="default" selected={derive(accountType, (t: string) => t === "default")}>
+                Any Google Account
+              </option>
+              <option value="personal" selected={derive(accountType, (t: string) => t === "personal")}>
+                Personal Account
+              </option>
+              <option value="work" selected={derive(accountType, (t: string) => t === "work")}>
+                Work Account
+              </option>
+            </select>
+            {derive(accountType, (type: string) => type !== "default" ? (
+              <span style={{ color: "#94a3b8", fontSize: "11px" }}>
+                (using #{type === "personal" ? "googleAuthPersonal" : "googleAuthWork"})
+              </span>
+            ) : null)}
+          </div>
+        ) : null)}
 
         {/* Auth Status */}
         {derive(
