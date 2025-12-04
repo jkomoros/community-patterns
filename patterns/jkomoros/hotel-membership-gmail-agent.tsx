@@ -16,7 +16,7 @@ import {
   NAME,
   pattern,
   UI,
-  wish,
+  // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
 import GmailAgenticSearch, { createReportTool } from "./gmail-agentic-search.tsx";
 
@@ -153,50 +153,15 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
     });
 
     // ========================================================================
-    // WISH IMPORT: Find existing memberships from other charms
+    // WISH IMPORT: TEMPORARILY DISABLED - may cause self-referential loop
+    // when pattern wishes for #hotelMemberships but also exports it
     // ========================================================================
 
-    // Wish for existing memberships from other hotel-membership charms
-    const wishedMembershipsCharm = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
+    // Use local memberships only (no wish import for now)
+    const allMemberships = memberships;
 
-    // Extract wished memberships (if any)
-    const wishedMemberships = derive(wishedMembershipsCharm, (wishState: { result?: HotelMembershipOutput; error?: any }) =>
-      wishState?.result?.memberships || []
-    );
-
-    // Merge local memberships with wished memberships (deduplicated by brand+number)
-    const allMemberships = derive(
-      [memberships, wishedMemberships],
-      ([local, wished]: [MembershipRecord[], MembershipRecord[]]) => {
-        const seen = new Set<string>();
-        const merged: MembershipRecord[] = [];
-
-        // Add local memberships first (they take precedence)
-        for (const m of (local || [])) {
-          const key = `${m.hotelBrand}:${m.membershipNumber}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push(m);
-          }
-        }
-
-        // Add wished memberships that we don't already have
-        for (const m of (wished || [])) {
-          const key = `${m.hotelBrand}:${m.membershipNumber}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            merged.push({ ...m, _fromWish: true } as MembershipRecord & { _fromWish?: boolean });
-          }
-        }
-
-        return merged;
-      }
-    );
-
-    // Track counts
+    // Track counts (simplified without wish)
     const localMembershipCount = derive(memberships, (list) => list?.length || 0);
-    const wishedMembershipCount = derive(wishedMemberships, (list) => list?.length || 0);
-    const hasWishedMemberships = derive(wishedMemberships, (list) => (list?.length || 0) > 0);
 
     // ========================================================================
     // MULTI-ACCOUNT DETECTION
@@ -419,10 +384,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
 
       [UI]: (
         <ct-screen>
-          {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
-          <div style={{ display: "none" }}>
-            {wishedMembershipsCharm}
-          </div>
+          {/* WORKAROUND (CT-1090): Wish import disabled - see superstition about self-referential wish loops */}
 
           <div slot="header">
             <h2 style={{ margin: "0", fontSize: "18px" }}>Hotel Memberships</h2>
@@ -492,13 +454,6 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               {/* Stats */}
               <div style={{ fontSize: "13px", color: "#666" }}>
                 <div>Total Memberships: {totalMemberships}</div>
-                {derive([localMembershipCount, wishedMembershipCount], ([local, wished]) =>
-                  wished > 0 ? (
-                    <div style={{ fontSize: "11px", color: "#888" }}>
-                      ({local} local, {wished} imported from other charms)
-                    </div>
-                  ) : null
-                )}
               </div>
 
               {/* Multi-Account Warning */}
@@ -700,9 +655,6 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                   </div>
                   <div style={{ fontFamily: "monospace" }}>
                     Local Memberships: {localMembershipCount}
-                  </div>
-                  <div style={{ fontFamily: "monospace" }}>
-                    Imported Memberships: {wishedMembershipCount}
                   </div>
                   <div style={{ fontFamily: "monospace" }}>
                     Has Multiple Accounts: {derive(hasMultipleAccounts, (h) => h ? "Yes ⚠️" : "No")}
