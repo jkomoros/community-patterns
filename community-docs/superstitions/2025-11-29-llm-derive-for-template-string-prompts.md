@@ -100,22 +100,23 @@ Discovered while building prompt-injection-tracker-v3:
 
 ---
 
-## ⚠️ CONFLICTING SUPERSTITION
+## ⚠️ UPDATE (Dec 3, 2025): BOTH APPROACHES WORK
 
-**This contradicts `2025-11-25-generateObject-race-condition-pass-cell-directly.md`** which says:
-- DON'T use derive() - causes race conditions
-- Pass Cell directly to prompt
+**Systematic testing with `2025-12-03-derive-vs-direct-cell-test.tsx` showed:**
 
-**Our testing (Nov 29, 2025) showed the OPPOSITE:**
-- Direct `article.content` → `.result` is undefined
-- `derive(article, (a) => a?.content)` → `.result` has data (even if empty array)
+| Scenario | Direct Cell/Property | derive() Wrapper |
+|----------|---------------------|------------------|
+| User input | ✅ Works | ✅ Works |
+| User input (rapid typing) | ✅ Works | ✅ Works |
+| map() with handler-loaded items | ✅ Works | ✅ Works |
 
-**Possible explanation:** The context differs:
-- Race condition doc: User input cells, typing triggers multiple calls
-- This doc: Static data in `.map()`, no user input
+**Conclusion:** Both approaches work identically. The earlier conflicting observations may have been:
+1. Bugs that were fixed in the framework
+2. Context-specific issues with pre-populated defaults
+3. Misattributed causes from other issues
 
-**Needs framework author clarification** on when to use derive() vs direct Cell access.
+**Recommendation:** Use whichever is more readable. For template strings with multiple properties, derive() is still required (to avoid "opaque value" errors).
 
 ---
 
-**Confidence level:** MEDIUM (single error + fix, contradicts other superstition)
+**Confidence level:** HIGH (systematic A/B testing, both approaches work)

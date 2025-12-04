@@ -156,23 +156,21 @@ To verify this superstition:
 
 ---
 
-## ⚠️ CONFLICTING EVIDENCE (Nov 29, 2025)
+## ⚠️ UPDATE (Dec 3, 2025): BOTH APPROACHES WORK
 
-**Later testing in `prompt-injection-tracker-v3` showed the OPPOSITE:**
+**Systematic testing with `2025-12-03-derive-vs-direct-cell-test.tsx` showed:**
 
-```typescript
-// Direct access: .result is UNDEFINED
-prompt: article.content,
+| Scenario | Direct Cell/Property | derive() Wrapper |
+|----------|---------------------|------------------|
+| User input | ✅ Works | ✅ Works |
+| User input (rapid typing) | ✅ Works | ✅ Works |
+| map() with handler-loaded items | ✅ Works | ✅ Works |
 
-// With derive(): .result is POPULATED (even if empty array)
-prompt: derive(article, (a) => a?.content ?? ""),
-```
-
-**The original "race condition" diagnosis may have been wrong.** The actual issue might have been:
-1. Something else in the pattern causing the stuck state
-2. A framework bug that has since been fixed
+**Conclusion:** Both approaches work identically. The original "race condition" diagnosis was likely:
+1. A framework bug that has since been fixed
+2. Something else in the pattern causing the stuck state
 3. Misattribution of the root cause
 
-**Recommendation:** Try using `derive()` first. If you see race condition symptoms (stuck pending, Frame mismatch errors), then try direct Cell access as a fallback.
+**Recommendation:** Use whichever is more readable. For template strings with multiple properties, derive() is required (to avoid "opaque value" errors). For simple single-property prompts, either works.
 
-See: `2025-11-29-llm-derive-for-template-string-prompts.md` for the newer findings.
+See: `repros/2025-12-03-derive-vs-direct-cell-test.tsx` for the test pattern.
