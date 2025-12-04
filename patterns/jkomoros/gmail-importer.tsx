@@ -976,6 +976,9 @@ type GoogleAuthCharm = {
 // Gmail scope URL for checking
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
+// Account type for multi-account support
+type AccountType = "default" | "personal" | "work";
+
 export default pattern<{
   settings: Default<Settings, {
     gmailFilterQuery: "in:INBOX";
@@ -985,15 +988,30 @@ export default pattern<{
   }>;
   // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
   authCharm: Default<any, null>;
+  // Account type for multi-account Gmail support
+  accountType: Default<AccountType, "default">;
 }>(
-  ({ settings, authCharm }) => {
+  ({ settings, authCharm, accountType }) => {
     const emails = cell<Confidential<Email[]>>([]);
     const showAuth = cell(false);
     const fetching = cell(false);
 
+    // Dynamic wish tag based on accountType for multi-account support
+    const wishTag = derive(accountType, (type: AccountType) => {
+      switch (type) {
+        case "personal":
+          return "#googleAuthPersonal";
+        case "work":
+          return "#googleAuthWork";
+        default:
+          return "#googleAuth";
+      }
+    });
+
     // Wish for a favorited auth charm (used when no explicit authCharm provided)
     // CT-1084 (object syntax bug) is fixed, so we use the object syntax now
-    const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
+    // Now uses reactive wishTag for multi-account support
+    const wishResult = wish<GoogleAuthCharm>({ query: wishTag });
 
     // Determine if we have an explicit auth charm provided
     const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
@@ -1076,6 +1094,31 @@ export default pattern<{
           <div slot="header">
             <ct-hstack align="center" gap="2">
               <ct-heading level={3}>Gmail Importer</ct-heading>
+
+              {/* Account type selector for multi-account support */}
+              <select
+                value={accountType}
+                style={{
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  border: "1px solid #d1d5db",
+                  fontSize: "12px",
+                  backgroundColor: derive(accountType, (type: AccountType) => {
+                    switch (type) {
+                      case "personal":
+                        return "#dbeafe"; // blue tint
+                      case "work":
+                        return "#fee2e2"; // red tint
+                      default:
+                        return "#fff";
+                    }
+                  }),
+                }}
+              >
+                <option value="default">Any Account</option>
+                <option value="personal">Personal</option>
+                <option value="work">Work</option>
+              </select>
 
               {/* Red/Green status dot */}
               <button
