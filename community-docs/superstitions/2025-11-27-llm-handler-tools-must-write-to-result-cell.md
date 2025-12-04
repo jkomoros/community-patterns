@@ -146,4 +146,43 @@ The handler was clearly executing (console logs showed 21 emails found), but the
 
 ---
 
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
+## Framework Author Response (seefeldb, 2025-12-03)
+
+> "that's a hack we added for handlers as tools, but in this example you should make a pattern and use `patternTool` to pass it in. Generally handlers are for when we have side effects (like adding something to a list) and pure computation should be patterns."
+
+### Recommended Approach
+
+**For pure computation (no side effects):** Use `patternTool`
+```typescript
+// Define as a pattern
+const searchPattern = pattern<{query: string}, {results: Email[]}>(...);
+
+// Use with patternTool
+const agentResult = generateObject({
+  prompt: "...",
+  tools: {
+    search: patternTool(searchPattern),
+  },
+});
+```
+
+**For side effects (modifying cells, adding to lists):** Use handler with `result.set()`
+```typescript
+const addToListHandler = handler<{item: string; result?: Cell<any>}, {list: Cell<string[]>}>(
+  (input, { list }) => {
+    list.push(input.item);  // Side effect!
+    if (input.result) input.result.set({ success: true });
+    return { success: true };
+  }
+);
+```
+
+### Summary
+
+- ✅ `result.set()` hack is **intentional** for handlers
+- ✅ Better approach: use `patternTool` for pure computation
+- ✅ Reserve handlers for operations with side effects
+
+---
+
+**Status:** CONFIRMED - Framework author clarified intended usage
