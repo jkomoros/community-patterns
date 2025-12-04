@@ -76,6 +76,8 @@ interface HotelMembershipInput {
   maxSearches?: Default<number, 5>;
   // Current scan mode - persisted to know if last scan was full or recent
   currentScanMode?: Default<ScanMode, "full">;
+  // Multi-account support: which Google account to use
+  accountType?: Default<"default" | "personal" | "work", "default">;
   // Shared with base pattern for coordinating progress UI
   searchProgress?: Default<SearchProgress, {
     currentQuery: "";
@@ -138,7 +140,7 @@ const getRecentDateFilter = (): string => {
 const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
-  ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, searchProgress }) => {
+  ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, accountType, searchProgress }) => {
     // ========================================================================
     // CUSTOM TOOL: Report Membership (using createReportTool helper)
     // ========================================================================
@@ -308,6 +310,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
       isScanning,
       lastScanAt,
       searchProgress,  // Shared cell for coordinating progress UI
+      accountType,     // Multi-account support: passes through to reactive wish
     });
 
     // ========================================================================
