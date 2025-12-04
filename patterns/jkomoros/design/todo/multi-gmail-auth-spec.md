@@ -288,16 +288,16 @@ If user has an existing `google-auth` charm and wants to classify it:
 
 ## Implementation Plan
 
-### Phase 1: Core Infrastructure
-- [ ] Create `google-auth-personal.tsx` (wrapper with #googleAuthPersonal)
-- [ ] Create `google-auth-work.tsx` (wrapper with #googleAuthWork)
-- [ ] Test wrapper composition with actual google-auth
+### Phase 1: Core Infrastructure ✅ COMPLETE
+- [x] Create `google-auth-personal.tsx` (wrapper with #googleAuthPersonal)
+- [x] Create `google-auth-work.tsx` (wrapper with #googleAuthWork)
+- [x] Test wrapper composition with actual google-auth
 - [x] Test multiple tags work (CONFIRMED)
 - [x] Test reactive wishes work (CONFIRMED)
 - [x] Verify hashtag character limitations (a-z, 0-9, - only)
+- [x] Create `google-auth-switcher.tsx` (post-hoc classification)
 
-### Phase 2: Switcher & Gmail Updates
-- [ ] Create `google-auth-switcher.tsx` (post-hoc classification)
+### Phase 2: Gmail Updates
 - [ ] Add `accountType` input to `gmail-agentic-search.tsx`
 - [ ] Add account selector dropdown UI
 - [ ] Update other gmail patterns
