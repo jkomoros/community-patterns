@@ -15,7 +15,7 @@ import RewardSpinner from "./reward-spinner.tsx";
 import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
 import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
-import HotelMembershipExtractor from "./hotel-membership-extractor.tsx";
+import HotelMembershipExtractor from "./hotel-membership-gmail-agent.tsx";
 import GoogleCalendarImporter from "./google-calendar-importer.tsx";
 import SmartRubric from "./smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
