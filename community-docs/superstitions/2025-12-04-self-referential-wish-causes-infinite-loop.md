@@ -46,8 +46,18 @@ export default recipe(HotelMembershipExtractorSchema, ({ memberships }) => {
 - Browser tab becomes unresponsive
 - Other patterns in same space may also be affected
 
-### Why This Happens (Hypothesis)
+### Why This Happens (Hypothesis) - UNCERTAIN
 
+**Important:** The original `hotel-membership-extractor.tsx` on main has the **exact same self-referential wish** (line 333) and worked fine for months. So self-referential wish alone doesn't explain the infinite loop.
+
+**Possible contributing factors:**
+
+1. **Pattern composition** - The new pattern composes `GmailAgenticSearch`, creating a nested reactive graph that may interact poorly with wish
+2. **Existing charms in space** - If there are already charms matching `#hotelMemberships` in the space, the reactive graph may differ
+3. **Framework changes** - Something may have changed in the reactive system
+4. **Timing/ordering** - The composed pattern's initialization may trigger wish evaluation at a problematic time
+
+**Original hypothesis (may be incomplete):**
 1. Pattern A exports `memberships` data
 2. Pattern A's `wish("#hotelMemberships")` query matches Pattern A's own export
 3. Wish resolves, returning Pattern A's charm
@@ -55,7 +65,7 @@ export default recipe(HotelMembershipExtractorSchema, ({ memberships }) => {
 5. Pattern A wishes again...
 6. Infinite loop with no termination condition
 
-The framework doesn't detect self-referential wishes. Each resolution triggers another wish evaluation.
+**Key mystery:** Why did the standalone pattern work but the composed pattern didn't?
 
 ## Solution That Worked
 
@@ -137,7 +147,7 @@ stars: ⭐⭐⭐
 
 ## Guestbook
 
-- 2025-12-04 - hotel-membership-gmail-agent pattern. Added `wish("#hotelMemberships")` to aggregate memberships from other charms. Pattern exports `memberships` which matches that query. Deployment hung with 100% CPU, no errors. Had to kill Deno process multiple times. Fix: removed all wish-related code. Pattern deployed immediately after. Self-referential wish = instant infinite loop. (hotel-membership-migration-check-recent)
+- 2025-12-04 - hotel-membership-gmail-agent pattern. Added `wish("#hotelMemberships")` to aggregate memberships from other charms. Pattern exports `memberships` which matches that query. Deployment hung with 100% CPU, no errors. Had to kill Deno process multiple times. Fix: removed all wish-related code. Pattern deployed immediately after. **BUT:** The original standalone hotel-membership-extractor.tsx has the exact same self-referential wish and worked fine! The key difference may be pattern composition - the new pattern composes GmailAgenticSearch. This superstition needs more investigation. (hotel-membership-migration-check-recent)
 
 ---
 

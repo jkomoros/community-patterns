@@ -1,8 +1,10 @@
-# Framework Issue: Self-Referential Wish Causes Infinite Loop
+# Framework Issue: Self-Referential Wish + Composition Causes Infinite Loop
 
 ## Summary
 
-When a pattern uses `wish()` with a query that matches its own exported data, the framework enters an infinite loop with 100% CPU usage and no error message. This is a severe bug that can make patterns completely undeployable.
+When a **composed pattern** (one that uses another pattern internally) uses `wish()` with a query that matches its own exported data, the framework enters an infinite loop with 100% CPU usage and no error message.
+
+**Important nuance:** A standalone pattern with the same self-referential wish worked fine for months. The infinite loop only manifested when the pattern was refactored to **compose** another pattern (GmailAgenticSearch). This suggests the issue is related to the interaction between pattern composition and wish, not self-referential wish alone.
 
 ## Priority
 
@@ -10,14 +12,18 @@ When a pattern uses `wish()` with a query that matches its own exported data, th
 
 ## Reproduction Steps
 
-1. Create a pattern that exports typed data (e.g., `memberships: HotelMembership[]`)
-2. In the same pattern, use `wish()` to query for that data type:
+1. Create a base pattern (e.g., `GmailAgenticSearch`) with its own reactive cells
+2. Create a parent pattern that **composes** the base pattern
+3. In the parent pattern, export typed data (e.g., `memberships: HotelMembership[]`)
+4. In the same parent pattern, use `wish()` to query for that data type:
    ```typescript
    const wishedCharms = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
    ```
-3. Try to deploy with `charm new`
+5. Try to deploy with `charm new`
 
 **Result:** Deployment hangs, Deno CPU goes to 100%, no error message
+
+**Note:** The same self-referential wish in a **non-composed** pattern (hotel-membership-extractor.tsx) worked fine.
 
 ## Expected Behavior
 
@@ -69,15 +75,23 @@ Remove the self-referential wish. Don't wish for data types that your pattern ex
 
 ## Technical Analysis
 
-### The Loop
+### The Loop (Hypothesis)
 
-1. Pattern A is created with exported data matching query Q
-2. Pattern A calls `wish(Q)`
-3. Wish system finds Pattern A's data matches Q
-4. Wish resolves with Pattern A's charm
-5. This triggers reactive update in Pattern A
-6. Pattern A re-evaluates, including the wish
-7. Go to step 3 (infinite loop)
+When a composed pattern has a self-referential wish, the reactive graph may create a loop:
+
+1. Parent pattern P composes child pattern C (which has its own reactive cells)
+2. Parent pattern P exports data matching query Q
+3. Parent pattern P calls `wish(Q)`
+4. Wish system finds P's own data matches Q
+5. Wish resolves, triggering reactive update
+6. Because P composes C, the reactive update cascades through both graphs
+7. Something in this composition causes the wish to re-evaluate
+8. Go to step 4 (infinite loop)
+
+**Key unknown:** Why does composition trigger the loop when standalone doesn't? Possibilities:
+- Child pattern's reactive cells create additional dependencies
+- Timing of initialization differs in composed patterns
+- The composed pattern's reactive graph has cycles the standalone didn't
 
 ### Possible Fixes
 
