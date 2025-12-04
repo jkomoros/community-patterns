@@ -418,29 +418,44 @@ All four Phase 2 improvements are implemented and working:
 - ✅ Token validation on scan start - prevents confusing 401 errors
 - ✅ Auth state accuracy - tokenMayBeExpired derive implemented
 
-### Outstanding Issue: Progress UI Not Showing During Scan
+### Outstanding Issue: Progress UI Not Showing During Scan - FIXED
 
 **Problem:** The progress UI (showing "Scanning emails...", current query, completed searches) doesn't appear during scanning.
 
-**Root Cause:** The progress UI condition is `scanning && pending`:
+**Root Cause:** The progress UI condition was `scanning && pending`:
 ```typescript
 {derive([isScanning, agentPending], ([scanning, pending]) =>
   scanning && pending ? ( ... ) : null
 )}
 ```
 
-But `agentPending` from generateObject is `false` even while tool calls are actively running:
-- Debug shows: Is Scanning: Yes ⏳, Agent Pending: No ✓
-- Console shows tool calls executing (searchGmail running, finding emails)
-- `agentPending` doesn't reflect tool execution state - may only be true during initial prompt processing
+But `agentPending` from generateObject is `false` even while tool calls are actively running.
+- `agentPending` only reflects the initial prompt processing, not tool execution state
 
-**Attempted Fix:** Changing condition to just `isScanning`:
+**Failed Fix:** Changing condition to just `isScanning`:
 ```typescript
 {derive(isScanning, (scanning) => scanning ? ( ... ) : null)}
 ```
 **Result:** Caused "Too many iterations: 101" error - reactive loop
 
-**Next Steps:**
-1. Investigate why `agentPending` is false during tool execution
-2. Consider alternative ways to show progress (track via searchProgress cell changes)
-3. May need framework-level fix if agentPending behavior is incorrect
+**Successful Fix:** Use `searchProgress.status` instead of `agentPending`:
+```typescript
+{derive([isScanning, searchProgress], ([scanning, progress]: [boolean, SearchProgress]) =>
+  scanning && progress.status !== "idle" && progress.status !== "auth_error" ? (
+    // Progress UI content
+  ) : null
+)}
+```
+
+Also set `status: "searching"` immediately in `startScan` handler so progress UI shows from the start.
+
+**Test Results (2025-12-03):**
+- ✅ Progress UI shows during scanning
+- ✅ "Scanning emails..." indicator with loading spinner
+- ✅ "Analyzing emails..." indicator with loading spinner
+- ✅ Completed searches list with query and email count
+- ✅ Token validation: "Token valid, starting scan"
+- ✅ searchGmail tool: 5 searches, 83 emails
+- ✅ createReportTool: "[ReportTool] SAVED: ..."
+- ✅ Membership found: Hilton Honors #650697007 (Silver)
+- ✅ Stop Scan: Resets UI, shows last scan time
