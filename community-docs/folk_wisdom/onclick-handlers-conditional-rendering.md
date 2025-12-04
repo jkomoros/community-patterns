@@ -142,6 +142,8 @@ stars: ⭐⭐⭐
 
 - ✅ 2025-12-03 - **CONFIRMED: ifElse() with simple cell WORKS for conditional buttons**. hotel-membership-extractor had `derive(isAuthenticated, (auth) => auth ? <buttons> : null)` causing ReadOnlyAddressError. Changed to `ifElse(isAuthenticated, <buttons>, null)` - **clicking Quick Scan worked without ReadOnlyAddressError**. Key difference: ifElse with a plain cell (not a derived parameter) doesn't create the read-only context that derive() does. This is a valid workaround when you need conditional button rendering! (fix-hide-cross-space-wish-auth)
 
+- ⚠️ 2025-12-03 - **CAVEAT: ifElse with cells from COMPOSED PATTERNS may still fail**. In hotel-membership-gmail-agent (which composes GmailAgenticSearch), tried `ifElse(searcher.isAuthenticated, <buttons>, null)` where `searcher` is the composed child pattern. Pattern hung - no errors, charm never rendered, "No telemetry events" in debugger. Also tried `derive([searcher.isAuthenticated, isScanning], ...)` - same hang. Fix: removed all use of composed pattern cells in derives/ifElse. Just always render buttons with `disabled={derive(isScanning, ...)}` using only local cells. **Key insight: ifElse with plain cell works when the cell is LOCAL, but may create reactive loops when the cell comes from a composed sub-pattern.** See superstition: 2025-12-03-avoid-composed-pattern-cells-in-derives.md (hotel-membership-migration-check-recent)
+
 ---
 
 **IMPORTANT:** If you encounter this pattern, try the simple solution FIRST - move button outside derive/ifElse, use disabled attribute instead. Don't waste hours debugging!
