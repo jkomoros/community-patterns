@@ -19,6 +19,7 @@ import {
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
 import GmailAgenticSearch, { type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
+import { createReportHandler } from "./shared/report-handler.ts";
 
 // Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
 type ScanMode = "full" | "recent";
@@ -142,59 +143,11 @@ const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
   ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, accountType, searchProgress }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Membership (inline handler - sandbox-safe)
-    // NOTE: Using inline handler instead of createReportTool factory pattern.
-    // Factory patterns with function configs won't work with future sandboxing.
-    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
+    // CUSTOM TOOL: Report Membership (shared handler with data config)
+    // Config is DATA (not functions) - sandbox-safe and composable.
+    // See: patterns/jkomoros/lib/report-handler.ts
     // ========================================================================
-    const reportMembershipHandler = handler<
-      MembershipInput & { result?: Cell<any> },
-      { items: Cell<MembershipRecord[]> }
-    >((input, state) => {
-      const currentItems = state.items.get() || [];
-
-      // Generate dedup key (inline logic, not closure over config function)
-      const dedupeKey = `${input.hotelBrand}:${input.membershipNumber}`.toLowerCase();
-      const existingKeys = new Set(
-        currentItems.map((item) => `${item.hotelBrand}:${item.membershipNumber}`.toLowerCase()),
-      );
-
-      let resultMessage: string;
-
-      if (existingKeys.has(dedupeKey)) {
-        console.log(`[ReportMembership] Duplicate skipped: ${dedupeKey}`);
-        resultMessage = `Duplicate: ${dedupeKey} already saved`;
-      } else {
-        // Generate unique ID (inline logic)
-        const id = `membership-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const timestamp = Date.now();
-
-        // Transform to record (inline logic, not closure over config function)
-        const newRecord: MembershipRecord = {
-          id,
-          hotelBrand: input.hotelBrand,
-          programName: input.programName,
-          membershipNumber: input.membershipNumber,
-          tier: input.tier,
-          sourceEmailId: input.sourceEmailId,
-          sourceEmailDate: input.sourceEmailDate,
-          sourceEmailSubject: input.sourceEmailSubject,
-          extractedAt: timestamp,
-          confidence: input.confidence,
-        };
-
-        state.items.set([...currentItems, newRecord]);
-        console.log(`[ReportMembership] SAVED: ${dedupeKey}`);
-        resultMessage = `Saved: ${dedupeKey}`;
-      }
-
-      // Write result if cell provided (for LLM tool response)
-      if (input.result) {
-        input.result.set({ success: true, message: resultMessage });
-      }
-
-      return { success: true, message: resultMessage };
-    });
+    const reportMembershipHandler = createReportHandler<MembershipRecord>();
 
     // ========================================================================
     // WISH IMPORT: TEMPORARILY DISABLED - may cause self-referential loop
@@ -336,7 +289,12 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
         reportMembership: {
           description:
             "Report a found membership number. Call this IMMEDIATELY when you find a valid membership number. It will be saved automatically.",
-          handler: reportMembershipHandler({ items: memberships }),
+          handler: reportMembershipHandler({
+            items: memberships,
+            idPrefix: "membership",
+            dedupeFields: ["hotelBrand", "membershipNumber"],
+            timestampField: "extractedAt",
+          }),
         },
       },
       title: "🏨 Hotel Membership Extractor",

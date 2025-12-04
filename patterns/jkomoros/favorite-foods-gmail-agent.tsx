@@ -6,15 +6,14 @@
  * Looks for restaurant reservations, food delivery orders, recipe emails, etc.
  */
 import {
-  Cell,
   Default,
   derive,
-  handler,
   NAME,
   pattern,
   UI,
 } from "commontools";
 import GmailAgenticSearch from "./gmail-agentic-search.tsx";
+import { createReportHandler } from "./shared/report-handler.ts";
 
 // ============================================================================
 // SUGGESTED QUERIES
@@ -106,58 +105,11 @@ const FOODS_RESULT_SCHEMA = {
 const FavoriteFoodsExtractor = pattern<FavoriteFoodsInput, FavoriteFoodsOutput>(
   ({ foods, lastScanAt, isScanning, maxSearches }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Food Preference (inline handler - sandbox-safe)
-    // NOTE: Using inline handler instead of createReportTool factory pattern.
-    // Factory patterns with function configs won't work with future sandboxing.
-    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
+    // CUSTOM TOOL: Report Food Preference (shared handler with data config)
+    // Config is DATA (not functions) - sandbox-safe and composable.
+    // See: patterns/jkomoros/lib/report-handler.ts
     // ========================================================================
-    const reportFoodHandler = handler<
-      FoodInput & { result?: Cell<any> },
-      { items: Cell<FoodPreference[]> }
-    >((input, state) => {
-      const currentItems = state.items.get() || [];
-
-      // Generate dedup key (inline logic, not closure over config function)
-      const dedupeKey = input.foodName.toLowerCase();
-      const existingKeys = new Set(
-        currentItems.map((item) => item.foodName.toLowerCase()),
-      );
-
-      let resultMessage: string;
-
-      if (existingKeys.has(dedupeKey)) {
-        console.log(`[ReportFood] Duplicate skipped: ${dedupeKey}`);
-        resultMessage = `Duplicate: ${dedupeKey} already saved`;
-      } else {
-        // Generate unique ID (inline logic)
-        const id = `food-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const timestamp = Date.now();
-
-        // Transform to record (inline logic, not closure over config function)
-        const newRecord: FoodPreference = {
-          id,
-          foodName: input.foodName,
-          category: input.category,
-          confidence: input.confidence,
-          sourceEmailId: input.sourceEmailId,
-          sourceEmailSubject: input.sourceEmailSubject,
-          sourceEmailDate: input.sourceEmailDate,
-          extractedAt: timestamp,
-          notes: input.notes,
-        };
-
-        state.items.set([...currentItems, newRecord]);
-        console.log(`[ReportFood] SAVED: ${dedupeKey}`);
-        resultMessage = `Saved: ${dedupeKey}`;
-      }
-
-      // Write result if cell provided (for LLM tool response)
-      if (input.result) {
-        input.result.set({ success: true, message: resultMessage });
-      }
-
-      return { success: true, message: resultMessage };
-    });
+    const reportFoodHandler = createReportHandler<FoodPreference>();
 
     // ========================================================================
     // DYNAMIC AGENT GOAL
@@ -224,7 +176,12 @@ Report each discovery immediately. Focus on patterns - if someone orders from th
         reportFood: {
           description:
             "Report a discovered food preference. Call this IMMEDIATELY when you identify a food the user likes.",
-          handler: reportFoodHandler({ items: foods }),
+          handler: reportFoodHandler({
+            items: foods,
+            idPrefix: "food",
+            dedupeFields: ["foodName"],
+            timestampField: "extractedAt",
+          }),
         },
       },
       title: "🍕 Favorite Foods Finder",
