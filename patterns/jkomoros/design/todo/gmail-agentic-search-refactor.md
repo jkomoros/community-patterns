@@ -459,3 +459,64 @@ Also set `status: "searching"` immediately in `startScan` handler so progress UI
 - ✅ createReportTool: "[ReportTool] SAVED: ..."
 - ✅ Membership found: Hilton Honors #650697007 (Silver)
 - ✅ Stop Scan: Resets UI, shows last scan time
+
+## Phase 3: Future Improvements
+
+### Improvement 5: Agent Activity Log
+**Status:** [ ] Not started
+
+**Problem:** The current progress UI only shows search queries and email counts. Users can't see:
+- What the LLM is "thinking" at each step
+- Which emails the LLM decided to examine in detail
+- Why the LLM decided to make certain searches
+- Full audit trail of agent decisions
+
+**Solution:** Add an optional activity log that shows:
+1. **Agent reasoning**: Brief summary of what the agent is trying to do
+2. **Tool calls**: Which tool, with what parameters, and results
+3. **Decisions**: "Examining email about X", "Skipping promotional email"
+4. **Findings**: "Found membership number in email from Date"
+
+**Implementation Ideas:**
+- Add `activityLog: string[]` cell to track events
+- Have the agent output reasoning via a `logActivity` tool
+- Display in collapsible "Activity Log" section below progress UI
+- Consider: streaming/real-time vs batch updates
+- Consider: verbose mode toggle for debugging
+
+**Example UI:**
+```
+▼ Activity Log (12 entries)
+  [10:45:23] Starting search for Marriott memberships
+  [10:45:24] Searching: from:marriott "member" OR "membership"
+  [10:45:25] Found 20 emails from Marriott
+  [10:45:26] Examining: "Your Marriott Bonvoy statement" (Nov 2024)
+  [10:45:27] Found membership: #361200343 (Platinum Elite)
+  [10:45:28] Examining: "Welcome to Marriott Bonvoy" (Mar 2023)
+  [10:45:29] Found membership: #181938366 (Gold)
+  [10:45:30] Duplicate detected, skipping...
+  ...
+```
+
+**Benefits:**
+- Transparency: Users can see exactly what the agent is doing
+- Debugging: Easier to diagnose when agent misses something
+- Trust: Users feel more confident with visible reasoning
+- Learning: Users can see patterns in their own email data
+
+**Challenges:**
+- Token overhead: Need LLM to output activity info, costs tokens
+- UI complexity: Log could get very long, need good UX
+- Performance: Real-time updates vs batching
+
+**Workaround until implemented:**
+- Console.log statements (currently present) provide basic debugging
+- Users can check browser dev tools console
+
+### Improvement 6: Shared Cell for Pattern Composition (DOCUMENTED)
+**Status:** [x] Documented as superstition
+
+When composing patterns, share cells as inputs for coordinated state rather than having child patterns create internal cells. See:
+- `community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md`
+
+This was discovered while fixing the progressUI issue - the parent pattern's startScan handler couldn't trigger the base pattern's progressUI because the searchProgress cell was internal to the base pattern.
