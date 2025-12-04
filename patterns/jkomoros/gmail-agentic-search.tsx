@@ -112,6 +112,14 @@ export interface GmailAgenticSearchInput {
   isScanning?: Default<boolean, false>;
   lastScanAt?: Default<number, 0>;
 
+  // Progress state - can be passed in for parent pattern coordination
+  searchProgress?: Default<SearchProgress, {
+    currentQuery: "";
+    completedQueries: [];
+    status: "idle";
+    searchCount: 0;
+  }>;
+
   // WORKAROUND (CT-1085): Accept auth as direct input since favorites don't persist.
   // Users can manually link gmail-auth's auth output to this input.
   // If provided, this takes precedence over wish-based auth.
@@ -455,6 +463,7 @@ const GmailAgenticSearch = pattern<
     maxSearches,
     isScanning,
     lastScanAt,
+    searchProgress,  // Can be passed in for parent coordination
     auth: inputAuth,  // CT-1085 workaround: direct auth input
   }) => {
     // ========================================================================
@@ -557,14 +566,8 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
     // PROGRESS TRACKING
     // ========================================================================
-
-    const searchProgress = Cell.of<SearchProgress>({
-      currentQuery: "",
-      completedQueries: [],
-      status: "idle",
-      searchCount: 0,
-      authError: undefined,
-    });
+    // searchProgress comes from input - allows parent patterns to coordinate state
+    // by passing in their own cell
 
     // ========================================================================
     // SEARCH GMAIL TOOL

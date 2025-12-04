@@ -18,7 +18,7 @@ import {
   UI,
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
-import GmailAgenticSearch, { createReportTool } from "./gmail-agentic-search.tsx";
+import GmailAgenticSearch, { createReportTool, type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
 
 // Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
 type ScanMode = "full" | "recent";
@@ -76,6 +76,13 @@ interface HotelMembershipInput {
   maxSearches?: Default<number, 5>;
   // Current scan mode - persisted to know if last scan was full or recent
   currentScanMode?: Default<ScanMode, "full">;
+  // Shared with base pattern for coordinating progress UI
+  searchProgress?: Default<SearchProgress, {
+    currentQuery: "";
+    completedQueries: [];
+    status: "idle";
+    searchCount: 0;
+  }>;
 }
 
 interface HotelMembershipOutput {
@@ -131,7 +138,7 @@ const getRecentDateFilter = (): string => {
 const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
-  ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode }) => {
+  ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, searchProgress }) => {
     // ========================================================================
     // CUSTOM TOOL: Report Membership (using createReportTool helper)
     // ========================================================================
@@ -300,39 +307,51 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
       maxSearches,
       isScanning,
       lastScanAt,
+      searchProgress,  // Shared cell for coordinating progress UI
     });
 
     // ========================================================================
     // CUSTOM SCAN HANDLERS (with mode support)
     // ========================================================================
 
-    // Custom startScan that sets the mode before triggering scan
-    // Note: No isAuthenticated check needed - buttons are only shown when authenticated via ifElse
+    // Custom startScan that sets the mode before triggering scan.
+    // Since we pass searchProgress to the base pattern, it's the SAME CELL -
+    // when we set it here, the base pattern's progressUI sees the change.
     const startScan = handler<
       unknown,
       {
         mode: ScanMode;
         currentScanMode: Cell<Default<ScanMode, "full">>;
         isScanning: Cell<Default<boolean, false>>;
+        searchProgress: Cell<SearchProgress>;
       }
     >((_, state) => {
       const mode = state.mode;
       console.log(`[HotelMembership] Starting scan in ${mode} mode`);
       state.currentScanMode.set(mode);
+      // Initialize progress to trigger progressUI display
+      state.searchProgress.set({
+        currentQuery: "",
+        completedQueries: [],
+        status: "searching",
+        searchCount: 0,
+      });
       state.isScanning.set(true);
     });
 
-    // Bind handlers for each mode
+    // Bind handlers for each mode - use the same searchProgress cell
     const startFullScan = startScan({
       mode: "full",
       currentScanMode,
       isScanning,
+      searchProgress,  // Same cell passed to base pattern
     });
 
     const startRecentScan = startScan({
       mode: "recent",
       currentScanMode,
       isScanning,
+      searchProgress,  // Same cell passed to base pattern
     });
 
     // ========================================================================
