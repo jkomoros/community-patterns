@@ -789,7 +789,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
       state.progress.set({
         currentQuery: "",
         completedQueries: [],
-        status: "idle",
+        status: "searching", // Set to searching immediately so progress UI shows
         searchCount: 0,
       });
       state.isScanning.set(true);
@@ -1083,11 +1083,13 @@ Be thorough in your searches. Try multiple queries if needed.`;
     );
 
     // Progress UI - shows search progress and completion
+    // Note: We use searchProgress.status instead of agentPending because agentPending
+    // is false during tool execution (only true during initial prompt processing)
     const progressUI = (
       <div>
         {/* Progress during scanning */}
-        {derive([isScanning, agentPending], ([scanning, pending]) =>
-          scanning && pending ? (
+        {derive([isScanning, searchProgress], ([scanning, progress]: [boolean, SearchProgress]) =>
+          scanning && progress.status !== "idle" && progress.status !== "auth_error" ? (
             <div
               style={{
                 padding: "16px",
