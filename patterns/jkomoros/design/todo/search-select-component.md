@@ -262,7 +262,7 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
    // USAGE: onClick={myHandler({ selected, value: item.value })}
    ```
 
-7. **Cannot close over computed in JSX .map() (2025-12-05)**: Pre-compute data that needs to be accessed inside `.map()` callbacks.
+7. **Cannot access opaque values in .map() callbacks (2025-12-05)**: Accessing computed results inside `.map()` callbacks causes "Tried to directly access an opaque value" error. Pre-compute data that needs to be accessed inside callbacks.
 
 ---
 

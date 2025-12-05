@@ -46,12 +46,12 @@ const availableItems = computed(() => {
    const myHandler = handler((_, { selected, value }) => { /* use value */ });
    onClick={myHandler({ selected, value: item.value })}
    ```
-4. **Cannot close over computed values inside JSX `.map()` callbacks** - pre-compute data before JSX
+4. **Cannot directly access opaque values (computed results) inside `.map()` callbacks** - get error "Tried to directly access an opaque value" - pre-compute data before JSX
 
 ## Working Implementation
 
 The search-select component now works correctly without any workarounds. See:
-- `patterns/jkomoros/lib/search-select.tsx` - the component
+- `patterns/jkomoros/components/search-select.tsx` - the component
 - `patterns/jkomoros/search-select-test.tsx` - test pattern
 - Space: `jkomoros-test-search-select`
 
