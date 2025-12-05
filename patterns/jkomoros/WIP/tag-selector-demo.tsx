@@ -134,7 +134,7 @@ export default pattern<Input, Result>(
                     }
                   }
                 }}
-                allow-custom={true}
+                allowCustom={true}
               />
             </ct-vstack>
           </ct-card>

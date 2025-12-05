@@ -26,14 +26,21 @@ stars: ⭐
 
 ---
 
-# Boolean JSX Attributes May Not Be Passed to Web Components
+# Kebab-Case JSX Attributes Don't Map to CamelCase Lit Properties
 
 ## Problem
 
-When passing boolean attributes to web components in CommonTools JSX,
-the attribute value may not be passed correctly to the web component.
-The JSX type definitions accept the boolean attribute, but the component
-doesn't receive the value.
+When using kebab-case attribute names in JSX (e.g., `allow-custom`), CommonTools
+sets a **property** named `allow-custom` on the DOM element, but Lit components
+define properties with camelCase names (e.g., `allowCustom`). The property
+name mismatch causes the value to be lost.
+
+**Root Cause (from render.ts line 532-533):**
+```typescript
+// CommonTools sets properties directly using the JSX attribute name:
+target[key as keyof T] = value;  // key = "allow-custom"
+// But Lit property is named "allowCustom" - they don't match!
+```
 
 **Example of the issue:**
 
@@ -41,32 +48,61 @@ doesn't receive the value.
 // In pattern JSX:
 <ct-autocomplete
   items={items}
-  allow-custom={true}  // This is typed correctly and compiles
+  allow-custom={true}  // JSX uses kebab-case
 />
 
-// But when inspecting the rendered component:
-// - element.allowCustom is false
-// - element.hasAttribute('allow-custom') is false
-// - The attribute was never set
+// What happens:
+// CommonTools: element["allow-custom"] = true
+// But Lit property: element.allowCustom (never set!)
 ```
 
-## Solution That Seemed To Work
+## Why Some Boolean Attributes Work
 
-Manually set the property via JavaScript after component renders:
+Components like `ct-file-input` use camelCase in both JSX types AND property names:
 
 ```typescript
-// Using Playwright evaluate (during testing)
-const el = findInShadow(document, 'ct-autocomplete');
-el.allowCustom = true;  // Now the feature works
+// JSX types use camelCase:
+interface CTFileInputAttributes {
+  "showPreview"?: boolean;  // camelCase
+}
+
+// Lit property uses camelCase:
+@property({ type: Boolean })
+showPreview = true;  // camelCase
+
+// Pattern uses camelCase:
+<ct-file-input showPreview={false} />  // Works! Names match
 ```
 
-This confirms the component implementation is correct - the issue is
-in how CommonTools JSX passes boolean attributes to web components.
+## Solution: Use CamelCase for Both JSX Types and Lit Properties
+
+**For component authors:** Use camelCase property names that match JSX attribute names.
+
+```typescript
+// BAD - mismatched names:
+// JSX: "allow-custom"
+// Lit: allowCustom
+
+// GOOD - matching names:
+// JSX: "allowCustom"
+// Lit: allowCustom
+```
+
+**For pattern authors:** Check if the component uses kebab-case in JSX types.
+If so, that attribute may not work correctly with static boolean values.
+
+## Workarounds
+
+1. **Set property via ref/evaluate** (testing only):
+```typescript
+element.allowCustom = true;  // Works but not practical in patterns
+```
+
+2. **Change component to use camelCase JSX types** (requires component update)
 
 ## Context
 
-Discovered while implementing the ct-autocomplete component in labs/.
-The component has:
+Discovered while implementing ct-autocomplete. The component defines:
 
 ```typescript
 static override properties = {
@@ -74,50 +110,48 @@ static override properties = {
 };
 ```
 
-The JSX types correctly define:
-
+JSX types define:
 ```typescript
 interface CTAutocompleteAttributes {
-  "allow-custom"?: boolean;
+  "allow-custom"?: boolean;  // Kebab-case
 }
 ```
 
-The pattern correctly uses:
-
+Pattern uses:
 ```tsx
 <ct-autocomplete allow-custom={true} />
 ```
 
-But the attribute is never set on the rendered component. When manually
-setting `element.allowCustom = true` via JavaScript, the feature works
-perfectly.
+CommonTools sets `element["allow-custom"] = true` but the Lit property is
+`element.allowCustom` - they never connect!
 
-## What We Tried
+## Evidence
 
-1. `allow-custom={true}` - Compiles but doesn't work
-2. `allowCustom={true}` - Type error (JSX expects kebab-case)
-3. Manual property assignment - Works
+**Working example (camelCase):**
+- `<ct-file-input showPreview={false}>` - Works because `showPreview` matches Lit property
+
+**Non-working example (kebab-case):**
+- `<ct-autocomplete allow-custom={true}>` - Fails because `allow-custom` != `allowCustom`
 
 ## Related Documentation
 
-- **Official docs:** ~/Code/labs/docs/common/PATTERNS.md (general patterns)
-- **Related components:** ct-button, ct-switch likely use boolean attrs
-- **Lit docs:** https://lit.dev/docs/components/properties/
+- **CommonTools render.ts:** `packages/html/src/render.ts` lines 532-533
+- **Lit property docs:** https://lit.dev/docs/components/properties/
+- **Official docs:** ~/Code/labs/docs/common/PATTERNS.md
 
 ## Next Steps
 
-- [ ] Confirm with other boolean attributes (disabled, etc.)
-- [ ] Check how built-in components handle booleans
-- [ ] File framework issue if confirmed
-- [ ] Find workaround for patterns (maybe derive + ref?)
+- [ ] Fix ct-autocomplete to use camelCase JSX type (`allowCustom`)
+- [ ] Audit other components for kebab-case JSX attributes
+- [ ] Consider framework fix to handle kebab→camelCase conversion
+- [ ] Document this in component authoring guidelines
 
 ## Notes
 
-- The component implementation is correct (Lit boolean properties work fine)
-- The JSX types are correct (accepts boolean value)
-- The issue appears to be in CommonTools HTML->WebComponent bridging
-- May be related to how JSX props are spread to DOM elements
-- Other non-boolean attributes (items, placeholder) work correctly
+- This is NOT a boolean-specific issue - it affects ANY kebab-case JSX attribute
+- Reactive values (Cells) likely have the same issue if using kebab-case
+- The `attribute: "allow-custom"` in Lit maps the HTML attribute, not JSX props
+- CommonTools sets **properties**, not **attributes**, so Lit's attribute mapping is bypassed
 
 ---
 
