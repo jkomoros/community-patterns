@@ -338,3 +338,9 @@ These limitations could be resolved by implementing as a `ct-search-select` buil
   - Fixed dropdown clipping with `position: fixed` (hardcoded coordinates)
   - Keyboard selection works (selects correct item), but visual highlight doesn't update reactively
   - Documented known limitations of userland patterns vs built-in components
+- 2025-12-05: **Confirmed visual highlight limitation**:
+  - Tested with derive() approach - same result
+  - Internal state updates correctly (ArrowDown then Enter selects index 1 = "Manager")
+  - Visual highlight stays on index 0 ("Colleague") - JSX doesn't re-render
+  - This is a framework limitation: derived values in `.map()` don't trigger style re-evaluation
+  - **Component is FUNCTIONALLY COMPLETE** - keyboard nav works, only visual feedback is missing

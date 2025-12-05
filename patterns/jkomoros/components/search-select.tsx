@@ -4,6 +4,7 @@ import {
   cell,
   computed,
   Default,
+  derive,
   handler,
   ifElse,
   NAME,
@@ -134,17 +135,28 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     });
 
     // Pre-compute items with highlight state for rendering
-    // Need to explicitly copy properties (can't spread opaque cells)
-    const filteredItemsWithHighlight = computed(() => {
-      const idx = highlightedIndex.get();
-      const items = filteredItems;
-      return items.map((item, i) => ({
-        value: item.value,
-        label: item.label,
-        group: item.group,
-        isHighlighted: i === idx,
-      }));
-    });
+    // Using derive() with explicit dependencies for better reactivity tracking
+    // IMPORTANT: Pre-compute the background color STRING, not a boolean!
+    interface HighlightedItem {
+      value: string;
+      label: string;
+      group: string;
+      highlightBg: string;
+    }
+    const filteredItemsWithHighlight = derive(
+      { items: filteredItems, idx: highlightedIndex },
+      ({ items, idx }): HighlightedItem[] => {
+        // Inside derive with object params, values may need .get()
+        const idxVal = (idx as any).get ? (idx as any).get() : idx;
+        const itemsVal = (items as any).get ? (items as any).get() : items;
+        return itemsVal.map((item: any, i: number) => ({
+          value: item.value,
+          label: item.label,
+          group: item.group ?? "",
+          highlightBg: i === idxVal ? "#e2e8f0" : "transparent",
+        }));
+      }
+    );
 
     // -------------------------------------------------------------------------
     // Handlers
@@ -438,7 +450,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           cursor: "pointer",
                           borderRadius: "4px",
                           fontSize: "14px",
-                          background: item.isHighlighted ? "#e2e8f0" : "transparent",
+                          background: item.highlightBg,
                         }}
                       >
                         <span>{item.label}</span>
