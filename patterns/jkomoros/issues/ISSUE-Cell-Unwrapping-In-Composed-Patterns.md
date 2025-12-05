@@ -46,7 +46,7 @@ const availableItems = computed(() => {
    const myHandler = handler((_, { selected, value }) => { /* use value */ });
    onClick={myHandler({ selected, value: item.value })}
    ```
-4. **Cannot directly access opaque values (computed results) inside `.map()` callbacks** - get error "Tried to directly access an opaque value" - pre-compute data before JSX
+4. **Cannot use reactive values as property keys** - inside JSX `.map()`, items are opaque proxies. Using `lookup[item.value]` triggers `Symbol.toPrimitive` conversion which throws "Tried to directly access an opaque value". Fix: pre-compute lookups inside `computed()` before JSX.
 
 ## Working Implementation
 

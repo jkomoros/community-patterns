@@ -262,7 +262,7 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
    // USAGE: onClick={myHandler({ selected, value: item.value })}
    ```
 
-7. **Cannot access opaque values in .map() callbacks (2025-12-05)**: Accessing computed results inside `.map()` callbacks causes "Tried to directly access an opaque value" error. Pre-compute data that needs to be accessed inside callbacks.
+7. **Cannot use reactive values as property keys (2025-12-05)**: Inside JSX `.map()`, items are opaque proxies. Using `lookup[item.value]` triggers `Symbol.toPrimitive` conversion which throws "Tried to directly access an opaque value". Pre-compute lookups inside `computed()` before the JSX.
 
 ---
 
