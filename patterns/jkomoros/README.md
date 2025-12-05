@@ -227,6 +227,16 @@ Summarize Substack newsletter content.
 
 Work-in-progress patterns in active development. May be incomplete or experimental.
 
+#### `WIP/autocomplete-value-demo.tsx`
+Demo pattern for ct-autocomplete $value binding in single-select and multi-select modes.
+**⚠️ Requires labs PR for ct-autocomplete $value support to be merged first.**
+
+**Interesting features:**
+- Single-select mode: shows selected label in input, backspace to clear
+- Multi-select mode: adds to array, filters already-selected items
+- "Already added" items shown at bottom with remove functionality
+- Custom values with "Add X" option
+
 #### `WIP/codenames-helper.tsx`
 Helper for the Codenames board game. Includes PRD document.
 
