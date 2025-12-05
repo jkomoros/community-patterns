@@ -137,9 +137,9 @@ Check for self-referential wishes:
 ```yaml
 topic: wish, infinite-loop, self-reference, deployment, cpu
 discovered: 2025-12-04
-confirmed_count: 1
+confirmed_count: 2
 last_confirmed: 2025-12-04
-sessions: [hotel-membership-migration-check-recent]
+sessions: [hotel-membership-migration-check-recent, person-research-gmail-agent]
 related_functions: wish
 status: superstition
 stars: ⭐⭐⭐
@@ -148,6 +148,8 @@ stars: ⭐⭐⭐
 ## Guestbook
 
 - 2025-12-04 - hotel-membership-gmail-agent pattern. Added `wish("#hotelMemberships")` to aggregate memberships from other charms. Pattern exports `memberships` which matches that query. Deployment hung with 100% CPU, no errors. Had to kill Deno process multiple times. Fix: removed all wish-related code. Pattern deployed immediately after. **BUT:** The original standalone hotel-membership-extractor.tsx has the exact same self-referential wish and worked fine! The key difference may be pattern composition - the new pattern composes GmailAgenticSearch. This superstition needs more investigation. (hotel-membership-migration-check-recent)
+
+- 2025-12-04 - person-research-gmail-agent pattern. Used `wish("#person")` to let user select a Person charm to research. Got "Too many iterations: 101" error during deployment. Pattern also composes GmailAgenticSearch. This is NOT a self-referential wish (pattern doesn't export #person data), but the reactive loop still occurred. Fix: removed all wish-related code. Pattern deployed immediately after. This adds evidence that wish + pattern composition may be the issue, not just self-referential wishes. (person-research-gmail-agent)
 
 ---
 
