@@ -223,15 +223,29 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
 ## Implementation Plan
 
 1. [x] Finalize design based on user input
-2. [ ] Create `search-select.tsx` in `patterns/jkomoros/lib/`
-3. [ ] Implement core pattern with:
+2. [x] Create `search-select.tsx` in `patterns/jkomoros/lib/`
+3. [x] Implement core pattern with:
    - Selected chips display
    - Add button with dropdown
    - Search input filtering
    - Option selection
-4. [ ] Test in isolation with test data
+4. [x] Test in isolation with test data (`search-select-test.tsx`)
 5. [ ] Integrate into person.tsx for relationship types
 6. [ ] Iterate based on usage
+
+---
+
+## Implementation Notes
+
+**Key discoveries during implementation:**
+
+1. **Cell unwrapping in derive()**: Even with array syntax `derive([cell], ([val]) => ...)`, values may come through as Cell objects. Added `safeUnwrap()` helper function to defensively handle this.
+
+2. **Maps don't serialize well**: Using `new Map()` in derive outputs caused "get is not a function" errors. Switched to plain `Record<string, T>` objects which serialize correctly.
+
+3. **safeUnwrap must exclude Map/Set**: Initial safeUnwrap checked for `.get()` method, which incorrectly matched Maps. Fixed by checking for `.set()` also AND `!(v instanceof Map)`.
+
+4. **Test pattern location**: Moved test from `WIP/` to same level as `lib/` because relative imports like `../lib/search-select.tsx` weren't resolving correctly from WIP.
 
 ---
 
@@ -244,3 +258,9 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
   - Search: Dropdown below Add button
   - Interface: Direct bidirectional Cell binding
   - Groups: Shown as smaller disambiguating text on right
+- 2025-12-04: Implemented search-select.tsx. Multiple iterations to fix:
+  - Relative import paths from WIP/ subfolder
+  - Cell unwrapping issues in derive callbacks
+  - Map serialization issues (switched to Record<>)
+  - isOpen state not defaulting to false
+- 2025-12-04: All core functionality working and tested.
