@@ -223,14 +223,14 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
 ## Implementation Plan
 
 1. [x] Finalize design based on user input
-2. [x] Create `search-select.tsx` in `patterns/jkomoros/lib/`
+2. [x] Create `search-select.tsx` in `patterns/jkomoros/components/`
 3. [x] Implement core pattern with:
    - Selected chips display
    - Add button with dropdown
    - Search input filtering
    - Option selection
 4. [x] Test in isolation with test data (`search-select-test.tsx`)
-5. [ ] Integrate into person.tsx for relationship types
+5. [x] Integrate into person.tsx for relationship types
 6. [ ] Iterate based on usage
 
 ---

@@ -18,6 +18,7 @@ import {
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
+import SearchSelect, { type SearchSelectItem } from "./components/search-select.tsx";
 
 // Social platform types
 type SocialPlatform =
@@ -202,6 +203,17 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
+// Convert grouped relationship types to SearchSelectItem format
+const RELATIONSHIP_TYPE_ITEMS: SearchSelectItem[] = Object.entries(
+  RELATIONSHIP_TYPE_GROUPS
+).flatMap(([group, types]) =>
+  types.map((type) => ({
+    value: type,
+    label: RELATIONSHIP_TYPE_LABELS[type],
+    group,
+  }))
+);
+
 type EmailEntry = {
   type: ContactType;
   value: string;
@@ -367,26 +379,6 @@ const updateSocial = handler<
     }
 
     socialLinks.set(updated);
-  },
-);
-
-// Handler to toggle a relationship type
-const toggleRelationshipType = handler<
-  Record<string, never>,
-  { relationshipTypes: Cell<RelationshipType[]>; type: RelationshipType }
->(
-  (_, { relationshipTypes, type }) => {
-    const current = relationshipTypes.get();
-    const index = current.indexOf(type);
-    if (index >= 0) {
-      // Remove it
-      const updated = [...current];
-      updated.splice(index, 1);
-      relationshipTypes.set(updated);
-    } else {
-      // Add it
-      relationshipTypes.set([...current, type]);
-    }
   },
 );
 
@@ -1115,27 +1107,12 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         Select all that apply. Family modifiers (in-law, step, etc.) stack with base types.
                       </p>
 
-                      {Object.entries(RELATIONSHIP_TYPE_GROUPS).map(([groupName, types]) => (
-                        <ct-vstack style="gap: 4px;">
-                          <strong style="font-size: 12px; color: #444;">{groupName}</strong>
-                          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                            {types.map((type) => (
-                              <ct-button
-                                size="sm"
-                                variant={derive(relationshipTypes, (arr) =>
-                                  arr.includes(type) ? "primary" : "secondary"
-                                )}
-                                onClick={toggleRelationshipType({
-                                  relationshipTypes,
-                                  type,
-                                })}
-                              >
-                                {RELATIONSHIP_TYPE_LABELS[type]}
-                              </ct-button>
-                            ))}
-                          </div>
-                        </ct-vstack>
-                      ))}
+                      {SearchSelect({
+                        items: RELATIONSHIP_TYPE_ITEMS,
+                        selected: relationshipTypes as unknown as Cell<string[]>,
+                        placeholder: "Search relationship types...",
+                        maxVisible: 8,
+                      })}
                     </ct-vstack>
 
                     {/* Closeness Section */}
