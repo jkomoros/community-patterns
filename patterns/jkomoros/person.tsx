@@ -18,7 +18,9 @@ import {
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
-import SearchSelect, { type SearchSelectItem } from "./components/search-select.tsx";
+// TODO: Replace with ct-search-select built-in component when available
+// Prototype at ./components/search-select-prototype.tsx has keyboard nav issues
+// See: patterns/jkomoros/design/todo/ct-search-select-prd.md
 
 // Social platform types
 type SocialPlatform =
@@ -203,16 +205,11 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// Convert grouped relationship types to SearchSelectItem format
-const RELATIONSHIP_TYPE_ITEMS: SearchSelectItem[] = Object.entries(
-  RELATIONSHIP_TYPE_GROUPS
-).flatMap(([group, types]) =>
-  types.map((type) => ({
-    value: type,
-    label: RELATIONSHIP_TYPE_LABELS[type],
-    group,
-  }))
-);
+// TODO: When ct-search-select is available, convert these to items
+// const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
+//   .flatMap(([group, types]) => types.map((type) => ({
+//     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
+//   })));
 
 type EmailEntry = {
   type: ContactType;
@@ -1107,12 +1104,12 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         Select all that apply. Family modifiers (in-law, step, etc.) stack with base types.
                       </p>
 
-                      {SearchSelect({
-                        items: RELATIONSHIP_TYPE_ITEMS,
-                        selected: relationshipTypes as unknown as Cell<string[]>,
-                        placeholder: "Search relationship types...",
-                        maxVisible: 8,
-                      })}
+                      {/* TODO: Replace with ct-search-select when available */}
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                        <span style="color: #64748b; font-size: 12px; font-style: italic;">
+                          Search-select coming soon. For now, edit relationship types via import.
+                        </span>
+                      </div>
                     </ct-vstack>
 
                     {/* Closeness Section */}

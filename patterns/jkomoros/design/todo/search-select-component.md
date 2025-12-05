@@ -344,3 +344,9 @@ These limitations could be resolved by implementing as a `ct-search-select` buil
   - Visual highlight stays on index 0 ("Colleague") - JSX doesn't re-render
   - This is a framework limitation: derived values in `.map()` don't trigger style re-evaluation
   - **Component is FUNCTIONALLY COMPLETE** - keyboard nav works, only visual feedback is missing
+- 2025-12-05: **Decision: Implement as built-in component**:
+  - User-land prototype hits framework limitations that can't be worked around
+  - Renamed to `search-select-prototype.tsx` for reference
+  - Created PRD for `ct-search-select` built-in component: `ct-search-select-prd.md`
+  - Removed from person.tsx until proper component is available
+  - Filed ISSUE-Map-Style-Reactivity.md for framework team

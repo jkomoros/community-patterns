@@ -1,4 +1,21 @@
 /// <cts-enable />
+/**
+ * PROTOTYPE: Search-Select Component (User-land Pattern)
+ *
+ * This is a prototype exploring search-select functionality as a user-land pattern.
+ * It demonstrates the desired UX but has limitations that require a proper
+ * built-in ct-search-select component.
+ *
+ * STATUS: Prototype - DO NOT USE in production patterns
+ *
+ * KNOWN LIMITATIONS:
+ * 1. Visual highlight doesn't update when arrow keys are pressed (internal state works)
+ * 2. Dropdown position is hardcoded (no getBoundingClientRect access)
+ * 3. No programmatic focus control
+ *
+ * See: patterns/jkomoros/design/todo/ct-search-select-prd.md for the proper component spec
+ * See: patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md for technical details
+ */
 import {
   Cell,
   cell,
