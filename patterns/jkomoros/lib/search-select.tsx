@@ -54,6 +54,29 @@ interface SearchSelectOutput {
 }
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+// Safely unwrap a value that might be a Cell or already unwrapped
+// deno-lint-ignore no-explicit-any
+function safeUnwrap<T>(value: T | Cell<T> | undefined, defaultValue: T): T {
+  if (value === undefined || value === null) return defaultValue;
+  // Check for Cell-like objects (have .get and .set methods, and are not Map/Set)
+  // deno-lint-ignore no-explicit-any
+  const v = value as any;
+  if (
+    typeof v === "object" &&
+    typeof v.get === "function" &&
+    typeof v.set === "function" &&
+    !(v instanceof Map) &&
+    !(v instanceof Set)
+  ) {
+    return v.get() ?? defaultValue;
+  }
+  return value as T;
+}
+
+// =============================================================================
 // Pattern
 // =============================================================================
 
@@ -72,42 +95,62 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // Normalize items (ensure all have labels)
     const normalizedItems = derive(
       [items],
-      ([itemList]: [SearchSelectItem[]]) =>
-        itemList.map((item) => ({
+      // deno-lint-ignore no-explicit-any
+      ([itemList]: [any]) => {
+        const list = safeUnwrap<SearchSelectItem[]>(itemList, []);
+        return list.map((item) => ({
           value: item.value,
           label: item.label ?? item.value,
           group: item.group,
-        })),
+        }));
+      },
     );
 
-    // Build lookup map for display (value -> item)
-    const itemMap = derive(
+    // Build lookup object for display (value -> item)
+    // Using plain object instead of Map since Maps don't serialize well
+    const itemLookup = derive(
       [normalizedItems],
-      ([itemList]: [NormalizedItem[]]) =>
-        new Map(itemList.map((item) => [item.value, item])),
+      // deno-lint-ignore no-explicit-any
+      ([itemList]: [any]) => {
+        const list = safeUnwrap<NormalizedItem[]>(itemList, []);
+        const lookup: Record<string, NormalizedItem> = {};
+        for (const item of list) {
+          lookup[item.value] = item;
+        }
+        return lookup;
+      },
     );
 
     // Available options (not already selected)
     const availableItems = derive(
       [normalizedItems, selected],
-      ([itemList, sel]: [NormalizedItem[], string[]]) =>
-        itemList.filter((item) => !sel.includes(item.value)),
+      // deno-lint-ignore no-explicit-any
+      ([itemList, sel]: [any, any]) => {
+        const list = safeUnwrap<NormalizedItem[]>(itemList, []);
+        const selectedValues = safeUnwrap<string[]>(sel, []);
+        return list.filter((item) => !selectedValues.includes(item.value));
+      },
     );
 
     // Filtered options based on search query
     const filteredItems = derive(
       [searchQuery, availableItems, maxVisible],
-      ([query, available, max]: [string, NormalizedItem[], number]) => {
-        if (!query.trim()) return available.slice(0, max);
-        const q = query.toLowerCase();
-        return available
+      // deno-lint-ignore no-explicit-any
+      ([query, available, max]: [any, any, any]) => {
+        const q = safeUnwrap<string>(query, "");
+        const availableList = safeUnwrap<NormalizedItem[]>(available, []);
+        const maxNum = safeUnwrap<number>(max, 8);
+
+        if (!q.trim()) return availableList.slice(0, maxNum);
+        const qLower = q.toLowerCase();
+        return availableList
           .filter(
             (item) =>
-              item.label.toLowerCase().includes(q) ||
-              item.value.toLowerCase().includes(q) ||
-              (item.group?.toLowerCase().includes(q) ?? false),
+              item.label.toLowerCase().includes(qLower) ||
+              item.value.toLowerCase().includes(qLower) ||
+              (item.group?.toLowerCase().includes(qLower) ?? false),
           )
-          .slice(0, max);
+          .slice(0, maxNum);
       },
     );
 
@@ -179,10 +222,16 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
           >
             {/* Render selected items as chips */}
             {derive(
-              [selected, itemMap],
-              ([sel, map]: [string[], Map<string, NormalizedItem>]) =>
-                sel.map((value, index) => {
-                  const item = map.get(value);
+              [selected, itemLookup],
+              // deno-lint-ignore no-explicit-any
+              ([sel, lookup]: [any, any]) => {
+                const selectedValues = safeUnwrap<string[]>(sel, []);
+                const lookupObj = safeUnwrap<Record<string, NormalizedItem>>(
+                  lookup,
+                  {},
+                );
+                return selectedValues.map((value, index) => {
+                  const item = lookupObj[value];
                   const label = item?.label ?? value;
                   return (
                     <div
@@ -212,7 +261,8 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                       </span>
                     </div>
                   );
-                }),
+                });
+              },
             )}
 
             {/* Add button */}
@@ -226,8 +276,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
           </div>
 
           {/* Dropdown */}
-          {derive([isOpen], ([open]: [boolean]) =>
-            open ? (
+          {derive([isOpen], ([open]: [unknown]) => {
+            const isOpenValue = safeUnwrap<boolean>(open as boolean, false);
+            return isOpenValue ? (
               <div
                 style={{
                   position: "absolute",
@@ -263,8 +314,10 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                 >
                   {derive(
                     [filteredItems],
-                    ([items]: [NormalizedItem[]]) =>
-                      items.length === 0 ? (
+                    // deno-lint-ignore no-explicit-any
+                    ([items]: [any]) => {
+                      const itemList = safeUnwrap<NormalizedItem[]>(items, []);
+                      return itemList.length === 0 ? (
                         <div
                           style={{
                             padding: "12px",
@@ -276,7 +329,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           No matching options
                         </div>
                       ) : (
-                        items.map((item, index) => (
+                        itemList.map((item, index) => (
                           <div
                             key={index}
                             onClick={createAddHandler(item.value)({
@@ -308,12 +361,13 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                             )}
                           </div>
                         ))
-                      ),
+                      );
+                    },
                   )}
                 </div>
               </div>
-            ) : null,
-          )}
+            ) : null;
+          })}
         </div>
       ),
     };
