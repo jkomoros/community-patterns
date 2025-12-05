@@ -19,7 +19,7 @@ import {
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
 import GmailAgenticSearch, { type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
-import { createReportHandler } from "./shared/report-handler.ts";
+import { createReportHandler } from "./util/report-handler.ts";
 
 // Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
 type ScanMode = "full" | "recent";
