@@ -1,0 +1,80 @@
+/// <cts-enable />
+import { cell, Default, derive, NAME, pattern, UI } from "commontools";
+import SearchSelect, { SearchSelectItem } from "./lib/search-select.tsx";
+
+// Test data - relationship types with groups
+const RELATIONSHIP_ITEMS: SearchSelectItem[] = [
+  // Professional
+  { value: "colleague", label: "Colleague", group: "Professional" },
+  { value: "manager", label: "Manager", group: "Professional" },
+  { value: "mentor", label: "Mentor", group: "Professional" },
+  { value: "client", label: "Client", group: "Professional" },
+  // Personal
+  { value: "friend", label: "Friend", group: "Personal" },
+  { value: "acquaintance", label: "Acquaintance", group: "Personal" },
+  { value: "neighbor", label: "Neighbor", group: "Personal" },
+  // Family
+  { value: "spouse", label: "Spouse", group: "Family" },
+  { value: "parent", label: "Parent", group: "Family" },
+  { value: "sibling", label: "Sibling", group: "Family" },
+  { value: "cousin", label: "Cousin", group: "Family" },
+];
+
+interface TestInput {
+  initialSelected: Default<string[], []>;
+}
+
+export default pattern<TestInput>(({ initialSelected }) => {
+  // Create the selected cell with initial values
+  const selected = cell<string[]>(initialSelected || []);
+
+  // Create the search-select instance
+  const relationshipSelector = SearchSelect({
+    items: RELATIONSHIP_ITEMS,
+    selected: selected,
+    placeholder: "Search relationship types...",
+    maxVisible: 6,
+  });
+
+  // Derive a display of current selection for verification
+  const selectionDisplay = derive(
+    [selected],
+    ([sel]: [string[]]) =>
+      sel.length === 0 ? "None selected" : sel.join(", "),
+  );
+
+  return {
+    [NAME]: "Search Select Test",
+    selected,
+    [UI]: (
+      <ct-vstack gap="4" style={{ padding: "20px", maxWidth: "600px" }}>
+        <ct-card>
+          <h2 style={{ margin: "0 0 16px 0" }}>Search Select Component Test</h2>
+
+          <div style={{ marginBottom: "16px" }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#64748b" }}>
+              Relationship Types
+            </h3>
+            {relationshipSelector}
+          </div>
+
+          <div
+            style={{
+              padding: "12px",
+              background: "#f8fafc",
+              borderRadius: "6px",
+              marginTop: "16px",
+            }}
+          >
+            <strong style={{ fontSize: "13px", color: "#64748b" }}>
+              Current Selection:
+            </strong>
+            <div style={{ marginTop: "4px", fontSize: "14px" }}>
+              {selectionDisplay}
+            </div>
+          </div>
+        </ct-card>
+      </ct-vstack>
+    ),
+  };
+});
