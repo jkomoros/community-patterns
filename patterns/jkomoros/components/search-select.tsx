@@ -135,28 +135,17 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     });
 
     // Pre-compute items with highlight state for rendering
-    // Using derive() with explicit dependencies for better reactivity tracking
-    // IMPORTANT: Pre-compute the background color STRING, not a boolean!
-    interface HighlightedItem {
-      value: string;
-      label: string;
-      group: string;
-      highlightBg: string;
-    }
-    const filteredItemsWithHighlight = derive(
-      { items: filteredItems, idx: highlightedIndex },
-      ({ items, idx }): HighlightedItem[] => {
-        // Inside derive with object params, values may need .get()
-        const idxVal = (idx as any).get ? (idx as any).get() : idx;
-        const itemsVal = (items as any).get ? (items as any).get() : items;
-        return itemsVal.map((item: any, i: number) => ({
-          value: item.value,
-          label: item.label,
-          group: item.group ?? "",
-          highlightBg: i === idxVal ? "#e2e8f0" : "transparent",
-        }));
-      }
-    );
+    // Using derive() with single explicit dependency
+    // NOTE: Even single-cell derive doesn't auto-unwrap - must call .get()
+    const filteredItemsWithHighlight = derive(highlightedIndex, (idx) => {
+      const idxVal = (idx as any).get ? (idx as any).get() : idx;
+      return filteredItems.map((item, i) => ({
+        value: item.value,
+        label: item.label,
+        group: item.group ?? "",
+        highlightBg: i === idxVal ? "#e2e8f0" : "transparent",
+      }));
+    });
 
     // -------------------------------------------------------------------------
     // Handlers
@@ -432,7 +421,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                     >
                       No matching options
                     </div>,
-                    filteredItemsWithHighlight.map((item, index) => (
+                    filteredItems.map((item, index) => (
                       <div
                         key={index}
                         onClick={addItem({
@@ -450,7 +439,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           cursor: "pointer",
                           borderRadius: "4px",
                           fontSize: "14px",
-                          background: item.highlightBg,
+                          // NOTE: Visual highlight doesn't update reactively - see ISSUE file
+                          // The highlightBg is pre-computed but JSX doesn't re-render
+                          background: filteredItemsWithHighlight[index]?.highlightBg ?? "transparent",
                         }}
                       >
                         <span>{item.label}</span>
