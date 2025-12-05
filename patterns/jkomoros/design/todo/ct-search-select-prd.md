@@ -49,9 +49,47 @@ interface SearchSelectItem {
   value: string;              // Stored in selected array
   label?: string;             // Display text (defaults to value)
   group?: string;             // Category for grouping/disambiguation
-  searchAliases?: string[];   // Additional search terms (future)
+  searchAliases?: string[];   // Additional search terms (see below)
 }
 ```
+
+### Search Aliases (Alternate Match Strings)
+
+The `searchAliases` property enables matching items by related terms that aren't in the display label. This is useful for:
+
+1. **Synonyms**: "sibling" matches when user types "sister" or "brother"
+2. **Abbreviations**: "manager" matches when user types "mgr" or "boss"
+3. **Common misspellings**: "colleague" matches when user types "coworker" or "co-worker"
+4. **Related concepts**: "mentor" matches when user types "advisor" or "guide"
+
+**Example:**
+```typescript
+const items = [
+  {
+    value: "sibling",
+    label: "Sibling",
+    group: "Family",
+    searchAliases: ["sister", "brother", "bro", "sis"],
+  },
+  {
+    value: "colleague",
+    label: "Colleague",
+    group: "Professional",
+    searchAliases: ["coworker", "co-worker", "workmate"],
+  },
+  {
+    value: "significant-other",
+    label: "Significant Other",
+    group: "Personal",
+    searchAliases: ["partner", "spouse", "husband", "wife", "boyfriend", "girlfriend", "SO"],
+  },
+];
+```
+
+**Search behavior:**
+- User types "sister" → "Sibling" appears in results (alias match)
+- User types "sib" → "Sibling" appears in results (label match)
+- Alias matches should appear after exact label/value matches in sort order
 
 ## Visual Design
 
@@ -153,11 +191,13 @@ A built-in component has access to:
 
 ## Open Questions
 
-1. Should `searchAliases` be in v1 or defer to v2?
-2. Should there be a `disabled` state?
-3. Should we support custom item rendering (slots)?
-4. Should there be a `max` limit on selections?
-5. Should we emit events (`onchange`, `onopen`, `onclose`)?
+1. Should `searchAliases` be in v1 or defer to v2? (Spec above assumes v1)
+2. Should there be a `disabled` state for the whole component?
+3. Should individual items support `disabled: true`?
+4. Should we support custom item rendering (slots)?
+5. Should there be a `max` limit on selections?
+6. Should we emit events (`onchange`, `onopen`, `onclose`)?
+7. Should alias matches show which alias matched? (e.g., "Sibling" with small "matched: sister")
 
 ---
 
