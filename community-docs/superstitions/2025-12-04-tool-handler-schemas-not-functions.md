@@ -1,150 +1,183 @@
 ---
 topic: llm
 discovered: 2025-12-04
-confirmed_count: 1
+confirmed_count: 2
 last_confirmed: 2025-12-04
-sessions: [handler-refactor-createReportTool]
+sessions: [handler-refactor-createReportTool, debug-handler-schema-inference]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
-stars: ⭐
+status: folk_wisdom
+stars: ⭐⭐
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# Tool Handlers: Generic Types Don't Work, Use Explicit Schemas
 
-**This is a SUPERSTITION** - based on a single observation. It may be:
-- Incomplete or context-specific
-- Misunderstood or coincidental
-- Already contradicted by official docs
-- Wrong in subtle ways
+## The Core Problem
 
-**DO NOT trust this blindly.** Verify against:
-1. Official labs/docs/ first
-2. Working examples in labs/packages/patterns/
-3. Your own testing
+**Generic type parameters in `handler<T>()` produce incomplete LLM tool schemas.**
 
-**If this works for you,** update the metadata and consider promoting to folk_wisdom.
+The CTS compiler can't resolve generic type parameters at compile time. When you write:
 
----
-
-# Tool Handlers Must Use Schema-Based Signatures, Not Function Configs
-
-## Problem
-
-Factory patterns that take **functions** as configuration won't work with future framework sandboxing. Functions cannot be serialized and passed across sandbox boundaries.
-
-**Problematic pattern:**
 ```typescript
-// ❌ WON'T WORK with sandboxing
-function createReportTool<T>(config: {
-  dedupeKey: (input: T) => string,    // Function as config
-  toRecord: (input: T) => Record,     // Function as config
-}) {
-  return handler<T, { records: Cell<Record[]> }>(
-    (input, { records }) => {
-      const key = config.dedupeKey(input);  // Closure over function
-      const record = config.toRecord(input);
-      // ...
+// ❌ BROKEN - Generic T can't be resolved
+function createReportHandler<T>() {
+  return handler<
+    Omit<T, "id"> & { result?: Cell<any> },  // T is unknown!
+    { items: Cell<T[]> }
+  >((input, state) => { ... });
+}
+```
+
+The CTS compiler generates an input schema with only the non-generic fields:
+
+```javascript
+// Actual compiled output - INCOMPLETE!
+handler({
+    type: "object",
+    properties: {
+        result: { asCell: true }  // Only "result" - missing all T's fields!
     }
+}, ...)
+```
+
+The LLM receives this incomplete schema and doesn't know what fields to send, resulting in empty data.
+
+## Evidence
+
+Tested with `--show-transformed` flag:
+
+```bash
+cd ~/Code/labs
+deno task ct dev pattern.tsx --show-transformed
+```
+
+**Generic handler output** (BROKEN):
+```javascript
+// Input schema only has "result" - missing name, category, priority!
+handler({
+    type: "object",
+    properties: { result: { asCell: true } }
+}, ...)
+```
+
+**Explicit schema handler output** (WORKS):
+```javascript
+handler({
+    type: "object",
+    properties: {
+        name: { type: "string", description: "Name" },
+        category: { type: "string", description: "Category" },
+        priority: { type: "number", description: "Priority" },
+        result: { type: "object", asCell: true },
+    },
+    required: ["name", "category", "priority"],
+}, ...)
+```
+
+## Solution: Pass Explicit Schemas as Data
+
+Instead of using type parameters, pass the input schema as a **data parameter**:
+
+```typescript
+// ✅ WORKS - Explicit schema as data parameter
+const MEMBERSHIP_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    hotelBrand: { type: "string", description: "Hotel chain name" },
+    membershipNumber: { type: "string", description: "Membership number" },
+    result: { type: "object", asCell: true },
+  },
+  required: ["hotelBrand", "membershipNumber"],
+} as const;
+
+// Factory takes schema as DATA, not type
+function createReportHandler(inputSchema: JSONSchema) {
+  return handler(
+    inputSchema,  // Explicit schema - LLM sees all fields!
+    STATE_SCHEMA,
+    (input, state) => { ... }
   );
 }
+
+// Usage
+const reportHandler = createReportHandler(MEMBERSHIP_INPUT_SCHEMA);
 ```
 
-The problem: `createReportTool` takes functions (`dedupeKey`, `toRecord`) and creates handlers that close over them. Once sandboxing is enabled, these closures will fail.
+## Working Pattern
 
-## Solution: Inline Logic, Schema-Based State
-
-The proper pattern uses schemas as DATA (serializable) and puts logic INLINE in the callback:
+See `patterns/jkomoros/shared/report-handler.ts` for a complete working example:
 
 ```typescript
-// ✅ SANDBOX-SAFE pattern
-const reportHandler = handler(
-  // INPUT SCHEMA - what LLM sends (data, not functions!)
-  {
-    type: "object",
-    properties: {
-      hotelBrand: { type: "string" },
-      membershipNumber: { type: "string" },
-      result: { type: "object", asCell: true },  // For response to LLM
-    },
+// 1. Define explicit input schema (what LLM will send)
+const MEMBERSHIP_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    hotelBrand: { type: "string", description: "Hotel chain name" },
+    programName: { type: "string", description: "Loyalty program name" },
+    membershipNumber: { type: "string", description: "Membership number" },
+    tier: { type: "string", description: "Status tier if known" },
+    sourceEmailId: { type: "string", description: "Email ID" },
+    sourceEmailSubject: { type: "string", description: "Email subject" },
+    sourceEmailDate: { type: "string", description: "Email date" },
+    confidence: { type: "number", description: "0-100 confidence" },
+    result: { type: "object", asCell: true },
   },
-  // STATE SCHEMA - external cells to access
-  {
-    type: "object",
-    properties: {
-      memberships: { type: "array", asCell: true },
-    },
-  },
-  // CALLBACK - self-contained, no closures over external functions
-  (args, state) => {
-    // ALL LOGIC INLINE - dedup, transformation, etc.
-    const key = `${args.hotelBrand}:${args.membershipNumber}`;
-    const current = state.memberships.get() || [];
+  required: ["hotelBrand", "programName", "membershipNumber", ...],
+} as const;
 
-    if (!current.some(m => `${m.hotelBrand}:${m.membershipNumber}` === key)) {
-      state.memberships.set([...current, {
-        id: `membership-${Date.now()}`,
-        hotelBrand: args.hotelBrand,
-        membershipNumber: args.membershipNumber,
-      }]);
-    }
+// 2. Create handler with explicit schema
+const reportMembershipHandler = createReportHandler(MEMBERSHIP_INPUT_SCHEMA);
 
-    // Return confirmation to LLM
-    args.result.set({ success: true });
-  },
-);
-
-// Bind cell via state parameter, not closure
-tools: {
+// 3. Use in additionalTools
+additionalTools: {
   reportMembership: {
     description: "Report a found membership",
-    handler: reportHandler({ memberships }),
+    handler: reportMembershipHandler({
+      items: memberships,
+      idPrefix: "membership",
+      dedupeFields: ["hotelBrand", "membershipNumber"],
+      timestampField: "extractedAt",
+    }),
   },
 }
 ```
 
-**Key differences:**
-| Factory Pattern (broken) | Inline Pattern (works) |
-|--------------------------|------------------------|
-| Functions passed as config | Schemas as DATA |
-| Logic in config callbacks | Logic INLINE in handler callback |
-| Cells bound via closure | Cells bound via STATE PARAMETER |
-| Not serializable | Fully serializable |
+## Key Insights
 
-## Why This Matters
+1. **This is NOT a CTS bug** - the compiler can't magically know what `T` will be at runtime
+2. **This was a pre-existing bug** - both old `createReportTool` and new `createReportHandler` had this issue when using generics
+3. **Functions in config are still problematic** for sandboxing, but the schema issue is separate
+4. **Use `--show-transformed`** to debug schema issues
 
-Framework author stated (2025-12-04):
-> "The createReportTool handler factory won't work as expected once we do proper sandboxing (in particular the passing of functions and then creating handlers by closing over the passed in config)"
+## Debugging Tool Schemas
 
-## Incremental Results Still Work
+```bash
+# See what schemas the CTS compiler generates
+cd ~/Code/labs
+deno task ct dev ../community-patterns-3/patterns/your-pattern.tsx --show-transformed
 
-The inline pattern **preserves incremental behavior** - as the LLM calls the tool multiple times, items appear in the UI incrementally:
-
-```typescript
-// Each tool call adds an item that appears immediately
-(args, state) => {
-  const current = state.memberships.get() || [];
-  state.memberships.set([...current, newItem]);  // UI updates immediately
-  args.result.set({ success: true });
-}
+# Look for your handler's input schema
+# Good: Has all fields the LLM needs to send
+# Bad: Only has "result" or is missing fields
 ```
 
 ## Migration Checklist
 
-When refactoring from factory pattern to inline pattern:
+When using handler-based tools for LLMs:
 
-1. **Remove** the factory function (`createReportTool`, etc.)
-2. **Identify** all functions passed as config (dedupeKey, toRecord, etc.)
-3. **Move** that logic INLINE into the handler callback
-4. **Define** input schema with all fields the LLM sends
-5. **Define** state schema with cells to access (use `asCell: true`)
-6. **Bind** cells when using the handler: `handler({ memberships })`
+1. **Define explicit input schema** with ALL fields the LLM should send
+2. **Include descriptions** for each field (helps LLM understand usage)
+3. **Add `result: { type: "object", asCell: true }`** for tool response
+4. **Pass schema as data** to factory function
+5. **Verify with `--show-transformed`** that all fields are present
 
 ## Related
 
-- See: `~/Code/labs/packages/runner/test/generate-object-tools.test.ts` for proper handler examples
-- Related superstition: `2025-11-27-llm-handler-tools-must-write-to-result-cell.md`
-- Affected patterns: `gmail-agentic-search.tsx`, `hotel-membership-gmail-agent.tsx`, `favorite-foods-gmail-agent.tsx`
+- `~/Code/labs/packages/runner/test/generate-object-tools.test.ts` - Working handler examples
+- `patterns/jkomoros/shared/report-handler.ts` - Shared handler with explicit schemas
+- `patterns/jkomoros/WIP/minimal-handler-schema-repro.tsx` - Minimal repro pattern
 
 ---
 
-**Discovery source:** Framework author feedback on CT-1098 investigation
+**Discovery source:**
+- Framework author feedback on CT-1098 (sandboxing concerns)
+- CTS `--show-transformed` output analysis (schema inference issue)

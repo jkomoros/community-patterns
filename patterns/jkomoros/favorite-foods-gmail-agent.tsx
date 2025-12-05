@@ -71,6 +71,26 @@ interface FavoriteFoodsOutput {
 }
 
 // ============================================================================
+// INPUT SCHEMA FOR reportFood TOOL
+// ============================================================================
+// IMPORTANT: This MUST be explicit - generic type parameters don't work for LLM tool schemas!
+// The CTS compiler can't resolve generics at compile time, so the schema would be incomplete.
+const FOOD_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    foodName: { type: "string", description: "The specific food, cuisine, or restaurant name" },
+    category: { type: "string", description: "One of: 'cuisine', 'dish', 'ingredient', 'restaurant'" },
+    confidence: { type: "number", description: "0-100 confidence based on frequency" },
+    sourceEmailId: { type: "string", description: "The email ID from searchGmail" },
+    sourceEmailSubject: { type: "string", description: "The email subject" },
+    sourceEmailDate: { type: "string", description: "The email date" },
+    notes: { type: "string", description: "Optional context (e.g., 'ordered 5 times')" },
+    result: { type: "object", asCell: true },
+  },
+  required: ["foodName", "category", "confidence", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate"],
+} as const;
+
+// ============================================================================
 // RESULT SCHEMA
 // ============================================================================
 const FOODS_RESULT_SCHEMA = {
@@ -105,11 +125,11 @@ const FOODS_RESULT_SCHEMA = {
 const FavoriteFoodsExtractor = pattern<FavoriteFoodsInput, FavoriteFoodsOutput>(
   ({ foods, lastScanAt, isScanning, maxSearches }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Food Preference (shared handler with data config)
-    // Config is DATA (not functions) - sandbox-safe and composable.
-    // See: patterns/jkomoros/lib/report-handler.ts
+    // CUSTOM TOOL: Report Food Preference (shared handler with explicit schema)
+    // IMPORTANT: Must pass explicit schema - generics don't work for LLM tools!
+    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
     // ========================================================================
-    const reportFoodHandler = createReportHandler<FoodPreference>();
+    const reportFoodHandler = createReportHandler(FOOD_INPUT_SCHEMA);
 
     // ========================================================================
     // DYNAMIC AGENT GOAL

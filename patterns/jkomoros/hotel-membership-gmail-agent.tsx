@@ -95,6 +95,27 @@ interface HotelMembershipOutput {
 }
 
 // ============================================================================
+// INPUT SCHEMA FOR reportMembership TOOL
+// ============================================================================
+// IMPORTANT: This MUST be explicit - generic type parameters don't work for LLM tool schemas!
+// The CTS compiler can't resolve generics at compile time, so the schema would be incomplete.
+const MEMBERSHIP_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    hotelBrand: { type: "string", description: "Hotel chain name (e.g., 'Marriott', 'Hilton')" },
+    programName: { type: "string", description: "Loyalty program name (e.g., 'Marriott Bonvoy', 'Hilton Honors')" },
+    membershipNumber: { type: "string", description: "The membership number (digits only)" },
+    tier: { type: "string", description: "Status tier if known (Member, Silver, Gold, Platinum, Diamond)" },
+    sourceEmailId: { type: "string", description: "The email ID from searchGmail results" },
+    sourceEmailSubject: { type: "string", description: "The email subject" },
+    sourceEmailDate: { type: "string", description: "The email date" },
+    confidence: { type: "number", description: "0-100 confidence score" },
+    result: { type: "object", asCell: true },
+  },
+  required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
+} as const;
+
+// ============================================================================
 // HOTEL RESULT SCHEMA
 // ============================================================================
 const HOTEL_RESULT_SCHEMA = {
@@ -143,11 +164,11 @@ const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
   ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, accountType, searchProgress }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Membership (shared handler with data config)
-    // Config is DATA (not functions) - sandbox-safe and composable.
-    // See: patterns/jkomoros/lib/report-handler.ts
+    // CUSTOM TOOL: Report Membership (shared handler with explicit schema)
+    // IMPORTANT: Must pass explicit schema - generics don't work for LLM tools!
+    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
     // ========================================================================
-    const reportMembershipHandler = createReportHandler<MembershipRecord>();
+    const reportMembershipHandler = createReportHandler(MEMBERSHIP_INPUT_SCHEMA);
 
     // ========================================================================
     // WISH IMPORT: TEMPORARILY DISABLED - may cause self-referential loop
