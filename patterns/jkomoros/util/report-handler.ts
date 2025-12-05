@@ -15,7 +15,7 @@
  *
  * Usage:
  * ```typescript
- * import { createReportHandler } from "./shared/report-handler.ts";
+ * import { createReportHandler } from "./util/report-handler.ts";
  *
  * // Define the INPUT SCHEMA explicitly (what LLM will send)
  * const MEMBERSHIP_INPUT_SCHEMA = {

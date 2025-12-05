@@ -104,7 +104,7 @@ const reportHandler = createReportHandler(MEMBERSHIP_INPUT_SCHEMA);
 
 ## Working Pattern
 
-See `patterns/jkomoros/shared/report-handler.ts` for a complete working example:
+See `patterns/jkomoros/util/report-handler.ts` for a complete working example:
 
 ```typescript
 // 1. Define explicit input schema (what LLM will send)
@@ -173,8 +173,42 @@ When using handler-based tools for LLMs:
 ## Related
 
 - `~/Code/labs/packages/runner/test/generate-object-tools.test.ts` - Working handler examples
-- `patterns/jkomoros/shared/report-handler.ts` - Shared handler with explicit schemas
+- `patterns/jkomoros/util/report-handler.ts` - Original handler (verbose, 2-step)
+- `patterns/jkomoros/util/agentic-tools.ts` - **NEW elegant API** (1 definition, 1-step)
 - `patterns/jkomoros/WIP/minimal-handler-schema-repro.tsx` - Minimal repro pattern
+
+## New Elegant API (2025-12-05)
+
+The original fix required 3 definitions (interface + input type + schema) and 2-step creation.
+A more elegant API now exists in `util/agentic-tools.ts`:
+
+```typescript
+import { defineItemSchema, listTool } from "./util/agentic-tools.ts";
+
+// 1 definition instead of 3!
+const FoodSchema = defineItemSchema({
+  foodName: { type: "string", description: "Food name" },
+  category: { type: "string", description: "Category" },
+}, ["foodName", "category"]);
+
+// 1-step creation instead of 2!
+const reportFood = listTool(FoodSchema, {
+  items: foods,
+  dedupe: ["foodName"],  // Type-checked against schema!
+  idPrefix: "food",
+});
+
+// Use directly
+additionalTools: {
+  reportFood: { description: "...", handler: reportFood }
+}
+```
+
+Benefits:
+- 50% less code
+- Type-checked dedupe fields
+- Auto-adds `result` cell to schema
+- Single-call tool creation
 
 ## Verification (2025-12-05)
 

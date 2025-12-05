@@ -4,6 +4,9 @@
  *
  * Uses gmail-agentic-search to find food preferences from emails.
  * Looks for restaurant reservations, food delivery orders, recipe emails, etc.
+ *
+ * UPDATED: Now uses the elegant agentic-tools API (defineItemSchema + listTool)
+ * which eliminates the 3x redundancy of interface + input type + schema.
  */
 import {
   Default,
@@ -13,7 +16,7 @@ import {
   UI,
 } from "commontools";
 import GmailAgenticSearch from "./gmail-agentic-search.tsx";
-import { createReportHandler } from "./shared/report-handler.ts";
+import { defineItemSchema, listTool, InferItem } from "./util/agentic-tools.ts";
 
 // ============================================================================
 // SUGGESTED QUERIES
@@ -32,31 +35,25 @@ const FOOD_QUERIES = [
 ];
 
 // ============================================================================
-// DATA STRUCTURES
+// SCHEMA - DEFINED ONCE! (replaces interface + input type + JSON schema)
 // ============================================================================
-interface FoodPreference {
-  id: string;
-  foodName: string;
-  category: string; // "cuisine", "dish", "ingredient", "restaurant"
-  confidence: number;
-  sourceEmailId: string;
-  sourceEmailSubject: string;
-  sourceEmailDate: string;
-  extractedAt: number;
-  notes?: string;
-}
+// The new elegant API: define schema once, get type-checked dedupe fields
+const FoodSchema = defineItemSchema({
+  foodName: { type: "string", description: "The specific food, cuisine, or restaurant name" },
+  category: { type: "string", description: "One of: 'cuisine', 'dish', 'ingredient', 'restaurant'" },
+  confidence: { type: "number", description: "0-100 confidence based on frequency" },
+  sourceEmailId: { type: "string", description: "The email ID from searchGmail" },
+  sourceEmailSubject: { type: "string", description: "The email subject" },
+  sourceEmailDate: { type: "string", description: "The email date" },
+  notes: { type: "string", description: "Optional context (e.g., 'ordered 5 times')" },
+}, ["foodName", "category", "confidence", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate"]);
 
-// Input type for the reportFood tool
-interface FoodInput {
-  foodName: string;
-  category: string;
-  confidence: number;
-  sourceEmailId: string;
-  sourceEmailSubject: string;
-  sourceEmailDate: string;
-  notes?: string;
-}
+// Derive TypeScript type from schema (for UI code)
+type FoodPreference = InferItem<typeof FoodSchema> & { extractedAt: number };
 
+// ============================================================================
+// PATTERN INPUT/OUTPUT
+// ============================================================================
 interface FavoriteFoodsInput {
   foods?: Default<FoodPreference[], []>;
   lastScanAt?: Default<number, 0>;
@@ -69,26 +66,6 @@ interface FavoriteFoodsOutput {
   lastScanAt: number;
   count: number;
 }
-
-// ============================================================================
-// INPUT SCHEMA FOR reportFood TOOL
-// ============================================================================
-// IMPORTANT: This MUST be explicit - generic type parameters don't work for LLM tool schemas!
-// The CTS compiler can't resolve generics at compile time, so the schema would be incomplete.
-const FOOD_INPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    foodName: { type: "string", description: "The specific food, cuisine, or restaurant name" },
-    category: { type: "string", description: "One of: 'cuisine', 'dish', 'ingredient', 'restaurant'" },
-    confidence: { type: "number", description: "0-100 confidence based on frequency" },
-    sourceEmailId: { type: "string", description: "The email ID from searchGmail" },
-    sourceEmailSubject: { type: "string", description: "The email subject" },
-    sourceEmailDate: { type: "string", description: "The email date" },
-    notes: { type: "string", description: "Optional context (e.g., 'ordered 5 times')" },
-    result: { type: "object", asCell: true },
-  },
-  required: ["foodName", "category", "confidence", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate"],
-} as const;
 
 // ============================================================================
 // RESULT SCHEMA
@@ -125,11 +102,15 @@ const FOODS_RESULT_SCHEMA = {
 const FavoriteFoodsExtractor = pattern<FavoriteFoodsInput, FavoriteFoodsOutput>(
   ({ foods, lastScanAt, isScanning, maxSearches }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Food Preference (shared handler with explicit schema)
-    // IMPORTANT: Must pass explicit schema - generics don't work for LLM tools!
-    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
+    // CUSTOM TOOL: Report Food Preference
+    // NEW ELEGANT API: Single call with type-checked dedupe fields!
     // ========================================================================
-    const reportFoodHandler = createReportHandler(FOOD_INPUT_SCHEMA);
+    const reportFood = listTool(FoodSchema, {
+      items: foods,
+      dedupe: ["foodName"],  // TypeScript checks this against FoodSchema fields!
+      idPrefix: "food",
+      timestamp: "extractedAt",
+    });
 
     // ========================================================================
     // DYNAMIC AGENT GOAL
@@ -196,12 +177,7 @@ Report each discovery immediately. Focus on patterns - if someone orders from th
         reportFood: {
           description:
             "Report a discovered food preference. Call this IMMEDIATELY when you identify a food the user likes.",
-          handler: reportFoodHandler({
-            items: foods,
-            idPrefix: "food",
-            dedupeFields: ["foodName"],
-            timestampField: "extractedAt",
-          }),
+          handler: reportFood,  // Already bound - no second call needed!
         },
       },
       title: "🍕 Favorite Foods Finder",
