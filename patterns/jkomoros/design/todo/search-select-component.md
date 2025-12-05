@@ -239,13 +239,30 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
 
 **Key discoveries during implementation:**
 
-1. **Cell unwrapping in derive()**: Even with array syntax `derive([cell], ([val]) => ...)`, values may come through as Cell objects. Added `safeUnwrap()` helper function to defensively handle this.
+1. **~~Cell unwrapping in derive()~~**: ~~Even with array syntax `derive([cell], ([val]) => ...)`, values may come through as Cell objects.~~ **CORRECTED (2025-12-05):** The array syntax was undocumented and shouldn't be used. Use `computed()` with explicit `.get()` calls instead.
 
 2. **Maps don't serialize well**: Using `new Map()` in derive outputs caused "get is not a function" errors. Switched to plain `Record<string, T>` objects which serialize correctly.
 
-3. **safeUnwrap must exclude Map/Set**: Initial safeUnwrap checked for `.get()` method, which incorrectly matched Maps. Fixed by checking for `.set()` also AND `!(v instanceof Map)`.
+3. **~~safeUnwrap helper~~**: **REMOVED (2025-12-05):** The `safeUnwrap()` helper was a workaround for using incorrect API. Not needed with proper `computed()` pattern.
 
 4. **Test pattern location**: Moved test from `WIP/` to same level as `lib/` because relative imports like `../lib/search-select.tsx` weren't resolving correctly from WIP.
+
+5. **Proper computed() pattern (2025-12-05)**: Inside `computed()`, cells do NOT auto-dereference. Always call `.get()` explicitly:
+   ```typescript
+   const availableItems = computed(() => {
+     const sel = selected.get();  // Must call .get()
+     return normalizedItems.filter((item) => !sel.includes(item.value));
+   });
+   ```
+
+6. **Handlers cannot capture closures (2025-12-05)**: Pass values through handler state, not closure capture:
+   ```typescript
+   // WRONG: const createHandler = (value) => handler((_, state) => { ... });
+   // CORRECT: const myHandler = handler((_, { selected, value }) => { ... });
+   // USAGE: onClick={myHandler({ selected, value: item.value })}
+   ```
+
+7. **Cannot close over computed in JSX .map() (2025-12-05)**: Pre-compute data that needs to be accessed inside `.map()` callbacks.
 
 ---
 
@@ -263,4 +280,5 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
   - Cell unwrapping issues in derive callbacks
   - Map serialization issues (switched to Record<>)
   - isOpen state not defaulting to false
-- 2025-12-04: All core functionality working and tested.
+- 2025-12-04: Initial version working with safeUnwrap() workaround.
+- 2025-12-05: **Major refactor** - Discovered `derive([array])` syntax is undocumented. Rewrote to use proper `computed()` pattern with explicit `.get()` calls. Removed all workarounds. Component now works correctly following framework conventions.
