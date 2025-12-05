@@ -61,11 +61,35 @@ Token refresh must work even when the user isn't actively using the app. With bg
 
 **CRITICAL:** For this to work, the auth cell MUST be writable. If you derived the auth cell, the `update()` call silently fails and token refresh is broken.
 
+**See:** `2025-12-03-derive-creates-readonly-cells-use-property-access.md` for the full explanation and fixes.
+
+## Token Refresh Flow
+
+When `GmailClient` encounters a 401, it refreshes the token:
+
+```typescript
+// In GmailClient.refreshAuth()
+const res = await fetch(
+  new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
+  {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
+  },
+);
+const json = await res.json();
+this.auth.update(json.tokenInfo);  // Update the auth cell with new token
+```
+
+**Key endpoint:** `POST /api/integrations/google-oauth/refresh`
+- Input: `{ refreshToken: string }`
+- Output: `{ tokenInfo: Auth }`
+
 ## Code Location
 
 - **Background Charm Service:** `labs/packages/background-charm-service/`
 - **Worker that invokes bgUpdater:** `labs/packages/background-charm-service/src/worker.ts` (lines 174-196)
 - **Example pattern:** `patterns/jkomoros/gmail-importer.tsx` (line ~1409)
+- **Shared GmailClient:** `patterns/jkomoros/util/gmail-client.ts`
 
 ## Starting the Background Service Locally
 

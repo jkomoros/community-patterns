@@ -53,7 +53,9 @@ async function refreshAuth() {
 - Changes work within a session but are lost on reload
 - No errors in console
 
-## Solution That Seemed To Work
+## Solutions That Work
+
+### Option 1: Property Access
 
 Access the property directly via property path instead of `derive()`:
 
@@ -80,6 +82,30 @@ async function refreshAuth() {
 - The framework traces through the property path to the source cell
 - Writes propagate back to the original cell in the source charm
 - Changes persist properly
+
+### Option 2: ifElse() for Conditional Sources (Preferred)
+
+When you need to choose between two auth sources (e.g., direct input vs wished charm), use `ifElse()`:
+
+```typescript
+import { ifElse } from "commontools";
+
+// Get auth from either direct input or wished charm
+const hasDirectAuth = derive(inputAuth, (a) => !!a?.token);
+const auth = ifElse(
+  hasDirectAuth,        // condition
+  inputAuth,            // if true: use direct auth
+  wishedAuthCharm.auth  // if false: use wished auth
+);
+
+// ✅ auth is writable - token refresh will work!
+```
+
+**Why ifElse() is often better:**
+- Explicitly handles the "use A or B" pattern
+- Both branches maintain writability
+- Clearer intent than nested derives
+- Used in `gmail-agentic-search.tsx` fix (2025-12-05)
 
 ## Key Insight
 
@@ -108,6 +134,26 @@ Discovered while debugging Gmail importer auth expiration issue:
 - **Official docs:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
 - **Folk wisdom:** `community-docs/folk_wisdom/reactivity.md` - "Derives Cannot Mutate Cells"
 - **Related superstition:** `2025-01-24-pass-cells-as-handler-params-not-closure.md`
+- **Related superstition:** `2025-12-05-bgupdater-background-charm-service.md` - Background sync and token refresh
+
+## Shared Utility Pattern
+
+To avoid duplicating token refresh logic across patterns, extract API clients to shared utilities:
+
+```
+patterns/jkomoros/
+├── util/
+│   └── gmail-client.ts    # Shared GmailClient with token refresh
+├── gmail-importer.tsx     # Uses GmailClient
+└── gmail-agentic-search.tsx  # Also uses GmailClient
+```
+
+**Benefits:**
+- Single place to fix auth bugs
+- Consistent token refresh behavior
+- DRY code across patterns
+
+**See:** `patterns/jkomoros/util/gmail-client.ts` for implementation
 
 ## Anti-Pattern to Avoid
 
