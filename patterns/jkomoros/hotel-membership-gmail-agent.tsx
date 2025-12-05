@@ -19,7 +19,7 @@ import {
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
 import GmailAgenticSearch, { type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
-import { createReportHandler } from "./util/report-handler.ts";
+import { defineItemSchema, listTool, InferItem } from "./util/agentic-tools.ts";
 
 // Scan mode: "full" = comprehensive all-time search, "recent" = last 7 days only
 type ScanMode = "full" | "recent";
@@ -43,32 +43,22 @@ const EFFECTIVE_QUERIES = [
 ];
 
 // ============================================================================
-// DATA STRUCTURES
+// SCHEMA - DEFINED ONCE! (replaces interface + input type + JSON schema)
 // ============================================================================
-interface MembershipRecord {
-  id: string;
-  hotelBrand: string;
-  programName: string;
-  membershipNumber: string;
-  tier?: string;
-  sourceEmailId: string;
-  sourceEmailDate: string;
-  sourceEmailSubject: string;
-  extractedAt: number;
-  confidence?: number;
-}
+// The new elegant API: define schema once, get type-checked dedupe fields
+const MembershipSchema = defineItemSchema({
+  hotelBrand: { type: "string", description: "Hotel chain name (e.g., 'Marriott', 'Hilton')" },
+  programName: { type: "string", description: "Loyalty program name (e.g., 'Marriott Bonvoy', 'Hilton Honors')" },
+  membershipNumber: { type: "string", description: "The membership number (digits only)" },
+  tier: { type: "string", description: "Status tier if known (Member, Silver, Gold, Platinum, Diamond)" },
+  sourceEmailId: { type: "string", description: "The email ID from searchGmail results" },
+  sourceEmailSubject: { type: "string", description: "The email subject" },
+  sourceEmailDate: { type: "string", description: "The email date" },
+  confidence: { type: "number", description: "0-100 confidence score" },
+}, ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"]);
 
-// Input type for the reportMembership tool
-interface MembershipInput {
-  hotelBrand: string;
-  programName: string;
-  membershipNumber: string;
-  tier?: string;
-  sourceEmailId: string;
-  sourceEmailSubject: string;
-  sourceEmailDate: string;
-  confidence: number;
-}
+// Derive TypeScript type from schema (for UI code)
+type MembershipRecord = InferItem<typeof MembershipSchema> & { extractedAt: number };
 
 interface HotelMembershipInput {
   memberships?: Default<MembershipRecord[], []>;
@@ -94,26 +84,7 @@ interface HotelMembershipOutput {
   count: number;
 }
 
-// ============================================================================
-// INPUT SCHEMA FOR reportMembership TOOL
-// ============================================================================
-// IMPORTANT: This MUST be explicit - generic type parameters don't work for LLM tool schemas!
-// The CTS compiler can't resolve generics at compile time, so the schema would be incomplete.
-const MEMBERSHIP_INPUT_SCHEMA = {
-  type: "object",
-  properties: {
-    hotelBrand: { type: "string", description: "Hotel chain name (e.g., 'Marriott', 'Hilton')" },
-    programName: { type: "string", description: "Loyalty program name (e.g., 'Marriott Bonvoy', 'Hilton Honors')" },
-    membershipNumber: { type: "string", description: "The membership number (digits only)" },
-    tier: { type: "string", description: "Status tier if known (Member, Silver, Gold, Platinum, Diamond)" },
-    sourceEmailId: { type: "string", description: "The email ID from searchGmail results" },
-    sourceEmailSubject: { type: "string", description: "The email subject" },
-    sourceEmailDate: { type: "string", description: "The email date" },
-    confidence: { type: "number", description: "0-100 confidence score" },
-    result: { type: "object", asCell: true },
-  },
-  required: ["hotelBrand", "programName", "membershipNumber", "sourceEmailId", "sourceEmailSubject", "sourceEmailDate", "confidence"],
-} as const;
+// NOTE: Schema defined above using defineItemSchema - no separate INPUT_SCHEMA needed!
 
 // ============================================================================
 // HOTEL RESULT SCHEMA
@@ -164,11 +135,15 @@ const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
   ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, accountType, searchProgress }) => {
     // ========================================================================
-    // CUSTOM TOOL: Report Membership (shared handler with explicit schema)
-    // IMPORTANT: Must pass explicit schema - generics don't work for LLM tools!
-    // See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
+    // CUSTOM TOOL: Report Membership
+    // NEW ELEGANT API: Single call with type-checked dedupe fields!
     // ========================================================================
-    const reportMembershipHandler = createReportHandler(MEMBERSHIP_INPUT_SCHEMA);
+    const reportMembership = listTool(MembershipSchema, {
+      items: memberships,
+      dedupe: ["hotelBrand", "membershipNumber"],  // TypeScript checks these!
+      idPrefix: "membership",
+      timestamp: "extractedAt",
+    });
 
     // ========================================================================
     // WISH IMPORT: TEMPORARILY DISABLED - may cause self-referential loop
@@ -310,12 +285,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
         reportMembership: {
           description:
             "Report a found membership number. Call this IMMEDIATELY when you find a valid membership number. It will be saved automatically.",
-          handler: reportMembershipHandler({
-            items: memberships,
-            idPrefix: "membership",
-            dedupeFields: ["hotelBrand", "membershipNumber"],
-            timestampField: "extractedAt",
-          }),
+          handler: reportMembership,  // Already bound - no second call needed!
         },
       },
       title: "🏨 Hotel Membership Extractor",
