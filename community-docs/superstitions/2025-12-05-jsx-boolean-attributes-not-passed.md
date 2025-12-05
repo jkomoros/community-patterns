@@ -141,7 +141,7 @@ CommonTools sets `element["allow-custom"] = true` but the Lit property is
 
 ## Next Steps
 
-- [ ] Fix ct-autocomplete to use camelCase JSX type (`allowCustom`)
+- [x] Fix ct-autocomplete to use camelCase JSX type (`allowCustom`) - DONE
 - [ ] Audit other components for kebab-case JSX attributes
 - [ ] Consider framework fix to handle kebab→camelCase conversion
 - [ ] Document this in component authoring guidelines
