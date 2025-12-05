@@ -23,7 +23,15 @@ type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
 type Confidential<T> = CFC<T, "confidential">;
 
-// This is used by the various Google tokens created with tokenToAuthData
+/**
+ * Auth data structure for Google OAuth tokens.
+ *
+ * ⚠️ CRITICAL: When consuming this auth, DO NOT use derive()!
+ * derive() creates read-only projections - token refresh will silently fail.
+ * Use property access (charm.auth) or ifElse() instead.
+ *
+ * See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+ */
 export type Auth = {
   token: Default<Secret<string>, "">;
   tokenType: Default<string, "">;

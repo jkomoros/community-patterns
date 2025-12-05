@@ -492,31 +492,25 @@ const GmailAgenticSearch = pattern<
       return "loading";
     });
 
-    // Get auth from wish result
-    const wishedAuth = derive(wishResult, (wr) => wr?.result?.auth);
-    const hasWishedAuth = derive(wishedAuth, (a: Auth | undefined) => !!(a?.token));
+    // Get the wished auth charm (not just the auth data)
+    const wishedAuthCharm = derive(wishResult, (wr) => wr?.result || null);
+    const hasWishedAuth = derive(wishedAuthCharm, (charm) => !!(charm?.auth?.token));
 
-    // Combine auth: prefer direct input, fall back to wish
-    const auth = derive([inputAuth, wishedAuth], ([directAuth, wished]: [Auth, Auth | undefined]) => {
-      // Prefer direct input auth if it has a token
-      if (directAuth?.token) {
-        return directAuth;
-      }
-      // Fall back to wished auth
-      if (wished?.token) {
-        return wished;
-      }
-      // Return empty auth
-      return {
-        token: "",
-        tokenType: "",
-        scope: [] as string[],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      };
-    });
+    // Access auth via property path to maintain writability
+    // CRITICAL: Do NOT derive the auth data itself - that creates a read-only projection
+    // Instead, access .auth as a property path from the source
+    //
+    // When hasDirectAuth is true, we use inputAuth directly (it's already an Auth cell)
+    // When hasDirectAuth is false, we use wishedAuthCharm.auth (property access maintains writability)
+    //
+    // NOTE: This means inputAuth must be passed as a live cell reference, not derived.
+    // If the parent pattern derives inputAuth, token refresh will still fail silently.
+    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+    const auth = ifElse(
+      hasDirectAuth,
+      inputAuth,
+      wishedAuthCharm.auth
+    );
 
     // Track where auth came from
     const authSource = derive(

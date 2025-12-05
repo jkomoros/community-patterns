@@ -1,28 +1,20 @@
 ---
 topic: reactivity
 discovered: 2025-12-03
-confirmed_count: 1
-last_confirmed: 2025-12-03
-sessions: [gmail-auth-expiration-investigation]
+confirmed_count: 2
+last_confirmed: 2025-12-05
+sessions: [gmail-auth-expiration-investigation, gmail-agentic-search-401-fix]
 related_labs_docs: ~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md
-status: superstition
-stars: ⭐
+status: folk_wisdom
+stars: ⭐⭐
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# ✅ FOLK WISDOM - CONFIRMED
 
-**This is a SUPERSTITION** - based on a single observation. It may be:
-- Incomplete or context-specific
-- Misunderstood or coincidental
-- Already contradicted by official docs
-- Wrong in subtle ways
+**This pattern has been confirmed multiple times.**
 
-**DO NOT trust this blindly.** Verify against:
-1. Official labs/docs/ first
-2. Working examples in labs/packages/patterns/
-3. Your own testing
-
-**If this works for you,** update the metadata and consider promoting to folk_wisdom.
+Original fix applied to `gmail-importer.tsx` (2025-12-03).
+Same bug found and fixed in `gmail-agentic-search.tsx` (2025-12-05).
 
 ---
 
@@ -139,12 +131,13 @@ This bypasses the framework's state system and creates:
 
 **Instead, fix the root cause** by using property access for writable cells.
 
-## Next Steps
+## Confirmation History
 
-- [ ] Verify fix works in deployed gmail-importer pattern
-- [ ] Check if other patterns have similar issues with derived auth
-- [ ] Consider promoting to folk_wisdom after confirmation
+- [x] 2025-12-03: Fixed in `gmail-importer.tsx` - token refresh now persists
+- [x] 2025-12-05: Found same bug in `gmail-agentic-search.tsx` - fixed with ifElse pattern
+- [x] 2025-12-05: Added warning comments to `Auth` type in both files
+- [x] 2025-12-05: Promoted to folk_wisdom
 
 ---
 
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
+**This is now confirmed folk wisdom.** The pattern has been verified across multiple patterns.

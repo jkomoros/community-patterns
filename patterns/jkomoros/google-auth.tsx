@@ -19,7 +19,31 @@ const SCOPE_DESCRIPTIONS = {
   contacts: "Contacts (read contacts)",
 } as const;
 
-// Auth data structure for Google OAuth tokens
+/**
+ * Auth data structure for Google OAuth tokens.
+ *
+ * ⚠️ CRITICAL: When consuming this auth from another pattern, DO NOT use derive()!
+ *
+ * The framework automatically refreshes expired tokens by writing to this cell.
+ * If you derive() the auth, it becomes read-only and token refresh silently fails.
+ *
+ * ❌ WRONG - creates read-only projection, token refresh fails silently:
+ * ```typescript
+ * const auth = derive(googleAuthCharm, (charm) => charm?.auth);
+ * ```
+ *
+ * ✅ CORRECT - maintains writable cell reference:
+ * ```typescript
+ * const auth = googleAuthCharm.auth;  // Property access, not derive
+ * ```
+ *
+ * ✅ ALSO CORRECT - use ifElse for conditional auth sources:
+ * ```typescript
+ * const auth = ifElse(hasDirectAuth, directAuth, wishedCharm.auth);
+ * ```
+ *
+ * See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+ */
 export type Auth = {
   token: Default<Secret<string>, "">;
   tokenType: Default<string, "">;
