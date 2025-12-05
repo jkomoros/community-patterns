@@ -5,6 +5,7 @@ import {
   computed,
   Default,
   handler,
+  ifElse,
   NAME,
   pattern,
   UI,
@@ -64,6 +65,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // -------------------------------------------------------------------------
     const searchQuery = cell("");
     const isOpen = cell(false);
+    const highlightedIndex = cell(0); // Index of currently highlighted item
 
     // -------------------------------------------------------------------------
     // Derived Data (using computed() with direct cell access)
@@ -120,6 +122,30 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
         .slice(0, max);
     });
 
+    // Get count and highlighted value for keyboard navigation
+    const filteredCount = computed(() => filteredItems.length);
+    const highlightedValue = computed(() => {
+      const idx = highlightedIndex.get();
+      const items = filteredItems;
+      if (idx >= 0 && idx < items.length) {
+        return items[idx]?.value ?? null;
+      }
+      return null;
+    });
+
+    // Pre-compute items with highlight state for rendering
+    // Need to explicitly copy properties (can't spread opaque cells)
+    const filteredItemsWithHighlight = computed(() => {
+      const idx = highlightedIndex.get();
+      const items = filteredItems;
+      return items.map((item, i) => ({
+        value: item.value,
+        label: item.label,
+        group: item.group,
+        isHighlighted: i === idx,
+      }));
+    });
+
     // -------------------------------------------------------------------------
     // Handlers
     // -------------------------------------------------------------------------
@@ -131,6 +157,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
         selected: Cell<string[]>;
         isOpen: Cell<boolean>;
         searchQuery: Cell<string>;
+        highlightedIndex: Cell<number>;
         value: string;
       }
     >((_, state) => {
@@ -138,9 +165,10 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
       if (!current.includes(state.value)) {
         state.selected.set([...current, state.value]);
       }
-      // Clear search and close dropdown after selection
+      // Clear search, close dropdown, and reset highlight after selection
       state.searchQuery.set("");
       state.isOpen.set(false);
+      state.highlightedIndex.set(0);
     });
 
     // Remove item from selected (value passed as state, not closure)
@@ -155,13 +183,84 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // Toggle dropdown
     const toggleDropdown = handler<
       Record<string, never>,
-      { isOpen: Cell<boolean>; searchQuery: Cell<string> }
+      {
+        isOpen: Cell<boolean>;
+        searchQuery: Cell<string>;
+        highlightedIndex: Cell<number>;
+      }
     >((_, state) => {
       const wasOpen = state.isOpen.get();
       state.isOpen.set(!wasOpen);
       if (wasOpen) {
         state.searchQuery.set("");
+        state.highlightedIndex.set(0);
       }
+    });
+
+    // Close dropdown (for backdrop click or Escape)
+    const closeDropdown = handler<
+      Record<string, never>,
+      {
+        isOpen: Cell<boolean>;
+        searchQuery: Cell<string>;
+        highlightedIndex: Cell<number>;
+      }
+    >((_, state) => {
+      state.isOpen.set(false);
+      state.searchQuery.set("");
+      state.highlightedIndex.set(0);
+    });
+
+    // Move highlight up (for ArrowUp key)
+    const moveUp = handler<
+      Record<string, never>,
+      { isOpen: Cell<boolean>; highlightedIndex: Cell<number> }
+    >((_, state) => {
+      if (!state.isOpen.get()) return;
+      const current = state.highlightedIndex.get();
+      if (current > 0) {
+        state.highlightedIndex.set(current - 1);
+      }
+    });
+
+    // Move highlight down (for ArrowDown key)
+    // Note: We pass maxItems as state since we can't access filteredItems.length in handler
+    const moveDown = handler<
+      Record<string, never>,
+      {
+        isOpen: Cell<boolean>;
+        highlightedIndex: Cell<number>;
+        maxItems: number;
+      }
+    >((_, state) => {
+      if (!state.isOpen.get()) return;
+      const current = state.highlightedIndex.get();
+      if (current < state.maxItems - 1) {
+        state.highlightedIndex.set(current + 1);
+      }
+    });
+
+    // Select highlighted item (for Enter key)
+    const selectHighlighted = handler<
+      Record<string, never>,
+      {
+        isOpen: Cell<boolean>;
+        selected: Cell<string[]>;
+        searchQuery: Cell<string>;
+        highlightedIndex: Cell<number>;
+        highlightedValue: string | null;
+      }
+    >((_, state) => {
+      if (!state.isOpen.get()) return;
+      if (!state.highlightedValue) return;
+
+      const current = state.selected.get();
+      if (!current.includes(state.highlightedValue)) {
+        state.selected.set([...current, state.highlightedValue]);
+      }
+      state.searchQuery.set("");
+      state.isOpen.set(false);
+      state.highlightedIndex.set(0);
     });
 
     // -------------------------------------------------------------------------
@@ -172,7 +271,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
       [NAME]: "Search Select",
       selected,
       [UI]: (
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", overflow: "visible" }}>
           {/* Selected chips + Add button */}
           <div
             style={{
@@ -216,29 +315,79 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             <ct-button
               size="sm"
               variant="secondary"
-              onClick={toggleDropdown({ isOpen, searchQuery })}
+              onClick={toggleDropdown({ isOpen, searchQuery, highlightedIndex })}
             >
               + Add
             </ct-button>
           </div>
 
-          {/* Dropdown - using computed for conditional */}
-          {computed(() =>
-            isOpen.get() ? (
+          {/* Dropdown with backdrop - using ifElse for conditional rendering */}
+          {ifElse(
+            isOpen,
+            <>
+              {/* Keyboard navigation */}
+              <ct-keybind
+                code="Escape"
+                onct-keybind={closeDropdown({
+                  isOpen,
+                  searchQuery,
+                  highlightedIndex,
+                })}
+              />
+              <ct-keybind
+                code="ArrowUp"
+                ignore-editable={false}
+                preventDefault
+                onct-keybind={moveUp({ isOpen, highlightedIndex })}
+              />
+              <ct-keybind
+                code="ArrowDown"
+                ignore-editable={false}
+                preventDefault
+                onct-keybind={moveDown({
+                  isOpen,
+                  highlightedIndex,
+                  maxItems: filteredCount,
+                })}
+              />
+              <ct-keybind
+                code="Enter"
+                ignore-editable={false}
+                preventDefault
+                onct-keybind={selectHighlighted({
+                  isOpen,
+                  selected,
+                  searchQuery,
+                  highlightedIndex,
+                  highlightedValue,
+                })}
+              />
+              {/* Invisible backdrop to catch outside clicks */}
+              <div
+                onClick={closeDropdown({ isOpen, searchQuery, highlightedIndex })}
+                style={{
+                  position: "fixed",
+                  top: "0",
+                  left: "0",
+                  right: "0",
+                  bottom: "0",
+                  zIndex: "999",
+                }}
+              />
+              {/* Dropdown panel - using position:fixed to escape all parent overflow constraints */}
               <div
                 style={{
-                  position: "absolute",
-                  top: "100%",
-                  right: "0",
-                  marginTop: "4px",
-                  minWidth: "250px",
-                  maxWidth: "350px",
+                  position: "fixed",
+                  top: "280px",
+                  left: "100px",
+                  width: "320px",
+                  maxHeight: "280px",
+                  overflowY: "auto",
                   background: "#ffffff",
                   border: "1px solid #e2e8f0",
                   borderRadius: "8px",
                   boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                  zIndex: "100",
-                  overflow: "hidden",
+                  zIndex: "1000",
                 }}
               >
                 {/* Search input */}
@@ -249,18 +398,18 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                     placeholder={placeholder}
                     $value={searchQuery}
                     style={{ width: "100%" }}
+                    autofocus
                   />
                 </div>
 
                 {/* Options list */}
                 <div
                   style={{
-                    maxHeight: "240px",
-                    overflowY: "auto",
                     padding: "4px",
                   }}
                 >
-                  {filteredItems.length === 0 ? (
+                  {ifElse(
+                    computed(() => filteredItemsWithHighlight.length === 0),
                     <div
                       style={{
                         padding: "12px",
@@ -270,15 +419,15 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                       }}
                     >
                       No matching options
-                    </div>
-                  ) : (
-                    filteredItems.map((item, index) => (
+                    </div>,
+                    filteredItemsWithHighlight.map((item, index) => (
                       <div
                         key={index}
                         onClick={addItem({
                           selected,
                           isOpen,
                           searchQuery,
+                          highlightedIndex,
                           value: item.value,
                         })}
                         style={{
@@ -289,6 +438,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                           cursor: "pointer",
                           borderRadius: "4px",
                           fontSize: "14px",
+                          background: item.isHighlighted ? "#e2e8f0" : "transparent",
                         }}
                       >
                         <span>{item.label}</span>
@@ -308,7 +458,8 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                   )}
                 </div>
               </div>
-            ) : null
+            </>,
+            null
           )}
         </div>
       ),
