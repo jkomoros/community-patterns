@@ -564,3 +564,63 @@ interface PersonResearchOutput extends PersonResearchInput {
 3. **Disambiguation:** Agent clusters by email, reports ambiguity, uses context for filtering
 4. **Output format:** Brief with footnotes for Phase 1; future UI with accept/reject per finding
 5. **Search scope:** All time, sent mail included, ~10 searches by default
+
+---
+
+## Current Implementation Status (2025-12-04)
+
+### ✅ Implemented
+
+- [x] Pattern composes `GmailAgenticSearch` for auth + search UI
+- [x] Manual input form with `ct-input` bidirectional binding:
+  - Person's Name (required)
+  - Known Email (optional)
+  - Context notes (optional)
+- [x] Title updates reactively based on entered name
+- [x] Custom tools for agent: `reportEmailAddress`, `reportPhoneNumber`, `reportRelationshipType`, `reportTopic`, `reportOrganization`, `reportCommunicationStats`
+- [x] Agent prompt with person research context
+- [x] Findings are accumulated in typed arrays
+- [x] `#person` tag added to person.tsx with relationship taxonomy
+
+### ❌ Not Yet Implemented - Future TODOs
+
+1. **Wish Integration for Person Selection**
+   - **Blocked by:** wish + composed patterns causes "Too many iterations: 101" reactive loops
+   - **Workaround:** Manual name entry for now
+   - **See:** `community-docs/superstitions/2025-12-04-self-referential-wish-causes-infinite-loop.md`
+   - **TODO:** Investigate with framework authors; may need different pattern architecture
+
+2. **Agentic Notes Output Generation**
+   - Currently tools report findings but no final markdown summary is generated
+   - **TODO:** Add `derive()` that formats findings into markdown with footnotes
+   - **TODO:** Add "Copy to clipboard" button for notes
+
+3. **Evidence/Source Tracking**
+   - Tool calls report sources but they're not fully integrated
+   - **TODO:** Show sources panel in UI
+   - **TODO:** Link sources to original emails (if possible)
+
+4. **Accept/Reject Flow for Findings**
+   - Each finding should have accept/reject buttons
+   - User refinement before export
+   - **TODO:** Design UI similar to person.tsx extraction review
+
+5. **Write Results Back to Person Charm**
+   - Once wish integration works, write findings to linked person
+   - **TODO:** Cell linkage between patterns
+
+6. **Disambiguation UI**
+   - When multiple people match search, show disambiguation UI
+   - **TODO:** Implement clustering and selection UI
+
+### 🐛 Known Issues
+
+1. **Native `<input>` doesn't bind** - Fixed by using `<ct-input $value={cell}>`
+2. **Single-cell derive may need array syntax** - `derive([cell], ([val]) => ...)` instead of `derive(cell, (val) => ...)`
+3. **Wish causes reactive loops in composed patterns** - Removed for MVP
+
+---
+
+## Session Log
+
+- **2025-12-04:** Initial implementation. Removed wish due to reactive loops. Fixed input binding by switching to ct-input. Fixed derive array syntax for proper cell unwrapping. Pattern deployed and working with manual name entry.
