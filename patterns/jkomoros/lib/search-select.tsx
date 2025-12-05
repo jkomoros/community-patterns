@@ -2,8 +2,8 @@
 import {
   Cell,
   cell,
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
@@ -41,7 +41,7 @@ interface SearchSelectInput {
   // The full list of available options
   items: Default<SearchSelectItem[], []>;
 
-  // Currently selected values (bidirectional Cell from parent)
+  // Currently selected values (Cell for write access from handlers)
   selected: Cell<string[]>;
 
   // UI configuration
@@ -51,29 +51,6 @@ interface SearchSelectInput {
 
 interface SearchSelectOutput {
   selected: Cell<string[]>;
-}
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-// Safely unwrap a value that might be a Cell or already unwrapped
-// deno-lint-ignore no-explicit-any
-function safeUnwrap<T>(value: T | Cell<T> | undefined, defaultValue: T): T {
-  if (value === undefined || value === null) return defaultValue;
-  // Check for Cell-like objects (have .get and .set methods, and are not Map/Set)
-  // deno-lint-ignore no-explicit-any
-  const v = value as any;
-  if (
-    typeof v === "object" &&
-    typeof v.get === "function" &&
-    typeof v.set === "function" &&
-    !(v instanceof Map) &&
-    !(v instanceof Set)
-  ) {
-    return v.get() ?? defaultValue;
-  }
-  return value as T;
 }
 
 // =============================================================================
@@ -89,98 +66,91 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const isOpen = cell(false);
 
     // -------------------------------------------------------------------------
-    // Derived Data
+    // Derived Data (using computed() with direct cell access)
     // -------------------------------------------------------------------------
 
     // Normalize items (ensure all have labels)
-    const normalizedItems = derive(
-      [items],
-      // deno-lint-ignore no-explicit-any
-      ([itemList]: [any]) => {
-        const list = safeUnwrap<SearchSelectItem[]>(itemList, []);
-        return list.map((item) => ({
-          value: item.value,
-          label: item.label ?? item.value,
-          group: item.group,
-        }));
-      },
+    const normalizedItems = computed(() =>
+      items.map((item) => ({
+        value: item.value,
+        label: item.label ?? item.value,
+        group: item.group,
+      }))
     );
 
     // Build lookup object for display (value -> item)
-    // Using plain object instead of Map since Maps don't serialize well
-    const itemLookup = derive(
-      [normalizedItems],
-      // deno-lint-ignore no-explicit-any
-      ([itemList]: [any]) => {
-        const list = safeUnwrap<NormalizedItem[]>(itemList, []);
-        const lookup: Record<string, NormalizedItem> = {};
-        for (const item of list) {
-          lookup[item.value] = item;
-        }
-        return lookup;
-      },
-    );
+    const itemLookup = computed(() => {
+      const lookup: Record<string, NormalizedItem> = {};
+      for (const item of normalizedItems) {
+        lookup[item.value] = item;
+      }
+      return lookup;
+    });
+
+    // Pre-compute selected items with resolved labels
+    // (Can't access computed values inside JSX .map() callbacks)
+    const selectedWithLabels = computed(() => {
+      const sel = selected.get();
+      return sel.map((value) => ({
+        value,
+        label: itemLookup[value]?.label ?? value,
+      }));
+    });
 
     // Available options (not already selected)
-    const availableItems = derive(
-      [normalizedItems, selected],
-      // deno-lint-ignore no-explicit-any
-      ([itemList, sel]: [any, any]) => {
-        const list = safeUnwrap<NormalizedItem[]>(itemList, []);
-        const selectedValues = safeUnwrap<string[]>(sel, []);
-        return list.filter((item) => !selectedValues.includes(item.value));
-      },
-    );
+    const availableItems = computed(() => {
+      const sel = selected.get();
+      return normalizedItems.filter((item) => !sel.includes(item.value));
+    });
 
     // Filtered options based on search query
-    const filteredItems = derive(
-      [searchQuery, availableItems, maxVisible],
-      // deno-lint-ignore no-explicit-any
-      ([query, available, max]: [any, any, any]) => {
-        const q = safeUnwrap<string>(query, "");
-        const availableList = safeUnwrap<NormalizedItem[]>(available, []);
-        const maxNum = safeUnwrap<number>(max, 8);
+    const filteredItems = computed(() => {
+      const q = searchQuery.get().trim().toLowerCase();
+      const max = maxVisible ?? 8;
 
-        if (!q.trim()) return availableList.slice(0, maxNum);
-        const qLower = q.toLowerCase();
-        return availableList
-          .filter(
-            (item) =>
-              item.label.toLowerCase().includes(qLower) ||
-              item.value.toLowerCase().includes(qLower) ||
-              (item.group?.toLowerCase().includes(qLower) ?? false),
-          )
-          .slice(0, maxNum);
-      },
-    );
+      if (!q) return availableItems.slice(0, max);
+
+      return availableItems
+        .filter(
+          (item) =>
+            item.label.toLowerCase().includes(q) ||
+            item.value.toLowerCase().includes(q) ||
+            (item.group?.toLowerCase().includes(q) ?? false)
+        )
+        .slice(0, max);
+    });
 
     // -------------------------------------------------------------------------
     // Handlers
     // -------------------------------------------------------------------------
 
-    // Add item to selected (value captured in closure via factory)
-    const createAddHandler = (valueToAdd: string) =>
-      handler<
-        Record<string, never>,
-        { selected: Cell<string[]>; isOpen: Cell<boolean>; searchQuery: Cell<string> }
-      >((_, state) => {
-        const current = state.selected.get();
-        if (!current.includes(valueToAdd)) {
-          state.selected.set([...current, valueToAdd]);
-        }
-        // Clear search and close dropdown after selection
-        state.searchQuery.set("");
-        state.isOpen.set(false);
-      });
+    // Add item to selected (value passed as state, not closure)
+    const addItem = handler<
+      Record<string, never>,
+      {
+        selected: Cell<string[]>;
+        isOpen: Cell<boolean>;
+        searchQuery: Cell<string>;
+        value: string;
+      }
+    >((_, state) => {
+      const current = state.selected.get();
+      if (!current.includes(state.value)) {
+        state.selected.set([...current, state.value]);
+      }
+      // Clear search and close dropdown after selection
+      state.searchQuery.set("");
+      state.isOpen.set(false);
+    });
 
-    // Remove item from selected (value captured in closure via factory)
-    const createRemoveHandler = (valueToRemove: string) =>
-      handler<Record<string, never>, { selected: Cell<string[]> }>(
-        (_, state) => {
-          const current = state.selected.get();
-          state.selected.set(current.filter((v) => v !== valueToRemove));
-        },
-      );
+    // Remove item from selected (value passed as state, not closure)
+    const removeItem = handler<
+      Record<string, never>,
+      { selected: Cell<string[]>; value: string }
+    >((_, { selected, value }) => {
+      const current = selected.get();
+      selected.set(current.filter((v) => v !== value));
+    });
 
     // Toggle dropdown
     const toggleDropdown = handler<
@@ -192,14 +162,6 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
       if (wasOpen) {
         state.searchQuery.set("");
       }
-    });
-
-    // Update search query
-    const updateSearch = handler<
-      { target: { value: string } },
-      { searchQuery: Cell<string> }
-    >((event, state) => {
-      state.searchQuery.set(event.target.value);
     });
 
     // -------------------------------------------------------------------------
@@ -221,49 +183,34 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             }}
           >
             {/* Render selected items as chips */}
-            {derive(
-              [selected, itemLookup],
-              // deno-lint-ignore no-explicit-any
-              ([sel, lookup]: [any, any]) => {
-                const selectedValues = safeUnwrap<string[]>(sel, []);
-                const lookupObj = safeUnwrap<Record<string, NormalizedItem>>(
-                  lookup,
-                  {},
-                );
-                return selectedValues.map((value, index) => {
-                  const item = lookupObj[value];
-                  const label = item?.label ?? value;
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "4px 10px",
-                        background: "#f1f5f9",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "9999px",
-                        fontSize: "13px",
-                      }}
-                    >
-                      <span>{label}</span>
-                      <span
-                        onClick={createRemoveHandler(value)({ selected })}
-                        style={{
-                          cursor: "pointer",
-                          marginLeft: "2px",
-                          color: "#94a3b8",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        ×
-                      </span>
-                    </div>
-                  );
-                });
-              },
-            )}
+            {selectedWithLabels.map((item, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 10px",
+                  background: "#f1f5f9",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "9999px",
+                  fontSize: "13px",
+                }}
+              >
+                <span>{item.label}</span>
+                <span
+                  onClick={removeItem({ selected, value: item.value })}
+                  style={{
+                    cursor: "pointer",
+                    marginLeft: "2px",
+                    color: "#94a3b8",
+                    fontWeight: "bold",
+                  }}
+                >
+                  ×
+                </span>
+              </div>
+            ))}
 
             {/* Add button */}
             <ct-button
@@ -275,10 +222,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             </ct-button>
           </div>
 
-          {/* Dropdown */}
-          {derive([isOpen], ([open]: [unknown]) => {
-            const isOpenValue = safeUnwrap<boolean>(open as boolean, false);
-            return isOpenValue ? (
+          {/* Dropdown - using computed for conditional */}
+          {computed(() =>
+            isOpen.get() ? (
               <div
                 style={{
                   position: "absolute",
@@ -296,7 +242,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                 }}
               >
                 {/* Search input */}
-                <div style={{ padding: "8px", borderBottom: "1px solid #e2e8f0" }}>
+                <div
+                  style={{ padding: "8px", borderBottom: "1px solid #e2e8f0" }}
+                >
                   <ct-input
                     placeholder={placeholder}
                     $value={searchQuery}
@@ -312,64 +260,58 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                     padding: "4px",
                   }}
                 >
-                  {derive(
-                    [filteredItems],
-                    // deno-lint-ignore no-explicit-any
-                    ([items]: [any]) => {
-                      const itemList = safeUnwrap<NormalizedItem[]>(items, []);
-                      return itemList.length === 0 ? (
-                        <div
-                          style={{
-                            padding: "12px",
-                            textAlign: "center",
-                            color: "#94a3b8",
-                            fontSize: "13px",
-                          }}
-                        >
-                          No matching options
-                        </div>
-                      ) : (
-                        itemList.map((item, index) => (
-                          <div
-                            key={index}
-                            onClick={createAddHandler(item.value)({
-                              selected,
-                              isOpen,
-                              searchQuery,
-                            })}
+                  {filteredItems.length === 0 ? (
+                    <div
+                      style={{
+                        padding: "12px",
+                        textAlign: "center",
+                        color: "#94a3b8",
+                        fontSize: "13px",
+                      }}
+                    >
+                      No matching options
+                    </div>
+                  ) : (
+                    filteredItems.map((item, index) => (
+                      <div
+                        key={index}
+                        onClick={addItem({
+                          selected,
+                          isOpen,
+                          searchQuery,
+                          value: item.value,
+                        })}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderRadius: "4px",
+                          fontSize: "14px",
+                        }}
+                      >
+                        <span>{item.label}</span>
+                        {item.group && (
+                          <span
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "8px 12px",
-                              cursor: "pointer",
-                              borderRadius: "4px",
-                              fontSize: "14px",
+                              fontSize: "12px",
+                              color: "#94a3b8",
+                              marginLeft: "12px",
                             }}
                           >
-                            <span>{item.label}</span>
-                            {item.group && (
-                              <span
-                                style={{
-                                  fontSize: "12px",
-                                  color: "#94a3b8",
-                                  marginLeft: "12px",
-                                }}
-                              >
-                                {item.group}
-                              </span>
-                            )}
-                          </div>
-                        ))
-                      );
-                    },
+                            {item.group}
+                          </span>
+                        )}
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
-            ) : null;
-          })}
+            ) : null
+          )}
         </div>
       ),
     };
-  },
+  }
 );
