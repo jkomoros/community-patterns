@@ -212,15 +212,22 @@ Benefits:
 
 ## Verification (2025-12-05)
 
-**Playwright E2E testing confirmed the fix:**
+**Playwright E2E testing confirmed the fix on both patterns:**
 
-1. **`--show-transformed` verification**: Explicit schemas now appear in compiled output with all fields (hotelBrand, programName, membershipNumber, etc.)
-2. **Deployment test**: Pattern deploys successfully to local toolshed
-3. **UI test**: Quick Scan button triggers LLM agent correctly
-4. **Agent execution**: LLM agent searches Gmail with proper queries (e.g., `from:hilton.com subject:"welcome"`)
-5. **Console logs**: Agent receives correct tools and attempts to call them
+### favorite-foods-gmail-agent.tsx
+- Console logs confirmed: `[listTool:food] SAVED: mcdonald's`, `[listTool:food] SAVED: popeyes louisiana kitchen`
+- Full data flow verified with working OAuth token
 
-Note: Full data verification blocked by expired Gmail OAuth token, but schema correctness is confirmed via `--show-transformed`.
+### hotel-membership-gmail-agent.tsx
+- Pattern deploys and triggers correctly
+- Agent executes searches (401 due to expired OAuth - auth issue, not code issue)
+- Code reduced by 30 lines with new elegant API
+
+### General verification:
+1. **`--show-transformed` verification**: Explicit schemas now appear in compiled output with all fields
+2. **Deployment test**: Both patterns deploy successfully to local toolshed
+3. **UI test**: Scan buttons trigger LLM agents correctly
+4. **Type safety**: Dedupe fields are type-checked against schema at compile time
 
 ---
 
