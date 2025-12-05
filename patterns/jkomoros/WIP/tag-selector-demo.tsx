@@ -5,6 +5,10 @@
  *
  * This pattern shows how to wire ct-autocomplete to a userland tag display,
  * creating a multi-select experience from the single-select autocomplete component.
+ *
+ * DEPENDENCY: Requires ct-autocomplete component from labs PR:
+ * https://github.com/anthropics/labs/pull/XXX (feature/ct-autocomplete branch)
+ * This pattern will NOT work until that PR is merged.
  */
 
 import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
