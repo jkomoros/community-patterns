@@ -264,6 +264,56 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
 
 7. **Cannot use reactive values as property keys (2025-12-05)**: Inside JSX `.map()`, items are opaque proxies. Using `lookup[item.value]` triggers `Symbol.toPrimitive` conversion which throws "Tried to directly access an opaque value". Pre-compute lookups inside `computed()` before the JSX.
 
+8. **Use `ifElse()` for conditional rendering (2025-12-05)**: Do NOT use `computed(() => cond.get() ? jsx : null)` - the dropdown would appear briefly then disappear. Use `ifElse(conditionCell, thenJSX, elseJSX)` instead:
+   ```typescript
+   // WRONG: causes dropdown to flash and disappear
+   {computed(() => isOpen.get() ? <div>...</div> : null)}
+
+   // CORRECT: proper conditional rendering
+   {ifElse(isOpen, <div>...</div>, null)}
+   ```
+
+9. **`ct-keybind` for keyboard shortcuts (2025-12-05)**: Use `ct-keybind` component for keyboard navigation:
+   ```typescript
+   <ct-keybind code="Escape" onct-keybind={closeHandler()} />
+   <ct-keybind code="ArrowDown" ignore-editable={false} preventDefault onct-keybind={moveDownHandler()} />
+   ```
+   Note: `ignore-editable={false}` needed to capture keys while focused in a text input.
+
+10. **`position: fixed` escapes parent overflow (2025-12-05)**: Parent containers have `overflow: hidden`. Using `position: absolute` causes clipping. Use `position: fixed` to escape, but coordinates must be hardcoded (no access to `getBoundingClientRect` in userland patterns).
+
+11. **Visual highlight doesn't update reactively (2025-12-05)**: When using computed to add `isHighlighted` property to items, the internal state tracks correctly (keyboard selection works) but the CSS background doesn't re-render visually. The issue is that computed-generated plain objects inside `.map()` don't trigger style re-evaluation. This is a cosmetic limitation.
+
+---
+
+## Known Limitations (Userland Pattern)
+
+1. **Dropdown position hardcoded** - Cannot use `getBoundingClientRect()` to dynamically position the dropdown relative to the button. Using `position: fixed` with hardcoded coordinates.
+
+2. **Visual highlight doesn't update** - Internal `highlightedIndex` state works (keyboard selection selects the correct item), but the visual highlight background doesn't re-render when arrow keys are pressed.
+
+3. **No programmatic focus** - Cannot call `element.focus()` from pattern code. The `autofocus` attribute works on initial render only.
+
+These limitations could be resolved by implementing as a `ct-search-select` built-in component with full DOM access.
+
+---
+
+## Future Enhancements
+
+1. **Alternate search text**: Allow items to have additional keywords for matching that don't display. Example: "sister" could match "sibling" even if there's no "sister" option.
+   ```typescript
+   interface SearchSelectItem {
+     value: string;
+     label?: string;
+     group?: string;
+     searchAliases?: string[];  // Additional search terms
+   }
+   ```
+
+2. **Autofocus input**: When dropdown opens, auto-focus the search input. May require framework research for best practices.
+
+3. **Dropdown positioning**: May need to handle cases where dropdown is clipped by parent overflow. Could require `position: fixed` with calculated coordinates or becoming a built-in component.
+
 ---
 
 ## Session Log
@@ -282,3 +332,9 @@ const closeDropdown = handler<Record<string, never>, { isOpen: Cell<boolean>, se
   - isOpen state not defaulting to false
 - 2025-12-04: Initial version working with safeUnwrap() workaround.
 - 2025-12-05: **Major refactor** - Discovered `derive([array])` syntax is undocumented. Rewrote to use proper `computed()` pattern with explicit `.get()` calls. Removed all workarounds. Component now works correctly following framework conventions.
+- 2025-12-05: **Added keyboard navigation and backdrop close**:
+  - Added `ct-keybind` for Escape, ArrowUp, ArrowDown, Enter
+  - Added invisible backdrop div for click-outside-to-close
+  - Fixed dropdown clipping with `position: fixed` (hardcoded coordinates)
+  - Keyboard selection works (selects correct item), but visual highlight doesn't update reactively
+  - Documented known limitations of userland patterns vs built-in components
