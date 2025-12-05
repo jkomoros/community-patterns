@@ -1,6 +1,6 @@
 /// <cts-enable />
-import { cell, Default, derive, NAME, pattern, UI } from "commontools";
-import SearchSelect, { SearchSelectItem } from "./lib/search-select.tsx";
+import { cell, computed, Default, NAME, pattern, UI } from "commontools";
+import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
 
 // Test data - relationship types with groups
 const RELATIONSHIP_ITEMS: SearchSelectItem[] = [
@@ -36,12 +36,11 @@ export default pattern<TestInput>(({ initialSelected }) => {
     maxVisible: 6,
   });
 
-  // Derive a display of current selection for verification
-  const selectionDisplay = derive(
-    [selected],
-    ([sel]: [string[]]) =>
-      sel.length === 0 ? "None selected" : sel.join(", "),
-  );
+  // Computed display of current selection for verification
+  const selectionDisplay = computed(() => {
+    const sel = selected.get();
+    return sel.length === 0 ? "None selected" : sel.join(", ");
+  });
 
   return {
     [NAME]: "Search Select Test",
