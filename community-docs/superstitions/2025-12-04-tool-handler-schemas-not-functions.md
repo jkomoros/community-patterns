@@ -1,12 +1,12 @@
 ---
 topic: llm
 discovered: 2025-12-04
-confirmed_count: 2
-last_confirmed: 2025-12-04
-sessions: [handler-refactor-createReportTool, debug-handler-schema-inference]
+confirmed_count: 3
+last_confirmed: 2025-12-05
+sessions: [handler-refactor-createReportTool, debug-handler-schema-inference, e2e-playwright-verification]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
 status: folk_wisdom
-stars: ⭐⭐
+stars: ⭐⭐⭐
 ---
 
 # Tool Handlers: Generic Types Don't Work, Use Explicit Schemas
@@ -176,8 +176,21 @@ When using handler-based tools for LLMs:
 - `patterns/jkomoros/shared/report-handler.ts` - Shared handler with explicit schemas
 - `patterns/jkomoros/WIP/minimal-handler-schema-repro.tsx` - Minimal repro pattern
 
+## Verification (2025-12-05)
+
+**Playwright E2E testing confirmed the fix:**
+
+1. **`--show-transformed` verification**: Explicit schemas now appear in compiled output with all fields (hotelBrand, programName, membershipNumber, etc.)
+2. **Deployment test**: Pattern deploys successfully to local toolshed
+3. **UI test**: Quick Scan button triggers LLM agent correctly
+4. **Agent execution**: LLM agent searches Gmail with proper queries (e.g., `from:hilton.com subject:"welcome"`)
+5. **Console logs**: Agent receives correct tools and attempts to call them
+
+Note: Full data verification blocked by expired Gmail OAuth token, but schema correctness is confirmed via `--show-transformed`.
+
 ---
 
 **Discovery source:**
 - Framework author feedback on CT-1098 (sandboxing concerns)
 - CTS `--show-transformed` output analysis (schema inference issue)
+- Playwright browser testing (deployment + UI verification)
