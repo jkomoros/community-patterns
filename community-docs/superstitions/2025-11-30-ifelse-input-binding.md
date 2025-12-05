@@ -90,5 +90,11 @@ The reactive system may not properly track input changes for elements that are c
 ## Confirmation Status
 
 - **First observed**: 2025-11-30
-- **Confirmed by**: Not yet confirmed by others
+- **Confirmed by**: 2025-12-04 (person-research-gmail-agent)
 - **Needs**: Framework author confirmation on whether this is expected behavior
+
+---
+
+## Guestbook
+
+- **2025-12-04** (person-research-gmail-agent): Confirmed native `<input value={cell} onChange={handler}>` doesn't update the cell - even OUTSIDE of ifElse! The input visually shows typed text but derive() on the cell doesn't see updates. Fix: Changed to `<ct-input $value={cell}>` and removed the onChange handler. Title now updates reactively when typing in the input. This suggests the issue may be broader than just ifElse - native inputs may not bind properly in general.
