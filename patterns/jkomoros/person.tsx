@@ -372,11 +372,10 @@ const updateSocial = handler<
 
 // Handler to toggle a relationship type
 const toggleRelationshipType = handler<
-  { detail: { type: RelationshipType } },
-  { relationshipTypes: Cell<RelationshipType[]> }
+  Record<string, never>,
+  { relationshipTypes: Cell<RelationshipType[]>; type: RelationshipType }
 >(
-  ({ detail }, { relationshipTypes }) => {
-    const type = detail.type;
+  (_, { relationshipTypes, type }) => {
     const current = relationshipTypes.get();
     const index = current.indexOf(type);
     if (index >= 0) {
@@ -393,11 +392,10 @@ const toggleRelationshipType = handler<
 
 // Handler to toggle an origin
 const toggleOrigin = handler<
-  { detail: { origin: Origin } },
-  { origins: Cell<Origin[]> }
+  Record<string, never>,
+  { origins: Cell<Origin[]>; origin: Origin }
 >(
-  ({ detail }, { origins }) => {
-    const origin = detail.origin;
+  (_, { origins, origin }) => {
     const current = origins.get();
     const index = current.indexOf(origin);
     if (index >= 0) {
@@ -1123,21 +1121,14 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                             {types.map((type) => (
                               <ct-button
-                                size="small"
+                                size="sm"
                                 variant={derive(relationshipTypes, (arr) =>
                                   arr.includes(type) ? "primary" : "secondary"
                                 )}
-                                onClick={() => {
-                                  const current = relationshipTypes.get();
-                                  const index = current.indexOf(type);
-                                  if (index >= 0) {
-                                    const updated = [...current];
-                                    updated.splice(index, 1);
-                                    relationshipTypes.set(updated);
-                                  } else {
-                                    relationshipTypes.set([...current, type]);
-                                  }
-                                }}
+                                onClick={toggleRelationshipType({
+                                  relationshipTypes,
+                                  type,
+                                })}
                               >
                                 {RELATIONSHIP_TYPE_LABELS[type]}
                               </ct-button>
@@ -1152,13 +1143,14 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       <h3 style="margin: 0; font-size: 14px;">Closeness</h3>
                       <ct-select
                         $value={closeness}
-                        placeholder="How close are you?"
-                      >
-                        <option value="">Not set</option>
-                        {Object.entries(CLOSENESS_LABELS).map(([value, label]) => (
-                          <option value={value}>{label}</option>
-                        ))}
-                      </ct-select>
+                        items={[
+                          { label: "Not set", value: "" },
+                          ...Object.entries(CLOSENESS_LABELS).map(([value, label]) => ({
+                            label,
+                            value,
+                          })),
+                        ]}
+                      />
                     </ct-vstack>
 
                     {/* Origin Section */}
@@ -1167,21 +1159,14 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                         {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
                           <ct-button
-                            size="small"
+                            size="sm"
                             variant={derive(origins, (arr) =>
                               arr.includes(origin as Origin) ? "primary" : "secondary"
                             )}
-                            onClick={() => {
-                              const current = origins.get();
-                              const index = current.indexOf(origin as Origin);
-                              if (index >= 0) {
-                                const updated = [...current];
-                                updated.splice(index, 1);
-                                origins.set(updated);
-                              } else {
-                                origins.set([...current, origin as Origin]);
-                              }
-                            }}
+                            onClick={toggleOrigin({
+                              origins,
+                              origin: origin as Origin,
+                            })}
                           >
                             {label}
                           </ct-button>
@@ -1194,13 +1179,14 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       <h3 style="margin: 0; font-size: 14px;">Gift Giving</h3>
                       <ct-select
                         $value={giftTier}
-                        placeholder="Do you exchange gifts?"
-                      >
-                        <option value="">Not set</option>
-                        {Object.entries(GIFT_TIER_LABELS).map(([value, label]) => (
-                          <option value={value}>{label}</option>
-                        ))}
-                      </ct-select>
+                        items={[
+                          { label: "Not set", value: "" },
+                          ...Object.entries(GIFT_TIER_LABELS).map(([value, label]) => ({
+                            label,
+                            value,
+                          })),
+                        ]}
+                      />
                     </ct-vstack>
 
                     {/* Quick Flags Section */}
@@ -1211,7 +1197,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <input
                             type="checkbox"
                             checked={innerCircle}
-                            onChange={() => innerCircle.set(!innerCircle.get())}
+                            onChange={toggleFlag({ flag: innerCircle })}
                           />
                           <span style="font-size: 13px;">Inner Circle (would drop everything for them)</span>
                         </label>
@@ -1219,7 +1205,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <input
                             type="checkbox"
                             checked={emergencyContact}
-                            onChange={() => emergencyContact.set(!emergencyContact.get())}
+                            onChange={toggleFlag({ flag: emergencyContact })}
                           />
                           <span style="font-size: 13px;">Emergency Contact</span>
                         </label>
@@ -1227,7 +1213,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <input
                             type="checkbox"
                             checked={professionalReference}
-                            onChange={() => professionalReference.set(!professionalReference.get())}
+                            onChange={toggleFlag({ flag: professionalReference })}
                           />
                           <span style="font-size: 13px;">Professional Reference</span>
                         </label>
@@ -1267,8 +1253,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
           )}
         </ct-screen>
       ),
+      // TODO: Re-enable after fixing infinite loop issue
       // Make this charm discoverable via wish("#person")
-      "#person": true,
+      // "#person": true,
 
       displayName,
       givenName,
