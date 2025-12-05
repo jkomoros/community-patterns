@@ -39,6 +39,7 @@ import {
   wish,
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
+import { GmailClient, validateGmailToken } from "./util/gmail-client.ts";
 
 // Re-export Auth type for convenience
 export type { Auth } from "./gmail-importer.tsx";
@@ -240,198 +241,11 @@ export interface GmailAgenticSearchOutput {
 // GMAIL UTILITIES
 // ============================================================================
 
-/**
- * Validates a Gmail token by making a lightweight API call.
- * Returns { valid: true } or { valid: false, error: string }.
- */
-async function validateGmailToken(
-  token: string,
-): Promise<{ valid: boolean; error?: string }> {
-  if (!token) {
-    return { valid: false, error: "No token provided" };
-  }
-
-  try {
-    // Make a lightweight call: get profile (very fast, minimal data)
-    const res = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-
-    if (res.ok) {
-      return { valid: true };
-    }
-
-    if (res.status === 401) {
-      return { valid: false, error: "Token expired. Please re-authenticate." };
-    }
-
-    return { valid: false, error: `Gmail API error: ${res.status}` };
-  } catch (err) {
-    return { valid: false, error: `Network error: ${err}` };
-  }
-}
-
-async function fetchGmailEmails(
-  token: string,
-  query: string,
-  maxResults: number = 20,
-): Promise<SimpleEmail[]> {
-  if (!token) {
-    throw new Error("No auth token");
-  }
-
-  // Step 1: Search for message IDs
-  const searchUrl = new URL(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`,
-  );
-
-  const searchRes = await fetch(searchUrl, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!searchRes.ok) {
-    throw new Error(
-      `Gmail search failed: ${searchRes.status} ${searchRes.statusText}`,
-    );
-  }
-
-  const searchJson = await searchRes.json();
-  const messageIds: { id: string }[] = searchJson.messages || [];
-
-  if (messageIds.length === 0) {
-    return [];
-  }
-
-  console.log(
-    `[SearchGmail] Found ${messageIds.length} messages for query: ${query}`,
-  );
-
-  // Step 2: Fetch full message content using batch API
-  const boundary = `batch_${Math.random().toString(36).substring(2)}`;
-  const batchBody =
-    messageIds
-      .map(
-        (msg, index) => `
---${boundary}
-Content-Type: application/http
-Content-ID: <batch-${index}+${msg.id}>
-
-GET /gmail/v1/users/me/messages/${msg.id}?format=full
-Authorization: Bearer ${token}
-Accept: application/json
-
-`,
-      )
-      .join("") + `--${boundary}--`;
-
-  const batchRes = await fetch("https://gmail.googleapis.com/batch/gmail/v1", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": `multipart/mixed; boundary=${boundary}`,
-    },
-    body: batchBody,
-  });
-
-  if (!batchRes.ok) {
-    throw new Error(`Gmail batch fetch failed: ${batchRes.status}`);
-  }
-
-  const responseText = await batchRes.text();
-
-  // Parse batch response
-  const emails: SimpleEmail[] = [];
-  const parts = responseText.split(`--batch_`).slice(1, -1);
-
-  for (const part of parts) {
-    try {
-      const jsonStart = part.indexOf(`\n{`);
-      if (jsonStart === -1) continue;
-
-      const jsonContent = part.slice(jsonStart).trim();
-      const message = JSON.parse(jsonContent);
-
-      if (!message.payload) continue;
-
-      // Extract headers
-      const headers = message.payload.headers || [];
-      const getHeader = (name: string) =>
-        headers.find(
-          (h: { name: string; value: string }) =>
-            h.name.toLowerCase() === name.toLowerCase(),
-        )?.value || "";
-
-      // Extract body
-      const extractText = (payload: any): string => {
-        if (payload.body?.data) {
-          try {
-            const decoded = atob(
-              payload.body.data.replace(/-/g, "+").replace(/_/g, "/"),
-            );
-            return decoded;
-          } catch {
-            return "";
-          }
-        }
-        if (payload.parts) {
-          for (const p of payload.parts) {
-            if (p.mimeType === "text/plain" && p.body?.data) {
-              try {
-                return atob(
-                  p.body.data.replace(/-/g, "+").replace(/_/g, "/"),
-                );
-              } catch {
-                continue;
-              }
-            }
-          }
-          // Try HTML if no plain text
-          for (const p of payload.parts) {
-            if (p.mimeType === "text/html" && p.body?.data) {
-              try {
-                const html = atob(
-                  p.body.data.replace(/-/g, "+").replace(/_/g, "/"),
-                );
-                // Simple HTML to text conversion
-                return html
-                  .replace(/<[^>]+>/g, " ")
-                  .replace(/\s+/g, " ")
-                  .trim();
-              } catch {
-                continue;
-              }
-            }
-          }
-          // Recurse into nested parts
-          for (const p of payload.parts) {
-            const nested = extractText(p);
-            if (nested) return nested;
-          }
-        }
-        return "";
-      };
-
-      const bodyText = extractText(message.payload);
-
-      emails.push({
-        id: message.id,
-        subject: getHeader("Subject"),
-        from: getHeader("From"),
-        date: getHeader("Date"),
-        snippet: message.snippet || "",
-        body: bodyText.substring(0, 5000), // Limit body size
-      });
-    } catch (e) {
-      console.error("Error parsing email:", e);
-    }
-  }
-
-  console.log(`[SearchGmail] Parsed ${emails.length} emails`);
-  return emails;
-}
+// GmailClient and validateGmailToken are now imported from ./util/gmail-client.ts
+// This enables automatic token refresh on 401 errors.
+//
+// IMPORTANT: The auth cell must be writable for token refresh to work!
+// See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
 
 // ============================================================================
 // PATTERN
@@ -676,7 +490,12 @@ const GmailAgenticSearch = pattern<
       } else {
         try {
           console.log(`[SearchGmail Tool] Searching: ${input.query}`);
-          const emails = await fetchGmailEmails(token, input.query, 30);
+
+          // Use GmailClient with the auth cell for automatic token refresh
+          // CRITICAL: state.auth must be a writable cell (not derived) for refresh to work
+          const client = new GmailClient(state.auth, { debugMode: false });
+          const emails = await client.searchEmails(input.query, 30);
+
           console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
 
           // Log the search results
@@ -726,14 +545,16 @@ const GmailAgenticSearch = pattern<
           });
           resultData = { error: errorStr, emails: [] };
 
-          // Detect auth errors (401)
+          // Note: With GmailClient, 401 errors should automatically trigger
+          // token refresh. If we still get here with a 401, the refresh failed
+          // (possibly because auth cell is derived/read-only, or no refresh token)
           if (errorStr.includes("401")) {
             const updatedProgress = state.progress.get();
             state.progress.set({
               ...updatedProgress,
               status: "auth_error",
               authError:
-                "Gmail token expired or invalid. Please re-authenticate.",
+                "Gmail token expired and refresh failed. Please re-authenticate.",
             });
           }
         }
