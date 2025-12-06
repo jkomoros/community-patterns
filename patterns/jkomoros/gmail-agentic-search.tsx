@@ -92,6 +92,32 @@ export interface ToolDefinition {
 }
 
 // ============================================================================
+// LOCAL QUERY TRACKING TYPES
+// ============================================================================
+
+// A query saved locally by this agent instance
+export interface LocalQuery {
+  id: string;                    // Unique ID
+  query: string;                 // The Gmail search string
+  description?: string;          // User's note about what it finds
+  createdAt: number;             // When first used
+  lastUsed?: number;             // Most recent use
+  useCount: number;              // Times used
+  effectiveness: number;         // 0-5 rating (0=unrated)
+  shareStatus: "private" | "pending_review" | "submitted";
+}
+
+// A query pending user review before community submission
+export interface PendingSubmission {
+  localQueryId: string;          // Reference to LocalQuery
+  originalQuery: string;         // The original query
+  sanitizedQuery: string;        // After LLM PII removal
+  piiWarnings: string[];         // What PII was detected/removed
+  userApproved: boolean;         // Has user approved submission
+  submittedAt?: number;          // When submitted (if submitted)
+}
+
+// ============================================================================
 // INPUT/OUTPUT TYPES
 // ============================================================================
 
@@ -149,6 +175,23 @@ export interface GmailAgenticSearchInput {
     refreshToken: "";
     user: { email: ""; name: ""; picture: "" };
   }>;
+
+  // ========================================================================
+  // SHARED SEARCH STRINGS SUPPORT
+  // ========================================================================
+
+  // GitHub raw URL to identify this agent type for community query sharing
+  // Example: "https://raw.githubusercontent.com/anthropics/community-patterns/main/patterns/jkomoros/hotel-membership-gmail-agent.tsx"
+  agentTypeUrl?: Default<string, "">;
+
+  // Local queries saved by this agent instance
+  localQueries?: Default<LocalQuery[], []>;
+
+  // Queries pending user review before community submission
+  pendingSubmissions?: Default<PendingSubmission[], []>;
+
+  // Whether to fetch and use community queries (requires registry setup)
+  enableCommunityQueries?: Default<boolean, true>;
 }
 
 export interface GmailAgenticSearchOutput {
@@ -185,6 +228,21 @@ export interface GmailAgenticSearchOutput {
   // Actions (handlers for embedding patterns to use)
   startScan: ReturnType<typeof handler>;
   stopScan: ReturnType<typeof handler>;
+
+  // ========================================================================
+  // SHARED SEARCH STRINGS
+  // ========================================================================
+
+  // Local queries saved by this agent instance
+  localQueries: LocalQuery[];
+  localQueriesUI: JSX.Element;   // UI for viewing/managing local queries
+
+  // Queries pending user review before community submission
+  pendingSubmissions: PendingSubmission[];
+
+  // Actions for local query management
+  rateQuery: ReturnType<typeof handler>;      // Rate a query's effectiveness
+  deleteLocalQuery: ReturnType<typeof handler>; // Delete a saved query
 }
 
 // ============================================================================
@@ -270,6 +328,11 @@ const GmailAgenticSearch = pattern<
     debugLog,         // Debug log for tracking agent activity
     auth: inputAuth,  // CT-1085 workaround: direct auth input
     accountType,      // Multi-account support: "default" | "personal" | "work"
+    // Shared search strings support
+    agentTypeUrl,
+    localQueries,
+    pendingSubmissions,
+    enableCommunityQueries,
   }) => {
     // ========================================================================
     // AUTH HANDLING
@@ -421,6 +484,7 @@ const GmailAgenticSearch = pattern<
         progress: Cell<SearchProgress>;
         maxSearches: Cell<Default<number, 0>>;
         debugLog: Cell<DebugLogEntry[]>;
+        localQueries: Cell<LocalQuery[]>;
       }
     >(async (input, state) => {
       const authData = state.auth.get();
@@ -536,6 +600,43 @@ const GmailAgenticSearch = pattern<
             status: "analyzing",
             searchCount: updatedProgress.searchCount + 1,
           });
+
+          // Track query in localQueries for potential sharing
+          const currentLocalQueries = state.localQueries.get() || [];
+          const existingQueryIndex = currentLocalQueries.findIndex(
+            (q) => q.query.toLowerCase() === input.query.toLowerCase()
+          );
+
+          if (existingQueryIndex >= 0) {
+            // Update existing query
+            const existing = currentLocalQueries[existingQueryIndex];
+            const updated: LocalQuery = {
+              ...existing,
+              lastUsed: Date.now(),
+              useCount: existing.useCount + 1,
+              // Auto-increase effectiveness if it found results (capped at 5)
+              effectiveness: emails.length > 0
+                ? Math.min(5, existing.effectiveness + 1)
+                : existing.effectiveness,
+            };
+            state.localQueries.set([
+              ...currentLocalQueries.slice(0, existingQueryIndex),
+              updated,
+              ...currentLocalQueries.slice(existingQueryIndex + 1),
+            ]);
+          } else {
+            // Add new query
+            const newQuery: LocalQuery = {
+              id: `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              query: input.query,
+              createdAt: Date.now(),
+              lastUsed: Date.now(),
+              useCount: 1,
+              effectiveness: emails.length > 0 ? 1 : 0,  // Start at 1 if found results
+              shareStatus: "private",
+            };
+            state.localQueries.set([...currentLocalQueries, newQuery]);
+          }
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
           const errorStr = String(err);
@@ -613,6 +714,7 @@ const GmailAgenticSearch = pattern<
             progress: searchProgress,
             maxSearches,
             debugLog,
+            localQueries,
           }),
         },
       };
@@ -1374,6 +1476,173 @@ Be thorough in your searches. Try multiple queries if needed.`;
     );
 
     // ========================================================================
+    // LOCAL QUERIES MANAGEMENT
+    // ========================================================================
+
+    // Handler to rate a query's effectiveness
+    const rateQuery = handler<
+      { queryId: string; rating: number },
+      { localQueries: Cell<LocalQuery[]> }
+    >((input, state) => {
+      const queries = state.localQueries.get() || [];
+      const index = queries.findIndex((q) => q.id === input.queryId);
+      if (index >= 0) {
+        const updated = { ...queries[index], effectiveness: input.rating };
+        state.localQueries.set([
+          ...queries.slice(0, index),
+          updated,
+          ...queries.slice(index + 1),
+        ]);
+      }
+    });
+
+    // Handler to delete a local query
+    const deleteLocalQuery = handler<
+      { queryId: string },
+      { localQueries: Cell<LocalQuery[]> }
+    >((input, state) => {
+      const queries = state.localQueries.get() || [];
+      state.localQueries.set(queries.filter((q) => q.id !== input.queryId));
+    });
+
+    // Track if local queries UI is expanded
+    const localQueriesExpanded = cell(false);
+    const toggleLocalQueries = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
+      state.expanded.set(!state.expanded.get());
+    });
+
+    // Pre-bind handlers for local queries
+    const boundRateQuery = rateQuery({ localQueries });
+    const boundDeleteLocalQuery = deleteLocalQuery({ localQueries });
+
+    // Local Queries UI - collapsible list of saved queries
+    // Uses inline handlers since we need to pass dynamic queryId values
+    const localQueriesUI = (
+      <div style={{ marginTop: "8px" }}>
+        {derive(localQueries, (queries: LocalQuery[]) =>
+          queries && queries.length > 0 ? (
+            <div
+              style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header - clickable to toggle */}
+              <div
+                onClick={toggleLocalQueries({ expanded: localQueriesExpanded })}
+                style={{
+                  padding: "8px 12px",
+                  background: "#fefce8",
+                  borderBottom: "1px solid #fef08a",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  color: "#854d0e",
+                }}
+              >
+                <span>
+                  {derive(localQueriesExpanded, (e: boolean) => e ? "▼" : "▶")} My Saved Queries ({queries.length})
+                </span>
+                <span style={{ fontSize: "11px", color: "#a16207" }}>
+                  click to {derive(localQueriesExpanded, (e: boolean) => e ? "collapse" : "expand")}
+                </span>
+              </div>
+
+              {/* Content - shown when expanded */}
+              {derive(localQueriesExpanded, (expanded: boolean) =>
+                expanded ? (
+                  <div
+                    style={{
+                      maxHeight: "300px",
+                      overflowY: "auto",
+                      background: "#fffbeb",
+                      padding: "8px",
+                    }}
+                  >
+                    {queries
+                      .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
+                      .map((query: LocalQuery) => (
+                        <div
+                          style={{
+                            padding: "8px",
+                            marginBottom: "8px",
+                            background: "white",
+                            borderRadius: "6px",
+                            border: "1px solid #fef08a",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div style={{ flex: 1 }}>
+                              <div
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontSize: "12px",
+                                  color: "#1e293b",
+                                  wordBreak: "break-all",
+                                  marginBottom: "4px",
+                                }}
+                              >
+                                {query.query}
+                              </div>
+                              <div style={{ display: "flex", gap: "2px", marginBottom: "4px" }}>
+                                {/* Star rating - inline handlers for each star */}
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <span
+                                    onClick={() => {
+                                      const currentQueries = localQueries.get() || [];
+                                      const idx = currentQueries.findIndex((q) => q.id === query.id);
+                                      if (idx >= 0) {
+                                        const updated = { ...currentQueries[idx], effectiveness: star };
+                                        localQueries.set([
+                                          ...currentQueries.slice(0, idx),
+                                          updated,
+                                          ...currentQueries.slice(idx + 1),
+                                        ]);
+                                      }
+                                    }}
+                                    style={{
+                                      cursor: "pointer",
+                                      color: star <= (query.effectiveness || 0) ? "#f59e0b" : "#d1d5db",
+                                      fontSize: "14px",
+                                    }}
+                                  >
+                                    {star <= (query.effectiveness || 0) ? "★" : "☆"}
+                                  </span>
+                                ))}
+                              </div>
+                              <div style={{ fontSize: "10px", color: "#64748b" }}>
+                                Used {query.useCount}x
+                                {query.lastUsed && ` · Last: ${new Date(query.lastUsed).toLocaleDateString()}`}
+                              </div>
+                            </div>
+                            <ct-button
+                              onClick={() => {
+                                const currentQueries = localQueries.get() || [];
+                                localQueries.set(currentQueries.filter((q) => q.id !== query.id));
+                              }}
+                              variant="ghost"
+                              size="sm"
+                              style="color: #dc2626; font-size: 12px;"
+                            >
+                              ×
+                            </ct-button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : null
+        )}
+      </div>
+    );
+
+    // ========================================================================
     // RETURN
     // ========================================================================
 
@@ -1410,6 +1679,13 @@ Be thorough in your searches. Try multiple queries if needed.`;
       startScan: boundStartScan,
       stopScan: boundStopScan,
 
+      // Local queries (shared search strings support)
+      localQueries,
+      localQueriesUI,
+      pendingSubmissions,
+      rateQuery: boundRateQuery,
+      deleteLocalQuery: boundDeleteLocalQuery,
+
       // Full UI (composed from pieces)
       [UI]: (
         <ct-screen>
@@ -1423,6 +1699,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
               {controlsUI}
               {progressUI}
               {statsUI}
+              {localQueriesUI}
               {debugUI}
             </ct-vstack>
           </ct-vscroll>
