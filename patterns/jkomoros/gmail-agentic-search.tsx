@@ -40,6 +40,7 @@ import {
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
 import { GmailClient, validateAndRefreshToken } from "./util/gmail-client.ts";
+import GmailSearchRegistry from "./gmail-search-registry.tsx";
 import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
 
 // Re-export Auth type for convenience
@@ -450,6 +451,18 @@ const GmailAgenticSearch = pattern<
         },
       });
       return navigateTo(googleAuthCharm);
+    });
+
+    // Handler to create a new GmailSearchRegistry charm
+    // TODO: Currently creates in the current space. Ideally would create in a
+    // well-known shared space (e.g., "community-patterns-shared") so all users
+    // share the same registry. Framework doesn't yet support cross-space creation.
+    const createSearchRegistry = handler<unknown, Record<string, never>>(() => {
+      console.log("[GmailAgenticSearch] Creating new search registry charm");
+      const registryCharm = GmailSearchRegistry({
+        queries: [],
+      });
+      return navigateTo(registryCharm);
     });
 
     // Handler to change account type (writes to local writable cell)
@@ -1704,6 +1717,9 @@ Be thorough in your searches. Try multiple queries if needed.`;
     const boundRateQuery = rateQuery({ localQueries });
     const boundDeleteLocalQuery = deleteLocalQuery({ localQueries });
 
+    // Pre-bind handler for creating registry
+    const boundCreateSearchRegistry = createSearchRegistry({});
+
     // Local Queries UI - collapsible list of saved queries
     // Uses inline handlers since we need to pass dynamic queryId values
     const localQueriesUI = (
@@ -2408,8 +2424,28 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                               Submit {approvedCount} Approved {approvedCount === 1 ? "Query" : "Queries"} to Community
                             </ct-button>
                             {!hasRegistry && (
-                              <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "4px" }}>
-                                Registry not found. Favorite #gmailSearchRegistry charm first.
+                              <div
+                                style={{
+                                  marginTop: "12px",
+                                  padding: "12px",
+                                  background: "#fef3c7",
+                                  border: "1px solid #fde68a",
+                                  borderRadius: "8px",
+                                }}
+                              >
+                                <div style={{ fontSize: "12px", color: "#92400e", marginBottom: "8px" }}>
+                                  No community registry found. You can create one to share queries with other users.
+                                </div>
+                                <div style={{ fontSize: "10px", color: "#a16207", marginBottom: "8px" }}>
+                                  Note: Registry will be created in your current space. After creation, favorite it with tag #gmailSearchRegistry.
+                                </div>
+                                <ct-button
+                                  onClick={boundCreateSearchRegistry}
+                                  variant="secondary"
+                                  size="sm"
+                                >
+                                  Create Registry
+                                </ct-button>
                               </div>
                             )}
                           </div>
