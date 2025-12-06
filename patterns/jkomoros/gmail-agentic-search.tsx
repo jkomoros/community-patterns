@@ -40,6 +40,7 @@ import {
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
 import { GmailClient, validateGmailToken } from "./util/gmail-client.ts";
+import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
 
 // Re-export Auth type for convenience
 export type { Auth } from "./gmail-importer.tsx";
@@ -461,6 +462,50 @@ const GmailAgenticSearch = pattern<
     // by passing in their own cell
 
     // ========================================================================
+    // COMMUNITY REGISTRY DISCOVERY
+    // ========================================================================
+
+    // Wish for the community registry (tagged #gmailSearchRegistry)
+    // Only attempt if enableCommunityQueries is true
+    const registryWish = derive(enableCommunityQueries, (enabled: boolean) => {
+      if (!enabled) return null;
+      return wish<GmailSearchRegistryOutput>({ query: "#gmailSearchRegistry" });
+    });
+
+    // Extract community queries for this agent type
+    const communityQueries = derive(
+      [registryWish, agentTypeUrl],
+      ([wishResult, typeUrl]: [any, string]) => {
+        if (!wishResult || !typeUrl) return [];
+        const registry = wishResult?.result;
+        if (!registry?.registries) return [];
+        const agentRegistry = registry.registries[typeUrl];
+        if (!agentRegistry) return [];
+        // Return top queries sorted by score
+        return [...agentRegistry.queries]
+          .sort((a: SharedQuery, b: SharedQuery) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes))
+          .slice(0, 10)
+          .map((q: SharedQuery) => q.query);
+      }
+    );
+
+    // Combine all suggested queries: local effective + community + pattern-defined
+    const allSuggestedQueries = derive(
+      [suggestedQueries, localQueries, communityQueries],
+      ([suggested, local, community]: [string[], LocalQuery[], string[]]) => {
+        const effectiveLocal = (local || [])
+          .filter((q) => q.effectiveness >= 3)
+          .map((q) => q.query);
+        // Deduplicate and combine: pattern-defined first, then community, then local
+        const all = new Set<string>();
+        (suggested || []).forEach((q) => all.add(q));
+        (community || []).forEach((q) => all.add(q));
+        effectiveLocal.forEach((q) => all.add(q));
+        return Array.from(all);
+      }
+    );
+
+    // ========================================================================
     // DEBUG LOG HELPERS
     // ========================================================================
 
@@ -729,9 +774,11 @@ const GmailAgenticSearch = pattern<
       return baseTools;
     });
 
-    // Default system prompt
-    const fullSystemPrompt = derive(systemPrompt, (custom) => {
-      const base = `You are a Gmail search agent. Your job is to search through emails to find relevant information.
+    // Default system prompt - includes suggested queries from all sources
+    const fullSystemPrompt = derive(
+      [systemPrompt, allSuggestedQueries],
+      ([custom, suggested]: [string, string[]]) => {
+        const base = `You are a Gmail search agent. Your job is to search through emails to find relevant information.
 
 You have the searchGmail tool available. Use it to search Gmail with queries like:
 - from:domain.com
@@ -741,11 +788,18 @@ You have the searchGmail tool available. Use it to search Gmail with queries lik
 
 Be thorough in your searches. Try multiple queries if needed.`;
 
-      if (custom) {
-        return `${base}\n\n${custom}`;
+        // Add suggested queries if available
+        let prompt = base;
+        if (suggested && suggested.length > 0) {
+          prompt += `\n\nSuggested queries to try (from pattern config and community):\n${suggested.map((q) => `- ${q}`).join("\n")}`;
+        }
+
+        if (custom) {
+          prompt += `\n\n${custom}`;
+        }
+        return prompt;
       }
-      return base;
-    });
+    );
 
     // Create the agent
     const agent = generateObject({
@@ -2167,19 +2221,68 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                     ))}
 
                     {/* Submit all approved button */}
-                    {derive(pendingSubmissions, (subs: PendingSubmission[]) => {
-                      const approvedCount = subs.filter((s) => s.userApproved).length;
-                      return approvedCount > 0 ? (
-                        <div style={{ marginTop: "12px", textAlign: "center" }}>
-                          <ct-button variant="default">
-                            Submit {approvedCount} Approved {approvedCount === 1 ? "Query" : "Queries"} to Community
-                          </ct-button>
-                          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
-                            (Community registry integration coming soon)
+                    {derive(
+                      [pendingSubmissions, registryWish, agentTypeUrl],
+                      ([subs, registry, typeUrl]: [PendingSubmission[], any, string]) => {
+                        const approvedCount = (subs || []).filter((s) => s.userApproved && !s.submittedAt).length;
+                        const hasRegistry = !!registry?.result?.submitQuery;
+
+                        return approvedCount > 0 ? (
+                          <div style={{ marginTop: "12px", textAlign: "center" }}>
+                            <ct-button
+                              variant="default"
+                              disabled={!hasRegistry}
+                              onClick={() => {
+                                if (!hasRegistry || !typeUrl) return;
+                                const approved = (subs || []).filter((s) => s.userApproved && !s.submittedAt);
+                                const submitHandler = registry?.result?.submitQuery;
+
+                                // Submit each approved query
+                                approved.forEach((submission) => {
+                                  if (submitHandler) {
+                                    submitHandler({
+                                      agentTypeUrl: typeUrl,
+                                      query: submission.sanitizedQuery,
+                                    });
+                                  }
+
+                                  // Mark as submitted in pendingSubmissions
+                                  const currentSubs = pendingSubmissions.get() || [];
+                                  const idx = currentSubs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                                  if (idx >= 0) {
+                                    const updated = { ...currentSubs[idx], submittedAt: Date.now() };
+                                    pendingSubmissions.set([
+                                      ...currentSubs.slice(0, idx),
+                                      updated,
+                                      ...currentSubs.slice(idx + 1),
+                                    ]);
+                                  }
+
+                                  // Update local query status to submitted
+                                  const queries = localQueries.get() || [];
+                                  const qIdx = queries.findIndex((q) => q.id === submission.localQueryId);
+                                  if (qIdx >= 0) {
+                                    const updated = { ...queries[qIdx], shareStatus: "submitted" as const };
+                                    localQueries.set([
+                                      ...queries.slice(0, qIdx),
+                                      updated,
+                                      ...queries.slice(qIdx + 1),
+                                    ]);
+                                  }
+                                });
+                              }}
+                            >
+                              Submit {approvedCount} Approved {approvedCount === 1 ? "Query" : "Queries"} to Community
+                            </ct-button>
+                            {!hasRegistry && (
+                              <div style={{ fontSize: "10px", color: "#dc2626", marginTop: "4px" }}>
+                                Registry not found. Favorite #gmailSearchRegistry charm first.
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ) : null;
-                    })}
+                        ) : null;
+                      }
+                    )}
                   </div>
                 ) : null
               )}
