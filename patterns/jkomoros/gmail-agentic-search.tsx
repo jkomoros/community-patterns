@@ -223,7 +223,8 @@ export interface GmailAgenticSearchOutput {
 
   // Debug log
   debugLog: DebugLogEntry[];
-  debugUI: JSX.Element;  // Collapsible debug log UI
+  debugLogUI: JSX.Element;  // Collapsible debug log UI
+  extrasUI: JSX.Element;    // Combined: local queries + pending submissions + debug log
 
   // Timestamps
   lastScanAt: number;
@@ -1440,8 +1441,8 @@ Be thorough in your searches. Try multiple queries if needed.`;
       </div>
     );
 
-    // Debug UI - collapsible log of agent activity
-    const debugUI = (
+    // Debug Log UI - collapsible log of agent activity
+    const debugLogUI = (
       <div style={{ marginTop: "8px" }}>
         {derive(debugLog, (log: DebugLogEntry[]) =>
           log && log.length > 0 ? (
@@ -2295,6 +2296,18 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     );
 
     // ========================================================================
+    // EXTRAS UI - Combined UI for subclasses to inherit naturally
+    // Includes: local queries, pending submissions, and debug log
+    // ========================================================================
+    const extrasUI = (
+      <div>
+        {localQueriesUI}
+        {pendingSubmissionsUI}
+        {debugLogUI}
+      </div>
+    );
+
+    // ========================================================================
     // RETURN
     // ========================================================================
 
@@ -2305,7 +2318,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       authUI,
       controlsUI,
       progressUI,
-      debugUI,
+      extrasUI,       // Combined: local queries + pending submissions + debug log
+      debugLogUI,     // Just the debug log (if needed separately)
 
       // Auth state (exposed for embedding patterns)
       auth,
@@ -2352,9 +2366,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
               {controlsUI}
               {progressUI}
               {statsUI}
-              {pendingSubmissionsUI}
-              {localQueriesUI}
-              {debugUI}
+              {extrasUI}
             </ct-vstack>
           </ct-vscroll>
         </ct-screen>
