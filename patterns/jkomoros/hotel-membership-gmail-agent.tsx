@@ -165,6 +165,7 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
       const brandNumbers: Record<string, Set<string>> = {};
 
       for (const m of (list || [])) {
+        if (!m) continue;  // Skip null/undefined entries during hydration
         if (!brandNumbers[m.hotelBrand]) {
           brandNumbers[m.hotelBrand] = new Set();
         }
@@ -177,7 +178,7 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
         if (numbers.size > 1) {
           multiAccountBrands[brand] = {
             numbers: Array.from(numbers),
-            memberships: (list || []).filter(m => m.hotelBrand === brand),
+            memberships: (list || []).filter(m => m && m.hotelBrand === brand),
           };
         }
       }
@@ -193,7 +194,7 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
     const agentGoal = derive(
       [memberships, maxSearches, currentScanMode],
       ([found, max, scanMode]: [MembershipRecord[], number, ScanMode]) => {
-        const foundBrands = [...new Set(found.map((m) => m.hotelBrand))];
+        const foundBrands = [...new Set((found || []).filter(m => m).map((m) => m.hotelBrand))];
         const isQuickMode = max > 0;
         const isRecentMode = scanMode === "recent";
         const dateFilter = isRecentMode ? getRecentDateFilter() : "";
@@ -374,6 +375,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
       const groups: Record<string, MembershipRecord[]> = {};
       if (!list) return groups;
       for (const m of list) {
+        if (!m) continue;  // Skip null/undefined entries during hydration
         if (!groups[m.hotelBrand]) groups[m.hotelBrand] = [];
         groups[m.hotelBrand].push(m);
       }
