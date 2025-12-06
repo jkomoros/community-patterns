@@ -1,8 +1,23 @@
 # Issue: Objects in Deeply Nested Arrays Store as Null
 
-## Summary
+## UPDATE: This is a CLI DISPLAY BUG, not a storage bug!
 
-When storing data in a cell with structure `Record<string, { field: string; nestedArray: Object[] }>`, objects inside the nested array are serialized as `null` instead of their actual values. This happens both when set via handlers AND when set directly via CLI.
+**2025-12-06:** Further testing revealed that the data IS stored correctly and works in the UI. The `ct charm get` and `ct charm inspect` CLI commands show empty/default values for fields in array items, but the actual runtime data is correct.
+
+See: `ISSUE-CLI-Display-Bug-Array-Items-Show-Null.md` for the updated, accurate issue.
+
+**Evidence:**
+- UI shows correct values (e.g., "5 Total Queries" when CLI shows `[null, null, null, null, null]`)
+- `derive()` callbacks receive correct values
+- Handlers successfully modify data
+
+---
+
+## Original Issue (Partially Incorrect)
+
+~~## Summary~~
+
+~~When storing data in a cell with structure `Record<string, { field: string; nestedArray: Object[] }>`, objects inside the nested array are serialized as `null` instead of their actual values. This happens both when set via handlers AND when set directly via CLI.~~
 
 ## Use Case
 

@@ -91,7 +91,7 @@ const GmailSearchRegistry = pattern<
   const registries = derive(queries, (allQueries: SharedQuery[]) => {
     const grouped: Record<string, AgentTypeRegistry> = {};
     for (const q of allQueries || []) {
-      if (!q) continue; // Skip null/undefined during hydration
+      if (!q || !q.agentTypeUrl) continue; // Skip null/undefined during hydration
       if (!grouped[q.agentTypeUrl]) {
         grouped[q.agentTypeUrl] = {
           agentTypeUrl: q.agentTypeUrl,
@@ -125,7 +125,7 @@ const GmailSearchRegistry = pattern<
       return { success: false, error: "Query already exists" };
     }
 
-    // Create new query entry and push (not set!) to preserve values
+    // Create new query entry and push to array
     const queryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     state.queries.push({
       id: queryId,
@@ -217,16 +217,11 @@ const GmailSearchRegistry = pattern<
     return { agentTypeCount: agentTypes.length, totalQueries };
   });
 
-  // Track expanded agent types
-  const expandedAgents = cell<Record<string, boolean>>({});
-  const toggleAgent = handler<{ agentTypeUrl: string }, { expanded: Cell<Record<string, boolean>> }>(
-    (input, state) => {
-      const current = state.expanded.get() || {};
-      state.expanded.set({
-        ...current,
-        [input.agentTypeUrl]: !current[input.agentTypeUrl],
-      });
-    }
+  // Pre-compute registry entries as cell for .map() usage
+  const registryEntries = derive(registries, (regs: Record<string, AgentTypeRegistry>) =>
+    Object.entries(regs || {})
+      .filter(([url, reg]) => url && reg) // Guard against undefined during hydration
+      .map(([url, reg]) => ({ url, ...reg, queries: reg.queries || [] }))
   );
 
   return {
@@ -294,121 +289,104 @@ const GmailSearchRegistry = pattern<
               </div>
             </div>
 
-            {/* Registry list */}
+            {/* Registry list - use .map() on cell instead of derive() for onClick to work */}
             <div>
-              {derive(registries, (regs: Record<string, AgentTypeRegistry>) => {
-                const entries = Object.entries(regs || {});
-                if (entries.length === 0) {
-                  return (
-                    <div
-                      style={{
-                        padding: "24px",
-                        textAlign: "center",
-                        color: "#64748b",
-                        fontSize: "13px",
-                      }}
-                    >
-                      No queries registered yet. Gmail-agent patterns will submit queries here.
-                    </div>
-                  );
-                }
-
-                return entries.map(([agentTypeUrl, registry]) => (
+              {/* Empty state */}
+              {derive(registryEntries, (entries) =>
+                entries.length === 0 ? (
                   <div
                     style={{
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                      marginBottom: "8px",
-                      overflow: "hidden",
+                      padding: "24px",
+                      textAlign: "center",
+                      color: "#64748b",
+                      fontSize: "13px",
                     }}
                   >
-                    {/* Agent type header */}
-                    <div
-                      onClick={() => {
-                        const current = expandedAgents.get() || {};
-                        expandedAgents.set({
-                          ...current,
-                          [agentTypeUrl]: !current[agentTypeUrl],
-                        });
-                      }}
-                      style={{
-                        padding: "10px 12px",
-                        background: "#f8fafc",
-                        cursor: "pointer",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: "500", fontSize: "13px", color: "#1e293b" }}>
-                          {derive(expandedAgents, (exp: Record<string, boolean>) => exp[agentTypeUrl] ? "▼" : "▶")}{" "}
-                          {registry.agentTypeName || extractAgentName(agentTypeUrl)}
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
-                          {registry.queries.length} {registry.queries.length === 1 ? "query" : "queries"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Queries list (when expanded) */}
-                    {derive(expandedAgents, (exp: Record<string, boolean>) =>
-                      exp[agentTypeUrl] ? (
-                        <div style={{ padding: "8px" }}>
-                          {[...registry.queries]
-                            .sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes))
-                            .map((query) => (
-                              <div
-                                style={{
-                                  padding: "10px",
-                                  background: "white",
-                                  borderRadius: "6px",
-                                  border: "1px solid #e2e8f0",
-                                  marginBottom: "6px",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    fontFamily: "monospace",
-                                    fontSize: "12px",
-                                    color: "#1e293b",
-                                    marginBottom: "4px",
-                                  }}
-                                >
-                                  {query.query}
-                                </div>
-                                {query.description && (
-                                  <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
-                                    {query.description}
-                                  </div>
-                                )}
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    fontSize: "10px",
-                                    color: "#94a3b8",
-                                  }}
-                                >
-                                  <div>
-                                    <span style={{ color: "#22c55e" }}>▲ {query.upvotes}</span>
-                                    {" / "}
-                                    <span style={{ color: "#ef4444" }}>▼ {query.downvotes}</span>
-                                    {query.submittedBy && ` · by ${query.submittedBy}`}
-                                  </div>
-                                  <div>
-                                    {new Date(query.submittedAt).toLocaleDateString()}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                        </div>
-                      ) : null
-                    )}
+                    No queries registered yet. Gmail-agent patterns will submit queries here.
                   </div>
-                ));
-              })}
+                ) : null
+              )}
+
+              {/* Registry entries - using native details/summary for expand/collapse */}
+              {registryEntries.map((registry) => (
+                <details
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    marginBottom: "8px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <summary
+                    style={{
+                      padding: "10px 12px",
+                      background: "#f8fafc",
+                      cursor: "pointer",
+                      listStyle: "none",
+                    }}
+                  >
+                    <div style={{ fontWeight: "500", fontSize: "13px", color: "#1e293b" }}>
+                      {registry.agentTypeName || extractAgentName(registry.url)}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                      {registry.queries.length} {registry.queries.length === 1 ? "query" : "queries"}
+                    </div>
+                  </summary>
+
+                  {/* Queries list */}
+                  <div style={{ padding: "8px" }}>
+                    {[...(registry.queries || [])]
+                      .filter((q) => q && q.query) // Filter out null/undefined during hydration
+                      .sort((a, b) => ((b.upvotes || 0) - (b.downvotes || 0)) - ((a.upvotes || 0) - (a.downvotes || 0)))
+                      .map((query) => (
+                        <div
+                          style={{
+                            padding: "10px",
+                            background: "white",
+                            borderRadius: "6px",
+                            border: "1px solid #e2e8f0",
+                            marginBottom: "6px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                              color: "#1e293b",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {query.query}
+                          </div>
+                          {query.description && (
+                            <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
+                              {query.description}
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              fontSize: "10px",
+                              color: "#94a3b8",
+                            }}
+                          >
+                            <div>
+                              <span style={{ color: "#22c55e" }}>+{query.upvotes || 0}</span>
+                              {" / "}
+                              <span style={{ color: "#ef4444" }}>-{query.downvotes || 0}</span>
+                              {query.submittedBy && ` · by ${query.submittedBy}`}
+                            </div>
+                            <div>
+                              {query.submittedAt ? new Date(query.submittedAt).toLocaleDateString() : ""}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </details>
+              ))}
             </div>
 
             {/* Setup instructions */}
@@ -437,7 +415,8 @@ const GmailSearchRegistry = pattern<
 });
 
 // Helper to extract a readable name from the agent type URL
-function extractAgentName(url: string): string {
+function extractAgentName(url: string | undefined | null): string {
+  if (!url) return "Unknown Agent";
   // Extract filename from URL like:
   // https://raw.githubusercontent.com/.../patterns/jkomoros/hotel-membership-gmail-agent.tsx
   const match = url.match(/\/([^/]+)\.tsx$/);
