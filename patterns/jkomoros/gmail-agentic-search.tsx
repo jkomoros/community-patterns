@@ -111,8 +111,10 @@ export interface LocalQuery {
 export interface PendingSubmission {
   localQueryId: string;          // Reference to LocalQuery
   originalQuery: string;         // The original query
-  sanitizedQuery: string;        // After LLM PII removal
+  sanitizedQuery: string;        // After LLM PII removal / generalization
   piiWarnings: string[];         // What PII was detected/removed
+  generalizabilityIssues: string[]; // Issues with generalizability
+  recommendation: "share" | "share_with_edits" | "do_not_share" | "pending";
   userApproved: boolean;         // Has user approved submission
   submittedAt?: number;          // When submitted (if submitted)
 }
@@ -239,6 +241,7 @@ export interface GmailAgenticSearchOutput {
 
   // Queries pending user review before community submission
   pendingSubmissions: PendingSubmission[];
+  pendingSubmissionsUI: JSX.Element;  // UI for reviewing/approving submissions
 
   // Actions for local query management
   rateQuery: ReturnType<typeof handler>;      // Rate a query's effectiveness
@@ -1617,22 +1620,566 @@ Be thorough in your searches. Try multiple queries if needed.`;
                               <div style={{ fontSize: "10px", color: "#64748b" }}>
                                 Used {query.useCount}x
                                 {query.lastUsed && ` · Last: ${new Date(query.lastUsed).toLocaleDateString()}`}
+                                {query.shareStatus === "pending_review" && (
+                                  <span style={{ color: "#3b82f6", marginLeft: "8px" }}>
+                                    (pending review)
+                                  </span>
+                                )}
+                                {query.shareStatus === "submitted" && (
+                                  <span style={{ color: "#22c55e", marginLeft: "8px" }}>
+                                    (shared)
+                                  </span>
+                                )}
                               </div>
                             </div>
-                            <ct-button
-                              onClick={() => {
-                                const currentQueries = localQueries.get() || [];
-                                localQueries.set(currentQueries.filter((q) => q.id !== query.id));
-                              }}
-                              variant="ghost"
-                              size="sm"
-                              style="color: #dc2626; font-size: 12px;"
-                            >
-                              ×
-                            </ct-button>
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              {query.shareStatus === "private" && query.effectiveness >= 3 && (
+                                <ct-button
+                                  onClick={() => {
+                                    // Flag for sharing - this will trigger PII screening
+                                    const queries = localQueries.get() || [];
+                                    const qry = queries.find((q) => q.id === query.id);
+                                    if (!qry) return;
+
+                                    // Check if already pending
+                                    const pending = pendingSubmissions.get() || [];
+                                    if (pending.some((p) => p.localQueryId === query.id)) return;
+
+                                    // Create pending submission
+                                    const newPending: PendingSubmission = {
+                                      localQueryId: query.id,
+                                      originalQuery: qry.query,
+                                      sanitizedQuery: qry.query,
+                                      piiWarnings: [],
+                                      generalizabilityIssues: [],
+                                      recommendation: "pending",
+                                      userApproved: false,
+                                    };
+                                    pendingSubmissions.set([...pending, newPending]);
+
+                                    // Update query status
+                                    const idx = queries.findIndex((q) => q.id === query.id);
+                                    if (idx >= 0) {
+                                      const updated = { ...queries[idx], shareStatus: "pending_review" as const };
+                                      localQueries.set([
+                                        ...queries.slice(0, idx),
+                                        updated,
+                                        ...queries.slice(idx + 1),
+                                      ]);
+                                    }
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  style="color: #3b82f6; font-size: 11px;"
+                                >
+                                  Share
+                                </ct-button>
+                              )}
+                              <ct-button
+                                onClick={() => {
+                                  const currentQueries = localQueries.get() || [];
+                                  localQueries.set(currentQueries.filter((q) => q.id !== query.id));
+                                  // Also remove from pending if exists
+                                  const pending = pendingSubmissions.get() || [];
+                                  pendingSubmissions.set(pending.filter((p) => p.localQueryId !== query.id));
+                                }}
+                                variant="ghost"
+                                size="sm"
+                                style="color: #dc2626; font-size: 12px;"
+                              >
+                                ×
+                              </ct-button>
+                            </div>
                           </div>
                         </div>
                       ))}
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : null
+        )}
+      </div>
+    );
+
+    // ========================================================================
+    // PII SCREENING & PENDING SUBMISSIONS
+    // ========================================================================
+
+    // Schema for privacy/generalizability screening response
+    const piiScreeningSchema = {
+      type: "object" as const,
+      properties: {
+        hasPII: { type: "boolean" as const, description: "Whether PII was detected" },
+        piiFound: {
+          type: "array" as const,
+          items: { type: "string" as const },
+          description: "List of PII items found (e.g., 'email: john@example.com')",
+        },
+        isGeneralizable: {
+          type: "boolean" as const,
+          description: "Whether the query is general enough to help others",
+        },
+        generalizabilityIssues: {
+          type: "array" as const,
+          items: { type: "string" as const },
+          description: "List of reasons the query might not generalize",
+        },
+        sanitizedQuery: {
+          type: "string" as const,
+          description: "Query with PII removed and made more general (empty string if not salvageable)",
+        },
+        confidence: {
+          type: "number" as const,
+          description: "Confidence in analysis (0-1)",
+        },
+        recommendation: {
+          type: "string" as const,
+          enum: ["share", "share_with_edits", "do_not_share"] as const,
+          description: "Whether to recommend sharing this query",
+        },
+      },
+      required: ["hasPII", "piiFound", "isGeneralizable", "generalizabilityIssues", "sanitizedQuery", "confidence", "recommendation"] as const,
+    };
+
+    // Handler to flag a query for sharing (runs PII screening)
+    const flagQueryForSharing = handler<
+      { queryId: string },
+      {
+        localQueries: Cell<LocalQuery[]>;
+        pendingSubmissions: Cell<PendingSubmission[]>;
+      }
+    >(async (input, state) => {
+      const queries = state.localQueries.get() || [];
+      const query = queries.find((q) => q.id === input.queryId);
+      if (!query) return;
+
+      // Check if already pending
+      const pending = state.pendingSubmissions.get() || [];
+      if (pending.some((p) => p.localQueryId === input.queryId)) return;
+
+      // Create pending submission (PII screening happens via generateObject below)
+      const newPending: PendingSubmission = {
+        localQueryId: input.queryId,
+        originalQuery: query.query,
+        sanitizedQuery: query.query, // Will be updated by screening
+        piiWarnings: [],
+        generalizabilityIssues: [],
+        recommendation: "pending",
+        userApproved: false,
+      };
+
+      state.pendingSubmissions.set([...pending, newPending]);
+
+      // Update the local query status
+      const idx = queries.findIndex((q) => q.id === input.queryId);
+      if (idx >= 0) {
+        const updated = { ...queries[idx], shareStatus: "pending_review" as const };
+        state.localQueries.set([
+          ...queries.slice(0, idx),
+          updated,
+          ...queries.slice(idx + 1),
+        ]);
+      }
+    });
+
+    // Run PII screening on pending submissions
+    // Uses derive to reactively screen new submissions
+    const piiScreeningPrompt = derive(pendingSubmissions, (submissions: PendingSubmission[]) => {
+      // Find submissions that haven't been screened yet (sanitizedQuery === originalQuery and no warnings)
+      const unscreened = submissions.filter(
+        (s) => s.sanitizedQuery === s.originalQuery && s.piiWarnings.length === 0 && !s.userApproved
+      );
+      if (unscreened.length === 0) return "";
+
+      // Build prompt for the first unscreened submission
+      const submission = unscreened[0];
+      return `Analyze this Gmail search query for privacy issues and generalizability.
+
+Query: "${submission.originalQuery}"
+
+Check for TWO categories of problems:
+
+1. PRIVACY (PII - Personally Identifiable Information):
+   - Email addresses (from:john@acme.com -> from:*@*.com)
+   - Personal names (from:john.smith -> from:*)
+   - Specific company domains that reveal employer
+   - Account numbers, confirmation codes, order IDs
+   - Specific dates that could identify events
+
+2. GENERALIZABILITY (queries too specific to one person):
+   - Very specific sender domains that only this user uses
+   - Queries that reference specific subscription services/vendors unique to this user
+   - Highly specific subject line fragments that won't match others' emails
+   - Combinations of terms that are overly narrow
+
+GOOD queries to share (generic patterns):
+- "from:marriott.com subject:points" (common hotel chain)
+- "from:noreply@* subject:confirmation" (generic pattern)
+- "subject:receipt from:amazon.com" (common retailer)
+
+BAD queries to share:
+- "from:john.smith@acme.com" (specific person)
+- "from:mycustomdomain.com" (personal domain)
+- "subject:Order #12345" (specific order)
+- "from:obscure-local-business@gmail.com" (won't help others)
+
+Return a sanitized version that:
+1. Removes/generalizes PII
+2. Makes the query more general if it's too specific
+3. Returns empty string "" if the query can't be made useful for others`;
+    });
+
+    // Only run PII screening when there's a prompt
+    const piiScreeningResult = derive(piiScreeningPrompt, (prompt: string) => {
+      if (!prompt) return null;
+      return generateObject({
+        prompt,
+        schema: piiScreeningSchema,
+        system: `You are a privacy analyst and query curator for a community knowledge base.
+
+Your job is to evaluate Gmail search queries for:
+1. PRIVACY: Detect and remove/sanitize PII (emails, names, specific identifiers)
+2. GENERALIZABILITY: Assess if the query pattern would help OTHER users
+
+A query should only be shared if it represents a GENERAL PATTERN that others could benefit from.
+Major hotel chains, airlines, common retailers, and widespread services are good candidates.
+Personal domains, local businesses, and hyper-specific searches should not be shared.
+
+Be conservative: when in doubt, recommend "do_not_share".`,
+      });
+    });
+
+    // Update pending submissions with screening results
+    // This is a side effect that runs when screening completes
+    derive(piiScreeningResult, (result) => {
+      if (!result || !result.result) return;
+
+      const screeningData = result.result as {
+        hasPII: boolean;
+        piiFound: string[];
+        isGeneralizable: boolean;
+        generalizabilityIssues: string[];
+        sanitizedQuery: string;
+        confidence: number;
+        recommendation: "share" | "share_with_edits" | "do_not_share";
+      };
+
+      const submissions = pendingSubmissions.get() || [];
+
+      // Find the submission that was screened (still pending)
+      const unscreened = submissions.filter(
+        (s: PendingSubmission) => s.recommendation === "pending" && !s.userApproved
+      );
+      if (unscreened.length === 0) return;
+
+      const submission = unscreened[0];
+      const idx = submissions.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
+      if (idx < 0) return;
+
+      // Update the submission with screening results
+      const updated: PendingSubmission = {
+        ...submission,
+        sanitizedQuery: screeningData.sanitizedQuery || submission.originalQuery,
+        piiWarnings: screeningData.piiFound || [],
+        generalizabilityIssues: screeningData.generalizabilityIssues || [],
+        recommendation: screeningData.recommendation,
+      };
+
+      pendingSubmissions.set([
+        ...submissions.slice(0, idx),
+        updated,
+        ...submissions.slice(idx + 1),
+      ]);
+    });
+
+    // Handler to approve a pending submission
+    const approvePendingSubmission = handler<
+      { localQueryId: string },
+      { pendingSubmissions: Cell<PendingSubmission[]> }
+    >((input, state) => {
+      const submissions = state.pendingSubmissions.get() || [];
+      const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
+      if (idx >= 0) {
+        const updated = { ...submissions[idx], userApproved: true };
+        state.pendingSubmissions.set([
+          ...submissions.slice(0, idx),
+          updated,
+          ...submissions.slice(idx + 1),
+        ]);
+      }
+    });
+
+    // Handler to reject/cancel a pending submission
+    const rejectPendingSubmission = handler<
+      { localQueryId: string },
+      {
+        pendingSubmissions: Cell<PendingSubmission[]>;
+        localQueries: Cell<LocalQuery[]>;
+      }
+    >((input, state) => {
+      // Remove from pending
+      const submissions = state.pendingSubmissions.get() || [];
+      state.pendingSubmissions.set(submissions.filter((s) => s.localQueryId !== input.localQueryId));
+
+      // Reset local query status to private
+      const queries = state.localQueries.get() || [];
+      const idx = queries.findIndex((q) => q.id === input.localQueryId);
+      if (idx >= 0) {
+        const updated = { ...queries[idx], shareStatus: "private" as const };
+        state.localQueries.set([
+          ...queries.slice(0, idx),
+          updated,
+          ...queries.slice(idx + 1),
+        ]);
+      }
+    });
+
+    // Handler to update the sanitized query manually
+    const updateSanitizedQuery = handler<
+      { localQueryId: string; sanitizedQuery: string },
+      { pendingSubmissions: Cell<PendingSubmission[]> }
+    >((input, state) => {
+      const submissions = state.pendingSubmissions.get() || [];
+      const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
+      if (idx >= 0) {
+        const updated = { ...submissions[idx], sanitizedQuery: input.sanitizedQuery };
+        state.pendingSubmissions.set([
+          ...submissions.slice(0, idx),
+          updated,
+          ...submissions.slice(idx + 1),
+        ]);
+      }
+    });
+
+    // Track if pending submissions UI is expanded
+    const pendingSubmissionsExpanded = cell(false);
+    const togglePendingSubmissions = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
+      state.expanded.set(!state.expanded.get());
+    });
+
+    // Pending Submissions UI
+    const pendingSubmissionsUI = (
+      <div style={{ marginTop: "8px" }}>
+        {derive(pendingSubmissions, (submissions: PendingSubmission[]) =>
+          submissions && submissions.length > 0 ? (
+            <div
+              style={{
+                border: "1px solid #dbeafe",
+                borderRadius: "8px",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header */}
+              <div
+                onClick={togglePendingSubmissions({ expanded: pendingSubmissionsExpanded })}
+                style={{
+                  padding: "8px 12px",
+                  background: "#eff6ff",
+                  borderBottom: "1px solid #dbeafe",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  color: "#1e40af",
+                }}
+              >
+                <span>
+                  {derive(pendingSubmissionsExpanded, (e: boolean) => e ? "▼" : "▶")} Share Your Discoveries ({submissions.length} pending)
+                </span>
+                <span style={{ fontSize: "11px", color: "#3b82f6" }}>
+                  click to {derive(pendingSubmissionsExpanded, (e: boolean) => e ? "collapse" : "expand")}
+                </span>
+              </div>
+
+              {/* Content */}
+              {derive(pendingSubmissionsExpanded, (expanded: boolean) =>
+                expanded ? (
+                  <div
+                    style={{
+                      maxHeight: "400px",
+                      overflowY: "auto",
+                      background: "#f8fafc",
+                      padding: "8px",
+                    }}
+                  >
+                    {submissions.map((submission: PendingSubmission) => (
+                      <div
+                        style={{
+                          padding: "12px",
+                          marginBottom: "8px",
+                          background: "white",
+                          borderRadius: "6px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        {/* Original query */}
+                        <div style={{ marginBottom: "8px" }}>
+                          <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "2px" }}>
+                            Original Query:
+                          </div>
+                          <div
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                              color: "#1e293b",
+                              background: "#f1f5f9",
+                              padding: "6px 8px",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            {submission.originalQuery}
+                          </div>
+                        </div>
+
+                        {/* Recommendation badge */}
+                        {submission.recommendation !== "pending" && (
+                          <div style={{ marginBottom: "8px" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 8px",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                                fontWeight: "500",
+                                background:
+                                  submission.recommendation === "share" ? "#dcfce7" :
+                                  submission.recommendation === "share_with_edits" ? "#fef9c3" :
+                                  "#fee2e2",
+                                color:
+                                  submission.recommendation === "share" ? "#166534" :
+                                  submission.recommendation === "share_with_edits" ? "#854d0e" :
+                                  "#b91c1c",
+                              }}
+                            >
+                              {submission.recommendation === "share" ? "✓ Good to share" :
+                               submission.recommendation === "share_with_edits" ? "⚠ Needs editing" :
+                               "✗ Not recommended"}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* PII Warnings */}
+                        {submission.piiWarnings.length > 0 && (
+                          <div style={{ marginBottom: "8px" }}>
+                            <div style={{ fontSize: "11px", color: "#dc2626", marginBottom: "2px" }}>
+                              ⚠️ Privacy Issues:
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#b91c1c" }}>
+                              {submission.piiWarnings.join(", ")}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generalizability Issues */}
+                        {submission.generalizabilityIssues.length > 0 && (
+                          <div style={{ marginBottom: "8px" }}>
+                            <div style={{ fontSize: "11px", color: "#b45309", marginBottom: "2px" }}>
+                              ⚠️ Generalizability Issues:
+                            </div>
+                            <div style={{ fontSize: "12px", color: "#92400e" }}>
+                              {submission.generalizabilityIssues.join(", ")}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sanitized query (editable) */}
+                        <div style={{ marginBottom: "8px" }}>
+                          <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "2px" }}>
+                            {submission.piiWarnings.length > 0 ? "Sanitized Query (editable):" : "Query to Share:"}
+                          </div>
+                          <input
+                            type="text"
+                            value={submission.sanitizedQuery}
+                            onChange={(e: any) => {
+                              const newValue = e.target.value;
+                              const subs = pendingSubmissions.get() || [];
+                              const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                              if (idx >= 0) {
+                                const updated = { ...subs[idx], sanitizedQuery: newValue };
+                                pendingSubmissions.set([
+                                  ...subs.slice(0, idx),
+                                  updated,
+                                  ...subs.slice(idx + 1),
+                                ]);
+                              }
+                            }}
+                            style={{
+                              width: "100%",
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                              padding: "6px 8px",
+                              border: "1px solid #d1d5db",
+                              borderRadius: "4px",
+                            }}
+                          />
+                        </div>
+
+                        {/* Action buttons */}
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                          <ct-button
+                            onClick={() => {
+                              // Reject
+                              const subs = pendingSubmissions.get() || [];
+                              pendingSubmissions.set(subs.filter((s) => s.localQueryId !== submission.localQueryId));
+                              // Reset local query status
+                              const queries = localQueries.get() || [];
+                              const idx = queries.findIndex((q) => q.id === submission.localQueryId);
+                              if (idx >= 0) {
+                                const updated = { ...queries[idx], shareStatus: "private" as const };
+                                localQueries.set([
+                                  ...queries.slice(0, idx),
+                                  updated,
+                                  ...queries.slice(idx + 1),
+                                ]);
+                              }
+                            }}
+                            variant="ghost"
+                            size="sm"
+                            style="color: #64748b;"
+                          >
+                            Keep Private
+                          </ct-button>
+                          <ct-button
+                            onClick={() => {
+                              // Approve
+                              const subs = pendingSubmissions.get() || [];
+                              const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                              if (idx >= 0) {
+                                const updated = { ...subs[idx], userApproved: true };
+                                pendingSubmissions.set([
+                                  ...subs.slice(0, idx),
+                                  updated,
+                                  ...subs.slice(idx + 1),
+                                ]);
+                              }
+                            }}
+                            variant={submission.userApproved ? "secondary" : "default"}
+                            size="sm"
+                            disabled={submission.userApproved}
+                          >
+                            {submission.userApproved ? "✓ Approved" : "Approve for Sharing"}
+                          </ct-button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Submit all approved button */}
+                    {derive(pendingSubmissions, (subs: PendingSubmission[]) => {
+                      const approvedCount = subs.filter((s) => s.userApproved).length;
+                      return approvedCount > 0 ? (
+                        <div style={{ marginTop: "12px", textAlign: "center" }}>
+                          <ct-button variant="default">
+                            Submit {approvedCount} Approved {approvedCount === 1 ? "Query" : "Queries"} to Community
+                          </ct-button>
+                          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>
+                            (Community registry integration coming soon)
+                          </div>
+                        </div>
+                      ) : null;
+                    })}
                   </div>
                 ) : null
               )}
@@ -1683,6 +2230,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
       localQueries,
       localQueriesUI,
       pendingSubmissions,
+      pendingSubmissionsUI,
       rateQuery: boundRateQuery,
       deleteLocalQuery: boundDeleteLocalQuery,
 
@@ -1699,6 +2247,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
               {controlsUI}
               {progressUI}
               {statsUI}
+              {pendingSubmissionsUI}
               {localQueriesUI}
               {debugUI}
             </ct-vstack>
