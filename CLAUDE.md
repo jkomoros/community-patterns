@@ -63,6 +63,34 @@ This is critical to do at the start of every session to get latest instructions 
 
 ---
 
+## ⚠️ WHEN STUCK - READ THIS FIRST
+
+**CRITICAL: If you encounter ANY of these situations, IMMEDIATELY use the `community-docs` skill:**
+
+- ❓ Something doesn't work as expected
+- ❓ An error you don't understand
+- ❓ Unsure how to implement something
+- ❓ A pattern that should work but doesn't
+- ❓ Behavior that seems like a bug
+- ❓ Confused about framework conventions
+- ❓ Tried something twice and it failed both times
+
+**DO NOT spin your wheels. Community docs contain hard-won knowledge from other developers who hit the same issues.**
+
+```
+STUCK? → Use `community-docs` skill IMMEDIATELY
+        ↓
+Still stuck? → Check official labs docs
+        ↓
+Still stuck? → Use `recovery-strategies` skill
+        ↓
+Still stuck? → Ask user for help
+```
+
+**The community-docs skill is your FIRST LINE OF DEFENSE when anything goes wrong.**
+
+---
+
 ## Repository Structure
 
 ```
@@ -153,6 +181,7 @@ patterns/alice/
 ### DO
 
 ✅ **Always update from upstream first** (Step 1 above)
+✅ **Use `community-docs` skill IMMEDIATELY when stuck** - don't spin wheels!
 ✅ **Work only in `patterns/$GITHUB_USER/`** - user's namespace
 ✅ **Commit frequently** with clear messages
 ✅ **Test patterns** before committing
@@ -217,29 +246,37 @@ The pattern-development skill covers:
 - Managing dev servers
 - Working with the labs repository
 
-**When stuck on pattern development, use the `recovery-strategies` skill.**
+**When stuck on pattern development:**
 
-The recovery-strategies skill provides a 4-step escalation path:
+**FIRST: Use the `community-docs` skill!** This contains solutions to common problems.
+
+**THEN: Use the `recovery-strategies` skill** which provides a 4-step escalation path:
 1. Re-read documentation (pattern-dev skill)
 2. Study similar working patterns
 3. Reset and try again with new approach
 4. Ask user for guidance
 
-Use this aggressively - don't spin your wheels!
+Use these aggressively - don't spin your wheels!
 
 ### Community Docs (Folk Knowledge System)
 
-**For community folk knowledge, use the `community-docs` skill.**
+**⚠️ USE THIS WHEN STUCK! Use the `community-docs` skill.**
+
+**This is your secret weapon.** Community docs contain hard-won knowledge from developers who already solved the problems you're hitting.
 
 The community-docs skill covers:
 - Three tiers: blessed (author-approved), folk_wisdom (multiple confirmations), superstitions (single observation)
-- When to consult community docs (after checking official docs)
-- Searching across tiers
-- Promoting superstitions to folk wisdom
-- Creating new superstitions
-- Important skepticism guidelines
+- Solutions to common errors and gotchas
+- Workarounds for framework quirks
+- Patterns that work vs patterns that don't
 
-**CRITICAL:** Community docs are NOT official documentation. Always check `~/Code/labs/docs/common/` first!
+**When to use:**
+- IMMEDIATELY when something doesn't work
+- When you see an error you don't recognize
+- When behavior is unexpected
+- BEFORE spending more than 2 minutes debugging
+
+**Note:** Community docs complement official docs (`~/Code/labs/docs/common/`). Check both when stuck!
 
 ### Filing Issues
 
@@ -463,6 +500,7 @@ Every session:
 ## Remember
 
 - **Auto-update is critical** - Gets latest instructions for you!
+- **STUCK? Use `community-docs` skill IMMEDIATELY** - Don't waste time spinning!
 - **User's fork is their workspace** - Push freely to origin
 - **Upstream is shared repo** - Pull from here for updates
 - **Everyone in their own namespace** - No conflicts
