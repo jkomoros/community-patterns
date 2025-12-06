@@ -638,7 +638,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               </div>
 
               {/* Agent Activity Log - from base searcher */}
-              {searcher.debugUI}
+              {searcher.extrasUI}
 
               {/* Debug Info */}
               <details style={{ marginTop: "16px" }}>

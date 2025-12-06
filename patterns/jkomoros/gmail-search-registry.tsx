@@ -61,6 +61,7 @@ export interface GmailSearchRegistryInput {
   registries?: Default<Record<string, AgentTypeRegistry>, {}>;
 }
 
+/** Community registry for shared Gmail search queries. #gmailSearchRegistry */
 export interface GmailSearchRegistryOutput {
   [NAME]: string;
   [UI]: JSX.Element;
