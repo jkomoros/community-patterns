@@ -268,28 +268,35 @@ Show analyzer confidence per assumption:
 
 ## Known Issues & Workarounds
 
-### Frame Mismatch Error with Nested Array Mapping (ACTIVE)
+### Frame Mismatch Error with Nested Array Mapping (RESOLVED via different approach)
 
 **Issue:** `patterns/jkomoros/issues/ISSUE-Frame-Mismatch-Nested-Array-JSX-Map.md`
 **Superstition:** `community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md`
 
 **Problem:** Mapping over `assumption.alternatives` in JSX triggers a "Frame mismatch" error.
 
-**Workaround:** Flatten alternatives into a separate Cell array with parent references:
-- Store `flatAlternatives: Cell<FlatAlternative[]>` separately from assumptions
-- Each FlatAlternative has `assumptionId` to link back to parent
-- In JSX, filter flatAlternatives by assumptionId instead of nested mapping
+**Resolution:** Instead of flattening into cells, we now display `generateObject` result directly in JSX. This avoids both the Frame mismatch bug AND the CPU loop bug (see below). The pattern iterates over `result.assumptions` and `assumption.alternatives` using regular for-loops inside a computed that returns JSX.
 
-**Code locations with workaround:**
-- `assumption-surfacer.tsx` lines ~XX-XX (FlatAlternative type and flatAlternatives cell)
-- `assumption-surfacer.tsx` lines ~XX-XX (JSX rendering with filter instead of nested map)
+### CPU Loop with computed() calling .set() (RESOLVED)
 
-**When bug is fixed:**
-1. Remove `FlatAlternative` type and `flatAlternatives` cell
-2. Restore nested `alternatives: Alternative[]` on `Assumption` type
-3. Replace filter-based JSX with direct `a.alternatives.map(...)`
-4. Delete or archive the superstition file
-5. Update this section as resolved
+**Superstition:** `community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md`
+
+**Problem:** Using `computed()` to automatically copy `generateObject` results into cells causes 100% CPU loop.
+
+**Resolution:** Don't copy `generateObject` results to cells. Instead:
+1. Display `analysisResult.result` directly in JSX (it's already reactive)
+2. Only store user CORRECTIONS in cells (mutations from handlers)
+3. Merge result + corrections in computed for display
+
+**Key pattern:**
+```typescript
+// Read generateObject result directly
+const result = analysisResult.result;
+const correctionsList = corrections.get();
+
+// Merge for display
+const selectedIndex = correction ? correction.correctedIndex : assumption.selectedIndex;
+```
 
 ---
 
@@ -299,14 +306,15 @@ Show analyzer confidence per assumption:
 - [x] Define PRD (this document)
 - [x] Basic chat with sidebar layout
 - [x] Analyzer LLM integration
-- [ ] Workaround nested array Frame mismatch bug
-- [ ] Assumption cards with radio buttons
-- [ ] Correction message flow
-- [ ] Basic styling
+- [x] Workaround nested array Frame mismatch bug (avoided via direct result display)
+- [x] Workaround CPU loop bug (don't copy generateObject to cells - see superstition)
+- [x] Assumption cards with radio buttons
+- [x] Correction message flow
+- [x] Basic styling
 
 ### Phase 2: Context
-- [ ] User context notes cell
-- [ ] Context panel in sidebar
+- [x] User context notes cell
+- [x] Context panel in sidebar
 - [ ] Notes fed to analyzer
 - [ ] Edit/delete notes
 
