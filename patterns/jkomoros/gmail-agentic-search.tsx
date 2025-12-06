@@ -466,18 +466,19 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
 
     // Wish for the community registry (tagged #gmailSearchRegistry)
-    // Only attempt if enableCommunityQueries is true
-    const registryWish = derive(enableCommunityQueries, (enabled: boolean) => {
-      if (!enabled) return null;
-      return wish<GmailSearchRegistryOutput>({ query: "#gmailSearchRegistry" });
-    });
+    // NOTE: wish() must be called outside derive() to avoid infinite loops
+    // See: community-docs/superstitions/2025-12-06-wish-inside-derive-causes-infinite-loop.md
+    const registryWish = wish<GmailSearchRegistryOutput>({ query: "#gmailSearchRegistry" });
 
     // Extract community queries for this agent type
+    // Conditional enablement is handled here, not in the wish call
     const communityQueries = derive(
-      [registryWish, agentTypeUrl],
-      ([wishResult, typeUrl]: [any, string]) => {
-        if (!wishResult || !typeUrl) return [];
-        const registry = wishResult?.result;
+      [registryWish, agentTypeUrl, enableCommunityQueries],
+      ([wishResult, typeUrl, enabled]: [any, string, boolean]) => {
+        // Guard: skip if community queries disabled or no agent type URL
+        if (!enabled || !typeUrl) return [];
+        if (!wishResult?.result) return [];
+        const registry = wishResult.result;
         if (!registry?.registries) return [];
         const agentRegistry = registry.registries[typeUrl];
         if (!agentRegistry) return [];
@@ -978,6 +979,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
       <div>
         {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
         <div style={{ display: "none" }}>{wishResult}</div>
+        <div style={{ display: "none" }}>{registryWish}</div>
 
         {/* Account Type Selector (only shown if not using direct auth) */}
         {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
@@ -1620,7 +1622,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                       padding: "8px",
                     }}
                   >
-                    {queries
+                    {[...queries]
                       .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
                       .map((query: LocalQuery) => (
                         <div
