@@ -467,10 +467,76 @@ const submitToCommunity = handler<
 
 ---
 
-## Next Steps
+## Implementation Status
 
-1. [ ] Review this PRD with user
-2. [ ] Decide on Phase 1 scope
-3. [ ] Implement local query tracking in gmail-agentic-search.tsx
-4. [ ] Test with hotel-membership-gmail-agent.tsx
-5. [ ] Iterate based on usage
+### Completed (2024-12-06)
+
+**Phase 1: Local Query Tracking** ✅
+- Added `LocalQuery` type with effectiveness rating (0-5)
+- Auto-track queries in `searchGmail` handler
+- "My Saved Queries" UI with star ratings and delete
+- Share status tracking: private → pending_review → submitted
+
+**Phase 2: Privacy & Generalizability Screening** ✅
+- LLM-based screening via `generateObject`
+- Detects PII: emails, names, account numbers, identifiers
+- Detects generalizability issues: personal domains, local businesses
+- Recommendation system: share / share_with_edits / do_not_share
+- Editable sanitized query field
+
+**Phase 3: Community Registry** ✅
+- Created `gmail-search-registry.tsx` pattern
+- Registries keyed by agent type (GitHub raw URL)
+- Submit, upvote, downvote handlers
+- Browsable UI with stats
+
+**Phase 4: Integration** ✅
+- Wish-based registry discovery via `#gmailSearchRegistry`
+- Combined query suggestions in agent prompt
+- Submit approved queries to registry button
+- Registry status feedback
+
+### Remaining Work
+
+**Phase 5: Polish** (TODO)
+- [ ] Test end-to-end with real Gmail accounts
+- [ ] Deploy registry to community-patterns-shared space
+- [ ] Document setup instructions for users
+- [ ] Add upvote/downvote UI in gmail agents for community queries
+- [ ] Consider: query deduplication improvements
+- [ ] Consider: moderation tools for registry
+
+---
+
+## Setup Instructions
+
+### For Registry Operator (one-time)
+
+1. Deploy `gmail-search-registry.tsx` to space: `community-patterns-shared`
+2. Favorite the deployed charm with tag: `#gmailSearchRegistry`
+3. Share the space name with users
+
+### For Users
+
+1. Navigate to `community-patterns-shared` space
+2. Find the Gmail Search Registry charm
+3. Add to favorites with tag: `#gmailSearchRegistry`
+4. Gmail agents will now discover and use community queries
+
+### For Pattern Authors (subclasses)
+
+Just set `agentTypeUrl` to your pattern's GitHub raw URL:
+
+```typescript
+const searcher = GmailAgenticSearch({
+  agentTypeUrl: "https://raw.githubusercontent.com/org/repo/main/patterns/my-gmail-agent.tsx",
+  // ... other config
+});
+```
+
+The pattern automatically:
+- Tracks local queries with effectiveness ratings
+- Offers to share high-rated queries (3+ stars)
+- Screens for PII and generalizability
+- Discovers and uses community queries
+- Allows submission to community registry
