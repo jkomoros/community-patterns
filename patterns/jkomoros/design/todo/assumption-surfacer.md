@@ -266,12 +266,40 @@ Show analyzer confidence per assumption:
 - High confidence = smaller UI treatment
 - Low confidence = highlight for attention
 
+## Known Issues & Workarounds
+
+### Frame Mismatch Error with Nested Array Mapping (ACTIVE)
+
+**Issue:** `patterns/jkomoros/issues/ISSUE-Frame-Mismatch-Nested-Array-JSX-Map.md`
+**Superstition:** `community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md`
+
+**Problem:** Mapping over `assumption.alternatives` in JSX triggers a "Frame mismatch" error.
+
+**Workaround:** Flatten alternatives into a separate Cell array with parent references:
+- Store `flatAlternatives: Cell<FlatAlternative[]>` separately from assumptions
+- Each FlatAlternative has `assumptionId` to link back to parent
+- In JSX, filter flatAlternatives by assumptionId instead of nested mapping
+
+**Code locations with workaround:**
+- `assumption-surfacer.tsx` lines ~XX-XX (FlatAlternative type and flatAlternatives cell)
+- `assumption-surfacer.tsx` lines ~XX-XX (JSX rendering with filter instead of nested map)
+
+**When bug is fixed:**
+1. Remove `FlatAlternative` type and `flatAlternatives` cell
+2. Restore nested `alternatives: Alternative[]` on `Assumption` type
+3. Replace filter-based JSX with direct `a.alternatives.map(...)`
+4. Delete or archive the superstition file
+5. Update this section as resolved
+
+---
+
 ## Implementation Phases
 
 ### Phase 1: MVP
 - [x] Define PRD (this document)
-- [ ] Basic chat with sidebar layout
-- [ ] Analyzer LLM integration
+- [x] Basic chat with sidebar layout
+- [x] Analyzer LLM integration
+- [ ] Workaround nested array Frame mismatch bug
 - [ ] Assumption cards with radio buttons
 - [ ] Correction message flow
 - [ ] Basic styling
