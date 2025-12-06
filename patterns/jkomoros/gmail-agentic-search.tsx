@@ -510,7 +510,7 @@ const GmailAgenticSearch = pattern<
       [suggestedQueries, localQueries, communityQueries],
       ([suggested, local, community]: [string[], LocalQuery[], string[]]) => {
         const effectiveLocal = (local || [])
-          .filter((q) => q.effectiveness >= 3)
+          .filter((q) => q && q.effectiveness >= 3)
           .map((q) => q.query);
         // Deduplicate and combine: pattern-defined first, then community, then local
         const all = new Set<string>();
@@ -1288,9 +1288,48 @@ Be thorough in your searches. Try multiple queries if needed.`;
       </div>
     );
 
+    // Check if agentGoal is empty (pattern not configured for a specific task)
+    const hasAgentGoal = derive(agentGoal, (goal: string) => !!(goal && goal.trim()));
+
     // Controls UI - scan and stop buttons
     const controlsUI = (
       <div>
+        {/* Warning when no agent goal is set */}
+        {derive([isAuthenticated, hasAgentGoal], ([authenticated, hasGoal]: [boolean, boolean]) =>
+          authenticated && !hasGoal ? (
+            <div
+              style={{
+                padding: "16px",
+                background: "#fef3c7",
+                border: "1px solid #fde68a",
+                borderRadius: "8px",
+                marginBottom: "12px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "600",
+                  color: "#92400e",
+                  marginBottom: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                ⚠️ No Search Goal Configured
+              </div>
+              <div style={{ fontSize: "13px", color: "#78350f" }}>
+                This is the base Gmail Agentic Search pattern. To use it, you need to either:
+              </div>
+              <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px", fontSize: "12px", color: "#78350f" }}>
+                <li>Use a specialized pattern (like Hotel Membership Extractor) that has a built-in goal</li>
+                <li>Pass an <code>agentGoal</code> input when embedding this pattern</li>
+              </ul>
+              <div style={{ marginTop: "12px", fontSize: "11px", color: "#92400e" }}>
+                The agent won't run without a search goal.
+              </div>
+            </div>
+          ) : null
+        )}
+
         {/* Scan Button */}
         {ifElse(
           isAuthenticated,
@@ -1298,10 +1337,10 @@ Be thorough in your searches. Try multiple queries if needed.`;
             onClick={boundStartScan}
             size="lg"
             style="width: 100%;"
-            disabled={isScanning}
+            disabled={derive([isScanning, hasAgentGoal], ([scanning, hasGoal]: [boolean, boolean]) => scanning || !hasGoal)}
           >
-            {derive(isScanning, (scanning: boolean) =>
-              scanning ? "⏳ Scanning..." : scanButtonLabel,
+            {derive([isScanning, hasAgentGoal], ([scanning, hasGoal]: [boolean, boolean]) =>
+              scanning ? "⏳ Scanning..." : hasGoal ? scanButtonLabel : "⚠️ No Goal Set",
             )}
           </ct-button>,
           null,
@@ -1580,7 +1619,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                       fontSize: "11px",
                     }}
                   >
-                    {log.map((entry: DebugLogEntry, i: number) => (
+                    {log.filter((e): e is DebugLogEntry => e != null).map((entry: DebugLogEntry, i: number) => (
                       <div
                         key={i}
                         style={{
@@ -1714,6 +1753,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                     }}
                   >
                     {[...queries]
+                      .filter((q): q is LocalQuery => q != null)
                       .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
                       .map((query: LocalQuery) => (
                         <div
@@ -2152,7 +2192,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                       padding: "8px",
                     }}
                   >
-                    {submissions.map((submission: PendingSubmission) => (
+                    {submissions.filter((s): s is PendingSubmission => s != null).map((submission: PendingSubmission) => (
                       <div
                         style={{
                           padding: "12px",
