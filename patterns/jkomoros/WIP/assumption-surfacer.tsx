@@ -35,16 +35,17 @@ interface FlatAlternative {
 
 // WORKAROUND: RenderRow for flat UI rendering
 // Used to avoid nested array mapping in JSX which triggers Frame mismatch
+// Each row is either a "header" (assumption label) or "option" (clickable alternative)
 interface RenderRow {
   key: string;
-  rowType: "header" | "alt" | "spacer";
+  rowType: "header" | "option";
+  assumptionId: string;
   // Header fields
-  parentId?: string;
   label?: string;
   description?: string;
-  // Alt fields
-  altIndex?: number;
-  altValue?: string;
+  // Option fields
+  optionIndex?: number;
+  optionLabel?: string;
   isSelected?: boolean;
 }
 
@@ -148,12 +149,76 @@ const clearChat = handler<
   {
     messages: Cell<BuiltInLLMMessage[]>;
     assumptions: Cell<Assumption[]>;
+    flatAlternatives: Cell<FlatAlternative[]>;
     pending: Cell<boolean | undefined>;
   }
->((_, { messages, assumptions, pending }) => {
+>((_, { messages, assumptions, flatAlternatives, pending }) => {
   messages.set([]);
   assumptions.set([]);
+  flatAlternatives.set([]);
   pending.set(false);
+});
+
+// Handler for selecting a different alternative (correction flow)
+// The optionIndex is passed as part of the dependencies (bound at render time)
+const selectAlternative = handler<
+  unknown,
+  {
+    assumptionId: string;
+    optionIndex: number;
+    addMessage: Stream<BuiltInLLMMessage>;
+    assumptions: Cell<Assumption[]>;
+    flatAlternatives: Cell<FlatAlternative[]>;
+    userContext: Cell<UserContextNote[]>;
+  }
+>((_, { assumptionId, optionIndex, addMessage, assumptions, flatAlternatives, userContext }) => {
+  const newIndex = optionIndex;
+  // Find the assumption
+  const assumptionList = assumptions.get();
+  const assumption = assumptionList.find((a) => a.id === assumptionId);
+  if (!assumption) return;
+
+  // If clicking the already-selected option, do nothing
+  if (newIndex === assumption.selectedIndex) return;
+
+  // Get the alternatives for this assumption
+  const altList = flatAlternatives.get();
+  const alternatives = altList
+    .filter((a) => a.parentId === assumptionId)
+    .sort((a, b) => a.index - b.index);
+
+  const oldAlt = alternatives.find((a) => a.index === assumption.selectedIndex);
+  const newAlt = alternatives.find((a) => a.index === newIndex);
+
+  if (!oldAlt || !newAlt) return;
+
+  // Send correction message
+  // Format: "Regarding {label}: {new_value} rather than {old_value}."
+  const correctionText = `Regarding ${assumption.label.toLowerCase()}: ${newAlt.value} rather than ${oldAlt.value}.`;
+
+  addMessage.send({
+    role: "user",
+    content: [{ type: "text" as const, text: correctionText }],
+  });
+
+  // Update assumption's selectedIndex
+  assumptions.set(
+    assumptionList.map((a) =>
+      a.id === assumptionId
+        ? { ...a, selectedIndex: newIndex, status: "resolved" as const }
+        : a
+    )
+  );
+
+  // Add user context note
+  const contextNote: UserContextNote = {
+    id: `context-${Date.now()}`,
+    content: `User clarified: prefers ${newAlt.value} over ${oldAlt.value} for ${assumption.label}`,
+    source: "correction",
+    createdAt: new Date().toISOString(),
+    relatedAssumptionId: assumptionId,
+  };
+  userContext.set([...userContext.get(), contextNote]);
 });
 
 // ============================================================================
@@ -333,14 +398,12 @@ Identify any implicit assumptions the assistant made in their final response.`;
       return analysisPrompt !== "" && analysisResult.pending;
     });
 
-    // WORKAROUND: Pre-compute a single flat array of all renderable items
+    // WORKAROUND: Pre-compute a completely flat array for rendering
     // This avoids nested array mapping in JSX which triggers Frame mismatch
     // See: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md
     //
-    // Strategy: Create a completely flat array where each item knows how to render itself.
-    // We use a "rowType" field to distinguish between headers, alternatives, and spacing.
-    // This allows a SINGLE .map() call in JSX with no nesting.
-    // Note: RenderRow interface defined at top-level to work with CTS transform.
+    // Strategy: Create rows for headers AND options in a single flat array.
+    // Each row has a rowType to determine how to render it.
 
     const renderRows = computed((): RenderRow[] => {
       const assumptionList = assumptions.get();
@@ -348,41 +411,35 @@ Identify any implicit assumptions the assistant made in their final response.`;
       const rows: RenderRow[] = [];
 
       for (const assumption of assumptionList) {
+        const currentAssumptionId = assumption.id;
+        const currentSelectedIndex = assumption.selectedIndex;
+
         // Header row
         rows.push({
-          key: `header-${assumption.id}`,
+          key: `header-${currentAssumptionId}`,
           rowType: "header",
-          parentId: assumption.id,
+          assumptionId: currentAssumptionId,
           label: assumption.label,
           description: assumption.description,
         });
 
         // Get alternatives for this assumption
-        // Note: Using explicit property names to avoid framework transform issues
-        const currentAssumptionId = assumption.id;
-        const currentSelectedIndex = assumption.selectedIndex;
         const alts = altList.filter(
           (flatAlt) => flatAlt.parentId === currentAssumptionId
         );
         alts.sort((a, b) => a.index - b.index);
 
-        for (const flatAlt of alts) {
+        // Option rows (one per alternative)
+        for (const alt of alts) {
           rows.push({
-            key: `alt-${currentAssumptionId}-${flatAlt.index}`,
-            rowType: "alt",
-            parentId: currentAssumptionId,
-            altIndex: flatAlt.index,
-            altValue: flatAlt.value,
-            isSelected: flatAlt.index === currentSelectedIndex,
+            key: `option-${currentAssumptionId}-${alt.index}`,
+            rowType: "option",
+            assumptionId: currentAssumptionId,
+            optionIndex: alt.index,
+            optionLabel: alt.value,
+            isSelected: alt.index === currentSelectedIndex,
           });
         }
-
-        // Spacer row
-        rows.push({
-          key: `spacer-${assumption.id}`,
-          rowType: "spacer",
-          parentId: assumption.id,
-        });
       }
 
       return rows;
@@ -399,7 +456,7 @@ Identify any implicit assumptions the assistant made in their final response.`;
                 variant="pill"
                 type="button"
                 title="Clear chat"
-                onClick={clearChat({ messages, assumptions, pending })}
+                onClick={clearChat({ messages, assumptions, flatAlternatives, pending })}
               >
                 Clear
               </ct-button>
@@ -472,27 +529,27 @@ Identify any implicit assumptions the assistant made in their final response.`;
               </div>
 
               <ct-vscroll style="padding: 1rem; flex: 1;" flex showScrollbar>
-                {/* WORKAROUND: Single flat map to avoid nested Cell array mapping */}
-                {/* See: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md */}
+                {/* WORKAROUND: Single flat map over renderRows
+                    See: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md */}
                 {hasAssumptions ? (
                   renderRows.map((row) =>
                     row.rowType === "header" ? (
                       <div
                         key={row.key}
                         style={{
-                          padding: "0.75rem",
-                          paddingBottom: "0.25rem",
+                          padding: "0.5rem 0.75rem",
                           marginTop: "0.75rem",
                           backgroundColor:
                             "var(--ct-color-surface-secondary, #f5f5f5)",
                           borderRadius: "8px 8px 0 0",
-                          border: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderBottom: "none",
+                          borderTop: "1px solid var(--ct-color-border, #e0e0e0)",
+                          borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
+                          borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
                         }}
                       >
                         <div
                           style={{
-                            fontWeight: 500,
+                            fontWeight: 600,
                             fontSize: "0.9rem",
                           }}
                         >
@@ -501,7 +558,7 @@ Identify any implicit assumptions the assistant made in their final response.`;
                         {row.description && (
                           <div
                             style={{
-                              fontSize: "0.8rem",
+                              fontSize: "0.75rem",
                               color: "var(--ct-color-text-secondary, #666)",
                               marginTop: "0.25rem",
                             }}
@@ -510,7 +567,7 @@ Identify any implicit assumptions the assistant made in their final response.`;
                           </div>
                         )}
                       </div>
-                    ) : row.rowType === "alt" ? (
+                    ) : (
                       <div
                         key={row.key}
                         style={{
@@ -518,48 +575,42 @@ Identify any implicit assumptions the assistant made in their final response.`;
                           backgroundColor:
                             "var(--ct-color-surface-secondary, #f5f5f5)",
                           borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderRight:
-                            "1px solid var(--ct-color-border, #e0e0e0)",
+                          borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
                         }}
                       >
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            padding: "0.25rem",
-                            cursor: "pointer",
-                            borderRadius: "4px",
-                            backgroundColor: row.isSelected
-                              ? "var(--ct-color-accent-light, #e3f2fd)"
-                              : "transparent",
-                          }}
+                        <ct-button
+                          variant="pill"
+                          type="button"
+                          style={
+                            row.isSelected
+                              ? "width: 100%; justify-content: flex-start; background-color: var(--ct-color-accent-light, #e3f2fd); border: 1px solid var(--ct-color-accent, #2196f3);"
+                              : "width: 100%; justify-content: flex-start; background-color: white; border: 1px solid var(--ct-color-border, #ddd);"
+                          }
+                          onClick={selectAlternative({
+                            assumptionId: row.assumptionId,
+                            optionIndex: row.optionIndex ?? 0,
+                            addMessage,
+                            assumptions,
+                            flatAlternatives,
+                            userContext,
+                          })}
                         >
-                          <input
-                            type="radio"
-                            name={`assumption-${row.parentId}`}
-                            checked={row.isSelected}
-                            onChange={() => {
-                              /* TODO: implement selection handler */
+                          <span
+                            style={{
+                              marginRight: "0.5rem",
+                              fontSize: "0.8rem",
+                              color: row.isSelected
+                                ? "var(--ct-color-accent, #2196f3)"
+                                : "var(--ct-color-text-secondary, #888)",
                             }}
-                          />
-                          <span style={{ fontSize: "0.85rem" }}>
-                            {row.altValue}
+                          >
+                            {row.isSelected ? "●" : "○"}
                           </span>
-                        </label>
+                          <span style={{ fontSize: "0.85rem" }}>
+                            {row.optionLabel}
+                          </span>
+                        </ct-button>
                       </div>
-                    ) : (
-                      <div
-                        key={row.key}
-                        style={{
-                          height: "0.5rem",
-                          backgroundColor:
-                            "var(--ct-color-surface-secondary, #f5f5f5)",
-                          borderRadius: "0 0 8px 8px",
-                          border: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderTop: "none",
-                        }}
-                      />
                     )
                   )
                 ) : (
