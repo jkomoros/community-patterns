@@ -1,4 +1,17 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"$CLAUDE_PROJECT_DIR/CLAUDE.md\""
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Read",
