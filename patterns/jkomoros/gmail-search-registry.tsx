@@ -33,22 +33,24 @@ import {
 // TYPES
 // ============================================================================
 
-// A shared query in the registry
+// A shared query in the registry (flat structure)
+// NOTE: CLI may show empty/default values but actual data is stored and works in UI
 export interface SharedQuery {
-  id: string;                    // Unique ID
-  query: string;                 // The Gmail search string
-  description?: string;          // Why it works / what it finds
-  submittedBy?: string;          // Optional: user identifier
-  submittedAt: number;           // Timestamp
-  upvotes: number;               // Community validation count
-  downvotes: number;             // Reports of ineffectiveness
-  lastValidated?: number;        // Last time someone confirmed it works
+  id: string;
+  agentTypeUrl: string;
+  query: string;
+  description: string;
+  submittedBy: string;
+  submittedAt: number;
+  upvotes: number;
+  downvotes: number;
+  lastValidated: number;
 }
 
-// Registry for a specific agent type
+// Grouped view of queries (computed, not stored)
 export interface AgentTypeRegistry {
-  agentTypeUrl: string;          // GitHub raw URL to pattern file
-  agentTypeName?: string;        // Human-readable name (extracted from URL or provided)
+  agentTypeUrl: string;
+  agentTypeName?: string;
   queries: SharedQuery[];
 }
 
@@ -57,8 +59,8 @@ export interface AgentTypeRegistry {
 // ============================================================================
 
 export interface GmailSearchRegistryInput {
-  // All registries keyed by agentTypeUrl
-  registries?: Default<Record<string, AgentTypeRegistry>, {}>;
+  // Flat array of all queries (workaround for nested object serialization bug)
+  queries?: Default<SharedQuery[], []>;
 }
 
 /** Community registry for shared Gmail search queries. #gmailSearchRegistry */
@@ -66,8 +68,9 @@ export interface GmailSearchRegistryOutput {
   [NAME]: string;
   [UI]: JSX.Element;
 
-  // Data
-  registries: Record<string, AgentTypeRegistry>;
+  // Data - flat array storage, computed registries view
+  queries: SharedQuery[];
+  registries: Record<string, AgentTypeRegistry>;  // Computed grouped view
 
   // Actions for external patterns to use
   submitQuery: ReturnType<typeof handler>;
@@ -83,7 +86,24 @@ export interface GmailSearchRegistryOutput {
 const GmailSearchRegistry = pattern<
   GmailSearchRegistryInput,
   GmailSearchRegistryOutput
->(({ registries }) => {
+>(({ queries }) => {
+  // Compute grouped registries view from flat queries array
+  const registries = derive(queries, (allQueries: SharedQuery[]) => {
+    const grouped: Record<string, AgentTypeRegistry> = {};
+    for (const q of allQueries || []) {
+      if (!q) continue; // Skip null/undefined during hydration
+      if (!grouped[q.agentTypeUrl]) {
+        grouped[q.agentTypeUrl] = {
+          agentTypeUrl: q.agentTypeUrl,
+          agentTypeName: extractAgentName(q.agentTypeUrl),
+          queries: [],
+        };
+      }
+      grouped[q.agentTypeUrl].queries.push(q);
+    }
+    return grouped;
+  });
+
   // Handler to submit a new query
   const submitQuery = handler<
     {
@@ -92,74 +112,55 @@ const GmailSearchRegistry = pattern<
       description?: string;
       submittedBy?: string;
     },
-    { registries: Cell<Record<string, AgentTypeRegistry>> }
+    { queries: Cell<SharedQuery[]> }
   >((input, state) => {
-    const currentRegistries = state.registries.get() || {};
-    const agentRegistry = currentRegistries[input.agentTypeUrl] || {
-      agentTypeUrl: input.agentTypeUrl,
-      agentTypeName: extractAgentName(input.agentTypeUrl),
-      queries: [],
-    };
+    const allQueries = state.queries.get() || [];
 
-    // Check for duplicate queries (case-insensitive)
+    // Check for duplicate queries (case-insensitive, same agent type)
     const normalizedQuery = input.query.toLowerCase().trim();
-    if (agentRegistry.queries.some((q) => q.query.toLowerCase().trim() === normalizedQuery)) {
+    if (allQueries.some((q) =>
+      q.agentTypeUrl === input.agentTypeUrl &&
+      q.query.toLowerCase().trim() === normalizedQuery
+    )) {
       return { success: false, error: "Query already exists" };
     }
 
-    // Create new query entry
-    const newQuery: SharedQuery = {
-      id: `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    // Create new query entry and push (not set!) to preserve values
+    const queryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    state.queries.push({
+      id: queryId,
+      agentTypeUrl: input.agentTypeUrl,
       query: input.query,
-      description: input.description,
-      submittedBy: input.submittedBy,
+      description: input.description || "",
+      submittedBy: input.submittedBy || "",
       submittedAt: Date.now(),
       upvotes: 0,
       downvotes: 0,
-    };
-
-    // Update registry
-    const updatedRegistry: AgentTypeRegistry = {
-      ...agentRegistry,
-      queries: [...agentRegistry.queries, newQuery],
-    };
-
-    state.registries.set({
-      ...currentRegistries,
-      [input.agentTypeUrl]: updatedRegistry,
+      lastValidated: 0,
     });
-
-    return { success: true, queryId: newQuery.id };
+    return { success: true, queryId };
   });
 
   // Handler to upvote a query
   const upvoteQuery = handler<
     { agentTypeUrl: string; queryId: string },
-    { registries: Cell<Record<string, AgentTypeRegistry>> }
+    { queries: Cell<SharedQuery[]> }
   >((input, state) => {
-    const currentRegistries = state.registries.get() || {};
-    const agentRegistry = currentRegistries[input.agentTypeUrl];
-    if (!agentRegistry) return { success: false, error: "Agent type not found" };
-
-    const queryIdx = agentRegistry.queries.findIndex((q) => q.id === input.queryId);
+    const allQueries = state.queries.get() || [];
+    const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);
     if (queryIdx < 0) return { success: false, error: "Query not found" };
 
     const updatedQuery = {
-      ...agentRegistry.queries[queryIdx],
-      upvotes: agentRegistry.queries[queryIdx].upvotes + 1,
+      ...allQueries[queryIdx],
+      upvotes: allQueries[queryIdx].upvotes + 1,
       lastValidated: Date.now(),
     };
 
-    const updatedQueries = [
-      ...agentRegistry.queries.slice(0, queryIdx),
+    state.queries.set([
+      ...allQueries.slice(0, queryIdx),
       updatedQuery,
-      ...agentRegistry.queries.slice(queryIdx + 1),
-    ];
-
-    state.registries.set({
-      ...currentRegistries,
-      [input.agentTypeUrl]: { ...agentRegistry, queries: updatedQueries },
-    });
+      ...allQueries.slice(queryIdx + 1),
+    ]);
 
     return { success: true };
   });
@@ -167,51 +168,43 @@ const GmailSearchRegistry = pattern<
   // Handler to downvote a query
   const downvoteQuery = handler<
     { agentTypeUrl: string; queryId: string },
-    { registries: Cell<Record<string, AgentTypeRegistry>> }
+    { queries: Cell<SharedQuery[]> }
   >((input, state) => {
-    const currentRegistries = state.registries.get() || {};
-    const agentRegistry = currentRegistries[input.agentTypeUrl];
-    if (!agentRegistry) return { success: false, error: "Agent type not found" };
-
-    const queryIdx = agentRegistry.queries.findIndex((q) => q.id === input.queryId);
+    const allQueries = state.queries.get() || [];
+    const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);
     if (queryIdx < 0) return { success: false, error: "Query not found" };
 
     const updatedQuery = {
-      ...agentRegistry.queries[queryIdx],
-      downvotes: agentRegistry.queries[queryIdx].downvotes + 1,
+      ...allQueries[queryIdx],
+      downvotes: allQueries[queryIdx].downvotes + 1,
     };
 
-    const updatedQueries = [
-      ...agentRegistry.queries.slice(0, queryIdx),
+    state.queries.set([
+      ...allQueries.slice(0, queryIdx),
       updatedQuery,
-      ...agentRegistry.queries.slice(queryIdx + 1),
-    ];
-
-    state.registries.set({
-      ...currentRegistries,
-      [input.agentTypeUrl]: { ...agentRegistry, queries: updatedQueries },
-    });
+      ...allQueries.slice(queryIdx + 1),
+    ]);
 
     return { success: true };
   });
 
   // Pre-bound handlers
-  const boundSubmitQuery = submitQuery({ registries });
-  const boundUpvoteQuery = upvoteQuery({ registries });
-  const boundDownvoteQuery = downvoteQuery({ registries });
+  const boundSubmitQuery = submitQuery({ queries });
+  const boundUpvoteQuery = upvoteQuery({ queries });
+  const boundDownvoteQuery = downvoteQuery({ queries });
 
   // Helper to get queries for a specific agent type
   const getQueriesForAgent = (agentTypeUrl: string): SharedQuery[] => {
-    const regs = registries.get() || {};
-    const registry = regs[agentTypeUrl];
-    if (!registry) return [];
-    // Sort by upvotes - downvotes, then by recency
-    return [...registry.queries].sort((a, b) => {
-      const scoreA = a.upvotes - a.downvotes;
-      const scoreB = b.upvotes - b.downvotes;
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return b.submittedAt - a.submittedAt;
-    });
+    const allQueries = queries.get() || [];
+    // Filter to this agent type and sort by score
+    return allQueries
+      .filter((q) => q && q.agentTypeUrl === agentTypeUrl)
+      .sort((a, b) => {
+        const scoreA = a.upvotes - a.downvotes;
+        const scoreB = b.upvotes - b.downvotes;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return b.submittedAt - a.submittedAt;
+      });
   };
 
   // Stats
@@ -240,6 +233,7 @@ const GmailSearchRegistry = pattern<
     [NAME]: "Gmail Search Registry",
 
     // Data
+    queries,
     registries,
 
     // Actions
@@ -361,7 +355,7 @@ const GmailSearchRegistry = pattern<
                     {derive(expandedAgents, (exp: Record<string, boolean>) =>
                       exp[agentTypeUrl] ? (
                         <div style={{ padding: "8px" }}>
-                          {registry.queries
+                          {[...registry.queries]
                             .sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes))
                             .map((query) => (
                               <div

@@ -295,6 +295,10 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
       lastScanAt,
       searchProgress,  // Shared cell for coordinating progress UI
       accountType,     // Multi-account support: passes through to reactive wish
+      // Community query sharing
+      // Note: Using hardcoded URL since import.meta.url not supported in CT compiler
+      agentTypeUrl: "https://raw.githubusercontent.com/anthropics/community-patterns/main/patterns/jkomoros/hotel-membership-gmail-agent.tsx",
+      enableCommunityQueries: true,   // Enable fetching/upvoting community queries
     });
 
     // ========================================================================

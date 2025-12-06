@@ -497,7 +497,8 @@ Accept: application/json
  * Validate a Gmail token by making a lightweight API call.
  * Returns { valid: true } or { valid: false, error: string }.
  *
- * Use this before starting a scan to check if re-authentication is needed.
+ * NOTE: This function does NOT attempt to refresh expired tokens.
+ * For validation with auto-refresh, use validateAndRefreshToken() instead.
  */
 export async function validateGmailToken(
   token: string,
@@ -526,4 +527,89 @@ export async function validateGmailToken(
   } catch (err) {
     return { valid: false, error: `Network error: ${err}` };
   }
+}
+
+/**
+ * Validate a Gmail token, automatically refreshing if expired.
+ *
+ * This function will:
+ * 1. Check if the current token is valid
+ * 2. If expired (401), attempt to refresh using the refresh token
+ * 3. Update the auth cell with new token data
+ * 4. Validate again with the new token
+ *
+ * @param auth - The auth Cell (must be writable for refresh to work)
+ * @param debugMode - Enable debug logging
+ * @returns { valid: true, refreshed?: boolean } or { valid: false, error: string }
+ */
+export async function validateAndRefreshToken(
+  auth: Cell<Auth>,
+  debugMode: boolean = false,
+): Promise<{ valid: boolean; refreshed?: boolean; error?: string }> {
+  const authData = auth.get();
+  const token = authData?.token;
+
+  if (!token) {
+    return { valid: false, error: "No token provided" };
+  }
+
+  // First, try validating the current token
+  const initialValidation = await validateGmailToken(token);
+
+  if (initialValidation.valid) {
+    return { valid: true };
+  }
+
+  // If token expired (401), try to refresh
+  if (initialValidation.error?.includes("Token expired")) {
+    const refreshToken = authData?.refreshToken;
+
+    if (!refreshToken) {
+      if (debugMode) console.log("[GmailClient] Token expired but no refresh token available");
+      return { valid: false, error: "Token expired and no refresh token available. Please re-authenticate." };
+    }
+
+    if (debugMode) console.log("[GmailClient] Token expired, attempting refresh...");
+
+    try {
+      const res = await fetch(
+        new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
+        {
+          method: "POST",
+          body: JSON.stringify({ refreshToken }),
+        },
+      );
+
+      if (!res.ok) {
+        if (debugMode) console.log("[GmailClient] Refresh failed:", res.status);
+        return { valid: false, error: "Token refresh failed. Please re-authenticate." };
+      }
+
+      const json = await res.json();
+      const newAuthData = json.tokenInfo as Auth;
+
+      // Update the auth cell with new token
+      auth.update(newAuthData);
+      if (debugMode) console.log("[GmailClient] Token refreshed successfully");
+
+      // Validate the new token
+      const newToken = newAuthData?.token;
+      if (!newToken) {
+        return { valid: false, error: "Refresh succeeded but no token returned" };
+      }
+
+      const refreshedValidation = await validateGmailToken(newToken);
+      if (refreshedValidation.valid) {
+        return { valid: true, refreshed: true };
+      }
+
+      return { valid: false, error: "Token refresh succeeded but new token is invalid" };
+    } catch (err) {
+      if (debugMode) console.log("[GmailClient] Refresh error:", err);
+      return { valid: false, error: `Token refresh error: ${err}` };
+    }
+  }
+
+  // Non-401 error, return as-is
+  return initialValidation;
 }

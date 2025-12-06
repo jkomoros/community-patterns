@@ -39,7 +39,7 @@ import {
   wish,
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
-import { GmailClient, validateGmailToken } from "./util/gmail-client.ts";
+import { GmailClient, validateAndRefreshToken } from "./util/gmail-client.ts";
 import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
 
 // Re-export Auth type for convenience
@@ -106,6 +106,12 @@ export interface LocalQuery {
   useCount: number;              // Times used
   effectiveness: number;         // 0-5 rating (0=unrated)
   shareStatus: "private" | "pending_review" | "submitted";
+}
+
+// A community query with its ID for upvoting
+interface CommunityQueryRef {
+  id: string;                    // Query ID in the registry
+  query: string;                 // The query string
 }
 
 // A query pending user review before community submission
@@ -471,24 +477,32 @@ const GmailAgenticSearch = pattern<
     // See: community-docs/superstitions/2025-12-06-wish-inside-derive-causes-infinite-loop.md
     const registryWish = wish<GmailSearchRegistryOutput>({ query: "#gmailSearchRegistry" });
 
-    // Extract community queries for this agent type
+    // Extract community queries for this agent type (with IDs for upvoting)
     // Conditional enablement is handled here, not in the wish call
-    const communityQueries = derive(
+    const communityQueryRefs = derive(
       [registryWish, agentTypeUrl, enableCommunityQueries],
-      ([wishResult, typeUrl, enabled]: [any, string, boolean]) => {
+      ([wishResult, typeUrl, enabled]: [any, string, boolean]): CommunityQueryRef[] => {
         // Guard: skip if community queries disabled or no agent type URL
         if (!enabled || !typeUrl) return [];
         if (!wishResult?.result) return [];
-        const registry = wishResult.result;
-        if (!registry?.registries) return [];
-        const agentRegistry = registry.registries[typeUrl];
+        // wishResult.result is a Cell reference, use .key() for dynamic access
+        const registryCell = wishResult.result;
+        const registriesCell = registryCell?.key?.("registries");
+        if (!registriesCell) return [];
+        const agentRegistry = registriesCell.key(typeUrl)?.get?.();
         if (!agentRegistry) return [];
-        // Return top queries sorted by score
-        return [...agentRegistry.queries]
+        // Return top queries sorted by score, keeping IDs for upvoting
+        return [...(agentRegistry.queries || [])]
           .sort((a: SharedQuery, b: SharedQuery) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes))
           .slice(0, 10)
-          .map((q: SharedQuery) => q.query);
+          .map((q: SharedQuery) => ({ id: q.id, query: q.query }));
       }
+    );
+
+    // Just the query strings for combining with other suggestions
+    const communityQueries = derive(
+      communityQueryRefs,
+      (refs: CommunityQueryRef[]) => refs.map(r => r.query)
     );
 
     // Combine all suggested queries: local effective + community + pattern-defined
@@ -535,6 +549,9 @@ const GmailAgenticSearch = pattern<
         maxSearches: Cell<Default<number, 0>>;
         debugLog: Cell<DebugLogEntry[]>;
         localQueries: Cell<LocalQuery[]>;
+        communityQueryRefs: Cell<CommunityQueryRef[]>;
+        registryWish: Cell<any>;
+        agentTypeUrl: Cell<string>;
       }
     >(async (input, state) => {
       const authData = state.auth.get();
@@ -687,6 +704,36 @@ const GmailAgenticSearch = pattern<
             };
             state.localQueries.set([...currentLocalQueries, newQuery]);
           }
+
+          // Auto-upvote community queries that found results
+          if (emails.length > 0) {
+            const communityRefs = state.communityQueryRefs.get() || [];
+            const matchingCommunityQuery = communityRefs.find(
+              (ref) => ref.query.toLowerCase() === input.query.toLowerCase()
+            );
+            if (matchingCommunityQuery) {
+              // Get the registry to call upvoteQuery
+              const wishResult = state.registryWish.get();
+              const registry = wishResult?.result;
+              if (registry?.upvoteQuery) {
+                const typeUrl = state.agentTypeUrl.get();
+                console.log(`[SearchGmail] Upvoting community query: ${matchingCommunityQuery.query}`);
+                addDebugLogEntry(state.debugLog, {
+                  type: "info",
+                  message: `Upvoting effective community query: "${matchingCommunityQuery.query}"`,
+                });
+                // Fire and forget the upvote
+                try {
+                  registry.upvoteQuery({
+                    agentTypeUrl: typeUrl,
+                    queryId: matchingCommunityQuery.id,
+                  });
+                } catch (upvoteErr) {
+                  console.error("[SearchGmail] Upvote failed:", upvoteErr);
+                }
+              }
+            }
+          }
         } catch (err) {
           console.error("[SearchGmail Tool] Error:", err);
           const errorStr = String(err);
@@ -765,6 +812,9 @@ const GmailAgenticSearch = pattern<
             maxSearches,
             debugLog,
             localQueries,
+            communityQueryRefs,
+            registryWish,
+            agentTypeUrl,
           }),
         },
       };
@@ -857,13 +907,13 @@ Be thorough in your searches. Try multiple queries if needed.`;
         details: { email: authData?.user?.email },
       });
 
-      // Validate token before starting scan
+      // Validate token before starting scan (with auto-refresh if expired)
       console.log("[GmailAgenticSearch] Validating token before scan...");
       addDebugLogEntry(state.debugLog, {
         type: "info",
         message: "Validating Gmail token...",
       });
-      const validation = await validateGmailToken(token);
+      const validation = await validateAndRefreshToken(state.auth, true);
 
       if (!validation.valid) {
         console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
@@ -879,6 +929,14 @@ Be thorough in your searches. Try multiple queries if needed.`;
           authError: validation.error,
         });
         return;
+      }
+
+      if (validation.refreshed) {
+        console.log("[GmailAgenticSearch] Token was refreshed automatically");
+        addDebugLogEntry(state.debugLog, {
+          type: "info",
+          message: "Token was expired - refreshed automatically",
+        });
       }
 
       console.log("[GmailAgenticSearch] Token valid, starting scan");
@@ -1046,9 +1104,29 @@ Be thorough in your searches. Try multiple queries if needed.`;
                         fontSize: "14px",
                         color: "#92400e",
                         textAlign: "center",
+                        marginBottom: "8px",
                       }}
                     >
                       ⚠️ {authErrorMessage}
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      {derive(wishedAuthCharm, (charm) => charm ? (
+                        <ct-button
+                          onClick={() => navigateTo(charm)}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          Re-authenticate Gmail
+                        </ct-button>
+                      ) : (
+                        <ct-button
+                          onClick={createGoogleAuth({})}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          Connect Gmail
+                        </ct-button>
+                      ))}
                     </div>
                   </div>
                 );
@@ -1068,9 +1146,21 @@ Be thorough in your searches. Try multiple queries if needed.`;
                         fontSize: "14px",
                         color: "#92400e",
                         textAlign: "center",
+                        marginBottom: "8px",
                       }}
                     >
                       ⚠️ Gmail token may have expired - will verify on scan
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      {derive(wishedAuthCharm, (charm) => charm ? (
+                        <ct-button
+                          onClick={() => navigateTo(charm)}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          Re-authenticate Gmail
+                        </ct-button>
+                      ) : null)}
                     </div>
                   </div>
                 );
