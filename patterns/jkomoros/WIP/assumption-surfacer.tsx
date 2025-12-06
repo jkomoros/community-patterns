@@ -17,48 +17,21 @@ import {
 // Types
 // ============================================================================
 
-// WORKAROUND: Frame Mismatch Bug with Nested Array Mapping
-// Issue: patterns/jkomoros/issues/ISSUE-Frame-Mismatch-Nested-Array-JSX-Map.md
-// Superstition: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md
+// ARCHITECTURE NOTE: Avoiding CPU loops with generateObject
+// See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md
 //
-// Mapping over `assumption.alternatives` in JSX triggers a "Frame mismatch" error.
-// Workaround: Store alternatives in a separate flat array with parent references.
-// When bug is fixed: Remove FlatAlternative, restore alternatives[] on Assumption,
-// and use direct nested mapping in JSX.
+// Problem: Using computed() to copy generateObject results into cells causes
+// 100% CPU loops. Computed cannot call .set() - it silently fails but can
+// trigger reactive loops.
+//
+// Solution: Display analysisResult.result directly (reactive). Store only
+// user corrections in cells. Merge in computed for display.
 
-interface FlatAlternative {
-  parentId: string; // Links back to parent Assumption
-  index: number; // Position within assumption's alternatives
-  value: string;
-  description?: string;
-}
-
-// WORKAROUND: RenderRow for flat UI rendering
-// Used to avoid nested array mapping in JSX which triggers Frame mismatch
-// Each row is either a "header" (assumption label) or "option" (clickable alternative)
-interface RenderRow {
-  key: string;
-  rowType: "header" | "option";
-  assumptionId: string;
-  // Header fields
-  label?: string;
-  description?: string;
-  // Option fields
-  optionIndex?: number;
-  optionLabel?: string;
-  isSelected?: boolean;
-}
-
-interface Assumption {
-  id: string;
-  label: string;
-  description?: string;
-  // WORKAROUND: alternatives stored in separate flatAlternatives cell
-  // Original: alternatives: Alternative[];
-  alternativeCount: number; // Just store count for reference
-  selectedIndex: number; // Which one LLM assumed (pre-selected)
-  messageId: string; // Which message this relates to
-  status: "active" | "resolved" | "dismissed";
+// Tracks user corrections to assumption selections
+interface Correction {
+  assumptionLabel: string; // Identify assumption by label (stable across analyses)
+  originalIndex: number;   // What the LLM originally selected
+  correctedIndex: number;  // What the user selected
 }
 
 interface UserContextNote {
@@ -66,7 +39,7 @@ interface UserContextNote {
   content: string;
   source: "correction" | "explicit" | "inferred";
   createdAt: string;
-  relatedAssumptionId?: string;
+  assumptionLabel?: string;
 }
 
 // ============================================================================
@@ -75,18 +48,14 @@ interface UserContextNote {
 
 interface AssumptionSurfacerInput {
   messages?: Cell<Default<BuiltInLLMMessage[], []>>;
-  assumptions?: Cell<Default<Assumption[], []>>;
-  // WORKAROUND: flatAlternatives stored separately due to Frame mismatch bug
-  flatAlternatives?: Cell<Default<FlatAlternative[], []>>;
+  corrections?: Cell<Default<Correction[], []>>;
   userContext?: Cell<Default<UserContextNote[], []>>;
   systemPrompt?: string;
 }
 
 interface AssumptionSurfacerOutput {
   messages: BuiltInLLMMessage[];
-  assumptions: Assumption[];
-  // WORKAROUND: flatAlternatives stored separately due to Frame mismatch bug
-  flatAlternatives: FlatAlternative[];
+  corrections: Correction[];
   userContext: UserContextNote[];
 }
 
@@ -148,75 +117,71 @@ const clearChat = handler<
   never,
   {
     messages: Cell<BuiltInLLMMessage[]>;
-    assumptions: Cell<Assumption[]>;
-    flatAlternatives: Cell<FlatAlternative[]>;
+    corrections: Cell<Correction[]>;
+    userContext: Cell<UserContextNote[]>;
     pending: Cell<boolean | undefined>;
   }
->((_, { messages, assumptions, flatAlternatives, pending }) => {
+>((_, { messages, corrections, userContext, pending }) => {
   messages.set([]);
-  assumptions.set([]);
-  flatAlternatives.set([]);
+  corrections.set([]);
+  userContext.set([]);
   pending.set(false);
 });
 
 // Handler for selecting a different alternative (correction flow)
-// The optionIndex is passed as part of the dependencies (bound at render time)
+// Uses assumption label to track corrections across analysis refreshes
 const selectAlternative = handler<
   unknown,
   {
-    assumptionId: string;
-    optionIndex: number;
+    assumptionLabel: string;
+    originalIndex: number;
+    newIndex: number;
+    oldValue: string;
+    newValue: string;
     addMessage: Stream<BuiltInLLMMessage>;
-    assumptions: Cell<Assumption[]>;
-    flatAlternatives: Cell<FlatAlternative[]>;
+    corrections: Cell<Correction[]>;
     userContext: Cell<UserContextNote[]>;
   }
->((_, { assumptionId, optionIndex, addMessage, assumptions, flatAlternatives, userContext }) => {
-  const newIndex = optionIndex;
-  // Find the assumption
-  const assumptionList = assumptions.get();
-  const assumption = assumptionList.find((a) => a.id === assumptionId);
-  if (!assumption) return;
-
+>((_, { assumptionLabel, originalIndex, newIndex, oldValue, newValue, addMessage, corrections, userContext }) => {
   // If clicking the already-selected option, do nothing
-  if (newIndex === assumption.selectedIndex) return;
-
-  // Get the alternatives for this assumption
-  const altList = flatAlternatives.get();
-  const alternatives = altList
-    .filter((a) => a.parentId === assumptionId)
-    .sort((a, b) => a.index - b.index);
-
-  const oldAlt = alternatives.find((a) => a.index === assumption.selectedIndex);
-  const newAlt = alternatives.find((a) => a.index === newIndex);
-
-  if (!oldAlt || !newAlt) return;
+  if (newIndex === originalIndex) {
+    // Check if there's a correction for this - if so, remove it
+    const currentCorrections = corrections.get();
+    const existing = currentCorrections.find(c => c.assumptionLabel === assumptionLabel);
+    if (existing && existing.correctedIndex === newIndex) {
+      return; // Already at this selection, nothing to do
+    }
+  }
 
   // Send correction message
-  // Format: "Regarding {label}: {new_value} rather than {old_value}."
-  const correctionText = `Regarding ${assumption.label.toLowerCase()}: ${newAlt.value} rather than ${oldAlt.value}.`;
+  const correctionText = `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
 
   addMessage.send({
     role: "user",
     content: [{ type: "text" as const, text: correctionText }],
   });
 
-  // Update assumption's selectedIndex
-  assumptions.set(
-    assumptionList.map((a) =>
-      a.id === assumptionId
-        ? { ...a, selectedIndex: newIndex, status: "resolved" as const }
-        : a
-    )
-  );
+  // Update or add correction
+  const currentCorrections = corrections.get();
+  const existingIdx = currentCorrections.findIndex(c => c.assumptionLabel === assumptionLabel);
+
+  if (existingIdx >= 0) {
+    // Update existing correction
+    const updated = [...currentCorrections];
+    updated[existingIdx] = { assumptionLabel, originalIndex, correctedIndex: newIndex };
+    corrections.set(updated);
+  } else {
+    // Add new correction
+    corrections.set([...currentCorrections, { assumptionLabel, originalIndex, correctedIndex: newIndex }]);
+  }
 
   // Add user context note
   const contextNote: UserContextNote = {
     id: `context-${Date.now()}`,
-    content: `User clarified: prefers ${newAlt.value} over ${oldAlt.value} for ${assumption.label}`,
+    content: `User clarified: prefers ${newValue} over ${oldValue} for ${assumptionLabel}`,
     source: "correction",
     createdAt: new Date().toISOString(),
-    relatedAssumptionId: assumptionId,
+    assumptionLabel,
   };
   userContext.set([...userContext.get(), contextNote]);
 });
@@ -226,7 +191,7 @@ const selectAlternative = handler<
 // ============================================================================
 
 export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
-  ({ messages, assumptions, flatAlternatives, userContext, systemPrompt }) => {
+  ({ messages, corrections, userContext, systemPrompt }) => {
     const model = Cell.of<string>("anthropic:claude-sonnet-4-5");
 
     // Set up llmDialog for the main chat
@@ -238,18 +203,15 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
       model,
     });
 
-    // Track which message indices we've analyzed to avoid re-analyzing
-    const analyzedCount = Cell.of<number>(0);
-
     // Analyzer model (Haiku for speed/cost)
     const analyzerModel = "anthropic:claude-haiku-4-5";
 
     // Build the analysis prompt from conversation
+    // Analyzes the LAST assistant message only
     const analysisPrompt = computed(() => {
       const msgList = messages.get();
-      const analyzed = analyzedCount.get();
 
-      // Find the last assistant message that hasn't been analyzed
+      // Find the last assistant message
       let lastAssistantIdx = -1;
       for (let i = msgList.length - 1; i >= 0; i--) {
         if (msgList[i].role === "assistant") {
@@ -258,8 +220,8 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         }
       }
 
-      // If no new assistant message to analyze, return empty
-      if (lastAssistantIdx < 0 || lastAssistantIdx < analyzed) {
+      // If no assistant message, return empty
+      if (lastAssistantIdx < 0) {
         return "";
       }
 
@@ -288,79 +250,13 @@ Identify any implicit assumptions the assistant made in their final response.`;
     });
 
     // Run analysis when there's a prompt
+    // NOTE: We display analysisResult.result directly in JSX - no copying to cells!
+    // This avoids the CPU loop caused by calling .set() inside computed.
+    // See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md
     const analysisResult = generateObject<AnalysisResult>({
       prompt: analysisPrompt,
       system: ANALYZER_SYSTEM_PROMPT,
       model: analyzerModel,
-    });
-
-    // When analysis completes, update assumptions
-    // Note: In computed(), we access reactive values directly (no .get())
-    const _updateAssumptions = computed(() => {
-      // analysisPrompt is a computed, access directly
-      const prompt = analysisPrompt;
-      if (!prompt) return; // No analysis needed
-
-      const result = analysisResult.result;
-      const isPending = analysisResult.pending;
-      const error = analysisResult.error;
-
-      if (isPending || error || !result) return;
-
-      // messages is a Cell, use .get() to read
-      const msgList = messages.get();
-      // Find the message ID for the last assistant message
-      let lastAssistantIdx = -1;
-      for (let i = msgList.length - 1; i >= 0; i--) {
-        if (msgList[i].role === "assistant") {
-          lastAssistantIdx = i;
-          break;
-        }
-      }
-
-      if (lastAssistantIdx < 0) return;
-
-      // Mark as analyzed - need .set() for Cell mutation
-      analyzedCount.set(lastAssistantIdx + 1);
-
-      // WORKAROUND: Frame Mismatch Bug - store alternatives in separate flat array
-      // Convert analyzed assumptions to our format and add to assumptions cell
-      const newAssumptions: Assumption[] = [];
-      const newFlatAlternatives: FlatAlternative[] = [];
-
-      result.assumptions.forEach((a, idx) => {
-        const parentId = `assumption-${Date.now()}-${idx}`;
-
-        // Create assumption WITHOUT nested alternatives (workaround)
-        newAssumptions.push({
-          id: parentId,
-          label: a.label,
-          description: a.description,
-          alternativeCount: a.alternatives.length,
-          selectedIndex: a.selectedIndex,
-          messageId: `msg-${lastAssistantIdx}`,
-          status: "active" as const,
-        });
-
-        // Create flat alternatives with parent reference
-        a.alternatives.forEach((alt, altIdx) => {
-          newFlatAlternatives.push({
-            parentId: parentId,  // Explicit assignment to avoid shorthand issues
-            index: altIdx,
-            value: alt.value,
-            description: alt.description,
-          });
-        });
-      });
-
-      if (newAssumptions.length > 0) {
-        // Need .get()/.set() for Cell mutation
-        const currentAssumptions = assumptions.get();
-        assumptions.set([...currentAssumptions, ...newAssumptions]);
-
-        const currentAlternatives = flatAlternatives.get();
-        flatAlternatives.set([...currentAlternatives, ...newFlatAlternatives]);
-      }
     });
 
     // Title generation from first message
@@ -390,59 +286,150 @@ Identify any implicit assumptions the assistant made in their final response.`;
     });
 
     // Computed values for conditional rendering
-    const hasAssumptions = computed(() => assumptions.get().length > 0);
     const hasUserContext = computed(() => userContext.get().length > 0);
     const userContextCount = computed(() => userContext.get().length);
     const isAnalyzing = computed(() => {
-      // analysisPrompt is a computed, access directly (no .get())
       return analysisPrompt !== "" && analysisResult.pending;
     });
 
-    // WORKAROUND: Pre-compute a completely flat array for rendering
-    // This avoids nested array mapping in JSX which triggers Frame mismatch
-    // See: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md
-    //
-    // Strategy: Create rows for headers AND options in a single flat array.
-    // Each row has a rowType to determine how to render it.
+    // Build assumptions JSX directly from analysisResult.result
+    // Merges with corrections cell to show user's updated selections
+    // This pattern avoids CPU loops by not copying generateObject results to cells
+    const assumptionsJsx = computed(() => {
+      const result = analysisResult.result;
+      const isPending = analysisResult.pending;
+      const correctionsList = corrections.get();
 
-    const renderRows = computed((): RenderRow[] => {
-      const assumptionList = assumptions.get();
-      const altList = flatAlternatives.get();
-      const rows: RenderRow[] = [];
-
-      for (const assumption of assumptionList) {
-        const currentAssumptionId = assumption.id;
-        const currentSelectedIndex = assumption.selectedIndex;
-
-        // Header row
-        rows.push({
-          key: `header-${currentAssumptionId}`,
-          rowType: "header",
-          assumptionId: currentAssumptionId,
-          label: assumption.label,
-          description: assumption.description,
-        });
-
-        // Get alternatives for this assumption
-        const alts = altList.filter(
-          (flatAlt) => flatAlt.parentId === currentAssumptionId
+      // Show loading state
+      if (isPending && !result) {
+        return (
+          <div
+            style={{
+              color: "var(--ct-color-text-secondary, #888)",
+              fontStyle: "italic",
+              textAlign: "center",
+              padding: "2rem 1rem",
+            }}
+          >
+            Analyzing response...
+          </div>
         );
-        alts.sort((a, b) => a.index - b.index);
+      }
 
-        // Option rows (one per alternative)
-        for (const alt of alts) {
-          rows.push({
-            key: `option-${currentAssumptionId}-${alt.index}`,
-            rowType: "option",
-            assumptionId: currentAssumptionId,
-            optionIndex: alt.index,
-            optionLabel: alt.value,
-            isSelected: alt.index === currentSelectedIndex,
-          });
+      // No analysis yet or empty result
+      if (!result || result.assumptions.length === 0) {
+        return (
+          <div
+            style={{
+              color: "var(--ct-color-text-secondary, #888)",
+              fontStyle: "italic",
+              textAlign: "center",
+              padding: "2rem 1rem",
+            }}
+          >
+            No assumptions detected yet. Start a conversation to see
+            implicit assumptions surfaced here.
+          </div>
+        );
+      }
+
+      const elements: any[] = [];
+      let elementIndex = 0;
+
+      for (const assumption of result.assumptions) {
+        const assumptionLabel = assumption.label;
+
+        // Check if user has corrected this assumption
+        const correction = correctionsList.find(c => c.assumptionLabel === assumptionLabel);
+        const currentSelectedIndex = correction
+          ? correction.correctedIndex
+          : assumption.selectedIndex;
+
+        // Header element
+        elements.push(
+          <div
+            key={elementIndex++}
+            style={{
+              padding: "0.5rem 0.75rem",
+              marginTop: "0.75rem",
+              backgroundColor: "var(--ct-color-surface-secondary, #f5f5f5)",
+              borderRadius: "8px 8px 0 0",
+              borderTop: "1px solid var(--ct-color-border, #e0e0e0)",
+              borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
+              borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+              {assumptionLabel}
+            </div>
+            {assumption.description && (
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--ct-color-text-secondary, #666)",
+                  marginTop: "0.25rem",
+                }}
+              >
+                {assumption.description}
+              </div>
+            )}
+          </div>
+        );
+
+        // Option elements - iterate over alternatives
+        for (let altIndex = 0; altIndex < assumption.alternatives.length; altIndex++) {
+          const alt = assumption.alternatives[altIndex];
+          const isSelected = altIndex === currentSelectedIndex;
+          const originalValue = assumption.alternatives[assumption.selectedIndex]?.value ?? "";
+
+          elements.push(
+            <div
+              key={elementIndex++}
+              style={{
+                padding: "0.25rem 0.75rem",
+                backgroundColor: "var(--ct-color-surface-secondary, #f5f5f5)",
+                borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
+                borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
+              }}
+            >
+              <ct-button
+                variant="pill"
+                type="button"
+                style={
+                  isSelected
+                    ? "width: 100%; justify-content: flex-start; background-color: var(--ct-color-accent-light, #e3f2fd); border: 1px solid var(--ct-color-accent, #2196f3);"
+                    : "width: 100%; justify-content: flex-start; background-color: white; border: 1px solid var(--ct-color-border, #ddd);"
+                }
+                onClick={selectAlternative({
+                  assumptionLabel,
+                  originalIndex: assumption.selectedIndex,
+                  newIndex: altIndex,
+                  oldValue: originalValue,
+                  newValue: alt.value,
+                  addMessage,
+                  corrections,
+                  userContext,
+                })}
+              >
+                <span
+                  style={{
+                    marginRight: "0.5rem",
+                    fontSize: "0.8rem",
+                    color: isSelected
+                      ? "var(--ct-color-accent, #2196f3)"
+                      : "var(--ct-color-text-secondary, #888)",
+                  }}
+                >
+                  {isSelected ? "●" : "○"}
+                </span>
+                <span style={{ fontSize: "0.85rem" }}>{alt.value}</span>
+              </ct-button>
+            </div>
+          );
         }
       }
 
-      return rows;
+      return <>{elements}</>;
     });
 
     return {
@@ -456,7 +443,7 @@ Identify any implicit assumptions the assistant made in their final response.`;
                 variant="pill"
                 type="button"
                 title="Clear chat"
-                onClick={clearChat({ messages, assumptions, flatAlternatives, pending })}
+                onClick={clearChat({ messages, corrections, userContext, pending })}
               >
                 Clear
               </ct-button>
@@ -529,103 +516,11 @@ Identify any implicit assumptions the assistant made in their final response.`;
               </div>
 
               <ct-vscroll style="padding: 1rem; flex: 1;" flex showScrollbar>
-                {/* WORKAROUND: Single flat map over renderRows
-                    See: community-docs/superstitions/2025-06-12-jsx-nested-array-map-frame-mismatch.md */}
-                {hasAssumptions ? (
-                  renderRows.map((row) =>
-                    row.rowType === "header" ? (
-                      <div
-                        key={row.key}
-                        style={{
-                          padding: "0.5rem 0.75rem",
-                          marginTop: "0.75rem",
-                          backgroundColor:
-                            "var(--ct-color-surface-secondary, #f5f5f5)",
-                          borderRadius: "8px 8px 0 0",
-                          borderTop: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            fontSize: "0.9rem",
-                          }}
-                        >
-                          {row.label}
-                        </div>
-                        {row.description && (
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "var(--ct-color-text-secondary, #666)",
-                              marginTop: "0.25rem",
-                            }}
-                          >
-                            {row.description}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        key={row.key}
-                        style={{
-                          padding: "0.25rem 0.75rem",
-                          backgroundColor:
-                            "var(--ct-color-surface-secondary, #f5f5f5)",
-                          borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
-                          borderRight: "1px solid var(--ct-color-border, #e0e0e0)",
-                        }}
-                      >
-                        <ct-button
-                          variant="pill"
-                          type="button"
-                          style={
-                            row.isSelected
-                              ? "width: 100%; justify-content: flex-start; background-color: var(--ct-color-accent-light, #e3f2fd); border: 1px solid var(--ct-color-accent, #2196f3);"
-                              : "width: 100%; justify-content: flex-start; background-color: white; border: 1px solid var(--ct-color-border, #ddd);"
-                          }
-                          onClick={selectAlternative({
-                            assumptionId: row.assumptionId,
-                            optionIndex: row.optionIndex ?? 0,
-                            addMessage,
-                            assumptions,
-                            flatAlternatives,
-                            userContext,
-                          })}
-                        >
-                          <span
-                            style={{
-                              marginRight: "0.5rem",
-                              fontSize: "0.8rem",
-                              color: row.isSelected
-                                ? "var(--ct-color-accent, #2196f3)"
-                                : "var(--ct-color-text-secondary, #888)",
-                            }}
-                          >
-                            {row.isSelected ? "●" : "○"}
-                          </span>
-                          <span style={{ fontSize: "0.85rem" }}>
-                            {row.optionLabel}
-                          </span>
-                        </ct-button>
-                      </div>
-                    )
-                  )
-                ) : (
-                  <div
-                    style={{
-                      color: "var(--ct-color-text-secondary, #888)",
-                      fontStyle: "italic",
-                      textAlign: "center",
-                      padding: "2rem 1rem",
-                    }}
-                  >
-                    No assumptions detected yet. Start a conversation to see
-                    implicit assumptions surfaced here.
-                  </div>
-                )}
+                {/* JSX computed inside assumptionsJsx to enable reactivity
+                    See: community-docs/superstitions/2025-11-21-cannot-map-computed-arrays-in-jsx.md
+                    Also avoids CPU loop by reading generateObject result directly
+                    See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md */}
+                {assumptionsJsx}
               </ct-vscroll>
 
               {/* User context section */}
@@ -670,9 +565,7 @@ Identify any implicit assumptions the assistant made in their final response.`;
         </ct-screen>
       ),
       messages,
-      assumptions,
-      // WORKAROUND: flatAlternatives stored separately due to Frame mismatch bug
-      flatAlternatives,
+      corrections,
       userContext,
     };
   }
