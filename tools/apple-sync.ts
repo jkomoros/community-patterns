@@ -6,7 +6,8 @@
  * Syncs iMessage, Calendar, Reminders, Notes, and Contacts to CommonTools patterns
  */
 
-import { DB } from "https://deno.land/x/sqlite@v3.9.1/mod.ts";
+// Note: We use the system sqlite3 CLI instead of Deno SQLite library
+// because the iMessage database uses WAL mode which the Deno library doesn't handle well
 
 // ===== CONFIGURATION =====
 
@@ -574,7 +575,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     console.log("\n  Reading messages...");
 
     try {
-      messages = readIMessages(lastRowId);
+      messages = await readIMessages(lastRowId);
       console.log(`  Found ${messages.length} new messages`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -721,51 +722,75 @@ interface IMessage {
   handleId: string;
 }
 
-function readIMessages(sinceRowId: number = 0): IMessage[] {
-  // Use Deno SQLite library for direct database access
-  // This runs in the same process, so inherits terminal's Full Disk Access
+async function readIMessages(sinceRowId: number = 0): Promise<IMessage[]> {
+  // Use system sqlite3 CLI because the Deno SQLite library doesn't handle
+  // WAL-mode databases properly (gives "file is not a database" error)
 
-  const db = new DB(IMESSAGE_DB, { mode: "read" });
+  const query = `
+    SELECT
+      message.ROWID,
+      message.guid,
+      message.text,
+      message.is_from_me,
+      message.date,
+      chat.chat_identifier,
+      handle.id
+    FROM message
+    LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
+    LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
+    LEFT JOIN handle ON message.handle_id = handle.ROWID
+    WHERE message.ROWID > ${sinceRowId}
+    ORDER BY message.ROWID ASC
+    LIMIT 1000
+  `;
 
-  try {
-    const query = `
-      SELECT
-        message.ROWID as rowId,
-        message.guid,
-        message.text,
-        message.is_from_me as isFromMe,
-        message.date as dateVal,
-        chat.chat_identifier as chatId,
-        handle.id as handleId
-      FROM message
-      LEFT JOIN chat_message_join ON message.ROWID = chat_message_join.message_id
-      LEFT JOIN chat ON chat_message_join.chat_id = chat.ROWID
-      LEFT JOIN handle ON message.handle_id = handle.ROWID
-      WHERE message.ROWID > ?
-      ORDER BY message.ROWID ASC
-      LIMIT 1000
-    `;
-
-    const rows = db.query<[number, string, string | null, number, number, string | null, string | null]>(
+  const command = new Deno.Command("sqlite3", {
+    args: [
+      "-json",  // Output as JSON for easy parsing
+      IMESSAGE_DB,
       query,
-      [sinceRowId]
-    );
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
 
-    // Convert Apple's date format (nanoseconds since 2001-01-01) to JS Date
-    const APPLE_EPOCH = new Date("2001-01-01T00:00:00Z").getTime();
+  const output = await command.output();
 
-    return rows.map(([rowId, guid, text, isFromMe, dateVal, chatId, handleId]) => ({
-      rowId,
-      guid,
-      text,
-      isFromMe: isFromMe === 1,
-      date: new Date(APPLE_EPOCH + (dateVal / 1000000000) * 1000),
-      chatId: chatId || "unknown",
-      handleId: handleId || "unknown",
-    }));
-  } finally {
-    db.close();
+  if (!output.success) {
+    const stderr = new TextDecoder().decode(output.stderr);
+    throw new Error(stderr);
   }
+
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  if (!stdout || stdout === "[]") {
+    return [];
+  }
+
+  // Parse JSON output from sqlite3
+  interface SqliteRow {
+    ROWID: number;
+    guid: string;
+    text: string | null;
+    is_from_me: number;
+    date: number;
+    chat_identifier: string | null;
+    id: string | null;
+  }
+
+  const rows: SqliteRow[] = JSON.parse(stdout);
+
+  // Convert Apple's date format (nanoseconds since 2001-01-01) to JS Date
+  const APPLE_EPOCH = new Date("2001-01-01T00:00:00Z").getTime();
+
+  return rows.map((row) => ({
+    rowId: row.ROWID,
+    guid: row.guid,
+    text: row.text,
+    isFromMe: row.is_from_me === 1,
+    date: new Date(APPLE_EPOCH + (row.date / 1000000000) * 1000),
+    chatId: row.chat_identifier || "unknown",
+    handleId: row.id || "unknown",
+  }));
 }
 
 function generateMockMessages(count: number = 20): IMessage[] {
