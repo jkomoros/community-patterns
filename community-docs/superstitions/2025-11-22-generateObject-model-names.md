@@ -1,12 +1,12 @@
 ---
 topic: llm
 discovered: 2025-11-22
-confirmed_count: 1
-last_confirmed: 2025-11-22
-sessions: [codenames-helper-iteration]
+confirmed_count: 2
+last_confirmed: 2025-12-06
+sessions: [codenames-helper-iteration, cpu-loop-investigation]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
 status: superstition
-stars: ⭐⭐
+stars: ⭐⭐⭐
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
@@ -26,21 +26,23 @@ stars: ⭐⭐
 
 ---
 
-# generateObject() Requires Valid Model Names from Registry
+# generateObject() Requires a Valid Model Parameter
 
 ## Problem
 
-When using `generateObject()` with an invalid model name, you get a cryptic error about undefined properties rather than a clear "invalid model" error.
+When using `generateObject()` without a model parameter, or with an invalid model name, you get a 400 Bad Request error (or cryptic TypeError) rather than a clear error message.
 
-**Symptom:**
-- Server logs show: `TypeError: Cannot read properties of undefined (reading 'model')`
-- Error location: `generateObject.ts:55:26`
-- Browser shows 400 Bad Request
-- No clear indication that the model name is invalid
+**Symptoms:**
+- Browser shows 400 Bad Request from `/api/ai/llm/generateObject`
+- Server logs may show: `TypeError: Cannot read properties of undefined (reading 'model')`
+- No clear indication that the model parameter is missing or invalid
+- Pattern appears to load but generateObject silently fails
 
 ## Root Cause
 
-The `findModel()` function in `~/Code/labs/packages/toolshed/routes/ai/llm/models.ts` returns `undefined` when given an unregistered model name. When the code tries to access `.model` on the undefined result, it throws a TypeError.
+Two issues:
+1. **Missing model parameter**: generateObject requires a model but the TypeScript types may not enforce this
+2. **Invalid model name**: The `findModel()` function returns `undefined` when given an unregistered model name, causing TypeError
 
 ## Valid Model Names
 
@@ -178,12 +180,18 @@ When the real problem was just an invalid model name all along!
 
 ## Status
 
-**Unverified** - based on single observation during codenames-helper development.
+**Confirmed twice** - observed during codenames-helper and cpu-loop-investigation.
 
 Needs confirmation:
 - Does this affect all LLM functions (generateText, generateStream, etc.)?
 - Are there other ways to specify models?
 - Does the error always manifest the same way?
+
+## Guestbook
+
+- 2025-11-22 - codenames-helper pattern. Used wrong model format `"claude-3-5-sonnet-20241022"` instead of `"anthropic:claude-sonnet-4-5"`. Got cryptic TypeError. (codenames-helper-iteration)
+
+- 2025-12-06 - cpu-loop-repro pattern. Omitted model parameter entirely from generateObject. Got 400 Bad Request. Adding `model: "anthropic:claude-haiku-4-5"` fixed it. This was mistakenly attributed to "computed calling .set()" but was actually just missing model. (cpu-loop-investigation)
 
 ---
 

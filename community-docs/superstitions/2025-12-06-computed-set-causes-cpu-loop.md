@@ -21,11 +21,12 @@ topic: reactivity, computed, generateObject, cpu-loop
 discovered: 2025-12-06
 confirmed_count: 1
 last_confirmed: 2025-12-06
-sessions: [assumption-surfacer-dev]
+disproved: 2025-12-06
+sessions: [assumption-surfacer-dev, cpu-loop-investigation]
 related_labs_docs: docs/common/CELLS_AND_REACTIVITY.md
 related_folk_wisdom: folk_wisdom/reactivity.md
-status: superstition
-stars: ⭐⭐⭐
+status: DISPROVED
+stars: ⭐
 ```
 
 ## Problem
@@ -157,6 +158,18 @@ For the assumption-surfacer pattern:
 
 - 2025-12-06 - assumption-surfacer pattern. Had `_updateAssumptions` computed that copied `generateObject` results into cells. Pattern caused 100% CPU, browser became unresponsive. Fix: removed the computed, display `analysisResult.result` directly in JSX, only store user corrections in cells. Pattern works perfectly now. (assumption-surfacer-dev)
 
+- 2025-12-06 - **DISPROVED**: Created minimal repro patterns to test this theory:
+  1. `cpu-loop-repro-minimal.tsx` - computed calling .set() on a number cell - **NO CPU LOOP**
+  2. `cpu-loop-repro.tsx` - generateObject + computed calling .set() - **NO CPU LOOP**
+
+  The .set() call inside computed() actually **worked** - the cell was updated (Items in cell: 3).
+
+  **Root cause of original issue was likely:**
+  - Missing `model` parameter in generateObject (causes 400 errors, possible retry loop)
+  - Or something else in the original pattern, not the computed+set combination
+
+  **Key finding:** generateObject REQUIRES a `model` parameter (e.g., `model: "anthropic:claude-haiku-4-5"`). Without it, you get 400 Bad Request errors. (cpu-loop-investigation)
+
 ---
 
-**Remember: This is a SUPERSTITION - just one observation. Test thoroughly in your own context!**
+**STATUS: DISPROVED** - The original observation was likely caused by something else (possibly missing model parameter causing 400 errors). The computed+.set() combination does NOT cause CPU loops in current framework version.
