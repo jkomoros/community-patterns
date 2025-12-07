@@ -26,6 +26,11 @@ interface Config {
   space?: string;
   apiUrl?: string;
   labsDir?: string;
+  charms?: {
+    imessage?: string; // Charm ID for iMessage viewer
+    calendar?: string; // Charm ID for calendar viewer
+    reminders?: string; // Charm ID for reminders viewer
+  };
 }
 
 interface SyncState {
@@ -105,17 +110,72 @@ COMMANDS:
 OPTIONS:
   --mock            Use mock/sample data instead of real Apple data
                     (useful for testing without iMessage set up)
+  --charm <id>      Override charm ID for this sync (use with imessage/calendar/reminders)
 
 EXAMPLES:
   ./tools/apple-sync.ts init
   ./tools/apple-sync.ts imessage
   ./tools/apple-sync.ts imessage --mock    # Test with sample data
+  ./tools/apple-sync.ts imessage --charm baed...xyz  # Specify charm ID
   ./tools/apple-sync.ts --all
 
 CONFIGURATION:
   Config stored in: ${CONFIG_FILE}
   State stored in:  ${STATE_FILE}
 `);
+}
+
+// ===== CHARM WRITE =====
+
+interface WriteToCharmOptions {
+  apiUrl: string;
+  space: string;
+  charmId: string;
+  path: string;
+  data: unknown;
+}
+
+async function writeToCharm(options: WriteToCharmOptions): Promise<void> {
+  const { apiUrl, space, charmId, path, data } = options;
+
+  // Use deno task ct charm set to write to the charm
+  const labsDir = DEFAULT_LABS_DIR;
+  const denoJson = `${labsDir}/deno.json`;
+
+  // Prepare the JSON data
+  const jsonData = JSON.stringify(data);
+
+  // Build the command
+  const command = new Deno.Command("deno", {
+    args: [
+      "task",
+      "--config", denoJson,
+      "ct", "charm", "set",
+      "--api-url", apiUrl,
+      "--identity", IDENTITY_PATH,
+      "--space", space,
+      "--charm", charmId,
+      "--input",
+      path,
+    ],
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const process = command.spawn();
+
+  // Write JSON to stdin
+  const writer = process.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(jsonData));
+  await writer.close();
+
+  const output = await process.output();
+
+  if (!output.success) {
+    const stderr = new TextDecoder().decode(output.stderr);
+    throw new Error(`Failed to write to charm: ${stderr}`);
+  }
 }
 
 // ===== COMMANDS =====
@@ -136,14 +196,33 @@ async function cmdInit(): Promise<void> {
   const defaultApi = config.apiUrl || "http://localhost:8000";
   const apiUrl = await prompt("API URL", defaultApi);
 
+  // Prompt for charm IDs
+  console.log("\nCharm IDs (leave blank to skip):");
+  console.log("  Deploy a pattern first, then copy its charm ID here.");
+  console.log("  Example: baedreibive33kcfxiweainjam2anrs5jxwiem4qwnemlumlyjlz63qtn6i\n");
+
+  const imessageCharm = await prompt(
+    "  iMessage viewer charm ID",
+    config.charms?.imessage || ""
+  );
+
   // Save config
   config.space = space;
   config.apiUrl = apiUrl;
+  config.charms = {
+    imessage: imessageCharm || undefined,
+    calendar: config.charms?.calendar,
+    reminders: config.charms?.reminders,
+  };
   await saveConfig(config);
 
   console.log(`\n✅ Configuration saved to ${CONFIG_FILE}`);
   console.log(`   Space: ${space}`);
-  console.log(`   API: ${apiUrl}\n`);
+  console.log(`   API: ${apiUrl}`);
+  if (imessageCharm) {
+    console.log(`   iMessage charm: ${imessageCharm}`);
+  }
+  console.log("");
 }
 
 async function cmdStatus(): Promise<void> {
@@ -156,6 +235,10 @@ async function cmdStatus(): Promise<void> {
   console.log(`  Space: ${config.space || "(not set)"}`);
   console.log(`  API URL: ${config.apiUrl || "(not set)"}`);
   console.log(`  Labs Dir: ${config.labsDir || DEFAULT_LABS_DIR}`);
+  console.log("\nCharm IDs:");
+  console.log(`  iMessage: ${config.charms?.imessage || "(not set)"}`);
+  console.log(`  Calendar: ${config.charms?.calendar || "(not set)"}`);
+  console.log(`  Reminders: ${config.charms?.reminders || "(not set)"}`);
 
   console.log("\nSync State:");
   if (state.imessage?.lastSyncTime) {
@@ -211,12 +294,21 @@ async function cmdStatus(): Promise<void> {
   console.log("");
 }
 
-async function cmdImessage(useMock: boolean = false): Promise<void> {
+async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
   console.log("\n📱 Syncing iMessage...\n");
 
   const config = await loadConfig();
   if (!config.space) {
     console.log("❌ No space configured. Run './tools/apple-sync.ts init' first.");
+    Deno.exit(1);
+  }
+
+  // Get charm ID from override, config, or prompt
+  const charmId = overrideCharmId || config.charms?.imessage;
+  if (!charmId) {
+    console.log("❌ No iMessage charm ID configured.");
+    console.log("   Either run './tools/apple-sync.ts init' to configure it,");
+    console.log("   or pass --charm <id> on the command line.\n");
     Deno.exit(1);
   }
 
@@ -228,6 +320,7 @@ async function cmdImessage(useMock: boolean = false): Promise<void> {
   if (useMock) {
     console.log("  Mode: MOCK DATA (for testing)");
     console.log(`  Target space: ${config.space}`);
+    console.log(`  Target charm: ${charmId}`);
     console.log("\n  Generating mock messages...");
     messages = generateMockMessages(20);
     console.log(`  Generated ${messages.length} mock messages`);
@@ -249,6 +342,7 @@ async function cmdImessage(useMock: boolean = false): Promise<void> {
     console.log(`  Database: ${IMESSAGE_DB}`);
     console.log(`  Last synced row ID: ${lastRowId}`);
     console.log(`  Target space: ${config.space}`);
+    console.log(`  Target charm: ${charmId}`);
     console.log("\n  Reading messages...");
 
     try {
@@ -282,8 +376,34 @@ async function cmdImessage(useMock: boolean = false): Promise<void> {
     console.log(`    ... and ${messages.length - 5} more`);
   }
 
-  // TODO: Write to space via toolshed API
-  console.log("\n  Writing to space... (TODO: implement toolshed API call)");
+  // Convert messages to format expected by the pattern
+  // The pattern expects Message[] with date as ISO string
+  const messagesForCharm = messages.map(msg => ({
+    rowId: msg.rowId,
+    guid: msg.guid,
+    text: msg.text,
+    isFromMe: msg.isFromMe,
+    date: msg.date.toISOString(),
+    chatId: msg.chatId,
+    handleId: msg.handleId,
+  }));
+
+  // Write to charm
+  console.log("\n  Writing to charm...");
+  try {
+    await writeToCharm({
+      apiUrl: config.apiUrl || "http://localhost:8000",
+      space: config.space,
+      charmId: charmId,
+      path: "messages",
+      data: messagesForCharm,
+    });
+    console.log("  ✓ Written to charm");
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    Deno.exit(1);
+  }
 
   // Update state (only for real data, not mock)
   if (!useMock) {
@@ -425,6 +545,12 @@ async function main(): Promise<void> {
   const command = args[0];
   const useMock = args.includes("--mock");
 
+  // Parse --charm argument
+  const charmIndex = args.indexOf("--charm");
+  const overrideCharmId = charmIndex !== -1 && args[charmIndex + 1]
+    ? args[charmIndex + 1]
+    : undefined;
+
   switch (command) {
     case "init":
       await cmdInit();
@@ -433,7 +559,7 @@ async function main(): Promise<void> {
       await cmdStatus();
       break;
     case "imessage":
-      await cmdImessage(useMock);
+      await cmdImessage(useMock, overrideCharmId);
       break;
     case "calendar":
       console.log("\n📅 Calendar sync not yet implemented\n");
@@ -442,7 +568,7 @@ async function main(): Promise<void> {
       console.log("\n✅ Reminders sync not yet implemented\n");
       break;
     case "--all":
-      await cmdImessage(useMock);
+      await cmdImessage(useMock, overrideCharmId);
       // TODO: Add other syncs
       break;
     default:
