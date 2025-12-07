@@ -265,12 +265,15 @@ Pattern (browser) <----------------------------------------+
 
 **Implementation sketch:**
 ```bash
-# User runs this periodically or as a daemon
-$ apple-sync --imessage --calendar --space "user-space-id"
+# Script lives in community-patterns, user runs manually
+$ cd community-patterns
+$ deno task apple-sync --imessage --calendar --space "user-space-id"
 
-# Or with launchd for automatic sync
-$ apple-sync install-daemon  # Sets up launchd plist
+# Or sync everything
+$ deno task apple-sync --all
 ```
+
+**No daemon needed** - user just runs when they want to sync. Simple.
 
 **CLI responsibilities:**
 - Read from `~/Library/Messages/chat.db` or Calendar DB
@@ -332,11 +335,11 @@ async function writeToSpace(data: any, charmId: string) {
 ```
 
 **Key features:**
-- `apple-sync init` - Configure space ID, API credentials
-- `apple-sync imessage` - Sync iMessages
-- `apple-sync calendar` - Sync calendar events
-- `apple-sync watch` - Continuous sync mode
-- `apple-sync install-daemon` - Set up launchd for auto-sync
+- `deno task apple-sync init` - Configure space ID, API credentials (stores in .apple-sync-config)
+- `deno task apple-sync imessage` - Sync iMessages
+- `deno task apple-sync calendar` - Sync calendar events
+- `deno task apple-sync reminders` - Sync reminders
+- `deno task apple-sync --all` - Sync everything
 
 #### 1b. Create Viewer Patterns
 
@@ -352,29 +355,30 @@ async function writeToSpace(data: any, charmId: string) {
 - Event details, attendees
 - Similar to existing google-calendar-importer but data comes from CLI
 
-#### 1c. Charm Creation Flow
+#### 1c. Usage Flow
 
 ```
-User runs: apple-sync init --space myspace
+# First time setup
+$ deno task apple-sync init
+> Enter your space ID: myspace
+> Saved to .apple-sync-config (gitignored)
 
-CLI creates:
-  1. An "iMessage Store" charm in user's space (holds message data)
-  2. An "iMessage Viewer" charm linked to the store
-  3. A "Calendar Store" charm (holds event data)
-  4. A "Calendar Viewer" charm linked to the store
+# Sync iMessages
+$ deno task apple-sync imessage
+> Reading ~/Library/Messages/chat.db...
+> Found 1,234 new messages since last sync
+> Writing to space 'myspace'...
+> Done! View at https://...
 
-User runs: apple-sync watch
-
-CLI continuously syncs data into the store charms.
-Viewer patterns reactively update as data changes.
+# Re-run anytime to get new messages
+$ deno task apple-sync imessage
+> Found 12 new messages since last sync
+> Done!
 ```
 
-### Phase 2: Polish and Distribution
-
-1. **Compile to single binary** using `deno compile`
-2. **Homebrew formula** for easy installation
-3. **Setup wizard** in CLI for permissions guidance
-4. **Encryption at rest** for sensitive data in transit
+The script lives in `scripts/apple-sync.ts` in community-patterns.
+Config stored in `.apple-sync-config` (gitignored).
+Sync state stored in `.apple-sync-state` (gitignored).
 
 ### Phase 3: Additional Data Sources
 
@@ -625,10 +629,10 @@ If CLI is too much overhead, fall back to file upload:
 17. [ ] **Implement Contacts reader** via AppleScript
 18. [ ] **Create Notes/Contacts viewer patterns**
 
-### Documentation & Distribution
-19. [ ] **Document setup flow** for users (permissions, CLI install)
-20. [ ] **Create Homebrew formula** for CLI distribution
-21. [ ] **Write user guide** with troubleshooting
+### Documentation
+19. [ ] **Document setup flow** for users (permissions, running the script)
+20. [ ] **Add to CLAUDE.md** or create APPLE-SYNC.md guide
+21. [ ] **Write troubleshooting section** for common permission issues
 
 ---
 
