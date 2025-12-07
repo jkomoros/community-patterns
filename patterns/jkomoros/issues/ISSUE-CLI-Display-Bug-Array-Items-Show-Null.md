@@ -1,5 +1,7 @@
 # Issue: CLI Commands Show Null/Empty for Array Item Fields
 
+**Linear Issue:** [CT-1104](https://linear.app/common-tools/issue/CT-1104/cli-commands-show-nullempty-for-array-item-fields)
+
 ## Summary
 
 The `ct charm get`, `ct charm inspect`, and other CLI commands display array item fields as `null` or `{}`, even when the actual data is stored correctly and works fine in the UI.
@@ -119,7 +121,6 @@ Test in the actual UI instead of relying on CLI for debugging array contents.
 ## Related
 
 - **Superstition (UPDATED):** `community-docs/superstitions/2025-12-06-deeply-nested-objects-become-null.md` - Originally thought to be a storage bug, now confirmed as CLI display issue only
-- **Issue:** `ISSUE-Deeply-Nested-Objects-Stored-As-Null.md` - Previous issue that may need updating since data IS stored correctly
 
 ## Environment
 

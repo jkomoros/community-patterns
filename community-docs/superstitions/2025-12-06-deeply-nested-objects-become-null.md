@@ -2,6 +2,8 @@
 
 **SUPERSTITION - PARTIALLY DISPROVEN**
 
+**Linear Issue:** [CT-1104](https://linear.app/common-tools/issue/CT-1104/cli-commands-show-nullempty-for-array-item-fields)
+
 ## UPDATE: This is a CLI display issue, NOT a storage issue!
 
 Further testing revealed that the data IS stored correctly and works in the UI. The `ct charm get` CLI command shows empty/default values for fields in array items, but the actual runtime data is correct.
