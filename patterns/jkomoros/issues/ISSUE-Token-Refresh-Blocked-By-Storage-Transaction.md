@@ -100,4 +100,34 @@ This suggests the auth cell was created by a different charm (google-auth charm)
 
 ---
 
+## Resolution (December 2024)
+
+**Workaround #4 was implemented and verified:**
+
+The solution uses `Stream.send()` with `onCommit` callback to execute the refresh in the google-auth charm's transaction context.
+
+### Changes Made:
+
+1. **google-auth.tsx**: Added `refreshTokenHandler` that fetches new token and updates the auth cell. Exported as `refreshToken: Stream<Record<string, never>>`.
+
+2. **util/gmail-client.ts**: Added `validateAndRefreshTokenCrossCharm()` function that uses `Stream.send()` with `onCommit` callback to wait for the refresh handler to complete.
+
+3. **gmail-agentic-search.tsx**: Updated to pass `authRefreshStream` from the wished auth charm to the validation function.
+
+### How It Works:
+
+- When token is expired, instead of calling `auth.update()` directly (which fails)
+- We call `authCharm.refreshToken.send({}, onCommit)`
+- This queues an event that runs in google-auth's transaction context
+- The `onCommit` callback fires after that transaction commits
+- We then re-read the auth cell to get the new token
+
+### Key Insight:
+
+`Stream.send()` queues an event via `queueEvent()`. Each event gets its **own fresh transaction**. That transaction's writes use the **handler's charm's DID**, not the caller's DID. This bypasses the cross-charm write isolation.
+
+See: `community-docs/folk_wisdom/handlers.md` for the complete pattern.
+
+---
+
 **This appears to be a framework limitation around cross-charm cell writes during transactions. Would appreciate guidance on the recommended pattern for this use case.**

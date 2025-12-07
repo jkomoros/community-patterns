@@ -39,7 +39,7 @@ import {
   wish,
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
-import { GmailClient, validateAndRefreshToken } from "./util/gmail-client.ts";
+import { GmailClient, validateAndRefreshTokenCrossCharm } from "./util/gmail-client.ts";
 import GmailSearchRegistry from "./gmail-search-registry.tsx";
 import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
 
@@ -85,6 +85,8 @@ export interface DebugLogEntry {
 type GoogleAuthCharm = {
   auth: Auth;
   scopes?: string[];
+  /** Stream to trigger token refresh in the auth charm's transaction context */
+  refreshToken?: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
 };
 
 // Tool definition for additional tools
@@ -399,6 +401,19 @@ const GmailAgenticSearch = pattern<
       hasDirectAuth,
       inputAuth,
       wishedAuthCharm.auth
+    );
+
+    // Access the refreshToken stream from the auth charm (for cross-charm token refresh)
+    // This runs in the auth charm's transaction context, allowing writes to auth cells
+    // See: ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
+    //
+    // Note: We cast wishedAuthCharm.refreshToken because the type system doesn't
+    // fully capture the stream's function signature through property accessors.
+    type RefreshStreamType = { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+    const authRefreshStream = ifElse(
+      hasDirectAuth,
+      null as RefreshStreamType | null, // Direct auth doesn't have a refresh stream (same charm)
+      wishedAuthCharm.refreshToken as unknown as RefreshStreamType | null
     );
 
     // Track where auth came from
@@ -905,6 +920,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
         progress: Cell<SearchProgress>;
         auth: Cell<Auth>;
         debugLog: Cell<DebugLogEntry[]>;
+        authRefreshStream: RefreshStreamType | null;
       }
     >(async (_, state) => {
       if (!state.isAuthenticated.get()) return;
@@ -921,12 +937,20 @@ Be thorough in your searches. Try multiple queries if needed.`;
       });
 
       // Validate token before starting scan (with auto-refresh if expired)
+      // Uses cross-charm refresh stream to avoid transaction isolation issues
+      // See: ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
       console.log("[GmailAgenticSearch] Validating token before scan...");
       addDebugLogEntry(state.debugLog, {
         type: "info",
         message: "Validating Gmail token...",
       });
-      const validation = await validateAndRefreshToken(state.auth, true);
+      // Cast authRefreshStream since the handler state inference doesn't preserve function types
+      const refreshStream = state.authRefreshStream as RefreshStreamType | null;
+      const validation = await validateAndRefreshTokenCrossCharm(
+        state.auth,
+        refreshStream,
+        true
+      );
 
       if (!validation.valid) {
         console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
@@ -1032,7 +1056,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
     );
 
     // Pre-bind handlers (important: must be done outside of derive callbacks)
-    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog });
+    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog, authRefreshStream });
     const boundStopScan = stopScan({ lastScanAt, isScanning });
     const boundCompleteScan = completeScan({ lastScanAt, isScanning });
 

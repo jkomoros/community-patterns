@@ -1,5 +1,17 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
+import {
+  Cell,
+  Default,
+  derive,
+  getRecipeEnvironment,
+  handler,
+  NAME,
+  pattern,
+  Stream,
+  UI,
+} from "commontools";
+
+const env = getRecipeEnvironment();
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
@@ -89,6 +101,24 @@ interface Output {
   auth: Auth;
   scopes: string[];
   selectedScopes: SelectedScopes;
+  /**
+   * Refresh the OAuth token. Call this from other charms when the token expires.
+   *
+   * This handler runs in google-auth's transaction context, so it can write to
+   * the auth cell even when called from another charm's handler.
+   *
+   * Usage from consuming charm:
+   * ```typescript
+   * await new Promise<void>((resolve, reject) => {
+   *   authCharm.refreshToken.send({}, (tx) => {
+   *     const status = tx.status();
+   *     if (status.status === "done") resolve();
+   *     else reject(status.error);
+   *   });
+   * });
+   * ```
+   */
+  refreshToken: Stream<Record<string, never>>;
 }
 
 // Handler for toggling scope selection
@@ -104,6 +134,62 @@ const toggleScope = handler<
     });
   },
 );
+
+/**
+ * Handler for refreshing OAuth tokens.
+ *
+ * This runs in google-auth's transaction context, allowing it to write to the
+ * auth cell even when called from another charm. This solves the cross-charm
+ * write isolation issue where a consuming charm's handler cannot write to
+ * cells owned by a different charm's DID.
+ *
+ * The handler reads the current refreshToken from the auth cell, calls the
+ * server refresh endpoint, and updates the auth cell with the new token.
+ */
+const refreshTokenHandler = handler<
+  Record<string, never>,
+  { auth: Cell<Auth> }
+>(async (_event, { auth }) => {
+  const currentAuth = auth.get();
+  const refreshToken = currentAuth?.refreshToken;
+
+  if (!refreshToken) {
+    console.error("[google-auth] No refresh token available");
+    throw new Error("No refresh token available");
+  }
+
+  console.log("[google-auth] Refreshing OAuth token...");
+
+  const res = await fetch(
+    new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    },
+  );
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("[google-auth] Refresh failed:", res.status, errorText);
+    throw new Error(`Token refresh failed: ${res.status}`);
+  }
+
+  const json = await res.json();
+  if (!json.tokenInfo) {
+    console.error("[google-auth] No tokenInfo in response:", json);
+    throw new Error("Invalid refresh response");
+  }
+
+  console.log("[google-auth] Token refreshed successfully");
+
+  // Update the auth cell with new token data
+  // Keep existing user info since refresh doesn't return it
+  auth.update({
+    ...json.tokenInfo,
+    user: currentAuth.user,
+  });
+});
 
 export default pattern<Input, Output>(
   ({ auth, selectedScopes }) => {
@@ -321,6 +407,10 @@ export default pattern<Input, Output>(
       auth,
       scopes,
       selectedScopes,
+      // Export the refresh handler as a Stream for cross-charm calling
+      refreshToken: refreshTokenHandler({ auth }) as unknown as Stream<
+        Record<string, never>
+      >,
     };
   },
 );
