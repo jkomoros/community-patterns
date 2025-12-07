@@ -1682,14 +1682,15 @@ Be thorough in your searches. Try multiple queries if needed.`;
     // ========================================================================
 
     // Handler to rate a query's effectiveness
+    // Uses handler<unknown, State> pattern where State contains both cells AND input values
     const rateQuery = handler<
-      { queryId: string; rating: number },
-      { localQueries: Cell<LocalQuery[]> }
-    >((input, state) => {
+      unknown,
+      { queryId: string; rating: number; localQueries: Cell<LocalQuery[]> }
+    >((_, state) => {
       const queries = state.localQueries.get() || [];
-      const index = queries.findIndex((q) => q.id === input.queryId);
+      const index = queries.findIndex((q) => q.id === state.queryId);
       if (index >= 0) {
-        const updated = { ...queries[index], effectiveness: input.rating };
+        const updated = { ...queries[index], effectiveness: state.rating };
         state.localQueries.set([
           ...queries.slice(0, index),
           updated,
@@ -1698,44 +1699,90 @@ Be thorough in your searches. Try multiple queries if needed.`;
       }
     });
 
-    // Handler to delete a local query
+    // Handler to delete a local query (also removes from pending submissions)
+    // Uses handler<unknown, State> pattern where State contains both cells AND input values
     const deleteLocalQuery = handler<
-      { queryId: string },
-      { localQueries: Cell<LocalQuery[]> }
-    >((input, state) => {
+      unknown,
+      { queryId: string; localQueries: Cell<LocalQuery[]>; pendingSubmissions: Cell<PendingSubmission[]> }
+    >((_, state) => {
       const queries = state.localQueries.get() || [];
-      state.localQueries.set(queries.filter((q) => q.id !== input.queryId));
+      state.localQueries.set(queries.filter((q) => q.id !== state.queryId));
+      // Also remove from pending if exists
+      const pending = state.pendingSubmissions.get() || [];
+      state.pendingSubmissions.set(pending.filter((p) => p.localQueryId !== state.queryId));
     });
 
-    // Track if local queries UI is expanded
-    const localQueriesExpanded = cell(false);
-    const toggleLocalQueries = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
-      state.expanded.set(!state.expanded.get());
+    // Handler to flag a query for sharing (adds to pending submissions)
+    // Uses handler<unknown, State> pattern where State contains both cells AND input values
+    //
+    // IMPORTANT: We update localQueries FIRST, then pendingSubmissions in separate order
+    // to avoid transaction conflicts. Both writes happen in the same handler transaction.
+    const flagForShare = handler<
+      unknown,
+      { queryId: string; localQueries: Cell<LocalQuery[]>; pendingSubmissions: Cell<PendingSubmission[]> }
+    >((_, state) => {
+      // Read both cells upfront
+      const queries = state.localQueries.get() || [];
+      const pending = state.pendingSubmissions.get() || [];
+
+      const qry = queries.find((q) => q.id === state.queryId);
+      if (!qry) return;
+
+      // Check if already pending
+      if (pending.some((p) => p.localQueryId === state.queryId)) return;
+
+      // Update localQueries FIRST (mark as pending_review)
+      const idx = queries.findIndex((q) => q.id === state.queryId);
+      if (idx >= 0) {
+        const updated = { ...queries[idx], shareStatus: "pending_review" as const };
+        state.localQueries.set([
+          ...queries.slice(0, idx),
+          updated,
+          ...queries.slice(idx + 1),
+        ]);
+      }
+
+      // Then add to pendingSubmissions
+      const newPending: PendingSubmission = {
+        localQueryId: state.queryId,
+        originalQuery: qry.query,
+        sanitizedQuery: qry.query,
+        piiWarnings: [],
+        generalizabilityIssues: [],
+        recommendation: "pending",
+        userApproved: false,
+      };
+      state.pendingSubmissions.set([...pending, newPending]);
     });
 
-    // Pre-bind handlers for local queries
-    const boundRateQuery = rateQuery({ localQueries });
-    const boundDeleteLocalQuery = deleteLocalQuery({ localQueries });
+    // Note: rateQuery, deleteLocalQuery, flagForShare are called directly with all parameters
+    // in onClick handlers (no pre-binding needed)
+    // Note: localQueriesExpanded/toggleLocalQueries removed - using native <details>/<summary> instead
 
     // Pre-bind handler for creating registry
     const boundCreateSearchRegistry = createSearchRegistry({});
 
     // Local Queries UI - collapsible list of saved queries
-    // Uses inline handlers since we need to pass dynamic queryId values
+    // Uses native <details>/<summary> to avoid nested derive closure issues
+    // (see superstition: 2025-12-06-use-native-details-summary-for-expand-collapse.md)
+    //
+    // Key fix: Instead of nested derive(localQueriesExpanded, ...) inside derive(localQueries, ...),
+    // we use native <details open> which handles expand/collapse via browser without reactive state.
+    // The derive(localQueries) renders the entire details block including content - no closure issues.
     const localQueriesUI = (
       <div style={{ marginTop: "8px" }}>
         {derive(localQueries, (queries: LocalQuery[]) =>
           queries && queries.length > 0 ? (
-            <div
+            <details
+              open
               style={{
                 border: "1px solid #e2e8f0",
                 borderRadius: "8px",
                 overflow: "hidden",
               }}
             >
-              {/* Header - clickable to toggle */}
-              <div
-                onClick={toggleLocalQueries({ expanded: localQueriesExpanded })}
+              {/* Summary - clickable header */}
+              <summary
                 style={{
                   padding: "8px 12px",
                   background: "#fefce8",
@@ -1747,159 +1794,105 @@ Be thorough in your searches. Try multiple queries if needed.`;
                   fontSize: "13px",
                   fontWeight: "500",
                   color: "#854d0e",
+                  listStyle: "none",
                 }}
               >
-                <span>
-                  {derive(localQueriesExpanded, (e: boolean) => e ? "▼" : "▶")} My Saved Queries ({queries.length})
-                </span>
+                <span>My Saved Queries ({queries.length})</span>
                 <span style={{ fontSize: "11px", color: "#a16207" }}>
-                  click to {derive(localQueriesExpanded, (e: boolean) => e ? "collapse" : "expand")}
+                  click to toggle
                 </span>
-              </div>
+              </summary>
 
-              {/* Content - shown when expanded */}
-              {derive(localQueriesExpanded, (expanded: boolean) =>
-                expanded ? (
-                  <div
-                    style={{
-                      maxHeight: "300px",
-                      overflowY: "auto",
-                      background: "#fffbeb",
-                      padding: "8px",
-                    }}
-                  >
-                    {[...queries]
-                      .filter((q): q is LocalQuery => q != null)
-                      .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
-                      .map((query: LocalQuery) => (
-                        <div
-                          style={{
-                            padding: "8px",
-                            marginBottom: "8px",
-                            background: "white",
-                            borderRadius: "6px",
-                            border: "1px solid #fef08a",
-                          }}
-                        >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                            <div style={{ flex: 1 }}>
-                              <div
+              {/* Content - shown when expanded (handled by browser) */}
+              <div
+                style={{
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                  background: "#fffbeb",
+                  padding: "8px",
+                }}
+              >
+                {[...queries]
+                  .filter((q): q is LocalQuery => q != null)
+                  .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
+                  .map((query: LocalQuery) => (
+                    <div
+                      style={{
+                        padding: "8px",
+                        marginBottom: "8px",
+                        background: "white",
+                        borderRadius: "6px",
+                        border: "1px solid #fef08a",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "12px",
+                              color: "#1e293b",
+                              wordBreak: "break-all",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {query.query}
+                          </div>
+                          <div style={{ display: "flex", gap: "2px", marginBottom: "4px" }}>
+                            {/* Star rating - inline handlers for each star */}
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <span
+                                onClick={rateQuery({ queryId: query.id, rating: star, localQueries })}
                                 style={{
-                                  fontFamily: "monospace",
-                                  fontSize: "12px",
-                                  color: "#1e293b",
-                                  wordBreak: "break-all",
-                                  marginBottom: "4px",
+                                  cursor: "pointer",
+                                  color: star <= (query.effectiveness || 0) ? "#f59e0b" : "#d1d5db",
+                                  fontSize: "14px",
                                 }}
                               >
-                                {query.query}
-                              </div>
-                              <div style={{ display: "flex", gap: "2px", marginBottom: "4px" }}>
-                                {/* Star rating - inline handlers for each star */}
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <span
-                                    onClick={() => {
-                                      const currentQueries = localQueries.get() || [];
-                                      const idx = currentQueries.findIndex((q) => q.id === query.id);
-                                      if (idx >= 0) {
-                                        const updated = { ...currentQueries[idx], effectiveness: star };
-                                        localQueries.set([
-                                          ...currentQueries.slice(0, idx),
-                                          updated,
-                                          ...currentQueries.slice(idx + 1),
-                                        ]);
-                                      }
-                                    }}
-                                    style={{
-                                      cursor: "pointer",
-                                      color: star <= (query.effectiveness || 0) ? "#f59e0b" : "#d1d5db",
-                                      fontSize: "14px",
-                                    }}
-                                  >
-                                    {star <= (query.effectiveness || 0) ? "★" : "☆"}
-                                  </span>
-                                ))}
-                              </div>
-                              <div style={{ fontSize: "10px", color: "#64748b" }}>
-                                Used {query.useCount}x
-                                {query.lastUsed && ` · Last: ${new Date(query.lastUsed).toLocaleDateString()}`}
-                                {query.shareStatus === "pending_review" && (
-                                  <span style={{ color: "#3b82f6", marginLeft: "8px" }}>
-                                    (pending review)
-                                  </span>
-                                )}
-                                {query.shareStatus === "submitted" && (
-                                  <span style={{ color: "#22c55e", marginLeft: "8px" }}>
-                                    (shared)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", gap: "4px" }}>
-                              {query.shareStatus === "private" && query.effectiveness >= 3 && (
-                                <ct-button
-                                  onClick={() => {
-                                    // Flag for sharing - this will trigger PII screening
-                                    const queries = localQueries.get() || [];
-                                    const qry = queries.find((q) => q.id === query.id);
-                                    if (!qry) return;
-
-                                    // Check if already pending
-                                    const pending = pendingSubmissions.get() || [];
-                                    if (pending.some((p) => p.localQueryId === query.id)) return;
-
-                                    // Create pending submission
-                                    const newPending: PendingSubmission = {
-                                      localQueryId: query.id,
-                                      originalQuery: qry.query,
-                                      sanitizedQuery: qry.query,
-                                      piiWarnings: [],
-                                      generalizabilityIssues: [],
-                                      recommendation: "pending",
-                                      userApproved: false,
-                                    };
-                                    pendingSubmissions.set([...pending, newPending]);
-
-                                    // Update query status
-                                    const idx = queries.findIndex((q) => q.id === query.id);
-                                    if (idx >= 0) {
-                                      const updated = { ...queries[idx], shareStatus: "pending_review" as const };
-                                      localQueries.set([
-                                        ...queries.slice(0, idx),
-                                        updated,
-                                        ...queries.slice(idx + 1),
-                                      ]);
-                                    }
-                                  }}
-                                  variant="ghost"
-                                  size="sm"
-                                  style="color: #3b82f6; font-size: 11px;"
-                                >
-                                  Share
-                                </ct-button>
-                              )}
-                              <ct-button
-                                onClick={() => {
-                                  const currentQueries = localQueries.get() || [];
-                                  localQueries.set(currentQueries.filter((q) => q.id !== query.id));
-                                  // Also remove from pending if exists
-                                  const pending = pendingSubmissions.get() || [];
-                                  pendingSubmissions.set(pending.filter((p) => p.localQueryId !== query.id));
-                                }}
-                                variant="ghost"
-                                size="sm"
-                                style="color: #dc2626; font-size: 12px;"
-                              >
-                                ×
-                              </ct-button>
-                            </div>
+                                {star <= (query.effectiveness || 0) ? "★" : "☆"}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: "10px", color: "#64748b" }}>
+                            Used {query.useCount}x
+                            {query.lastUsed && ` · Last: ${new Date(query.lastUsed).toLocaleDateString()}`}
+                            {query.shareStatus === "pending_review" && (
+                              <span style={{ color: "#3b82f6", marginLeft: "8px" }}>
+                                (pending review)
+                              </span>
+                            )}
+                            {query.shareStatus === "submitted" && (
+                              <span style={{ color: "#22c55e", marginLeft: "8px" }}>
+                                (shared)
+                              </span>
+                            )}
                           </div>
                         </div>
-                      ))}
-                  </div>
-                ) : null
-              )}
-            </div>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {query.shareStatus === "private" && query.effectiveness >= 3 && (
+                            <ct-button
+                              onClick={flagForShare({ queryId: query.id, localQueries, pendingSubmissions })}
+                              variant="ghost"
+                              size="sm"
+                              style="color: #3b82f6; font-size: 11px;"
+                            >
+                              Share
+                            </ct-button>
+                          )}
+                          <ct-button
+                            onClick={deleteLocalQuery({ queryId: query.id, localQueries, pendingSubmissions })}
+                            variant="ghost"
+                            size="sm"
+                            style="color: #dc2626; font-size: 12px;"
+                          >
+                            ×
+                          </ct-button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </details>
           ) : null
         )}
       </div>
@@ -2516,8 +2509,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       localQueriesUI,
       pendingSubmissions,
       pendingSubmissionsUI,
-      rateQuery: boundRateQuery,
-      deleteLocalQuery: boundDeleteLocalQuery,
+      rateQuery,
+      deleteLocalQuery,
 
       // Full UI (composed from pieces)
       [UI]: (
