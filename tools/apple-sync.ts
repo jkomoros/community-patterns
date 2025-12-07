@@ -101,7 +101,7 @@ USAGE:
 COMMANDS:
   init              Configure space and API settings
   imessage          Sync iMessage conversations
-  calendar          Sync Calendar events (not yet implemented)
+  calendar          Sync Calendar events
   reminders         Sync Reminders (not yet implemented)
   status            Show sync status and configuration
   --all             Sync all data sources
@@ -254,12 +254,17 @@ async function cmdInit(): Promise<void> {
     config.charms?.imessage || ""
   );
 
+  const calendarCharm = await prompt(
+    "  Calendar viewer charm ID",
+    config.charms?.calendar || ""
+  );
+
   // Save config
   config.space = space;
   config.apiUrl = apiUrl;
   config.charms = {
     imessage: imessageCharm || undefined,
-    calendar: config.charms?.calendar,
+    calendar: calendarCharm || undefined,
     reminders: config.charms?.reminders,
   };
   await saveConfig(config);
@@ -269,6 +274,9 @@ async function cmdInit(): Promise<void> {
   console.log(`   API: ${apiUrl}`);
   if (imessageCharm) {
     console.log(`   iMessage charm: ${imessageCharm}`);
+  }
+  if (calendarCharm) {
+    console.log(`   Calendar charm: ${calendarCharm}`);
   }
   console.log("");
 }
@@ -626,6 +634,246 @@ function generateMockMessages(count: number = 20): IMessage[] {
   return messages;
 }
 
+// ===== CALENDAR =====
+
+interface CalendarEvent {
+  id: string;
+  title: string;
+  startDate: Date;
+  endDate: Date;
+  location: string | null;
+  notes: string | null;
+  calendarName: string;
+  isAllDay: boolean;
+}
+
+async function readCalendarEvents(daysAhead: number = 30, daysBack: number = 7): Promise<CalendarEvent[]> {
+  // Use AppleScript to read calendar events
+  // This is more reliable than parsing the Core Data SQLite format
+  const script = `
+    set startDate to (current date) - (${daysBack} * days)
+    set endDate to (current date) + (${daysAhead} * days)
+    set eventList to ""
+
+    tell application "Calendar"
+      set allCalendars to calendars
+      repeat with cal in allCalendars
+        set calName to name of cal
+        set calEvents to (every event of cal whose start date >= startDate and start date <= endDate)
+        repeat with evt in calEvents
+          set evtId to uid of evt
+          set evtTitle to summary of evt
+          set evtStart to start date of evt
+          set evtEnd to end date of evt
+          set evtLoc to location of evt
+          set evtNotes to description of evt
+          set evtAllDay to allday event of evt
+
+          -- Format as JSON-ish line
+          set eventLine to "EVENT:" & evtId & "|" & evtTitle & "|" & (evtStart as «class isot» as string) & "|" & (evtEnd as «class isot» as string) & "|" & evtLoc & "|" & evtNotes & "|" & calName & "|" & evtAllDay
+          set eventList to eventList & eventLine & linefeed
+        end repeat
+      end repeat
+    end tell
+
+    return eventList
+  `;
+
+  const command = new Deno.Command("osascript", {
+    args: ["-e", script],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const output = await command.output();
+
+  if (!output.success) {
+    const stderr = new TextDecoder().decode(output.stderr);
+    throw new Error(`AppleScript error: ${stderr}`);
+  }
+
+  const stdout = new TextDecoder().decode(output.stdout);
+  const events: CalendarEvent[] = [];
+
+  for (const line of stdout.split("\n")) {
+    if (!line.startsWith("EVENT:")) continue;
+    const parts = line.substring(6).split("|");
+    if (parts.length < 8) continue;
+
+    const [id, title, startStr, endStr, location, notes, calendarName, allDayStr] = parts;
+
+    events.push({
+      id,
+      title,
+      startDate: new Date(startStr),
+      endDate: new Date(endStr),
+      location: location && location !== "missing value" ? location : null,
+      notes: notes && notes !== "missing value" ? notes : null,
+      calendarName,
+      isAllDay: allDayStr === "true",
+    });
+  }
+
+  // Sort by start date
+  events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+  return events;
+}
+
+function generateMockCalendarEvents(count: number = 15): CalendarEvent[] {
+  const titles = [
+    "Team Meeting",
+    "Doctor Appointment",
+    "Lunch with Sarah",
+    "Project Review",
+    "Dentist",
+    "Birthday Party",
+    "Conference Call",
+    "Gym",
+    "Coffee Chat",
+    "Sprint Planning",
+  ];
+
+  const calendars = ["Work", "Personal", "Family"];
+  const locations = [
+    "Conference Room A",
+    "123 Main St",
+    "Zoom Meeting",
+    null,
+    "Office",
+  ];
+
+  const events: CalendarEvent[] = [];
+  const now = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    const daysOffset = Math.floor(Math.random() * 30) - 7; // -7 to +23 days
+    const hour = 8 + Math.floor(Math.random() * 10); // 8am to 6pm
+    const duration = [30, 60, 90, 120][Math.floor(Math.random() * 4)]; // 30min to 2hr
+    const isAllDay = Math.random() < 0.1;
+
+    const startDate = new Date(now + daysOffset * 24 * 60 * 60 * 1000);
+    startDate.setHours(hour, 0, 0, 0);
+
+    const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
+
+    events.push({
+      id: `mock-event-${i}-${Date.now()}`,
+      title: titles[Math.floor(Math.random() * titles.length)],
+      startDate: isAllDay ? new Date(startDate.setHours(0, 0, 0, 0)) : startDate,
+      endDate: isAllDay ? new Date(endDate.setHours(23, 59, 59, 999)) : endDate,
+      location: locations[Math.floor(Math.random() * locations.length)],
+      notes: Math.random() < 0.3 ? "Some notes about this event" : null,
+      calendarName: calendars[Math.floor(Math.random() * calendars.length)],
+      isAllDay,
+    });
+  }
+
+  events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  return events;
+}
+
+async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
+  console.log("\n📅 Syncing Calendar...\n");
+
+  const config = await loadConfig();
+  if (!config.space) {
+    console.log("❌ No space configured. Run './tools/apple-sync.ts init' first.");
+    Deno.exit(1);
+  }
+
+  const charmId = overrideCharmId || config.charms?.calendar;
+  if (!charmId) {
+    console.log("❌ No Calendar charm ID configured.");
+    console.log("   Either run './tools/apple-sync.ts init' to configure it,");
+    console.log("   or pass --charm <id> on the command line.\n");
+    Deno.exit(1);
+  }
+
+  let events: CalendarEvent[];
+
+  if (useMock) {
+    console.log("  Mode: MOCK DATA (for testing)");
+    console.log(`  Target space: ${config.space}`);
+    console.log(`  Target charm: ${charmId}`);
+    console.log("\n  Generating mock events...");
+    events = generateMockCalendarEvents(15);
+    console.log(`  Generated ${events.length} mock events`);
+  } else {
+    console.log(`  Target space: ${config.space}`);
+    console.log(`  Target charm: ${charmId}`);
+    console.log("\n  Reading calendar events via AppleScript...");
+
+    try {
+      events = await readCalendarEvents(30, 7);
+      console.log(`  Found ${events.length} events`);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`\n❌ Error reading calendar: ${errorMsg}`);
+      console.log("\n💡 Tips:");
+      console.log("   1. Make sure Calendar.app has events");
+      console.log("   2. You may need to grant automation access:");
+      console.log("      System Settings > Privacy > Automation");
+      console.log("   3. Use --mock flag to test with sample data:\n");
+      console.log("      ./tools/apple-sync.ts calendar --mock\n");
+      Deno.exit(1);
+    }
+  }
+
+  if (events.length === 0) {
+    console.log("\n✅ No events found.\n");
+    return;
+  }
+
+  // Show sample of events
+  console.log("\n  Sample events:");
+  for (const evt of events.slice(0, 5)) {
+    const dateStr = evt.startDate.toLocaleDateString();
+    console.log(`    📅 ${dateStr}: ${evt.title} (${evt.calendarName})`);
+  }
+  if (events.length > 5) {
+    console.log(`    ... and ${events.length - 5} more`);
+  }
+
+  // Convert events to format for charm
+  const eventsForCharm = events.map(evt => ({
+    id: evt.id,
+    title: evt.title,
+    startDate: evt.startDate.toISOString(),
+    endDate: evt.endDate.toISOString(),
+    location: evt.location,
+    notes: evt.notes,
+    calendarName: evt.calendarName,
+    isAllDay: evt.isAllDay,
+  }));
+
+  // Write to charm
+  console.log("\n  Writing to charm...");
+  try {
+    await writeToCharm({
+      apiUrl: config.apiUrl || "http://localhost:8000",
+      space: config.space,
+      charmId: charmId,
+      path: "events",
+      data: eventsForCharm,
+    });
+    console.log("  ✓ Written to charm");
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    Deno.exit(1);
+  }
+
+  // Update state
+  const state = await loadState();
+  state.calendar = {
+    lastSyncTime: new Date().toISOString(),
+  };
+  await saveState(state);
+
+  console.log(`\n✅ Synced ${events.length} calendar events\n`);
+}
+
 // ===== MAIN =====
 
 async function main(): Promise<void> {
@@ -656,7 +904,7 @@ async function main(): Promise<void> {
       await cmdImessage(useMock, overrideCharmId);
       break;
     case "calendar":
-      console.log("\n📅 Calendar sync not yet implemented\n");
+      await cmdCalendar(useMock, overrideCharmId);
       break;
     case "reminders":
       console.log("\n✅ Reminders sync not yet implemented\n");

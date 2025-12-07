@@ -144,7 +144,7 @@ export default pattern<{
   return {
     [NAME]: derive(messageCount, (count: number) => `iMessage (${count} messages)`),
     [UI]: (
-      <div style={{ height: "100%", display: "flex", flexDirection: "column", backgroundColor: "#f5f5f5" }}>
+      <ct-screen style={{ display: "flex", flexDirection: "column", backgroundColor: "#f5f5f5" }}>
         {/* Header */}
         <div style={{
           padding: "12px 16px",
@@ -270,7 +270,7 @@ export default pattern<{
             )
           )}
         </div>
-      </div>
+      </ct-screen>
     ),
     messages,
   };
