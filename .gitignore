@@ -1,6 +1,8 @@
 # Workspace config (never commit!)
 .claude-workspace
 .launcher-history
+.apple-sync-config
+.apple-sync-state
 
 # Claude settings (never commit!)
 .claude/settings.local.json
