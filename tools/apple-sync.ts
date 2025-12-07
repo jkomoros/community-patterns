@@ -579,7 +579,21 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.log(`\n❌ Error reading messages: ${errorMsg}`);
-      console.log("\n💡 Use --mock flag to test with sample data:\n");
+
+      // Check for permission error
+      if (errorMsg.includes("Operation not permitted") || errorMsg.includes("os error 1")) {
+        console.log("\n🔒 This is a macOS permission issue. To fix it:\n");
+        console.log("   1. Open System Settings (or System Preferences)");
+        console.log("   2. Go to Privacy & Security → Full Disk Access");
+        console.log("   3. Click the + button and add your terminal app:");
+        console.log("      • Terminal.app (in /Applications/Utilities/)");
+        console.log("      • iTerm (if using iTerm)");
+        console.log("      • Visual Studio Code (if running from VS Code terminal)");
+        console.log("   4. Restart your terminal after granting access");
+        console.log("\n   Then run this command again.\n");
+      }
+
+      console.log("💡 To test with sample data instead, use --mock:\n");
       console.log("   ./tools/apple-sync.ts imessage --mock\n");
       Deno.exit(1);
     }
