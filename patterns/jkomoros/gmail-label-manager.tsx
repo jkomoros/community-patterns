@@ -53,14 +53,14 @@ type LabelOperation = {
   /** Human-readable label names (for display) */
   addLabelNames: string[];
   removeLabelNames: string[];
-} | null;
+};
 
 type OperationResult = {
   success: boolean;
   messageCount: number;
   error?: string;
   timestamp?: string;
-} | null;
+};
 
 interface Input {
   /** Message ID(s) to manage labels for - can be single string or array */
@@ -76,7 +76,7 @@ interface Output {
   messageIds: string[];
   labelsToAdd: string[];
   labelsToRemove: string[];
-  result: OperationResult;
+  result: OperationResult | null;
   /** Available labels (fetched from Gmail) */
   availableLabels: GmailLabel[];
 }
@@ -113,9 +113,9 @@ const fetchLabels = handler<
 });
 
 const toggleAddLabel = handler<
-  { labelId: string },
-  { labelsToAdd: Cell<string[]> }
->(({ labelId }, { labelsToAdd }) => {
+  unknown,
+  { labelsToAdd: Cell<string[]>; labelId: string }
+>((_, { labelsToAdd, labelId }) => {
   const current = labelsToAdd.get();
   if (current.includes(labelId)) {
     labelsToAdd.set(current.filter((id) => id !== labelId));
@@ -125,9 +125,9 @@ const toggleAddLabel = handler<
 });
 
 const toggleRemoveLabel = handler<
-  { labelId: string },
-  { labelsToRemove: Cell<string[]> }
->(({ labelId }, { labelsToRemove }) => {
+  unknown,
+  { labelsToRemove: Cell<string[]>; labelId: string }
+>((_, { labelsToRemove, labelId }) => {
   const current = labelsToRemove.get();
   if (current.includes(labelId)) {
     labelsToRemove.set(current.filter((id) => id !== labelId));
@@ -159,28 +159,29 @@ const prepareOperation = handler<
     const labelMap = new Map(labels.map((l) => [l.id, l.name]));
 
     pendingOp.set({
-      messageIds: ids,
-      addLabelIds: add,
-      removeLabelIds: remove,
+      messageIds: [...ids],
+      addLabelIds: [...add],
+      removeLabelIds: [...remove],
       addLabelNames: add.map((id) => labelMap.get(id) || id),
       removeLabelNames: remove.map((id) => labelMap.get(id) || id),
     });
   },
 );
 
-const cancelOperation = handler<unknown, { pendingOp: Cell<LabelOperation> }>(
-  (_, { pendingOp }) => {
-    pendingOp.set(null);
-  },
-);
+const cancelOperation = handler<
+  unknown,
+  { pendingOp: Cell<LabelOperation | null> }
+>((_, { pendingOp }) => {
+  pendingOp.set(null);
+});
 
 const confirmOperation = handler<
   unknown,
   {
-    pendingOp: Cell<LabelOperation>;
+    pendingOp: Cell<LabelOperation | null>;
     auth: Cell<Auth>;
     processing: Cell<boolean>;
-    result: Cell<OperationResult>;
+    result: Cell<OperationResult | null>;
     labelsToAdd: Cell<string[]>;
     labelsToRemove: Cell<string[]>;
   }
@@ -236,11 +237,12 @@ const confirmOperation = handler<
   },
 );
 
-const dismissResult = handler<unknown, { result: Cell<OperationResult> }>(
-  (_, { result }) => {
-    result.set(null);
-  },
-);
+const dismissResult = handler<
+  unknown,
+  { result: Cell<OperationResult | null> }
+>((_, { result }) => {
+  result.set(null);
+});
 
 // ============================================================================
 // PATTERN
@@ -258,9 +260,9 @@ export default pattern<Input, Output>(
     // UI state
     const availableLabels = cell<GmailLabel[]>([]);
     const loadingLabels = cell(false);
-    const pendingOp = cell<LabelOperation>(null);
+    const pendingOp = cell<LabelOperation | null>(null);
     const processing = cell(false);
-    const result = cell<OperationResult>(null);
+    const result = cell<OperationResult | null>(null);
 
     // Computed
     const messageCount = derive(messageIds, (ids) => ids.length);
@@ -363,7 +365,7 @@ export default pattern<Input, Output>(
 
           {/* Result display */}
           {ifElse(
-            derive(result, (r) => r?.success === true),
+            derive(result, (r: OperationResult | null) => r?.success === true),
             <div
               style={{
                 padding: "16px",
@@ -390,7 +392,7 @@ export default pattern<Input, Output>(
                     Labels Updated Successfully!
                   </div>
                   <div style={{ fontSize: "12px", color: "#047857" }}>
-                    Modified {derive(result, (r) => r?.messageCount)} message(s)
+                    Modified {derive(result, (r: OperationResult | null) => r?.messageCount)} message(s)
                   </div>
                 </div>
                 <button
@@ -411,7 +413,7 @@ export default pattern<Input, Output>(
           )}
 
           {ifElse(
-            derive(result, (r) => r?.success === false),
+            derive(result, (r: OperationResult | null) => r?.success === false),
             <div
               style={{
                 padding: "16px",
@@ -438,7 +440,7 @@ export default pattern<Input, Output>(
                     Failed to Update Labels
                   </div>
                   <div style={{ fontSize: "14px", color: "#b91c1c" }}>
-                    {derive(result, (r) => r?.error)}
+                    {derive(result, (r: OperationResult | null) => r?.error)}
                   </div>
                 </div>
                 <button
@@ -482,7 +484,7 @@ export default pattern<Input, Output>(
 
           {/* Label selection */}
           {ifElse(
-            derive(availableLabels, (l) => l.length > 0),
+            derive(availableLabels, (l: GmailLabel[]) => l.length > 0),
             <div
               style={{
                 display: "flex",
@@ -521,10 +523,10 @@ export default pattern<Input, Output>(
                       );
                       return (
                         <button
-                          onClick={toggleAddLabel(
-                            { labelId: label.id },
-                            { labelsToAdd },
-                          )}
+                          onClick={toggleAddLabel({
+                            labelsToAdd,
+                            labelId: label.id,
+                          })}
                           disabled={isInRemove}
                           style={{
                             padding: "6px 12px",
@@ -583,10 +585,10 @@ export default pattern<Input, Output>(
                       );
                       return (
                         <button
-                          onClick={toggleRemoveLabel(
-                            { labelId: label.id },
-                            { labelsToRemove },
-                          )}
+                          onClick={toggleRemoveLabel({
+                            labelsToRemove,
+                            labelId: label.id,
+                          })}
                           disabled={isInAdd}
                           style={{
                             padding: "6px 12px",
@@ -721,7 +723,7 @@ export default pattern<Input, Output>(
                     >
                       Modifying{" "}
                       <strong>
-                        {derive(pendingOp, (op) => op?.messageIds.length || 0)}
+                        {derive(pendingOp, (op: LabelOperation | null) => op?.messageIds.length || 0)}
                       </strong>{" "}
                       message(s)
                     </div>
@@ -730,7 +732,7 @@ export default pattern<Input, Output>(
                     {ifElse(
                       derive(
                         pendingOp,
-                        (op) => (op?.addLabelNames.length || 0) > 0,
+                        (op: LabelOperation | null) => (op?.addLabelNames.length || 0) > 0,
                       ),
                       <div style={{ marginBottom: "12px" }}>
                         <div
@@ -750,8 +752,8 @@ export default pattern<Input, Output>(
                             gap: "6px",
                           }}
                         >
-                          {derive(pendingOp, (op) =>
-                            (op?.addLabelNames || []).map((name) => (
+                          {derive(pendingOp, (op: LabelOperation | null) =>
+                            (op?.addLabelNames || []).map((name: string) => (
                               <span
                                 style={{
                                   background: "#dcfce7",
@@ -774,7 +776,7 @@ export default pattern<Input, Output>(
                     {ifElse(
                       derive(
                         pendingOp,
-                        (op) => (op?.removeLabelNames.length || 0) > 0,
+                        (op: LabelOperation | null) => (op?.removeLabelNames.length || 0) > 0,
                       ),
                       <div>
                         <div
@@ -794,8 +796,8 @@ export default pattern<Input, Output>(
                             gap: "6px",
                           }}
                         >
-                          {derive(pendingOp, (op) =>
-                            (op?.removeLabelNames || []).map((name) => (
+                          {derive(pendingOp, (op: LabelOperation | null) =>
+                            (op?.removeLabelNames || []).map((name: string) => (
                               <span
                                 style={{
                                   background: "#fee2e2",
