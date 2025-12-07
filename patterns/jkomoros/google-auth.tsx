@@ -19,14 +19,18 @@ type Secret<T> = CFC<T, "secret">;
 // Scope mapping for Google APIs
 const SCOPE_MAP = {
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
+  gmailSend: "https://www.googleapis.com/auth/gmail.send",
   calendar: "https://www.googleapis.com/auth/calendar.readonly",
+  calendarWrite: "https://www.googleapis.com/auth/calendar.events",
   drive: "https://www.googleapis.com/auth/drive.readonly",
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
 } as const;
 
 const SCOPE_DESCRIPTIONS = {
   gmail: "Gmail (read emails)",
+  gmailSend: "Gmail (send emails)",
   calendar: "Calendar (read events)",
+  calendarWrite: "Calendar (create/edit/delete events)",
   drive: "Drive (read files)",
   contacts: "Contacts (read contacts)",
 } as const;
@@ -73,7 +77,9 @@ export type Auth = {
 // Selected scopes configuration
 type SelectedScopes = {
   gmail: Default<boolean, false>;
+  gmailSend: Default<boolean, false>;
   calendar: Default<boolean, false>;
+  calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
   contacts: Default<boolean, false>;
 };
@@ -81,7 +87,9 @@ type SelectedScopes = {
 interface Input {
   selectedScopes: Default<SelectedScopes, {
     gmail: true;
+    gmailSend: false;
     calendar: true;
+    calendarWrite: false;
     drive: false;
     contacts: false;
   }>;
