@@ -576,8 +576,8 @@ function readIMessages(sinceRowId: number = 0): IMessage[] {
 
 function generateMockMessages(count: number = 20): IMessage[] {
   const contacts = [
-    "+1-555-0101",
-    "+1-555-0102",
+    "+15551234567",  // Proper 11-digit phone format
+    "+15559876543",
     "friend@example.com",
     "work@company.com",
   ];
