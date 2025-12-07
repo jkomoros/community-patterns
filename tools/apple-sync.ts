@@ -116,12 +116,16 @@ OPTIONS:
   --space <name>    Specify space name (saved for future runs)
   --mock            Use mock/sample data instead of real Apple data
   --charm <id>      Override charm ID for this sync (optional - charms are auto-created)
+  --daemon          Run in background daemon mode (syncs every 5 minutes)
+  --interval <min>  Sync interval in minutes for daemon mode (default: 5)
 
 EXAMPLES:
   ./tools/apple-sync.ts --all                     # Prompts for space on first run
   ./tools/apple-sync.ts --all --space my-space    # Or specify space directly
   ./tools/apple-sync.ts imessage --mock           # Test with sample data
   ./tools/apple-sync.ts calendar                  # Sync just calendar
+  ./tools/apple-sync.ts --all --daemon            # Run as background daemon
+  ./tools/apple-sync.ts --all --daemon --interval 10  # Sync every 10 minutes
 
 CONFIGURATION:
   Config stored in: ${CONFIG_FILE}
@@ -1042,7 +1046,7 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): 
   }
 
   // Convert events to format for charm
-  const eventsForCharm = events.map(evt => ({
+  const newEventsForCharm = events.map(evt => ({
     id: evt.id,
     title: evt.title,
     startDate: evt.startDate.toISOString(),
@@ -1053,15 +1057,62 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): 
     isAllDay: evt.isAllDay,
   }));
 
-  // Write to charm
+  // Read existing events from charm and merge
+  console.log("\n  Reading existing events from charm...");
+  const charmConfig = {
+    apiUrl: config.apiUrl || "http://localhost:8000",
+    space: config.space,
+    charmId: charmId,
+    path: "events",
+  };
+
+  interface CharmEvent {
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    location: string | null;
+    notes: string | null;
+    calendarName: string;
+    isAllDay: boolean;
+  }
+
+  let existingEvents: CharmEvent[] = [];
+  try {
+    const existing = await readFromCharm<CharmEvent[]>(charmConfig);
+    existingEvents = existing || [];
+    console.log(`  Found ${existingEvents.length} existing events`);
+  } catch {
+    console.log("  No existing events (first sync)");
+  }
+
+  // Merge: dedupe by id, new events overwrite old (they may be updated)
+  const eventsById = new Map<string, CharmEvent>();
+  for (const evt of existingEvents) {
+    if (evt && evt.id) {
+      eventsById.set(evt.id, evt);
+    }
+  }
+  for (const evt of newEventsForCharm) {
+    if (evt && evt.id) {
+      eventsById.set(evt.id, evt);
+    }
+  }
+
+  const mergedEvents = Array.from(eventsById.values());
+  // Sort by start date
+  mergedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+  const newCount = mergedEvents.length - existingEvents.length;
+  const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
+  console.log(`  Merged: ${updateInfo} (${mergedEvents.length} total)`);
+
+  // Write merged events to charm
   console.log("\n  Writing to charm...");
   try {
     await writeToCharm({
-      apiUrl: config.apiUrl || "http://localhost:8000",
-      space: config.space,
-      charmId: charmId,
-      path: "events",
-      data: eventsForCharm,
+      ...charmConfig,
+      data: mergedEvents,
     });
     console.log("  ✓ Written to charm");
   } catch (error) {
@@ -1077,7 +1128,7 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): 
   };
   await saveState(state);
 
-  console.log(`\n✅ Synced ${events.length} calendar events\n`);
+  console.log(`\n✅ Synced calendar (${mergedEvents.length} total events)\n`);
 }
 
 // ===== REMINDERS =====
@@ -1332,7 +1383,7 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   }
 
   // Convert reminders to format for charm
-  const remindersForCharm = reminders.map(r => ({
+  const newRemindersForCharm = reminders.map(r => ({
     id: r.id,
     title: r.title,
     notes: r.notes,
@@ -1343,15 +1394,76 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
     listName: r.listName,
   }));
 
-  // Write to charm
+  // Read existing reminders from charm and merge
+  console.log("\n  Reading existing reminders from charm...");
+  const charmConfig = {
+    apiUrl: config.apiUrl || "http://localhost:8000",
+    space: config.space,
+    charmId: charmId,
+    path: "reminders",
+  };
+
+  interface CharmReminder {
+    id: string;
+    title: string;
+    notes: string | null;
+    dueDate: string | null;
+    isCompleted: boolean;
+    completionDate: string | null;
+    priority: number;
+    listName: string;
+  }
+
+  let existingReminders: CharmReminder[] = [];
+  try {
+    const existing = await readFromCharm<CharmReminder[]>(charmConfig);
+    existingReminders = existing || [];
+    console.log(`  Found ${existingReminders.length} existing reminders`);
+  } catch {
+    console.log("  No existing reminders (first sync)");
+  }
+
+  // Merge: dedupe by id, new reminders overwrite old (they may be updated/completed)
+  const remindersById = new Map<string, CharmReminder>();
+  for (const r of existingReminders) {
+    if (r && r.id) {
+      remindersById.set(r.id, r);
+    }
+  }
+  for (const r of newRemindersForCharm) {
+    if (r && r.id) {
+      remindersById.set(r.id, r);
+    }
+  }
+
+  const mergedReminders = Array.from(remindersById.values());
+  // Sort: incomplete first, then by due date, then by priority
+  mergedReminders.sort((a, b) => {
+    if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+    if (a.dueDate && !b.dueDate) return -1;
+    if (!a.dueDate && b.dueDate) return 1;
+    if (a.dueDate && b.dueDate) {
+      const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+    }
+    if (a.priority !== b.priority) {
+      if (a.priority === 0) return 1;
+      if (b.priority === 0) return -1;
+      return a.priority - b.priority;
+    }
+    return 0;
+  });
+
+  const newCount = mergedReminders.length - existingReminders.length;
+  const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
+  console.log(`  Merged: ${updateInfo} (${mergedReminders.length} total)`);
+
+  // Write merged reminders to charm
   console.log("\n  Writing to charm...");
   try {
     await writeToCharm({
-      apiUrl: config.apiUrl || "http://localhost:8000",
-      space: config.space,
-      charmId: charmId,
-      path: "reminders",
-      data: remindersForCharm,
+      ...charmConfig,
+      data: mergedReminders,
     });
     console.log("  ✓ Written to charm");
   } catch (error) {
@@ -1367,7 +1479,7 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   };
   await saveState(state);
 
-  console.log(`\n✅ Synced ${reminders.length} reminders\n`);
+  console.log(`\n✅ Synced reminders (${mergedReminders.length} total)\n`);
 }
 
 // ===== NOTES =====
@@ -1588,7 +1700,7 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   }
 
   // Convert notes to format for charm
-  const notesForCharm = notes.map(n => ({
+  const newNotesForCharm = notes.map(n => ({
     id: n.id,
     title: n.title,
     body: n.body,
@@ -1597,15 +1709,64 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
     folderName: n.folderName,
   }));
 
-  // Write to charm
+  // Read existing notes from charm and merge
+  console.log("\n  Reading existing notes from charm...");
+  const charmConfig = {
+    apiUrl: config.apiUrl || "http://localhost:8000",
+    space: config.space,
+    charmId: charmId,
+    path: "notes",
+  };
+
+  interface CharmNote {
+    id: string;
+    title: string;
+    body: string;
+    creationDate: string;
+    modificationDate: string;
+    folderName: string;
+  }
+
+  let existingNotes: CharmNote[] = [];
+  try {
+    const existing = await readFromCharm<CharmNote[]>(charmConfig);
+    existingNotes = existing || [];
+    console.log(`  Found ${existingNotes.length} existing notes`);
+  } catch {
+    console.log("  No existing notes (first sync)");
+  }
+
+  // Merge: dedupe by id, keep the one with newer modificationDate
+  const notesById = new Map<string, CharmNote>();
+  for (const n of existingNotes) {
+    if (n && n.id) {
+      notesById.set(n.id, n);
+    }
+  }
+  for (const n of newNotesForCharm) {
+    if (n && n.id) {
+      const existing = notesById.get(n.id);
+      // Keep newer version based on modificationDate
+      if (!existing || new Date(n.modificationDate) >= new Date(existing.modificationDate)) {
+        notesById.set(n.id, n);
+      }
+    }
+  }
+
+  const mergedNotes = Array.from(notesById.values());
+  // Sort by modification date (newest first)
+  mergedNotes.sort((a, b) => new Date(b.modificationDate).getTime() - new Date(a.modificationDate).getTime());
+
+  const newCount = mergedNotes.length - existingNotes.length;
+  const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
+  console.log(`  Merged: ${updateInfo} (${mergedNotes.length} total)`);
+
+  // Write merged notes to charm
   console.log("\n  Writing to charm...");
   try {
     await writeToCharm({
-      apiUrl: config.apiUrl || "http://localhost:8000",
-      space: config.space,
-      charmId: charmId,
-      path: "notes",
-      data: notesForCharm,
+      ...charmConfig,
+      data: mergedNotes,
     });
     console.log("  ✓ Written to charm");
   } catch (error) {
@@ -1621,7 +1782,7 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   };
   await saveState(state);
 
-  console.log(`\n✅ Synced ${notes.length} notes\n`);
+  console.log(`\n✅ Synced notes (${mergedNotes.length} total)\n`);
 }
 
 // ===== MAIN =====
@@ -1662,6 +1823,78 @@ async function ensureSpace(overrideSpace?: string): Promise<void> {
   console.log(`\n✅ Configuration saved. Using space: ${space}\n`);
 }
 
+/**
+ * Run a single sync cycle for specified sources
+ */
+async function runSyncCycle(
+  sources: string[],
+  useMock: boolean,
+  overrideCharmId?: string
+): Promise<void> {
+  for (const source of sources) {
+    try {
+      switch (source) {
+        case "imessage":
+          await cmdImessage(useMock, overrideCharmId);
+          break;
+        case "calendar":
+          await cmdCalendar(useMock, overrideCharmId);
+          break;
+        case "reminders":
+          await cmdReminders(useMock, overrideCharmId);
+          break;
+        case "notes":
+          await cmdNotes(useMock, overrideCharmId);
+          break;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`\n⚠️  Error syncing ${source}: ${errorMsg}`);
+      // Continue with other sources in daemon mode
+    }
+  }
+}
+
+/**
+ * Run in daemon mode - sync on interval
+ */
+async function runDaemon(
+  sources: string[],
+  intervalMinutes: number,
+  useMock: boolean,
+  overrideCharmId?: string
+): Promise<void> {
+  console.log(`\n🔄 Starting daemon mode (syncing every ${intervalMinutes} minute${intervalMinutes === 1 ? '' : 's'})`);
+  console.log(`   Sources: ${sources.join(", ")}`);
+  console.log(`   Press Ctrl+C to stop\n`);
+
+  // Run initial sync
+  console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
+  await runSyncCycle(sources, useMock, overrideCharmId);
+
+  // Set up interval
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  // Use setInterval for recurring syncs
+  const intervalId = setInterval(async () => {
+    console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
+    await runSyncCycle(sources, useMock, overrideCharmId);
+  }, intervalMs);
+
+  // Handle graceful shutdown
+  const shutdown = () => {
+    console.log("\n\n👋 Daemon stopped");
+    clearInterval(intervalId);
+    Deno.exit(0);
+  };
+
+  Deno.addSignalListener("SIGINT", shutdown);
+  Deno.addSignalListener("SIGTERM", shutdown);
+
+  // Keep the process alive
+  await new Promise(() => {}); // Never resolves - runs until killed
+}
+
 async function main(): Promise<void> {
   const args = Deno.args;
 
@@ -1672,6 +1905,7 @@ async function main(): Promise<void> {
 
   const command = args[0];
   const useMock = args.includes("--mock");
+  const isDaemon = args.includes("--daemon");
 
   // Parse --charm argument
   const charmIndex = args.indexOf("--charm");
@@ -1685,6 +1919,12 @@ async function main(): Promise<void> {
     ? args[spaceIndex + 1]
     : undefined;
 
+  // Parse --interval argument (default 5 minutes)
+  const intervalIndex = args.indexOf("--interval");
+  const intervalMinutes = intervalIndex !== -1 && args[intervalIndex + 1]
+    ? parseInt(args[intervalIndex + 1]) || 5
+    : 5;
+
   // Status doesn't need space setup
   if (command === "status") {
     await cmdStatus();
@@ -1694,32 +1934,38 @@ async function main(): Promise<void> {
   // Ensure space is configured before any sync command
   await ensureSpace(overrideSpace);
 
+  // Determine which sources to sync
+  let sources: string[] = [];
   switch (command) {
     case "status":
       // Already handled above
-      break;
+      return;
     case "imessage":
-      await cmdImessage(useMock, overrideCharmId);
+      sources = ["imessage"];
       break;
     case "calendar":
-      await cmdCalendar(useMock, overrideCharmId);
+      sources = ["calendar"];
       break;
     case "reminders":
-      await cmdReminders(useMock, overrideCharmId);
+      sources = ["reminders"];
       break;
     case "notes":
-      await cmdNotes(useMock, overrideCharmId);
+      sources = ["notes"];
       break;
     case "--all":
-      await cmdImessage(useMock, overrideCharmId);
-      await cmdCalendar(useMock, overrideCharmId);
-      await cmdReminders(useMock, overrideCharmId);
-      await cmdNotes(useMock, overrideCharmId);
+      sources = ["imessage", "calendar", "reminders", "notes"];
       break;
     default:
       console.log(`Unknown command: ${command}`);
       printHelp();
       Deno.exit(1);
+  }
+
+  // Run in daemon mode or single sync
+  if (isDaemon) {
+    await runDaemon(sources, intervalMinutes, useMock, overrideCharmId);
+  } else {
+    await runSyncCycle(sources, useMock, overrideCharmId);
   }
 }
 
