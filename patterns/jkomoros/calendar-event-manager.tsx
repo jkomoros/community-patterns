@@ -16,6 +16,14 @@
  * 4. Click the action button (Create/Update/Delete/RSVP)
  * 5. Review the confirmation dialog showing exactly what will happen
  * 6. Confirm to execute the operation
+ *
+ * TODO: Multi-account auth support (#googleAuthPersonal, #googleAuthWork)
+ * Currently this wishes for #googleAuth which finds any Google auth.
+ * To support choosing personal vs work accounts, we need:
+ * - Dynamic tags based on granted scopes (e.g., #googleAuthCalendarWrite)
+ * - AND queries in wish() to match multiple tags
+ * - Or a scope-aware account picker UI
+ * See: google-auth-personal.tsx, google-auth-work.tsx for the wrapper patterns.
  */
 
 import {
