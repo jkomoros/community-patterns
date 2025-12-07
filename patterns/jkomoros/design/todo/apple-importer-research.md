@@ -265,15 +265,15 @@ Pattern (browser) <----------------------------------------+
 
 **Implementation sketch:**
 ```bash
-# Script lives in community-patterns, user runs manually
+# Script lives in community-patterns/tools/, user runs directly
 $ cd community-patterns
-$ deno task apple-sync --imessage --calendar --space "user-space-id"
+$ ./tools/apple-sync.ts --imessage --space "user-space-id"
 
 # Or sync everything
-$ deno task apple-sync --all
+$ ./tools/apple-sync.ts --all
 ```
 
-**No daemon needed** - user just runs when they want to sync. Simple.
+**No daemon, no deno task** - just an executable script like `tools/launch.ts`. User runs when they want to sync.
 
 **CLI responsibilities:**
 - Read from `~/Library/Messages/chat.db` or Calendar DB
@@ -335,11 +335,11 @@ async function writeToSpace(data: any, charmId: string) {
 ```
 
 **Key features:**
-- `deno task apple-sync init` - Configure space ID, API credentials (stores in .apple-sync-config)
-- `deno task apple-sync imessage` - Sync iMessages
-- `deno task apple-sync calendar` - Sync calendar events
-- `deno task apple-sync reminders` - Sync reminders
-- `deno task apple-sync --all` - Sync everything
+- `./tools/apple-sync.ts init` - Configure space ID, API credentials (stores in .apple-sync-config)
+- `./tools/apple-sync.ts imessage` - Sync iMessages
+- `./tools/apple-sync.ts calendar` - Sync calendar events
+- `./tools/apple-sync.ts reminders` - Sync reminders
+- `./tools/apple-sync.ts --all` - Sync everything
 
 #### 1b. Create Viewer Patterns
 
@@ -359,24 +359,24 @@ async function writeToSpace(data: any, charmId: string) {
 
 ```
 # First time setup
-$ deno task apple-sync init
+$ ./tools/apple-sync.ts init
 > Enter your space ID: myspace
 > Saved to .apple-sync-config (gitignored)
 
 # Sync iMessages
-$ deno task apple-sync imessage
+$ ./tools/apple-sync.ts imessage
 > Reading ~/Library/Messages/chat.db...
 > Found 1,234 new messages since last sync
 > Writing to space 'myspace'...
 > Done! View at https://...
 
 # Re-run anytime to get new messages
-$ deno task apple-sync imessage
+$ ./tools/apple-sync.ts imessage
 > Found 12 new messages since last sync
 > Done!
 ```
 
-The script lives in `scripts/apple-sync.ts` in community-patterns.
+The script lives in `tools/apple-sync.ts` (next to `tools/launch.ts`).
 Config stored in `.apple-sync-config` (gitignored).
 Sync state stored in `.apple-sync-state` (gitignored).
 
