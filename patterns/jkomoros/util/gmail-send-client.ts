@@ -1,10 +1,11 @@
 /**
- * Gmail Send API client for composing and sending emails.
+ * Gmail Write API client for sending emails and modifying labels.
  *
- * This module provides a client for sending emails via Gmail API:
- * - RFC 2822 MIME message construction
+ * This module provides a client for Gmail API write operations:
+ * - RFC 2822 MIME message construction for sending
  * - Base64url encoding for Gmail API
  * - Thread reply support with In-Reply-To headers
+ * - Label modification (add/remove) for single or batch messages
  * - Token refresh on 401 errors
  *
  * Usage:
@@ -12,10 +13,23 @@
  * import { GmailSendClient } from "./util/gmail-send-client.ts";
  *
  * const client = new GmailSendClient(authCell, { debugMode: true });
+ *
+ * // Send email (requires gmail.send scope)
  * const result = await client.sendEmail({
  *   to: "recipient@example.com",
  *   subject: "Hello",
  *   body: "World!",
+ * });
+ *
+ * // Modify labels (requires gmail.modify scope)
+ * await client.modifyLabels("messageId123", {
+ *   addLabelIds: ["STARRED"],
+ *   removeLabelIds: ["UNREAD"],
+ * });
+ *
+ * // Batch modify labels (up to 1000 messages)
+ * await client.batchModifyLabels(["msg1", "msg2"], {
+ *   addLabelIds: ["Label_123"],
  * });
  * ```
  */
@@ -62,6 +76,35 @@ export interface SendEmailResult {
   labelIds: string[];
 }
 
+export interface ModifyLabelsParams {
+  /** Label IDs to add (max 100 per request) */
+  addLabelIds?: string[];
+  /** Label IDs to remove (max 100 per request) */
+  removeLabelIds?: string[];
+}
+
+export interface ModifyLabelsResult {
+  /** Gmail message ID */
+  id: string;
+  /** Gmail thread ID */
+  threadId: string;
+  /** Labels now on the message */
+  labelIds: string[];
+}
+
+export interface GmailLabel {
+  /** Label ID (use this for API calls) */
+  id: string;
+  /** Label name (human readable) */
+  name: string;
+  /** Label type: system, user */
+  type: "system" | "user";
+  /** Message list visibility */
+  messageListVisibility?: "show" | "hide";
+  /** Label list visibility */
+  labelListVisibility?: "labelShow" | "labelShowIfUnread" | "labelHide";
+}
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -105,12 +148,14 @@ function encodeHeaderValue(value: string): string {
 // ============================================================================
 
 /**
- * Gmail Send API client.
+ * Gmail Write API client.
  *
- * Sends emails via Gmail API using RFC 2822 MIME format.
+ * Provides write operations for Gmail:
+ * - Send emails (requires gmail.send scope)
+ * - Modify labels (requires gmail.modify scope)
+ * - List available labels (requires gmail.modify or gmail.readonly scope)
  *
- * IMPORTANT: Requires the gmail.send scope to be authorized.
- * The auth cell MUST be writable for token refresh to work!
+ * IMPORTANT: The auth cell MUST be writable for token refresh to work!
  */
 export class GmailSendClient {
   private auth: Cell<Auth>;
@@ -220,6 +265,187 @@ export class GmailSendClient {
       threadId: result.threadId,
       labelIds: result.labelIds || [],
     };
+  }
+
+  /**
+   * Modify labels on a single message.
+   *
+   * @param messageId - Gmail message ID
+   * @param params - Labels to add and/or remove
+   * @returns The modified message metadata
+   * @throws Error if modification fails or auth is invalid
+   */
+  async modifyLabels(
+    messageId: string,
+    params: ModifyLabelsParams,
+  ): Promise<ModifyLabelsResult> {
+    const token = this.auth.get()?.token;
+    if (!token) {
+      throw new Error("No authorization token. Please authenticate first.");
+    }
+
+    debugLog(this.debugMode, "Modifying labels on message:", messageId, params);
+
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/modify`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          addLabelIds: params.addLabelIds || [],
+          removeLabelIds: params.removeLabelIds || [],
+        }),
+      },
+    );
+
+    // Handle 401 (token expired) - try to refresh and retry once
+    if (res.status === 401) {
+      debugLog(this.debugMode, "Token expired, attempting refresh...");
+      await this.refreshAuth();
+      return this.modifyLabels(messageId, params);
+    }
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const errorMessage = error.error?.message || res.statusText;
+      debugLog(this.debugMode, "Modify failed:", res.status, errorMessage);
+      throw new Error(`Gmail API error: ${res.status} ${errorMessage}`);
+    }
+
+    const result = await res.json();
+    debugLog(this.debugMode, "Labels modified successfully:", result.id);
+
+    return {
+      id: result.id,
+      threadId: result.threadId,
+      labelIds: result.labelIds || [],
+    };
+  }
+
+  /**
+   * Modify labels on multiple messages at once.
+   *
+   * @param messageIds - Array of Gmail message IDs (max 1000)
+   * @param params - Labels to add and/or remove
+   * @throws Error if modification fails or auth is invalid
+   */
+  async batchModifyLabels(
+    messageIds: string[],
+    params: ModifyLabelsParams,
+  ): Promise<void> {
+    const token = this.auth.get()?.token;
+    if (!token) {
+      throw new Error("No authorization token. Please authenticate first.");
+    }
+
+    if (messageIds.length === 0) {
+      debugLog(this.debugMode, "No messages to modify");
+      return;
+    }
+
+    if (messageIds.length > 1000) {
+      throw new Error("Cannot batch modify more than 1000 messages at once");
+    }
+
+    debugLog(
+      this.debugMode,
+      `Batch modifying labels on ${messageIds.length} messages:`,
+      params,
+    );
+
+    const res = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ids: messageIds,
+          addLabelIds: params.addLabelIds || [],
+          removeLabelIds: params.removeLabelIds || [],
+        }),
+      },
+    );
+
+    // Handle 401 (token expired) - try to refresh and retry once
+    if (res.status === 401) {
+      debugLog(this.debugMode, "Token expired, attempting refresh...");
+      await this.refreshAuth();
+      return this.batchModifyLabels(messageIds, params);
+    }
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const errorMessage = error.error?.message || res.statusText;
+      debugLog(this.debugMode, "Batch modify failed:", res.status, errorMessage);
+      throw new Error(`Gmail API error: ${res.status} ${errorMessage}`);
+    }
+
+    debugLog(
+      this.debugMode,
+      `Batch label modification successful for ${messageIds.length} messages`,
+    );
+  }
+
+  /**
+   * List all available labels in the user's mailbox.
+   *
+   * @returns Array of available labels
+   * @throws Error if listing fails or auth is invalid
+   */
+  async listLabels(): Promise<GmailLabel[]> {
+    const token = this.auth.get()?.token;
+    if (!token) {
+      throw new Error("No authorization token. Please authenticate first.");
+    }
+
+    debugLog(this.debugMode, "Listing labels...");
+
+    const res = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    // Handle 401 (token expired) - try to refresh and retry once
+    if (res.status === 401) {
+      debugLog(this.debugMode, "Token expired, attempting refresh...");
+      await this.refreshAuth();
+      return this.listLabels();
+    }
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      const errorMessage = error.error?.message || res.statusText;
+      debugLog(this.debugMode, "List labels failed:", res.status, errorMessage);
+      throw new Error(`Gmail API error: ${res.status} ${errorMessage}`);
+    }
+
+    const result = await res.json();
+    const labels: GmailLabel[] = (result.labels || []).map(
+      (l: Record<string, unknown>) => ({
+        id: l.id as string,
+        name: l.name as string,
+        type: l.type as "system" | "user",
+        messageListVisibility: l.messageListVisibility as "show" | "hide" | undefined,
+        labelListVisibility: l.labelListVisibility as
+          | "labelShow"
+          | "labelShowIfUnread"
+          | "labelHide"
+          | undefined,
+      }),
+    );
+
+    debugLog(this.debugMode, `Found ${labels.length} labels`);
+    return labels;
   }
 
   /**
