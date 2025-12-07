@@ -662,7 +662,7 @@ export default pattern<Input, Output>(
 
           {/* CONFIRMATION DIALOG */}
           {ifElse(
-            derive(pendingOp, (op) => op !== null),
+            pendingOp,
             <div
               style={{
                 position: "fixed",
