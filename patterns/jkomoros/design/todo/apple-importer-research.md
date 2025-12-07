@@ -236,43 +236,306 @@ If patterns ever run in an Electron/Tauri context:
 - Can use eventkit-node directly
 - Can read SQLite databases
 
+#### Architecture E: Local CLI Sync Daemon (Recommended)
+```
+CLI Tool (runs locally) ---> Reads macOS Data ---> Writes to User's Space
+                                                         ^
+Pattern (browser) <----------------------------------------+
+                         (reads from user's space)
+```
+
+**How it works:**
+1. User installs a CLI tool (Deno/Node script, or compiled binary)
+2. CLI runs continuously (or on schedule) with Full Disk Access
+3. CLI reads iMessage/Calendar data and writes to user's pattern space
+4. Pattern simply reads from its own space - no special permissions needed
+
+**Pros:**
+- Clean separation: CLI handles permissions, pattern is just a viewer
+- Pattern doesn't need filesystem access or special APIs
+- CLI can do incremental sync (track what's already imported)
+- Works with existing pattern architecture
+- User controls when sync happens
+- Can filter/transform data before it reaches the pattern
+
+**Cons:**
+- User must install and run the CLI tool
+- Need to distribute/maintain the CLI
+- Data is duplicated (once in macOS, once in user space)
+
+**Implementation sketch:**
+```bash
+# User runs this periodically or as a daemon
+$ apple-sync --imessage --calendar --space "user-space-id"
+
+# Or with launchd for automatic sync
+$ apple-sync install-daemon  # Sets up launchd plist
+```
+
+**CLI responsibilities:**
+- Read from `~/Library/Messages/chat.db` or Calendar DB
+- Track sync state (last message ID, historyId equivalent)
+- Transform to pattern-compatible format
+- Write to user's space via toolshed API
+- Handle incremental updates (only sync new/changed items)
+
+**Pattern responsibilities:**
+- Display the data
+- Provide search/filter UI
+- React to data updates in real-time
+
+This is similar to how the Gmail importer works, but instead of OAuth + API calls,
+the CLI tool handles local database access.
+
 ---
 
-## Recommended Implementation Path
+## Recommended Implementation Path (Revised)
 
-### Phase 1: iMessage Import via File Upload (Simplest)
+### Phase 1: CLI Sync Tool + Simple Viewer Pattern (Recommended)
 
-1. **Create a pattern that accepts a chat.db copy**
-   - User copies `~/Library/Messages/chat.db` to Downloads
-   - Pattern uses file input to read it
-   - Parse using SQL.js (SQLite compiled to WASM)
+**Goal:** Create a CLI that syncs Apple data to user's space, plus patterns that view it.
 
-2. **Provide clear instructions:**
-   - How to copy the database
-   - What permissions to grant
-   - Privacy considerations
+#### 1a. Build the CLI Tool
 
-### Phase 2: iCal Import via ICS Upload
+**Technology choice:** Deno (TypeScript, single binary, good SQLite support)
 
-1. **Create a pattern that accepts .ics files**
-   - User exports calendars from Calendar.app
-   - Pattern parses using ts-ics or similar
+```typescript
+// apple-sync CLI structure
+import { DB } from "https://deno.land/x/sqlite/mod.ts";
 
-2. **Multiple calendar support:**
-   - Accept multiple .ics files
-   - Merge into unified view
+interface SyncConfig {
+  spaceId: string;
+  apiUrl: string;        // toolshed API
+  identityKey: string;   // for authentication
+  sources: {
+    imessage?: boolean;
+    calendar?: boolean;
+  };
+}
 
-### Phase 3: MCP Integration (If framework supports)
+// Read iMessage database
+function readMessages(since?: Date): Message[] {
+  const db = new DB(`${Deno.env.get("HOME")}/Library/Messages/chat.db`);
+  // Query messages since last sync
+  // Transform to pattern format
+}
 
-If patterns can integrate with MCP servers:
+// Write to user's space
+async function writeToSpace(data: any, charmId: string) {
+  // Use toolshed API to update charm data
+  await fetch(`${apiUrl}/api/...`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${identityKey}` },
+    body: JSON.stringify(data)
+  });
+}
+```
 
-1. **Detect local MCP servers**
-   - Check for known MCP server endpoints
-   - Provide setup instructions if not found
+**Key features:**
+- `apple-sync init` - Configure space ID, API credentials
+- `apple-sync imessage` - Sync iMessages
+- `apple-sync calendar` - Sync calendar events
+- `apple-sync watch` - Continuous sync mode
+- `apple-sync install-daemon` - Set up launchd for auto-sync
 
-2. **Use MCP tools for real-time access**
-   - Call MCP tools to fetch data
-   - Support incremental sync
+#### 1b. Create Viewer Patterns
+
+**iMessage Viewer Pattern:**
+- Reads messages from its input cell (populated by CLI)
+- Search by contact, date, content
+- Conversation threading
+- No special permissions needed
+
+**Calendar Viewer Pattern:**
+- Reads events from its input cell
+- Calendar view (day/week/month)
+- Event details, attendees
+- Similar to existing google-calendar-importer but data comes from CLI
+
+#### 1c. Charm Creation Flow
+
+```
+User runs: apple-sync init --space myspace
+
+CLI creates:
+  1. An "iMessage Store" charm in user's space (holds message data)
+  2. An "iMessage Viewer" charm linked to the store
+  3. A "Calendar Store" charm (holds event data)
+  4. A "Calendar Viewer" charm linked to the store
+
+User runs: apple-sync watch
+
+CLI continuously syncs data into the store charms.
+Viewer patterns reactively update as data changes.
+```
+
+### Phase 2: Polish and Distribution
+
+1. **Compile to single binary** using `deno compile`
+2. **Homebrew formula** for easy installation
+3. **Setup wizard** in CLI for permissions guidance
+4. **Encryption at rest** for sensitive data in transit
+
+### Phase 3: Additional Data Sources
+
+Once the CLI architecture is proven, expand to other Apple data:
+
+---
+
+## Additional Apple Data Sources
+
+### Apple Notes
+
+**Database Location:**
+- Modern: `~/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite`
+- Legacy paths vary by macOS version (NotesV1-V7.storedata)
+
+**Database Structure:**
+- `ZICNOTEDATA` table contains note content
+- `ZICNOTEDATA.ZDATA` blob is **gzip compressed**
+- Decompressed data is in proprietary binary format (not plain text)
+- Attachments stored in `~/Library/Group Containers/group.com.apple.notes/Media/<UUID>/`
+
+**Challenges:**
+- Note content is NOT plain text - requires parsing proprietary format
+- Tool [apple_cloud_notes_parser](https://github.com/threeplanetssoftware/apple_cloud_notes_parser) shows how to parse
+- [notes-import](https://github.com/ChrLipp/notes-import) Groovy tool can extract to files
+
+**Read:** Possible via SQLite + custom parsing
+**Write:** AppleScript can create notes via `tell application "Notes"`
+
+**Sources:**
+- [Reading Notes database on macOS - Swift Forensics](http://www.swiftforensics.com/2018/02/reading-notes-database-on-macos.html)
+- [Where are Notes Stored on Mac](https://osxdaily.com/2020/01/15/where-notes-stored-locally-mac/)
+
+---
+
+### Apple Reminders
+
+**Database Location:**
+- `~/Library/Reminders/Container_v1/Stores/Data-<UUID>.sqlite`
+
+**Better Approach: EventKit**
+- Reminders and Calendar share the same underlying database
+- EventKit framework provides official API
+- `EKEventStore` class for accessing reminder data
+- `fetchRemindersMatchingPredicate:completion:` to query
+
+**Database Tables (if direct access needed):**
+- `ZREMCDREMINDER` - reminder data
+- `ZREMCDOBJECT` - general objects
+- `ZREMCDHASHTAGLABEL` - tags
+
+**Performance note:** If slow, run `VACUUM; ANALYZE;` on the SQLite files
+
+**Read:** EventKit (preferred) or SQLite
+**Write:**
+- EventKit can create/modify reminders
+- AppleScript: `tell application "Reminders"` with `make new reminder with properties {name:..., due date:..., body:...}`
+
+**Sources:**
+- [Creating events and reminders - Apple](https://developer.apple.com/documentation/eventkit/creating-events-and-reminders)
+- [Accessing Reminders with EventKit](https://kykim.github.io/blog/2012/10/09/accessing-reminders-with-eventkit-part-1/)
+- [Notes on accessing Apple Reminders](https://gist.github.com/0xdevalias/ccc2b083ff58b52aa701462f2cfb3cc8)
+
+---
+
+### Apple Contacts
+
+**Database Location:**
+- `~/Library/Application Support/AddressBook/` (SQLite database)
+- Individual contacts stored as separate files with unique IDs
+
+**Access Methods:**
+1. **Address Book Framework** (Objective-C/C) - official API
+2. **AppleScript** - `tell application "Contacts"` (or legacy "Address Book")
+3. **`contacts` CLI** - built-in but limited, not compatible with newer macOS
+4. **Direct SQLite** - possible but not recommended
+
+**AppleScript Example:**
+```applescript
+tell application "Contacts"
+    make new person with properties {first name:"John", last name:"Doe"}
+    -- emails, phones, addresses are elements, not properties
+end tell
+```
+
+**Read:** AppleScript or Address Book framework
+**Write:** AppleScript can create/modify contacts
+
+**Sources:**
+- [Introduction to Scripting Address Book - MacTech](http://preserve.mactech.com/articles/mactech/Vol.21/21.10/ScriptingAddressBook/index.html)
+- [Address Book - Apple Developer](https://developer.apple.com/documentation/addressbook)
+
+---
+
+## Write Support Architecture
+
+For bidirectional sync (not just import), the CLI needs write capabilities:
+
+### AppleScript as Write Backend
+
+AppleScript provides write access to most Apple apps:
+
+| App | Read | Write via AppleScript |
+|-----|------|----------------------|
+| Messages | SQLite | ✅ Send messages (existing conversations only) |
+| Calendar | SQLite/EventKit | ✅ Create/modify events |
+| Reminders | EventKit | ✅ Create/modify reminders |
+| Notes | SQLite (complex) | ✅ Create/modify notes |
+| Contacts | SQLite | ✅ Create/modify contacts |
+
+**Limitation for iMessage:** AppleScript cannot start NEW conversations, only send to existing buddies.
+
+### CLI Write Flow
+
+```
+Pattern (browser) ---> API call ---> CLI (running locally)
+                                         |
+                                         v
+                                    AppleScript
+                                         |
+                                         v
+                                    Apple App
+```
+
+**Example: Create Reminder from Pattern**
+
+1. Pattern sends request to local CLI endpoint
+2. CLI receives `{action: "createReminder", name: "Buy milk", dueDate: "..."}`
+3. CLI executes AppleScript:
+   ```applescript
+   tell application "Reminders"
+       make new reminder with properties {name:"Buy milk", due date:date "..."}
+   end tell
+   ```
+4. CLI confirms success back to pattern
+
+### Two-Way Sync Considerations
+
+1. **Conflict resolution** - What if item edited in both places?
+2. **Sync frequency** - How often to check for changes?
+3. **ID mapping** - Pattern IDs vs Apple IDs
+4. **Deletion handling** - Soft delete vs hard delete?
+
+### Security for Write Operations
+
+- CLI should require explicit confirmation for writes
+- Rate limiting to prevent abuse
+- Audit log of all write operations
+- Optional: require pattern to be "trusted" for writes
+
+### Alternative: File Upload (Simpler but Manual)
+
+If CLI is too much overhead, fall back to file upload:
+
+1. **iMessage via chat.db upload**
+   - User copies database file
+   - Pattern parses with SQL.js (WASM)
+
+2. **Calendar via ICS export**
+   - User exports from Calendar.app
+   - Pattern parses with ts-ics
 
 ---
 
@@ -305,27 +568,89 @@ If patterns can integrate with MCP servers:
 
 ## Open Questions
 
-1. **Can patterns access local filesystem?**
-   - File upload works, but direct filesystem access?
+1. **Toolshed API for external writes?**
+   - Can a CLI tool write to a charm's data cells?
+   - What authentication is needed? (identity key?)
+   - Is there a documented API for this?
 
-2. **MCP integration in patterns?**
-   - Can patterns call MCP tools directly?
-   - Would need MCP client implementation
+2. **Charm creation from CLI?**
+   - Can the CLI create new charms programmatically?
+   - Or does user need to create the "store" charm first in UI?
 
-3. **SQL.js for SQLite parsing?**
-   - Can we bundle SQL.js for in-browser SQLite parsing?
-   - Would enable direct chat.db parsing without backend
+3. **Incremental sync mechanism?**
+   - How to track what's been synced (historyId equivalent)?
+   - Store sync cursor in the charm itself? Local file?
 
-4. **Privacy model for sensitive data?**
+4. **Real-time updates?**
+   - Can CLI push updates that pattern sees immediately?
+   - Or does pattern need to poll/refresh?
+
+5. **Privacy model for sensitive data?**
    - How does pattern framework handle Confidential data?
    - Can we prevent accidental data exposure?
+
+6. **macOS Ventura+ message encoding?**
+   - Recent macOS encodes messages in `attributedBody` as hex blob
+   - Need to decode this format (NSAttributedString serialization)
 
 ---
 
 ## Next Steps
 
-1. [ ] Prototype ICS file upload and parsing
-2. [ ] Prototype chat.db parsing with SQL.js
-3. [ ] Evaluate MCP integration possibilities
-4. [ ] Design permission/setup UX flow
-5. [ ] Create user documentation for data export
+### Phase 1: Core Infrastructure
+1. [ ] **Research toolshed API** for external charm data writes
+2. [ ] **Prototype Deno CLI** with basic structure
+3. [ ] **Test writing to a charm** from external CLI
+4. [ ] **Design CLI <-> Pattern communication** (local HTTP? WebSocket?)
+
+### Phase 2: iMessage (Read-only MVP)
+5. [ ] **Implement chat.db reader** in Deno
+6. [ ] **Handle Ventura+ message encoding** (attributedBody blob)
+7. [ ] **Create iMessage viewer pattern** that reads from input cell
+8. [ ] **Handle incremental sync** (track last message ROWID)
+
+### Phase 3: Calendar & Reminders
+9. [ ] **Implement Calendar SQLite reader** or use EventKit via native binding
+10. [ ] **Implement Reminders reader** (EventKit preferred)
+11. [ ] **Create Calendar/Reminders viewer patterns**
+
+### Phase 4: Write Support
+12. [ ] **Implement AppleScript execution** from Deno CLI
+13. [ ] **Add write endpoints** to CLI (create reminder, send message, etc.)
+14. [ ] **Design pattern -> CLI write flow** (confirmation UX)
+15. [ ] **Handle write conflicts** and error cases
+
+### Phase 5: Notes & Contacts
+16. [ ] **Parse Notes proprietary format** (gzip + binary)
+17. [ ] **Implement Contacts reader** via AppleScript
+18. [ ] **Create Notes/Contacts viewer patterns**
+
+### Documentation & Distribution
+19. [ ] **Document setup flow** for users (permissions, CLI install)
+20. [ ] **Create Homebrew formula** for CLI distribution
+21. [ ] **Write user guide** with troubleshooting
+
+---
+
+## Resources
+
+### iMessage Database
+- [Simon Willison's iMessage SQL exploration](https://simonwillison.net/2020/May/22/using-sql-look-through-all-your-imessage-text-messages/)
+- [David Bieber's iMessage SQL snippets](https://davidbieber.com/snippets/2020-05-20-imessage-sql-db/)
+- [imessage_reader Python library](https://github.com/niftycode/imessage_reader)
+
+### Calendar Database
+- [icalPal CLI tool](https://github.com/ajrosen/icalPal)
+- [eventkit-node](https://github.com/dacay/eventkit-node)
+
+### MCP Servers (reference implementations)
+- [imessage-query-fastmcp](https://github.com/hannesrudolph/imessage-query-fastmcp-mcp-server)
+- [apple-mcp](https://github.com/supermemoryai/apple-mcp)
+- [mcp-ical](https://github.com/Omar-V2/mcp-ical)
+
+### ICS Parsing
+- [ts-ics](https://github.com/Neuvernetzung/ts-ics)
+- [node-ical](https://github.com/jens-maus/node-ical)
+
+### Deno SQLite
+- [deno.land/x/sqlite](https://deno.land/x/sqlite)
