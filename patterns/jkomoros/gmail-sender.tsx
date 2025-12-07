@@ -252,7 +252,7 @@ export default pattern<Input, Output>(({ draft }) => {
 
         {/* Result display */}
         {ifElse(
-          derive(result, (r) => r?.success === true),
+          derive(result, (r: SendResult | null) => r?.success === true),
           <div
             style={{
               padding: "16px",
@@ -279,7 +279,7 @@ export default pattern<Input, Output>(({ draft }) => {
                   Email Sent Successfully!
                 </div>
                 <div style={{ fontSize: "12px", color: "#047857" }}>
-                  Message ID: {derive(result, (r) => r?.messageId)}
+                  Message ID: {derive(result, (r: SendResult | null) => r?.messageId)}
                 </div>
               </div>
               <button
@@ -300,7 +300,7 @@ export default pattern<Input, Output>(({ draft }) => {
         )}
 
         {ifElse(
-          derive(result, (r) => r?.success === false),
+          derive(result, (r: SendResult | null) => r?.success === false),
           <div
             style={{
               padding: "16px",
@@ -327,7 +327,7 @@ export default pattern<Input, Output>(({ draft }) => {
                   Failed to Send Email
                 </div>
                 <div style={{ fontSize: "14px", color: "#b91c1c" }}>
-                  {derive(result, (r) => r?.error)}
+                  {derive(result, (r: SendResult | null) => r?.error)}
                 </div>
               </div>
               <button
@@ -370,20 +370,11 @@ export default pattern<Input, Output>(({ draft }) => {
             >
               To <span style={{ color: "#ef4444" }}>*</span>
             </label>
-            <input
+            <ct-input
               type="email"
-              value={draft.to}
-              onInput={(e: Event) => {
-                draft.to.set((e.target as HTMLInputElement).value);
-              }}
+              $value={draft.to}
               placeholder="recipient@example.com"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              style="width: 100%; padding: 8px 12px;"
             />
           </div>
 
@@ -399,20 +390,11 @@ export default pattern<Input, Output>(({ draft }) => {
               >
                 CC
               </label>
-              <input
+              <ct-input
                 type="text"
-                value={draft.cc}
-                onInput={(e: Event) => {
-                  draft.cc.set((e.target as HTMLInputElement).value);
-                }}
+                $value={draft.cc}
                 placeholder="cc@example.com"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                style="width: 100%; padding: 8px 12px;"
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -426,20 +408,11 @@ export default pattern<Input, Output>(({ draft }) => {
               >
                 BCC
               </label>
-              <input
+              <ct-input
                 type="text"
-                value={draft.bcc}
-                onInput={(e: Event) => {
-                  draft.bcc.set((e.target as HTMLInputElement).value);
-                }}
+                $value={draft.bcc}
                 placeholder="bcc@example.com"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                style="width: 100%; padding: 8px 12px;"
               />
             </div>
           </div>
@@ -455,20 +428,11 @@ export default pattern<Input, Output>(({ draft }) => {
             >
               Subject <span style={{ color: "#ef4444" }}>*</span>
             </label>
-            <input
+            <ct-input
               type="text"
-              value={draft.subject}
-              onInput={(e: Event) => {
-                draft.subject.set((e.target as HTMLInputElement).value);
-              }}
+              $value={draft.subject}
               placeholder="Email subject"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              style="width: 100%; padding: 8px 12px;"
             />
           </div>
 
@@ -483,22 +447,10 @@ export default pattern<Input, Output>(({ draft }) => {
             >
               Message <span style={{ color: "#ef4444" }}>*</span>
             </label>
-            <textarea
-              value={draft.body}
-              onInput={(e: Event) => {
-                draft.body.set((e.target as HTMLTextAreaElement).value);
-              }}
+            <ct-input
+              $value={draft.body}
               placeholder="Write your message..."
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                minHeight: "150px",
-                resize: "vertical",
-                fontFamily: "inherit",
-              }}
+              style="width: 100%; padding: 8px 12px; min-height: 150px;"
             />
           </div>
 

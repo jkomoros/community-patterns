@@ -258,13 +258,14 @@ const prepareDelete = handler<
 });
 
 const prepareRsvp = handler<
-  { status: RSVPStatus },
+  unknown,
   {
+    status: RSVPStatus;
     draft: Cell<EventDraft>;
     existingEvent: Cell<ExistingEvent>;
     pendingOp: Cell<PendingOperation>;
   }
->(({ status }, { draft, existingEvent, pendingOp }) => {
+>((_, { status, draft, existingEvent, pendingOp }) => {
   const d = draft.get();
   const existing = existingEvent.get();
   if (!existing?.id) return;
@@ -499,7 +500,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
 
         {/* Result display */}
         {ifElse(
-          derive(result, (r) => r?.success === true),
+          derive(result, (r: OperationResult) => r?.success === true),
           <div
             style={{
               padding: "16px",
@@ -523,7 +524,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     color: "#065f46",
                   }}
                 >
-                  {derive(result, (r) => {
+                  {derive(result, (r: OperationResult) => {
                     switch (r?.operation) {
                       case "create":
                         return "Event Created!";
@@ -539,9 +540,9 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   })}
                 </div>
                 {ifElse(
-                  derive(result, (r) => !!r?.eventId),
+                  derive(result, (r: OperationResult) => !!r?.eventId),
                   <div style={{ fontSize: "12px", color: "#047857" }}>
-                    Event ID: {derive(result, (r) => r?.eventId)}
+                    Event ID: {derive(result, (r: OperationResult) => r?.eventId)}
                   </div>,
                   null,
                 )}
@@ -564,7 +565,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
         )}
 
         {ifElse(
-          derive(result, (r) => r?.success === false),
+          derive(result, (r: OperationResult) => r?.success === false),
           <div
             style={{
               padding: "16px",
@@ -591,7 +592,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   Operation Failed
                 </div>
                 <div style={{ fontSize: "14px", color: "#b91c1c" }}>
-                  {derive(result, (r) => r?.error)}
+                  {derive(result, (r: OperationResult) => r?.error)}
                 </div>
               </div>
               <button
@@ -637,7 +638,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
             >
               Editing event:{" "}
               <strong>
-                {derive(existingEvent, (e) => e?.summary || e?.id)}
+                {derive(existingEvent, (e: ExistingEvent) => e?.summary || e?.id)}
               </strong>
             </div>,
             null,
@@ -654,20 +655,11 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
             >
               Event Title <span style={{ color: "#ef4444" }}>*</span>
             </label>
-            <input
+            <ct-input
               type="text"
-              value={draft.summary}
-              onInput={(e: Event) => {
-                draft.summary.set((e.target as HTMLInputElement).value);
-              }}
+              $value={draft.summary}
               placeholder="Team Meeting"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              style="width: 100%; padding: 8px 12px;"
             />
           </div>
 
@@ -683,19 +675,10 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
               >
                 Start <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input
+              <ct-input
                 type="datetime-local"
-                value={draft.start}
-                onInput={(e: Event) => {
-                  draft.start.set((e.target as HTMLInputElement).value);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                $value={draft.start}
+                style="width: 100%; padding: 8px 12px;"
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -709,19 +692,10 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
               >
                 End <span style={{ color: "#ef4444" }}>*</span>
               </label>
-              <input
+              <ct-input
                 type="datetime-local"
-                value={draft.end}
-                onInput={(e: Event) => {
-                  draft.end.set((e.target as HTMLInputElement).value);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                }}
+                $value={draft.end}
+                style="width: 100%; padding: 8px 12px;"
               />
             </div>
           </div>
@@ -737,20 +711,11 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
             >
               Location
             </label>
-            <input
+            <ct-input
               type="text"
-              value={draft.location}
-              onInput={(e: Event) => {
-                draft.location.set((e.target as HTMLInputElement).value);
-              }}
+              $value={draft.location}
               placeholder="Conference Room A / Zoom link"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              style="width: 100%; padding: 8px 12px;"
             />
           </div>
 
@@ -765,22 +730,10 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
             >
               Description
             </label>
-            <textarea
-              value={draft.description}
-              onInput={(e: Event) => {
-                draft.description.set((e.target as HTMLTextAreaElement).value);
-              }}
+            <ct-input
+              $value={draft.description}
               placeholder="Event details and agenda..."
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                minHeight: "80px",
-                resize: "vertical",
-                fontFamily: "inherit",
-              }}
+              style="width: 100%; padding: 8px 12px; min-height: 80px;"
             />
           </div>
 
@@ -795,20 +748,11 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
             >
               Attendees (comma-separated emails)
             </label>
-            <input
+            <ct-input
               type="text"
-              value={draft.attendeesText}
-              onInput={(e: Event) => {
-                draft.attendeesText.set((e.target as HTMLInputElement).value);
-              }}
+              $value={draft.attendeesText}
               placeholder="alice@example.com, bob@example.com"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-              }}
+              style="width: 100%; padding: 8px 12px;"
             />
           </div>
 
@@ -894,10 +838,12 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     RSVP:
                   </span>
                   <button
-                    onClick={prepareRsvp(
-                      { status: "accepted" },
-                      { draft, existingEvent, pendingOp },
-                    )}
+                    onClick={prepareRsvp({
+                      status: "accepted",
+                      draft,
+                      existingEvent,
+                      pendingOp,
+                    })}
                     disabled={processing}
                     style={{
                       padding: "8px 12px",
@@ -912,10 +858,12 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     Accept
                   </button>
                   <button
-                    onClick={prepareRsvp(
-                      { status: "tentative" },
-                      { draft, existingEvent, pendingOp },
-                    )}
+                    onClick={prepareRsvp({
+                      status: "tentative",
+                      draft,
+                      existingEvent,
+                      pendingOp,
+                    })}
                     disabled={processing}
                     style={{
                       padding: "8px 12px",
@@ -930,10 +878,12 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     Maybe
                   </button>
                   <button
-                    onClick={prepareRsvp(
-                      { status: "declined" },
-                      { draft, existingEvent, pendingOp },
-                    )}
+                    onClick={prepareRsvp({
+                      status: "declined",
+                      draft,
+                      existingEvent,
+                      pendingOp,
+                    })}
                     disabled={processing}
                     style={{
                       padding: "8px 12px",
@@ -956,7 +906,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
 
         {/* CONFIRMATION DIALOG */}
         {ifElse(
-          derive(pendingOp, (op) => op !== null),
+          derive(pendingOp, (op: PendingOperation) => op !== null),
           <div
             style={{
               position: "fixed",
@@ -986,7 +936,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
               <div
                 style={{
                   padding: "20px",
-                  borderBottom: derive(pendingOp, (op) =>
+                  borderBottom: derive(pendingOp, (op: PendingOperation) =>
                     `2px solid ${op?.operation === "delete" ? "#dc2626" : "#2563eb"}`,
                   ),
                   display: "flex",
@@ -995,7 +945,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                 }}
               >
                 <span style={{ fontSize: "24px" }}>
-                  {derive(pendingOp, (op) => {
+                  {derive(pendingOp, (op: PendingOperation) => {
                     switch (op?.operation) {
                       case "create":
                         return "📅";
@@ -1014,12 +964,12 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   style={{
                     margin: 0,
                     fontSize: "20px",
-                    color: derive(pendingOp, (op) =>
+                    color: derive(pendingOp, (op: PendingOperation) =>
                       op?.operation === "delete" ? "#dc2626" : "#2563eb",
                     ),
                   }}
                 >
-                  {derive(pendingOp, (op) => {
+                  {derive(pendingOp, (op: PendingOperation) => {
                     switch (op?.operation) {
                       case "create":
                         return "Create Event";
@@ -1054,7 +1004,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                       marginBottom: "12px",
                     }}
                   >
-                    {derive(pendingOp, (op) => op?.event.summary || "Untitled")}
+                    {derive(pendingOp, (op: PendingOperation) => op?.event.summary || "Untitled")}
                   </div>
 
                   {/* Time */}
@@ -1069,7 +1019,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   >
                     <span>🕐</span>
                     <span>
-                      {derive(pendingOp, (op) =>
+                      {derive(pendingOp, (op: PendingOperation) =>
                         op?.event.start
                           ? `${formatDateTime(op.event.start)} - ${formatDateTime(op.event.end)}`
                           : "",
@@ -1079,7 +1029,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
 
                   {/* Location */}
                   {ifElse(
-                    derive(pendingOp, (op) => !!op?.event.location),
+                    derive(pendingOp, (op: PendingOperation) => !!op?.event.location),
                     <div
                       style={{
                         display: "flex",
@@ -1090,7 +1040,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                       }}
                     >
                       <span>📍</span>
-                      <span>{derive(pendingOp, (op) => op?.event.location)}</span>
+                      <span>{derive(pendingOp, (op: PendingOperation) => op?.event.location)}</span>
                     </div>,
                     null,
                   )}
@@ -1099,7 +1049,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   {ifElse(
                     derive(
                       pendingOp,
-                      (op) =>
+                      (op: PendingOperation) =>
                         op?.event.attendees && op.event.attendees.length > 0,
                     ),
                     <div
@@ -1123,7 +1073,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                           Attendees (
                           {derive(
                             pendingOp,
-                            (op) => op?.event.attendees?.length || 0,
+                            (op: PendingOperation) => op?.event.attendees?.length || 0,
                           )}
                           )
                         </span>
@@ -1131,7 +1081,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                       <div
                         style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
                       >
-                        {derive(pendingOp, (op) =>
+                        {derive(pendingOp, (op: PendingOperation) =>
                           (op?.event.attendees || []).map((email) => (
                             <span
                               style={{
@@ -1155,7 +1105,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   {ifElse(
                     derive(
                       pendingOp,
-                      (op) => op?.operation === "rsvp" && !!op?.rsvpStatus,
+                      (op: PendingOperation) => op?.operation === "rsvp" && !!op?.rsvpStatus,
                     ),
                     <div
                       style={{
@@ -1163,7 +1113,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                         padding: "8px 12px",
                         borderRadius: "6px",
                         textAlign: "center",
-                        background: derive(pendingOp, (op) => {
+                        background: derive(pendingOp, (op: PendingOperation) => {
                           switch (op?.rsvpStatus) {
                             case "accepted":
                               return "#d1fae5";
@@ -1179,7 +1129,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     >
                       Your response:{" "}
                       <strong>
-                        {derive(pendingOp, (op) => op?.rsvpStatus)}
+                        {derive(pendingOp, (op: PendingOperation) => op?.rsvpStatus)}
                       </strong>
                     </div>,
                     null,
@@ -1191,12 +1141,12 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   style={{
                     padding: "12px 16px",
                     borderRadius: "8px",
-                    border: derive(pendingOp, (op) =>
+                    border: derive(pendingOp, (op: PendingOperation) =>
                       op?.operation === "delete"
                         ? "1px solid #ef4444"
                         : "1px solid #f59e0b",
                     ),
-                    background: derive(pendingOp, (op) =>
+                    background: derive(pendingOp, (op: PendingOperation) =>
                       op?.operation === "delete" ? "#fee2e2" : "#fef3c7",
                     ),
                   }}
@@ -1205,25 +1155,25 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                     style={{
                       fontWeight: "600",
                       marginBottom: "4px",
-                      color: derive(pendingOp, (op) =>
+                      color: derive(pendingOp, (op: PendingOperation) =>
                         op?.operation === "delete" ? "#991b1b" : "#92400e",
                       ),
                     }}
                   >
                     {derive(
                       pendingOp,
-                      (op) => getOperationWarning(op).title,
+                      (op: PendingOperation) => getOperationWarning(op).title,
                     )}
                   </div>
                   <div
                     style={{
                       fontSize: "14px",
-                      color: derive(pendingOp, (op) =>
+                      color: derive(pendingOp, (op: PendingOperation) =>
                         op?.operation === "delete" ? "#b91c1c" : "#78350f",
                       ),
                     }}
                   >
-                    {derive(pendingOp, (op) => getOperationWarning(op).desc)}
+                    {derive(pendingOp, (op: PendingOperation) => getOperationWarning(op).desc)}
                   </div>
                 </div>
               </div>
@@ -1266,7 +1216,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   disabled={processing}
                   style={{
                     padding: "10px 20px",
-                    background: derive(pendingOp, (op) =>
+                    background: derive(pendingOp, (op: PendingOperation) =>
                       op?.operation === "delete" ? "#dc2626" : "#2563eb",
                     ),
                     color: "white",
@@ -1281,7 +1231,7 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
                   {ifElse(
                     processing,
                     "Processing...",
-                    derive(pendingOp, (op) => {
+                    derive(pendingOp, (op: PendingOperation) => {
                       switch (op?.operation) {
                         case "create":
                           return "Create Event";
