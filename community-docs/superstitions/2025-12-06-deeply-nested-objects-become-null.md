@@ -120,8 +120,8 @@ If you see array items become `null` when stored:
 ```yaml
 topic: cells, serialization, nested-objects, Record, arrays, null
 discovered: 2025-12-06
-confirmed_count: 1
-last_confirmed: 2025-12-06
+confirmed_count: 2
+last_confirmed: 2025-12-07
 sessions: [community-query-sharing]
 related_functions: cell, Default, Record
 status: superstition
@@ -131,6 +131,7 @@ stars: ⭐⭐⭐
 ## Guestbook
 
 - 2025-12-06 - gmail-search-registry.tsx. Had `Record<string, AgentTypeRegistry>` where `AgentTypeRegistry.queries: SharedQuery[]`. When setting data via CLI or handler, the SharedQuery objects in the queries array became `null`. Empty arrays work fine. Confirmed by setting data directly via `ct charm set`. (community-query-sharing)
+- 2025-12-07 - imessage-viewer.tsx. When reading existing messages via `ct charm get`, some array items appeared as `null`. Added null guards in derive callbacks to handle this. Data displayed correctly in UI confirming this is CLI-only. (apple-sync-calendar)
 
 ---
 
