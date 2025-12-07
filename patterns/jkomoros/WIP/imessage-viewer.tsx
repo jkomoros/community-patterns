@@ -60,8 +60,10 @@ function formatDate(dateStr: string): string {
 
 // Format chat ID for display (clean up phone numbers)
 function formatChatId(chatId: string): string {
-  if (chatId.match(/^\+?1?\d{10,}$/)) {
-    const digits = chatId.replace(/\D/g, "");
+  // Extract digits from phone number (handles +1-555-0101, +15550101, etc.)
+  const digits = chatId.replace(/\D/g, "");
+  // If it looks like a phone number (10-11 digits), format it
+  if (digits.length >= 10 && digits.length <= 11) {
     const last10 = digits.slice(-10);
     return `(${last10.slice(0, 3)}) ${last10.slice(3, 6)}-${last10.slice(6)}`;
   }
