@@ -125,14 +125,62 @@ CONFIGURATION:
 `);
 }
 
-// ===== CHARM WRITE =====
+// ===== CHARM READ/WRITE =====
 
-interface WriteToCharmOptions {
+interface CharmOptions {
   apiUrl: string;
   space: string;
   charmId: string;
   path: string;
+}
+
+interface WriteToCharmOptions extends CharmOptions {
   data: unknown;
+}
+
+async function readFromCharm<T>(options: CharmOptions): Promise<T | null> {
+  const { apiUrl, space, charmId, path } = options;
+
+  const labsDir = DEFAULT_LABS_DIR;
+  const denoJson = `${labsDir}/deno.json`;
+
+  const command = new Deno.Command("deno", {
+    args: [
+      "task",
+      "--config", denoJson,
+      "ct", "charm", "get",
+      "--api-url", apiUrl,
+      "--identity", IDENTITY_PATH,
+      "--space", space,
+      "--charm", charmId,
+      "--input",
+      path,
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const output = await command.output();
+
+  if (!output.success) {
+    // If charm has no data yet, return null instead of error
+    const stderr = new TextDecoder().decode(output.stderr);
+    if (stderr.includes("undefined") || stderr.includes("null")) {
+      return null;
+    }
+    throw new Error(`Failed to read from charm: ${stderr}`);
+  }
+
+  const stdout = new TextDecoder().decode(output.stdout).trim();
+  if (!stdout || stdout === "null" || stdout === "undefined") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(stdout) as T;
+  } catch {
+    return null;
+  }
 }
 
 async function writeToCharm(options: WriteToCharmOptions): Promise<void> {
@@ -378,7 +426,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
 
   // Convert messages to format expected by the pattern
   // The pattern expects Message[] with date as ISO string
-  const messagesForCharm = messages.map(msg => ({
+  const newMessagesForCharm = messages.map(msg => ({
     rowId: msg.rowId,
     guid: msg.guid,
     text: msg.text,
@@ -388,15 +436,61 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     handleId: msg.handleId,
   }));
 
-  // Write to charm
+  // Read existing messages from charm and merge
+  console.log("\n  Reading existing messages from charm...");
+  const charmConfig = {
+    apiUrl: config.apiUrl || "http://localhost:8000",
+    space: config.space,
+    charmId: charmId,
+    path: "messages",
+  };
+
+  interface CharmMessage {
+    rowId: number;
+    guid: string;
+    text: string | null;
+    isFromMe: boolean;
+    date: string;
+    chatId: string;
+    handleId: string;
+  }
+
+  let existingMessages: CharmMessage[] = [];
+  try {
+    const existing = await readFromCharm<CharmMessage[]>(charmConfig);
+    existingMessages = existing || [];
+    console.log(`  Found ${existingMessages.length} existing messages`);
+  } catch (error) {
+    // If we can't read, assume empty - first sync
+    console.log("  No existing messages (first sync)");
+  }
+
+  // Merge: dedupe by guid, keeping newest version
+  const messagesByGuid = new Map<string, CharmMessage>();
+  for (const msg of existingMessages) {
+    if (msg && msg.guid) {
+      messagesByGuid.set(msg.guid, msg);
+    }
+  }
+  for (const msg of newMessagesForCharm) {
+    if (msg && msg.guid) {
+      messagesByGuid.set(msg.guid, msg);
+    }
+  }
+
+  const mergedMessages = Array.from(messagesByGuid.values());
+  // Sort by date
+  mergedMessages.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const newCount = mergedMessages.length - existingMessages.length;
+  console.log(`  Merged: ${newCount} new messages added (${mergedMessages.length} total)`);
+
+  // Write merged messages to charm
   console.log("\n  Writing to charm...");
   try {
     await writeToCharm({
-      apiUrl: config.apiUrl || "http://localhost:8000",
-      space: config.space,
-      charmId: charmId,
-      path: "messages",
-      data: messagesForCharm,
+      ...charmConfig,
+      data: mergedMessages,
     });
     console.log("  ✓ Written to charm");
   } catch (error) {
@@ -414,7 +508,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     await saveState(state);
   }
 
-  console.log(`\n✅ Synced ${messages.length} messages`);
+  console.log(`\n✅ Synced ${newCount} new messages (${mergedMessages.length} total)`);
   if (!useMock) {
     console.log(`   New last row ID: ${maxRowId}`);
   }

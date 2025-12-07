@@ -72,6 +72,8 @@ function formatChatId(chatId: string): string {
 function groupByChat(messages: Message[]): Map<string, Message[]> {
   const byChat = new Map<string, Message[]>();
   for (const msg of messages) {
+    // Skip null/undefined messages (CLI display bug can cause these)
+    if (!msg || !msg.chatId) continue;
     const existing = byChat.get(msg.chatId) || [];
     existing.push(msg);
     byChat.set(msg.chatId, existing);
@@ -130,7 +132,8 @@ export default pattern<{
     { messages, selectedChatId },
     ({ messages, selectedChatId }: { messages: Message[]; selectedChatId: string | null }) => {
       if (!selectedChatId || !messages) return [];
-      const filtered = messages.filter((m: Message) => m.chatId === selectedChatId);
+      // Filter out null messages and match chatId
+      const filtered = messages.filter((m: Message) => m && m.chatId === selectedChatId);
       filtered.sort((a: Message, b: Message) => new Date(a.date).getTime() - new Date(b.date).getTime());
       return filtered;
     }
