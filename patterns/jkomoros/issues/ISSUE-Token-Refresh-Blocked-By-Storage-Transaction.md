@@ -1,5 +1,7 @@
 # Issue: Token Refresh Blocked by Storage Transaction Isolation
 
+**Linear Issue:** [CT-1105](https://linear.app/common-tools/issue/CT-1105/token-refresh-blocked-by-storage-transaction-isolation-cross-charm)
+
 ## Summary
 
 When trying to refresh an expired Gmail OAuth token within a handler, the framework's storage transaction isolation prevents the cell write, causing the refresh to fail with `StorageTransactionWriteIsolationError`.

@@ -59,7 +59,7 @@ export interface AgentTypeRegistry {
 // ============================================================================
 
 export interface GmailSearchRegistryInput {
-  // Flat array of all queries (workaround for nested object serialization bug)
+  // Flat array of all queries (workaround for CLI display bug CT-1104)
   queries?: Default<SharedQuery[], []>;
 }
 
