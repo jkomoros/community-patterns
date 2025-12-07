@@ -259,9 +259,9 @@ const dismissResult = handler<
 export default pattern<Input, Output>(
   ({ messageIds, labelsToAdd, labelsToRemove }) => {
     // Auth via wish - discovers favorited Google Auth charm
-    const authCharm = wish<{ auth: Auth }>("#googleAuth");
-    // Use property access to maintain writable cell for token refresh
-    const auth = authCharm.auth;
+    const wishResult = wish<{ auth: Auth }>({ query: "#googleAuth" });
+    // Use property access via .result, not derive(), to maintain writable cell for token refresh
+    const auth = wishResult.result?.auth;
     const userEmail = derive(auth, (a) => a?.user?.email || "");
     const hasAuth = derive(auth, (a) => !!a?.token);
 
@@ -311,6 +311,9 @@ export default pattern<Input, Output>(
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: "0" }}>
             Gmail Label Manager
           </h2>
+
+          {/* CT-1090 workaround: embed wishResult in JSX to trigger cross-space charm startup */}
+          <div style={{ display: "none" }}>{wishResult}</div>
 
           {/* Auth status */}
           {ifElse(

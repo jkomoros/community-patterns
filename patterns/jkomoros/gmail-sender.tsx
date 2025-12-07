@@ -177,9 +177,9 @@ const dismissResult = handler<unknown, { result: Cell<SendResult | null> }>(
 
 export default pattern<Input, Output>(({ draft }) => {
   // Auth via wish - discovers favorited Google Auth charm
-  const authCharm = wish<{ auth: Auth }>("#googleAuth");
-  // Use property access, not derive(), to maintain writable cell for token refresh
-  const auth = authCharm.auth;
+  const wishResult = wish<{ auth: Auth }>({ query: "#googleAuth" });
+  // Use property access via .result, not derive(), to maintain writable cell for token refresh
+  const auth = wishResult.result?.auth;
   const senderEmail = derive(auth, (a) => a?.user?.email || "");
   const hasAuth = derive(auth, (a) => !!a?.token);
 
@@ -214,6 +214,9 @@ export default pattern<Input, Output>(({ draft }) => {
         <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: "0" }}>
           Send Email
         </h2>
+
+        {/* CT-1090 workaround: embed wishResult in JSX to trigger cross-space charm startup */}
+        <div style={{ display: "none" }}>{wishResult}</div>
 
         {/* Auth status */}
         {ifElse(
