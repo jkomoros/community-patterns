@@ -20,6 +20,7 @@ type Secret<T> = CFC<T, "secret">;
 const SCOPE_MAP = {
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
   gmailSend: "https://www.googleapis.com/auth/gmail.send",
+  gmailModify: "https://www.googleapis.com/auth/gmail.modify",
   calendar: "https://www.googleapis.com/auth/calendar.readonly",
   calendarWrite: "https://www.googleapis.com/auth/calendar.events",
   drive: "https://www.googleapis.com/auth/drive.readonly",
@@ -29,6 +30,7 @@ const SCOPE_MAP = {
 const SCOPE_DESCRIPTIONS = {
   gmail: "Gmail (read emails)",
   gmailSend: "Gmail (send emails)",
+  gmailModify: "Gmail (add/remove labels)",
   calendar: "Calendar (read events)",
   calendarWrite: "Calendar (create/edit/delete events)",
   drive: "Drive (read files)",
@@ -78,6 +80,7 @@ export type Auth = {
 type SelectedScopes = {
   gmail: Default<boolean, false>;
   gmailSend: Default<boolean, false>;
+  gmailModify: Default<boolean, false>;
   calendar: Default<boolean, false>;
   calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
@@ -88,6 +91,7 @@ interface Input {
   selectedScopes: Default<SelectedScopes, {
     gmail: true;
     gmailSend: false;
+    gmailModify: false;
     calendar: true;
     calendarWrite: false;
     drive: false;
