@@ -64,7 +64,8 @@ interface UserContextNote {
 interface AssumptionSurfacerInput {
   messages?: Cell<Default<BuiltInLLMMessage[], []>>;
   assumptionsByMessage?: Cell<Default<MessageAssumptions[], []>>; // Accumulated assumptions
-  corrections?: Cell<Default<Correction[], []>>;
+  // Corrections keyed by "${messageIndex}-${assumptionLabel}" for cleaner updates
+  corrections?: Cell<Default<Record<string, Correction>, {}>>;
   userContext?: Cell<Default<UserContextNote[], []>>;
   systemPrompt?: string;
 }
@@ -72,7 +73,7 @@ interface AssumptionSurfacerInput {
 interface AssumptionSurfacerOutput {
   messages: BuiltInLLMMessage[];
   assumptionsByMessage: MessageAssumptions[];
-  corrections: Correction[];
+  corrections: Record<string, Correction>;
   userContext: UserContextNote[];
 }
 
@@ -125,13 +126,13 @@ const clearChat = handler<
   {
     messages: Cell<BuiltInLLMMessage[]>;
     assumptionsByMessage: Cell<MessageAssumptions[]>;
-    corrections: Cell<Correction[]>;
+    corrections: Cell<Record<string, Correction>>;
     userContext: Cell<UserContextNote[]>;
   }
 >((_, { messages, assumptionsByMessage, corrections, userContext }) => {
   messages.set([]);
   assumptionsByMessage.set([]);
-  corrections.set([]);
+  corrections.set({});
   userContext.set([]);
 });
 
@@ -144,7 +145,7 @@ const onAssumptionChange = handler<
     originalIndex: number;
     alternatives: Array<{ value: string; description?: string }>;
     addMessage: Stream<BuiltInLLMMessage>;
-    corrections: Cell<Correction[]>;
+    corrections: Cell<Record<string, Correction>>;
     userContext: Cell<UserContextNote[]>;
   }
 >(({ detail }, { messageIndex, assumptionLabel, originalIndex, alternatives, addMessage, corrections, userContext }) => {
@@ -154,11 +155,11 @@ const onAssumptionChange = handler<
   const oldValue = alternatives[originalIndex]?.value ?? "";
   const newValue = alternatives[newIndex]?.value ?? "";
 
+  // Key for this correction (replace spaces with underscores for framework compatibility)
+  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+
   // If clicking the already-selected option, do nothing
-  const currentCorrections = corrections.get();
-  const existing = currentCorrections.find(
-    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
-  );
+  const existing = corrections.key(key).get();
   if (existing && existing.correctedIndex === newIndex) {
     return;
   }
@@ -174,18 +175,9 @@ const onAssumptionChange = handler<
     content: [{ type: "text" as const, text: correctionText }],
   });
 
-  // Update or add correction
-  const existingIdx = currentCorrections.findIndex(
-    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
-  );
-
-  if (existingIdx >= 0) {
-    const updated = [...currentCorrections];
-    updated[existingIdx] = { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex };
-    corrections.set(updated);
-  } else {
-    corrections.set([...currentCorrections, { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex }]);
-  }
+  // Update or add correction using spread (workaround for .key().set() on empty Records)
+  const current = corrections.get() ?? {};
+  corrections.set({ ...current, [key]: { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex } });
 
   // Add user context note
   const contextNote: UserContextNote = {
@@ -209,15 +201,15 @@ const selectAlternative = handler<
     oldValue: string;
     newValue: string;
     addMessage: Stream<BuiltInLLMMessage>;
-    corrections: Cell<Correction[]>;
+    corrections: Cell<Record<string, Correction>>;
     userContext: Cell<UserContextNote[]>;
   }
 >((_, { messageIndex, assumptionLabel, originalIndex, newIndex, oldValue, newValue, addMessage, corrections, userContext }) => {
+  // Key for this correction (replace spaces with underscores for framework compatibility)
+  const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+
   // If clicking the already-selected option, do nothing
-  const currentCorrections = corrections.get();
-  const existing = currentCorrections.find(
-    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
-  );
+  const existing = corrections.key(key).get();
   if (existing && existing.correctedIndex === newIndex) {
     return;
   }
@@ -233,18 +225,9 @@ const selectAlternative = handler<
     content: [{ type: "text" as const, text: correctionText }],
   });
 
-  // Update or add correction
-  const existingIdx = currentCorrections.findIndex(
-    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
-  );
-
-  if (existingIdx >= 0) {
-    const updated = [...currentCorrections];
-    updated[existingIdx] = { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex };
-    corrections.set(updated);
-  } else {
-    corrections.set([...currentCorrections, { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex }]);
-  }
+  // Update or add correction using spread (workaround for .key().set() on empty Records)
+  const current = corrections.get() ?? {};
+  corrections.set({ ...current, [key]: { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex } });
 
   // Add user context note
   const contextNote: UserContextNote = {
@@ -376,7 +359,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
     const assumptionsJsx = computed(() => {
       const result = analysisResult.result;
       const isPending = analysisResult.pending;
-      const correctionsList = corrections.get() ?? [];
+      const correctionsMap = corrections.get() ?? {};
 
       // Show loading state if analyzing
       if (isPending) {
@@ -422,10 +405,10 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
       for (const assumption of result.assumptions) {
         const assumptionLabel = assumption.label;
 
-        // Check if user has corrected this assumption
-        const correction = correctionsList.find(
-          c => c.assumptionLabel === assumptionLabel
-        );
+        // Check if user has corrected this assumption - direct key lookup!
+        // Key uses underscores instead of spaces for framework compatibility
+        const key = `${messageIndex}-${assumptionLabel.replace(/\s+/g, '_')}`;
+        const correction = correctionsMap[key];
         const currentSelectedIndex = correction
           ? correction.correctedIndex
           : assumption.selectedIndex;
