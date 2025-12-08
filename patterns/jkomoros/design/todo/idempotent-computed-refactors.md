@@ -269,10 +269,12 @@ Is there any benefit to changing this pattern? The current architecture already:
 
 The original plan (Records keyed by hash) seems to go against the "prefer framework ID tracking" guidance.
 
-**Recommendation:** Close as "keep as-is" or do minor cleanup only
+**Decision: Keep as-is**
+- Framework author confirmed current architecture is correct
+- Already uses idiomatic patterns (map over arrays, framework caching)
+- No refactor needed
 
-**Status:** PENDING REVIEW - awaiting framework author input
-**Estimated Effort:** 0-1 hours (cleanup only) or 4-6 hours (full refactor if needed)
+**Status:** ✅ **CLOSED** - no changes needed
 
 ---
 
@@ -286,9 +288,9 @@ The original plan (Records keyed by hash) seems to go against the "prefer framew
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
 | assumption-surfacer | High | Data structure | 30m | ✅ **DONE** - Record<K,V> refactor |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
-| prompt-injection-tracker | Medium | Pipeline cleanup | 0-1h? | **PENDING REVIEW** - may not need changes |
+| prompt-injection-tracker | Medium | Pipeline cleanup | - | ✅ **CLOSED** - keep as-is |
 
-**Remaining Effort:** ~5-8 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, cozy-poll voter tracking 1-2h, prompt-injection-tracker 0-1h if cleanup only)
+**Remaining Effort:** ~5-7 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, cozy-poll voter tracking 1-2h)
 
 ---
 
@@ -308,3 +310,4 @@ The original plan (Records keyed by hash) seems to go against the "prefer framew
 - 2024-12-08: **gmail-importer.tsx analysis** - The simple idempotent computed pattern doesn't fit because Gmail sync needs to handle deletions, label updates, and incremental historyId sync. Deduplication already works via Set. Options: (A) change to Record<K,V> for cleaner updates, or (B) keep as-is.
 - 2024-12-08: **assumption-surfacer.tsx refactored** - Changed `corrections` from array to `Record<string, Correction>`. Simplified handlers from 15+ lines of findIndex/push logic to single `corrections.key(key).set()` calls. Direct key lookup in reading code.
 - 2024-12-08: **gmail-importer and google-calendar-importer CLOSED** - Decision: keep as-is. Framework prefers arrays with native tracking over Records with custom keys. These patterns need deletions/updates which don't fit idempotent computed anyway.
+- 2024-12-08: **prompt-injection-tracker CLOSED** - Decision: keep as-is. Already uses idiomatic patterns (map over arrays, framework caching for generateObject/fetchData). Framework author confirmed no refactor needed.
