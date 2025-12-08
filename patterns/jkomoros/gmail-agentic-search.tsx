@@ -362,21 +362,12 @@ const GmailAgenticSearch = pattern<
     const selectedAccountType = cell<"default" | "personal" | "work">("default");
 
     // ========================================================================
-    // LOCAL QUERY STATE (writable cells)
+    // LOCAL QUERY STATE
     // ========================================================================
-    // Input cells with Default<T, defaultValue> may be read-only when using default value.
-    // Create local writable cells initialized from inputs to ensure writes succeed.
-    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
-    //
-    // NOTE: We don't sync from input after initialization. The parent pattern typically
-    // doesn't pass these inputs (uses defaults), and all modifications happen locally.
-    // If a parent DID pass values, they'd only be captured at initialization time.
-
-    // Local writable cell for saved queries (use original name for all existing usages)
-    const localQueries = cell<LocalQuery[]>(localQueriesInput.get() || []);
-
-    // Local writable cell for pending submissions (use original name for all existing usages)
-    const pendingSubmissions = cell<PendingSubmission[]>(pendingSubmissionsInput.get() || []);
+    // Use input cells directly. The framework handles writability.
+    // Note: With Default<> types, the framework creates writable cells automatically.
+    const localQueries = localQueriesInput;
+    const pendingSubmissions = pendingSubmissionsInput;
 
     // Build reactive wish tag based on local selectedAccountType (writable)
     // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
@@ -1117,9 +1108,14 @@ Be thorough in your searches. Try multiple queries if needed.`;
     // Auth UI - shows auth status, login buttons, or connect Gmail prompt
     const authUI = (
       <div>
-        {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
-        <div style={{ display: "none" }}>{wishResult}</div>
-        <div style={{ display: "none" }}>{registryWish}</div>
+        {/* WORKAROUND (CT-1090): Embed wish UI to trigger cross-space charm startup */}
+        {/* Using derive to safely access the UI property instead of embedding raw wishResult */}
+        <div style={{ display: "none" }}>
+          {derive(wishResult, (wr: any) => wr?.[UI] || null)}
+        </div>
+        <div style={{ display: "none" }}>
+          {derive(registryWish, (wr: any) => wr?.[UI] || null)}
+        </div>
 
         {/* Account Type Selector (only shown if not using direct auth) */}
         {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
@@ -1298,7 +1294,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                         border: "1px solid #e2e8f0",
                       }}
                     >
-                      {wishResult.result}
+                      {derive(wishResult, (wr: any) => wr?.result || null)}
                     </div>
                   </div>
                 );
@@ -2032,19 +2028,39 @@ Be thorough in your searches. Try multiple queries if needed.`;
       }
     });
 
-    // Run PII screening on pending submissions
-    // Uses derive to reactively screen new submissions
-    const piiScreeningPrompt = derive(pendingSubmissions, (submissions: PendingSubmission[]) => {
-      // Filter out any undefined/null items first, then find unscreened submissions
-      const validSubmissions = (submissions || []).filter((s): s is PendingSubmission => s != null);
-      const unscreened = validSubmissions.filter(
-        (s) => s.sanitizedQuery === s.originalQuery && s.piiWarnings.length === 0 && !s.userApproved
-      );
-      if (unscreened.length === 0) return "";
+    // ============================================================================
+    // PII SCREENING - Reactive screening flow with controlled state updates
+    // ============================================================================
+    //
+    // ARCHITECTURE NOTE: generateObject() can ONLY be called from pattern body,
+    // not from handlers (per LLM.md docs). This means screening MUST be reactive.
+    //
+    // Flow:
+    // 1. piiScreeningState derives the first pending submission + prompt
+    // 2. piiScreeningResult derives by calling generateObject
+    // 3. screeningUpdater watches for results and persists them
+    //
+    // The derive in step 3 has a side effect (updating pendingSubmissions).
+    // This is intentional and safe because:
+    // - It only fires when result is ready AND there's a matching pending submission
+    // - It changes recommendation from "pending" to actual value, stopping the loop
+    // - Guard conditions prevent duplicate/infinite processing
+    // ============================================================================
 
-      // Build prompt for the first unscreened submission
-      const submission = unscreened[0];
-      return `Analyze this Gmail search query for privacy issues and generalizability.
+    // Derive the submission to screen and its prompt (null if none pending)
+    const piiScreeningState = derive(pendingSubmissions, (submissions: PendingSubmission[]): {
+      localQueryId: string | null;
+      prompt: string;
+    } => {
+      const validSubmissions = (submissions || []).filter((s): s is PendingSubmission => s != null);
+      // Find first submission with recommendation "pending" (not yet screened)
+      const needsScreening = validSubmissions.filter(
+        (s) => s.recommendation === "pending" && !s.userApproved
+      );
+      if (needsScreening.length === 0) return { localQueryId: null, prompt: "" };
+
+      const submission = needsScreening[0];
+      const prompt = `Analyze this Gmail search query for privacy issues and generalizability.
 
 Query: "${submission.originalQuery}"
 
@@ -2078,13 +2094,15 @@ Return a sanitized version that:
 1. Removes/generalizes PII
 2. Makes the query more general if it's too specific
 3. Returns empty string "" if the query can't be made useful for others`;
+
+      return { localQueryId: submission.localQueryId, prompt };
     });
 
-    // Only run PII screening when there's a prompt
-    const piiScreeningResult = derive(piiScreeningPrompt, (prompt: string) => {
-      if (!prompt) return null;
-      return generateObject({
-        prompt,
+    // Run PII screening when there's a prompt
+    const piiScreeningResult = derive(piiScreeningState, (state: { localQueryId: string | null; prompt: string }) => {
+      if (!state.localQueryId || !state.prompt) return null;
+      const result = generateObject({
+        prompt: state.prompt,
         schema: piiScreeningSchema,
         system: `You are a privacy analyst and query curator for a community knowledge base.
 
@@ -2098,14 +2116,17 @@ Personal domains, local businesses, and hyper-specific searches should not be sh
 
 Be conservative: when in doubt, recommend "do_not_share".`,
       });
+      // Return both the result and the ID we're screening
+      return { localQueryId: state.localQueryId, result };
     });
 
-    // Update pending submissions with screening results
-    // This is a side effect that runs when screening completes
-    derive(piiScreeningResult, (result) => {
-      if (!result || !result.result) return;
+    // Update pending submissions with screening results automatically
+    // This derive watches for completed screening results and updates the submission
+    derive(piiScreeningResult, (screening: { localQueryId: string; result: any } | null) => {
+      if (!screening?.localQueryId || !screening.result?.result) return;
+      if (screening.result.pending || screening.result.error) return;
 
-      const screeningData = result.result as {
+      const screeningData = screening.result.result as {
         hasPII: boolean;
         piiFound: string[];
         isGeneralizable: boolean;
@@ -2115,19 +2136,14 @@ Be conservative: when in doubt, recommend "do_not_share".`,
         recommendation: "share" | "share_with_edits" | "do_not_share";
       };
 
-      const submissions = (pendingSubmissions.get() || []).filter((s): s is PendingSubmission => s != null);
-
-      // Find the submission that was screened (still pending)
-      const unscreened = submissions.filter(
-        (s: PendingSubmission) => s?.recommendation === "pending" && !s?.userApproved
-      );
-      if (unscreened.length === 0) return;
-
-      const submission = unscreened[0];
-      const idx = submissions.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
+      const submissions = pendingSubmissions.get() || [];
+      const idx = submissions.findIndex((s: PendingSubmission) => s.localQueryId === screening.localQueryId);
       if (idx < 0) return;
 
-      // Update the submission with screening results
+      const submission = submissions[idx];
+      // Only update if still pending (prevents re-processing)
+      if (submission.recommendation !== "pending") return;
+
       const updated: PendingSubmission = {
         ...submission,
         sanitizedQuery: screeningData.sanitizedQuery || submission.originalQuery,
@@ -2284,9 +2300,23 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                           </div>
                         </div>
 
-                        {/* Recommendation badge */}
-                        {submission.recommendation !== "pending" && (
-                          <div style={{ marginBottom: "8px" }}>
+                        {/* Recommendation badge - show screening status */}
+                        <div style={{ marginBottom: "8px" }}>
+                          {submission.recommendation === "pending" ? (
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 8px",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                                fontWeight: "500",
+                                background: "#e0e7ff",
+                                color: "#3730a3",
+                              }}
+                            >
+                              ⏳ Screening...
+                            </span>
+                          ) : (
                             <span
                               style={{
                                 display: "inline-block",
@@ -2308,8 +2338,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                                submission.recommendation === "share_with_edits" ? "⚠ Needs editing" :
                                "✗ Not recommended"}
                             </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
 
                         {/* PII Warnings */}
                         {submission.piiWarnings.length > 0 && (
