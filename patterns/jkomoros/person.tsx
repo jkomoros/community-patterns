@@ -394,25 +394,16 @@ const toggleOrigin = handler<
   },
 );
 
-// Handler to add a relationship type
-const addRelationshipType = handler<
-  { detail: { value: string } },
-  { relationshipTypes: Cell<RelationshipType[]> }
+// Handler to remove a relationship type
+const removeRelationshipType = handler<
+  Record<string, never>,
+  { relationshipTypes: Cell<RelationshipType[]>; typeToRemove: string }
 >(
-  ({ detail }, { relationshipTypes }) => {
-    const value = detail?.value as RelationshipType;
-    if (value) {
-      const current = [...(relationshipTypes.get() || [])];
-      if (!current.includes(value)) {
-        relationshipTypes.set([...current, value]);
-      }
-    }
+  (_, { relationshipTypes, typeToRemove }) => {
+    const current = relationshipTypes.get() || [];
+    relationshipTypes.set(current.filter((v) => v !== typeToRemove));
   },
 );
-
-// Handler to remove a relationship type
-// Note: Using inline handler approach from tag-selector-demo since type from .map() is an opaque proxy
-// and we need Cell.equals for proper comparison
 
 // Handler to set closeness
 const setCloseness = handler<
@@ -1122,7 +1113,12 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       </p>
 
                       {/* Selected relationship type tags */}
-                      <div style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px;">
+                      <div style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "6px",
+                        minHeight: "32px",
+                      }}>
                         {relationshipTypes.map((type: RelationshipType) => (
                           <span
                             style={{
@@ -1138,15 +1134,10 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           >
                             {RELATIONSHIP_TYPE_LABELS[type] || type}
                             <button
-                              onClick={() => {
-                                const current = relationshipTypes.get();
-                                // Use .equals() instance method for Cell comparison
-                                // (items from .map() are boxed Cells, not plain values)
-                                const index = current.findIndex((el: any) => el.equals(type));
-                                if (index >= 0) {
-                                  relationshipTypes.set(current.toSpliced(index, 1));
-                                }
-                              }}
+                              onClick={removeRelationshipType({
+                                relationshipTypes,
+                                typeToRemove: String(type),
+                              })}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
@@ -1167,14 +1158,12 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         ))}
                       </div>
 
-                      {/* Autocomplete for adding relationship types */}
+                      {/* Autocomplete for adding relationship types - uses $value two-way binding */}
                       <ct-autocomplete
-                        items={derive(relationshipTypes, (selected) => {
-                          const selectedSet = new Set(selected || []);
-                          return RELATIONSHIP_TYPE_ITEMS.filter(item => !selectedSet.has(item.value as RelationshipType));
-                        })}
+                        items={RELATIONSHIP_TYPE_ITEMS}
+                        $value={relationshipTypes}
+                        multiple={true}
                         placeholder="Search to add..."
-                        onct-select={addRelationshipType({ relationshipTypes })}
                       />
                     </ct-vstack>
 
