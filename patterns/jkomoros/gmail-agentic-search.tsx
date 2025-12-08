@@ -741,22 +741,17 @@ const GmailAgenticSearch = pattern<
           );
 
           if (existingQueryIndex >= 0) {
-            // Update existing query
+            // Update existing query using .key().key().set() for atomic updates
             const existing = currentLocalQueries[existingQueryIndex];
-            const updated: LocalQuery = {
-              ...existing,
-              lastUsed: Date.now(),
-              useCount: existing.useCount + 1,
-              // Auto-increase effectiveness if it found results (capped at 5)
-              effectiveness: emails.length > 0
+            const itemCell = state.localQueries.key(existingQueryIndex);
+            itemCell.key("lastUsed").set(Date.now());
+            itemCell.key("useCount").set(existing.useCount + 1);
+            // Auto-increase effectiveness if it found results (capped at 5)
+            itemCell.key("effectiveness").set(
+              emails.length > 0
                 ? Math.min(5, existing.effectiveness + 1)
-                : existing.effectiveness,
-            };
-            state.localQueries.set([
-              ...currentLocalQueries.slice(0, existingQueryIndex),
-              updated,
-              ...currentLocalQueries.slice(existingQueryIndex + 1),
-            ]);
+                : existing.effectiveness
+            );
           } else if (emails.length > 0) {
             // Only add new query if it found results
             const newQuery: LocalQuery = {
@@ -1760,12 +1755,7 @@ When you're done searching, STOP calling tools and produce your final structured
       const queries = state.localQueries.get() || [];
       const index = queries.findIndex((q) => q.id === state.queryId);
       if (index >= 0) {
-        const updated = { ...queries[index], effectiveness: state.rating };
-        state.localQueries.set([
-          ...queries.slice(0, index),
-          updated,
-          ...queries.slice(index + 1),
-        ]);
+        state.localQueries.key(index).key("effectiveness").set(state.rating);
       }
     });
 
@@ -1804,12 +1794,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update localQueries FIRST (mark as pending_review)
       const idx = queries.findIndex((q) => q.id === state.queryId);
       if (idx >= 0) {
-        const updated = { ...queries[idx], shareStatus: "pending_review" as const };
-        state.localQueries.set([
-          ...queries.slice(0, idx),
-          updated,
-          ...queries.slice(idx + 1),
-        ]);
+        state.localQueries.key(idx).key("shareStatus").set("pending_review");
       }
 
       // Then add to pendingSubmissions
@@ -2025,12 +2010,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update the local query status
       const idx = queries.findIndex((q) => q.id === input.queryId);
       if (idx >= 0) {
-        const updated = { ...queries[idx], shareStatus: "pending_review" as const };
-        state.localQueries.set([
-          ...queries.slice(0, idx),
-          updated,
-          ...queries.slice(idx + 1),
-        ]);
+        state.localQueries.key(idx).key("shareStatus").set("pending_review");
       }
     });
 
@@ -2129,20 +2109,12 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const idx = submissions.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
       if (idx < 0) return;
 
-      // Update the submission with screening results
-      const updated: PendingSubmission = {
-        ...submission,
-        sanitizedQuery: screeningData.sanitizedQuery || submission.originalQuery,
-        piiWarnings: screeningData.piiFound || [],
-        generalizabilityIssues: screeningData.generalizabilityIssues || [],
-        recommendation: screeningData.recommendation,
-      };
-
-      pendingSubmissions.set([
-        ...submissions.slice(0, idx),
-        updated,
-        ...submissions.slice(idx + 1),
-      ]);
+      // Update the submission with screening results using .key().key().set()
+      const itemCell = pendingSubmissions.key(idx);
+      itemCell.key("sanitizedQuery").set(screeningData.sanitizedQuery || submission.originalQuery);
+      itemCell.key("piiWarnings").set(screeningData.piiFound || []);
+      itemCell.key("generalizabilityIssues").set(screeningData.generalizabilityIssues || []);
+      itemCell.key("recommendation").set(screeningData.recommendation);
     });
 
     // Handler to approve a pending submission
@@ -2153,12 +2125,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        const updated = { ...submissions[idx], userApproved: true };
-        state.pendingSubmissions.set([
-          ...submissions.slice(0, idx),
-          updated,
-          ...submissions.slice(idx + 1),
-        ]);
+        state.pendingSubmissions.key(idx).key("userApproved").set(true);
       }
     });
 
@@ -2178,12 +2145,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const queries = state.localQueries.get() || [];
       const idx = queries.findIndex((q) => q.id === input.localQueryId);
       if (idx >= 0) {
-        const updated = { ...queries[idx], shareStatus: "private" as const };
-        state.localQueries.set([
-          ...queries.slice(0, idx),
-          updated,
-          ...queries.slice(idx + 1),
-        ]);
+        state.localQueries.key(idx).key("shareStatus").set("private");
       }
     });
 
@@ -2195,12 +2157,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        const updated = { ...submissions[idx], sanitizedQuery: input.sanitizedQuery };
-        state.pendingSubmissions.set([
-          ...submissions.slice(0, idx),
-          updated,
-          ...submissions.slice(idx + 1),
-        ]);
+        state.pendingSubmissions.key(idx).key("sanitizedQuery").set(input.sanitizedQuery);
       }
     });
 
@@ -2350,12 +2307,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                               const subs = pendingSubmissions.get() || [];
                               const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
                               if (idx >= 0) {
-                                const updated = { ...subs[idx], sanitizedQuery: newValue };
-                                pendingSubmissions.set([
-                                  ...subs.slice(0, idx),
-                                  updated,
-                                  ...subs.slice(idx + 1),
-                                ]);
+                                pendingSubmissions.key(idx).key("sanitizedQuery").set(newValue);
                               }
                             }}
                             style={{
@@ -2380,12 +2332,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                               const queries = localQueries.get() || [];
                               const idx = queries.findIndex((q) => q.id === submission.localQueryId);
                               if (idx >= 0) {
-                                const updated = { ...queries[idx], shareStatus: "private" as const };
-                                localQueries.set([
-                                  ...queries.slice(0, idx),
-                                  updated,
-                                  ...queries.slice(idx + 1),
-                                ]);
+                                localQueries.key(idx).key("shareStatus").set("private");
                               }
                             }}
                             variant="ghost"
@@ -2400,12 +2347,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                               const subs = pendingSubmissions.get() || [];
                               const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
                               if (idx >= 0) {
-                                const updated = { ...subs[idx], userApproved: true };
-                                pendingSubmissions.set([
-                                  ...subs.slice(0, idx),
-                                  updated,
-                                  ...subs.slice(idx + 1),
-                                ]);
+                                pendingSubmissions.key(idx).key("userApproved").set(true);
                               }
                             }}
                             variant={submission.userApproved ? "secondary" : "default"}
@@ -2448,24 +2390,14 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                                   const currentSubs = pendingSubmissions.get() || [];
                                   const idx = currentSubs.findIndex((s) => s.localQueryId === submission.localQueryId);
                                   if (idx >= 0) {
-                                    const updated = { ...currentSubs[idx], submittedAt: Date.now() };
-                                    pendingSubmissions.set([
-                                      ...currentSubs.slice(0, idx),
-                                      updated,
-                                      ...currentSubs.slice(idx + 1),
-                                    ]);
+                                    pendingSubmissions.key(idx).key("submittedAt").set(Date.now());
                                   }
 
                                   // Update local query status to submitted
                                   const queries = localQueries.get() || [];
                                   const qIdx = queries.findIndex((q) => q.id === submission.localQueryId);
                                   if (qIdx >= 0) {
-                                    const updated = { ...queries[qIdx], shareStatus: "submitted" as const };
-                                    localQueries.set([
-                                      ...queries.slice(0, qIdx),
-                                      updated,
-                                      ...queries.slice(qIdx + 1),
-                                    ]);
+                                    localQueries.key(qIdx).key("shareStatus").set("submitted");
                                   }
                                 });
                               }}
