@@ -38,6 +38,37 @@ interface Config {
   recentCharms: RecentCharm[];   // Recently deployed charms for linking
 }
 
+// ===== CHARM LINKING TYPES =====
+
+interface CharmField {
+  path: string[];           // e.g., ["users", "0", "email"]
+  fullPath: string;         // e.g., "users/0/email"
+  type: string;             // e.g., "string", "number", "object", "array"
+  value?: unknown;          // Current value (for display)
+}
+
+interface CharmSchema {
+  charmId: string;
+  name?: string;
+  space: string;
+  apiUrl: string;
+  inputs: CharmField[];     // Flattened input fields (from "source")
+  outputs: CharmField[];    // Flattened output fields (from "result")
+}
+
+interface LinkSuggestion {
+  source: {
+    charm: RecentCharm;
+    field: CharmField;
+  };
+  target: {
+    charm: RecentCharm;
+    field: CharmField;
+  };
+  compatibility: "compatible" | "maybe" | "incompatible";
+  score: number;            // Higher = better suggestion
+}
+
 // ===== UTILITY FUNCTIONS =====
 
 async function loadConfig(): Promise<Config> {
@@ -352,6 +383,282 @@ async function interactiveSelect(
   return null;
 }
 
+// ===== CHARM LINKING FUNCTIONS =====
+
+function inferType(value: unknown): string {
+  if (value === null || value === undefined) return "any";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "any[]";
+    const elementType = inferType(value[0]);
+    return `${elementType}[]`;
+  }
+  if (typeof value === "object") return "object";
+  return typeof value; // "string", "number", "boolean"
+}
+
+function flattenObject(
+  obj: unknown,
+  basePath: string[] = [],
+  maxDepth: number = 3
+): CharmField[] {
+  const fields: CharmField[] = [];
+
+  if (obj === null || obj === undefined) {
+    return fields;
+  }
+
+  if (typeof obj !== "object") {
+    // Primitive at root level
+    fields.push({
+      path: basePath,
+      fullPath: basePath.join("/"),
+      type: inferType(obj),
+      value: obj,
+    });
+    return fields;
+  }
+
+  if (Array.isArray(obj)) {
+    // Add the array itself as a field
+    fields.push({
+      path: basePath,
+      fullPath: basePath.join("/"),
+      type: inferType(obj),
+      value: `[${obj.length} items]`,
+    });
+    return fields;
+  }
+
+  // Object - iterate keys
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip UI and internal keys
+    if (key === "UI" || key === "$UI" || key.startsWith("_")) continue;
+
+    const currentPath = [...basePath, key];
+    const type = inferType(value);
+
+    // Add this field
+    fields.push({
+      path: currentPath,
+      fullPath: currentPath.join("/"),
+      type,
+      value: type === "object" ? "{...}" : type.endsWith("[]") ? `[${(value as unknown[]).length}]` : value,
+    });
+
+    // Recurse into objects (but not too deep)
+    if (type === "object" && basePath.length < maxDepth) {
+      const nested = flattenObject(value, currentPath, maxDepth);
+      fields.push(...nested);
+    }
+  }
+
+  return fields;
+}
+
+function checkTypeCompatibility(
+  sourceType: string,
+  targetType: string
+): "compatible" | "maybe" | "incompatible" {
+  // Exact match
+  if (sourceType === targetType) return "compatible";
+
+  // Any matches anything
+  if (sourceType === "any" || targetType === "any") return "maybe";
+  if (sourceType.startsWith("any") || targetType.startsWith("any")) return "maybe";
+
+  // Array compatibility (check element types)
+  if (sourceType.endsWith("[]") && targetType.endsWith("[]")) {
+    const sourceElement = sourceType.slice(0, -2);
+    const targetElement = targetType.slice(0, -2);
+    return checkTypeCompatibility(sourceElement, targetElement);
+  }
+
+  // Object to object might work
+  if (sourceType === "object" && targetType === "object") return "maybe";
+
+  // Different types
+  return "incompatible";
+}
+
+async function fetchCharmSchema(
+  charm: RecentCharm,
+  labsDir: string
+): Promise<CharmSchema | null> {
+  try {
+    const command = new Deno.Command("deno", {
+      args: [
+        "task",
+        "ct",
+        "charm",
+        "inspect",
+        "--space", charm.space,
+        "--charm", charm.charmId,
+        "--json",
+      ],
+      cwd: labsDir,
+      env: {
+        ...Deno.env.toObject(),
+        CT_API_URL: charm.apiUrl,
+        CT_IDENTITY: IDENTITY_PATH,
+      },
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const { code, stdout } = await command.output();
+
+    if (code !== 0) {
+      return null;
+    }
+
+    const output = new TextDecoder().decode(stdout);
+    const data = JSON.parse(output);
+
+    // Flatten source (inputs) and result (outputs)
+    const inputs = flattenObject(data.source || {});
+    const outputs = flattenObject(data.result || {});
+
+    return {
+      charmId: charm.charmId,
+      name: data.name || charm.name,
+      space: charm.space,
+      apiUrl: charm.apiUrl,
+      inputs,
+      outputs,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function generateLinkSuggestions(
+  recentCharms: RecentCharm[],
+  labsDir: string,
+  maxSuggestions: number = 10
+): Promise<LinkSuggestion[]> {
+  const suggestions: LinkSuggestion[] = [];
+
+  // Fetch schemas for recent charms (limit to avoid too many API calls)
+  const charmsToCheck = recentCharms.slice(0, 10);
+  const schemas: Map<string, CharmSchema> = new Map();
+
+  console.log("  Analyzing charms...");
+
+  for (const charm of charmsToCheck) {
+    const schema = await fetchCharmSchema(charm, labsDir);
+    if (schema) {
+      schemas.set(charm.charmId, schema);
+    }
+  }
+
+  if (schemas.size < 2) {
+    return []; // Need at least 2 charms to suggest links
+  }
+
+  // Compare all pairs of charms
+  const schemaArray = Array.from(schemas.values());
+
+  for (let i = 0; i < schemaArray.length; i++) {
+    const sourceSchema = schemaArray[i];
+    const sourceCharm = charmsToCheck.find(c => c.charmId === sourceSchema.charmId)!;
+
+    for (let j = 0; j < schemaArray.length; j++) {
+      if (i === j) continue; // Skip self-linking for suggestions
+
+      const targetSchema = schemaArray[j];
+      const targetCharm = charmsToCheck.find(c => c.charmId === targetSchema.charmId)!;
+
+      // Compare outputs from source to inputs of target
+      for (const outputField of sourceSchema.outputs) {
+        for (const inputField of targetSchema.inputs) {
+          const compatibility = checkTypeCompatibility(outputField.type, inputField.type);
+
+          if (compatibility === "incompatible") continue;
+
+          // Calculate score
+          let score = 0;
+
+          // Exact type match bonus
+          if (compatibility === "compatible") score += 100;
+          else if (compatibility === "maybe") score += 50;
+
+          // Name similarity bonus
+          const outputName = outputField.path[outputField.path.length - 1]?.toLowerCase() || "";
+          const inputName = inputField.path[inputField.path.length - 1]?.toLowerCase() || "";
+          if (outputName === inputName) score += 50;
+          else if (outputName.includes(inputName) || inputName.includes(outputName)) score += 25;
+
+          // Recency bonus (more recent charms get higher scores)
+          const sourceIndex = charmsToCheck.indexOf(sourceCharm);
+          const targetIndex = charmsToCheck.indexOf(targetCharm);
+          score += (10 - sourceIndex) * 2;
+          score += (10 - targetIndex) * 2;
+
+          // Top-level field bonus
+          if (outputField.path.length === 1) score += 10;
+          if (inputField.path.length === 1) score += 10;
+
+          suggestions.push({
+            source: { charm: sourceCharm, field: outputField },
+            target: { charm: targetCharm, field: inputField },
+            compatibility,
+            score,
+          });
+        }
+      }
+    }
+  }
+
+  // Sort by score and return top suggestions
+  suggestions.sort((a, b) => b.score - a.score);
+  return suggestions.slice(0, maxSuggestions);
+}
+
+async function createCharmLink(
+  sourceCharmId: string,
+  sourcePath: string[],
+  targetCharmId: string,
+  targetPath: string[],
+  space: string,
+  apiUrl: string,
+  labsDir: string
+): Promise<boolean> {
+  const sourceRef = `${sourceCharmId}/${sourcePath.join("/")}`;
+  const targetRef = `${targetCharmId}/${targetPath.join("/")}`;
+
+  const command = new Deno.Command("deno", {
+    args: [
+      "task",
+      "ct",
+      "charm",
+      "link",
+      "--space", space,
+      sourceRef,
+      targetRef,
+    ],
+    cwd: labsDir,
+    env: {
+      ...Deno.env.toObject(),
+      CT_API_URL: apiUrl,
+      CT_IDENTITY: IDENTITY_PATH,
+    },
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const { code, stdout, stderr } = await command.output();
+
+  if (code === 0) {
+    const output = new TextDecoder().decode(stdout);
+    console.log(output);
+    return true;
+  } else {
+    const errorOutput = new TextDecoder().decode(stderr);
+    console.error("Link failed:", errorOutput);
+    return false;
+  }
+}
+
 // ===== MAIN FUNCTIONS =====
 
 async function handleOtherActions(labsDir: string): Promise<boolean> {
@@ -393,7 +700,7 @@ async function handleOtherActions(labsDir: string): Promise<boolean> {
   return false;
 }
 
-async function handleLinkCharms(config: Config, _labsDir: string): Promise<void> {
+async function handleLinkCharms(config: Config, labsDir: string): Promise<void> {
   console.log("\n🔗 Charm Linker\n");
 
   if (config.recentCharms.length === 0) {
@@ -403,30 +710,114 @@ async function handleLinkCharms(config: Config, _labsDir: string): Promise<void>
     return;
   }
 
-  // Show recent charms summary
-  console.log(`Found ${config.recentCharms.length} recent charm(s):\n`);
-
-  // Group by space
-  const bySpace = new Map<string, RecentCharm[]>();
-  for (const charm of config.recentCharms.slice(0, 20)) {
-    const spaceCharms = bySpace.get(charm.space) || [];
-    spaceCharms.push(charm);
-    bySpace.set(charm.space, spaceCharms);
+  if (config.recentCharms.length < 2) {
+    console.log("Need at least 2 charms to create links.");
+    console.log("Deploy another pattern, then come back to link them.\n");
+    return;
   }
 
-  for (const [space, charms] of bySpace) {
-    console.log(`  📁 ${space} (${charms.length} charm${charms.length > 1 ? "s" : ""}):`);
-    for (const charm of charms.slice(0, 5)) {
+  // Generate suggestions
+  console.log("Scanning recent charms for compatible links...\n");
+  const suggestions = await generateLinkSuggestions(config.recentCharms, labsDir);
+
+  if (suggestions.length === 0) {
+    console.log("\n⚠️  No compatible links found between recent charms.");
+    console.log("   This could mean:");
+    console.log("   • Charms don't have matching field types");
+    console.log("   • Charms are no longer accessible");
+    console.log("   • Fields are already linked\n");
+
+    // Show what we have
+    console.log("Recent charms:");
+    for (const charm of config.recentCharms.slice(0, 5)) {
       const timeAgo = formatTimeSince(charm.deployedAt);
-      console.log(`     • ${charm.name || charm.charmId.slice(0, 16) + "..."} (${timeAgo})`);
+      console.log(`  • ${charm.name || "unnamed"} in ${charm.space} (${timeAgo})`);
     }
-    if (charms.length > 5) {
-      console.log(`     ... and ${charms.length - 5} more`);
-    }
+    console.log("\n💡 Manual linking will be available soon.\n");
+    return;
   }
 
-  console.log("\n⏳ Full linking UI coming soon!");
-  console.log("   This will show smart suggestions and let you browse fields interactively.\n");
+  // Build selection options from suggestions
+  const options: SelectOption[] = [];
+
+  for (const suggestion of suggestions) {
+    const compatIcon = suggestion.compatibility === "compatible" ? "✅" : "⚠️";
+    const sourceName = suggestion.source.charm.name || "unnamed";
+    const targetName = suggestion.target.charm.name || "unnamed";
+    const sourceField = suggestion.source.field.fullPath;
+    const targetField = suggestion.target.field.fullPath;
+    const types = `${suggestion.source.field.type} → ${suggestion.target.field.type}`;
+
+    // Cross-space indicator
+    const crossSpace = suggestion.source.charm.space !== suggestion.target.charm.space
+      ? " 🌐"
+      : "";
+
+    options.push({
+      label: `${sourceName}/${sourceField} → ${targetName}/${targetField} (${types})${crossSpace}`,
+      value: JSON.stringify({
+        sourceCharmId: suggestion.source.charm.charmId,
+        sourcePath: suggestion.source.field.path,
+        targetCharmId: suggestion.target.charm.charmId,
+        targetPath: suggestion.target.field.path,
+        space: suggestion.target.charm.space,
+        apiUrl: suggestion.target.charm.apiUrl,
+      }),
+      icon: `${compatIcon} `,
+    });
+  }
+
+  // Add manual selection option
+  options.push({
+    label: "Manual selection...",
+    value: "__manual__",
+    icon: "🔧 ",
+  });
+
+  // Show selection
+  const selection = await interactiveSelect(
+    options,
+    "🔗 Suggested Links\n\nSelect a link to create (↑/↓ to move, Enter to select, Q to quit):"
+  );
+
+  if (!selection) {
+    console.log("👋 Cancelled\n");
+    return;
+  }
+
+  if (selection === "__manual__") {
+    console.log("\n⏳ Manual selection UI coming soon!");
+    console.log("   This will let you browse charms and fields interactively.\n");
+    return;
+  }
+
+  // Parse selection and create link
+  try {
+    const linkData = JSON.parse(selection);
+
+    console.log("\n🔗 Creating link...");
+    console.log(`   Source: ${linkData.sourceCharmId.slice(0, 16)}.../${linkData.sourcePath.join("/")}`);
+    console.log(`   Target: ${linkData.targetCharmId.slice(0, 16)}.../${linkData.targetPath.join("/")}`);
+    console.log(`   Space: ${linkData.space}\n`);
+
+    const success = await createCharmLink(
+      linkData.sourceCharmId,
+      linkData.sourcePath,
+      linkData.targetCharmId,
+      linkData.targetPath,
+      linkData.space,
+      linkData.apiUrl,
+      labsDir
+    );
+
+    if (success) {
+      console.log("\n✅ Link created successfully!\n");
+    } else {
+      console.log("\n❌ Failed to create link. Check the error above.\n");
+    }
+  } catch (e) {
+    console.error("Error creating link:", e);
+  }
 }
 
 async function clearLLMCache(labsDir: string): Promise<boolean> {
