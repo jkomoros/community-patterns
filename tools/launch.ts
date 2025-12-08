@@ -1119,10 +1119,27 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
 
   const targetCharm = config.recentCharms.find(c => c.charmId === targetCharmId)!;
 
-  // Step 3: Generate field suggestions between these two charms
+  // Step 3: Show field suggestions (with ability to swap source/target)
+  return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir);
+}
+
+// Helper to format field reference as "patternName(xxxx).fieldPath"
+function formatFieldRef(charm: RecentCharm, fieldPath: string): string {
+  const name = charm.name || charm.recipeName || "unnamed";
+  const shortId = charm.charmId.slice(-4);
+  return `${name}(${shortId}).${fieldPath}`;
+}
+
+// Show field suggestions and handle selection/swap
+async function showFieldSuggestions(
+  config: Config,
+  sourceCharm: RecentCharm,
+  targetCharm: RecentCharm,
+  labsDir: string
+): Promise<Config> {
   console.log(`\n🔍 Finding linkable fields between:`);
-  console.log(`   Source: ${sourceCharm.name || "unnamed"} [${formatCharmId(sourceCharm.charmId)}]`);
-  console.log(`   Target: ${targetCharm.name || "unnamed"} [${formatCharmId(targetCharm.charmId)}]\n`);
+  console.log(`   Source: ${sourceCharm.name || "unnamed"}(${sourceCharm.charmId.slice(-4)})`);
+  console.log(`   Target: ${targetCharm.name || "unnamed"}(${targetCharm.charmId.slice(-4)})\n`);
 
   const suggestions = await generateFieldSuggestions(
     sourceCharm,
@@ -1143,24 +1160,35 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
   // Build selection options from suggestions
   const fieldOptions: SelectOption[] = [];
 
+  // Add swap option first
+  fieldOptions.push({
+    label: `Swap source/target (${targetCharm.name || "unnamed"} → ${sourceCharm.name || "unnamed"})`,
+    value: "__swap__",
+    icon: "🔄 ",
+  });
+
   for (const suggestion of suggestions) {
     const compatIcon = suggestion.compatibility === "compatible" ? "✅"
       : suggestion.compatibility === "maybe" ? "⚠️"
       : "❌";
 
-    const sourceField = suggestion.source.field.fullPath;
-    const targetField = suggestion.target.field.fullPath;
+    const sourceFieldPath = suggestion.source.field.fullPath;
+    const targetFieldPath = suggestion.target.field.fullPath;
     const sourceType = suggestion.source.field.type;
     const targetType = suggestion.target.field.type;
 
+    // Format as "patternName(xxxx).field → patternName(yyyy).field"
+    const sourceRef = formatFieldRef(sourceCharm, sourceFieldPath);
+    const targetRef = formatFieldRef(targetCharm, targetFieldPath);
+
     // Check if this was previously linked (show star)
     const historyMatch = config.linkHistory.find(
-      h => h.sourceField === sourceField && h.targetField === targetField
+      h => h.sourceField === sourceFieldPath && h.targetField === targetFieldPath
     );
     const historyIndicator = historyMatch ? " ⭐" : "";
 
     fieldOptions.push({
-      label: `${sourceField} → ${targetField} (${sourceType} → ${targetType})${historyIndicator}`,
+      label: `${sourceRef} → ${targetRef} (${sourceType} → ${targetType})${historyIndicator}`,
       value: JSON.stringify({
         sourceCharmId: sourceCharm.charmId,
         sourcePath: suggestion.source.field.path,
@@ -1186,13 +1214,21 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     return config;
   }
 
+  // Handle swap
+  if (selection === "__swap__") {
+    return await showFieldSuggestions(config, targetCharm, sourceCharm, labsDir);
+  }
+
   // Parse selection and create link
   try {
     const linkData = JSON.parse(selection);
 
+    const sourceName = sourceCharm.name || "unnamed";
+    const targetName = targetCharm.name || "unnamed";
+
     console.log("\n🔗 Creating link...");
-    console.log(`   Source: ${formatCharmId(linkData.sourceCharmId)}/${linkData.sourcePath.join("/")}`);
-    console.log(`   Target: ${formatCharmId(linkData.targetCharmId)}/${linkData.targetPath.join("/")}`);
+    console.log(`   ${sourceName}(${sourceCharm.charmId.slice(-4)}).${linkData.sourcePath.join("/")}`);
+    console.log(`   → ${targetName}(${targetCharm.charmId.slice(-4)}).${linkData.targetPath.join("/")}`);
     console.log(`   Space: ${linkData.space}\n`);
 
     const success = await createCharmLink(
