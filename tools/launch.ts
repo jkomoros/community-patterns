@@ -1175,6 +1175,15 @@ async function main() {
     Deno.exit(1);
   }
 
+  // Save deployment target and space immediately (even if deployment fails)
+  config.lastDeploymentTarget = deploymentTarget;
+  if (isProd) {
+    config.lastSpaceProd = space;
+  } else {
+    config.lastSpaceLocal = space;
+  }
+  await saveConfig(config);
+
   // Select pattern
   const patternPath = await selectPattern(config);
   if (!patternPath) {
@@ -1182,24 +1191,21 @@ async function main() {
     Deno.exit(0);
   }
 
+  // Save pattern usage immediately (even if deployment fails)
+  config = recordPatternUsage(config, patternPath);
+  await saveConfig(config);
+
   // Deploy
   const result = await deployPattern(patternPath, space, isProd, labsDir);
 
-  if (result) {
-    // Update config - save deployment target and space
-    config.lastDeploymentTarget = deploymentTarget;
-    if (isProd) {
-      config.lastSpaceProd = space;
-    } else {
-      config.lastSpaceLocal = space;
-    }
-    config = recordPatternUsage(config, patternPath);
-    config = await cullNonExistentPatterns(config);
-    await saveConfig(config);
-  } else {
+  if (!result) {
     // Deployment failed
     Deno.exit(1);
   }
+
+  // Clean up any stale patterns after successful deployment
+  config = await cullNonExistentPatterns(config);
+  await saveConfig(config);
 }
 
 if (import.meta.main) {
