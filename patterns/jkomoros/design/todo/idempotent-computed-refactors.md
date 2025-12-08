@@ -24,54 +24,63 @@ computed(() => {
 
 ### 1. gmail-importer.tsx
 
-**Current State:**
+**Current State (Analyzed 2024-12-08):**
 - Handler `googleUpdater` calls async `process()` function
-- Manually pushes new emails with `state.emails.push(...result.newEmails)`
-- No built-in deduplication (relies on external logic)
-- Mixed fetch + state management in handler
+- `process()` already handles deduplication via `existingEmailIds` Set
+- Also handles **deletions** (`result.deletedEmailIds`) and **label updates**
+- Uses Gmail History API for incremental sync via `historyId`
 
-**Refactor Plan:**
-1. Change `emails` from array to `Record<string, Email>` keyed by email ID
-2. Add idempotent computed that syncs fetched emails:
-   ```typescript
-   computed(() => {
-     const result = fetchResult.get();
-     if (!result?.emails) return;
-     for (const email of result.emails) {
-       if (emails.key(email.id).get()) continue;
-       emails.key(email.id).set(email);
-     }
-   });
-   ```
-3. Keep handler for manual refresh trigger only
-4. Update UI to iterate `Object.values(emails.get())`
+**Analysis: Idempotent Computed May Not Fit Well**
+
+The simple idempotent computed pattern (add-only accumulation) doesn't work here because:
+1. **Deletions required** - Gmail sync removes deleted emails, not just adds
+2. **Label updates** - Existing emails get labels modified in place
+3. **Deduplication already works** - `process()` filters via `existingEmailIds`
+
+**Revised Refactor Options:**
+
+**Option A: Record<K,V> data structure only** (simpler)
+- Change `emails` from array to `Record<string, Email>`
+- Handler updates become: `emails.key(id).set(email)` or `emails.key(id).set(undefined)`
+- Naturally idempotent for additions (setting same key twice is fine)
+- UI uses `Object.values(emails.get())` with a sort computed
+- Keep existing `process()` logic largely intact
+
+**Option B: Keep as-is** (if it ain't broke...)
+- Current architecture handles all edge cases correctly
+- Array with Set-based deduplication works fine
+- Only change if we need key-based access elsewhere
 
 **Considerations:**
-- Need to handle pagination/incremental fetches
-- Preserve sorting (by date) in display computed
-- Error handling for failed fetches
+- Option A gives cleaner key-based updates but requires UI changes
+- Gmail-specific: historyId sync, deletions, label changes add complexity
+- The async `process()` function does most of the heavy lifting
 
-**Estimated Effort:** 2-3 hours
+**Status:** Needs decision - simpler than originally thought, but also less clear benefit
+**Estimated Effort:** 1-2 hours (Option A) or skip (Option B)
 
 ---
 
 ### 2. google-calendar-importer.tsx
 
 **Current State:**
-- Similar to gmail-importer
-- Handler fetches and manually accumulates calendar events
-- No automatic deduplication
+- Similar architecture to gmail-importer
+- Handler fetches and accumulates calendar events
+- Likely has similar complexity (deletions, updates, incremental sync)
 
-**Refactor Plan:**
-1. Change `events` from array to `Record<string, CalendarEvent>` keyed by event ID
-2. Add idempotent computed for auto-sync
-3. Same pattern as gmail-importer
+**Analysis:** Same as gmail-importer - needs investigation to see if it handles deletions/updates.
+
+**Refactor Options:** Same as gmail-importer
+- Option A: Record<K,V> data structure for cleaner key-based access
+- Option B: Keep as-is if working correctly
 
 **Considerations:**
 - Calendar events have recurring instances - need to handle event IDs properly
 - May need composite key (calendarId + eventId)
+- Check if calendar API has history/sync features like Gmail
 
-**Estimated Effort:** 2 hours
+**Status:** Needs investigation (likely same conclusion as gmail-importer)
+**Estimated Effort:** 1-2 hours if Option A, skip if Option B
 
 ---
 
@@ -240,8 +249,8 @@ computed(() => {
 
 | Pattern | Priority | Type | Effort | Status |
 |---------|----------|------|--------|--------|
-| gmail-importer | High | Auto-accumulation | 2-3h | TODO |
-| google-calendar-importer | High | Auto-accumulation | 2h | TODO |
+| gmail-importer | High | Auto-accumulation | 1-2h | **ANALYZED** - idempotent computed doesn't fit |
+| google-calendar-importer | High | Auto-accumulation | 1-2h | Needs investigation (likely same as gmail) |
 | meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
 | assumption-surfacer | High | Data structure | 2h | TODO |
@@ -265,3 +274,4 @@ computed(() => {
 
 - 2024-12-08: Created this plan after implementing cheeseboard-schedule.tsx as reference
 - 2024-12-08: **cozy-poll.tsx cleanup** - Removed deprecated `storeVoter` lift and `createVoter` handler. These were unused since the Lobby pattern handles ballot creation. The `voterCharms` array is now identified as vestigial (passed but unused). Updated plan with Option A (remove) vs Option B (implement properly).
+- 2024-12-08: **gmail-importer.tsx analysis** - The simple idempotent computed pattern doesn't fit because Gmail sync needs to handle deletions, label updates, and incremental historyId sync. Deduplication already works via Set. Options: (A) change to Record<K,V> for cleaner updates, or (B) keep as-is.
