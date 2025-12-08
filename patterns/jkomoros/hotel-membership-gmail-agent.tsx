@@ -705,6 +705,9 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
                   <div style={{ fontFamily: "monospace" }}>
                     Has Multiple Accounts: {derive(hasMultipleAccounts, (h) => h ? "Yes ⚠️" : "No")}
                   </div>
+                  <div style={{ fontFamily: "monospace" }}>
+                    Pending Submissions: {derive(searcher.pendingSubmissions, (p) => (p || []).length)}
+                  </div>
                 </ct-vstack>
               </details>
             </ct-vstack>
