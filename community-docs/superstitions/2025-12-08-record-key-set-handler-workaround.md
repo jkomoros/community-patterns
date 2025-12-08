@@ -74,11 +74,19 @@ const existing = corrections.key(key).get();
 corrections.key(key).set({ ... });
 ```
 
-## Possible Root Causes (Needs Investigation)
+## Framework Author Insight
 
-1. **Creating vs updating**: `.key().set()` for NEW keys may differ from updating existing keys
-2. **Key format issues**: The hyphen `-` in keys like `0-Technical_Expertise` may be interpreted as path separators
-3. **Empty Record edge case**: `.key().set()` may not work on completely empty Records
+**The framework expects to manage its own key/ID space.** We shouldn't create our own composite keys - instead rely on the framework's built-in identity tracking (e.g., array indices through `.map()`).
+
+Creating custom keys like `"0-Technical_Expertise"` conflicts with how the framework interprets paths. The hyphen may be treated as a path separator.
+
+**Better approach:** Use arrays and let framework track indices, or use keys that come from the data itself (like `pizza.date` in cheeseboard-schedule).
+
+## Possible Root Causes
+
+1. **Custom keys conflict with framework path resolution**: Keys like `0-Technical_Expertise` contain characters (hyphens) that may be interpreted as path separators
+2. **Framework expects to manage IDs**: Creating our own composite keys bypasses framework identity tracking
+3. **Creating vs updating**: `.key().set()` for NEW keys may differ from updating existing keys
 4. **Handler vs computed context**: Different execution context may affect key tracking
 
 ## Open Question About Defaults
