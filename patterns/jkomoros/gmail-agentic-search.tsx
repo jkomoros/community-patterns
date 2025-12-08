@@ -733,7 +733,7 @@ const GmailAgenticSearch = pattern<
           // Track query in localQueries for potential sharing
           const currentLocalQueries = state.localQueries.get() || [];
           const existingQueryIndex = currentLocalQueries.findIndex(
-            (q) => q.query.toLowerCase() === input.query.toLowerCase()
+            (q) => q && q.query && q.query.toLowerCase() === input.query.toLowerCase()
           );
 
           if (existingQueryIndex >= 0) {
@@ -771,7 +771,7 @@ const GmailAgenticSearch = pattern<
           if (emails.length > 0) {
             const communityRefs = state.communityQueryRefs.get() || [];
             const matchingCommunityQuery = communityRefs.find(
-              (ref) => ref.query.toLowerCase() === input.query.toLowerCase()
+              (ref) => ref && ref.query && ref.query.toLowerCase() === input.query.toLowerCase()
             );
             if (matchingCommunityQuery) {
               // Get the registry to call upvoteQuery
