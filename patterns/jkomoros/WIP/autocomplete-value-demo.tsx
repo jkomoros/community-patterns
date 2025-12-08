@@ -3,12 +3,8 @@
 /**
  * Autocomplete Value Demo - Demonstrates ct-autocomplete $value binding
  *
- * This pattern shows the new $value binding for ct-autocomplete in both
+ * This pattern shows the $value binding for ct-autocomplete in both
  * single-select and multi-select modes.
- *
- * ⚠️ DEPENDENCY: This pattern requires ct-autocomplete with $value support.
- * See labs PR: https://github.com/jkomoros/labs/pull/XXX (ct-autocomplete $value binding)
- * This pattern will NOT work until that PR is merged and deployed.
  *
  * Features demonstrated:
  * - Single-select mode with $value binding (shows selected label in input)

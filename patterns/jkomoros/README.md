@@ -229,7 +229,6 @@ Work-in-progress patterns in active development. May be incomplete or experiment
 
 #### `WIP/autocomplete-value-demo.tsx`
 Demo pattern for ct-autocomplete $value binding in single-select and multi-select modes.
-**⚠️ Requires labs PR for ct-autocomplete $value support to be merged first.**
 
 **Interesting features:**
 - Single-select mode: shows selected label in input, backspace to clear

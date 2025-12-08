@@ -18,9 +18,6 @@ import {
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
-// TODO: Replace with ct-search-select built-in component when available
-// Prototype at ./components/search-select-prototype.tsx has keyboard nav issues
-// See: patterns/jkomoros/design/todo/ct-search-select-prd.md
 
 // Social platform types
 type SocialPlatform =
@@ -205,11 +202,11 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// TODO: When ct-search-select is available, convert these to items
-// const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
-//   .flatMap(([group, types]) => types.map((type) => ({
-//     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
-//   })));
+// Items for ct-autocomplete relationship type picker
+const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
+  .flatMap(([group, types]) => types.map((type) => ({
+    value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
+  })));
 
 type EmailEntry = {
   type: ContactType;
@@ -393,6 +390,36 @@ const toggleOrigin = handler<
       origins.set(updated);
     } else {
       origins.set([...current, origin]);
+    }
+  },
+);
+
+// Handler to add a relationship type
+const addRelationshipType = handler<
+  { detail: { value: string } },
+  { relationshipTypes: Cell<RelationshipType[]> }
+>(
+  ({ detail }, { relationshipTypes }) => {
+    const value = detail?.value as RelationshipType;
+    if (value) {
+      const current = [...(relationshipTypes.get() || [])];
+      if (!current.includes(value)) {
+        relationshipTypes.set([...current, value]);
+      }
+    }
+  },
+);
+
+// Handler to remove a relationship type
+const removeRelationshipType = handler<
+  Record<string, never>,
+  { relationshipTypes: Cell<RelationshipType[]>; type: RelationshipType }
+>(
+  (_, { relationshipTypes, type }) => {
+    const current = [...(relationshipTypes.get() || [])];
+    const index = current.indexOf(type);
+    if (index >= 0) {
+      relationshipTypes.set(current.toSpliced(index, 1));
     }
   },
 );
@@ -1104,12 +1131,53 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         Select all that apply. Family modifiers (in-law, step, etc.) stack with base types.
                       </p>
 
-                      {/* TODO: Replace with ct-search-select when available */}
-                      <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
-                        <span style="color: #64748b; font-size: 12px; font-style: italic;">
-                          Search-select coming soon. For now, edit relationship types via import.
-                        </span>
+                      {/* Selected relationship type tags */}
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px; min-height: 32px;">
+                        {relationshipTypes.map((type: RelationshipType) => (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "4px 8px",
+                              backgroundColor: "#e0e7ff",
+                              color: "#3730a3",
+                              borderRadius: "9999px",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {RELATIONSHIP_TYPE_LABELS[type] || type}
+                            <button
+                              onClick={removeRelationshipType({ type, relationshipTypes })}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: "14px",
+                                height: "14px",
+                                padding: "0",
+                                border: "none",
+                                background: "transparent",
+                                color: "#6366f1",
+                                cursor: "pointer",
+                                fontSize: "14px",
+                              }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
                       </div>
+
+                      {/* Autocomplete for adding relationship types */}
+                      <ct-autocomplete
+                        items={derive(relationshipTypes, (selected) => {
+                          const selectedSet = new Set(selected || []);
+                          return RELATIONSHIP_TYPE_ITEMS.filter(item => !selectedSet.has(item.value as RelationshipType));
+                        })}
+                        placeholder="Search to add..."
+                        onct-select={addRelationshipType({ relationshipTypes })}
+                      />
                     </ct-vstack>
 
                     {/* Closeness Section */}
