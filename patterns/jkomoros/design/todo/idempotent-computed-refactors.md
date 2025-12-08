@@ -142,8 +142,10 @@ computed(() => {
 - Option B would enable features like "see who's participating" in admin view
 - Currently the pattern works fine without either
 
-**Status:** Deprecated code removed. Further changes optional.
-**Estimated Effort:** 30 min (Option A) or 1-2 hours (Option B)
+**Decision:** Option B (implement proper voter tracking) - deferred for later.
+
+**Status:** Deprecated code removed. Voter tracking deferred.
+**Estimated Effort:** 1-2 hours remaining
 
 ---
 
@@ -241,7 +243,7 @@ computed(() => {
 | gmail-importer | High | Auto-accumulation | 2-3h | TODO |
 | google-calendar-importer | High | Auto-accumulation | 2h | TODO |
 | meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
-| cozy-poll | High | Simplification | 30m-2h | **PARTIAL** - deprecated code removed |
+| cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
 | assumption-surfacer | High | Data structure | 2h | TODO |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
 | prompt-injection-tracker | Medium | Pipeline cleanup | 4-6h | TODO |
