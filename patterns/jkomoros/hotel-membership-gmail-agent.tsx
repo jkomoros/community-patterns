@@ -64,7 +64,7 @@ interface HotelMembershipInput {
   memberships?: Default<MembershipRecord[], []>;
   lastScanAt?: Default<number, 0>;
   isScanning?: Default<boolean, false>;
-  maxSearches?: Default<number, 5>;
+  maxSearches?: Default<number, 0>;  // 0 = unlimited, >0 = limit searches
   // Current scan mode - persisted to know if last scan was full or recent
   currentScanMode?: Default<ScanMode, "full">;
   // Multi-account support: which Google account to use
@@ -306,21 +306,24 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
     // CUSTOM SCAN HANDLERS (with mode support)
     // ========================================================================
 
-    // Custom startScan that sets the mode before triggering scan.
+    // Custom startScan that sets the mode and search limit before triggering scan.
     // Since we pass searchProgress to the base pattern, it's the SAME CELL -
     // when we set it here, the base pattern's progressUI sees the change.
     const startScan = handler<
       unknown,
       {
         mode: ScanMode;
+        searchLimit: number;  // 0 = unlimited, >0 = limit
         currentScanMode: Cell<Default<ScanMode, "full">>;
+        maxSearches: Cell<Default<number, 0>>;
         isScanning: Cell<Default<boolean, false>>;
         searchProgress: Cell<SearchProgress>;
       }
     >((_, state) => {
       const mode = state.mode;
-      console.log(`[HotelMembership] Starting scan in ${mode} mode`);
+      console.log(`[HotelMembership] Starting scan in ${mode} mode with limit ${state.searchLimit}`);
       state.currentScanMode.set(mode);
+      state.maxSearches.set(state.searchLimit);
       // Initialize progress to trigger progressUI display
       state.searchProgress.set({
         currentQuery: "",
@@ -331,19 +334,25 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
       state.isScanning.set(true);
     });
 
-    // Bind handlers for each mode - use the same searchProgress cell
+    // Bind handlers for each mode
+    // Full Scan: all time, unlimited searches
     const startFullScan = startScan({
       mode: "full",
+      searchLimit: 0,  // Unlimited
       currentScanMode,
+      maxSearches,
       isScanning,
-      searchProgress,  // Same cell passed to base pattern
+      searchProgress,
     });
 
+    // Recent Scan: last 7 days, limited searches (quick check)
     const startRecentScan = startScan({
       mode: "recent",
+      searchLimit: 5,  // Quick check
       currentScanMode,
+      maxSearches,
       isScanning,
-      searchProgress,  // Same cell passed to base pattern
+      searchProgress,
     });
 
     // ========================================================================
