@@ -781,6 +781,125 @@ async function generateFieldSuggestions(
   return suggestions.slice(0, maxSuggestions);
 }
 
+// Import charms from a space into recentCharms
+async function importCharmsFromSpace(
+  config: Config,
+  labsDir: string
+): Promise<Config> {
+  console.log("\n📦 Import Charms from Space\n");
+
+  // Select API URL
+  const apiOptions: SelectOption[] = [
+    { label: "localhost:8000", value: "http://localhost:8000", icon: "💻 " },
+    { label: "production (toolshed.saga-castor.ts.net)", value: "https://toolshed.saga-castor.ts.net", icon: "🌐 " },
+  ];
+
+  const apiUrl = await interactiveSelect(apiOptions, "Select server:");
+  if (!apiUrl) {
+    console.log("👋 Cancelled\n");
+    return config;
+  }
+
+  // Prompt for space name
+  const defaultSpace = apiUrl.includes("localhost")
+    ? config.lastSpaceLocal
+    : config.lastSpaceProd;
+
+  const space = await prompt("Enter space name", defaultSpace || "");
+  if (!space) {
+    console.log("👋 Cancelled\n");
+    return config;
+  }
+
+  console.log(`\n🔍 Fetching charms from ${space}...`);
+
+  try {
+    // Run ct charm ls to get charms in the space
+    const command = new Deno.Command("deno", {
+      args: [
+        "task",
+        "ct",
+        "charm",
+        "ls",
+        "--space", space,
+      ],
+      cwd: labsDir,
+      env: {
+        ...Deno.env.toObject(),
+        CT_API_URL: apiUrl,
+        CT_IDENTITY: IDENTITY_PATH,
+      },
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const { code, stdout, stderr } = await command.output();
+
+    if (code !== 0) {
+      const errorOutput = new TextDecoder().decode(stderr);
+      console.log(`\n❌ Failed to list charms: ${errorOutput}`);
+      return config;
+    }
+
+    const output = new TextDecoder().decode(stdout);
+    const lines = output.trim().split("\n");
+
+    // Skip header line, parse charm entries
+    // Format: ID NAME RECIPE
+    const charmLines = lines.slice(1).filter(line => line.trim());
+
+    if (charmLines.length === 0) {
+      console.log("\n⚠️  No charms found in space.\n");
+      return config;
+    }
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const line of charmLines) {
+      // Parse line - ID is first column (space-separated)
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 1) continue;
+
+      const charmId = parts[0];
+      // Name is everything between ID and RECIPE columns
+      // This is tricky because name can have spaces
+      // Let's just take the second part as name for now
+      const name = parts.slice(1, -1).join(" ") || "unnamed";
+
+      // Check if already in recentCharms
+      if (config.recentCharms.some(c => c.charmId === charmId)) {
+        skipped++;
+        continue;
+      }
+
+      // Add to recentCharms
+      config.recentCharms.push({
+        space,
+        charmId,
+        name: name === "<unnamed>" ? undefined : name,
+        deployedAt: new Date().toISOString(),
+        apiUrl,
+      });
+      imported++;
+    }
+
+    // Keep only last 100
+    config.recentCharms = config.recentCharms.slice(0, 100);
+
+    console.log(`\n✅ Imported ${imported} charm${imported !== 1 ? "s" : ""}`);
+    if (skipped > 0) {
+      console.log(`   (${skipped} already in list)`);
+    }
+    console.log("");
+
+    return config;
+  } catch (e) {
+    console.error("Error importing charms:", e);
+    return config;
+  }
+}
+
 // Record a successful link in history
 function recordLinkHistory(
   config: Config,
@@ -923,16 +1042,31 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     const shortId = formatCharmId(charm.charmId);
     const name = charm.name || charm.recipeName || "unnamed";
     return {
-      label: `${name} [${shortId}] in ${charm.space} (${timeAgo})`,
+      label: `${name} | ${charm.space} | ${shortId} (${timeAgo})`,
       value: charm.charmId,
       icon: "📤 ",
     };
+  });
+
+  // Add option to import charms from a space
+  sourceOptions.push({
+    label: "Import charms from a space...",
+    value: "__import__",
+    icon: "📦 ",
   });
 
   const sourceCharmId = await interactiveSelect(
     sourceOptions,
     "📤 Select SOURCE charm (↑/↓ to move, Enter to select, Q to quit):"
   );
+
+  // Handle import
+  if (sourceCharmId === "__import__") {
+    config = await importCharmsFromSpace(config, labsDir);
+    await saveConfig(config);
+    // Restart the flow with updated charms
+    return handleLinkCharms(config, labsDir);
+  }
 
   if (!sourceCharmId) {
     console.log("👋 Cancelled\n");
@@ -952,16 +1086,31 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
       // Show cross-space indicator
       const crossSpace = charm.space !== sourceCharm.space ? " 🌐" : "";
       return {
-        label: `${name} [${shortId}] in ${charm.space}${crossSpace} (${timeAgo})`,
+        label: `${name} | ${charm.space}${crossSpace} | ${shortId} (${timeAgo})`,
         value: charm.charmId,
         icon: "📥 ",
       };
     });
 
+  // Add option to import charms from a space
+  targetOptions.push({
+    label: "Import charms from a space...",
+    value: "__import__",
+    icon: "📦 ",
+  });
+
   const targetCharmId = await interactiveSelect(
     targetOptions,
     "📥 Select TARGET charm (↑/↓ to move, Enter to select, Q to quit):"
   );
+
+  // Handle import (go back to source selection after import)
+  if (targetCharmId === "__import__") {
+    config = await importCharmsFromSpace(config, labsDir);
+    await saveConfig(config);
+    // Restart the flow with updated charms
+    return handleLinkCharms(config, labsDir);
+  }
 
   if (!targetCharmId) {
     console.log("👋 Cancelled\n");
