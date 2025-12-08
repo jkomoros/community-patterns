@@ -88,30 +88,23 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 **Current State:**
 - Multiple "add" handlers: `addOven`, `addDietaryProfile`, `addPreparedFood`, etc.
 - Each handler does `array.push({ ...defaults })`
-- User must click buttons to initialize
+- User clicks buttons to add items (user-controlled initialization)
 
-**Refactor Plan:**
-1. Add idempotent computed to auto-initialize from inputs:
-   ```typescript
-   computed(() => {
-     const count = guestCount.get();
-     // Ensure we have at least one oven
-     if (Object.keys(ovens.get()).length === 0) {
-       ovens.key('default').set({ rackPositions: 5, physicalRacks: 2 });
-     }
-     // Auto-create dietary profiles for guest count
-     // ... etc
-   });
-   ```
-2. Keep handlers for user-initiated additions (not auto-initialization)
-3. Consider: Should arrays become objects with generated keys?
+**Original Refactor Plan:**
+- Auto-initialize via computed using `ovens.key('default').set()`
+- Would hit same `.key().set()` issues we saw in assumption-surfacer
 
-**Considerations:**
-- More complex because it's initialization logic, not data accumulation
-- May want to keep arrays for ordered collections (recipes in order matter)
-- Balance between auto-init and user control
+**Analysis:**
+- Current implementation uses arrays with `.push()` (idiomatic)
+- User-initiated via button clicks (appropriate for this UX)
+- Auto-init would be a UX change, not really an idempotent computed pattern
 
-**Estimated Effort:** 3-4 hours
+**Decision: Keep as-is**
+- Framework author confirmed current architecture is fine
+- Arrays with `.push()` in handlers is idiomatic
+- User control over initialization is appropriate here
+
+**Status:** ✅ **CLOSED** - no changes needed
 
 ---
 
@@ -284,13 +277,13 @@ The original plan (Records keyed by hash) seems to go against the "prefer framew
 |---------|----------|------|--------|--------|
 | gmail-importer | High | Auto-accumulation | - | ✅ **CLOSED** - keep as-is |
 | google-calendar-importer | High | Auto-accumulation | - | ✅ **CLOSED** - keep as-is |
-| meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
+| meal-orchestrator | High | Auto-initialization | - | ✅ **CLOSED** - keep as-is |
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
 | assumption-surfacer | High | Data structure | 30m | ✅ **DONE** - Record<K,V> refactor |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
 | prompt-injection-tracker | Medium | Pipeline cleanup | - | ✅ **CLOSED** - keep as-is |
 
-**Remaining Effort:** ~5-7 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, cozy-poll voter tracking 1-2h)
+**Remaining Effort:** ~2-3 hours (food-recipe-viewer 1h, cozy-poll voter tracking 1-2h)
 
 ---
 
@@ -311,3 +304,4 @@ The original plan (Records keyed by hash) seems to go against the "prefer framew
 - 2024-12-08: **assumption-surfacer.tsx refactored** - Changed `corrections` from array to `Record<string, Correction>`. Simplified handlers from 15+ lines of findIndex/push logic to single `corrections.key(key).set()` calls. Direct key lookup in reading code.
 - 2024-12-08: **gmail-importer and google-calendar-importer CLOSED** - Decision: keep as-is. Framework prefers arrays with native tracking over Records with custom keys. These patterns need deletions/updates which don't fit idempotent computed anyway.
 - 2024-12-08: **prompt-injection-tracker CLOSED** - Decision: keep as-is. Already uses idiomatic patterns (map over arrays, framework caching for generateObject/fetchData). Framework author confirmed no refactor needed.
+- 2024-12-08: **meal-orchestrator CLOSED** - Decision: keep as-is. Arrays with `.push()` in handlers is idiomatic. Auto-init would be UX change, not idempotent computed pattern. Framework author confirmed.
