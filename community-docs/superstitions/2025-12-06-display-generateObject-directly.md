@@ -153,7 +153,6 @@ const displayJsx = computed(() => {
 ## Related
 
 - **Blessed:** `blessed/reactivity.md` - "Idempotent Side Effects" - `.set()` in computed IS allowed if idempotent
-- **Superstition:** `2025-12-06-computed-set-causes-cpu-loop.md` (DISPROVED)
 - **Superstition:** `2025-01-24-pass-cells-as-handler-params-not-closure.md`
 - **Folk Wisdom:** `folk_wisdom/reactivity.md` - Updated guidance on side effects in computed
 - **Pattern:** `patterns/jkomoros/WIP/assumption-surfacer.tsx` - working implementation
