@@ -1145,15 +1145,26 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
   console.log("\n🔗 Charm Linker\n");
 
   if (config.recentCharms.length === 0) {
-    console.log("No recently deployed charms found.");
-    console.log("Deploy some patterns first, then come back to link them.\n");
-    console.log("💡 Tip: Deploy patterns using this launcher to track them automatically.\n");
-    return config;
-  }
+    console.log("No recently deployed charms found.\n");
+    console.log("💡 Options:");
+    console.log("   • Deploy patterns using this launcher to track them automatically");
+    console.log("   • Import charms from an existing space\n");
 
-  if (config.recentCharms.length < 2) {
-    console.log("Need at least 2 charms to create links.");
-    console.log("Deploy another pattern, then come back to link them.\n");
+    // Offer to import
+    const importOptions: SelectOption[] = [
+      { label: "Import charms from a space...", value: "import", icon: "📦 " },
+      { label: "Go back", value: "back", icon: "⬅️  " },
+    ];
+
+    const choice = await interactiveSelect(importOptions, "What would you like to do?");
+    if (choice === "import") {
+      config = await importCharmsFromSpace(config, labsDir);
+      await saveConfig(config);
+      // Retry if we now have charms
+      if (config.recentCharms.length > 0) {
+        return await handleLinkCharms(config, labsDir);
+      }
+    }
     return config;
   }
 
@@ -1212,17 +1223,18 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
   // Step 2: Select TARGET charm
   console.log("\nStep 2: Select TARGET charm (receives data)\n");
   const targetOptions: SelectOption[] = config.recentCharms
-    .filter(c => c.charmId !== sourceCharmId) // Exclude source charm
     .map(charm => {
       const timeAgo = formatTimeSince(charm.deployedAt);
       const shortId = formatCharmId(charm.charmId);
       const name = charm.name || charm.recipeName || "unnamed";
-      // Show cross-space indicator
+      // Show indicators for self-link and cross-space
+      const isSelf = charm.charmId === sourceCharmId;
       const crossSpace = charm.space !== sourceCharm.space ? " 🌐" : "";
+      const selfIndicator = isSelf ? " (self)" : "";
       return {
-        label: `${name} | ${charm.space}${crossSpace} | ${shortId} (${timeAgo})`,
+        label: `${name} | ${charm.space}${crossSpace}${selfIndicator} | ${shortId} (${timeAgo})`,
         value: charm.charmId,
-        icon: "📥 ",
+        icon: isSelf ? "🔄 " : "📥 ",
       };
     });
 
@@ -1381,6 +1393,17 @@ async function showFieldSuggestions(
       // Record in link history
       config = recordLinkHistory(config, linkData.sourceField, linkData.targetField);
       await saveConfig(config);
+
+      // Ask if user wants to link more
+      const nextAction = await promptLinkAnother();
+      if (nextAction === "same") {
+        // Link another field between same charms
+        return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir);
+      } else if (nextAction === "different") {
+        // Go back to charm selection
+        return await handleLinkCharms(config, labsDir);
+      }
+      // "done" - fall through to return
     } else {
       console.log("\n❌ Failed to create link. Check the error above.\n");
     }
@@ -1389,6 +1412,18 @@ async function showFieldSuggestions(
   }
 
   return config;
+}
+
+// Prompt for what to do after creating a link
+async function promptLinkAnother(): Promise<"same" | "different" | "done"> {
+  const options: SelectOption[] = [
+    { label: "Link another field between these charms", value: "same", icon: "🔗 " },
+    { label: "Link different charms", value: "different", icon: "🔀 " },
+    { label: "Done linking", value: "done", icon: "✅ " },
+  ];
+
+  const selection = await interactiveSelect(options, "What's next?");
+  return (selection as "same" | "different" | "done") || "done";
 }
 
 async function clearLLMCache(labsDir: string): Promise<boolean> {
