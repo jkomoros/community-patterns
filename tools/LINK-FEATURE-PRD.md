@@ -48,20 +48,48 @@ Select deployment target (↑/↓ to move, Enter to select):
   ⚙️  Take other actions...
 ```
 
-### Step 1: Select Space
+### Step 1: Smart Recommendations (Default Flow)
+
+When entering link mode, immediately show intelligent suggestions:
 
 ```
-🔗 Charm Linker
+🔗 Charm Linker - Suggestions
 
-Select space (↑/↓ to move, Enter to select):
+Based on your recent deployments, here are recommended links:
+(type to filter)
+
+→ ✅ counter/count → display-panel/value (number → number)
+  ✅ gmail-agent/emails → email-list/items (Email[] → Email[])
+  ⚠️ todo-app/tasks → kanban/cards (Task[] → Card[])
+
+  ────────────────────────────────
+  🔧 Manual selection...
+```
+
+**Smart suggestion algorithm:**
+1. Look at recently deployed charms
+2. Find output fields that match input field types
+3. Prioritize exact type matches, then structural matches
+4. Show top 5-10 recommendations
+
+Selecting a suggestion immediately creates the link. Selecting "Manual selection..." enters the full browse flow.
+
+### Step 1b: Select Space (Manual Flow)
+
+**Note: Cross-space linking is supported.** Source and target can be in different spaces.
+
+```
+🔗 Charm Linker - Manual Mode
+
+Select SOURCE space (↑/↓ to move, Enter to select):
 (type to filter)
 
 → 🔄 alex-1208-1 (last used, 5 charms)
   📅 alex-1208-2 (3 charms)
-  ✨ Enter new space name...
+  ✨ Enter space name...
 ```
 
-Shows spaces with charm counts when available.
+After selecting source charm, user selects TARGET space (can be same or different).
 
 ### Step 2: Select Source Charm (outputs)
 
@@ -212,6 +240,25 @@ interface RecentCharm {
   apiUrl: string;
 }
 
+interface LinkSuggestion {
+  source: {
+    space: string;
+    charmId: string;
+    charmName?: string;
+    field: CharmField;
+    apiUrl: string;
+  };
+  target: {
+    space: string;
+    charmId: string;
+    charmName?: string;
+    field: CharmField;
+    apiUrl: string;
+  };
+  compatibility: "compatible" | "maybe" | "incompatible";
+  score: number;  // Higher = better suggestion
+}
+
 interface CharmField {
   path: string[];          // e.g., ["users", "0", "email"]
   type: string;            // e.g., "string", "number", "object", "array"
@@ -307,30 +354,33 @@ function inferType(value: unknown): string {
 ### Phase 1: Infrastructure (This PR)
 - [ ] Update config to store charm deployment history
 - [ ] Capture charm ID when deploying via launcher
+- [ ] Store `recentCharms` with space, charmId, name, apiUrl
 - [ ] Add "Link charms..." menu option (placeholder)
 
-### Phase 2: Basic Linking
-- [ ] Space selection with charm counts
-- [ ] Charm selection (source and target)
-- [ ] Simple field listing (flat, no nested)
-- [ ] Basic link creation
+### Phase 2: Smart Suggestions
+- [ ] Generate link suggestions from recent charms
+- [ ] Type compatibility scoring algorithm
+- [ ] Show suggestions as default entry point
+- [ ] One-click linking from suggestions
 
-### Phase 3: Interactive Field Browser
+### Phase 3: Manual Selection Flow
+- [ ] Space selection (for source, then target - can differ)
+- [ ] Charm selection within space
+- [ ] Cross-space linking support
+- [ ] Simple field listing (flat, no nested)
+
+### Phase 4: Interactive Field Browser
 - [ ] Two-column display
 - [ ] Left/right navigation between columns
 - [ ] Up/down navigation within columns
 - [ ] Type inference and display
-
-### Phase 4: Type Compatibility
-- [ ] Type compatibility checking
-- [ ] Visual feedback (colors)
-- [ ] Compatibility hints
+- [ ] Visual compatibility feedback (colors)
 
 ### Phase 5: Polish
 - [ ] Nested field expansion (drill into objects)
 - [ ] Type filtering (show only compatible targets)
-- [ ] Link history / undo
 - [ ] "Link another?" flow
+- [ ] Better error handling and edge cases
 
 ## Edge Cases
 
