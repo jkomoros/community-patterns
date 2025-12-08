@@ -567,16 +567,26 @@ const GmailAgenticSearch = pattern<
     // DEBUG LOG HELPERS
     // ========================================================================
 
-    // Helper to add a debug log entry
+    // Max debug log entries to prevent transaction consistency issues with large arrays
+    const MAX_DEBUG_LOG_ENTRIES = 30;
+
+    // Helper to add a debug log entry (with size limit and error handling)
     const addDebugLogEntry = (
       logCell: Cell<DebugLogEntry[]>,
       entry: Omit<DebugLogEntry, "timestamp">,
     ) => {
-      const current = logCell.get() || [];
-      logCell.set([
-        ...current,
-        { ...entry, timestamp: Date.now() },
-      ]);
+      try {
+        const current = logCell.get() || [];
+        const newEntry = { ...entry, timestamp: Date.now() };
+        // Keep only the most recent entries to avoid transaction issues with large arrays
+        const trimmed = current.length >= MAX_DEBUG_LOG_ENTRIES
+          ? current.slice(-MAX_DEBUG_LOG_ENTRIES + 1)
+          : current;
+        logCell.set([...trimmed, newEntry]);
+      } catch (err) {
+        // Log to console but don't let debug logging errors crash the agent
+        console.error("[GmailAgenticSearch] Debug log error:", err);
+      }
     };
 
     // ========================================================================
