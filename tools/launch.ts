@@ -1281,7 +1281,8 @@ async function showFieldSuggestions(
   config: Config,
   sourceCharm: RecentCharm,
   targetCharm: RecentCharm,
-  labsDir: string
+  labsDir: string,
+  filterCompatibleOnly: boolean = false
 ): Promise<Config> {
   console.log(`\n🔍 Finding linkable fields between:`);
   console.log(`   Source: ${sourceCharm.name || "unnamed"}(${sourceCharm.charmId.slice(-4)})`);
@@ -1303,17 +1304,54 @@ async function showFieldSuggestions(
     return config;
   }
 
+  // Show summary of suggestions
+  const compatCount = suggestions.filter(s => s.compatibility === "compatible").length;
+  const maybeCount = suggestions.filter(s => s.compatibility === "maybe").length;
+  const incompatCount = suggestions.filter(s => s.compatibility === "incompatible").length;
+
+  // Apply filter if requested
+  const displaySuggestions = filterCompatibleOnly
+    ? suggestions.filter(s => s.compatibility === "compatible")
+    : suggestions;
+
+  if (filterCompatibleOnly) {
+    console.log(`  Showing ${compatCount} compatible field combinations (filtered)`);
+  } else {
+    console.log(`  Found ${suggestions.length} field combinations:`);
+    if (compatCount > 0) console.log(`    ✅ ${compatCount} compatible`);
+    if (maybeCount > 0) console.log(`    ⚠️  ${maybeCount} possibly compatible`);
+    if (incompatCount > 0) console.log(`    ❌ ${incompatCount} incompatible`);
+  }
+  console.log("");
+
   // Build selection options from suggestions
   const fieldOptions: SelectOption[] = [];
 
-  // Add swap option first
+  // Add utility options first
   fieldOptions.push({
     label: `Swap source/target (${targetCharm.name || "unnamed"} → ${sourceCharm.name || "unnamed"})`,
     value: "__swap__",
     icon: "🔄 ",
   });
 
-  for (const suggestion of suggestions) {
+  // Add filter toggle option if there are mixed compatibilities
+  if (compatCount > 0 && (maybeCount > 0 || incompatCount > 0)) {
+    if (filterCompatibleOnly) {
+      fieldOptions.push({
+        label: `Show all fields (${suggestions.length})`,
+        value: "__filter_all__",
+        icon: "🔍 ",
+      });
+    } else {
+      fieldOptions.push({
+        label: `Show only compatible fields (${compatCount})`,
+        value: "__filter_compatible__",
+        icon: "🔍 ",
+      });
+    }
+  }
+
+  for (const suggestion of displaySuggestions) {
     const compatIcon = suggestion.compatibility === "compatible" ? "✅"
       : suggestion.compatibility === "maybe" ? "⚠️"
       : "❌";
@@ -1362,7 +1400,15 @@ async function showFieldSuggestions(
 
   // Handle swap
   if (selection === "__swap__") {
-    return await showFieldSuggestions(config, targetCharm, sourceCharm, labsDir);
+    return await showFieldSuggestions(config, targetCharm, sourceCharm, labsDir, filterCompatibleOnly);
+  }
+
+  // Handle filter toggle
+  if (selection === "__filter_compatible__") {
+    return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, true);
+  }
+  if (selection === "__filter_all__") {
+    return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, false);
   }
 
   // Parse selection and create link
@@ -1397,8 +1443,8 @@ async function showFieldSuggestions(
       // Ask if user wants to link more
       const nextAction = await promptLinkAnother();
       if (nextAction === "same") {
-        // Link another field between same charms
-        return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir);
+        // Link another field between same charms (preserve filter state)
+        return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, filterCompatibleOnly);
       } else if (nextAction === "different") {
         // Go back to charm selection
         return await handleLinkCharms(config, labsDir);
