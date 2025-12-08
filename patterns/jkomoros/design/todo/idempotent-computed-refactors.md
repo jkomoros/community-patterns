@@ -160,35 +160,42 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 
 ### 5. assumption-surfacer.tsx
 
-**Current State:**
-- Handler manages corrections array with manual existence checks
-- Two separate state updates: corrections + userContext
-- Manual idempotency logic
+**Current State (Refactored 2024-12-08):**
+- ✅ Changed `corrections` from `Correction[]` to `Record<string, Correction>`
+- ✅ Updated handlers to use `corrections.key(key).set()` - much simpler!
+- ✅ Updated reading code to use direct key lookup instead of `.find()`
 
-**Refactor Plan:**
-1. Change `corrections` to `Record<string, Correction>` keyed by `${messageIndex}-${assumptionLabel}`
-2. Derive `userContext` from corrections (computed, no side effect needed here)
-3. Simplify handler to just set the correction key:
-   ```typescript
-   const handleCorrection = handler<...>((event, { corrections }) => {
-     const key = `${event.messageIndex}-${event.assumptionLabel}`;
-     corrections.key(key).set({
-       messageIndex: event.messageIndex,
-       assumptionLabel: event.assumptionLabel,
-       originalIndex: event.originalIndex,
-       correctedIndex: event.correctedIndex,
-     });
-   });
-   ```
-4. No idempotent computed needed - this is user-initiated, handler is correct
+**What Changed:**
 
-**Wait:** This one may not need idempotent computed - it's user-initiated corrections, not auto-accumulation. The improvement is just using object keys instead of array for cleaner updates.
+Before (array with manual manipulation):
+```typescript
+const existingIdx = currentCorrections.findIndex(
+  c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
+);
+if (existingIdx >= 0) {
+  const updated = [...currentCorrections];
+  updated[existingIdx] = { ... };
+  corrections.set(updated);
+} else {
+  corrections.set([...currentCorrections, { ... }]);
+}
+```
 
-**Considerations:**
-- May be more about data structure cleanup than idempotent computed
-- Still benefits from Record<K,V> pattern
+After (key-based access):
+```typescript
+const key = `${messageIndex}-${assumptionLabel}`;
+corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex });
+```
 
-**Estimated Effort:** 2 hours
+**Note:** This pattern doesn't use idempotent computed - it's user-initiated corrections via handlers. The improvement is purely data structure (Record<K,V> vs array).
+
+**Framework Workaround Required:**
+- `.key(key).set()` throws errors on empty Records
+- Use spread instead: `corrections.set({ ...current, [key]: value })`
+- Keys with spaces also fail - replace spaces with underscores
+
+**Status:** ✅ **DONE** (tested with Playwright)
+**Estimated Effort:** Was 2 hours, took ~30 minutes (including testing/debugging)
 
 ---
 
@@ -253,7 +260,7 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 | google-calendar-importer | High | Auto-accumulation | 1-2h | Needs investigation (likely same as gmail) |
 | meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
-| assumption-surfacer | High | Data structure | 2h | TODO |
+| assumption-surfacer | High | Data structure | 15m | ✅ **DONE** - Record<K,V> refactor |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
 | prompt-injection-tracker | Medium | Pipeline cleanup | 4-6h | TODO |
 
@@ -275,3 +282,4 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 - 2024-12-08: Created this plan after implementing cheeseboard-schedule.tsx as reference
 - 2024-12-08: **cozy-poll.tsx cleanup** - Removed deprecated `storeVoter` lift and `createVoter` handler. These were unused since the Lobby pattern handles ballot creation. The `voterCharms` array is now identified as vestigial (passed but unused). Updated plan with Option A (remove) vs Option B (implement properly).
 - 2024-12-08: **gmail-importer.tsx analysis** - The simple idempotent computed pattern doesn't fit because Gmail sync needs to handle deletions, label updates, and incremental historyId sync. Deduplication already works via Set. Options: (A) change to Record<K,V> for cleaner updates, or (B) keep as-is.
+- 2024-12-08: **assumption-surfacer.tsx refactored** - Changed `corrections` from array to `Record<string, Correction>`. Simplified handlers from 15+ lines of findIndex/push logic to single `corrections.key(key).set()` calls. Direct key lookup in reading code.
