@@ -216,7 +216,8 @@ const CozyPoll = pattern<PollInput, PollOutput>(
         const greens = optionVotes.filter(v => v.voteType === "green").length;
         const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
 
-        return { option, reds, greens, yellows, totalVotes: optionVotes.length };
+        // Extract plain values to avoid reactive proxy in render
+        return { option: { id: option.id, title: option.title }, reds, greens, yellows, totalVotes: optionVotes.length };
       });
 
       // Sort: fewest reds (ascending), then most greens (descending)
@@ -236,7 +237,8 @@ const CozyPoll = pattern<PollInput, PollOutput>(
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
 
-        return { option, reds, greens };
+        // Extract plain values to avoid reactive proxy in render
+        return { option: { id: option.id }, reds, greens };
       });
 
       // Sort same way as rankedOptions
@@ -305,105 +307,112 @@ const CozyPoll = pattern<PollInput, PollOutput>(
           </div>
 
           {/* Top Choice Display */}
-          {rankedOptions.length > 0 && rankedOptions[0].totalVotes > 0 && (
-            <div style={{
-              padding: "1rem",
-              marginBottom: "1.5rem",
-              border: "2px solid #10b981",
-              borderRadius: "8px",
-              backgroundColor: "#ecfdf5",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "1.5rem" }}>🏆</span>
-                <span style={{ fontWeight: "600", fontSize: "1.125rem" }}>TOP CHOICE</span>
+          {derive(rankedOptions, (ranked) => {
+            if (!ranked || ranked.length === 0 || ranked[0].totalVotes === 0) return null;
+            const top = ranked[0];
+            const parts: string[] = [];
+            if (top.greens > 0) parts.push(`${top.greens} love it`);
+            if (top.yellows > 0) parts.push(`${top.yellows} okay with it`);
+            if (top.reds > 0) parts.push(`${top.reds} can't accept`);
+            return (
+              <div style={{
+                padding: "1rem",
+                marginBottom: "1.5rem",
+                border: "2px solid #10b981",
+                borderRadius: "8px",
+                backgroundColor: "#ecfdf5",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <span style={{ fontSize: "1.5rem" }}>🏆</span>
+                  <span style={{ fontWeight: "600", fontSize: "1.125rem" }}>TOP CHOICE</span>
+                </div>
+                <div style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.5rem" }}>
+                  {top.option.title}
+                </div>
+                <div style={{ fontSize: "0.875rem", color: top.reds > 0 ? "#dc2626" : "#059669" }}>
+                  {parts.join(", ")}
+                </div>
               </div>
-              <div style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-                {rankedOptions[0].option.title}
-              </div>
-              <div style={{ fontSize: "0.875rem", color: "#059669" }}>
-                {rankedOptions[0].greens > 0 && <span>{rankedOptions[0].greens} love it</span>}
-                {rankedOptions[0].greens > 0 && rankedOptions[0].yellows > 0 && <span>, </span>}
-                {rankedOptions[0].yellows > 0 && <span>{rankedOptions[0].yellows} okay with it</span>}
-                {(rankedOptions[0].greens > 0 || rankedOptions[0].yellows > 0) && rankedOptions[0].reds > 0 && <span>, </span>}
-                {rankedOptions[0].reds > 0 && <span style={{ color: "#dc2626" }}>{rankedOptions[0].reds} can't accept</span>}
-              </div>
-            </div>
-          )}
+            );
+          })}
 
           {/* Summary View - All Options */}
-          {rankedOptions.length > 0 && (
-            <div style={{
-              marginBottom: "1.5rem",
-              padding: "1rem",
-              backgroundColor: "#f9fafb",
-              borderRadius: "8px",
-              border: "1px solid #e5e7eb"
-            }}>
-              <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
-                ALL OPTIONS
-              </div>
-              {rankedOptions.map((ranked) => (
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem",
-                  marginBottom: "0.25rem",
-                  backgroundColor: "white",
-                  borderRadius: "4px",
-                  border: "1px solid #e5e7eb"
-                }}>
-                  <div style={{ flex: 1, fontWeight: "500", fontSize: "0.875rem" }}>
-                    {ranked.option.title}
-                  </div>
-                  <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                    {votesByOption[ranked.option.id]?.green?.map((voterName) => (
-                      <span
-                        title={voterName}
-                        style={{
-                          backgroundColor: "#22c55e",
-                          color: "white",
-                          padding: "0.125rem 0.375rem",
-                          borderRadius: "9999px",
-                          fontWeight: "600",
-                          cursor: "default"
-                        }}>
-                        {getInitials(voterName)}
-                      </span>
-                    ))}
-                    {votesByOption[ranked.option.id]?.yellow?.map((voterName) => (
-                      <span
-                        title={voterName}
-                        style={{
-                          backgroundColor: "#eab308",
-                          color: "white",
-                          padding: "0.125rem 0.375rem",
-                          borderRadius: "9999px",
-                          fontWeight: "600",
-                          cursor: "default"
-                        }}>
-                        {getInitials(voterName)}
-                      </span>
-                    ))}
-                    {votesByOption[ranked.option.id]?.red?.map((voterName) => (
-                      <span
-                        title={voterName}
-                        style={{
-                          backgroundColor: "#ef4444",
-                          color: "white",
-                          padding: "0.125rem 0.375rem",
-                          borderRadius: "9999px",
-                          fontWeight: "600",
-                          cursor: "default"
-                        }}>
-                        {getInitials(voterName)}
-                      </span>
-                    ))}
-                  </div>
+          {derive({ rankedOptions, votesByOption }, ({ rankedOptions: ranked, votesByOption: votes }) => {
+            if (!ranked || ranked.length === 0) return null;
+            return (
+              <div style={{
+                marginBottom: "1.5rem",
+                padding: "1rem",
+                backgroundColor: "#f9fafb",
+                borderRadius: "8px",
+                border: "1px solid #e5e7eb"
+              }}>
+                <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
+                  ALL OPTIONS
                 </div>
-              ))}
-            </div>
-          )}
+                {ranked.map((item) => (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem",
+                    marginBottom: "0.25rem",
+                    backgroundColor: "white",
+                    borderRadius: "4px",
+                    border: "1px solid #e5e7eb"
+                  }}>
+                    <div style={{ flex: 1, fontWeight: "500", fontSize: "0.875rem" }}>
+                      {item.option.title}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
+                      {votes[item.option.id]?.green?.map((voterName: string) => (
+                        <span
+                          title={voterName}
+                          style={{
+                            backgroundColor: "#22c55e",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600",
+                            cursor: "default"
+                          }}>
+                          {getInitials(voterName)}
+                        </span>
+                      ))}
+                      {votes[item.option.id]?.yellow?.map((voterName: string) => (
+                        <span
+                          title={voterName}
+                          style={{
+                            backgroundColor: "#eab308",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600",
+                            cursor: "default"
+                          }}>
+                          {getInitials(voterName)}
+                        </span>
+                      ))}
+                      {votes[item.option.id]?.red?.map((voterName: string) => (
+                        <span
+                          title={voterName}
+                          style={{
+                            backgroundColor: "#ef4444",
+                            color: "white",
+                            padding: "0.125rem 0.375rem",
+                            borderRadius: "9999px",
+                            fontWeight: "600",
+                            cursor: "default"
+                          }}>
+                          {getInitials(voterName)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
 
           {/* Options List */}
           <div style={{ marginBottom: "1rem" }}>
