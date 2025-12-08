@@ -1994,8 +1994,9 @@ Be thorough in your searches. Try multiple queries if needed.`;
     // Run PII screening on pending submissions
     // Uses derive to reactively screen new submissions
     const piiScreeningPrompt = derive(pendingSubmissions, (submissions: PendingSubmission[]) => {
-      // Find submissions that haven't been screened yet (sanitizedQuery === originalQuery and no warnings)
-      const unscreened = submissions.filter(
+      // Filter out any undefined/null items first, then find unscreened submissions
+      const validSubmissions = (submissions || []).filter((s): s is PendingSubmission => s != null);
+      const unscreened = validSubmissions.filter(
         (s) => s.sanitizedQuery === s.originalQuery && s.piiWarnings.length === 0 && !s.userApproved
       );
       if (unscreened.length === 0) return "";
@@ -2073,11 +2074,11 @@ Be conservative: when in doubt, recommend "do_not_share".`,
         recommendation: "share" | "share_with_edits" | "do_not_share";
       };
 
-      const submissions = pendingSubmissions.get() || [];
+      const submissions = (pendingSubmissions.get() || []).filter((s): s is PendingSubmission => s != null);
 
       // Find the submission that was screened (still pending)
       const unscreened = submissions.filter(
-        (s: PendingSubmission) => s.recommendation === "pending" && !s.userApproved
+        (s: PendingSubmission) => s?.recommendation === "pending" && !s?.userApproved
       );
       if (unscreened.length === 0) return;
 
