@@ -409,7 +409,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
           <ct-vscroll flex showScrollbar>
             <ct-vstack style="padding: 16px; gap: 16px;">
               {/* Auth UI from base pattern */}
-              {searcher.authUI}
+              {searcher.ui.auth}
 
               {/* Scan Mode Selection - Custom buttons with mode support */}
               <div style={{
@@ -487,7 +487,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               )}
 
               {/* Progress UI from base pattern */}
-              {searcher.progressUI}
+              {searcher.ui.progress}
 
               {/* Stats */}
               <div style={{ fontSize: "13px", color: "#666" }}>
@@ -648,7 +648,7 @@ Do NOT wait until the end to report memberships. Report each one as you find it.
               </div>
 
               {/* Agent Activity Log - from base searcher */}
-              {searcher.extrasUI}
+              {searcher.ui.extras}
 
               {/* Debug Info */}
               <details style={{ marginTop: "16px" }}>

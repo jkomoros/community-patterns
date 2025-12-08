@@ -211,10 +211,17 @@ export interface GmailAgenticSearchOutput {
   [NAME]: string;
   [UI]: JSX.Element;
 
-  // UI Pieces (for custom composition)
-  authUI: JSX.Element;       // Auth status and connect/login UI
-  progressUI: JSX.Element;   // Search progress during scanning
-  controlsUI: JSX.Element;   // Scan/Stop buttons
+  // UI Pieces grouped for composition (like chatbot.tsx pattern)
+  ui: {
+    auth: JSX.Element;              // Auth status and connect/login UI
+    controls: JSX.Element;          // Scan/Stop buttons
+    progress: JSX.Element;          // Search progress during scanning
+    stats: JSX.Element;             // Last scan timestamp
+    extras: JSX.Element;            // Combined: local queries + pending submissions + debug log
+    debugLog: JSX.Element;          // Just the debug log
+    localQueries: JSX.Element;      // Local queries management
+    pendingSubmissions: JSX.Element; // Pending submissions for sharing
+  };
 
   // Auth state (exposed for embedding patterns)
   auth: Auth;
@@ -232,8 +239,6 @@ export interface GmailAgenticSearchOutput {
 
   // Debug log
   debugLog: DebugLogEntry[];
-  debugLogUI: JSX.Element;  // Collapsible debug log UI
-  extrasUI: JSX.Element;    // Combined: local queries + pending submissions + debug log
 
   // Timestamps
   lastScanAt: number;
@@ -248,11 +253,9 @@ export interface GmailAgenticSearchOutput {
 
   // Local queries saved by this agent instance
   localQueries: LocalQuery[];
-  localQueriesUI: JSX.Element;   // UI for viewing/managing local queries
 
   // Queries pending user review before community submission
   pendingSubmissions: PendingSubmission[];
-  pendingSubmissionsUI: JSX.Element;  // UI for reviewing/approving submissions
 
   // Actions for local query management
   rateQuery: ReturnType<typeof handler>;      // Rate a query's effectiveness
@@ -2518,12 +2521,17 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     return {
       [NAME]: title,
 
-      // UI Pieces (for custom composition)
-      authUI,
-      controlsUI,
-      progressUI,
-      extrasUI,       // Combined: local queries + pending submissions + debug log
-      debugLogUI,     // Just the debug log (if needed separately)
+      // UI Pieces grouped for composition (like chatbot.tsx pattern)
+      ui: {
+        auth: authUI,
+        controls: controlsUI,
+        progress: progressUI,
+        stats: statsUI,
+        extras: extrasUI,
+        debugLog: debugLogUI,
+        localQueries: localQueriesUI,
+        pendingSubmissions: pendingSubmissionsUI,
+      },
 
       // Auth state (exposed for embedding patterns)
       auth,
@@ -2551,9 +2559,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
 
       // Local queries (shared search strings support)
       localQueries,
-      localQueriesUI,
       pendingSubmissions,
-      pendingSubmissionsUI,
       rateQuery,
       deleteLocalQuery,
 
