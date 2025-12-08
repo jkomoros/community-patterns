@@ -190,9 +190,11 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 **Note:** This pattern doesn't use idempotent computed - it's user-initiated corrections via handlers. The improvement is purely data structure (Record<K,V> vs array).
 
 **Framework Workaround Required:**
-- `.key(key).set()` throws errors on empty Records
-- Use spread instead: `corrections.set({ ...current, [key]: value })`
-- Keys with spaces also fail - replace spaces with underscores
+- `.key(key).set()` threw errors when creating new keys on Record in handler context
+- Error: `Value at path value/argument/corrections/0-Technical_Expertise is not an object`
+- **Open question:** Why does this fail when default is `{}`? The blessed docs say `.key().set()` should work.
+- **Workaround:** Use spread: `corrections.set({ ...current, [key]: value })`
+- **Superstition filed:** `community-docs/superstitions/2025-12-08-record-key-set-handler-workaround.md`
 
 **Status:** ✅ **DONE** (tested with Playwright)
 **Estimated Effort:** Was 2 hours, took ~30 minutes (including testing/debugging)
