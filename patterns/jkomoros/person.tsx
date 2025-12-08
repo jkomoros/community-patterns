@@ -411,18 +411,8 @@ const addRelationshipType = handler<
 );
 
 // Handler to remove a relationship type
-const removeRelationshipType = handler<
-  Record<string, never>,
-  { relationshipTypes: Cell<RelationshipType[]>; type: RelationshipType }
->(
-  (_, { relationshipTypes, type }) => {
-    const current = [...(relationshipTypes.get() || [])];
-    const index = current.indexOf(type);
-    if (index >= 0) {
-      relationshipTypes.set(current.toSpliced(index, 1));
-    }
-  },
-);
+// Note: Using inline handler approach from tag-selector-demo since type from .map() is an opaque proxy
+// and we need Cell.equals for proper comparison
 
 // Handler to set closeness
 const setCloseness = handler<
@@ -1148,7 +1138,15 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           >
                             {RELATIONSHIP_TYPE_LABELS[type] || type}
                             <button
-                              onClick={removeRelationshipType({ type, relationshipTypes })}
+                              onClick={() => {
+                                const current = relationshipTypes.get();
+                                // Use .equals() instance method for Cell comparison
+                                // (items from .map() are boxed Cells, not plain values)
+                                const index = current.findIndex((el: any) => el.equals(type));
+                                if (index >= 0) {
+                                  relationshipTypes.set(current.toSpliced(index, 1));
+                                }
+                              }}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
