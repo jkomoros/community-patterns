@@ -29,6 +29,13 @@ interface RecentCharm {
   apiUrl: string;
 }
 
+interface LinkHistoryEntry {
+  sourceField: string;           // e.g., "count" or "users/0/email"
+  targetField: string;           // e.g., "value" or "items"
+  count: number;                 // How many times this combo was linked
+  lastUsed: string;              // ISO timestamp
+}
+
 interface Config {
   lastSpaceLocal?: string;       // Last space for localhost deployments
   lastSpaceProd?: string;        // Last space for production deployments
@@ -36,6 +43,7 @@ interface Config {
   labsDir?: string;              // Optional: override default labs location
   patterns: PatternRecord[];
   recentCharms: RecentCharm[];   // Recently deployed charms for linking
+  linkHistory: LinkHistoryEntry[]; // Track which field combos have been linked
 }
 
 // ===== CHARM LINKING TYPES =====
@@ -95,12 +103,18 @@ async function loadConfig(): Promise<Config> {
       parsed.recentCharms = [];
     }
 
+    // Backward compatibility: initialize linkHistory if missing
+    if (!parsed.linkHistory) {
+      parsed.linkHistory = [];
+    }
+
     return parsed;
   } catch {
     // File doesn't exist or is invalid, return default
     return {
       patterns: [],
       recentCharms: [],
+      linkHistory: [],
     };
   }
 }
@@ -393,6 +407,12 @@ async function interactiveSelect(
 
 // ===== CHARM LINKING FUNCTIONS =====
 
+// Format charm ID as "b..xxxx" where xxxx is last 4 chars
+function formatCharmId(charmId: string): string {
+  if (charmId.length <= 6) return charmId;
+  return `b..${charmId.slice(-4)}`;
+}
+
 function inferSchema(value: unknown): ObjectSchema {
   if (value === null || value === undefined) {
     return { type: "primitive", primitiveType: "any" };
@@ -681,92 +701,117 @@ async function fetchCharmSchema(
   }
 }
 
-async function generateLinkSuggestions(
-  recentCharms: RecentCharm[],
+// Generate field link suggestions between two specific charms
+async function generateFieldSuggestions(
+  sourceCharm: RecentCharm,
+  targetCharm: RecentCharm,
   labsDir: string,
-  maxSuggestions: number = 10
+  linkHistory: LinkHistoryEntry[],
+  maxSuggestions: number = 20
 ): Promise<LinkSuggestion[]> {
   const suggestions: LinkSuggestion[] = [];
 
-  // Fetch schemas for recent charms (limit to avoid too many API calls)
-  const charmsToCheck = recentCharms.slice(0, 10);
-  const schemas: Map<string, CharmSchema> = new Map();
+  // Fetch schemas for both charms
+  console.log("  Analyzing charm schemas...");
 
-  console.log("  Analyzing charms...");
+  const sourceSchema = await fetchCharmSchema(sourceCharm, labsDir);
+  const targetSchema = await fetchCharmSchema(targetCharm, labsDir);
 
-  for (const charm of charmsToCheck) {
-    const schema = await fetchCharmSchema(charm, labsDir);
-    if (schema) {
-      schemas.set(charm.charmId, schema);
-    }
+  if (!sourceSchema || !targetSchema) {
+    return [];
   }
 
-  if (schemas.size < 2) {
-    return []; // Need at least 2 charms to suggest links
+  if (sourceSchema.outputs.length === 0) {
+    console.log(`  ⚠️  Source charm has no output fields`);
+    return [];
   }
 
-  // Compare all pairs of charms
-  const schemaArray = Array.from(schemas.values());
+  if (targetSchema.inputs.length === 0) {
+    console.log(`  ⚠️  Target charm has no input fields`);
+    return [];
+  }
 
-  for (let i = 0; i < schemaArray.length; i++) {
-    const sourceSchema = schemaArray[i];
-    const sourceCharm = charmsToCheck.find(c => c.charmId === sourceSchema.charmId)!;
+  // Compare outputs from source to inputs of target
+  for (const outputField of sourceSchema.outputs) {
+    for (const inputField of targetSchema.inputs) {
+      const compatibility = checkTypeCompatibility(
+        outputField.type,
+        inputField.type,
+        outputField.schema,
+        inputField.schema
+      );
 
-    for (let j = 0; j < schemaArray.length; j++) {
-      if (i === j) continue; // Skip self-linking for suggestions
+      // Calculate score
+      let score = 0;
 
-      const targetSchema = schemaArray[j];
-      const targetCharm = charmsToCheck.find(c => c.charmId === targetSchema.charmId)!;
+      // Type compatibility bonus
+      if (compatibility === "compatible") score += 100;
+      else if (compatibility === "maybe") score += 50;
+      // Include incompatible with low score so user can still see all options
 
-      // Compare outputs from source to inputs of target
-      for (const outputField of sourceSchema.outputs) {
-        for (const inputField of targetSchema.inputs) {
-          const compatibility = checkTypeCompatibility(
-            outputField.type,
-            inputField.type,
-            outputField.schema,
-            inputField.schema
-          );
+      // Name similarity bonus
+      const outputName = outputField.path[outputField.path.length - 1]?.toLowerCase() || "";
+      const inputName = inputField.path[inputField.path.length - 1]?.toLowerCase() || "";
+      if (outputName === inputName) score += 75;
+      else if (outputName.includes(inputName) || inputName.includes(outputName)) score += 40;
 
-          if (compatibility === "incompatible") continue;
+      // Top-level field bonus
+      if (outputField.path.length === 1) score += 15;
+      if (inputField.path.length === 1) score += 15;
 
-          // Calculate score
-          let score = 0;
-
-          // Exact type match bonus
-          if (compatibility === "compatible") score += 100;
-          else if (compatibility === "maybe") score += 50;
-
-          // Name similarity bonus
-          const outputName = outputField.path[outputField.path.length - 1]?.toLowerCase() || "";
-          const inputName = inputField.path[inputField.path.length - 1]?.toLowerCase() || "";
-          if (outputName === inputName) score += 50;
-          else if (outputName.includes(inputName) || inputName.includes(outputName)) score += 25;
-
-          // Recency bonus (more recent charms get higher scores)
-          const sourceIndex = charmsToCheck.indexOf(sourceCharm);
-          const targetIndex = charmsToCheck.indexOf(targetCharm);
-          score += (10 - sourceIndex) * 2;
-          score += (10 - targetIndex) * 2;
-
-          // Top-level field bonus
-          if (outputField.path.length === 1) score += 10;
-          if (inputField.path.length === 1) score += 10;
-
-          suggestions.push({
-            source: { charm: sourceCharm, field: outputField },
-            target: { charm: targetCharm, field: inputField },
-            compatibility,
-            score,
-          });
-        }
+      // Link history bonus - boost fields that have been linked before
+      const historyMatch = linkHistory.find(
+        h => h.sourceField === outputField.fullPath && h.targetField === inputField.fullPath
+      );
+      if (historyMatch) {
+        score += 200 + (historyMatch.count * 50); // Big bonus for previous links
       }
+
+      suggestions.push({
+        source: { charm: sourceCharm, field: outputField },
+        target: { charm: targetCharm, field: inputField },
+        compatibility,
+        score,
+      });
     }
   }
 
   // Sort by score and return top suggestions
   suggestions.sort((a, b) => b.score - a.score);
   return suggestions.slice(0, maxSuggestions);
+}
+
+// Record a successful link in history
+function recordLinkHistory(
+  config: Config,
+  sourceField: string,
+  targetField: string
+): Config {
+  // Find existing entry
+  const existingIndex = config.linkHistory.findIndex(
+    h => h.sourceField === sourceField && h.targetField === targetField
+  );
+
+  if (existingIndex >= 0) {
+    // Update existing entry
+    config.linkHistory[existingIndex].count++;
+    config.linkHistory[existingIndex].lastUsed = new Date().toISOString();
+  } else {
+    // Add new entry
+    config.linkHistory.push({
+      sourceField,
+      targetField,
+      count: 1,
+      lastUsed: new Date().toISOString(),
+    });
+  }
+
+  // Keep only last 200 link history entries
+  config.linkHistory = config.linkHistory
+    .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
+    .slice(0, 200);
+
+  return config;
 }
 
 async function createCharmLink(
@@ -855,95 +900,141 @@ async function handleOtherActions(labsDir: string): Promise<boolean> {
   return false;
 }
 
-async function handleLinkCharms(config: Config, labsDir: string): Promise<void> {
+async function handleLinkCharms(config: Config, labsDir: string): Promise<Config> {
   console.log("\n🔗 Charm Linker\n");
 
   if (config.recentCharms.length === 0) {
     console.log("No recently deployed charms found.");
     console.log("Deploy some patterns first, then come back to link them.\n");
     console.log("💡 Tip: Deploy patterns using this launcher to track them automatically.\n");
-    return;
+    return config;
   }
 
   if (config.recentCharms.length < 2) {
     console.log("Need at least 2 charms to create links.");
     console.log("Deploy another pattern, then come back to link them.\n");
-    return;
+    return config;
   }
 
-  // Generate suggestions
-  console.log("Scanning recent charms for compatible links...\n");
-  const suggestions = await generateLinkSuggestions(config.recentCharms, labsDir);
+  // Step 1: Select SOURCE charm
+  console.log("Step 1: Select SOURCE charm (provides data)\n");
+  const sourceOptions: SelectOption[] = config.recentCharms.map(charm => {
+    const timeAgo = formatTimeSince(charm.deployedAt);
+    const shortId = formatCharmId(charm.charmId);
+    const name = charm.name || charm.recipeName || "unnamed";
+    return {
+      label: `${name} [${shortId}] in ${charm.space} (${timeAgo})`,
+      value: charm.charmId,
+      icon: "📤 ",
+    };
+  });
+
+  const sourceCharmId = await interactiveSelect(
+    sourceOptions,
+    "📤 Select SOURCE charm (↑/↓ to move, Enter to select, Q to quit):"
+  );
+
+  if (!sourceCharmId) {
+    console.log("👋 Cancelled\n");
+    return config;
+  }
+
+  const sourceCharm = config.recentCharms.find(c => c.charmId === sourceCharmId)!;
+
+  // Step 2: Select TARGET charm
+  console.log("\nStep 2: Select TARGET charm (receives data)\n");
+  const targetOptions: SelectOption[] = config.recentCharms
+    .filter(c => c.charmId !== sourceCharmId) // Exclude source charm
+    .map(charm => {
+      const timeAgo = formatTimeSince(charm.deployedAt);
+      const shortId = formatCharmId(charm.charmId);
+      const name = charm.name || charm.recipeName || "unnamed";
+      // Show cross-space indicator
+      const crossSpace = charm.space !== sourceCharm.space ? " 🌐" : "";
+      return {
+        label: `${name} [${shortId}] in ${charm.space}${crossSpace} (${timeAgo})`,
+        value: charm.charmId,
+        icon: "📥 ",
+      };
+    });
+
+  const targetCharmId = await interactiveSelect(
+    targetOptions,
+    "📥 Select TARGET charm (↑/↓ to move, Enter to select, Q to quit):"
+  );
+
+  if (!targetCharmId) {
+    console.log("👋 Cancelled\n");
+    return config;
+  }
+
+  const targetCharm = config.recentCharms.find(c => c.charmId === targetCharmId)!;
+
+  // Step 3: Generate field suggestions between these two charms
+  console.log(`\n🔍 Finding linkable fields between:`);
+  console.log(`   Source: ${sourceCharm.name || "unnamed"} [${formatCharmId(sourceCharm.charmId)}]`);
+  console.log(`   Target: ${targetCharm.name || "unnamed"} [${formatCharmId(targetCharm.charmId)}]\n`);
+
+  const suggestions = await generateFieldSuggestions(
+    sourceCharm,
+    targetCharm,
+    labsDir,
+    config.linkHistory
+  );
 
   if (suggestions.length === 0) {
-    console.log("\n⚠️  No compatible links found between recent charms.");
+    console.log("\n⚠️  No linkable fields found between these charms.");
     console.log("   This could mean:");
-    console.log("   • Charms don't have matching field types");
-    console.log("   • Charms are no longer accessible");
-    console.log("   • Fields are already linked\n");
-
-    // Show what we have
-    console.log("Recent charms:");
-    for (const charm of config.recentCharms.slice(0, 5)) {
-      const timeAgo = formatTimeSince(charm.deployedAt);
-      console.log(`  • ${charm.name || "unnamed"} in ${charm.space} (${timeAgo})`);
-    }
-    console.log("\n💡 Manual linking will be available soon.\n");
-    return;
+    console.log("   • Charms don't have compatible fields");
+    console.log("   • Source has no outputs or target has no inputs");
+    console.log("   • Charms are no longer accessible\n");
+    return config;
   }
 
   // Build selection options from suggestions
-  const options: SelectOption[] = [];
+  const fieldOptions: SelectOption[] = [];
 
   for (const suggestion of suggestions) {
-    const compatIcon = suggestion.compatibility === "compatible" ? "✅" : "⚠️";
-    const sourceName = suggestion.source.charm.name || "unnamed";
-    const targetName = suggestion.target.charm.name || "unnamed";
+    const compatIcon = suggestion.compatibility === "compatible" ? "✅"
+      : suggestion.compatibility === "maybe" ? "⚠️"
+      : "❌";
+
     const sourceField = suggestion.source.field.fullPath;
     const targetField = suggestion.target.field.fullPath;
-    const types = `${suggestion.source.field.type} → ${suggestion.target.field.type}`;
+    const sourceType = suggestion.source.field.type;
+    const targetType = suggestion.target.field.type;
 
-    // Cross-space indicator
-    const crossSpace = suggestion.source.charm.space !== suggestion.target.charm.space
-      ? " 🌐"
-      : "";
+    // Check if this was previously linked (show star)
+    const historyMatch = config.linkHistory.find(
+      h => h.sourceField === sourceField && h.targetField === targetField
+    );
+    const historyIndicator = historyMatch ? " ⭐" : "";
 
-    options.push({
-      label: `${sourceName}/${sourceField} → ${targetName}/${targetField} (${types})${crossSpace}`,
+    fieldOptions.push({
+      label: `${sourceField} → ${targetField} (${sourceType} → ${targetType})${historyIndicator}`,
       value: JSON.stringify({
-        sourceCharmId: suggestion.source.charm.charmId,
+        sourceCharmId: sourceCharm.charmId,
         sourcePath: suggestion.source.field.path,
-        targetCharmId: suggestion.target.charm.charmId,
+        sourceField: suggestion.source.field.fullPath,
+        targetCharmId: targetCharm.charmId,
         targetPath: suggestion.target.field.path,
-        space: suggestion.target.charm.space,
-        apiUrl: suggestion.target.charm.apiUrl,
+        targetField: suggestion.target.field.fullPath,
+        space: targetCharm.space,
+        apiUrl: targetCharm.apiUrl,
       }),
       icon: `${compatIcon} `,
     });
   }
 
-  // Add manual selection option
-  options.push({
-    label: "Manual selection...",
-    value: "__manual__",
-    icon: "🔧 ",
-  });
-
   // Show selection
   const selection = await interactiveSelect(
-    options,
-    "🔗 Suggested Links\n\nSelect a link to create (↑/↓ to move, Enter to select, Q to quit):"
+    fieldOptions,
+    "🔗 Select field link (↑/↓ to move, Enter to select, Q to quit):\n⭐ = previously linked"
   );
 
   if (!selection) {
     console.log("👋 Cancelled\n");
-    return;
-  }
-
-  if (selection === "__manual__") {
-    console.log("\n⏳ Manual selection UI coming soon!");
-    console.log("   This will let you browse charms and fields interactively.\n");
-    return;
+    return config;
   }
 
   // Parse selection and create link
@@ -951,8 +1042,8 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<void> 
     const linkData = JSON.parse(selection);
 
     console.log("\n🔗 Creating link...");
-    console.log(`   Source: ${linkData.sourceCharmId.slice(0, 16)}.../${linkData.sourcePath.join("/")}`);
-    console.log(`   Target: ${linkData.targetCharmId.slice(0, 16)}.../${linkData.targetPath.join("/")}`);
+    console.log(`   Source: ${formatCharmId(linkData.sourceCharmId)}/${linkData.sourcePath.join("/")}`);
+    console.log(`   Target: ${formatCharmId(linkData.targetCharmId)}/${linkData.targetPath.join("/")}`);
     console.log(`   Space: ${linkData.space}\n`);
 
     const success = await createCharmLink(
@@ -967,12 +1058,18 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<void> 
 
     if (success) {
       console.log("\n✅ Link created successfully!\n");
+
+      // Record in link history
+      config = recordLinkHistory(config, linkData.sourceField, linkData.targetField);
+      await saveConfig(config);
     } else {
       console.log("\n❌ Failed to create link. Check the error above.\n");
     }
   } catch (e) {
     console.error("Error creating link:", e);
   }
+
+  return config;
 }
 
 async function clearLLMCache(labsDir: string): Promise<boolean> {
@@ -1802,7 +1899,7 @@ async function main() {
 
   // Handle "link charms" menu
   if (deploymentTarget === "link") {
-    await handleLinkCharms(config, labsDir);
+    config = await handleLinkCharms(config, labsDir);
     Deno.exit(0);
   }
 
