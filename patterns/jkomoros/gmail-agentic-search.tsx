@@ -722,15 +722,15 @@ const GmailAgenticSearch = pattern<
               updated,
               ...currentLocalQueries.slice(existingQueryIndex + 1),
             ]);
-          } else {
-            // Add new query
+          } else if (emails.length > 0) {
+            // Only add new query if it found results
             const newQuery: LocalQuery = {
               id: `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               query: input.query,
               createdAt: Date.now(),
               lastUsed: Date.now(),
               useCount: 1,
-              effectiveness: emails.length > 0 ? 1 : 0,  // Start at 1 if found results
+              effectiveness: 1,  // Start at 1 since it found results
               shareStatus: "private",
             };
             state.localQueries.set([...currentLocalQueries, newQuery]);
