@@ -212,7 +212,7 @@ Your task:
 1. Use searchGmail to search for hotel loyalty emails${isRecentMode ? ` (ADD "${dateFilter}" to ALL queries!)` : ""}
 2. Analyze the returned emails for membership numbers
 3. When you find a membership: IMMEDIATELY call reportMembership to save it
-4. Continue searching other brands${isQuickMode ? " (until limit reached)" : ""}
+4. Move on to the next brand after 1-2 queries per brand
 
 ${isQuickMode ? "PRIORITY QUERIES (use these first in quick mode):" : "EFFECTIVE QUERIES (proven to find memberships):"}
 ${EFFECTIVE_QUERIES.slice(0, isQuickMode ? 5 : EFFECTIVE_QUERIES.length).map((q, i) => {
@@ -251,7 +251,15 @@ IMPORTANT: Call reportMembership for EACH membership as you find it. Don't wait!
 ${isRecentMode ? "\nIMPORTANT: ALWAYS include the date filter in your search queries!" : ""}
 ${isQuickMode ? "\nNote: If you hit the search limit, stop and return what you found." : ""}
 
-When done searching${isQuickMode ? " (or limit reached)" : " all brands"}, return a summary of what you searched and found.`;
+⚠️ STOPPING RULES - FOLLOW THESE STRICTLY:
+- Search each brand with AT MOST 2 queries, then move to the next brand
+- After checking all ${ALL_BRANDS.length} brands (${ALL_BRANDS.join(", ")}), STOP and return your summary
+- Do NOT keep searching the same brand with variations
+- Do NOT search more than ~${ALL_BRANDS.length * 2} total queries (2 per brand max)
+- If a brand has no results after 1-2 tries, move on - don't keep trying
+- When you've covered all brands, IMMEDIATELY produce your final summary
+
+YOUR FINAL OUTPUT should summarize: which brands you searched, how many memberships found, and any issues.`;
       },
     );
 
@@ -267,14 +275,21 @@ You have TWO tools:
 1. searchGmail({ query: string }) - Search Gmail and return matching emails
 2. reportMembership({ hotelBrand, programName, membershipNumber, tier?, sourceEmailId, sourceEmailSubject, sourceEmailDate, confidence }) - SAVE a found membership
 
-IMPORTANT WORKFLOW:
-1. Search for emails from a hotel brand
+WORKFLOW - Follow this order:
+1. Search for emails from ONE hotel brand (1-2 queries max per brand)
 2. Read the email bodies for membership numbers
 3. When you find a membership: IMMEDIATELY call reportMembership
-4. Continue searching other brands
-5. When done with all brands, return a summary
+4. Move to the NEXT brand (don't keep searching the same brand)
+5. After all brands checked: STOP and produce your final summary
 
-Do NOT wait until the end to report memberships. Report each one as you find it.`,
+CRITICAL STOPPING RULES:
+- Maximum 2 searches per brand, then move on
+- After checking all brands once, you are DONE
+- Do NOT try variations of the same search
+- Do NOT search indefinitely
+- When finished, produce your final structured output IMMEDIATELY
+
+Report memberships as you find them. Don't wait until the end.`,
       suggestedQueries: EFFECTIVE_QUERIES,
       resultSchema: HOTEL_RESULT_SCHEMA,
       additionalTools: {
