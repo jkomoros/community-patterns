@@ -1,6 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, handler, ifElse, lift, NAME, navigateTo, OpaqueRef, pattern, str, toSchema, UI } from "commontools";
-import CozyPollBallot from "./cozy-poll-ballot.tsx";
+import { Cell, cell, Default, derive, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
 import CozyPollLobby from "./cozy-poll-lobby.tsx";
 
 /**
@@ -44,74 +43,6 @@ interface PollOutput {
   voterCharms: Cell<Default<VoterCharmRef[], []>>;
   nextOptionId: Cell<Default<number, 1>>;
 }
-
-// Lift function to store voter charm instance
-const storeVoter = lift(
-  toSchema<{
-    charm: any;
-    voterCharms: Cell<VoterCharmRef[]>;
-    isInitialized: Cell<boolean>;
-  }>(),
-  undefined,
-  ({ charm, voterCharms, isInitialized }) => {
-    if (!isInitialized.get()) {
-      console.log("storeVoter: storing voter charm");
-
-      // Generate random ID for this voter
-      const randomId = Math.random().toString(36).substring(2, 10);
-      voterCharms.push({
-        id: randomId,
-        charm,
-        voterName: "(pending)",  // Will be updated when voter enters their name
-      });
-
-      isInitialized.set(true);
-      return charm;
-    } else {
-      console.log("storeVoter: already initialized");
-    }
-    return undefined;
-  },
-);
-
-// Handler to create a new voter charm (DEPRECATED - use viewer instead)
-const createVoter = handler<
-  unknown,
-  {
-    question: Cell<string>;
-    options: Cell<Option[]>;
-    votes: Cell<Vote[]>;
-    voterCharms: Cell<VoterCharmRef[]>;
-  }
->(
-  (_, { question, options, votes, voterCharms }) => {
-    console.log("Creating new Voter charm...");
-
-    // Create the voter instance with cell references
-    const isInitialized = cell(false);
-    const voterInstance = CozyPollBallot({
-      question: question.get(),  // Pass as plain value
-      options,  // Pass as cell reference (shared)
-      votes,    // Pass as cell reference (shared)
-      voterCharms,  // Pass as cell reference (shared)
-      myName: Cell.of(""),  // New local cell for this voter
-    });
-
-    console.log("Voter created, storing with lift...");
-
-    // Store the voter instance and navigate to it
-    const storedCharm = storeVoter({
-      charm: voterInstance,
-      voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
-      isInitialized: isInitialized as unknown as Cell<boolean>,
-    });
-
-    console.log("Navigating to voter charm...");
-
-    // Navigate the user to their new voter charm
-    return navigateTo(storedCharm || voterInstance);
-  },
-);
 
 // Handler to create the public viewer charm (poll lobby)
 const createViewer = handler<

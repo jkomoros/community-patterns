@@ -109,39 +109,41 @@ computed(() => {
 
 ### 4. cozy-poll.tsx
 
-**Current State:**
-- Uses lift with `isInitialized` flag for voter charm storage
-- Complex pattern to ensure voter only added once:
-  ```typescript
-  const storeVoter = lift(..., ({ charm, voterCharms, isInitialized }) => {
-    if (!isInitialized.get()) {
-      voterCharms.push({ id: randomId, charm, voterName: "(pending)" });
-      isInitialized.set(true);
-      return charm;
-    }
-    return undefined;
-  });
-  ```
+**Current State (Updated 2024-12-08):**
+- ✅ **CLEANED UP**: Removed deprecated `storeVoter` lift and `createVoter` handler
+- The `voterCharms` array still exists but is **largely vestigial**:
+  - Passed from cozy-poll → cozy-poll-lobby → cozy-poll-ballot
+  - But `cozy-poll-ballot` receives it without using it
+  - The Lobby's `createBallot` handler creates ballots but doesn't store them in `voterCharms`
 
-**Refactor Plan:**
-1. Change `voterCharms` to `Record<string, VoterCharm>` keyed by charm ID or generated ID
-2. Replace lift with idempotent computed:
+**Refactor Options:**
+
+**Option A: Remove voterCharms entirely** (simpler)
+- Since voterCharms isn't being used for anything, just remove it
+- Clean up the types and remove passing it through the component chain
+- Estimated effort: 30 minutes
+
+**Option B: Implement proper voter tracking** (if feature is wanted)
+1. Change `voterCharms` to `Record<string, VoterCharm>` keyed by charm ID
+2. In Lobby's `createBallot`, store the ballot reference:
    ```typescript
-   computed(() => {
-     const charm = currentVoterCharm.get();
-     if (!charm) return;
-     const charmId = getCharmId(charm);  // derive stable ID from charm
-     if (voterCharms.key(charmId).get()) return;
-     voterCharms.key(charmId).set({ id: charmId, charm, voterName: "(pending)" });
+   // Generate a stable ID for this ballot
+   const ballotId = Math.random().toString(36).substring(2, 10);
+   voterCharms.key(ballotId).set({
+     id: ballotId,
+     charm: voterInstance,
+     voterName: "(pending)",
    });
    ```
-3. Remove `isInitialized` flag entirely
+3. Optionally sync voter name from ballot back to voterCharms (would need additional wiring)
 
 **Considerations:**
-- Need stable way to identify charm (may need to derive ID from charm properties)
-- Simpler code, easier to understand
+- Option A is cleaner if voter tracking isn't needed
+- Option B would enable features like "see who's participating" in admin view
+- Currently the pattern works fine without either
 
-**Estimated Effort:** 1-2 hours
+**Status:** Deprecated code removed. Further changes optional.
+**Estimated Effort:** 30 min (Option A) or 1-2 hours (Option B)
 
 ---
 
@@ -239,7 +241,7 @@ computed(() => {
 | gmail-importer | High | Auto-accumulation | 2-3h | TODO |
 | google-calendar-importer | High | Auto-accumulation | 2h | TODO |
 | meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
-| cozy-poll | High | Simplification | 1-2h | TODO |
+| cozy-poll | High | Simplification | 30m-2h | **PARTIAL** - deprecated code removed |
 | assumption-surfacer | High | Data structure | 2h | TODO |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
 | prompt-injection-tracker | Medium | Pipeline cleanup | 4-6h | TODO |
@@ -251,7 +253,7 @@ computed(() => {
 ## Notes
 
 - Start with gmail-importer as it's the clearest data accumulation case
-- cozy-poll is quickest win for code simplification
+- ~~cozy-poll is quickest win for code simplification~~ **DONE (partial)** - deprecated code removed
 - Some patterns (assumption-surfacer, food-recipe-viewer) benefit more from Record<K,V> data structure than idempotent computed specifically
 - prompt-injection-tracker is largest and should be done last or incrementally
 
@@ -260,3 +262,4 @@ computed(() => {
 ## Progress Log
 
 - 2024-12-08: Created this plan after implementing cheeseboard-schedule.tsx as reference
+- 2024-12-08: **cozy-poll.tsx cleanup** - Removed deprecated `storeVoter` lift and `createVoter` handler. These were unused since the Lobby pattern handles ballot creation. The `voterCharms` array is now identified as vestigial (passed but unused). Updated plan with Option A (remove) vs Option B (implement properly).
