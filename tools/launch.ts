@@ -1387,10 +1387,13 @@ async function showFieldSuggestions(
     });
   }
 
-  // Show selection
+  // Show selection with legend
+  const legend = filterCompatibleOnly
+    ? "✅ = compatible type match  |  ⭐ = previously linked"
+    : "✅ = compatible  |  ⚠️ = maybe  |  ❌ = incompatible  |  ⭐ = previously linked";
   const selection = await interactiveSelect(
     fieldOptions,
-    "🔗 Select field link (↑/↓ to move, Enter to select, Q to quit):\n⭐ = previously linked"
+    `🔗 Select field link (↑/↓ to move, Enter to select, Q to quit):\n${legend}`
   );
 
   if (!selection) {
