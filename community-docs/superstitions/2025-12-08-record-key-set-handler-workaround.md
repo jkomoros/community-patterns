@@ -62,11 +62,38 @@ In cheeseboard:
 In assumption-surfacer:
 - Handler `.key().set()` tries to create **new keys** on an initially **empty** Record
 
+## Additional Observation
+
+`.key(key).get()` works fine on the same Record - it's only `.key(key).set()` for **creating new keys** that fails:
+
+```typescript
+// This works - reading from a key
+const existing = corrections.key(key).get();
+
+// This fails - creating a new key
+corrections.key(key).set({ ... });
+```
+
 ## Possible Root Causes (Needs Investigation)
 
-1. **Key format issues**: The hyphen `-` in keys like `0-Technical_Expertise` may be interpreted as path separators
-2. **Empty Record edge case**: `.key().set()` may not work on completely empty Records
-3. **Handler vs computed context**: Different execution context may affect key tracking
+1. **Creating vs updating**: `.key().set()` for NEW keys may differ from updating existing keys
+2. **Key format issues**: The hyphen `-` in keys like `0-Technical_Expertise` may be interpreted as path separators
+3. **Empty Record edge case**: `.key().set()` may not work on completely empty Records
+4. **Handler vs computed context**: Different execution context may affect key tracking
+
+## Open Question About Defaults
+
+The type uses `Default<Record<string, Correction>, {}>`:
+```typescript
+corrections?: Cell<Default<Record<string, Correction>, {}>>;
+```
+
+**Why would `.key().set()` fail when the default is `{}`?**
+
+The default should ensure the Record is initialized to `{}`, so creating new keys via `.key().set()` should theoretically work. This might indicate:
+- A timing issue where default hasn't been applied
+- A bug in how handlers access cells with defaults
+- Something specific about how `Default<>` interacts with `.key()` path resolution
 
 ## Notes for Further Investigation
 
