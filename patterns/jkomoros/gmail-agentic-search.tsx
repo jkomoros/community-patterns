@@ -904,7 +904,14 @@ You have the searchGmail tool available. Use it to search Gmail with queries lik
 - has:attachment
 - after:2024/01/01
 
-Be thorough in your searches. Try multiple queries if needed.`;
+IMPORTANT - WHEN TO STOP SEARCHING:
+- After you've searched each relevant category/source 1-2 times with good queries
+- When searches start returning the same emails you've already seen
+- When you've found what you're looking for (or confirmed it doesn't exist)
+- DO NOT keep trying slight variations of the same query
+- DO NOT search indefinitely - make a decision and produce your final result
+
+When you're done searching, STOP calling tools and produce your final structured output.`;
 
         // Add suggested queries if available
         let prompt = base;
