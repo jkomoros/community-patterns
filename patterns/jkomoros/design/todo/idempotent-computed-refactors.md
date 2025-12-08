@@ -233,24 +233,46 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 
 ### 7. prompt-injection-tracker.tsx
 
-**Current State:**
-- Multi-level pipeline with manual caching awareness
-- Deduplication logic spread across pipeline
+**Current State (Analyzed 2024-12-08):**
+- 5-level pipeline: Article → Link Extraction → Fetch Content → Classification → Fetch Original → Summary
+- Already uses the "dumb map approach" with `.map()` over cell arrays
+- Framework caching via `generateObject` and `fetchData` already handles most deduplication
+- Manual URL deduplication via `normalizeURL()` + Set in derives
+- Uses fixed slots (3 URLs per article) per superstition
 
-**Refactor Plan:**
+**Original Refactor Plan:**
 1. Each pipeline level stores results in `Record<string, Result>` keyed by input hash
-2. Use idempotent computed at each level:
-   - URL extraction results keyed by URL
-   - Fetch results keyed by URL
-   - Classification results keyed by content hash
-3. Framework handles caching, we handle deduplication
+2. Use idempotent computed at each level
 
-**Considerations:**
-- Most complex refactor
-- Need to carefully preserve pipeline semantics
-- May benefit from incremental approach (one level at a time)
+**Analysis: Original Plan May Not Be Needed**
 
-**Estimated Effort:** 4-6 hours
+Given framework author guidance:
+1. **Framework prefers arrays over Records with custom keys** - The current `.map()` approach is idiomatic
+2. **Framework caching already works** - `generateObject` and `fetchData` cache by inputs automatically
+3. **Custom keys have issues** - We hit `.key().set()` problems in assumption-surfacer
+
+**What the pattern already does right:**
+- ✅ Uses `.map()` over cell arrays (reactive, framework-tracked)
+- ✅ `generateObject` cached by prompt+schema+model
+- ✅ `fetchData` cached by URL+method+body
+- ✅ Deduplication in derives using Set (pure, no side effects)
+
+**Potential small improvements (if any):**
+1. **Remove debug logging cruft** - ~100 lines of DEBUG_LOGGING code could be removed
+2. **Simplify `readUrls` tracking** - Currently array with indexOf, could be Set-like
+
+**Question for framework author:**
+Is there any benefit to changing this pattern? The current architecture already:
+- Uses framework caching at every level
+- Uses reactive `.map()` over arrays
+- Does deduplication in pure derives
+
+The original plan (Records keyed by hash) seems to go against the "prefer framework ID tracking" guidance.
+
+**Recommendation:** Close as "keep as-is" or do minor cleanup only
+
+**Status:** PENDING REVIEW - awaiting framework author input
+**Estimated Effort:** 0-1 hours (cleanup only) or 4-6 hours (full refactor if needed)
 
 ---
 
@@ -264,9 +286,9 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
 | assumption-surfacer | High | Data structure | 30m | ✅ **DONE** - Record<K,V> refactor |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
-| prompt-injection-tracker | Medium | Pipeline cleanup | 4-6h | TODO |
+| prompt-injection-tracker | Medium | Pipeline cleanup | 0-1h? | **PENDING REVIEW** - may not need changes |
 
-**Remaining Effort:** ~9-12 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, prompt-injection-tracker 4-6h, cozy-poll voter tracking 1-2h)
+**Remaining Effort:** ~5-8 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, cozy-poll voter tracking 1-2h, prompt-injection-tracker 0-1h if cleanup only)
 
 ---
 
