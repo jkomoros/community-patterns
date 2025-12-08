@@ -1865,21 +1865,6 @@ Be thorough in your searches. Try multiple queries if needed.`;
                           >
                             {query.query}
                           </div>
-                          <div style={{ display: "flex", gap: "2px", marginBottom: "4px" }}>
-                            {/* Star rating - inline handlers for each star */}
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <span
-                                onClick={rateQuery({ queryId: query.id, rating: star, localQueries })}
-                                style={{
-                                  cursor: "pointer",
-                                  color: star <= (query.effectiveness || 0) ? "#f59e0b" : "#d1d5db",
-                                  fontSize: "14px",
-                                }}
-                              >
-                                {star <= (query.effectiveness || 0) ? "★" : "☆"}
-                              </span>
-                            ))}
-                          </div>
                           <div style={{ fontSize: "10px", color: "#64748b" }}>
                             Used {query.useCount}x
                             {query.lastUsed && ` · Last: ${new Date(query.lastUsed).toLocaleDateString()}`}
@@ -1896,7 +1881,7 @@ Be thorough in your searches. Try multiple queries if needed.`;
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: "4px" }}>
-                          {query.shareStatus === "private" && query.effectiveness >= 3 && (
+                          {query.shareStatus === "private" && (
                             <ct-button
                               onClick={flagForShare({ queryId: query.id, localQueries, pendingSubmissions })}
                               variant="ghost"
