@@ -45,6 +45,14 @@ interface CharmField {
   fullPath: string;         // e.g., "users/0/email"
   type: string;             // e.g., "string", "number", "object", "array"
   value?: unknown;          // Current value (for display)
+  schema?: ObjectSchema;    // For objects/arrays, the structural schema
+}
+
+interface ObjectSchema {
+  type: "object" | "array" | "primitive";
+  fields?: Record<string, ObjectSchema>;  // For objects: field name → schema
+  elementSchema?: ObjectSchema;           // For arrays: element schema
+  primitiveType?: string;                 // For primitives: "string", "number", etc.
 }
 
 interface CharmSchema {
@@ -385,15 +393,53 @@ async function interactiveSelect(
 
 // ===== CHARM LINKING FUNCTIONS =====
 
-function inferType(value: unknown): string {
-  if (value === null || value === undefined) return "any";
+function inferSchema(value: unknown): ObjectSchema {
+  if (value === null || value === undefined) {
+    return { type: "primitive", primitiveType: "any" };
+  }
+
   if (Array.isArray(value)) {
-    if (value.length === 0) return "any[]";
-    const elementType = inferType(value[0]);
+    if (value.length === 0) {
+      return { type: "array", elementSchema: { type: "primitive", primitiveType: "any" } };
+    }
+    return { type: "array", elementSchema: inferSchema(value[0]) };
+  }
+
+  if (typeof value === "object") {
+    const fields: Record<string, ObjectSchema> = {};
+    for (const [key, val] of Object.entries(value)) {
+      // Skip UI and internal keys
+      if (key === "UI" || key === "$UI" || key.startsWith("_")) continue;
+      fields[key] = inferSchema(val);
+    }
+    return { type: "object", fields };
+  }
+
+  return { type: "primitive", primitiveType: typeof value };
+}
+
+function schemaToTypeString(schema: ObjectSchema): string {
+  if (schema.type === "primitive") {
+    return schema.primitiveType || "any";
+  }
+  if (schema.type === "array") {
+    const elementType = schema.elementSchema ? schemaToTypeString(schema.elementSchema) : "any";
     return `${elementType}[]`;
   }
-  if (typeof value === "object") return "object";
-  return typeof value; // "string", "number", "boolean"
+  if (schema.type === "object") {
+    const fields = schema.fields || {};
+    const keys = Object.keys(fields);
+    if (keys.length === 0) return "{}";
+    if (keys.length <= 3) {
+      return `{${keys.join(", ")}}`;
+    }
+    return `{${keys.slice(0, 2).join(", ")}, +${keys.length - 2}}`;
+  }
+  return "unknown";
+}
+
+function inferType(value: unknown): string {
+  return schemaToTypeString(inferSchema(value));
 }
 
 function flattenObject(
@@ -409,22 +455,26 @@ function flattenObject(
 
   if (typeof obj !== "object") {
     // Primitive at root level
+    const schema = inferSchema(obj);
     fields.push({
       path: basePath,
       fullPath: basePath.join("/"),
-      type: inferType(obj),
+      type: schemaToTypeString(schema),
       value: obj,
+      schema,
     });
     return fields;
   }
 
   if (Array.isArray(obj)) {
     // Add the array itself as a field
+    const schema = inferSchema(obj);
     fields.push({
       path: basePath,
       fullPath: basePath.join("/"),
-      type: inferType(obj),
+      type: schemaToTypeString(schema),
       value: `[${obj.length} items]`,
+      schema,
     });
     return fields;
   }
@@ -435,18 +485,20 @@ function flattenObject(
     if (key === "UI" || key === "$UI" || key.startsWith("_")) continue;
 
     const currentPath = [...basePath, key];
-    const type = inferType(value);
+    const schema = inferSchema(value);
+    const type = schemaToTypeString(schema);
 
     // Add this field
     fields.push({
       path: currentPath,
       fullPath: currentPath.join("/"),
       type,
-      value: type === "object" ? "{...}" : type.endsWith("[]") ? `[${(value as unknown[]).length}]` : value,
+      value: schema.type === "object" ? "{...}" : schema.type === "array" ? `[${(value as unknown[]).length}]` : value,
+      schema,
     });
 
     // Recurse into objects (but not too deep)
-    if (type === "object" && basePath.length < maxDepth) {
+    if (schema.type === "object" && basePath.length < maxDepth) {
       const nested = flattenObject(value, currentPath, maxDepth);
       fields.push(...nested);
     }
@@ -455,10 +507,108 @@ function flattenObject(
   return fields;
 }
 
+// Check if target schema is compatible with source schema
+// Returns "compatible" if target's fields are a subset of source's fields with matching types
+// Returns "maybe" if there's partial overlap or any types involved
+// Returns "incompatible" if types don't match
+function checkSchemaCompatibility(
+  source: ObjectSchema | undefined,
+  target: ObjectSchema | undefined
+): "compatible" | "maybe" | "incompatible" {
+  // If either is missing, can't determine
+  if (!source || !target) return "maybe";
+
+  // Primitives: must match exactly (or any)
+  if (source.type === "primitive" && target.type === "primitive") {
+    if (source.primitiveType === target.primitiveType) return "compatible";
+    if (source.primitiveType === "any" || target.primitiveType === "any") return "maybe";
+    return "incompatible";
+  }
+
+  // Mixed types (primitive vs object/array)
+  if (source.type !== target.type) {
+    // Any can match anything
+    if (source.type === "primitive" && source.primitiveType === "any") return "maybe";
+    if (target.type === "primitive" && target.primitiveType === "any") return "maybe";
+    return "incompatible";
+  }
+
+  // Arrays: check element compatibility
+  if (source.type === "array" && target.type === "array") {
+    return checkSchemaCompatibility(source.elementSchema, target.elementSchema);
+  }
+
+  // Objects: check if target's fields are subset of source's fields
+  if (source.type === "object" && target.type === "object") {
+    const sourceFields = source.fields || {};
+    const targetFields = target.fields || {};
+
+    const sourceKeys = Object.keys(sourceFields);
+    const targetKeys = Object.keys(targetFields);
+
+    // Empty objects are compatible
+    if (targetKeys.length === 0) return "compatible";
+    if (sourceKeys.length === 0) return "maybe"; // Source has no fields, target expects some
+
+    // Check if all target fields exist in source with compatible types
+    let allMatch = true;
+    let anyMatch = false;
+
+    for (const targetKey of targetKeys) {
+      const targetFieldSchema = targetFields[targetKey];
+
+      // Look for exact key match first
+      if (sourceFields[targetKey]) {
+        const compat = checkSchemaCompatibility(sourceFields[targetKey], targetFieldSchema);
+        if (compat === "compatible") {
+          anyMatch = true;
+        } else if (compat === "incompatible") {
+          allMatch = false;
+        } else {
+          anyMatch = true;
+          allMatch = false;
+        }
+        continue;
+      }
+
+      // Look for similar key names (fuzzy match)
+      const similarKey = sourceKeys.find(sk =>
+        sk.toLowerCase() === targetKey.toLowerCase() ||
+        sk.toLowerCase().includes(targetKey.toLowerCase()) ||
+        targetKey.toLowerCase().includes(sk.toLowerCase())
+      );
+
+      if (similarKey) {
+        const compat = checkSchemaCompatibility(sourceFields[similarKey], targetFieldSchema);
+        if (compat !== "incompatible") {
+          anyMatch = true;
+        }
+        allMatch = false; // Not exact match
+      } else {
+        allMatch = false; // Field not found
+      }
+    }
+
+    if (allMatch) return "compatible";
+    if (anyMatch) return "maybe";
+    return "incompatible";
+  }
+
+  return "incompatible";
+}
+
 function checkTypeCompatibility(
   sourceType: string,
-  targetType: string
+  targetType: string,
+  sourceSchema?: ObjectSchema,
+  targetSchema?: ObjectSchema
 ): "compatible" | "maybe" | "incompatible" {
+  // If we have schemas, use structural comparison
+  if (sourceSchema && targetSchema) {
+    return checkSchemaCompatibility(sourceSchema, targetSchema);
+  }
+
+  // Fallback to string-based comparison
   // Exact match
   if (sourceType === targetType) return "compatible";
 
@@ -473,8 +623,8 @@ function checkTypeCompatibility(
     return checkTypeCompatibility(sourceElement, targetElement);
   }
 
-  // Object to object might work
-  if (sourceType === "object" && targetType === "object") return "maybe";
+  // Object to object - can't determine without schema
+  if (sourceType.startsWith("{") && targetType.startsWith("{")) return "maybe";
 
   // Different types
   return "incompatible";
@@ -571,7 +721,12 @@ async function generateLinkSuggestions(
       // Compare outputs from source to inputs of target
       for (const outputField of sourceSchema.outputs) {
         for (const inputField of targetSchema.inputs) {
-          const compatibility = checkTypeCompatibility(outputField.type, inputField.type);
+          const compatibility = checkTypeCompatibility(
+            outputField.type,
+            inputField.type,
+            outputField.schema,
+            inputField.schema
+          );
 
           if (compatibility === "incompatible") continue;
 
