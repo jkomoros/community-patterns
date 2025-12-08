@@ -900,6 +900,126 @@ async function importCharmsFromSpace(
   }
 }
 
+// View existing links for a charm
+async function viewCharmLinks(
+  config: Config,
+  labsDir: string
+): Promise<void> {
+  console.log("\n📊 View Charm Links\n");
+
+  if (config.recentCharms.length === 0) {
+    console.log("No charms available. Import some charms first.\n");
+    return;
+  }
+
+  // Select charm to view
+  const charmOptions: SelectOption[] = config.recentCharms.map(charm => {
+    const shortId = formatCharmId(charm.charmId);
+    const name = charm.name || charm.recipeName || "unnamed";
+    return {
+      label: `${name} | ${charm.space} | ${shortId}`,
+      value: charm.charmId,
+      icon: "📄 ",
+    };
+  });
+
+  const selectedCharmId = await interactiveSelect(
+    charmOptions,
+    "Select a charm to view its links:"
+  );
+
+  if (!selectedCharmId) {
+    return;
+  }
+
+  const charm = config.recentCharms.find(c => c.charmId === selectedCharmId)!;
+  const charmName = charm.name || charm.recipeName || "unnamed";
+  const shortId = charm.charmId.slice(-4);
+
+  console.log(`\n🔍 Fetching links for ${charmName}(${shortId})...`);
+
+  try {
+    // Run ct charm inspect to get link info
+    const command = new Deno.Command("deno", {
+      args: [
+        "task",
+        "ct",
+        "charm",
+        "inspect",
+        "--space", charm.space,
+        "--charm", charm.charmId,
+        "--json",
+      ],
+      cwd: labsDir,
+      env: {
+        ...Deno.env.toObject(),
+        CT_API_URL: charm.apiUrl,
+        CT_IDENTITY: IDENTITY_PATH,
+      },
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const { code, stdout, stderr } = await command.output();
+
+    if (code !== 0) {
+      const errorOutput = new TextDecoder().decode(stderr);
+      console.log(`\n❌ Failed to inspect charm: ${errorOutput}`);
+      return;
+    }
+
+    const output = new TextDecoder().decode(stdout);
+    const data = JSON.parse(output);
+
+    const readingFrom: Array<{ id: string; name?: string }> = data.readingFrom || [];
+    const readBy: Array<{ id: string; name?: string }> = data.readBy || [];
+
+    console.log(`\n📊 Links for ${charmName}(${shortId})`);
+    console.log(`   Space: ${charm.space}`);
+    console.log(`   Full ID: ${charm.charmId}\n`);
+
+    // Show incoming links (reading from)
+    console.log("📥 READING FROM (this charm gets data from):");
+    if (readingFrom.length === 0) {
+      console.log("   (none)\n");
+    } else {
+      for (const source of readingFrom) {
+        const sourceName = source.name || "unnamed";
+        const sourceShortId = source.id.slice(-4);
+        console.log(`   ← ${sourceName}(${sourceShortId})`);
+      }
+      console.log("");
+    }
+
+    // Show outgoing links (read by)
+    console.log("📤 READ BY (these charms get data from this one):");
+    if (readBy.length === 0) {
+      console.log("   (none)\n");
+    } else {
+      for (const target of readBy) {
+        const targetName = target.name || "unnamed";
+        const targetShortId = target.id.slice(-4);
+        console.log(`   → ${targetName}(${targetShortId})`);
+      }
+      console.log("");
+    }
+
+    // Summary
+    const totalLinks = readingFrom.length + readBy.length;
+    if (totalLinks === 0) {
+      console.log("💡 This charm has no links. Use the link feature to connect it to other charms.\n");
+    } else {
+      console.log(`📈 Total: ${readingFrom.length} incoming, ${readBy.length} outgoing\n`);
+    }
+
+    // Wait for user to acknowledge
+    await prompt("Press Enter to continue...");
+
+  } catch (e) {
+    console.error("Error viewing charm links:", e);
+  }
+}
+
 // Record a successful link in history
 function recordLinkHistory(
   config: Config,
@@ -1035,7 +1155,7 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     return config;
   }
 
-  // Step 1: Select SOURCE charm
+  // Step 1: Select SOURCE charm (or view links)
   console.log("Step 1: Select SOURCE charm (provides data)\n");
   const sourceOptions: SelectOption[] = config.recentCharms.map(charm => {
     const timeAgo = formatTimeSince(charm.deployedAt);
@@ -1048,7 +1168,12 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     };
   });
 
-  // Add option to import charms from a space
+  // Add utility options
+  sourceOptions.push({
+    label: "View existing links for a charm...",
+    value: "__view_links__",
+    icon: "📊 ",
+  });
   sourceOptions.push({
     label: "Import charms from a space...",
     value: "__import__",
@@ -1059,6 +1184,13 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     sourceOptions,
     "📤 Select SOURCE charm (↑/↓ to move, Enter to select, Q to quit):"
   );
+
+  // Handle view links
+  if (sourceCharmId === "__view_links__") {
+    await viewCharmLinks(config, labsDir);
+    // Return to link menu after viewing
+    return handleLinkCharms(config, labsDir);
+  }
 
   // Handle import
   if (sourceCharmId === "__import__") {
