@@ -344,8 +344,8 @@ const GmailAgenticSearch = pattern<
     accountType,      // Multi-account support: "default" | "personal" | "work"
     // Shared search strings support
     agentTypeUrl,
-    localQueries,
-    pendingSubmissions,
+    localQueries: localQueriesInput,      // Renamed: input may be read-only
+    pendingSubmissions: pendingSubmissionsInput,  // Renamed: input may be read-only
     enableCommunityQueries,
   }) => {
     // ========================================================================
@@ -360,6 +360,23 @@ const GmailAgenticSearch = pattern<
     // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
     // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
     const selectedAccountType = cell<"default" | "personal" | "work">("default");
+
+    // ========================================================================
+    // LOCAL QUERY STATE (writable cells)
+    // ========================================================================
+    // Input cells with Default<T, defaultValue> may be read-only when using default value.
+    // Create local writable cells initialized from inputs to ensure writes succeed.
+    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+    //
+    // NOTE: We don't sync from input after initialization. The parent pattern typically
+    // doesn't pass these inputs (uses defaults), and all modifications happen locally.
+    // If a parent DID pass values, they'd only be captured at initialization time.
+
+    // Local writable cell for saved queries (use original name for all existing usages)
+    const localQueries = cell<LocalQuery[]>(localQueriesInput.get() || []);
+
+    // Local writable cell for pending submissions (use original name for all existing usages)
+    const pendingSubmissions = cell<PendingSubmission[]>(pendingSubmissionsInput.get() || []);
 
     // Build reactive wish tag based on local selectedAccountType (writable)
     // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
@@ -576,6 +593,7 @@ const GmailAgenticSearch = pattern<
       { query: string; result?: Cell<any> },
       {
         auth: Cell<Auth>;
+        authRefreshStream: Cell<RefreshStreamType | null>;
         progress: Cell<SearchProgress>;
         maxSearches: Cell<Default<number, 0>>;
         debugLog: Cell<DebugLogEntry[]>;
@@ -653,9 +671,31 @@ const GmailAgenticSearch = pattern<
         try {
           console.log(`[SearchGmail Tool] Searching: ${input.query}`);
 
-          // Use GmailClient with the auth cell for automatic token refresh
-          // CRITICAL: state.auth must be a writable cell (not derived) for refresh to work
-          const client = new GmailClient(state.auth, { debugMode: false });
+          // Create an onRefresh callback using the cross-charm refresh stream
+          // This ensures token refresh works even when auth is from a different charm
+          const refreshStream = state.authRefreshStream.get();
+          const onRefresh = refreshStream?.send
+            ? async () => {
+                console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
+                await new Promise<void>((resolve, reject) => {
+                  refreshStream.send({}, (tx: any) => {
+                    const status = tx?.status?.();
+                    if (status?.status === "done") {
+                      console.log("[SearchGmail Tool] Token refresh succeeded");
+                      resolve();
+                    } else if (status?.status === "error") {
+                      console.log("[SearchGmail Tool] Token refresh failed:", status.error);
+                      reject(new Error(`Refresh failed: ${status.error}`));
+                    } else {
+                      resolve(); // Unknown status, assume success
+                    }
+                  });
+                });
+              }
+            : undefined;
+
+          // Use GmailClient with the auth cell and onRefresh callback for cross-charm refresh
+          const client = new GmailClient(state.auth, { debugMode: false, onRefresh });
           const emails = await client.searchEmails(input.query, 30);
 
           console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
@@ -839,6 +879,7 @@ const GmailAgenticSearch = pattern<
             "Search Gmail with a query and return matching emails. Returns email id, subject, from, date, snippet, and body text.",
           handler: searchGmailHandler({
             auth,
+            authRefreshStream,
             progress: searchProgress,
             maxSearches,
             debugLog,

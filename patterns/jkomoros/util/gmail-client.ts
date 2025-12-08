@@ -36,6 +36,13 @@ export interface GmailClientConfig {
   delayIncrement?: number;
   /** Enable verbose console logging */
   debugMode?: boolean;
+  /**
+   * External refresh callback for cross-charm token refresh.
+   * Use this when the auth cell belongs to a different charm - direct cell updates
+   * will fail due to transaction isolation. The callback should trigger refresh
+   * in the auth charm's transaction context (e.g., via a refresh stream).
+   */
+  onRefresh?: () => Promise<void>;
 }
 
 /** Simplified email structure returned by searchEmails */
@@ -95,6 +102,7 @@ export class GmailClient {
   private delay: number;
   private delayIncrement: number;
   private debugMode: boolean;
+  private onRefresh?: () => Promise<void>;
 
   constructor(
     auth: Cell<Auth>,
@@ -103,6 +111,7 @@ export class GmailClient {
       delay = 1000,
       delayIncrement = 100,
       debugMode = false,
+      onRefresh,
     }: GmailClientConfig = {},
   ) {
     this.auth = auth;
@@ -110,19 +119,34 @@ export class GmailClient {
     this.delay = delay;
     this.delayIncrement = delayIncrement;
     this.debugMode = debugMode;
+    this.onRefresh = onRefresh;
   }
 
   /**
    * Refresh the OAuth token using the refresh token.
    * Updates the auth cell with new token data.
+   *
+   * If an external onRefresh callback was provided, it will be used instead
+   * of direct cell update. This enables cross-charm refresh where direct
+   * cell writes would fail due to transaction isolation.
    */
   private async refreshAuth(): Promise<void> {
+    // If an external refresh callback was provided, use it
+    // (for cross-charm refresh via streams)
+    if (this.onRefresh) {
+      debugLog(this.debugMode, "Refreshing auth token via external callback...");
+      await this.onRefresh();
+      debugLog(this.debugMode, "Auth token refreshed via external callback");
+      return;
+    }
+
+    // Fall back to direct refresh (only works if auth cell is writable)
     const refreshToken = this.auth.get().refreshToken;
     if (!refreshToken) {
       throw new Error("No refresh token available");
     }
 
-    debugLog(this.debugMode, "Refreshing auth token...");
+    debugLog(this.debugMode, "Refreshing auth token directly...");
 
     const res = await fetch(
       new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
