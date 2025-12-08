@@ -714,7 +714,15 @@ async function generateFieldSuggestions(
   const sourceSchema = await fetchCharmSchema(sourceCharm, labsDir);
   const targetSchema = await fetchCharmSchema(targetCharm, labsDir);
 
-  if (!sourceSchema || !targetSchema) {
+  if (!sourceSchema) {
+    console.log(`  ⚠️  Could not fetch schema for source charm: ${sourceCharm.name || "unnamed"}`);
+    console.log(`     (charm may no longer exist at ${sourceCharm.apiUrl})`);
+    return [];
+  }
+
+  if (!targetSchema) {
+    console.log(`  ⚠️  Could not fetch schema for target charm: ${targetCharm.name || "unnamed"}`);
+    console.log(`     (charm may no longer exist at ${targetCharm.apiUrl})`);
     return [];
   }
 
