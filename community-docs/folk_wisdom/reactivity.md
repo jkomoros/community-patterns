@@ -15,9 +15,11 @@ Knowledge verified by multiple independent sessions. Still empirical - may not r
 | Construct | Purpose | Can READ? | Can WRITE? |
 |-----------|---------|-----------|------------|
 | **pattern** | Define the reactive graph | Yes | Yes (defines cells) |
-| **computed** | Transform data reactively | Yes | No |
-| **derive** | Transform data reactively (same as computed) | Yes | No |
+| **computed** | Transform data reactively | Yes | Yes, if idempotent* |
+| **derive** | Transform data reactively (same as computed) | Yes | Yes, if idempotent* |
 | **handler** | Respond to events | Yes (.get()) | Yes (.set(), .push()) |
+
+*See "Side Effects in computed/derive - MUST Be Idempotent" section and `blessed/reactivity.md` for details.
 
 ### Pattern - The Container
 
@@ -49,9 +51,9 @@ const completedTasks = computed(() => items.filter(t => t.done));
 const totalPrice = computed(() => items.reduce((sum, i) => sum + i.price, 0));
 ```
 
-**Can Write?** NO - these are **pure functions**. No mutations allowed.
+**Can Write?** YES, but only if **idempotent**. See `blessed/reactivity.md`.
 
-**Why?** `computed()` describes a **relationship**, not an action. "The total is always the sum of prices" is a fact that's always true. The framework maintains this truth by re-running when dependencies change.
+**Mental Model:** `computed()` describes a **relationship**. "The total is always the sum of prices" is a fact that's always true. Side effects are allowed if they're idempotent (running N times = same result as once). Non-idempotent side effects cause thrashing and break framework guarantees.
 
 **When to use:**
 - Filtering, sorting, grouping data
@@ -185,43 +187,59 @@ The only difference:
 
 ---
 
-## Derives Cannot Mutate Cells - Use Handlers Instead
+## Side Effects in computed/derive - MUST Be Idempotent
 
-⭐⭐⭐ (3 confirmations)
+⭐⭐⭐⭐ (4 confirmations - **supersedes "Derives Cannot Mutate Cells"**)
 
-Attempting to call `.set()` on Cell objects inside a `derive()` or `computed()` function **silently fails**. Derives are read-only and cannot mutate cells.
+**UPDATE 2024-12-08:** Previous guidance said `.set()` in computed/derive "silently fails". This was **incorrect**.
+
+**The truth:** `computed`, `derive`, and `lift` **CAN** have side effects including `.set()`, but they **MUST be idempotent** - running N times must produce the same end state as running once.
+
+**See:** `blessed/reactivity.md` - "Idempotent Side Effects in computed/lift/derive" for full details.
+
+### Quick Summary
 
 ```typescript
-// BROKEN - .set() silently fails, does nothing
-derive({ timingSuggestions, stepGroups }, ({ timingSuggestions, stepGroups }) => {
-  // This silently fails! .set() is undefined in derive context
-  stepGroups[0].set({ ...newData });  // Does nothing!
+// ✅ CORRECT - Idempotent side effect (check-before-write)
+computed(() => {
+  const items = fetchedItems.get();
+  for (const item of items) {
+    if (history.key(item.id).get()) continue;  // Skip if exists
+    history.key(item.id).set(item);  // Only set once per key
+  }
 });
 
-// WORKS - Handlers can mutate
-const applyChanges = handler<void, { stepGroups: Cell<StepGroup[]> }>(
-  (_, { stepGroups }) => {
-    stepGroups.get()[0].set({ ...newData });  // Works!
-  }
-);
+// ❌ WRONG - Non-idempotent (always modifies)
+computed(() => {
+  const items = fetchedItems.get();
+  history.set([...history.get(), ...items]);  // Appends every run!
+});
 ```
 
-**Why this matters:**
-- **Derives are pure functions** - They compute derived values without side effects
-- **Handlers are for side effects** - They can mutate state, make API calls, etc.
-- The code runs without errors, but nothing happens - very confusing to debug!
+### Why Idempotency Matters (Beyond Performance)
 
-**Pattern for user-triggered mutations based on reactive data:**
-1. Use `derive()` to compute what should change
-2. Show preview UI with an Apply button
-3. Wire the button to a `handler()` that performs the actual mutation
+Unlike React's `useMemo`, this isn't just about performance:
 
-**Related:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
+1. **Security Model:** Key tracking is load-bearing for the security model
+2. **CFC Policy Tracking:** Framework uses key tracking to enforce policies
+3. **Cache Coherence:** Non-idempotent writes cause cascading invalidations
+
+### When to Use Handlers vs Idempotent Computed
+
+| Scenario | Use |
+|----------|-----|
+| User-triggered mutation (button click) | Handler |
+| Automatic accumulation from fetch | Idempotent computed |
+| One-time action | Handler |
+| "Always keep X in sync with Y" | Idempotent computed |
+
+**Related:** `blessed/reactivity.md` (authoritative), `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
 
 **Guestbook:**
-- ✅ 2025-11-22 - Discovered in food-recipe.tsx timing suggestions (jkomoros)
-- ✅ 2025-11-25 - Confirmed in smart-rubric pattern (jkomoros)
+- ✅ 2025-11-22 - Original observation (jkomoros)
+- ✅ 2025-11-25 - Confirmed context issues with handlers in derive (jkomoros)
 - ✅ 2025-11-26 - Verified against conceptual model (jkomoros)
+- ✅ 2024-12-08 - **CORRECTED:** Framework author confirmed `.set()` works if idempotent. See blessed/reactivity.md (jkomoros)
 
 ---
 

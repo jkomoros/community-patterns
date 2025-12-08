@@ -173,3 +173,5 @@ For the assumption-surfacer pattern:
 ---
 
 **STATUS: DISPROVED** - The original observation was likely caused by something else (possibly missing model parameter causing 400 errors). The computed+.set() combination does NOT cause CPU loops in current framework version.
+
+**See:** `blessed/reactivity.md` - "Idempotent Side Effects in computed/lift/derive" for authoritative guidance. `.set()` in computed IS allowed if the operation is idempotent.

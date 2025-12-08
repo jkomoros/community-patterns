@@ -152,10 +152,17 @@ const displayJsx = computed(() => {
 
 ## Related
 
+- **Blessed:** `blessed/reactivity.md` - "Idempotent Side Effects" - `.set()` in computed IS allowed if idempotent
 - **Superstition:** `2025-12-06-computed-set-causes-cpu-loop.md` (DISPROVED)
 - **Superstition:** `2025-01-24-pass-cells-as-handler-params-not-closure.md`
-- **Folk Wisdom:** `folk_wisdom/reactivity.md` - "Derives Cannot Mutate Cells"
+- **Folk Wisdom:** `folk_wisdom/reactivity.md` - Updated guidance on side effects in computed
 - **Pattern:** `patterns/jkomoros/WIP/assumption-surfacer.tsx` - working implementation
+
+## Update (2024-12-08)
+
+**Note:** The guidance "computed cannot call .set()" has been corrected. Per framework author, `.set()` in computed/derive IS allowed if the operation is **idempotent** (running N times = same result as once). See `blessed/reactivity.md`.
+
+The pattern in this superstition (display generateObject directly, store only user corrections) is still a valid and recommended approach - but not because computed "can't" mutate, rather because it's often simpler and avoids needing to ensure idempotency.
 
 ## Guestbook
 
