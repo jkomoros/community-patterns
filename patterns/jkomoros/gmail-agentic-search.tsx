@@ -567,22 +567,13 @@ const GmailAgenticSearch = pattern<
     // DEBUG LOG HELPERS
     // ========================================================================
 
-    // Max debug log entries to prevent transaction consistency issues with large arrays
-    const MAX_DEBUG_LOG_ENTRIES = 30;
-
-    // Helper to add a debug log entry (with size limit and error handling)
+    // Helper to add a debug log entry using push (proper array cell mutation)
     const addDebugLogEntry = (
       logCell: Cell<DebugLogEntry[]>,
       entry: Omit<DebugLogEntry, "timestamp">,
     ) => {
       try {
-        const current = logCell.get() || [];
-        const newEntry = { ...entry, timestamp: Date.now() };
-        // Keep only the most recent entries to avoid transaction issues with large arrays
-        const trimmed = current.length >= MAX_DEBUG_LOG_ENTRIES
-          ? current.slice(-MAX_DEBUG_LOG_ENTRIES + 1)
-          : current;
-        logCell.set([...trimmed, newEntry]);
+        logCell.push({ ...entry, timestamp: Date.now() });
       } catch (err) {
         // Log to console but don't let debug logging errors crash the agent
         console.error("[GmailAgenticSearch] Debug log error:", err);
@@ -777,7 +768,7 @@ const GmailAgenticSearch = pattern<
               effectiveness: 1,  // Start at 1 since it found results
               shareStatus: "private",
             };
-            state.localQueries.set([...currentLocalQueries, newQuery]);
+            state.localQueries.push(newQuery);
           }
 
           // Auto-upvote community queries that found results
@@ -1831,7 +1822,7 @@ When you're done searching, STOP calling tools and produce your final structured
         recommendation: "pending",
         userApproved: false,
       };
-      state.pendingSubmissions.set([...pending, newPending]);
+      state.pendingSubmissions.push(newPending);
     });
 
     // Note: rateQuery, deleteLocalQuery, flagForShare are called directly with all parameters
@@ -2029,7 +2020,7 @@ When you're done searching, STOP calling tools and produce your final structured
         userApproved: false,
       };
 
-      state.pendingSubmissions.set([...pending, newPending]);
+      state.pendingSubmissions.push(newPending);
 
       // Update the local query status
       const idx = queries.findIndex((q) => q.id === input.queryId);
