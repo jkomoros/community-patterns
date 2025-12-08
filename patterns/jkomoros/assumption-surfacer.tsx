@@ -135,7 +135,70 @@ const clearChat = handler<
   userContext.set([]);
 });
 
-// Handler for selecting a different alternative (correction flow)
+// Handler for ct-radio-group change event
+const onAssumptionChange = handler<
+  { detail: { value: string } },
+  {
+    messageIndex: number;
+    assumptionLabel: string;
+    originalIndex: number;
+    alternatives: Array<{ value: string; description?: string }>;
+    addMessage: Stream<BuiltInLLMMessage>;
+    corrections: Cell<Correction[]>;
+    userContext: Cell<UserContextNote[]>;
+  }
+>(({ detail }, { messageIndex, assumptionLabel, originalIndex, alternatives, addMessage, corrections, userContext }) => {
+  const newIndex = parseInt(detail.value, 10);
+  if (isNaN(newIndex)) return;
+
+  const oldValue = alternatives[originalIndex]?.value ?? "";
+  const newValue = alternatives[newIndex]?.value ?? "";
+
+  // If clicking the already-selected option, do nothing
+  const currentCorrections = corrections.get();
+  const existing = currentCorrections.find(
+    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
+  );
+  if (existing && existing.correctedIndex === newIndex) {
+    return;
+  }
+  if (!existing && newIndex === originalIndex) {
+    return;
+  }
+
+  // Send correction message
+  const correctionText = `Regarding ${assumptionLabel.toLowerCase()}: ${newValue} rather than ${oldValue}.`;
+
+  addMessage.send({
+    role: "user",
+    content: [{ type: "text" as const, text: correctionText }],
+  });
+
+  // Update or add correction
+  const existingIdx = currentCorrections.findIndex(
+    c => c.messageIndex === messageIndex && c.assumptionLabel === assumptionLabel
+  );
+
+  if (existingIdx >= 0) {
+    const updated = [...currentCorrections];
+    updated[existingIdx] = { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex };
+    corrections.set(updated);
+  } else {
+    corrections.set([...currentCorrections, { messageIndex, assumptionLabel, originalIndex, correctedIndex: newIndex }]);
+  }
+
+  // Add user context note
+  const contextNote: UserContextNote = {
+    id: `context-${Date.now()}`,
+    content: `Prefers ${newValue} over ${oldValue} for ${assumptionLabel}`,
+    source: "correction",
+    createdAt: new Date().toISOString(),
+    assumptionLabel,
+  };
+  userContext.set([...userContext.get(), contextNote]);
+});
+
+// Handler for selecting a different alternative (correction flow) - legacy click handler
 const selectAlternative = handler<
   unknown,
   {
@@ -367,57 +430,13 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
           ? correction.correctedIndex
           : assumption.selectedIndex;
 
-        // Build alternatives elements
-        const altElements: any[] = [];
-        for (let altIndex = 0; altIndex < assumption.alternatives.length; altIndex++) {
-          const alt = assumption.alternatives[altIndex];
-          const isSelected = altIndex === currentSelectedIndex;
-          const originalValue = assumption.alternatives[assumption.selectedIndex]?.value ?? "";
+        // Convert alternatives to ct-radio-group items format
+        const radioItems = assumption.alternatives.map((alt, idx) => ({
+          label: alt.value,
+          value: String(idx),
+        }));
 
-          altElements.push(
-            <div
-              key={altIndex}
-              style={{
-                padding: "0.2rem 0.4rem",
-                marginBottom: altIndex < assumption.alternatives.length - 1 ? "0.2rem" : "0",
-                borderRadius: "4px",
-                backgroundColor: isSelected
-                  ? "var(--ct-color-accent-light, #e3f2fd)"
-                  : "transparent",
-                cursor: "pointer",
-                fontSize: "0.75rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.3rem",
-              }}
-              onClick={selectAlternative({
-                messageIndex,
-                assumptionLabel,
-                originalIndex: assumption.selectedIndex,
-                newIndex: altIndex,
-                oldValue: originalValue,
-                newValue: alt.value,
-                addMessage,
-                corrections,
-                userContext,
-              })}
-            >
-              <span
-                style={{
-                  color: isSelected
-                    ? "var(--ct-color-accent, #2196f3)"
-                    : "var(--ct-color-text-secondary, #888)",
-                  fontSize: "0.7rem",
-                }}
-              >
-                {isSelected ? "●" : "○"}
-              </span>
-              <span>{alt.value}</span>
-            </div>
-          );
-        }
-
-        // Assumption card container
+        // Assumption card container with ct-radio-group
         elements.push(
           <div
             key={elementIndex++}
@@ -441,9 +460,21 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
               {assumptionLabel}
             </div>
 
-            {/* Alternatives */}
-            <div style={{ padding: "0.3rem" }}>
-              {altElements}
+            {/* Alternatives using ct-radio-group */}
+            <div style={{ padding: "0.3rem", fontSize: "0.75rem" }}>
+              <ct-radio-group
+                value={String(currentSelectedIndex)}
+                items={radioItems}
+                onct-change={onAssumptionChange({
+                  messageIndex,
+                  assumptionLabel,
+                  originalIndex: assumption.selectedIndex,
+                  alternatives: assumption.alternatives,
+                  addMessage,
+                  corrections,
+                  userContext,
+                })}
+              />
             </div>
           </div>
         );
