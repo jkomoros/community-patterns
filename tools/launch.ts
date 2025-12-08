@@ -164,6 +164,9 @@ async function interactiveSelect(
   }
 
   let selectedIndex = 0;
+  let filterText = "";
+  let filteredOptions = options;
+  let lastRenderedLineCount = 0;
 
   // Enable raw mode to capture arrow keys
   Deno.stdin.setRaw(true);
@@ -171,20 +174,87 @@ async function interactiveSelect(
   // Hide cursor
   await Deno.stdout.write(new TextEncoder().encode(HIDE_CURSOR));
 
-  // Initial render
-  const renderOptions = () => {
-    for (let i = 0; i < options.length; i++) {
-      const option = options[i];
-      const icon = option.icon || "";
-      const prefix = i === selectedIndex ? "→ " : "  ";
-      const style = i === selectedIndex ? "\x1b[7m" : ""; // Reverse video for selected
-      const reset = i === selectedIndex ? "\x1b[0m" : "";
-
-      console.log(`${prefix}${style}${icon}${option.label}${reset}`);
+  // Filter options based on current filter text
+  const updateFilteredOptions = () => {
+    if (filterText === "") {
+      filteredOptions = options;
+    } else {
+      const lowerFilter = filterText.toLowerCase();
+      filteredOptions = options.filter((opt) =>
+        opt.label.toLowerCase().includes(lowerFilter)
+      );
     }
+    // Reset selection to first item when filter changes
+    selectedIndex = 0;
   };
 
-  renderOptions();
+  // Render the current state
+  const render = () => {
+    const lines: string[] = [];
+
+    // Filter line (always show, even if empty, for consistent layout)
+    if (filterText) {
+      lines.push(`🔍 Filter: ${filterText}`);
+    } else {
+      lines.push("\x1b[90m(type to filter)\x1b[0m"); // Dim hint
+    }
+
+    // Options
+    if (filteredOptions.length === 0) {
+      lines.push("  \x1b[90m(no matches)\x1b[0m");
+    } else {
+      for (let i = 0; i < filteredOptions.length; i++) {
+        const option = filteredOptions[i];
+        const icon = option.icon || "";
+        const prefix = i === selectedIndex ? "→ " : "  ";
+        const style = i === selectedIndex ? "\x1b[7m" : ""; // Reverse video for selected
+        const reset = i === selectedIndex ? "\x1b[0m" : "";
+        lines.push(`${prefix}${style}${icon}${option.label}${reset}`);
+      }
+    }
+
+    return lines;
+  };
+
+  // Clear previous render and output new lines
+  const rerender = async () => {
+    // Move cursor up to clear previous output
+    for (let i = 0; i < lastRenderedLineCount; i++) {
+      await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+    }
+
+    // Clear all previous lines
+    for (let i = 0; i < lastRenderedLineCount; i++) {
+      await Deno.stdout.write(
+        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START)
+      );
+      if (i < lastRenderedLineCount - 1) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
+      }
+    }
+
+    // Move back to start
+    if (lastRenderedLineCount > 1) {
+      for (let i = 0; i < lastRenderedLineCount - 1; i++) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+      }
+    }
+    await Deno.stdout.write(new TextEncoder().encode(CURSOR_TO_START));
+
+    // Render new content
+    const lines = render();
+    for (const line of lines) {
+      console.log(line);
+    }
+    lastRenderedLineCount = lines.length;
+  };
+
+  // Initial render
+  const initialLines = render();
+  for (const line of initialLines) {
+    console.log(line);
+  }
+  lastRenderedLineCount = initialLines.length;
 
   // Listen for input
   const buf = new Uint8Array(3);
@@ -196,53 +266,67 @@ async function interactiveSelect(
 
     const input = buf.slice(0, n);
 
-    // Check for arrow keys
+    // Check for escape sequences (arrow keys, etc.)
     if (input[0] === 0x1b && input[1] === 0x5b) {
-      // Move cursor up to start of list
-      for (let i = 0; i < options.length; i++) {
-        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
-      }
-
       if (input[2] === 0x41) {
         // Up arrow
-        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+        if (filteredOptions.length > 0) {
+          selectedIndex =
+            (selectedIndex - 1 + filteredOptions.length) %
+            filteredOptions.length;
+          await rerender();
+        }
       } else if (input[2] === 0x42) {
         // Down arrow
-        selectedIndex = (selectedIndex + 1) % options.length;
-      }
-
-      // Clear all lines
-      for (let i = 0; i < options.length; i++) {
-        await Deno.stdout.write(new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START));
-        if (i < options.length - 1) {
-          await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
+        if (filteredOptions.length > 0) {
+          selectedIndex = (selectedIndex + 1) % filteredOptions.length;
+          await rerender();
         }
       }
-
-      // Move back to start
-      for (let i = 0; i < options.length - 1; i++) {
-        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+      // Ignore other escape sequences
+    } else if (input[0] === 0x1b) {
+      // Escape key alone - clear filter
+      if (filterText !== "") {
+        filterText = "";
+        updateFilteredOptions();
+        await rerender();
       }
-      await Deno.stdout.write(new TextEncoder().encode(CURSOR_TO_START));
-
-      // Re-render
-      renderOptions();
     } else if (input[0] === 0x0d || input[0] === 0x0a) {
       // Enter key
       Deno.stdin.setRaw(false);
       await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
-      return options[selectedIndex].value;
-    } else if (input[0] === 0x71 || input[0] === 0x51) {
-      // 'q' or 'Q' key
-      Deno.stdin.setRaw(false);
-      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      if (filteredOptions.length > 0) {
+        return filteredOptions[selectedIndex].value;
+      }
       return null;
+    } else if (input[0] === 0x7f || input[0] === 0x08) {
+      // Backspace (0x7f on macOS, 0x08 on some systems)
+      if (filterText.length > 0) {
+        filterText = filterText.slice(0, -1);
+        updateFilteredOptions();
+        await rerender();
+      }
     } else if (input[0] === 0x03) {
       // Ctrl-C
       Deno.stdin.setRaw(false);
       await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
       console.log("\n👋 Cancelled");
       Deno.exit(0);
+    } else if (input[0] >= 0x20 && input[0] < 0x7f) {
+      // Printable ASCII character (space through ~)
+      const char = String.fromCharCode(input[0]);
+
+      // Special case: 'q' or 'Q' when no filter is active exits
+      if ((char === "q" || char === "Q") && filterText === "") {
+        Deno.stdin.setRaw(false);
+        await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+        return null;
+      }
+
+      // Add character to filter
+      filterText += char;
+      updateFilteredOptions();
+      await rerender();
     }
   }
 
