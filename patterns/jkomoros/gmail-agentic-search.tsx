@@ -451,7 +451,10 @@ const GmailAgenticSearch = pattern<
       const googleAuthCharm = GoogleAuth({
         selectedScopes: {
           gmail: true,
+          gmailSend: false,
+          gmailModify: false,
           calendar: false,
+          calendarWrite: false,
           drive: false,
           contacts: false,
         },

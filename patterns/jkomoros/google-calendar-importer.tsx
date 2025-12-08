@@ -372,7 +372,10 @@ const createGoogleAuth = handler<unknown, Record<string, never>>(
     const googleAuthCharm = GoogleAuth({
       selectedScopes: {
         gmail: false,
+        gmailSend: false,
+        gmailModify: false,
         calendar: true,  // Pre-select Calendar scope
+        calendarWrite: false,
         drive: false,
         contacts: false,
       },

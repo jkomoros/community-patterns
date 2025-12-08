@@ -26,7 +26,10 @@ import GoogleAuthWork from "./google-auth-work.tsx";
 // Same selected scopes type as base GoogleAuth
 type SelectedScopes = {
   gmail: Default<boolean, false>;
+  gmailSend: Default<boolean, false>;
+  gmailModify: Default<boolean, false>;
   calendar: Default<boolean, false>;
+  calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
   contacts: Default<boolean, false>;
 };
@@ -36,7 +39,10 @@ interface Input {
     SelectedScopes,
     {
       gmail: true;
+      gmailSend: false;
+      gmailModify: false;
       calendar: true;
+      calendarWrite: false;
       drive: false;
       contacts: false;
     }
