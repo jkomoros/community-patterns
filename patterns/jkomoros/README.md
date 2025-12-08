@@ -9,9 +9,10 @@ Fetch and display Cheeseboard pizza schedule with ingredient preferences.
 
 **Interesting features:**
 - External data fetching with fetchData
+- **Idempotent side effects in computed** - auto-syncs fetched pizzas to history (reference implementation for `blessed/reactivity.md`)
 - Ingredient preference tracking (thumbs up/down)
 - Pizza ranking based on liked/disliked ingredients
-- Historical tracking of pizzas eaten
+- Historical tracking with object keys for efficient updates
 
 #### `cozy-poll.tsx`
 Multi-voter anonymous polling system. Create polls and share with friends.
