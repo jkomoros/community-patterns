@@ -192,9 +192,9 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 **Framework Workaround Required:**
 - `.key(key).set()` threw errors when creating new keys on Record in handler context
 - Error: `Value at path value/argument/corrections/0-Technical_Expertise is not an object`
-- **Root cause (per framework author):** Framework expects to manage its own key/ID space. Custom composite keys like `"0-Technical_Expertise"` conflict with path resolution (hyphen interpreted as path separator).
+- **Root cause:** Unknown - possibly key format (hyphen as path separator?), empty Record, or handler context
 - **Workaround:** Use spread: `corrections.set({ ...current, [key]: value })`
-- **Better approach:** Use arrays with framework tracking, or keys from data itself (like `pizza.date`)
+- **Separate best practice:** Framework author recommends relying on framework ID tracking (arrays + `.map()`) rather than custom keys, for performance reasons
 - **Superstition filed:** `community-docs/superstitions/2025-12-08-record-key-set-handler-workaround.md`
 
 **Status:** ✅ **DONE** (tested with Playwright)
