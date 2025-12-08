@@ -56,8 +56,12 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 - Gmail-specific: historyId sync, deletions, label changes add complexity
 - The async `process()` function does most of the heavy lifting
 
-**Status:** Needs decision - simpler than originally thought, but also less clear benefit
-**Estimated Effort:** 1-2 hours (Option A) or skip (Option B)
+**Decision: Option B - Keep as-is**
+- Current implementation works correctly
+- Array + Set deduplication aligns with framework preference for arrays over Records with custom keys
+- Idempotent computed pattern doesn't fit (needs deletions/updates, not add-only)
+
+**Status:** ✅ **CLOSED** - no changes needed
 
 ---
 
@@ -68,19 +72,14 @@ The simple idempotent computed pattern (add-only accumulation) doesn't work here
 - Handler fetches and accumulates calendar events
 - Likely has similar complexity (deletions, updates, incremental sync)
 
-**Analysis:** Same as gmail-importer - needs investigation to see if it handles deletions/updates.
+**Analysis:** Same as gmail-importer - likely needs deletions/updates for calendar sync.
 
-**Refactor Options:** Same as gmail-importer
-- Option A: Record<K,V> data structure for cleaner key-based access
-- Option B: Keep as-is if working correctly
+**Decision: Option B - Keep as-is** (same reasoning as gmail-importer)
+- Array + framework tracking preferred over Records with custom keys
+- Calendar sync likely needs deletions/updates like Gmail
+- If it works, don't change it
 
-**Considerations:**
-- Calendar events have recurring instances - need to handle event IDs properly
-- May need composite key (calendarId + eventId)
-- Check if calendar API has history/sync features like Gmail
-
-**Status:** Needs investigation (likely same conclusion as gmail-importer)
-**Estimated Effort:** 1-2 hours if Option A, skip if Option B
+**Status:** ✅ **CLOSED** - no changes needed
 
 ---
 
@@ -259,15 +258,15 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 
 | Pattern | Priority | Type | Effort | Status |
 |---------|----------|------|--------|--------|
-| gmail-importer | High | Auto-accumulation | 1-2h | **ANALYZED** - idempotent computed doesn't fit |
-| google-calendar-importer | High | Auto-accumulation | 1-2h | Needs investigation (likely same as gmail) |
+| gmail-importer | High | Auto-accumulation | - | ✅ **CLOSED** - keep as-is |
+| google-calendar-importer | High | Auto-accumulation | - | ✅ **CLOSED** - keep as-is |
 | meal-orchestrator | High | Auto-initialization | 3-4h | TODO |
 | cozy-poll | High | Simplification | 1-2h | **DEFERRED** - cleanup done, voter tracking later |
-| assumption-surfacer | High | Data structure | 15m | ✅ **DONE** - Record<K,V> refactor |
+| assumption-surfacer | High | Data structure | 30m | ✅ **DONE** - Record<K,V> refactor |
 | food-recipe-viewer | Medium | Toggle cleanup | 1h | TODO |
 | prompt-injection-tracker | Medium | Pipeline cleanup | 4-6h | TODO |
 
-**Total Estimated Effort:** 15-20 hours
+**Remaining Effort:** ~9-12 hours (meal-orchestrator 3-4h, food-recipe-viewer 1h, prompt-injection-tracker 4-6h, cozy-poll voter tracking 1-2h)
 
 ---
 
@@ -286,3 +285,4 @@ corrections.key(key).set({ messageIndex, assumptionLabel, originalIndex, correct
 - 2024-12-08: **cozy-poll.tsx cleanup** - Removed deprecated `storeVoter` lift and `createVoter` handler. These were unused since the Lobby pattern handles ballot creation. The `voterCharms` array is now identified as vestigial (passed but unused). Updated plan with Option A (remove) vs Option B (implement properly).
 - 2024-12-08: **gmail-importer.tsx analysis** - The simple idempotent computed pattern doesn't fit because Gmail sync needs to handle deletions, label updates, and incremental historyId sync. Deduplication already works via Set. Options: (A) change to Record<K,V> for cleaner updates, or (B) keep as-is.
 - 2024-12-08: **assumption-surfacer.tsx refactored** - Changed `corrections` from array to `Record<string, Correction>`. Simplified handlers from 15+ lines of findIndex/push logic to single `corrections.key(key).set()` calls. Direct key lookup in reading code.
+- 2024-12-08: **gmail-importer and google-calendar-importer CLOSED** - Decision: keep as-is. Framework prefers arrays with native tracking over Records with custom keys. These patterns need deletions/updates which don't fit idempotent computed anyway.
