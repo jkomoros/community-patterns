@@ -51,14 +51,17 @@ interface HistoricalPizza {
   addedAt: string;  // ISO timestamp when added to history
 }
 
+// History is stored as object with date keys for idempotent updates
+type PizzaHistory = Record<string, HistoricalPizza>;
+
 interface CheeseboardScheduleInput {
   preferences?: Cell<Default<IngredientPreference[], []>>;
-  history?: Cell<Default<HistoricalPizza[], []>>;
+  history?: Cell<Default<PizzaHistory, {}>>;
 }
 
 interface CheeseboardScheduleOutput {
   preferences: Cell<IngredientPreference[]>;
-  history: Cell<HistoricalPizza[]>;
+  history: Cell<PizzaHistory>;
 }
 
 // ============================================================================
@@ -298,50 +301,24 @@ const removePreference = handler<
   preferences.set(current.filter(p => p.ingredient !== ingredient));
 });
 
-// Handler to add a pizza to history
-const addToHistory = handler<
-  unknown,
-  { history: Cell<HistoricalPizza[]>; pizza: Pizza }
->((_event, { history, pizza }) => {
-  const current = history.get();
-
-  // Check if this pizza is already in history (by date)
-  const exists = current.some(p => p.date === pizza.date);
-  if (exists) {
-    return; // Don't add duplicates
-  }
-
-  const historicalPizza: HistoricalPizza = {
-    date: pizza.date,
-    description: pizza.description,
-    ingredients: [...pizza.ingredients],
-    ate: "unknown",
-    addedAt: new Date().toISOString(),
-  };
-
-  // Add to beginning (newest first)
-  history.set([historicalPizza, ...current]);
-});
-
-// Handler to mark if user ate a pizza
+// Handler to mark if user ate a pizza (works with object-based history)
 const markAte = handler<
   unknown,
-  { history: Cell<HistoricalPizza[]>; date: string; ate: "yes" | "no" }
+  { history: Cell<PizzaHistory>; date: string; ate: "yes" | "no" }
 >((_event, { history, date, ate }) => {
-  const current = history.get();
-  const updated = current.map(p =>
-    p.date === date ? { ...p, ate } : p
-  );
-  history.set(updated);
+  const pizza = history.key(date).get();
+  if (pizza) {
+    history.key(date).set({ ...pizza, ate });
+  }
 });
 
-// Handler to remove a pizza from history
+// Handler to remove a pizza from history (works with object-based history)
 const removeFromHistory = handler<
   unknown,
-  { history: Cell<HistoricalPizza[]>; date: string }
+  { history: Cell<PizzaHistory>; date: string }
 >((_event, { history, date }) => {
-  const current = history.get();
-  history.set(current.filter(p => p.date !== date));
+  // Set to undefined to remove the key
+  history.key(date).set(undefined as any);
 });
 
 // ============================================================================
@@ -369,6 +346,32 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
 
     // Parse pizzas with ingredients
     const pizzaList = createPizzaList({ result });
+
+    // Auto-sync fetched pizzas to history (idempotent side effect)
+    // This computed has a side effect but is safe because:
+    // 1. We check if key exists before writing (skip if already present)
+    // 2. We use history.key(date).set() for individual updates (preserves tracking)
+    // 3. The operation is idempotent - running N times = same result as once
+    computed(() => {
+      const fetched = pizzaList.get();
+      if (!fetched || fetched.length === 0) return;
+
+      for (const pizza of fetched) {
+        const key = pizza.date;
+
+        // CRITICAL: Check if already exists - skip to maintain idempotency
+        if (history.key(key).get()) continue;
+
+        // Only set on first encounter
+        history.key(key).set({
+          date: pizza.date,
+          description: pizza.description,
+          ingredients: [...pizza.ingredients],
+          ate: "unknown",
+          addedAt: new Date().toISOString(),
+        });
+      }
+    });
 
     // Create lists for liked and disliked preferences
     const likedPrefs = computed(() => {
@@ -512,32 +515,7 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
                   })}
                 </div>
 
-                {/* Add to History button */}
-                <div style={{ marginTop: "0.5rem" }}>
-                  {computed(() => {
-                    const inHistory = history.get().some(p => p.date === pizza.date);
-                    return inHistory ? (
-                      <span style={{ fontSize: "0.85rem", color: "#666", fontStyle: "italic" }}>
-                        ✓ In history
-                      </span>
-                    ) : (
-                      <button
-                        onClick={addToHistory({ history, pizza })}
-                        style={{
-                          background: "#007bff",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.85rem",
-                          cursor: "pointer"
-                        }}
-                      >
-                        Add to History
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Pizzas are automatically added to history on fetch */}
               </div>
               );
             })}
@@ -643,22 +621,29 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
             backgroundColor: "#f9f9f9"
           }}>
             <summary style={{ cursor: "pointer", fontWeight: "600", fontSize: "1.1rem" }}>
-              Pizza History ({computed(() => history.get().length)} pizzas)
+              Pizza History ({computed(() => Object.keys(history.get()).length)} pizzas)
             </summary>
 
             <div style={{ marginTop: "1rem" }}>
               {computed(() => {
-                const historyList = history.get();
+                const historyObj = history.get();
+                const historyList = Object.values(historyObj).filter((p): p is HistoricalPizza => p != null);
 
                 if (historyList.length === 0) {
                   return (
                     <p style={{ color: "#666", fontStyle: "italic" }}>
-                      No pizzas in history yet. Click "Add to History" on current pizzas to track them.
+                      No pizzas in history yet. Pizzas are automatically added when fetched.
                     </p>
                   );
                 }
 
-                return historyList.map((pizza) => {
+                // Sort by date (newest first) for display
+                const sorted = [...historyList].sort((a, b) => {
+                  // Parse dates like "Wed Dec 4" - compare by addedAt as fallback
+                  return new Date(b.addedAt).getTime() - new Date(a.addedAt).getTime();
+                });
+
+                return sorted.map((pizza) => {
                   // Calculate score for historical pizza
                   const score = computed(() => {
                     const prefs = preferences.get();
