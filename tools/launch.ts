@@ -19,12 +19,23 @@ interface PatternRecord {
   lastUsed: string; // ISO timestamp
 }
 
+interface RecentCharm {
+  space: string;
+  charmId: string;
+  name?: string;
+  recipeName?: string;
+  patternPath?: string;  // Original pattern file path
+  deployedAt: string;    // ISO timestamp
+  apiUrl: string;
+}
+
 interface Config {
-  lastSpaceLocal?: string;      // Last space for localhost deployments
+  lastSpaceLocal?: string;       // Last space for localhost deployments
   lastSpaceProd?: string;        // Last space for production deployments
   lastDeploymentTarget?: "local" | "prod";  // Last deployment target chosen
   labsDir?: string;              // Optional: override default labs location
   patterns: PatternRecord[];
+  recentCharms: RecentCharm[];   // Recently deployed charms for linking
 }
 
 // ===== UTILITY FUNCTIONS =====
@@ -40,11 +51,17 @@ async function loadConfig(): Promise<Config> {
       delete parsed.lastSpace;
     }
 
+    // Backward compatibility: initialize recentCharms if missing
+    if (!parsed.recentCharms) {
+      parsed.recentCharms = [];
+    }
+
     return parsed;
   } catch {
     // File doesn't exist or is invalid, return default
     return {
       patterns: [],
+      recentCharms: [],
     };
   }
 }
@@ -376,6 +393,42 @@ async function handleOtherActions(labsDir: string): Promise<boolean> {
   return false;
 }
 
+async function handleLinkCharms(config: Config, _labsDir: string): Promise<void> {
+  console.log("\n🔗 Charm Linker\n");
+
+  if (config.recentCharms.length === 0) {
+    console.log("No recently deployed charms found.");
+    console.log("Deploy some patterns first, then come back to link them.\n");
+    console.log("💡 Tip: Deploy patterns using this launcher to track them automatically.\n");
+    return;
+  }
+
+  // Show recent charms summary
+  console.log(`Found ${config.recentCharms.length} recent charm(s):\n`);
+
+  // Group by space
+  const bySpace = new Map<string, RecentCharm[]>();
+  for (const charm of config.recentCharms.slice(0, 20)) {
+    const spaceCharms = bySpace.get(charm.space) || [];
+    spaceCharms.push(charm);
+    bySpace.set(charm.space, spaceCharms);
+  }
+
+  for (const [space, charms] of bySpace) {
+    console.log(`  📁 ${space} (${charms.length} charm${charms.length > 1 ? "s" : ""}):`);
+    for (const charm of charms.slice(0, 5)) {
+      const timeAgo = formatTimeSince(charm.deployedAt);
+      console.log(`     • ${charm.name || charm.charmId.slice(0, 16) + "..."} (${timeAgo})`);
+    }
+    if (charms.length > 5) {
+      console.log(`     ... and ${charms.length - 5} more`);
+    }
+  }
+
+  console.log("\n⏳ Full linking UI coming soon!");
+  console.log("   This will show smart suggestions and let you browse fields interactively.\n");
+}
+
 async function clearLLMCache(labsDir: string): Promise<boolean> {
   console.log("\n🗑️  Clear LLM Cache\n");
   console.log("This will delete all cached LLM responses.");
@@ -479,7 +532,7 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   }
 }
 
-async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod" | "other"> {
+async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod" | "link" | "other"> {
   const options: SelectOption[] = [];
 
   // Get last used target
@@ -510,6 +563,17 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "pro
     });
   }
 
+  // Add "link charms" option
+  const recentCharmsCount = config.recentCharms.length;
+  const linkLabel = recentCharmsCount > 0
+    ? `Link charms... (${recentCharmsCount} recent)`
+    : "Link charms...";
+  options.push({
+    label: linkLabel,
+    value: "link",
+    icon: "🔗 ",
+  });
+
   // Add "other actions" option at the end
   options.push({
     label: "Take other actions...",
@@ -522,7 +586,7 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "pro
     "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):"
   );
 
-  return (selection as "local" | "prod" | "other") || lastTarget;
+  return (selection as "local" | "prod" | "link" | "other") || lastTarget;
 }
 
 async function promptForSpace(config: Config, isProd: boolean): Promise<string> {
@@ -1113,6 +1177,37 @@ function recordPatternUsage(config: Config, patternPath: string): Config {
   return config;
 }
 
+function recordRecentCharm(
+  config: Config,
+  charmId: string,
+  space: string,
+  apiUrl: string,
+  patternPath: string
+): Config {
+  // Derive a name from the pattern filename
+  const filename = patternPath.split("/").pop() || "";
+  const name = filename.replace(/\.tsx?$/, "");
+
+  // Remove existing entry for this charm (same charmId)
+  const filtered = config.recentCharms.filter((c) => c.charmId !== charmId);
+
+  // Add to front with current timestamp
+  filtered.unshift({
+    space,
+    charmId,
+    name,
+    recipeName: filename,
+    patternPath,
+    deployedAt: new Date().toISOString(),
+    apiUrl,
+  });
+
+  // Keep only last 100 recent charms
+  config.recentCharms = filtered.slice(0, 100);
+
+  return config;
+}
+
 async function cullNonExistentPatterns(config: Config): Promise<Config> {
   const existingPatterns: PatternRecord[] = [];
 
@@ -1159,6 +1254,12 @@ async function main() {
   // Prompt for deployment target (first question)
   const deploymentTarget = await promptForDeploymentTarget(config);
 
+  // Handle "link charms" menu
+  if (deploymentTarget === "link") {
+    await handleLinkCharms(config, labsDir);
+    Deno.exit(0);
+  }
+
   // Handle "other actions" menu
   if (deploymentTarget === "other") {
     await handleOtherActions(labsDir);
@@ -1196,11 +1297,19 @@ async function main() {
   await saveConfig(config);
 
   // Deploy
+  const apiUrl = isProd
+    ? "https://toolshed.saga-castor.ts.net"
+    : "http://localhost:8000";
   const result = await deployPattern(patternPath, space, isProd, labsDir);
 
   if (!result) {
     // Deployment failed
     Deno.exit(1);
+  }
+
+  // Record the charm if we got a valid charm ID (not just "success")
+  if (result !== "success" && result.startsWith("ba")) {
+    config = recordRecentCharm(config, result, space, apiUrl, patternPath);
   }
 
   // Clean up any stale patterns after successful deployment
