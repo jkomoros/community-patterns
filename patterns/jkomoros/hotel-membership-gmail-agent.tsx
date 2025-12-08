@@ -189,29 +189,24 @@ const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembership
     const hasMultipleAccounts = derive(brandsWithMultipleAccounts, (brands) => Object.keys(brands).length > 0);
 
     // ========================================================================
-    // DYNAMIC AGENT GOAL
+    // AGENT GOAL
     // ========================================================================
+    // IMPORTANT: Do NOT derive from memberships! Changing the goal during a scan
+    // triggers an infinite loop (goal changes → agent restarts → finds membership
+    // → goal changes → agent restarts...). Only derive from scan settings.
     const agentGoal = derive(
-      [memberships, maxSearches, currentScanMode],
-      ([found, max, scanMode]: [MembershipRecord[], number, ScanMode]) => {
-        const foundBrands = [...new Set((found || []).filter(m => m).map((m) => m.hotelBrand))];
+      [maxSearches, currentScanMode],
+      ([max, scanMode]: [number, ScanMode]) => {
         const isQuickMode = max > 0;
         const isRecentMode = scanMode === "recent";
         const dateFilter = isRecentMode ? getRecentDateFilter() : "";
-
-        // In recent mode, focus on brands we DON'T have yet
-        const brandsToSearch = isRecentMode
-          ? ALL_BRANDS.filter(b => !foundBrands.some(fb => fb.toLowerCase() === b.toLowerCase()))
-          : ALL_BRANDS;
 
         return `Find hotel loyalty program membership numbers in my Gmail.
 
 ${isRecentMode ? `📅 RECENT SCAN MODE: Only searching emails from the last 7 days.
 Date filter to use: ${dateFilter}
-` : ""}Already saved memberships for: ${foundBrands.join(", ") || "none yet"}
-Total memberships saved: ${found.length}
+` : ""}
 ${isQuickMode ? `\n⚠️ QUICK TEST MODE: Limited to ${max} searches. Focus on high-value queries!\n` : ""}
-${isRecentMode && brandsToSearch.length < ALL_BRANDS.length ? `\n✅ Already have memberships for: ${foundBrands.join(", ")}. Focus on finding: ${brandsToSearch.join(", ") || "all brands covered!"}\n` : ""}
 
 Your task:
 1. Use searchGmail to search for hotel loyalty emails${isRecentMode ? ` (ADD "${dateFilter}" to ALL queries!)` : ""}
@@ -225,8 +220,8 @@ ${EFFECTIVE_QUERIES.slice(0, isQuickMode ? 5 : EFFECTIVE_QUERIES.length).map((q,
   return `${i + 1}. ${query}`;
 }).join("\n")}
 
-Hotel brands to search for:${isRecentMode && brandsToSearch.length === 0 ? " (all brands already have memberships!)" : ""}
-${(isRecentMode ? brandsToSearch : ALL_BRANDS).map(b => {
+Hotel brands to search for:
+${ALL_BRANDS.map(b => {
   switch(b) {
     case "Marriott": return "- Marriott (Marriott Bonvoy)";
     case "Hilton": return "- Hilton (Hilton Honors)";
