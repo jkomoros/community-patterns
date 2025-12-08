@@ -1065,6 +1065,12 @@ async function createCharmLink(
   const sourceRef = `${sourceCharmId}/${sourcePath.join("/")}`;
   const targetRef = `${targetCharmId}/${targetPath.join("/")}`;
 
+  // Debug: print what we're running
+  console.log(`   Running: deno task ct charm link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`);
+  console.log(`   CWD: ${labsDir}`);
+  console.log(`   API: ${apiUrl}`);
+  console.log(`   Identity: ${IDENTITY_PATH}\n`);
+
   const command = new Deno.Command("deno", {
     args: [
       "task",
@@ -1072,28 +1078,33 @@ async function createCharmLink(
       "charm",
       "link",
       "--space", space,
+      "--api-url", apiUrl,
+      "--identity", IDENTITY_PATH,
       sourceRef,
       targetRef,
     ],
     cwd: labsDir,
-    env: {
-      ...Deno.env.toObject(),
-      CT_API_URL: apiUrl,
-      CT_IDENTITY: IDENTITY_PATH,
-    },
     stdout: "piped",
     stderr: "piped",
   });
 
   const { code, stdout, stderr } = await command.output();
 
+  const output = new TextDecoder().decode(stdout);
+  const errorOutput = new TextDecoder().decode(stderr);
+
+  // Show all output for debugging
+  if (output.trim()) {
+    console.log("   stdout:", output.trim());
+  }
+  if (errorOutput.trim() && !errorOutput.includes("Warning experimentalDecorators")) {
+    console.log("   stderr:", errorOutput.trim());
+  }
+
   if (code === 0) {
-    const output = new TextDecoder().decode(stdout);
-    console.log(output);
     return true;
   } else {
-    const errorOutput = new TextDecoder().decode(stderr);
-    console.error("Link failed:", errorOutput);
+    console.error(`   Exit code: ${code}`);
     return false;
   }
 }
