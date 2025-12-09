@@ -40,6 +40,7 @@ import {
   locationMatchesAddress,
   matchRegex,
   NormalizedCalendarEvent,
+  RuleSuggestion,
   RuleSuggestionResponse,
   RuleType,
 } from "./util/hosting-types.ts";
@@ -435,6 +436,136 @@ const updateRuleCategory = handler<
   newRuleForm.set({ ...current, category: target.value as HostingCategory });
 });
 
+// Handler to request LLM rule suggestions for a classified event
+const requestRuleSuggestions = handler<
+  unknown,
+  {
+    ruleSuggestionPrompt: Cell<string>;
+    event: {
+      title: string;
+      location: string;
+      description: string;
+      category: HostingCategory;
+      familyName: string;
+    };
+  }
+>((_, { ruleSuggestionPrompt, event }) => {
+  // Build a detailed prompt for the LLM
+  const prompt = `Event was manually classified as "${event.category}" for family "${event.familyName}".
+
+Event details:
+- Title: ${event.title}
+- Location: ${event.location || "(no location)"}
+- Description: ${event.description || "(no description)"}
+
+Please suggest 1-3 rules that could automatically classify similar events in the future.
+Focus on patterns that are specific enough to avoid false positives.`;
+
+  ruleSuggestionPrompt.set(prompt);
+});
+
+// Handler to accept an LLM-suggested rule
+const acceptSuggestion = handler<
+  unknown,
+  {
+    rules: Cell<ClassificationRule[]>;
+    suggestion: RuleSuggestion;
+    ruleSuggestionPrompt: Cell<string>;
+  }
+>((_, { rules, suggestion, ruleSuggestionPrompt }) => {
+  const newRule: ClassificationRule = {
+    id: generateId(),
+    name: suggestion.name,
+    type: suggestion.type,
+    pattern: suggestion.pattern,
+    familyId: suggestion.familyId,
+    category: suggestion.category,
+    isNegative: false,
+    priority: 50,
+    enabled: true,
+    matchCount: 0,
+    correctCount: 0,
+    positiveExamples: [],
+    negativeExamples: [],
+  };
+
+  rules.push(newRule);
+  // Clear the prompt to hide suggestions UI
+  ruleSuggestionPrompt.set("");
+});
+
+// Handler to dismiss all LLM suggestions
+const dismissSuggestions = handler<
+  unknown,
+  { ruleSuggestionPrompt: Cell<string> }
+>((_, { ruleSuggestionPrompt }) => {
+  ruleSuggestionPrompt.set("");
+});
+
+// Handler to add event AND request rule suggestions
+const addEventAndSuggestRules = handler<
+  unknown,
+  {
+    hostingEvents: Cell<HostingEvent[]>;
+    manualEventForm: Cell<{
+      title: string;
+      date: string;
+      location: string;
+      familyId: string;
+      familyName: string;
+      category: HostingCategory;
+      notes: string;
+    }>;
+    ruleSuggestionPrompt: Cell<string>;
+  }
+>((_, { hostingEvents, manualEventForm, ruleSuggestionPrompt }) => {
+  const form = manualEventForm.get();
+  if (!form.title.trim() || !form.familyId || !form.date) {
+    console.warn("Missing required fields for manual event");
+    return;
+  }
+
+  // Add the event
+  const newEvent: HostingEvent = {
+    id: generateId(),
+    title: form.title.trim(),
+    date: form.date,
+    location: form.location.trim(),
+    familyId: form.familyId,
+    familyName: form.familyName,
+    category: form.category,
+    classificationMethod: "manual",
+    confidence: 1,
+    notes: form.notes.trim(),
+    classifiedAt: new Date().toISOString(),
+  };
+
+  hostingEvents.push(newEvent);
+
+  // Request rule suggestions
+  const prompt = `Event was manually classified as "${form.category}" for family "${form.familyName}".
+
+Event details:
+- Title: ${form.title}
+- Location: ${form.location || "(no location)"}
+
+Please suggest 1-3 rules that could automatically classify similar events in the future.
+Focus on patterns that are specific enough to avoid false positives.`;
+
+  ruleSuggestionPrompt.set(prompt);
+
+  // Reset form
+  manualEventForm.set({
+    title: "",
+    date: "",
+    location: "",
+    familyId: "",
+    familyName: "",
+    category: "they-hosted",
+    notes: "",
+  });
+});
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -693,6 +824,13 @@ const HostingTracker = pattern<HostingTrackerInput>(
     // Selected family for event assignment
     const selectedFamilyId = cell("");
 
+    // LLM rule suggestion state
+    // When this is non-empty, generateObject will run to suggest rules
+    const ruleSuggestionPrompt = cell("");
+
+    // Track pending suggestions that user can accept/reject
+    const pendingSuggestions = cell<RuleSuggestion[]>([]);
+
     // Derive list of tracked families from wish result
     // Note: wish({ query }) returns a single match, not an array
     // We wrap it in an array for now; later could iterate over multiple favorites
@@ -862,6 +1000,31 @@ const HostingTracker = pattern<HostingTrackerInput>(
 
     // Total events count
     const eventCount = derive(hostingEvents, (e) => e.length);
+
+    // LLM Rule Suggestions - generateObject call
+    // Only runs when ruleSuggestionPrompt is non-empty
+    const llmSuggestions = generateObject<RuleSuggestionResponse>({
+      model: "anthropic:claude-haiku-4-5",
+      system: `You are a classification rule expert for a family hosting tracker app.
+When given details about an event that was manually classified, suggest rules that could automatically classify similar events in the future.
+
+Rules can be of these types:
+- location_exact: Match exact location string
+- location_regex: Match location with regex pattern
+- title_regex: Match event title with regex pattern
+- description_regex: Match event description with regex
+- attendee_email: Match an attendee's email
+
+Categories are:
+- they-hosted: The other family hosted us at their place
+- we-hosted: We hosted them at our place
+- neutral: Met at a neutral venue (park, restaurant, etc.)
+
+Be conservative - prefer rules that are specific enough to avoid false positives.
+For regex patterns, use word boundaries (\\b) when appropriate.
+Include reasoning for each suggestion and potential false positives to watch for.`,
+      prompt: ruleSuggestionPrompt,
+    });
 
     return {
       [NAME]: str`Hosting Tracker (${eventCount} events)`,
@@ -1480,9 +1643,17 @@ const HostingTracker = pattern<HostingTrackerInput>(
                           </select>
                         </label>
                       </ct-hstack>
-                      <ct-button onClick={addManualEvent({ hostingEvents, manualEventForm })}>
-                        Add Event
-                      </ct-button>
+                      <ct-hstack style="gap: 8px;">
+                        <ct-button onClick={addManualEvent({ hostingEvents, manualEventForm })}>
+                          Add Event
+                        </ct-button>
+                        <ct-button
+                          variant="secondary"
+                          onClick={addEventAndSuggestRules({ hostingEvents, manualEventForm, ruleSuggestionPrompt })}
+                        >
+                          Add & Suggest Rules
+                        </ct-button>
+                      </ct-hstack>
                     </ct-vstack>
                   </div>
                 </ct-vstack>
@@ -1768,6 +1939,84 @@ const HostingTracker = pattern<HostingTrackerInput>(
                       </ct-hstack>
                     </ct-vstack>
                   </div>
+
+                  {/* LLM Rule Suggestions */}
+                  {ifElse(
+                    derive(ruleSuggestionPrompt, (p: string) => p.length > 0),
+                    <div
+                      style={{
+                        marginTop: "12px",
+                        padding: "12px",
+                        backgroundColor: "#fef3c7",
+                        borderRadius: "8px",
+                        border: "1px solid #f59e0b",
+                      }}
+                    >
+                      <ct-hstack style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h4 style="margin: 0; font-size: 13px; color: #d97706;">
+                          AI Rule Suggestions
+                        </h4>
+                        <ct-button
+                          variant="ghost"
+                          onClick={dismissSuggestions({ ruleSuggestionPrompt })}
+                          style={{ fontSize: "12px" }}
+                        >
+                          Dismiss
+                        </ct-button>
+                      </ct-hstack>
+
+                      {ifElse(
+                        llmSuggestions.pending,
+                        <div style="color: #92400e; font-size: 13px; text-align: center; padding: 12px;">
+                          Analyzing event and generating rule suggestions...
+                        </div>,
+                        ifElse(
+                          llmSuggestions.error,
+                          <div style="color: #dc2626; font-size: 13px;">
+                            Error: {llmSuggestions.error}
+                          </div>,
+                          <ct-vstack style="gap: 8px;">
+                            {derive(llmSuggestions, (s) => s.result?.suggestions || []).map((suggestion) => (
+                              <div
+                                style={{
+                                  padding: "10px",
+                                  backgroundColor: "#fff",
+                                  borderRadius: "6px",
+                                  border: "1px solid #fcd34d",
+                                }}
+                              >
+                                <ct-hstack style="justify-content: space-between; align-items: flex-start;">
+                                  <ct-vstack style="gap: 4px; flex: 1;">
+                                    <strong style={{ fontSize: "13px" }}>{suggestion.name}</strong>
+                                    <span style="font-size: 12px; color: #666;">
+                                      {suggestion.type}: "{suggestion.pattern}"
+                                    </span>
+                                    <span style="font-size: 11px; color: #92400e;">
+                                      {suggestion.reasoning}
+                                    </span>
+                                    {ifElse(
+                                      derive(suggestion.potentialFalsePositives, (fp) => fp && fp.length > 0),
+                                      <span style="font-size: 11px; color: #dc2626;">
+                                        Watch for: {derive(suggestion.potentialFalsePositives, (fp) => fp?.join(", ") || "")}
+                                      </span>,
+                                      <span />
+                                    )}
+                                  </ct-vstack>
+                                  <ct-button
+                                    onClick={acceptSuggestion({ rules, suggestion, ruleSuggestionPrompt })}
+                                    style={{ fontSize: "12px" }}
+                                  >
+                                    Accept
+                                  </ct-button>
+                                </ct-hstack>
+                              </div>
+                            ))}
+                          </ct-vstack>
+                        )
+                      )}
+                    </div>,
+                    <div />
+                  )}
                 </ct-vstack>
               </ct-vstack>
             </ct-vscroll>
