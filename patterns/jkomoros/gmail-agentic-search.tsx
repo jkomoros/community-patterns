@@ -400,48 +400,49 @@ const GmailAgenticSearch = pattern<
     const lastSignalValueCell = cell<number>(0);
     // Track last executed query ID in a Cell (so derive can access it)
     const lastExecutedQueryIdCell = cell<string | null>(null);
-
-    // Watch the signal and mark queries when it increases
-    // NOTE: derive does NOT unwrap cells that are:
-    //   1. Locally-created cells (cell<T>())
-    //   2. Cells passed from parent patterns as inputs
-    // Only framework-provided input cells with Default<> types are unwrapped.
+    // Track foundItems counts separately from localQueries
+    // Local cells work correctly in derives (no closure issues with input cells)
     // See: community-docs/superstitions/2025-12-08-locally-created-cells-not-unwrapped-in-derive.md
+    const foundItemsTracker = cell<Record<string, number>>({});
+
+    // Watch the signal and update foundItemsTracker when it increases
     derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([_signalRef, _lastSignalRef, _queryIdRef]: [number, number, string | null]) => {
-      // ALL cells must use .get() - even passed-in cells from parent patterns are NOT unwrapped
-      // This extends the superstition: it's not just locally-created cells, but ANY cell that isn't
-      // a direct pattern input with framework-provided defaults
       const signalValue = itemFoundSignal.get() || 0;
       const lastSignalValue = lastSignalValueCell.get() || 0;
       const queryId = lastExecutedQueryIdCell.get();
 
-      // DEBUG: Always log to see if derive is running
       console.log(`[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalValue}, lastSignalValue=${lastSignalValue}, queryId=${queryId}`);
 
       if (signalValue > lastSignalValue) {
-        // Signal increased - mark the current query as having found items
         if (queryId) {
-          // BUG: localQueries accessed as closure in derive doesn't behave as a Cell
-          // Framework input cells with Default<> types behave differently in closure context
-          // Use try-catch to silently fail - this foundItems tracking is non-critical
-          try {
-            const lq = localQueries as any;
-            const queries = (typeof lq.get === 'function' ? lq.get() : lq) || [];
-            const idx = queries.findIndex((q: LocalQuery) => q && q.id === queryId);
-            if (idx >= 0 && typeof lq.key === 'function') {
-              const current = queries[idx].foundItems || 0;
-              lq.key(idx).key("foundItems").set(current + 1);
-              console.log(`[GmailAgenticSearch] Marked query ${queryId} as found item (now ${current + 1})`);
-            }
-          } catch {
-            // Silently fail - foundItems tracking is non-critical
-          }
+          const tracker = foundItemsTracker.get() || {};
+          const currentCount = tracker[queryId] || 0;
+          const newCount = currentCount + 1;
+
+          foundItemsTracker.set({
+            ...tracker,
+            [queryId]: newCount,
+          });
+
+          console.log(`[GmailAgenticSearch] Marked query ${queryId} as found item (now ${newCount})`);
         } else {
           console.warn("[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark");
         }
         lastSignalValueCell.set(signalValue);
       }
     });
+
+    // Merge localQueries with foundItems from the tracker for display
+    const localQueriesWithFoundItems = derive(
+      [localQueries, foundItemsTracker],
+      ([queries, tracker]: [LocalQuery[], Record<string, number>]) => {
+        return (queries || []).map(q => {
+          if (!q || !q.id) return q;
+          const trackedCount = tracker[q.id] || 0;
+          return { ...q, foundItems: trackedCount };
+        });
+      }
+    );
 
     // Build reactive wish tag based on local selectedAccountType (writable)
     // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
@@ -1906,7 +1907,7 @@ When you're done searching, STOP calling tools and produce your final structured
     const localQueriesUI = (
       <div style={{ marginTop: "8px" }}>
         {derive(
-          [localQueries, onlySaveQueriesWithItems],
+          [localQueriesWithFoundItems, onlySaveQueriesWithItems],
           ([queries, onlyWithItems]: [LocalQuery[], boolean]) => {
             // Filter queries: when onlyWithItems is true, only show queries that found target items
             const filteredQueries = (queries || []).filter((q): q is LocalQuery => {
