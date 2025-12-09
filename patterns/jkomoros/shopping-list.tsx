@@ -11,6 +11,14 @@ interface InputSchema {
   items: Default<ShoppingItem[], []>;
 }
 
+/** Shopping list with checkable items. #shoppingList */
+interface Output {
+  title: string;
+  items: ShoppingItem[];
+  totalCount: number;
+  doneCount: number;
+}
+
 type InputEventType = {
   detail: {
     message: string;
@@ -49,7 +57,7 @@ const updateItem = handler<
   }
 });
 
-export default pattern<InputSchema>(
+export default pattern<InputSchema, Output>(
   ({ title, items }) => {
     // Computed values
     const totalCount = derive(items, (list) => list.length);
@@ -123,6 +131,8 @@ export default pattern<InputSchema>(
       ),
       title,
       items,  // Omnibot can read this directly
+      totalCount,
+      doneCount,
       addItem: addItem({ items }),
       addItemForOmnibot: addItemForOmnibot({ items }),  // Omnibot can use this to add items
       updateItem,

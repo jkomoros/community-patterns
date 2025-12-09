@@ -100,6 +100,7 @@ interface LauncherInput {
   storeName?: Default<string, "Andronico's on Shattuck">;
 }
 
+/** Shopping list with store aisle mapping and sorting. #shoppingListLauncher */
 interface LauncherOutput {
   items: ShoppingItem[];
   addItem: OpaqueRef<Stream<{ detail: { message: string } }>>;

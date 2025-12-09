@@ -81,6 +81,7 @@ interface StoreMapInput {
   itemLocations?: Default<ItemLocation[], []>; // User corrections
 }
 
+/** Store layout mapper with aisles and departments. #storeMap */
 interface StoreMapOutput extends StoreMapInput {
   outline: string;
 }
