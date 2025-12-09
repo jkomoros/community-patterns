@@ -32,6 +32,7 @@ interface PreparedFoodInput {
   tags?: Default<string[], []>;
 }
 
+/** Prepared food item with serving time and dietary info. #preparedFood */
 interface PreparedFoodOutput extends PreparedFoodInput {
   // Provide dietary compatibility for consistency with food-recipe
   dietaryCompatibility: {

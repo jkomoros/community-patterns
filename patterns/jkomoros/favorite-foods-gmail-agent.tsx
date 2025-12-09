@@ -61,6 +61,7 @@ interface FavoriteFoodsInput {
   maxSearches?: Default<number, 5>;
 }
 
+/** Favorite foods extractor from Gmail. #favoriteFoods */
 interface FavoriteFoodsOutput {
   foods: FoodPreference[];
   lastScanAt: number;

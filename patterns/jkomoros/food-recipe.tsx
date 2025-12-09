@@ -138,6 +138,7 @@ interface RecipeInput {
   source?: Default<string, "">;
 }
 
+/** Food recipe with ingredients, steps, and meal planning info. #recipe */
 interface RecipeOutput extends RecipeInput {
   // Derived for meal planning
   ovenRequirements: {

@@ -20,6 +20,7 @@ interface RecipeAnalyzerInput {
   tags: Default<string[], []>;
 }
 
+/** Recipe dietary analyzer. #recipeAnalyzer */
 interface RecipeAnalyzerOutput {
   dietaryCompatibility: {
     compatible: string[];

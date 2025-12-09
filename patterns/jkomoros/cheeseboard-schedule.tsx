@@ -59,6 +59,7 @@ interface CheeseboardScheduleInput {
   history?: Cell<Default<PizzaHistory, {}>>;
 }
 
+/** Cheeseboard pizza schedule tracker. #cheeseboardSchedule */
 interface CheeseboardScheduleOutput {
   preferences: Cell<IngredientPreference[]>;
   history: Cell<PizzaHistory>;
