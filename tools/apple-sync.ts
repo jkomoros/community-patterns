@@ -217,6 +217,47 @@ async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmIn
 }
 
 /**
+ * Check if a charm is valid (has source cell)
+ * Returns false if charm is missing, corrupted, or has no source cell
+ */
+async function isCharmValid(apiUrl: string, space: string, charmId: string): Promise<boolean> {
+  const labsDir = DEFAULT_LABS_DIR;
+  const denoJson = `${labsDir}/deno.json`;
+
+  // Try to get the sourceFile - this will fail if charm is invalid
+  const command = new Deno.Command("deno", {
+    args: [
+      "task",
+      "--config", denoJson,
+      "ct", "charm", "get",
+      "--api-url", apiUrl,
+      "--identity", IDENTITY_PATH,
+      "--space", space,
+      "--charm", charmId,
+      "sourceFile",
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  });
+
+  const output = await command.output();
+  const stderr = new TextDecoder().decode(output.stderr);
+
+  // Check for known error patterns that indicate invalid charm
+  if (!output.success) {
+    if (stderr.includes("missing source cell") || stderr.includes("missing recipe")) {
+      return false;
+    }
+    // Other errors might be transient - treat as potentially valid
+    // but log for debugging
+    console.log(`  ⚠️  Charm validation error: ${stderr.substring(0, 100)}`);
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Get charm metadata to find its source file name
  */
 async function getCharmSourceFile(apiUrl: string, space: string, charmId: string): Promise<string | null> {
@@ -337,7 +378,16 @@ async function getOrCreateCharm(
   // First check if we have it in config
   const configCharmId = config.charms?.[patternType as keyof typeof config.charms];
   if (configCharmId) {
-    return configCharmId;
+    // Validate the cached charm is still valid
+    console.log(`  Validating cached ${patternType} charm...`);
+    if (await isCharmValid(apiUrl, space, configCharmId)) {
+      console.log(`  ✓ Cached charm is valid`);
+      return configCharmId;
+    }
+    // Cached charm is invalid - clear it from config
+    console.log(`  ⚠️  Cached charm is invalid (missing source cell), will create new one`);
+    delete (config.charms as Record<string, string>)[patternType];
+    await saveConfig(config);
   }
 
   // Try to find existing charm in space
@@ -539,10 +589,14 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, config, or auto-create
-  let charmId = overrideCharmId || config.charms?.imessage;
-  if (!charmId) {
-    charmId = await getOrCreateCharm(apiUrl, config.space, "imessage", config);
+  // Get charm ID from override, or validate/create
+  let charmId: string;
+  if (overrideCharmId) {
+    // User explicitly provided a charm ID - use it
+    charmId = overrideCharmId;
+  } else {
+    // Get or create charm (validates cached charms)
+    charmId = await getOrCreateCharm(apiUrl, config.space!, "imessage", config);
   }
 
   const state = await loadState();
@@ -994,10 +1048,14 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, config, or auto-create
-  let charmId = overrideCharmId || config.charms?.calendar;
-  if (!charmId) {
-    charmId = await getOrCreateCharm(apiUrl, config.space, "calendar", config);
+  // Get charm ID from override, or validate/create
+  let charmId: string;
+  if (overrideCharmId) {
+    // User explicitly provided a charm ID - use it
+    charmId = overrideCharmId;
+  } else {
+    // Get or create charm (validates cached charms)
+    charmId = await getOrCreateCharm(apiUrl, config.space!, "calendar", config);
   }
 
   let events: CalendarEvent[];
@@ -1330,10 +1388,14 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, config, or auto-create
-  let charmId = overrideCharmId || config.charms?.reminders;
-  if (!charmId) {
-    charmId = await getOrCreateCharm(apiUrl, config.space, "reminders", config);
+  // Get charm ID from override, or validate/create
+  let charmId: string;
+  if (overrideCharmId) {
+    // User explicitly provided a charm ID - use it
+    charmId = overrideCharmId;
+  } else {
+    // Get or create charm (validates cached charms)
+    charmId = await getOrCreateCharm(apiUrl, config.space!, "reminders", config);
   }
 
   let reminders: Reminder[];
@@ -1647,10 +1709,14 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, config, or auto-create
-  let charmId = overrideCharmId || config.charms?.notes;
-  if (!charmId) {
-    charmId = await getOrCreateCharm(apiUrl, config.space, "notes", config);
+  // Get charm ID from override, or validate/create
+  let charmId: string;
+  if (overrideCharmId) {
+    // User explicitly provided a charm ID - use it
+    charmId = overrideCharmId;
+  } else {
+    // Get or create charm (validates cached charms)
+    charmId = await getOrCreateCharm(apiUrl, config.space!, "notes", config);
   }
 
   let notes: Note[];
