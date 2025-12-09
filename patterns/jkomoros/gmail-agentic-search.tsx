@@ -220,6 +220,7 @@ export interface GmailAgenticSearchInput {
   itemFoundSignal?: Cell<number>;
 }
 
+/** Reusable Gmail agentic search base pattern. #gmailAgenticSearch */
 export interface GmailAgenticSearchOutput {
   // Pattern metadata
   [NAME]: string;

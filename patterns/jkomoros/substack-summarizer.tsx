@@ -7,7 +7,17 @@ interface SubstackInput {
   limit?: Default<number, 50>;
 }
 
-const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) => {
+/** Substack newsletter summarizer with email grouping. #substackSummaries */
+interface Output {
+  /** Emails grouped by newsletter name */
+  groupedByNewsletter: Record<string, Array<{ subject: string; date: string; from: string }>>;
+  /** Number of unique newsletters found */
+  newsletterCount: number;
+  /** Total number of emails */
+  totalEmails: number;
+}
+
+const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, limit }) => {
   // Import emails from Substack
   // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
   const importer = GmailImporter({
@@ -115,6 +125,8 @@ const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) 
       </ct-screen>
     ),
     groupedByNewsletter,
+    newsletterCount,
+    totalEmails,
   };
 });
 
