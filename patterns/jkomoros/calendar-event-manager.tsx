@@ -117,7 +117,7 @@ interface Input {
   existingEvent: Default<ExistingEvent, null>;
 }
 
-/** Calendar event manager with create/update/delete/RSVP. #calendarManager */
+/** Google Calendar event manager for creating/editing/deleting events. #calendarManager */
 interface Output {
   draft: EventDraft;
   existingEvent: ExistingEvent;
