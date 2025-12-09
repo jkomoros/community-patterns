@@ -162,8 +162,13 @@ const refreshTokenHandler = handler<
   Record<string, never>,
   { auth: Cell<Auth> }
 >(async (_event, { auth }) => {
+  // DEBUG: Log handler entry
+  console.log('[DEBUG-AUTH] refreshTokenHandler called');
   const currentAuth = auth.get();
   const refreshToken = currentAuth?.refreshToken;
+
+  console.log('[DEBUG-AUTH] Current token (first 20 chars):', currentAuth?.token?.slice(0, 20));
+  console.log('[DEBUG-AUTH] Has refreshToken:', !!refreshToken);
 
   if (!refreshToken) {
     console.error("[google-auth] No refresh token available");
@@ -188,6 +193,10 @@ const refreshTokenHandler = handler<
   }
 
   const json = await res.json();
+  console.log('[DEBUG-AUTH] Server response received');
+  console.log('[DEBUG-AUTH] New token from server (first 20 chars):', json.tokenInfo?.token?.slice(0, 20));
+  console.log('[DEBUG-AUTH] New expiresAt from server:', json.tokenInfo?.expiresAt);
+
   if (!json.tokenInfo) {
     console.error("[google-auth] No tokenInfo in response:", json);
     throw new Error("Invalid refresh response");
@@ -197,10 +206,13 @@ const refreshTokenHandler = handler<
 
   // Update the auth cell with new token data
   // Keep existing user info since refresh doesn't return it
+  console.log('[DEBUG-AUTH] Calling auth.update()...');
   auth.update({
     ...json.tokenInfo,
     user: currentAuth.user,
   });
+  console.log('[DEBUG-AUTH] auth.update() completed');
+  console.log('[DEBUG-AUTH] Verifying - token now (first 20 chars):', auth.get()?.token?.slice(0, 20));
 });
 
 export default pattern<Input, Output>(
