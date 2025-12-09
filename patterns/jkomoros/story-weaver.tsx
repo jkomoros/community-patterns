@@ -453,6 +453,7 @@ const StoryWeaver = pattern<StoryWeaverInput>(
     });
 
     // Pin an option
+    // Uses .key().set() for O(1) updates when possible, array replacement only when adding children
     const pinOption = handler<
       unknown,
       {
@@ -463,135 +464,150 @@ const StoryWeaver = pattern<StoryWeaverInput>(
         optionContent: Cell<string>;
       }
     >((_, { spindles, levels, spindleId, optionIndex, optionContent }) => {
-      const currentSpindles = [...(spindles.get() || [])]; // Copy to make mutable
+      const spindlesArray = spindles.get() || [];
       const currentLevels = levels.get() || [];
       const spindleIdVal = spindleId.get();
       const optionContentVal = optionContent.get() || "";
 
-      const spindleIdx = currentSpindles.findIndex((s) => s.id === spindleIdVal);
+      const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
       if (spindleIdx < 0) return;
 
-      const spindle = currentSpindles[spindleIdx];
+      const spindle = spindlesArray[spindleIdx];
       const currentPinned = spindle.pinnedOptionIndex;
 
-      // Toggle if clicking same option
+      // Toggle if clicking same option - just update the one spindle
       if (currentPinned === optionIndex) {
-        currentSpindles[spindleIdx] = {
+        const spindleCell = spindles.key(spindleIdx);
+        spindleCell.set({
           ...spindle,
           pinnedOptionIndex: -1,
           pinnedOutput: "",
           parentHashWhenPinned: "",
-        };
-      } else {
-        // Pin new option
-        currentSpindles[spindleIdx] = {
-          ...spindle,
-          pinnedOptionIndex: optionIndex,
-          pinnedOutput: optionContentVal,
-          parentHashWhenPinned: simpleHash(spindle.composedInput),
-        };
-
-        // Update children's composedInput
-        const children = currentSpindles.filter((s) => s.parentId === spindleIdVal);
-        for (const child of children) {
-          const childIdx = currentSpindles.findIndex((s) => s.id === child.id);
-          if (childIdx >= 0) {
-            currentSpindles[childIdx] = {
-              ...currentSpindles[childIdx],
-              composedInput: optionContentVal,
-            };
-          }
-        }
-
-        // Create new children if next level exists but no children yet
-        const nextLevelIndex = spindle.levelIndex + 1;
-        const nextLevel = currentLevels[nextLevelIndex];
-        if (nextLevel && children.length === 0) {
-          // Count existing spindles at next level
-          const existingAtLevel = currentSpindles.filter(
-            (s) => s.levelIndex === nextLevelIndex
-          );
-          let positionInLevel = existingAtLevel.length;
-
-          for (let i = 0; i < nextLevel.branchFactor; i++) {
-            currentSpindles.push({
-              id: generateId(),
-              levelIndex: nextLevelIndex,
-              positionInLevel: positionInLevel++,
-              siblingIndex: i,
-              siblingCount: nextLevel.branchFactor,
-              parentId: spindleIdVal,
-              composedInput: optionContentVal,
-              extraPrompt: "",
-              pinnedOptionIndex: -1,
-              pinnedOutput: "",
-              parentHashWhenPinned: "",
-              deferGeneration: true, // Don't auto-generate, wait for user to click
-            });
-          }
-        }
+        });
+        return;
       }
 
-      spindles.set(currentSpindles);
+      // Pin new option - first update the main spindle
+      const spindleCell = spindles.key(spindleIdx);
+      spindleCell.set({
+        ...spindle,
+        pinnedOptionIndex: optionIndex,
+        pinnedOutput: optionContentVal,
+        parentHashWhenPinned: simpleHash(spindle.composedInput),
+      });
+
+      // Update children's composedInput using .key().set()
+      const childIndices: number[] = [];
+      spindlesArray.forEach((s, idx) => {
+        if (s.parentId === spindleIdVal) {
+          childIndices.push(idx);
+        }
+      });
+
+      for (const childIdx of childIndices) {
+        const childCell = spindles.key(childIdx);
+        const childSpindle = childCell.get();
+        childCell.set({
+          ...childSpindle,
+          composedInput: optionContentVal,
+        });
+      }
+
+      // Create new children if next level exists but no children yet
+      // This requires array modification (push), so we do it the old way
+      const nextLevelIndex = spindle.levelIndex + 1;
+      const nextLevel = currentLevels[nextLevelIndex];
+      if (nextLevel && childIndices.length === 0) {
+        // Need to do array push, so get fresh copy and use set()
+        const currentSpindles = [...(spindles.get() || [])];
+        const existingAtLevel = currentSpindles.filter(
+          (s) => s.levelIndex === nextLevelIndex
+        );
+        let positionInLevel = existingAtLevel.length;
+
+        for (let i = 0; i < nextLevel.branchFactor; i++) {
+          currentSpindles.push({
+            id: generateId(),
+            levelIndex: nextLevelIndex,
+            positionInLevel: positionInLevel++,
+            siblingIndex: i,
+            siblingCount: nextLevel.branchFactor,
+            parentId: spindleIdVal,
+            composedInput: optionContentVal,
+            extraPrompt: "",
+            pinnedOptionIndex: -1,
+            pinnedOutput: "",
+            parentHashWhenPinned: "",
+            deferGeneration: true, // Don't auto-generate, wait for user to click
+          });
+        }
+        spindles.set(currentSpindles);
+      }
     });
 
     // Respin a spindle
+    // Uses .key().set() for O(1) update instead of O(n) array replacement
     const respinSpindle = handler<
       unknown,
       { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
     >((_, { spindles, spindleId }) => {
-      const current = [...(spindles.get() || [])]; // Copy to make mutable
       const spindleIdVal = spindleId.get();
-      const idx = current.findIndex((s) => s.id === spindleIdVal);
+      const spindlesArray = spindles.get() || [];
+      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
       if (idx >= 0) {
+        const spindleCell = spindles.key(idx);
+        const currentSpindle = spindleCell.get();
         // Clear pin and force regeneration by incrementing nonce (cache-busting)
-        current[idx] = {
-          ...current[idx],
-          respinNonce: (current[idx].respinNonce || 0) + 1,
+        spindleCell.set({
+          ...currentSpindle,
+          respinNonce: (currentSpindle.respinNonce || 0) + 1,
           pinnedOptionIndex: -1,
           pinnedOutput: "",
           parentHashWhenPinned: "",
-        };
-        spindles.set(current);
+        });
       }
     });
 
     // Start generation for a deferred spindle
+    // Uses .key().set() for O(1) update instead of O(n) array replacement
     const startGeneration = handler<
       unknown,
       { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
     >((_, { spindles, spindleId }) => {
-      const current = [...(spindles.get() || [])];
       const spindleIdVal = spindleId.get();
-      const idx = current.findIndex((s) => s.id === spindleIdVal);
+      const spindlesArray = spindles.get() || [];
+      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
       if (idx >= 0) {
-        // Clear deferGeneration flag to allow generation to start
-        current[idx] = {
-          ...current[idx],
+        // Use .key() to update specific spindle without array replacement
+        const spindleCell = spindles.key(idx);
+        const currentSpindle = spindleCell.get();
+        spindleCell.set({
+          ...currentSpindle,
           deferGeneration: false,
-        };
-        spindles.set(current);
+        });
       }
     });
 
     // Set extra prompt
+    // Uses .key().set() for O(1) update instead of O(n) array replacement
     const setExtraPrompt = handler<
       unknown,
       { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string>; prompt: Cell<string> }
     >((_, { spindles, spindleId, prompt }) => {
-      const current = [...(spindles.get() || [])]; // Copy to make mutable
       const spindleIdVal = spindleId.get();
       const promptVal = prompt.get() || "";
-      const idx = current.findIndex((s) => s.id === spindleIdVal);
+      const spindlesArray = spindles.get() || [];
+      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
       if (idx >= 0) {
-        current[idx] = {
-          ...current[idx],
+        const spindleCell = spindles.key(idx);
+        const currentSpindle = spindleCell.get();
+        spindleCell.set({
+          ...currentSpindle,
           extraPrompt: promptVal,
           // Clear pin when prompt changes
           pinnedOptionIndex: -1,
           pinnedOutput: "",
-        };
-        spindles.set(current);
+        });
       }
     });
 
@@ -960,6 +976,7 @@ const StoryWeaver = pattern<StoryWeaverInput>(
     );
 
     // Pin from picker (pins the previewed option and closes)
+    // Uses .key().set() for O(1) updates when possible, array replacement only when adding children
     const pinFromPicker = handler<
       unknown,
       {
@@ -974,41 +991,49 @@ const StoryWeaver = pattern<StoryWeaverInput>(
       const spindleIdVal = pickerSpindleId.get();
       const optionIndex = pickerPreviewIndex.get();
       const optionContentVal = optionContent.get() || "";
-      const currentSpindles = [...(spindles.get() || [])];
+      const spindlesArray = spindles.get() || [];
       const currentLevels = levels.get() || [];
 
-      const spindleIdx = currentSpindles.findIndex((s) => s.id === spindleIdVal);
+      const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
       if (spindleIdx < 0) {
         showOptionPicker.set(false);
         return;
       }
 
-      const spindle = currentSpindles[spindleIdx];
+      const spindle = spindlesArray[spindleIdx];
 
-      // Pin the option
-      currentSpindles[spindleIdx] = {
+      // Pin the option using .key().set()
+      const spindleCell = spindles.key(spindleIdx);
+      spindleCell.set({
         ...spindle,
         pinnedOptionIndex: optionIndex,
         pinnedOutput: optionContentVal,
         parentHashWhenPinned: simpleHash(spindle.composedInput),
-      };
+      });
 
-      // Update children's composedInput
-      const children = currentSpindles.filter((s) => s.parentId === spindleIdVal);
-      for (const child of children) {
-        const childIdx = currentSpindles.findIndex((s) => s.id === child.id);
-        if (childIdx >= 0) {
-          currentSpindles[childIdx] = {
-            ...currentSpindles[childIdx],
-            composedInput: optionContentVal,
-          };
+      // Update children's composedInput using .key().set()
+      const childIndices: number[] = [];
+      spindlesArray.forEach((s, idx) => {
+        if (s.parentId === spindleIdVal) {
+          childIndices.push(idx);
         }
+      });
+
+      for (const childIdx of childIndices) {
+        const childCell = spindles.key(childIdx);
+        const childSpindle = childCell.get();
+        childCell.set({
+          ...childSpindle,
+          composedInput: optionContentVal,
+        });
       }
 
       // Create new children if next level exists but no children yet
+      // This requires array modification (push), so we do it the old way
       const nextLevelIndex = spindle.levelIndex + 1;
       const nextLevel = currentLevels[nextLevelIndex];
-      if (nextLevel && children.length === 0) {
+      if (nextLevel && childIndices.length === 0) {
+        const currentSpindles = [...(spindles.get() || [])];
         const existingAtLevel = currentSpindles.filter(
           (s) => s.levelIndex === nextLevelIndex
         );
@@ -1030,9 +1055,9 @@ const StoryWeaver = pattern<StoryWeaverInput>(
             deferGeneration: true,
           });
         }
+        spindles.set(currentSpindles);
       }
 
-      spindles.set(currentSpindles);
       showOptionPicker.set(false);
     });
 
@@ -1407,6 +1432,19 @@ Make them diverse in genre and tone:
           title: idea.title,
           synopsis: idea.synopsis,
         }));
+      }
+    );
+
+    // =========================================================================
+    // FULLSCREEN PICKER DATA
+    // =========================================================================
+
+    // Get the spindle index for the picker (used to access spindleResults)
+    const pickerSpindleIdx = derive(
+      { pickerSpindleId, spindles },
+      (deps: { pickerSpindleId: string; spindles: SpindleConfig[] }) => {
+        if (!deps.pickerSpindleId || !deps.spindles) return -1;
+        return deps.spindles.findIndex((s) => s.id === deps.pickerSpindleId);
       }
     );
 
@@ -3550,10 +3588,14 @@ Make them diverse in genre and tone:
                     pickerPreviewIndex,
                     showOptionPicker,
                     optionContent: derive(
-                      { pickerSpindleId, pickerPreviewIndex, spindleResults },
-                      (deps: { pickerSpindleId: string; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
-                        // This is a simplified approach - would need proper lookup
-                        return "";
+                      { pickerSpindleIdx, pickerPreviewIndex, spindleResults },
+                      (deps: { pickerSpindleIdx: number; pickerPreviewIndex: number; spindleResults: any }) => {
+                        if (deps.pickerSpindleIdx < 0) return "";
+                        const result = deps.spindleResults?.[deps.pickerSpindleIdx];
+                        if (!result) return "";
+                        const optionKeys = ["option0", "option1", "option2", "option3"] as const;
+                        const optionCell = result[optionKeys[deps.pickerPreviewIndex]];
+                        return optionCell?.get?.() || optionCell || "";
                       }
                     ),
                   })}
@@ -3592,9 +3634,58 @@ Make them diverse in genre and tone:
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 >
-                  <p style={{ color: "#6b7280", textAlign: "center" }}>
-                    Fullscreen picker coming soon - use ct-picker integration
-                  </p>
+                  {/* Display current option based on pickerSpindleIdx and pickerPreviewIndex */}
+                  {ifElse(
+                    derive(pickerSpindleIdx, (idx: number) => idx >= 0),
+                    <div>
+                      {/* Show option based on preview index */}
+                      {ifElse(
+                        derive(pickerPreviewIndex, (idx: number) => idx === 0),
+                        <ct-markdown content={derive(
+                          { pickerSpindleIdx, spindleResults },
+                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
+                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
+                            return result?.option0?.get?.() || result?.option0 || "";
+                          }
+                        )} />,
+                        null
+                      )}
+                      {ifElse(
+                        derive(pickerPreviewIndex, (idx: number) => idx === 1),
+                        <ct-markdown content={derive(
+                          { pickerSpindleIdx, spindleResults },
+                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
+                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
+                            return result?.option1?.get?.() || result?.option1 || "";
+                          }
+                        )} />,
+                        null
+                      )}
+                      {ifElse(
+                        derive(pickerPreviewIndex, (idx: number) => idx === 2),
+                        <ct-markdown content={derive(
+                          { pickerSpindleIdx, spindleResults },
+                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
+                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
+                            return result?.option2?.get?.() || result?.option2 || "";
+                          }
+                        )} />,
+                        null
+                      )}
+                      {ifElse(
+                        derive(pickerPreviewIndex, (idx: number) => idx === 3),
+                        <ct-markdown content={derive(
+                          { pickerSpindleIdx, spindleResults },
+                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
+                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
+                            return result?.option3?.get?.() || result?.option3 || "";
+                          }
+                        )} />,
+                        null
+                      )}
+                    </div>,
+                    <p style={{ color: "#6b7280", textAlign: "center" }}>Select a spindle to view options</p>
+                  )}
                 </div>
               </div>
 
