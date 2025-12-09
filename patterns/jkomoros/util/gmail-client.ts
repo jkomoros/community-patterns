@@ -638,13 +638,113 @@ export async function validateAndRefreshToken(
   return initialValidation;
 }
 
-// NOTE: validateAndRefreshTokenCrossCharm was removed (2024-12-09).
-// The approach of using await inside handlers with Stream.send() was problematic.
-//
-// The correct approach per Berni's guidance is:
-// 1. Use ct-render to force the auth charm to execute
-// 2. Call refreshTokenStream.send() directly from a handler (non-blocking)
-// 3. Let the reactive flow handle the token update (validToken derives update)
-//
-// See: community-docs/blessed/cross-charm.md
-// See: patterns/jkomoros/design/todo/berni-session-12-9.md
+/**
+ * Validate a Gmail token, using a cross-charm refresh stream if token expired.
+ *
+ * This version handles the framework's transaction isolation constraint:
+ * When called from a handler in charm A, you cannot write to cells owned by charm B.
+ * The solution is to call a handler on charm B via its exported Stream, which runs
+ * in charm B's transaction context and can write to its own cells.
+ *
+ * @param auth - The auth Cell (read access)
+ * @param refreshStream - A Stream from the auth charm that triggers token refresh
+ * @param debugMode - Enable debug logging
+ * @returns { valid: true, refreshed?: boolean } or { valid: false, error: string }
+ */
+export async function validateAndRefreshTokenCrossCharm(
+  auth: Cell<Auth>,
+  refreshStream: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void } | null | undefined,
+  debugMode: boolean = false,
+): Promise<{ valid: boolean; refreshed?: boolean; error?: string }> {
+  // DEBUG: Log entry point and initial state
+  console.log('[DEBUG-REFRESH] validateAndRefreshTokenCrossCharm called');
+  console.log('[DEBUG-REFRESH] Has refresh stream:', !!refreshStream?.send);
+
+  const authData = auth.get();
+  const token = authData?.token;
+
+  console.log('[DEBUG-REFRESH] Current token (first 20 chars):', token?.slice(0, 20));
+  console.log('[DEBUG-REFRESH] Token expiresAt:', authData?.expiresAt, 'now:', Date.now());
+  console.log('[DEBUG-REFRESH] Has refreshToken:', !!authData?.refreshToken);
+
+  if (!token) {
+    return { valid: false, error: "No token provided" };
+  }
+
+  // First, try validating the current token
+  const initialValidation = await validateGmailToken(token);
+  console.log('[DEBUG-REFRESH] Initial validation result:', initialValidation);
+
+  if (initialValidation.valid) {
+    return { valid: true };
+  }
+
+  // If token expired (401), try to refresh via the stream
+  if (initialValidation.error?.includes("Token expired")) {
+    if (!refreshStream?.send) {
+      if (debugMode) console.log("[GmailClient] Token expired but no refresh stream available");
+      // Fall back to direct refresh attempt (will fail with cross-charm write isolation)
+      return validateAndRefreshToken(auth, debugMode);
+    }
+
+    const refreshToken = authData?.refreshToken;
+    if (!refreshToken) {
+      if (debugMode) console.log("[GmailClient] Token expired but no refresh token in auth data");
+      return { valid: false, error: "Token expired and no refresh token available. Please re-authenticate." };
+    }
+
+    if (debugMode) console.log("[GmailClient] Token expired, calling refresh stream...");
+
+    try {
+      // Call the refresh stream and wait for the handler's transaction to commit
+      await new Promise<void>((resolve, reject) => {
+        refreshStream.send({}, (tx: any) => {
+          // onCommit is called after the handler's transaction commits (success or failure)
+          const status = tx?.status?.();
+          if (status?.status === "done") {
+            if (debugMode) console.log("[GmailClient] Refresh stream handler committed successfully");
+            resolve();
+          } else if (status?.status === "error") {
+            if (debugMode) console.log("[GmailClient] Refresh stream handler failed:", status.error);
+            reject(new Error(`Refresh handler failed: ${status.error}`));
+          } else {
+            // Unknown status, but callback was called so transaction finished
+            if (debugMode) console.log("[GmailClient] Refresh stream handler finished with status:", status?.status);
+            resolve();
+          }
+        });
+      });
+
+      // Re-read auth cell to get the refreshed token
+      console.log('[DEBUG-REFRESH] onCommit fired, re-reading auth cell...');
+      const refreshedAuth = auth.get();
+      const newToken = refreshedAuth?.token;
+
+      console.log('[DEBUG-REFRESH] New token (first 20 chars):', newToken?.slice(0, 20));
+      console.log('[DEBUG-REFRESH] Token changed:', newToken !== authData?.token);
+      console.log('[DEBUG-REFRESH] New expiresAt:', refreshedAuth?.expiresAt);
+
+      if (!newToken) {
+        return { valid: false, error: "Refresh completed but no token in auth cell" };
+      }
+
+      if (debugMode) console.log("[GmailClient] Token refreshed via stream, validating new token...");
+
+      // Validate the new token
+      console.log('[DEBUG-REFRESH] Validating new token...');
+      const refreshedValidation = await validateGmailToken(newToken);
+      console.log('[DEBUG-REFRESH] New token validation result:', refreshedValidation);
+      if (refreshedValidation.valid) {
+        return { valid: true, refreshed: true };
+      }
+
+      return { valid: false, error: "Token refresh succeeded but new token is invalid" };
+    } catch (err) {
+      if (debugMode) console.log("[GmailClient] Refresh stream error:", err);
+      return { valid: false, error: `Token refresh error: ${err}` };
+    }
+  }
+
+  // Non-401 error, return as-is
+  return initialValidation;
+}

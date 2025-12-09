@@ -159,14 +159,20 @@ ct.render(googleAuthCharm)
 
 ### Gmail Agentic Search Fixes
 
-- [x] Remove await from handlers (startScan no longer uses async/await)
-- [x] Use ct-render for google-auth charm (forces execution)
-- [x] Add refresh button using refreshTokenStream.send()
-- [x] Create derived for token validity (`validToken`)
-- [x] Update scanning condition: `isScanning && validToken && fullPrompt`
-- [x] Handler calls refreshTokenStream.send() when token invalid
-- [x] Removed vestigial `validateAndRefreshTokenCrossCharm` from gmail-client.ts
-- [x] Fixed auth UI - "Connect Gmail" wasn't rendering. Flattened derive dependencies. Note: Berni says nested derives SHOULD work (VDOM accepts cells), so root cause unclear.
+**NOTE: This approach was abandoned.** The cross-charm token refresh hit fundamental framework limitations (cross-space transaction isolation). When the auth charm lives in a different space than the consuming charm, stream `.send()` opens a transaction in the wrong space, causing ConflictError. The changes to gmail-agentic-search.tsx were reverted.
+
+- [ ] Remove await from handlers - **REVERTED** (approach didn't work)
+- [ ] Use ct-render for google-auth charm - **REVERTED** (approach didn't work)
+- [ ] Add refresh button using refreshTokenStream.send() - **REVERTED** (approach didn't work)
+- [ ] Create derived for token validity - **REVERTED** (approach didn't work)
+- [ ] Update scanning condition - **REVERTED** (approach didn't work)
+- [ ] Handler calls refreshTokenStream.send() - **REVERTED** (approach didn't work)
+
+**The blocker was never resolved:**
+- The auth charm lives in a different space than the consuming charm
+- Cross-charm stream `.send()` doesn't execute in the target charm's transaction context
+- This is a fundamental framework limitation that needs to be addressed at the framework level
+- See `patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md` for full details
 
 ---
 
