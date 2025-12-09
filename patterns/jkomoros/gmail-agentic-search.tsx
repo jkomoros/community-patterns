@@ -35,6 +35,7 @@ import {
   NAME,
   navigateTo,
   pattern,
+  Stream,
   UI,
   wish,
 } from "commontools";
@@ -109,6 +110,7 @@ export interface LocalQuery {
   useCount: number;              // Times used
   effectiveness: number;         // 0-5 rating (0=unrated)
   shareStatus: "private" | "pending_review" | "submitted";
+  foundItems?: number;           // Count of target items found by this query (via custom tools)
 }
 
 // A community query with its ID for upvoting
@@ -204,6 +206,15 @@ export interface GmailAgenticSearchInput {
 
   // Whether to fetch and use community queries (requires registry setup)
   enableCommunityQueries?: Default<boolean, true>;
+
+  // When true, only show queries in "My Saved Queries" that have found target items
+  // (via itemFoundSignal). Default false shows all queries that found emails.
+  onlySaveQueriesWithItems?: Default<boolean, false>;
+
+  // Optional signal cell for consuming patterns to indicate "found an item"
+  // When this value increases, marks the most recent query as having found items
+  // Create with cell<number>(0) and pass in - both patterns share the same cell
+  itemFoundSignal?: Cell<number>;
 }
 
 export interface GmailAgenticSearchOutput {
@@ -260,6 +271,10 @@ export interface GmailAgenticSearchOutput {
   // Actions for local query management
   rateQuery: ReturnType<typeof handler>;      // Rate a query's effectiveness
   deleteLocalQuery: ReturnType<typeof handler>; // Delete a saved query
+
+  // Cell that consuming patterns can increment to signal "found an item"
+  // When this value increases, the base pattern marks the most recent query as having found items
+  itemFoundSignal: Cell<number>;
 }
 
 // ============================================================================
@@ -350,6 +365,8 @@ const GmailAgenticSearch = pattern<
     localQueries: localQueriesInput,      // Renamed: input may be read-only
     pendingSubmissions: pendingSubmissionsInput,  // Renamed: input may be read-only
     enableCommunityQueries,
+    onlySaveQueriesWithItems,  // When true, only show queries that found target items
+    itemFoundSignal: itemFoundSignalInput,  // Optional signal cell from consuming pattern
   }) => {
     // ========================================================================
     // AUTH HANDLING
@@ -371,6 +388,37 @@ const GmailAgenticSearch = pattern<
     // Cannot call .get() on input cells at build time (causes "space is required" error).
     const localQueries = localQueriesInput;
     const pendingSubmissions = pendingSubmissionsInput;
+
+    // ========================================================================
+    // QUERY TRACKING (for foundItems feature)
+    // ========================================================================
+    // Use input signal cell if provided, otherwise create a local one
+    // This follows the "share cells by making them inputs" pattern
+    // See: community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md
+    const itemFoundSignal = itemFoundSignalInput || cell<number>(0);
+    // Track last signal value in a Cell (closure vars don't persist in derive)
+    const lastSignalValueCell = cell<number>(0);
+    // Track last executed query ID in a Cell (so derive can access it)
+    const lastExecutedQueryIdCell = cell<string | null>(null);
+
+    // Watch the signal and mark queries when it increases
+    derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([signalValue, lastSignalValue, queryId]: [number, number, string | null]) => {
+      if (signalValue > lastSignalValue) {
+        // Signal increased - mark the current query as having found items
+        if (queryId) {
+          const queries = localQueries.get() || [];
+          const idx = queries.findIndex((q) => q && q.id === queryId);
+          if (idx >= 0) {
+            const current = queries[idx].foundItems || 0;
+            localQueries.key(idx).key("foundItems").set(current + 1);
+            console.log(`[GmailAgenticSearch] Marked query ${queryId} as found item (now ${current + 1})`);
+          }
+        } else {
+          console.warn("[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark");
+        }
+        lastSignalValueCell.set(signalValue);
+      }
+    });
 
     // Build reactive wish tag based on local selectedAccountType (writable)
     // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
@@ -752,18 +800,24 @@ const GmailAgenticSearch = pattern<
                 ? Math.min(5, existing.effectiveness + 1)
                 : existing.effectiveness
             );
+            // Track this as the last executed query (for foundItems)
+            lastExecutedQueryIdCell.set(existing.id);
           } else if (emails.length > 0) {
             // Only add new query if it found results
+            const newQueryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const newQuery: LocalQuery = {
-              id: `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              id: newQueryId,
               query: input.query,
               createdAt: Date.now(),
               lastUsed: Date.now(),
               useCount: 1,
               effectiveness: 1,  // Start at 1 since it found results
               shareStatus: "private",
+              foundItems: 0,  // Initialize to 0, incremented when consuming pattern signals itemFoundSignal
             };
             state.localQueries.push(newQuery);
+            // Track this as the last executed query (for foundItems)
+            lastExecutedQueryIdCell.set(newQueryId);
           }
 
           // Auto-upvote community queries that found results
@@ -1826,50 +1880,62 @@ When you're done searching, STOP calling tools and produce your final structured
     // The derive(localQueries) renders the entire details block including content - no closure issues.
     const localQueriesUI = (
       <div style={{ marginTop: "8px" }}>
-        {derive(localQueries, (queries: LocalQuery[]) =>
-          queries && queries.length > 0 ? (
-            <details
-              open
-              style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                overflow: "hidden",
-              }}
-            >
-              {/* Summary - clickable header */}
-              <summary
-                style={{
-                  padding: "8px 12px",
-                  background: "#fefce8",
-                  borderBottom: "1px solid #fef08a",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                  color: "#854d0e",
-                  listStyle: "none",
-                }}
-              >
-                <span>My Saved Queries ({queries.length})</span>
-                <span style={{ fontSize: "11px", color: "#a16207" }}>
-                  click to toggle
-                </span>
-              </summary>
+        {derive(
+          [localQueries, onlySaveQueriesWithItems],
+          ([queries, onlyWithItems]: [LocalQuery[], boolean]) => {
+            // Filter queries: when onlyWithItems is true, only show queries that found target items
+            const filteredQueries = (queries || []).filter((q): q is LocalQuery => {
+              if (!q) return false;
+              if (onlyWithItems) {
+                return (q.foundItems || 0) > 0;
+              }
+              return true;
+            });
 
-              {/* Content - shown when expanded (handled by browser) */}
-              <div
+            if (filteredQueries.length === 0) return null;
+
+            return (
+              <details
+                open
                 style={{
-                  maxHeight: "300px",
-                  overflowY: "auto",
-                  background: "#fffbeb",
-                  padding: "8px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  overflow: "hidden",
                 }}
               >
-                {[...queries]
-                  .filter((q): q is LocalQuery => q != null)
-                  .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
+                {/* Summary - clickable header */}
+                <summary
+                  style={{
+                    padding: "8px 12px",
+                    background: "#fefce8",
+                    borderBottom: "1px solid #fef08a",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    color: "#854d0e",
+                    listStyle: "none",
+                  }}
+                >
+                  <span>My Saved Queries ({filteredQueries.length})</span>
+                  <span style={{ fontSize: "11px", color: "#a16207" }}>
+                    click to toggle
+                  </span>
+                </summary>
+
+                {/* Content - shown when expanded (handled by browser) */}
+                <div
+                  style={{
+                    maxHeight: "300px",
+                    overflowY: "auto",
+                    background: "#fffbeb",
+                    padding: "8px",
+                  }}
+                >
+                  {[...filteredQueries]
+                    .sort((a, b) => (b.effectiveness || 0) - (a.effectiveness || 0))
                   .map((query: LocalQuery) => (
                     <div
                       style={{
@@ -1931,9 +1997,10 @@ When you're done searching, STOP calling tools and produce your final structured
                       </div>
                     </div>
                   ))}
-              </div>
-            </details>
-          ) : null
+                </div>
+              </details>
+            );
+          }
         )}
       </div>
     );
@@ -2502,6 +2569,9 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       pendingSubmissions,
       rateQuery,
       deleteLocalQuery,
+      // Cell for consuming patterns to signal "found an item"
+      // Increment with searcher.itemFoundSignal.set(current + 1) when your tool finds items
+      itemFoundSignal,
 
       // Full UI (composed from pieces)
       [UI]: (

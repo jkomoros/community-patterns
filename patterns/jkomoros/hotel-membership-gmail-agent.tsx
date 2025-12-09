@@ -8,6 +8,7 @@
  * Usage: wish("#hotelMemberships") to get discovered memberships.
  */
 import {
+  cell,
   Cell,
   Default,
   derive,
@@ -264,6 +265,16 @@ YOUR FINAL OUTPUT should summarize: which brands you searched, how many membersh
     );
 
     // ========================================================================
+    // SHARED SIGNAL CELL (for foundItems feature)
+    // ========================================================================
+    // Create signal cell HERE and pass to base pattern - both share same cell
+    // This follows the "share cells by making them inputs" pattern
+    // See: community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md
+    const itemFoundSignal = cell<number>(0);
+    // Track last membership count in a Cell (closure vars don't persist in derive)
+    const lastMembershipCountCell = cell<number>(0);
+
+    // ========================================================================
     // CREATE BASE SEARCHER
     // ========================================================================
     const searcher = GmailAgenticSearch({
@@ -310,6 +321,31 @@ Report memberships as you find them. Don't wait until the end.`,
       // Note: Using hardcoded URL since import.meta.url not supported in CT compiler
       agentTypeUrl: "https://raw.githubusercontent.com/anthropics/community-patterns/main/patterns/jkomoros/hotel-membership-gmail-agent.tsx",
       enableCommunityQueries: true,   // Enable fetching/upvoting community queries
+      // Only show queries in "My Saved Queries" that actually found memberships
+      onlySaveQueriesWithItems: true,
+      // Pass shared signal cell - base pattern watches this
+      itemFoundSignal,
+    });
+
+    // ========================================================================
+    // WATCH MEMBERSHIPS TO MARK QUERIES AS EFFECTIVE
+    // ========================================================================
+    // When reportMembership successfully adds a membership, signal the base pattern.
+    // This is the idiomatic pattern: tool writes to state cell, parent watches and increments signal.
+    // See: community-docs research on tool-to-parent communication patterns
+    // NOTE: Using Cells to track state because closure vars don't persist across derive executions
+    derive([memberships, lastMembershipCountCell], ([list, lastCount]: [MembershipRecord[], number]) => {
+      const currentCount = list?.length || 0;
+      if (currentCount > lastCount) {
+        // New membership was added - signal the base pattern to mark the query
+        console.log(`[HotelMembership] New membership detected (${lastCount} -> ${currentCount}), signaling itemFoundSignal`);
+        // Increment the signal - base pattern watches this and marks the query
+        // Read current value from cell (it persists), increment, and set
+        const currentSignal = itemFoundSignal.get() || 0;
+        itemFoundSignal.set(currentSignal + 1);
+        // Update last count cell - prevents this derive from running again with same condition
+        lastMembershipCountCell.set(currentCount);
+      }
     });
 
     // ========================================================================
