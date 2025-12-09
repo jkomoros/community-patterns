@@ -51,6 +51,7 @@ interface SpindleConfig {
   pinnedOutput: string;
   parentHashWhenPinned: string; // For stale detection
   respinNonce?: number; // Cache-busting nonce for respin
+  deferGeneration?: boolean; // If true, don't auto-generate options (for performance)
 }
 
 interface GenerationResult {
@@ -166,6 +167,18 @@ interface StoryWeaverInput {
   editingSpindlePromptId?: Default<string, "">;
   editSpindlePromptText?: Default<string, "">;
 
+  // Edit Branch Factor Modal state
+  showEditBranchModal?: Default<boolean, false>;
+  editingBranchLevelIndex?: Default<number, 0>;
+  editBranchFactor?: Default<number, 1>;
+  showBranchDeleteWarning?: Default<boolean, false>;
+  pendingBranchFactor?: Default<number, 1>;
+
+  // Option Picker Modal state
+  showOptionPicker?: Default<boolean, false>;
+  pickerSpindleId?: Default<string, "">;
+  pickerPreviewIndex?: Default<number, 0>;
+
   // Root synopsis input
   synopsisText?: Default<string, "">;
 
@@ -196,6 +209,14 @@ const StoryWeaver = pattern<StoryWeaverInput>(
     showEditSpindlePromptModal,
     editingSpindlePromptId,
     editSpindlePromptText,
+    showEditBranchModal,
+    editingBranchLevelIndex,
+    editBranchFactor,
+    showBranchDeleteWarning,
+    pendingBranchFactor,
+    showOptionPicker,
+    pickerSpindleId,
+    pickerPreviewIndex,
     synopsisText,
     synopsisIdeasNonce,
   }) => {
@@ -505,6 +526,7 @@ const StoryWeaver = pattern<StoryWeaverInput>(
               pinnedOptionIndex: -1,
               pinnedOutput: "",
               parentHashWhenPinned: "",
+              deferGeneration: true, // Don't auto-generate, wait for user to click
             });
           }
         }
@@ -529,6 +551,24 @@ const StoryWeaver = pattern<StoryWeaverInput>(
           pinnedOptionIndex: -1,
           pinnedOutput: "",
           parentHashWhenPinned: "",
+        };
+        spindles.set(current);
+      }
+    });
+
+    // Start generation for a deferred spindle
+    const startGeneration = handler<
+      unknown,
+      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
+    >((_, { spindles, spindleId }) => {
+      const current = [...(spindles.get() || [])];
+      const spindleIdVal = spindleId.get();
+      const idx = current.findIndex((s) => s.id === spindleIdVal);
+      if (idx >= 0) {
+        // Clear deferGeneration flag to allow generation to start
+        current[idx] = {
+          ...current[idx],
+          deferGeneration: false,
         };
         spindles.set(current);
       }
@@ -714,6 +754,289 @@ const StoryWeaver = pattern<StoryWeaverInput>(
     });
 
     // =========================================================================
+    // BRANCH FACTOR HANDLERS
+    // =========================================================================
+
+    // Open edit branch factor modal
+    const openEditBranchModal = handler<
+      unknown,
+      {
+        showEditBranchModal: Cell<boolean>;
+        editingBranchLevelIndex: Cell<number>;
+        editBranchFactor: Cell<number>;
+        levels: Cell<LevelConfig[]>;
+        levelIndex: number;
+      }
+    >((_, { showEditBranchModal, editingBranchLevelIndex, editBranchFactor, levels, levelIndex }) => {
+      const currentLevels = levels.get() || [];
+      const level = currentLevels[levelIndex];
+      if (level) {
+        editingBranchLevelIndex.set(levelIndex);
+        editBranchFactor.set(level.branchFactor);
+        showEditBranchModal.set(true);
+      }
+    });
+
+    // Close edit branch factor modal
+    const closeEditBranchModal = handler<
+      unknown,
+      { showEditBranchModal: Cell<boolean>; showBranchDeleteWarning: Cell<boolean> }
+    >((_, { showEditBranchModal, showBranchDeleteWarning }) => {
+      showEditBranchModal.set(false);
+      showBranchDeleteWarning.set(false);
+    });
+
+    // Apply branch factor change (may show warning first if decreasing)
+    const applyBranchFactor = handler<
+      unknown,
+      {
+        levels: Cell<LevelConfig[]>;
+        spindles: Cell<SpindleConfig[]>;
+        editingBranchLevelIndex: Cell<number>;
+        editBranchFactor: Cell<number>;
+        showEditBranchModal: Cell<boolean>;
+        showBranchDeleteWarning: Cell<boolean>;
+        pendingBranchFactor: Cell<number>;
+      }
+    >((_, { levels, spindles, editingBranchLevelIndex, editBranchFactor, showEditBranchModal, showBranchDeleteWarning, pendingBranchFactor }) => {
+      const levelIndex = editingBranchLevelIndex.get();
+      const newFactor = editBranchFactor.get();
+      const currentLevels = [...(levels.get() || [])];
+      const currentSpindles = [...(spindles.get() || [])];
+      const level = currentLevels[levelIndex];
+
+      if (!level) return;
+
+      const oldFactor = level.branchFactor;
+
+      if (newFactor === oldFactor) {
+        // No change
+        showEditBranchModal.set(false);
+        return;
+      }
+
+      if (newFactor < oldFactor) {
+        // Decreasing - count spindles that will be deleted
+        const spindlesToDelete = currentSpindles.filter(
+          s => s.levelIndex === levelIndex && s.siblingIndex >= newFactor
+        );
+        if (spindlesToDelete.length > 0) {
+          // Show warning
+          pendingBranchFactor.set(newFactor);
+          showBranchDeleteWarning.set(true);
+          return;
+        }
+      }
+
+      // Apply the change
+      actuallyApplyBranchFactor(levels, spindles, levelIndex, newFactor, currentLevels, currentSpindles);
+      showEditBranchModal.set(false);
+    });
+
+    // Confirm branch factor decrease (deletes spindles)
+    const confirmBranchDecrease = handler<
+      unknown,
+      {
+        levels: Cell<LevelConfig[]>;
+        spindles: Cell<SpindleConfig[]>;
+        editingBranchLevelIndex: Cell<number>;
+        pendingBranchFactor: Cell<number>;
+        showEditBranchModal: Cell<boolean>;
+        showBranchDeleteWarning: Cell<boolean>;
+      }
+    >((_, { levels, spindles, editingBranchLevelIndex, pendingBranchFactor, showEditBranchModal, showBranchDeleteWarning }) => {
+      const levelIndex = editingBranchLevelIndex.get();
+      const newFactor = pendingBranchFactor.get();
+      const currentLevels = [...(levels.get() || [])];
+      const currentSpindles = [...(spindles.get() || [])];
+
+      actuallyApplyBranchFactor(levels, spindles, levelIndex, newFactor, currentLevels, currentSpindles);
+      showBranchDeleteWarning.set(false);
+      showEditBranchModal.set(false);
+    });
+
+    // Helper function to actually apply branch factor change
+    function actuallyApplyBranchFactor(
+      levels: Cell<LevelConfig[]>,
+      spindles: Cell<SpindleConfig[]>,
+      levelIndex: number,
+      newFactor: number,
+      currentLevels: LevelConfig[],
+      currentSpindles: SpindleConfig[]
+    ) {
+      const level = currentLevels[levelIndex];
+      const oldFactor = level.branchFactor;
+
+      // Update level's branch factor
+      currentLevels[levelIndex] = { ...level, branchFactor: newFactor };
+
+      if (newFactor > oldFactor) {
+        // Increasing - create additional spindles for each pinned parent at previous level
+        const previousLevelIndex = levelIndex - 1;
+        if (previousLevelIndex >= 0) {
+          const pinnedParents = currentSpindles.filter(
+            s => s.levelIndex === previousLevelIndex && s.pinnedOptionIndex >= 0
+          );
+
+          for (const parent of pinnedParents) {
+            const existingSiblings = currentSpindles.filter(
+              s => s.parentId === parent.id
+            );
+
+            // Create additional siblings
+            for (let i = oldFactor; i < newFactor; i++) {
+              currentSpindles.push({
+                id: generateId(),
+                levelIndex: levelIndex,
+                positionInLevel: currentSpindles.filter(s => s.levelIndex === levelIndex).length,
+                siblingIndex: i,
+                siblingCount: newFactor,
+                parentId: parent.id,
+                composedInput: parent.pinnedOutput,
+                extraPrompt: "",
+                pinnedOptionIndex: -1,
+                pinnedOutput: "",
+                parentHashWhenPinned: "",
+                deferGeneration: true, // Don't auto-generate
+              });
+            }
+
+            // Update siblingCount for existing siblings
+            for (const sibling of existingSiblings) {
+              const idx = currentSpindles.findIndex(s => s.id === sibling.id);
+              if (idx >= 0) {
+                currentSpindles[idx] = { ...currentSpindles[idx], siblingCount: newFactor };
+              }
+            }
+          }
+        }
+      } else {
+        // Decreasing - delete spindles with siblingIndex >= newFactor
+        const spindlesToKeep = currentSpindles.filter(
+          s => !(s.levelIndex === levelIndex && s.siblingIndex >= newFactor)
+        );
+
+        // Update siblingCount for remaining spindles at this level
+        for (let i = 0; i < spindlesToKeep.length; i++) {
+          if (spindlesToKeep[i].levelIndex === levelIndex) {
+            spindlesToKeep[i] = { ...spindlesToKeep[i], siblingCount: newFactor };
+          }
+        }
+
+        currentSpindles.length = 0;
+        currentSpindles.push(...spindlesToKeep);
+      }
+
+      levels.set(currentLevels);
+      spindles.set(currentSpindles);
+    }
+
+    // =========================================================================
+    // OPTION PICKER HANDLERS
+    // =========================================================================
+
+    // Open option picker modal
+    const openOptionPicker = handler<
+      unknown,
+      {
+        showOptionPicker: Cell<boolean>;
+        pickerSpindleId: Cell<string>;
+        pickerPreviewIndex: Cell<number>;
+        spindleId: Cell<string>;
+        currentPinnedIdx: Cell<number>;
+      }
+    >((_, { showOptionPicker, pickerSpindleId, pickerPreviewIndex, spindleId, currentPinnedIdx }) => {
+      const pinnedIdx = currentPinnedIdx.get();
+      pickerSpindleId.set(spindleId.get());
+      pickerPreviewIndex.set(pinnedIdx >= 0 ? pinnedIdx : 0);
+      showOptionPicker.set(true);
+    });
+
+    // Close option picker modal (without pinning)
+    const closeOptionPicker = handler<unknown, { showOptionPicker: Cell<boolean> }>(
+      (_, { showOptionPicker }) => {
+        showOptionPicker.set(false);
+      }
+    );
+
+    // Pin from picker (pins the previewed option and closes)
+    const pinFromPicker = handler<
+      unknown,
+      {
+        spindles: Cell<SpindleConfig[]>;
+        levels: Cell<LevelConfig[]>;
+        pickerSpindleId: Cell<string>;
+        pickerPreviewIndex: Cell<number>;
+        showOptionPicker: Cell<boolean>;
+        optionContent: Cell<string>;
+      }
+    >((_, { spindles, levels, pickerSpindleId, pickerPreviewIndex, showOptionPicker, optionContent }) => {
+      const spindleIdVal = pickerSpindleId.get();
+      const optionIndex = pickerPreviewIndex.get();
+      const optionContentVal = optionContent.get() || "";
+      const currentSpindles = [...(spindles.get() || [])];
+      const currentLevels = levels.get() || [];
+
+      const spindleIdx = currentSpindles.findIndex((s) => s.id === spindleIdVal);
+      if (spindleIdx < 0) {
+        showOptionPicker.set(false);
+        return;
+      }
+
+      const spindle = currentSpindles[spindleIdx];
+
+      // Pin the option
+      currentSpindles[spindleIdx] = {
+        ...spindle,
+        pinnedOptionIndex: optionIndex,
+        pinnedOutput: optionContentVal,
+        parentHashWhenPinned: simpleHash(spindle.composedInput),
+      };
+
+      // Update children's composedInput
+      const children = currentSpindles.filter((s) => s.parentId === spindleIdVal);
+      for (const child of children) {
+        const childIdx = currentSpindles.findIndex((s) => s.id === child.id);
+        if (childIdx >= 0) {
+          currentSpindles[childIdx] = {
+            ...currentSpindles[childIdx],
+            composedInput: optionContentVal,
+          };
+        }
+      }
+
+      // Create new children if next level exists but no children yet
+      const nextLevelIndex = spindle.levelIndex + 1;
+      const nextLevel = currentLevels[nextLevelIndex];
+      if (nextLevel && children.length === 0) {
+        const existingAtLevel = currentSpindles.filter(
+          (s) => s.levelIndex === nextLevelIndex
+        );
+        let positionInLevel = existingAtLevel.length;
+
+        for (let i = 0; i < nextLevel.branchFactor; i++) {
+          currentSpindles.push({
+            id: generateId(),
+            levelIndex: nextLevelIndex,
+            positionInLevel: positionInLevel++,
+            siblingIndex: i,
+            siblingCount: nextLevel.branchFactor,
+            parentId: spindleIdVal,
+            composedInput: optionContentVal,
+            extraPrompt: "",
+            pinnedOptionIndex: -1,
+            pinnedOutput: "",
+            parentHashWhenPinned: "",
+            deferGeneration: true,
+          });
+        }
+      }
+
+      spindles.set(currentSpindles);
+      showOptionPicker.set(false);
+    });
+
+    // =========================================================================
     // REACTIVE PROCESSING
     // =========================================================================
 
@@ -773,10 +1096,11 @@ const StoryWeaver = pattern<StoryWeaverInput>(
       );
 
       // Should generate?
+      // Don't generate if: root spindle, empty prompt, or deferGeneration flag is set
       const shouldGenerate = derive(
-        { isRoot, fullPrompt },
-        (deps: { isRoot: boolean; fullPrompt: string }) =>
-          !deps.isRoot && deps.fullPrompt.trim() !== ""
+        { isRoot, fullPrompt, config },
+        (deps: { isRoot: boolean; fullPrompt: string; config: SpindleConfig }) =>
+          !deps.isRoot && deps.fullPrompt.trim() !== "" && !deps.config?.deferGeneration
       );
 
       // Generate options - only when shouldGenerate is true
@@ -846,6 +1170,12 @@ const StoryWeaver = pattern<StoryWeaverInput>(
         { shouldGenerate, generation },
         (deps: { shouldGenerate: boolean; generation: { pending: boolean } }) =>
           deps.shouldGenerate && deps.generation.pending
+      );
+
+      // Is deferred generation? (waiting for user to click Generate Options)
+      const isDeferredGeneration = derive(
+        config,
+        (c) => c ? !!(c as SpindleConfig).deferGeneration : false
       );
 
       // Is pinned?
@@ -933,6 +1263,7 @@ const StoryWeaver = pattern<StoryWeaverInput>(
         option2,
         option3,
         isGenerating,
+        isDeferredGeneration,
         isPinned,
         pinnedOutput,
         isStale,
@@ -1304,9 +1635,29 @@ Make them diverse in genre and tone:
                           alignItems: "center",
                         }}
                       >
-                        <span>
-                          {result.levelTitle}{" "}
-                          {derive(result.siblingCount, (count: number) => `(${count} peers)`)}
+                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {result.levelTitle}
+                          <button
+                            onClick={openEditBranchModal({
+                              showEditBranchModal,
+                              editingBranchLevelIndex,
+                              editBranchFactor,
+                              levels,
+                              levelIndex: result.levelIndex,
+                            })}
+                            style={{
+                              padding: "2px 6px",
+                              background: "rgba(0,0,0,0.08)",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                              color: "#6b7280",
+                            }}
+                            title="Edit branch factor"
+                          >
+                            {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
+                          </button>
                         </span>
                         <button
                           onClick={openEditLevelModal({
@@ -1402,14 +1753,43 @@ Make them diverse in genre and tone:
                       }}
                     >
                       <div>
-                        <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {result.levelTitle}{" "}
-                          {derive(
-                            { siblingIndex: result.siblingIndex, siblingCount: result.siblingCount },
-                            (d: { siblingIndex: number; siblingCount: number }) =>
-                              d.siblingCount > 1
-                                ? `- Peer ${d.siblingIndex + 1} of ${d.siblingCount}`
-                                : ""
+                        <div style={{ fontWeight: "600", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span>
+                            {result.levelTitle}{" "}
+                            {derive(
+                              { siblingIndex: result.siblingIndex, siblingCount: result.siblingCount },
+                              (d: { siblingIndex: number; siblingCount: number }) =>
+                                d.siblingCount > 1
+                                  ? `- Peer ${d.siblingIndex + 1} of ${d.siblingCount}`
+                                  : ""
+                            )}
+                          </span>
+                          {/* Branch factor edit button - show for first peer or when siblingCount is 1 */}
+                          {ifElse(
+                            derive(result.siblingIndex, (idx: number) => idx === 0),
+                            <button
+                              onClick={openEditBranchModal({
+                                showEditBranchModal,
+                                editingBranchLevelIndex,
+                                editBranchFactor,
+                                levels,
+                                levelIndex: result.levelIndex,
+                              })}
+                              style={{
+                                padding: "2px 8px",
+                                background: "#e0e7ff",
+                                color: "#4338ca",
+                                border: "1px solid #c7d2fe",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                                fontWeight: "500",
+                              }}
+                              title="Edit branch factor (number of parallel peers)"
+                            >
+                              {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
+                            </button>,
+                            null
                           )}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
@@ -1636,9 +2016,10 @@ Make them diverse in genre and tone:
                     )}
                   </div>
 
-                  {/* Options Grid or Loading State */}
+                  {/* Options Grid, Loading State, or Deferred Generation */}
                   {ifElse(
-                    result.isGenerating,
+                    result.isDeferredGeneration,
+                    /* Deferred generation - show Generate Options button */
                     <div
                       style={{
                         padding: "48px 16px",
@@ -1649,19 +2030,93 @@ Make them diverse in genre and tone:
                         gap: "16px",
                       }}
                     >
-                      <ct-loader size="lg" show-elapsed></ct-loader>
-                      <div style={{ color: "#6b7280", fontSize: "14px" }}>
-                        Generating options...
+                      <div style={{ color: "#6b7280", fontSize: "14px", marginBottom: "8px" }}>
+                        Ready to generate options
                       </div>
+                      <button
+                        onClick={startGeneration({
+                          spindles,
+                          spindleId: result.spindleId,
+                        })}
+                        style={{
+                          padding: "12px 24px",
+                          background: "#2563eb",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                          fontWeight: "600",
+                        }}
+                      >
+                        Generate Options
+                      </button>
                     </div>,
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "12px",
-                        padding: "16px",
-                      }}
-                    >
+                    ifElse(
+                      result.isGenerating,
+                      <div
+                        style={{
+                          padding: "48px 16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "16px",
+                        }}
+                      >
+                        <ct-loader size="lg" show-elapsed></ct-loader>
+                        <div style={{ color: "#6b7280", fontSize: "14px" }}>
+                          Generating options...
+                        </div>
+                      </div>,
+                      <div>
+                        {/* Options header with fullscreen button */}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "12px 16px",
+                            borderBottom: "1px solid #e5e7eb",
+                            background: "#f9fafb",
+                          }}
+                        >
+                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                            Generated Options
+                          </div>
+                          <button
+                            onClick={openOptionPicker({
+                              showOptionPicker,
+                              pickerSpindleId,
+                              pickerPreviewIndex,
+                              spindleId: result.spindleId,
+                              currentPinnedIdx: result.pinnedIdx,
+                            })}
+                            style={{
+                              padding: "6px 12px",
+                              background: "#4f46e5",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            🔍 Fullscreen View
+                          </button>
+                        </div>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: "12px",
+                            padding: "16px",
+                          }}
+                        >
                       {ifElse(
                         result.hasOption0,
                         <div
@@ -2110,7 +2565,9 @@ Make them diverse in genre and tone:
                         </div>,
                         null
                       )}
-                    </div>
+                        </div>
+                      </div>
+                    )
                   )}
 
                   {/* Summary */}
@@ -2858,6 +3315,361 @@ Make them diverse in genre and tone:
                     Save
                   </button>
                 </div>
+              </div>
+            </div>,
+            null
+          )}
+
+          {/* Edit Branch Factor Modal */}
+          {ifElse(
+            showEditBranchModal,
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  padding: "24px",
+                  borderRadius: "12px",
+                  width: "320px",
+                  maxWidth: "90%",
+                }}
+              >
+                <h2 style={{ margin: "0 0 16px 0", fontSize: "18px" }}>
+                  Edit Branch Factor
+                </h2>
+                <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#6b7280" }}>
+                  How many variations to generate at this level?
+                </p>
+
+                {ifElse(
+                  showBranchDeleteWarning,
+                  <div
+                    style={{
+                      padding: "12px",
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: "8px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#991b1b" }}>
+                      <strong>Warning:</strong> Decreasing the branch factor will delete some spindles and their content.
+                    </p>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={closeEditBranchModal({ showEditBranchModal, showBranchDeleteWarning })}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#f3f4f6",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmBranchDecrease({
+                          levels,
+                          spindles,
+                          editingBranchLevelIndex,
+                          pendingBranchFactor,
+                          showEditBranchModal,
+                          showBranchDeleteWarning,
+                        })}
+                        style={{
+                          padding: "6px 12px",
+                          background: "#dc2626",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "13px",
+                        }}
+                      >
+                        Delete & Apply
+                      </button>
+                    </div>
+                  </div>,
+                  <div style={{ marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <button
+                        onClick={handler<unknown, { editBranchFactor: Cell<number> }>(
+                          (_, { editBranchFactor }) => {
+                            const current = editBranchFactor.get();
+                            if (current > 1) editBranchFactor.set(current - 1);
+                          }
+                        )({ editBranchFactor })}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          background: "#f3f4f6",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "18px",
+                        }}
+                      >
+                        -
+                      </button>
+                      <span style={{ fontSize: "24px", fontWeight: "600", minWidth: "40px", textAlign: "center" }}>
+                        {derive(editBranchFactor, (v: number) => String(v))}
+                      </span>
+                      <button
+                        onClick={handler<unknown, { editBranchFactor: Cell<number> }>(
+                          (_, { editBranchFactor }) => {
+                            const current = editBranchFactor.get();
+                            if (current < 10) editBranchFactor.set(current + 1);
+                          }
+                        )({ editBranchFactor })}
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          background: "#f3f4f6",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "18px",
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {ifElse(
+                  showBranchDeleteWarning,
+                  null,
+                  <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={closeEditBranchModal({ showEditBranchModal, showBranchDeleteWarning })}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#f3f4f6",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={applyBranchFactor({
+                        levels,
+                        spindles,
+                        editingBranchLevelIndex,
+                        editBranchFactor,
+                        showEditBranchModal,
+                        showBranchDeleteWarning,
+                        pendingBranchFactor,
+                      })}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#3b82f6",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>,
+            null
+          )}
+
+          {/* Option Picker Modal - Fullscreen */}
+          {ifElse(
+            showOptionPicker,
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "#f8fafc",
+                zIndex: 1000,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: "16px 20px",
+                  borderBottom: "1px solid #e5e7eb",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  background: "white",
+                }}
+              >
+                <button
+                  onClick={closeOptionPicker({ showOptionPicker })}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#f3f4f6",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  Close
+                </button>
+
+                <div style={{ fontWeight: "600", fontSize: "16px" }}>
+                  Option {derive(pickerPreviewIndex, (i: number) => i + 1)} of 4
+                </div>
+
+                <button
+                  onClick={pinFromPicker({
+                    spindles,
+                    levels,
+                    pickerSpindleId,
+                    pickerPreviewIndex,
+                    showOptionPicker,
+                    optionContent: derive(
+                      { pickerSpindleId, pickerPreviewIndex, spindleResults },
+                      (deps: { pickerSpindleId: string; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
+                        // This is a simplified approach - would need proper lookup
+                        return "";
+                      }
+                    ),
+                  })}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                  }}
+                >
+                  Pin This Option
+                </button>
+              </div>
+
+              {/* Content - show current option */}
+              <div
+                style={{
+                  flex: 1,
+                  overflow: "auto",
+                  padding: "32px",
+                  display: "flex",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    background: "white",
+                    padding: "32px",
+                    borderRadius: "12px",
+                    maxWidth: "800px",
+                    width: "100%",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  <p style={{ color: "#6b7280", textAlign: "center" }}>
+                    Fullscreen picker coming soon - use ct-picker integration
+                  </p>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <div
+                style={{
+                  padding: "16px 20px",
+                  borderTop: "1px solid #e5e7eb",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "24px",
+                  background: "white",
+                }}
+              >
+                <button
+                  onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                    (_, { pickerPreviewIndex }) => {
+                      const current = pickerPreviewIndex.get();
+                      pickerPreviewIndex.set((current - 1 + 4) % 4);
+                    }
+                  )({ pickerPreviewIndex })}
+                  style={{
+                    padding: "12px 24px",
+                    background: "#f3f4f6",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  Previous
+                </button>
+
+                {/* Dot indicators */}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        background: derive(
+                          pickerPreviewIndex,
+                          (idx: number) => idx === i ? "#2563eb" : "#d1d5db"
+                        ),
+                        cursor: "pointer",
+                      }}
+                      onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                        (_, { pickerPreviewIndex }) => {
+                          pickerPreviewIndex.set(i);
+                        }
+                      )({ pickerPreviewIndex })}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                    (_, { pickerPreviewIndex }) => {
+                      const current = pickerPreviewIndex.get();
+                      pickerPreviewIndex.set((current + 1) % 4);
+                    }
+                  )({ pickerPreviewIndex })}
+                  style={{
+                    padding: "12px 24px",
+                    background: "#f3f4f6",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                  }}
+                >
+                  Next
+                </button>
               </div>
             </div>,
             null
