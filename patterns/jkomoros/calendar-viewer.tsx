@@ -84,17 +84,16 @@ function getRelativeLabel(dateStr: string): string {
   }
 }
 
-// Group events by date
+// Group events by date - returns plain object (Maps don't serialize well in framework)
 function groupEventsByDate(
   events: CalendarEvent[]
-): Map<string, CalendarEvent[]> {
-  const byDate = new Map<string, CalendarEvent[]>();
+): Record<string, CalendarEvent[]> {
+  const byDate: Record<string, CalendarEvent[]> = {};
   for (const evt of events) {
     if (!evt || !evt.startDate) continue;
     const dateKey = new Date(evt.startDate).toDateString();
-    const existing = byDate.get(dateKey) || [];
-    existing.push(evt);
-    byDate.set(dateKey, existing);
+    if (!byDate[dateKey]) byDate[dateKey] = [];
+    byDate[dateKey].push(evt);
   }
   return byDate;
 }
@@ -166,8 +165,11 @@ export default pattern<{
       events: CalendarEvent[];
       hiddenCalendars: string[];
     }) => {
+      // Early return for empty/invalid data
+      if (!events?.length) return [];
+
       const hidden = hiddenCalendars || [];
-      const filtered = (events || []).filter(
+      const filtered = events.filter(
         (evt) => evt && !hidden.includes(evt.calendarName)
       );
       const byDate = groupEventsByDate(filtered);
@@ -177,16 +179,17 @@ export default pattern<{
         events: CalendarEvent[];
       }> = [];
 
-      for (const [dateKey, dateEvents] of byDate) {
-        // Sort events within the day by start time
-        dateEvents.sort(
+      // Use Object.entries since byDate is now a plain object (not Map)
+      for (const [dateKey, dateEvents] of Object.entries(byDate)) {
+        // Spread before sort to avoid mutating (defensive, per community docs)
+        const sortedEvents = [...dateEvents].sort(
           (a, b) =>
             new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
         );
         groups.push({
           date: dateKey,
-          label: getRelativeLabel(dateEvents[0].startDate),
-          events: dateEvents,
+          label: getRelativeLabel(sortedEvents[0].startDate),
+          events: sortedEvents,
         });
       }
 
@@ -269,17 +272,18 @@ export default pattern<{
             {derive(
               { uniqueCalendars, hiddenCalendars },
               ({
-                uniqueCalendars,
-                hiddenCalendars,
+                uniqueCalendars: calendars,
+                hiddenCalendars: hiddenList,
               }: {
                 uniqueCalendars: string[];
                 hiddenCalendars: string[];
               }) =>
-                (uniqueCalendars || []).map((name: string) => {
-                  const isHidden = (hiddenCalendars || []).includes(name);
+                (calendars || []).map((name: string) => {
+                  const isHidden = (hiddenList || []).includes(name);
                   const color = getCalendarColor(name);
                   return (
                     <button
+                      // Pass the Cell from outer scope, not the destructured value
                       onClick={toggleCalendar({ calendarName: name, hiddenCalendars })}
                       style={{
                         display: "flex",
