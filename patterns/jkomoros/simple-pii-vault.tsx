@@ -14,11 +14,12 @@ interface InputSchema {
   entries: Default<PIIEntry[], []>;
 }
 
-// Result schema with tag for wish discovery
-interface ResultSchema {
+/** Sensitive PII vault for storing personal information. #piiVault */
+interface Output {
   title: string;
   entries: PIIEntry[];
-  resultDescription: "#pii-vault - Sensitive PII entries for redaction";
+  /** Total number of PII entries in the vault */
+  entryCount: number;
 }
 
 // Category display info
@@ -55,7 +56,7 @@ const removeEntry = handler<
   }
 });
 
-export default pattern<InputSchema>(({ title, entries }) => {
+export default pattern<InputSchema, Output>(({ title, entries }) => {
   // Local state for the add form
   const newCategory = Cell.of<PIICategory>("name");
   const newValue = Cell.of("");
@@ -220,7 +221,6 @@ export default pattern<InputSchema>(({ title, entries }) => {
     ),
     title,
     entries,
-    // Tag for wish discovery - allows redactor to find this vault
-    resultDescription: "#pii-vault - Sensitive PII entries for redaction",
+    entryCount,
   };
 });

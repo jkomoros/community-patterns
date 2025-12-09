@@ -61,6 +61,7 @@ interface Input {
   >;
 }
 
+/** Google account switcher for choosing personal/work accounts. #googleAuthSwitcher */
 interface Output {
   auth: Auth;
 }
