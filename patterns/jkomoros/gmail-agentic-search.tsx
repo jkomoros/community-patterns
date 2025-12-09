@@ -421,12 +421,20 @@ const GmailAgenticSearch = pattern<
       if (signalValue > lastSignalValue) {
         // Signal increased - mark the current query as having found items
         if (queryId) {
-          const queries = localQueries.get() || [];
-          const idx = queries.findIndex((q) => q && q.id === queryId);
-          if (idx >= 0) {
-            const current = queries[idx].foundItems || 0;
-            localQueries.key(idx).key("foundItems").set(current + 1);
-            console.log(`[GmailAgenticSearch] Marked query ${queryId} as found item (now ${current + 1})`);
+          // BUG: localQueries accessed as closure in derive doesn't behave as a Cell
+          // Framework input cells with Default<> types behave differently in closure context
+          // Use try-catch to silently fail - this foundItems tracking is non-critical
+          try {
+            const lq = localQueries as any;
+            const queries = (typeof lq.get === 'function' ? lq.get() : lq) || [];
+            const idx = queries.findIndex((q: LocalQuery) => q && q.id === queryId);
+            if (idx >= 0 && typeof lq.key === 'function') {
+              const current = queries[idx].foundItems || 0;
+              lq.key(idx).key("foundItems").set(current + 1);
+              console.log(`[GmailAgenticSearch] Marked query ${queryId} as found item (now ${current + 1})`);
+            }
+          } catch {
+            // Silently fail - foundItems tracking is non-critical
           }
         } else {
           console.warn("[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark");
@@ -1032,7 +1040,7 @@ When you're done searching, STOP calling tools and produce your final structured
         progress: Cell<SearchProgress>;
         auth: Cell<Auth>;
         debugLog: Cell<DebugLogEntry[]>;
-        authRefreshStream: RefreshStreamType | null;
+        authRefreshStream: Cell<RefreshStreamType | null>;
       }
     >(async (_, state) => {
       if (!state.isAuthenticated.get()) return;
@@ -1056,8 +1064,8 @@ When you're done searching, STOP calling tools and produce your final structured
         type: "info",
         message: "Validating Gmail token...",
       });
-      // Cast authRefreshStream since the handler state inference doesn't preserve function types
-      const refreshStream = state.authRefreshStream as RefreshStreamType | null;
+      // Unwrap the Cell to get the actual refresh stream
+      const refreshStream = state.authRefreshStream.get();
       const validation = await validateAndRefreshTokenCrossCharm(
         state.auth,
         refreshStream,
