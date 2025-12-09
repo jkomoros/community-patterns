@@ -140,7 +140,7 @@ CONFIGURATION:
 // Pattern source paths (relative to repo root)
 const PATTERN_PATHS: Record<string, string> = {
   imessage: "patterns/jkomoros/WIP/imessage-viewer.tsx",
-  calendar: "patterns/jkomoros/WIP/calendar-viewer.tsx",
+  calendar: "patterns/jkomoros/calendar-viewer.tsx",
   reminders: "patterns/jkomoros/WIP/reminders-viewer.tsx",
   notes: "patterns/jkomoros/WIP/notes-viewer.tsx",
 };
