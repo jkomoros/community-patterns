@@ -14,9 +14,9 @@ OAuth error: SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSO
 
 ## Root Cause
 
-**You're hitting the frontend server (localhost:5173) instead of the API server (localhost:8000).**
+**You're viewing the pattern on localhost:5173 instead of localhost:8000.**
 
-The frontend server returns HTML for unknown routes. The API server returns JSON.
+When testing patterns with Playwright or in the browser, ALWAYS use localhost:8000. The frontend dev server (5173) doesn't have the API endpoints.
 
 ## WARNING: Port Numbers Matter!
 
