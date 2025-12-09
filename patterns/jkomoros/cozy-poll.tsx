@@ -36,6 +36,7 @@ interface PollInput {
   nextOptionId?: Cell<Default<number, 1>>;
 }
 
+/** Collaborative poll with green/yellow/red voting. #cozyPoll */
 interface PollOutput {
   question: Cell<Default<string, "">>;
   options: Cell<Default<Option[], []>>;

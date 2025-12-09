@@ -35,6 +35,7 @@ interface ViewerInput {
   voterCharms: Cell<Default<VoterCharmRef[], []>>;
 }
 
+/** Public poll lobby with live results. #cozyPollLobby */
 interface ViewerOutput {
   question: Default<string, "">;
   options: Cell<Default<Option[], []>>;

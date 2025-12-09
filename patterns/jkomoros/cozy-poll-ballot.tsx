@@ -34,6 +34,7 @@ interface VoterInput {
   myName: Cell<Default<string, "">>;        // Local to this voter
 }
 
+/** Individual voter ballot for cozy poll. #cozyPollBallot */
 interface VoterOutput {
   myName: Cell<Default<string, "">>;
 }
