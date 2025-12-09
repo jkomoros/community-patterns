@@ -1,3 +1,15 @@
+# PROMOTED TO FOLK WISDOM
+
+**This superstition has been promoted to folk wisdom.**
+
+See: `community-docs/folk_wisdom/jsx.md` - "Native `<input>` Two-Way Binding Doesn't Work (Use ct-input)"
+
+---
+
+**Original content preserved below.**
+
+---
+
 # Input Two-Way Binding May Not Work Inside ifElse Conditionals
 
 ## Framework Author Response (seefeldb, 2025-12-03)

@@ -336,3 +336,76 @@ Understanding data flow helps choose the right construct:
 - ✅ 2025-11-26 - Verified against actual pattern behavior (jkomoros)
 
 ---
+
+## Use .equals() Instance Method for Cell Comparison in Arrays
+
+⭐⭐⭐ (Verified via testing)
+
+When working with arrays of Cells (e.g., from `.map()` in JSX), use the `.equals()` **instance method** for comparison, not `===` or `Cell.equals()`.
+
+### The Problem
+
+```typescript
+// ❌ BROKEN - === comparison doesn't work for Cells
+const removeItem = handler<...>((_, { items, item }) => {
+  const currentItems = items.get();
+  const index = currentItems.findIndex(el => el === item);  // Returns -1!
+});
+```
+
+The Cell reference from `.map()` iteration may be a different proxy/wrapper than the Cell in the array, so `===` comparison fails.
+
+### The Solution
+
+```typescript
+// ✅ WORKS - .equals() instance method
+const removeItem = handler<
+  unknown,
+  { items: Cell<Array<Cell<Item>>>; item: Cell<Item> }
+>((_event, { items, item }) => {
+  const currentItems = items.get();
+  const index = currentItems.findIndex(el => el.equals(item));  // Works!
+
+  if (index >= 0) {
+    items.set(currentItems.toSpliced(index, 1));
+  }
+});
+```
+
+### Key Points
+
+1. **Input types use plain arrays**: `Default<Item[], []>`
+2. **Handler params use boxed types**: `Cell<Array<Cell<Item>>>`
+3. **Push plain objects**: `items.push({ name: "New" })` - framework auto-boxes
+4. **Compare with .equals()**: `el.equals(otherCell)`
+
+### Context Differences
+
+**Inside Handlers:** Cells available with `.get()`, `.key()`, `.equals()` methods
+
+```typescript
+const handler = handler<unknown, { items: Cell<Array<Cell<Item>>> }>(
+  (_, { items }) => {
+    const currentItems = items.get();  // Array<Cell<Item>>
+    currentItems[0].get().name;  // Access property
+    currentItems[0].key("name").set("New");  // Mutate
+  }
+);
+```
+
+**Inside derive():** Plain unwrapped values
+
+```typescript
+derive({ items }, ({ items }) => {
+  // items is Item[] (plain objects, no Cell methods)
+  const found = items.find(item => item.name === "foo");
+});
+```
+
+**Related:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
+
+**Guestbook:**
+- ✅ 2025-11-25 - Discovered in smart-rubric array reordering (jkomoros)
+- ✅ 2025-12-02 - Verified via minimal repro: === returns -1, .equals() works (jkomoros)
+
+---

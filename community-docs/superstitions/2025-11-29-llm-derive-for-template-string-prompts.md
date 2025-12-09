@@ -1,12 +1,27 @@
 ---
 topic: llm
 discovered: 2025-11-29
-confirmed_count: 1
-last_confirmed: 2025-11-29
-sessions: [prompt-injection-tracker-v3]
+confirmed_count: 2
+last_confirmed: 2025-12-03
+sessions: [prompt-injection-tracker-v3, systematic-ab-testing]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
-stars: ⭐⭐
+status: resolved
+stars: ⭐⭐⭐
+resolved_to: folk_wisdom/llm.md
+---
+
+# RESOLVED - SEE FOLK WISDOM
+
+**This superstition has been resolved and unified with related superstitions.**
+
+See: `community-docs/folk_wisdom/llm.md` - "When to Use derive() for generateObject Prompts"
+
+**Summary:** derive() IS required for template strings with multiple properties (to avoid opaque value errors). For single properties, either approach works.
+
+---
+
+**Original content preserved below for reference.**
+
 ---
 
 # ⚠️ SUPERSTITION - PARTIALLY VERIFIED

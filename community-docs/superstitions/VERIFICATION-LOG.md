@@ -397,10 +397,10 @@ When a superstition is removed, also remove its entry from this log.
 
 ## 2025-11-30-ifelse-input-binding.md
 
-**Last verified:** 2025-12-02
-**Status:** pending_verification (single observation)
-**Evidence level:** low (not confirmed by others)
-**Notes:** Claims two-way binding doesn't work for inputs inside ifElse conditionals. User types but cell doesn't update. Single observation, needs active repro to verify. Workaround: use CSS visibility instead of ifElse for inputs, or set defaults in handler.
+**Last verified:** 2025-12-08
+**Status:** PROMOTED to folk_wisdom/jsx.md
+**Evidence level:** high (framework author confirmed as bug + multiple confirmations)
+**Notes:** Framework author confirmed: "that's a bug, and a very strange one." Narrowed down to native `<input>` elements - ct-input works correctly. PROMOTED to folk_wisdom.
 
 ---
 
@@ -428,3 +428,132 @@ When a superstition is removed, also remove its entry from this log.
 **Status:** confirmed (docs verified)
 **Evidence level:** medium (single observation + doc verification)
 **Notes:** data-* attributes not accessible in handler events (event.target.dataset is undefined). event.target.value IS documented to work. Fix: pass data in handler context instead of data-* attributes. Verified against labs/docs. Valid workaround pattern.
+
+---
+
+## 2025-12-05-jsx-boolean-attributes-not-passed.md
+
+**Last verified:** 2025-12-08
+**Status:** confirmed (code analysis)
+**Evidence level:** medium (single observation + code analysis)
+**Notes:** Kebab-case JSX attributes don't map to camelCase Lit properties. CommonTools sets properties using JSX attribute name directly, but Lit properties use camelCase. File documents the fix was applied to ct-autocomplete. Valid component authoring guidance.
+
+---
+
+## 2025-12-05-bgupdater-background-charm-service.md
+
+**Last verified:** 2025-12-08
+**Status:** pending_verification
+**Evidence level:** low (single observation)
+**Notes:** Documents background updater pattern for OAuth tokens. Handler runs in both browser and background worker. Needs active verification.
+
+---
+
+## 2025-12-05-touch-shell-index-to-rebuild-ui-components.md
+
+**Last verified:** 2025-12-08
+**Status:** confirmed (development workflow)
+**Evidence level:** low (single observation)
+**Notes:** Touch shell index.ts to trigger UI component rebuild. Valid development workaround.
+
+---
+
+## 2025-12-06-wish-inside-derive-causes-infinite-loop.md
+
+**Last verified:** 2025-12-08
+**Status:** likely_correct (consistent with other derive-loop superstitions)
+**Evidence level:** medium (single observation + consistent with framework model)
+**Notes:** Calling wish() inside derive() creates new wish each evaluation, causing infinite loops. Consistent with derive-inside-map-causes-thrashing. Solution: call wish at pattern level, process conditionally in derive.
+
+---
+
+## 2025-12-06-cpu-loop-poisons-space.md
+
+**Last verified:** 2025-12-08
+**Status:** likely_correct (not actively tested - destructive)
+**Evidence level:** low (single observation, not safe to test)
+**Notes:** CPU loops can poison a space, requiring space deletion. Not actively verified (too destructive). Worth keeping as warning.
+
+---
+
+## 2025-12-06-sort-mutates-array-spread-first-in-derive.md
+
+**Last verified:** 2025-12-08
+**Status:** confirmed (standard JS behavior)
+**Evidence level:** high (fundamental JS behavior)
+**Notes:** Array.sort() mutates in place. In derive(), always spread first: `[...items].sort()`. This is standard JavaScript, not framework-specific.
+
+---
+
+## 2025-12-06-use-native-details-summary-for-expand-collapse.md
+
+**Last verified:** 2025-12-08
+**Status:** confirmed (UI guidance)
+**Evidence level:** low (single observation)
+**Notes:** Native HTML details/summary works for expand/collapse without framework components. Valid UI guidance.
+
+---
+
+## 2025-12-06-wish-discovery-requires-jsdoc-tag-on-output.md
+
+**Last verified:** 2025-12-08
+**Status:** pending_verification
+**Evidence level:** low (single observation)
+**Notes:** Claims JSDoc @mentionable tag on output is required for wish discovery. Needs active testing.
+
+---
+
+## 2025-12-07-cross-charm-writes-blocked-use-stream-send.md
+
+**Last verified:** 2025-12-08
+**Status:** likely_correct (already in folk_wisdom/background-execution.md)
+**Evidence level:** medium (consistent with folk wisdom)
+**Notes:** Cross-charm writes blocked by security model. Use stream.send() with onCommit. Consistent with existing folk wisdom.
+
+---
+
+## 2025-12-07-use-ct-screen-for-full-width-patterns.md
+
+**Last verified:** 2025-12-08
+**Status:** confirmed (UI guidance)
+**Evidence level:** low (single observation)
+**Notes:** Use ct-screen wrapper for full-width patterns. Valid UI guidance.
+
+---
+
+## 2025-12-08-generateObject-derive-goal-causes-infinite-loop.md
+
+**Last verified:** 2025-12-08
+**Status:** likely_correct (consistent with framework model)
+**Evidence level:** medium (single observation + consistent with other loop superstitions)
+**Notes:** Agent prompt derived from agent output causes infinite loop. Consistent with general "don't create feedback loops" principle. Keep prompt inputs stable during agent execution.
+
+---
+
+## 2025-12-08-record-key-set-handler-workaround.md
+
+**Last verified:** 2025-12-08
+**Status:** pending_verification
+**Evidence level:** low (single observation)
+**Notes:** Documents workaround for setting record keys in handlers. Needs active verification.
+
+---
+
+## AUDIT NOTES (2025-12-08)
+
+**Files deleted (deprecated/disproved):**
+- 2025-11-24-use-derive-not-computed-for-jsx-rendering.md (DEPRECATED - disproven)
+- 2025-11-22-derive-object-parameter-cell-unwrapping.md (SUPERSEDED - folk_wisdom exists)
+- 2025-11-24-default-only-at-array-level-not-nested.md (DISPROVED - testing showed it works)
+- 2025-11-29-generateObject-map-empty-array-handler.md (DUPLICATE)
+
+**Files promoted to folk_wisdom:**
+- 2025-11-22-deployment-setsrc-conflicts-use-new-instead.md -> folk_wisdom/deployment.md
+- 2025-11-25-framework-auto-boxes-array-items-use-equals-instance-method.md -> folk_wisdom/reactivity.md
+- 2025-11-29-llm-dumb-map-approach-works.md -> folk_wisdom/llm.md
+- 2025-11-29-llm-no-custom-caching-layers.md -> folk_wisdom/llm.md
+- 2025-11-29-handlers-no-opaqueref-casting.md -> folk_wisdom/types.md
+- 2025-11-30-ifelse-input-binding.md -> folk_wisdom/jsx.md
+
+**Conflicting superstitions resolved:**
+- 2025-11-25-generateObject-race-condition-pass-cell-directly.md + 2025-11-29-llm-derive-for-template-string-prompts.md -> Unified in folk_wisdom/llm.md

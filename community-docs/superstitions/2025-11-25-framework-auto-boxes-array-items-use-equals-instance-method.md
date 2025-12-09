@@ -1,3 +1,15 @@
+# PROMOTED TO FOLK WISDOM
+
+**This superstition has been promoted to folk wisdom.**
+
+See: `community-docs/folk_wisdom/reactivity.md` - "Use .equals() Instance Method for Cell Comparison in Arrays"
+
+---
+
+**Original content preserved below.**
+
+---
+
 # Framework Auto-Boxes Array Items; Use .equals() Instance Method for Cell Comparison
 
 ## Summary

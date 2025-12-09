@@ -1,13 +1,26 @@
 ---
 topic: llm
 discovered: 2025-11-29
-confirmed_count: 1
-last_confirmed: 2025-11-29
-sessions: [prompt-injection-tracker-map-approach]
+confirmed_count: 2
+last_confirmed: 2025-12-08
+sessions: [prompt-injection-tracker-map-approach, verification-testing]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
+status: promoted
 stars: ⭐⭐⭐
 source: framework-author
+promoted_to: folk_wisdom/llm.md
+---
+
+# PROMOTED TO FOLK WISDOM
+
+**This superstition has been promoted to folk wisdom.**
+
+See: `community-docs/folk_wisdom/llm.md`
+
+---
+
+**Original content preserved below.**
+
 ---
 
 # ⭐⭐⭐ FRAMEWORK AUTHOR CONFIRMED

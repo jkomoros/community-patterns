@@ -1,18 +1,29 @@
 ---
 topic: deployment
 discovered: 2025-11-22
-confirmed_count: 1
-last_confirmed: 2025-11-22
-sessions: [food-recipe-improvements, multiple-deployment-sessions]
+confirmed_count: 2
+last_confirmed: 2025-12-02
+sessions: [food-recipe-improvements, multiple-deployment-sessions, verification-testing]
 related_labs_docs: ~/Code/labs/docs/common/ (CT CLI docs)
-status: superstition
-stars: ⭐
+status: promoted
+stars: ⭐⭐⭐
 framework_issue: known framework bug with setsrc causing conflicts
+promoted_to: folk_wisdom/deployment.md
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# PROMOTED TO FOLK WISDOM
 
-**This is a SUPERSTITION** - based on a single observation. It may be:
+**This superstition has been promoted to folk wisdom.**
+
+See: `community-docs/folk_wisdom/deployment.md`
+
+---
+
+**Original superstition content preserved below for reference.**
+
+---
+
+**This was a SUPERSTITION** - based on a single observation. It may be:
 - Incomplete or context-specific
 - Misunderstood or coincidental
 - Already contradicted by official docs

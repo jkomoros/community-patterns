@@ -1,12 +1,27 @@
 ---
 topic: llm, generateObject, race-condition
 discovered: 2025-11-25
-confirmed_count: 1
-last_confirmed: 2025-11-25
-sessions: [smart-rubric-phase-5]
+confirmed_count: 2
+last_confirmed: 2025-12-03
+sessions: [smart-rubric-phase-5, systematic-ab-testing]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
-status: superstition
+status: resolved
 stars: ⭐⭐⭐
+resolved_to: folk_wisdom/llm.md
+---
+
+# RESOLVED - SEE FOLK WISDOM
+
+**This superstition has been resolved and unified with related superstitions.**
+
+See: `community-docs/folk_wisdom/llm.md` - "When to Use derive() for generateObject Prompts"
+
+**Summary:** Systematic testing (Dec 2025) showed both approaches work for single properties. The original "race condition" diagnosis was incorrect. Use derive() only when needed for template strings with multiple properties.
+
+---
+
+**Original content preserved below for reference.**
+
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
