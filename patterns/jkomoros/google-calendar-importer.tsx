@@ -508,10 +508,6 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
       }`,
       [UI]: (
         <ct-screen>
-          {/* TEMPORARY WORKAROUND (CT-1090): Embed wishedAuthCharm to trigger cross-space charm startup.
-              See: community-docs/superstitions/2025-12-02-wish-cross-space-embed-in-jsx.md
-              Remove this when CT-1090 is fixed. */}
-          <div style={{ display: "none" }}>{wishedAuthCharm}</div>
           <div slot="header">
             <ct-hstack align="center" gap="2">
               <ct-heading level={3}>Google Calendar Importer</ct-heading>

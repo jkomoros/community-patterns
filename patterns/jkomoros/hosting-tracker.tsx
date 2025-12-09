@@ -1055,13 +1055,6 @@ Include reasoning for each suggestion and potential false positives to watch for
       [NAME]: str`Hosting Tracker (${eventCount} events)`,
       [UI]: (
         <ct-screen>
-          {/* Embed wish results to trigger cross-space charm startup */}
-          <div style={{ display: "none" }}>
-            {familyWishResult}
-            {googleCalendarCharm}
-            {appleCalendarCharm}
-          </div>
-
           <div slot="header">
             <ct-hstack align="center" gap="2">
               <ct-heading level={3}>Family Hosting Tracker</ct-heading>

@@ -120,11 +120,6 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
 
       [UI]: (
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
-          {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
-          <div style={{ display: "none" }}>
-            {wishedItemsCharm}
-          </div>
-
           <h2>Self-Referential Wish Repro (CT-1098)</h2>
 
           <div style={{

@@ -497,10 +497,6 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
     [NAME]: title,
     [UI]: (
       <div style={{ padding: "1rem", maxWidth: "900px" }}>
-        {/* TEMPORARY WORKAROUND (CT-1090): Embed wishedVault to trigger cross-space charm startup.
-            See: community-docs/superstitions/2025-12-02-wish-cross-space-embed-in-jsx.md
-            Remove this when CT-1090 is fixed. */}
-        {wishedVault}
         <h2 style={{ margin: "0 0 1rem 0" }}>{title}</h2>
 
         {/* Status bar */}

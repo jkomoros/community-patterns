@@ -1224,10 +1224,6 @@ When you're done searching, STOP calling tools and produce your final structured
     // Auth UI - shows auth status, login buttons, or connect Gmail prompt
     const authUI = (
       <div>
-        {/* WORKAROUND (CT-1090): Embed wish results to trigger cross-space charm startup */}
-        <div style={{ display: "none" }}>{wishResult}</div>
-        <div style={{ display: "none" }}>{registryWish}</div>
-
         {/* Account Type Selector (only shown if not using direct auth) */}
         {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
           <div

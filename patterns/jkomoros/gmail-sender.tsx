@@ -215,9 +215,6 @@ export default pattern<Input, Output>(({ draft }) => {
           Send Email
         </h2>
 
-        {/* CT-1090 workaround: embed wishResult in JSX to trigger cross-space charm startup */}
-        <div style={{ display: "none" }}>{wishResult}</div>
-
         {/* Auth status */}
         {ifElse(
           hasAuth,
