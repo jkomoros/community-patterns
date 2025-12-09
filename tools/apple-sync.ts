@@ -118,12 +118,14 @@ OPTIONS:
   --charm <id>      Override charm ID for this sync (optional - charms are auto-created)
   --daemon          Run in background daemon mode (syncs every 5 minutes)
   --interval <min>  Sync interval in minutes for daemon mode (default: 5)
+  --days-back <n>   Days of history to sync for calendar (default: 30)
 
 EXAMPLES:
   ./tools/apple-sync.ts --all                     # Prompts for space on first run
   ./tools/apple-sync.ts --all --space my-space    # Or specify space directly
   ./tools/apple-sync.ts imessage --mock           # Test with sample data
   ./tools/apple-sync.ts calendar                  # Sync just calendar
+  ./tools/apple-sync.ts calendar --days-back 365  # Sync 1 year of calendar history
   ./tools/apple-sync.ts --all --daemon            # Run as background daemon
   ./tools/apple-sync.ts --all --daemon --interval 10  # Sync every 10 minutes
 
@@ -218,7 +220,8 @@ async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmIn
 
 /**
  * Check if a charm is valid (has source cell)
- * Returns false if charm is missing, corrupted, or has no source cell
+ * Returns false only if charm is definitely invalid (missing source cell)
+ * Returns true for other errors (assume charm might be valid, let it fail later if not)
  */
 async function isCharmValid(apiUrl: string, space: string, charmId: string): Promise<boolean> {
   const labsDir = DEFAULT_LABS_DIR;
@@ -243,17 +246,13 @@ async function isCharmValid(apiUrl: string, space: string, charmId: string): Pro
   const output = await command.output();
   const stderr = new TextDecoder().decode(output.stderr);
 
-  // Check for known error patterns that indicate invalid charm
-  if (!output.success) {
-    if (stderr.includes("missing source cell") || stderr.includes("missing recipe")) {
-      return false;
-    }
-    // Other errors might be transient - treat as potentially valid
-    // but log for debugging
-    console.log(`  ⚠️  Charm validation error: ${stderr.substring(0, 100)}`);
+  // Only return false for known "charm is invalid" error patterns
+  if (stderr.includes("missing source cell") || stderr.includes("missing recipe")) {
     return false;
   }
 
+  // For other errors or success, assume charm is valid
+  // (will fail later with a proper error message if not)
   return true;
 }
 
@@ -1042,7 +1041,7 @@ function generateMockCalendarEvents(count: number = 15): CalendarEvent[] {
   return events;
 }
 
-async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
+async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, daysBack: number = 30): Promise<void> {
   console.log("\n📅 Syncing Calendar...\n");
 
   const config = await loadConfig();
@@ -1073,8 +1072,8 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string): 
     console.log("\n  Reading calendar events via AppleScript...");
 
     try {
-      events = await readCalendarEvents(30, 7);
-      console.log(`  Found ${events.length} events`);
+      events = await readCalendarEvents(30, daysBack);
+      console.log(`  Found ${events.length} events (${daysBack} days back, 30 days ahead)`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.log(`\n❌ Error reading calendar: ${errorMsg}`);
@@ -1895,7 +1894,8 @@ async function ensureSpace(overrideSpace?: string): Promise<void> {
 async function runSyncCycle(
   sources: string[],
   useMock: boolean,
-  overrideCharmId?: string
+  overrideCharmId?: string,
+  daysBack: number = 30
 ): Promise<void> {
   for (const source of sources) {
     try {
@@ -1904,7 +1904,7 @@ async function runSyncCycle(
           await cmdImessage(useMock, overrideCharmId);
           break;
         case "calendar":
-          await cmdCalendar(useMock, overrideCharmId);
+          await cmdCalendar(useMock, overrideCharmId, daysBack);
           break;
         case "reminders":
           await cmdReminders(useMock, overrideCharmId);
@@ -1928,7 +1928,8 @@ async function runDaemon(
   sources: string[],
   intervalMinutes: number,
   useMock: boolean,
-  overrideCharmId?: string
+  overrideCharmId?: string,
+  daysBack: number = 30
 ): Promise<void> {
   console.log(`\n🔄 Starting daemon mode (syncing every ${intervalMinutes} minute${intervalMinutes === 1 ? '' : 's'})`);
   console.log(`   Sources: ${sources.join(", ")}`);
@@ -1936,7 +1937,7 @@ async function runDaemon(
 
   // Run initial sync
   console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
-  await runSyncCycle(sources, useMock, overrideCharmId);
+  await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
 
   // Set up interval
   const intervalMs = intervalMinutes * 60 * 1000;
@@ -1944,7 +1945,7 @@ async function runDaemon(
   // Use setInterval for recurring syncs
   const intervalId = setInterval(async () => {
     console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
-    await runSyncCycle(sources, useMock, overrideCharmId);
+    await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
   }, intervalMs);
 
   // Handle graceful shutdown
@@ -1991,6 +1992,12 @@ async function main(): Promise<void> {
     ? parseInt(args[intervalIndex + 1]) || 5
     : 5;
 
+  // Parse --days-back argument (default 30 days)
+  const daysBackIndex = args.indexOf("--days-back");
+  const daysBack = daysBackIndex !== -1 && args[daysBackIndex + 1]
+    ? parseInt(args[daysBackIndex + 1]) || 30
+    : 30;
+
   // Status doesn't need space setup
   if (command === "status") {
     await cmdStatus();
@@ -2029,9 +2036,9 @@ async function main(): Promise<void> {
 
   // Run in daemon mode or single sync
   if (isDaemon) {
-    await runDaemon(sources, intervalMinutes, useMock, overrideCharmId);
+    await runDaemon(sources, intervalMinutes, useMock, overrideCharmId, daysBack);
   } else {
-    await runSyncCycle(sources, useMock, overrideCharmId);
+    await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
   }
 }
 
