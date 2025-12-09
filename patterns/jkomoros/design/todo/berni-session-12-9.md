@@ -159,12 +159,13 @@ ct.render(googleAuthCharm)
 
 ### Gmail Agentic Search Fixes
 
-- [ ] Remove await from handlers
-- [ ] Use ct.render for google-auth charm (forces execution)
-- [ ] Add refresh button using refreshTokenStream.send()
-- [ ] Create derived for token validity
-- [ ] Update scanning condition: `isScanning && validToken && fullPrompt`
-- [ ] Handler calls refreshTokenStream.send() when token invalid
+- [x] Remove await from handlers (startScan no longer uses async/await)
+- [x] Use ct-render for google-auth charm (forces execution)
+- [x] Add refresh button using refreshTokenStream.send()
+- [x] Create derived for token validity (`validToken`)
+- [x] Update scanning condition: `isScanning && validToken && fullPrompt`
+- [x] Handler calls refreshTokenStream.send() when token invalid
+- [x] Removed vestigial `validateAndRefreshTokenCrossCharm` from gmail-client.ts
 
 ---
 
