@@ -73,6 +73,7 @@ interface Input {
   onRemove?: unknown; // Handler result
 }
 
+/** GitHub repository card with stats and momentum. #githubRepoCard */
 interface Output {
   repoName: string;
   metadata: unknown;
