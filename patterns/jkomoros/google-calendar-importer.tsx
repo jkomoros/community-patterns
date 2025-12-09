@@ -781,7 +781,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
       ),
       events,
       calendars,
-      eventCount: derive(events, (list) => list?.length || 0),
+      eventCount: derive(events, (list: CalendarEvent[]) => list?.length || 0),
       bgUpdater: calendarUpdater({ events, calendars, auth, settings }),
       // Pattern tools for omnibot
       searchEvents: patternTool(
