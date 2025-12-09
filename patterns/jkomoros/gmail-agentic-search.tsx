@@ -1307,8 +1307,8 @@ When you're done searching, STOP calling tools and produce your final structured
 
         {/* Auth Status */}
         {derive(
-          [isAuthenticated, hasAuthError, tokenMayBeExpired],
-          ([authenticated, authError, mayBeExpired]) => {
+          [isAuthenticated, hasAuthError, tokenMayBeExpired, wishedAuthState],
+          ([authenticated, authError, mayBeExpired, authState]) => {
             if (authenticated) {
               if (authError) {
                 return (
@@ -1424,9 +1424,8 @@ When you're done searching, STOP calling tools and produce your final structured
               );
             }
 
-            // Show auth UI based on wish state
-            return derive(wishedAuthState, (state) => {
-              if (state === "found-not-authenticated") {
+            // Show auth UI based on wish state (using authState from outer derive)
+            if (authState === "found-not-authenticated") {
                 return (
                   <div
                     style={{
@@ -1458,48 +1457,47 @@ When you're done searching, STOP calling tools and produce your final structured
                     </div>
                   </div>
                 );
-              }
+            }
 
-              // No auth charm found
-              return (
+            // No auth charm found (authState is "not-found" or "loading")
+            return (
+              <div
+                style={{
+                  padding: "16px",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                }}
+              >
                 <div
                   style={{
-                    padding: "16px",
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
+                    fontSize: "14px",
+                    color: "#475569",
+                    marginBottom: "12px",
+                    textAlign: "center",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#475569",
-                      marginBottom: "12px",
-                      textAlign: "center",
-                    }}
-                  >
-                    Connect your Gmail to start searching
-                  </div>
-                  <ct-button
-                    onClick={createGoogleAuth({})}
-                    size="lg"
-                    style="width: 100%;"
-                  >
-                    Connect Gmail
-                  </ct-button>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#94a3b8",
-                      marginTop: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    After connecting, favorite the auth charm to share it
-                  </div>
+                  Connect your Gmail to start searching
                 </div>
-              );
-            });
+                <ct-button
+                  onClick={createGoogleAuth({})}
+                  size="lg"
+                  style="width: 100%;"
+                >
+                  Connect Gmail
+                </ct-button>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#94a3b8",
+                    marginTop: "8px",
+                    textAlign: "center",
+                  }}
+                >
+                  After connecting, favorite the auth charm to share it
+                </div>
+              </div>
+            );
           },
         )}
 
