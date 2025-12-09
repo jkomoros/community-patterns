@@ -1,7 +1,7 @@
 # ifElse with Streams Loses .send() Method
 
 **Date:** 2025-12-08
-**Status:** Superstition (investigating)
+**Status:** Folk Wisdom (confirmed fix)
 **Symptom:** When using `ifElse` to conditionally select a Stream from a wished charm, `.send()` is not accessible
 
 ## The Problem
@@ -34,40 +34,64 @@ console.log(stream?.send);  // undefined - .send() is NOT available!
 
 **The key insight:** `ifElse` doesn't "pass through" the stream - it creates a new cell that references it.
 
-## Workarounds Attempted
+## The Fix: Use .key() to Access Streams
 
-### 1. Call .send() on the Cell directly (not .get())
+**Don't wrap Streams with `ifElse()`.** Instead, pass the charm cell to handlers and use `.key()` to access the Stream:
+
 ```typescript
-// Instead of:
-const stream = state.authRefreshStream.get();
-stream.send({});  // Fails - stream doesn't have .send()
+// WRONG - Don't do this:
+const authRefreshStream = ifElse(hasDirectAuth, null, wishedAuthCharm.refreshToken);
+// Later: state.authRefreshStream.get()?.send() // FAILS - .send() is undefined
 
-// Try:
-state.authRefreshStream.send({});  // Cell's .send() - might work?
-```
-
-**Status:** Needs testing. The Cell has `.send()` but with a different signature.
-
-### 2. Use .key() to access nested properties
-```typescript
-const refreshTokenCell = state.wishedAuthCharm.key("refreshToken");
-refreshTokenCell.send({}, onCommit);  // Call .send() on the nested cell
-```
-
-**Status:** Needs testing. TypeScript allows this but runtime behavior uncertain.
-
-### 3. Don't use ifElse - access stream conditionally in handler
-```typescript
-// Instead of constructing authRefreshStream with ifElse,
-// access wishedAuthCharm directly in the handler:
-const wishedCharm = state.wishedAuthCharm.get();
-if (wishedCharm && !hasDirectAuth) {
-  // Access the stream directly via property path
-  state.wishedAuthCharm.refreshToken.send({}, onCommit);
+// CORRECT - Do this instead:
+// Pass wishedAuthCharm and hasDirectAuth directly to handler state
+// Then inside the handler:
+if (!hasDirectAuthValue && wishedCharm) {
+  const refreshTokenCell = state.wishedAuthCharm.key("refreshToken");
+  (refreshTokenCell as any).send({}, onCommit);  // WORKS!
 }
 ```
 
-**Status:** Most promising. Property access on OpaqueRef should preserve Stream methods.
+### Why .key() Works
+
+The `.key("refreshToken")` method returns a Cell that properly forwards to the underlying Stream's methods, including `.send()`. This is because `.key()` returns a direct reference to the nested property's cell, not a wrapped value.
+
+## Implementation Example
+
+From gmail-agentic-search.tsx:
+
+```typescript
+// In handler definition - receive the charm cell directly
+const searchGmailHandler = handler<
+  { query: string },
+  {
+    auth: Cell<Auth>;
+    wishedAuthCharm: Cell<GoogleAuthCharm | null>;
+    hasDirectAuth: Cell<boolean>;
+    // ...
+  }
+>(async (input, state) => {
+  const hasDirectAuthValue = state.hasDirectAuth.get();
+  const wishedCharm = state.wishedAuthCharm.get();
+
+  let onRefresh: (() => Promise<void>) | undefined = undefined;
+
+  if (!hasDirectAuthValue && wishedCharm) {
+    const refreshTokenCell = state.wishedAuthCharm.key("refreshToken");
+    onRefresh = async () => {
+      await new Promise<void>((resolve, reject) => {
+        (refreshTokenCell as any).send({}, (tx: any) => {
+          const status = tx?.status?.();
+          if (status?.status === "done") resolve();
+          else if (status?.status === "error") reject(new Error(status.error));
+          else resolve();
+        });
+      });
+    };
+  }
+  // Use onRefresh callback...
+});
+```
 
 ## Related
 
@@ -84,14 +108,15 @@ Discovered while investigating gmail-agentic-search token refresh. The pattern u
 ```yaml
 topic: streams, ifElse, reactivity, cells
 discovered: 2025-12-08
-confirmed_count: 1
+confirmed_count: 2
 last_confirmed: 2025-12-08
 sessions: [gmail-agentic-search-reliability]
 related_labs_docs: ~/Code/labs/docs/common/wip/KeyLearnings.md
-status: superstition
+status: folk_wisdom
 stars:
 ```
 
 ## Guestbook
 
 - 2025-12-08 - Investigating token refresh in gmail-agentic-search. ifElse with wishedAuthCharm.refreshToken creates a cell that doesn't expose .send(). Debug logs show `{Symbol(toCell): }` when calling `.get()`. Trying `.key("refreshToken").send()` as alternative approach. (gmail-agentic-search-reliability)
+- 2025-12-08 - **CONFIRMED FIX**: Removed `authRefreshStream` cell entirely. Now passing `wishedAuthCharm` and `hasDirectAuth` directly to handlers and using `.key("refreshToken").send()` pattern. This works because `.key()` returns a proper Cell reference that preserves the Stream's `.send()` method. (gmail-agentic-search-reliability)
