@@ -40,7 +40,7 @@ import {
   wish,
 } from "commontools";
 import GoogleAuth from "./google-auth.tsx";
-import { GmailClient, validateAndRefreshTokenCrossCharm } from "./util/gmail-client.ts";
+import { GmailClient } from "./util/gmail-client.ts";
 import GmailSearchRegistry from "./gmail-search-registry.tsx";
 import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
 
@@ -491,33 +491,17 @@ const GmailAgenticSearch = pattern<
     );
 
     // ========================================================================
-    // CROSS-CHARM TOKEN REFRESH (CURRENTLY BROKEN)
+    // CROSS-CHARM TOKEN REFRESH
     // ========================================================================
-    // The google-auth charm exports a `refreshToken` Stream that should allow
-    // other charms to trigger token refresh in google-auth's transaction context.
-    // This would bypass StorageTransactionWriteIsolationError.
+    // Per Berni's guidance (2024-12-09), cross-charm token refresh requires:
+    // 1. Using ct-render to force the auth charm to execute (done in authUI)
+    // 2. Getting the refreshToken stream from the wished auth charm
+    // 3. Calling .send() on the stream to trigger refresh in auth charm's context
     //
-    // HOWEVER: Cross-charm stream invocation doesn't work. All approaches fail:
+    // The key insight is that just wishing for a charm doesn't make it run -
+    // ct-render forces execution, enabling the refresh stream to work.
     //
-    // 1. ifElse() wrapping Stream → .get() returns OpaqueRef without .send()
-    //    const authRefreshStream = ifElse(hasDirectAuth, null, wishedAuthCharm.refreshToken);
-    //    authRefreshStream.get()?.send  // undefined
-    //
-    // 2. .key("refreshToken") → Returns Cell, Cell.send() = .set() → isolation error
-    //    wishedAuthCharm.key("refreshToken").send({})  // StorageTransactionWriteIsolationError
-    //
-    // 3. Direct property access on unwrapped charm → Also OpaqueRef without .send()
-    //    const charm = wishedAuthCharm.get();
-    //    charm?.refreshToken?.send  // undefined
-    //
-    // RESULT: Token refresh only works when auth is in the same charm (hasDirectAuth=true).
-    // When using wish() to find google-auth, expired tokens cause 401 errors that
-    // the user must manually resolve by re-authenticating.
-    //
-    // See: patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
-    //
-    // We keep authRefreshStream for API compatibility, but it won't actually work
-    // for cross-charm scenarios until the framework adds proper stream export support.
+    // See: community-docs/blessed/cross-charm.md
     const authRefreshStream = ifElse(
       hasDirectAuth,
       null as RefreshStreamType | null,
@@ -543,6 +527,13 @@ const GmailAgenticSearch = pattern<
       const bufferMs = 5 * 60 * 1000;
       return Date.now() > (a.expiresAt - bufferMs);
     });
+
+    // Token is valid if authenticated AND not expired (inverse of tokenMayBeExpired)
+    // This is used in the agent prompt condition per Berni's guidance
+    const validToken = derive(
+      [isAuthenticated, tokenMayBeExpired],
+      ([authed, expired]: [boolean, boolean]) => authed && !expired
+    );
 
     const hasGmailScope = derive(auth, (a) => {
       const scopes = a?.scope || [];
@@ -599,6 +590,32 @@ const GmailAgenticSearch = pattern<
       const newType = event.target.value as "default" | "personal" | "work";
       console.log("[GmailAgenticSearch] Account type changed to:", newType);
       state.selectedType.set(newType);
+    });
+
+    // ========================================================================
+    // TOKEN REFRESH (Berni's MVP solution)
+    // ========================================================================
+    // Per Berni's guidance (2024-12-09):
+    // - Use ct-render to force the auth charm to execute (even hidden)
+    // - Add a refresh button that calls refreshTokenStream.send()
+    // - The reactive flow will resume scanning when token becomes valid
+    //
+    // This is the MVP approach. Future enhancement would make this fully
+    // reactive with no button needed (see berni-session-12-9.md).
+
+    // Handler to trigger token refresh via the auth charm's stream
+    // This calls .send() on the refreshToken stream exported by google-auth
+    const triggerTokenRefresh = handler<
+      unknown,
+      { refreshStream: Cell<RefreshStreamType | null> }
+    >((_, state) => {
+      const stream = state.refreshStream.get();
+      if (stream && typeof stream.send === "function") {
+        console.log("[GmailAgenticSearch] Triggering token refresh via auth charm stream");
+        stream.send({});
+      } else {
+        console.warn("[GmailAgenticSearch] Cannot refresh: refreshToken stream not available");
+      }
     });
 
     // ========================================================================
@@ -960,11 +977,15 @@ const GmailAgenticSearch = pattern<
       },
     );
 
-    // Build agent prompt (only active when scanning)
+    // Build agent prompt (only active when scanning AND token is valid)
+    // Per Berni's guidance: condition should be isScanning && validToken && fullPrompt
+    // If token expires mid-scan, this will return "" which stops the agent.
+    // When token is refreshed, validToken becomes true again and scanning resumes.
     const agentPrompt = derive(
-      [isScanning, fullPrompt],
-      ([scanning, prompt]: [boolean, string]) => {
+      [isScanning, validToken, fullPrompt],
+      ([scanning, tokenValid, prompt]: [boolean, boolean, string]) => {
         if (!scanning) return ""; // Don't run unless scanning
+        if (!tokenValid) return ""; // Don't run if token is expired
         return prompt;
       },
     );
@@ -1072,7 +1093,7 @@ When you're done searching, STOP calling tools and produce your final structured
         debugLog: Cell<DebugLogEntry[]>;
         authRefreshStream: Cell<RefreshStreamType | null>;
       }
-    >(async (_, state) => {
+    >((_, state) => {
       if (!state.isAuthenticated.get()) return;
 
       const authData = state.auth.get();
@@ -1085,58 +1106,58 @@ When you're done searching, STOP calling tools and produce your final structured
         details: { email: authData?.user?.email },
       });
 
-      // Validate token before starting scan
-      // NOTE: Cross-charm refresh is broken (see comment above authRefreshStream).
-      // For cross-charm auth, .send() will be undefined and refresh won't work.
-      console.log("[GmailAgenticSearch] Validating token before scan...");
-      addDebugLogEntry(state.debugLog, {
-        type: "info",
-        message: "Validating Gmail token...",
-      });
+      // Check if token may be expired
+      // Per Berni's guidance (2024-12-09): Instead of blocking on token validation,
+      // we trigger the refresh stream if needed and set isScanning = true.
+      // The agentPrompt condition (isScanning && validToken && fullPrompt) will
+      // return "" while token is invalid, effectively pausing the agent.
+      // When token refreshes, validToken becomes true and scanning resumes automatically.
+      const tokenExpired = authData?.expiresAt
+        ? Date.now() > (authData.expiresAt - 5 * 60 * 1000) // 5 min buffer
+        : false;
 
-      // Get refresh stream - will be null or have undefined .send() for cross-charm
-      const refreshStream = state.authRefreshStream.get();
-
-      const validation = await validateAndRefreshTokenCrossCharm(
-        state.auth,
-        refreshStream,
-        true
-      );
-
-      if (!validation.valid) {
-        console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
-        addDebugLogEntry(state.debugLog, {
-          type: "error",
-          message: `Token validation failed: ${validation.error}`,
-        });
-        state.progress.set({
-          currentQuery: "",
-          completedQueries: [],
-          status: "auth_error",
-          searchCount: 0,
-          authError: validation.error,
-        });
-        return;
-      }
-
-      if (validation.refreshed) {
-        console.log("[GmailAgenticSearch] Token was refreshed automatically");
+      if (tokenExpired) {
+        console.log("[GmailAgenticSearch] Token may be expired, triggering refresh...");
         addDebugLogEntry(state.debugLog, {
           type: "info",
-          message: "Token was expired - refreshed automatically",
+          message: "Token may be expired - triggering refresh...",
         });
+
+        // Trigger refresh via the auth charm's stream
+        const refreshStream = state.authRefreshStream.get();
+        if (refreshStream && typeof refreshStream.send === "function") {
+          console.log("[GmailAgenticSearch] Calling refreshStream.send()");
+          refreshStream.send({});
+          addDebugLogEntry(state.debugLog, {
+            type: "info",
+            message: "Refresh triggered - scanning will resume when token is valid",
+          });
+        } else {
+          console.warn("[GmailAgenticSearch] Cannot refresh: stream not available");
+          addDebugLogEntry(state.debugLog, {
+            type: "error",
+            message: "Cannot auto-refresh token - please click 'Refresh Token' button",
+          });
+          // Still set isScanning - user can manually refresh
+        }
       }
 
-      console.log("[GmailAgenticSearch] Token valid, starting scan");
+      // Start scanning regardless of token state
+      // If token is expired, agentPrompt will return "" until token refreshes
+      // This is per Berni's guidance - the reactive flow handles it
+      console.log("[GmailAgenticSearch] Setting isScanning=true");
       addDebugLogEntry(state.debugLog, {
         type: "info",
-        message: "Token valid - starting agent...",
+        message: tokenExpired
+          ? "Waiting for token refresh before starting agent..."
+          : "Starting agent...",
       });
       state.progress.set({
         currentQuery: "",
         completedQueries: [],
-        status: "searching",
+        status: tokenExpired ? "auth_error" : "searching",
         searchCount: 0,
+        authError: tokenExpired ? "Token expired - refreshing..." : undefined,
       });
       state.isScanning.set(true);
     });
@@ -1228,6 +1249,18 @@ When you're done searching, STOP calling tools and produce your final structured
         <div style={{ display: "none" }}>{wishResult}</div>
         <div style={{ display: "none" }}>{registryWish}</div>
 
+        {/*
+          CRITICAL (Berni's guidance 2024-12-09): Use ct-render to force auth charm execution.
+          Just wishing for the charm doesn't make it run - ct-render forces execution.
+          This enables the refreshToken stream to work for cross-charm token refresh.
+          See: community-docs/blessed/cross-charm.md
+        */}
+        {derive(wishedAuthCharm, (charm) => charm ? (
+          <div style={{ display: "none" }}>
+            <ct-render $cell={charm} />
+          </div>
+        ) : null)}
+
         {/* Account Type Selector (only shown if not using direct auth) */}
         {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
           <div
@@ -1297,14 +1330,22 @@ When you're done searching, STOP calling tools and produce your final structured
                     >
                       ⚠️ {authErrorMessage}
                     </div>
-                    <div style={{ textAlign: "center" }}>
+                    <div style={{ textAlign: "center", display: "flex", gap: "8px", justifyContent: "center" }}>
+                      {/* Refresh Token button - per Berni's MVP solution */}
+                      <ct-button
+                        onClick={triggerTokenRefresh({ refreshStream: authRefreshStream })}
+                        size="sm"
+                        variant="default"
+                      >
+                        Refresh Token
+                      </ct-button>
                       {derive(wishedAuthCharm, (charm) => charm ? (
                         <ct-button
                           onClick={() => navigateTo(charm)}
                           size="sm"
                           variant="secondary"
                         >
-                          Re-authenticate Gmail
+                          Re-authenticate
                         </ct-button>
                       ) : (
                         <ct-button
@@ -1337,16 +1378,24 @@ When you're done searching, STOP calling tools and produce your final structured
                         marginBottom: "8px",
                       }}
                     >
-                      ⚠️ Gmail token may have expired - will verify on scan
+                      ⚠️ Gmail token may have expired
                     </div>
-                    <div style={{ textAlign: "center" }}>
+                    <div style={{ textAlign: "center", display: "flex", gap: "8px", justifyContent: "center" }}>
+                      {/* Refresh Token button - per Berni's MVP solution */}
+                      <ct-button
+                        onClick={triggerTokenRefresh({ refreshStream: authRefreshStream })}
+                        size="sm"
+                        variant="default"
+                      >
+                        Refresh Token
+                      </ct-button>
                       {derive(wishedAuthCharm, (charm) => charm ? (
                         <ct-button
                           onClick={() => navigateTo(charm)}
                           size="sm"
                           variant="secondary"
                         >
-                          Re-authenticate Gmail
+                          Re-authenticate
                         </ct-button>
                       ) : null)}
                     </div>
