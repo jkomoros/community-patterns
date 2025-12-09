@@ -403,10 +403,20 @@ interface InputSchema {
   llmResponse: Default<string, "">;
 }
 
+/** Text redactor that replaces PII with nonces for LLM safety. #redactor */
+interface OutputSchema {
+  title: Default<string, "Redactor">;
+  piiEntries: Default<PIIEntry[], []>;
+  inputText: Default<string, "">;
+  llmResponse: Default<string, "">;
+  redactedText: string;
+  restoredText: string;
+}
+
 // Type for wish result
 type WishedVault = { entries: PIIEntry[] };
 
-export default pattern<InputSchema>(({ title, piiEntries, inputText, llmResponse }) => {
+export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputText, llmResponse }) => {
   // Wish for a PII vault as fallback if none linked
   // TODO(CT-1084): Update to wish({ query: "#pii-vault" }) when object syntax bug is fixed
   const wishedVault = wish<WishedVault>("#pii-vault");

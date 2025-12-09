@@ -45,6 +45,16 @@ interface InputSchema {
   llmResponse?: Default<string, "">;
 }
 
+/** Combined PII vault and redactor for LLM privacy. #redactorWithVault */
+interface OutputSchema {
+  title: Default<string, "PII Redactor">;
+  entries: Default<PIIEntry[], []>;
+  inputText: Default<string, "">;
+  llmResponse: Default<string, "">;
+  redactedText: string;
+  restoredText: string;
+}
+
 // ============================================================================
 // Vault: Category info and handlers
 // ============================================================================
@@ -277,7 +287,7 @@ function restore(text: string, session: RedactionSession): string {
 // Combined Pattern
 // ============================================================================
 
-const RedactorWithVault = pattern<InputSchema>(({ title, entries, inputText, llmResponse }) => {
+const RedactorWithVault = pattern<InputSchema, OutputSchema>(({ title, entries, inputText, llmResponse }) => {
   // Vault state
   const newCategory = Cell.of<PIICategory>("name");
   const newValue = Cell.of("");
