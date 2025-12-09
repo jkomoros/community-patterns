@@ -178,9 +178,9 @@ interface FamilyInput {
   connectionOrigin: Default<string, "">; // "School", "Soccer team", etc.
 }
 
+/** Family unit for tracking reciprocal hosting. #family */
 interface FamilyOutput extends FamilyInput {
   primaryAddress: Address | null;
-  "#family": true;
 }
 
 // ============================================================================
@@ -512,9 +512,6 @@ const Family = pattern<FamilyInput, FamilyOutput>(
           </ct-vscroll>
         </ct-screen>
       ),
-
-      // Make discoverable via wish("#family")
-      "#family": true,
 
       // Output all fields
       familyName,

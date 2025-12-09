@@ -182,7 +182,7 @@ const addManualEvent = handler<
     location: "",
     familyId: "",
     familyName: "",
-    category: "neutral",
+    category: "they-hosted",
     notes: "",
   });
 });
@@ -580,8 +580,8 @@ const HostingTracker = pattern<HostingTrackerInput>(
     overdueThresholdDays,
     neutralPatterns,
   }) => {
-    // Wish for family charms
-    const familyCharms = wish<FamilyCharm[]>("#family");
+    // Wish for family charms - returns { result, error, $UI }
+    const familyWishResult = wish<FamilyCharm>({ query: "#family" });
 
     // Form state for manual event entry
     const manualEventForm = cell({
@@ -590,7 +590,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
       location: "",
       familyId: "",
       familyName: "",
-      category: "neutral" as HostingCategory,
+      category: "they-hosted" as HostingCategory,
       notes: "",
     });
 
@@ -600,16 +600,20 @@ const HostingTracker = pattern<HostingTrackerInput>(
     // Selected family for event assignment
     const selectedFamilyId = cell("");
 
-    // Derive list of tracked families from wish
-    const trackedFamilies = derive(familyCharms, (charms) => {
-      if (!charms || !Array.isArray(charms)) return [];
-      return charms.map((charm, idx) => ({
-        id: `family-${idx}`,
+    // Derive list of tracked families from wish result
+    // Note: wish({ query }) returns a single match, not an array
+    // We wrap it in an array for now; later could iterate over multiple favorites
+    const trackedFamilies = derive(familyWishResult, (wr) => {
+      const charm = wr?.result;
+      if (!charm) return [];
+      // Single family from wish
+      return [{
+        id: "family-0",
         name: charm.familyName || "(Unnamed Family)",
         addresses: charm.addresses || [],
         primaryAddress: charm.primaryAddress,
         members: charm.members || [],
-      }));
+      }];
     });
 
     // Build family addresses map
@@ -721,7 +725,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
         <ct-screen>
           {/* Embed wish results to trigger cross-space charm startup */}
           <div style={{ display: "none" }}>
-            {familyCharms}
+            {familyWishResult}
             {googleCalendarCharm}
             {appleCalendarCharm}
           </div>
@@ -1027,9 +1031,9 @@ const HostingTracker = pattern<HostingTrackerInput>(
                                 {family.name}
                               </strong>
                               <div style={{ fontSize: "12px", color: "#666" }}>
-                                {derive(family.members, (m) =>
+                                {derive(family.members, (m: { name: string; role: string }[]) =>
                                   m.length > 0
-                                    ? m.map((mem) => mem.name).join(", ")
+                                    ? m.map((mem: { name: string; role: string }) => mem.name).join(", ")
                                     : "No members"
                                 )}
                               </div>
