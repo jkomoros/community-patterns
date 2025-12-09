@@ -101,6 +101,13 @@ type Settings = {
   debugMode: Default<boolean, false>;
 };
 
+/** Gmail email importer for fetching and viewing emails. #gmailEmails */
+interface Output {
+  emails: Email[];
+  /** Number of emails imported */
+  emailCount: number;
+}
+
 // Debug logging helpers - pass debugMode explicitly to avoid module-level state issues
 function debugLog(debugMode: boolean, ...args: unknown[]) {
   if (debugMode) console.log("[GmailImporter]", ...args);
@@ -726,7 +733,7 @@ export default pattern<{
   authCharm: Default<any, null>;
   // Account type for multi-account Gmail support
   accountType: Default<AccountType, "default">;
-}>(
+}, Output>(
   ({ settings, authCharm, accountType }) => {
     const emails = cell<Confidential<Email[]>>([]);
     const showAuth = cell(false);
@@ -1134,6 +1141,7 @@ export default pattern<{
         </ct-screen>
       ),
       emails,
+      emailCount: derive(emails, (list) => list?.length || 0),
       bgUpdater: googleUpdater({ emails, auth, settings }),
       // Pattern tools for omnibot
       searchEmails: patternTool(
