@@ -426,7 +426,15 @@ interface GoogleCalendarImporterInput {
   authCharm?: Default<any, null>;
 }
 
-const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
+/** Google Calendar event importer. #calendarEvents */
+interface Output {
+  events: CalendarEvent[];
+  calendars: Calendar[];
+  /** Number of events imported */
+  eventCount: number;
+}
+
+const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
   ({ settings, authCharm }) => {
     const events = cell<Confidential<CalendarEvent[]>>([]);
     const calendars = cell<Calendar[]>([]);
@@ -773,6 +781,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput>(
       ),
       events,
       calendars,
+      eventCount: derive(events, (list) => list?.length || 0),
       bgUpdater: calendarUpdater({ events, calendars, auth, settings }),
       // Pattern tools for omnibot
       searchEvents: patternTool(
