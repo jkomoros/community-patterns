@@ -402,7 +402,22 @@ const GmailAgenticSearch = pattern<
     const lastExecutedQueryIdCell = cell<string | null>(null);
 
     // Watch the signal and mark queries when it increases
-    derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([signalValue, lastSignalValue, queryId]: [number, number, string | null]) => {
+    // NOTE: derive does NOT unwrap cells that are:
+    //   1. Locally-created cells (cell<T>())
+    //   2. Cells passed from parent patterns as inputs
+    // Only framework-provided input cells with Default<> types are unwrapped.
+    // See: community-docs/superstitions/2025-12-08-locally-created-cells-not-unwrapped-in-derive.md
+    derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([_signalRef, _lastSignalRef, _queryIdRef]: [number, number, string | null]) => {
+      // ALL cells must use .get() - even passed-in cells from parent patterns are NOT unwrapped
+      // This extends the superstition: it's not just locally-created cells, but ANY cell that isn't
+      // a direct pattern input with framework-provided defaults
+      const signalValue = itemFoundSignal.get() || 0;
+      const lastSignalValue = lastSignalValueCell.get() || 0;
+      const queryId = lastExecutedQueryIdCell.get();
+
+      // DEBUG: Always log to see if derive is running
+      console.log(`[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalValue}, lastSignalValue=${lastSignalValue}, queryId=${queryId}`);
+
       if (signalValue > lastSignalValue) {
         // Signal increased - mark the current query as having found items
         if (queryId) {
