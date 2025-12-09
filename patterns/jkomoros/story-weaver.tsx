@@ -1436,19 +1436,6 @@ Make them diverse in genre and tone:
     );
 
     // =========================================================================
-    // FULLSCREEN PICKER DATA
-    // =========================================================================
-
-    // Get the spindle index for the picker (used to access spindleResults)
-    const pickerSpindleIdx = derive(
-      { pickerSpindleId, spindles },
-      (deps: { pickerSpindleId: string; spindles: SpindleConfig[] }) => {
-        if (!deps.pickerSpindleId || !deps.spindles) return -1;
-        return deps.spindles.findIndex((s) => s.id === deps.pickerSpindleId);
-      }
-    );
-
-    // =========================================================================
     // UI
     // =========================================================================
 
@@ -3588,14 +3575,10 @@ Make them diverse in genre and tone:
                     pickerPreviewIndex,
                     showOptionPicker,
                     optionContent: derive(
-                      { pickerSpindleIdx, pickerPreviewIndex, spindleResults },
-                      (deps: { pickerSpindleIdx: number; pickerPreviewIndex: number; spindleResults: any }) => {
-                        if (deps.pickerSpindleIdx < 0) return "";
-                        const result = deps.spindleResults?.[deps.pickerSpindleIdx];
-                        if (!result) return "";
-                        const optionKeys = ["option0", "option1", "option2", "option3"] as const;
-                        const optionCell = result[optionKeys[deps.pickerPreviewIndex]];
-                        return optionCell?.get?.() || optionCell || "";
+                      { pickerSpindleId, pickerPreviewIndex, spindleResults },
+                      (deps: { pickerSpindleId: string; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
+                        // This is a simplified approach - would need proper lookup
+                        return "";
                       }
                     ),
                   })}
@@ -3614,7 +3597,12 @@ Make them diverse in genre and tone:
                 </button>
               </div>
 
-              {/* Content - show current option */}
+              {/* Content - show current option
+                  TODO: Integrate ct-picker component here to display options.
+                  Challenge: Need to create Cell array with UI for each option without
+                  causing reactivity loops. See labs/packages/ui/src/v2/components/ct-picker/
+                  and labs/packages/patterns/wish.tsx for examples of ct-picker usage.
+              */}
               <div
                 style={{
                   flex: 1,
@@ -3634,58 +3622,9 @@ Make them diverse in genre and tone:
                     boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                   }}
                 >
-                  {/* Display current option based on pickerSpindleIdx and pickerPreviewIndex */}
-                  {ifElse(
-                    derive(pickerSpindleIdx, (idx: number) => idx >= 0),
-                    <div>
-                      {/* Show option based on preview index */}
-                      {ifElse(
-                        derive(pickerPreviewIndex, (idx: number) => idx === 0),
-                        <ct-markdown content={derive(
-                          { pickerSpindleIdx, spindleResults },
-                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
-                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
-                            return result?.option0?.get?.() || result?.option0 || "";
-                          }
-                        )} />,
-                        null
-                      )}
-                      {ifElse(
-                        derive(pickerPreviewIndex, (idx: number) => idx === 1),
-                        <ct-markdown content={derive(
-                          { pickerSpindleIdx, spindleResults },
-                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
-                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
-                            return result?.option1?.get?.() || result?.option1 || "";
-                          }
-                        )} />,
-                        null
-                      )}
-                      {ifElse(
-                        derive(pickerPreviewIndex, (idx: number) => idx === 2),
-                        <ct-markdown content={derive(
-                          { pickerSpindleIdx, spindleResults },
-                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
-                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
-                            return result?.option2?.get?.() || result?.option2 || "";
-                          }
-                        )} />,
-                        null
-                      )}
-                      {ifElse(
-                        derive(pickerPreviewIndex, (idx: number) => idx === 3),
-                        <ct-markdown content={derive(
-                          { pickerSpindleIdx, spindleResults },
-                          (deps: { pickerSpindleIdx: number; spindleResults: any }) => {
-                            const result = deps.spindleResults?.[deps.pickerSpindleIdx];
-                            return result?.option3?.get?.() || result?.option3 || "";
-                          }
-                        )} />,
-                        null
-                      )}
-                    </div>,
-                    <p style={{ color: "#6b7280", textAlign: "center" }}>Select a spindle to view options</p>
-                  )}
+                  <p style={{ color: "#6b7280", textAlign: "center" }}>
+                    Fullscreen picker coming soon - use ct-picker integration
+                  </p>
                 </div>
               </div>
 
