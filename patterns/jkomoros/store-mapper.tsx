@@ -1142,7 +1142,8 @@ What common sections might be missing?`,
               🚪 Store Entrances
             </h3>
             {ifElse(
-              derive(entrancesComplete, (complete) => !complete),
+              entrancesComplete,
+              null,
               <div
                 style={{
                   fontSize: "13px",
@@ -1151,13 +1152,13 @@ What common sections might be missing?`,
                 }}
               >
                 Mark where customer entrances are located:
-              </div>,
-              null
+              </div>
             )}
 
             {/* Entrance buttons - granular positioning (hidden when complete) */}
             {ifElse(
-              derive(entrancesComplete, (complete) => !complete),
+              entrancesComplete,
+              null,
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "1rem" }}>
               {/* Front Wall */}
               <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1306,8 +1307,7 @@ What common sections might be missing?`,
                   Back
                 </ct-button>
               </div>
-            </div>,
-              null
+            </div>
             )}
 
             {/* "No more entrances" button - show when at least one entrance added */}
