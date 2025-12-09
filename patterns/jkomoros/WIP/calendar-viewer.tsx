@@ -119,6 +119,19 @@ const selectEvent = handler<
   selectedEventId.set(eventId);
 });
 
+// Handler to toggle calendar visibility
+const toggleCalendar = handler<
+  unknown,
+  { calendarName: string; hiddenCalendars: Cell<string[]> }
+>((_, { calendarName, hiddenCalendars }) => {
+  const current = hiddenCalendars.get() || [];
+  if (current.includes(calendarName)) {
+    hiddenCalendars.set(current.filter((c) => c !== calendarName));
+  } else {
+    hiddenCalendars.set([...current, calendarName]);
+  }
+});
+
 // Handler to go back to event list
 const backToList = handler<unknown, { selectedEventId: Cell<string | null> }>(
   (_, { selectedEventId }) => {
@@ -130,34 +143,61 @@ export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
   const selectedEventId = cell<string | null>(null);
+  const hiddenCalendars = cell<string[]>([]);
 
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 
-  // Get events grouped by date
-  const eventsByDate = derive(events, (evts: CalendarEvent[]) => {
-    const byDate = groupEventsByDate(evts || []);
-    const groups: Array<{ date: string; label: string; events: CalendarEvent[] }> = [];
-
-    for (const [dateKey, dateEvents] of byDate) {
-      // Sort events within the day by start time
-      dateEvents.sort(
-        (a, b) =>
-          new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
-      );
-      groups.push({
-        date: dateKey,
-        label: getRelativeLabel(dateEvents[0].startDate),
-        events: dateEvents,
-      });
+  // Extract unique calendar names for the filter bar
+  const uniqueCalendars = derive(events, (evts: CalendarEvent[]) => {
+    const names = new Set<string>();
+    for (const evt of evts || []) {
+      if (evt?.calendarName) names.add(evt.calendarName);
     }
-
-    // Sort groups by date
-    groups.sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-
-    return groups;
+    return Array.from(names).sort();
   });
+
+  // Get events grouped by date, filtered by hidden calendars
+  const eventsByDate = derive(
+    { events, hiddenCalendars },
+    ({
+      events,
+      hiddenCalendars,
+    }: {
+      events: CalendarEvent[];
+      hiddenCalendars: string[];
+    }) => {
+      const hidden = hiddenCalendars || [];
+      const filtered = (events || []).filter(
+        (evt) => evt && !hidden.includes(evt.calendarName)
+      );
+      const byDate = groupEventsByDate(filtered);
+      const groups: Array<{
+        date: string;
+        label: string;
+        events: CalendarEvent[];
+      }> = [];
+
+      for (const [dateKey, dateEvents] of byDate) {
+        // Sort events within the day by start time
+        dateEvents.sort(
+          (a, b) =>
+            new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        );
+        groups.push({
+          date: dateKey,
+          label: getRelativeLabel(dateEvents[0].startDate),
+          events: dateEvents,
+        });
+      }
+
+      // Sort groups by date
+      groups.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+
+      return groups;
+    }
+  );
 
   // Get selected event details
   const selectedEvent = derive(
@@ -213,6 +253,64 @@ export default pattern<{
           )}
         </div>
 
+        {/* Calendar Filter Bar */}
+        {ifElse(
+          derive(eventCount, (c: number) => c > 0),
+          <div
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#fff",
+              borderBottom: "1px solid #e0e0e0",
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+            }}
+          >
+            {derive(
+              { uniqueCalendars, hiddenCalendars },
+              ({
+                uniqueCalendars,
+                hiddenCalendars,
+              }: {
+                uniqueCalendars: string[];
+                hiddenCalendars: string[];
+              }) =>
+                (uniqueCalendars || []).map((name: string) => {
+                  const isHidden = (hiddenCalendars || []).includes(name);
+                  const color = getCalendarColor(name);
+                  return (
+                    <button
+                      onClick={toggleCalendar({ calendarName: name, hiddenCalendars })}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "4px 10px",
+                        borderRadius: "16px",
+                        border: "1px solid #ddd",
+                        backgroundColor: isHidden ? "#f5f5f5" : "#fff",
+                        opacity: isHidden ? 0.5 : 1,
+                        cursor: "pointer",
+                        fontSize: "13px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "4px",
+                          backgroundColor: color,
+                        }}
+                      />
+                      {name}
+                    </button>
+                  );
+                })
+            )}
+          </div>,
+          null
+        )}
+
         {/* Content */}
         <div style={{ flex: 1, overflow: "auto" }}>
           {ifElse(
@@ -265,10 +363,15 @@ export default pattern<{
                       <div
                         style={{
                           padding: "8px 16px",
-                          backgroundColor: "#e8e8e8",
+                          backgroundColor:
+                            group.label === "Today" ? "#e3f2fd" : "#e8e8e8",
+                          borderLeft:
+                            group.label === "Today"
+                              ? "4px solid #2196f3"
+                              : "none",
                           fontWeight: "600",
                           fontSize: "14px",
-                          color: "#666",
+                          color: group.label === "Today" ? "#1976d2" : "#666",
                           position: "sticky",
                           top: 0,
                         }}
