@@ -28,8 +28,7 @@ import {
 } from "commontools";
 import Family from "./family.tsx";
 import CalendarViewer from "./calendar-viewer.tsx";
-// Note: GoogleCalendarImporter is in parent directory, cross-directory imports
-// not supported by compiler. Users should create calendar charms via page-creator.
+import GoogleCalendarImporter from "./google-calendar-importer.tsx";
 import {
   Address,
   ClassificationRule,
@@ -574,6 +573,10 @@ Focus on patterns that are specific enough to avoid false positives.`;
 // Handler to create a new Family charm and navigate to it
 // deno-lint-ignore no-explicit-any
 const createFamily = handler<void, void>(() => navigateTo(Family({} as any)));
+
+// Handler to create a new Google Calendar Importer charm
+// deno-lint-ignore no-explicit-any
+const createGoogleCalendar = handler<void, void>(() => navigateTo(GoogleCalendarImporter({} as any)));
 
 // Handler to create a new Apple Calendar Viewer charm
 // deno-lint-ignore no-explicit-any
@@ -1152,9 +1155,9 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <span style={{ fontSize: "12px", color: "#22c55e" }}>
                           Connected
                         </span>,
-                        <span style={{ fontSize: "11px", color: "#666" }}>
-                          Use Page Creator
-                        </span>
+                        <ct-button size="sm" variant="secondary" onClick={createGoogleCalendar()}>
+                          + Connect
+                        </ct-button>
                       )}
                     </div>
 
