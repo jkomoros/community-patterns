@@ -82,12 +82,15 @@ export interface DebugLogEntry {
   details?: any;
 }
 
+// Type for the refresh token stream from google-auth
+type RefreshStreamType = { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+
 // What we expect from the google-auth charm via wish
 type GoogleAuthCharm = {
   auth: Auth;
   scopes?: string[];
   /** Stream to trigger token refresh in the auth charm's transaction context */
-  refreshToken?: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+  refreshToken?: RefreshStreamType;
 };
 
 // Tool definition for additional tools
@@ -490,14 +493,28 @@ const GmailAgenticSearch = pattern<
     // This runs in the auth charm's transaction context, allowing writes to auth cells
     // See: ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
     //
-    // Note: We cast wishedAuthCharm.refreshToken because the type system doesn't
-    // fully capture the stream's function signature through property accessors.
-    type RefreshStreamType = { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+    // NOTE: Use ifElse to preserve the Stream wrapper. Inside derive(), property access
+    // returns unwrapped Cell proxies without .send(). ifElse keeps the Stream intact.
+    // We also need to handle when wishedAuthCharm is null (wish not resolved).
+    const hasWishedAuthCharm = derive(wishedAuthCharm, (charm) => charm !== null);
     const authRefreshStream = ifElse(
       hasDirectAuth,
-      null as RefreshStreamType | null, // Direct auth doesn't have a refresh stream (same charm)
-      wishedAuthCharm.refreshToken as unknown as RefreshStreamType | null
+      null, // Direct auth doesn't have a refresh stream (same charm can write directly)
+      ifElse(
+        hasWishedAuthCharm,
+        wishedAuthCharm.refreshToken,
+        null // Wish not resolved yet, no refresh stream available
+      )
     );
+
+    // DEBUG: Log authRefreshStream construction
+    derive([hasDirectAuth, hasWishedAuthCharm, authRefreshStream], ([direct, hasCharm, stream]) => {
+      console.log('[DEBUG-BUILD] hasDirectAuth:', direct);
+      console.log('[DEBUG-BUILD] hasWishedAuthCharm:', hasCharm);
+      console.log('[DEBUG-BUILD] authRefreshStream value:', stream);
+      console.log('[DEBUG-BUILD] authRefreshStream has send:', !!(stream as any)?.send);
+      console.log('[DEBUG-BUILD] typeof stream?.send:', typeof (stream as any)?.send);
+    });
 
     // Track where auth came from
     const authSource = derive(
@@ -742,6 +759,13 @@ const GmailAgenticSearch = pattern<
           // Create an onRefresh callback using the cross-charm refresh stream
           // This ensures token refresh works even when auth is from a different charm
           const refreshStream = state.authRefreshStream.get();
+
+          // DEBUG: Log refresh stream state in the tool
+          console.log('[DEBUG-TOOL] authRefreshStream cell:', state.authRefreshStream);
+          console.log('[DEBUG-TOOL] refreshStream value:', refreshStream);
+          console.log('[DEBUG-TOOL] refreshStream?.send:', refreshStream?.send);
+          console.log('[DEBUG-TOOL] Will use onRefresh callback:', !!refreshStream?.send);
+
           const onRefresh = refreshStream?.send
             ? async () => {
                 console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
@@ -1042,8 +1066,14 @@ When you're done searching, STOP calling tools and produce your final structured
         auth: Cell<Auth>;
         debugLog: Cell<DebugLogEntry[]>;
         authRefreshStream: Cell<RefreshStreamType | null>;
+        wishedAuthCharm: Cell<GoogleAuthCharm | null>;
+        hasDirectAuth: Cell<boolean>;
       }
     >(async (_, state) => {
+      // DEBUG: Log handler entry and auth state
+      console.log('[DEBUG-SCAN] startScan handler called');
+      console.log('[DEBUG-SCAN] isAuthenticated:', state.isAuthenticated.get());
+
       if (!state.isAuthenticated.get()) return;
 
       const authData = state.auth.get();
@@ -1065,11 +1095,48 @@ When you're done searching, STOP calling tools and produce your final structured
         type: "info",
         message: "Validating Gmail token...",
       });
-      // Unwrap the Cell to get the actual refresh stream
-      const refreshStream = state.authRefreshStream.get();
+
+      // DEBUG: Try accessing refreshToken.send directly on wishedAuthCharm
+      // Use .key() to access nested properties since TypeScript doesn't know about OpaqueRef proxy
+      const hasDirectAuthValue = state.hasDirectAuth.get();
+      const wishedCharm = state.wishedAuthCharm.get();
+      console.log('[DEBUG-SCAN] hasDirectAuth:', hasDirectAuthValue);
+      console.log('[DEBUG-SCAN] wishedAuthCharm.get():', wishedCharm);
+
+      // Use .key() to access the refreshToken stream - this is the Cell API for nested access
+      const refreshTokenCell = state.wishedAuthCharm.key("refreshToken");
+      console.log('[DEBUG-SCAN] wishedAuthCharm.key("refreshToken"):', refreshTokenCell);
+      console.log('[DEBUG-SCAN] refreshTokenCell.send:', refreshTokenCell?.send);
+      console.log('[DEBUG-SCAN] typeof refreshTokenCell.send:', typeof refreshTokenCell?.send);
+
+      // Also try getting the value
+      const refreshTokenValue = refreshTokenCell?.get?.();
+      console.log('[DEBUG-SCAN] refreshTokenCell.get():', refreshTokenValue);
+      console.log('[DEBUG-SCAN] refreshTokenValue?.send:', refreshTokenValue?.send);
+
+      // Build refresh stream wrapper for cross-charm refresh
+      // If hasDirectAuth, no refresh stream needed (same charm can write directly)
+      // Otherwise, try to use refreshToken.send()
+      let refreshStreamForValidation: RefreshStreamType | null = null;
+
+      // Only set up refresh if not using direct auth and we have a wished charm
+      if (!hasDirectAuthValue && wishedCharm) {
+        // The Cell.send() method should always be available, use it to send events
+        // The underlying Stream handler will run in google-auth's transaction context
+        console.log('[DEBUG-SCAN] Using refreshTokenCell.send() directly');
+        refreshStreamForValidation = {
+          send: (event: Record<string, never>, onCommit?: (tx: any) => void) => {
+            console.log('[DEBUG-SCAN] Calling refreshTokenCell.send()...');
+            // The Cell.send() method - pass onCommit as second arg
+            (refreshTokenCell as any).send(event, onCommit);
+          }
+        };
+      }
+      console.log('[DEBUG-SCAN] refreshStreamForValidation:', refreshStreamForValidation);
+
       const validation = await validateAndRefreshTokenCrossCharm(
         state.auth,
-        refreshStream,
+        refreshStreamForValidation,
         true
       );
 
@@ -1177,7 +1244,9 @@ When you're done searching, STOP calling tools and produce your final structured
     );
 
     // Pre-bind handlers (important: must be done outside of derive callbacks)
-    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog, authRefreshStream });
+    // Pass wishedAuthCharm to handler so we can call .refreshToken.send() directly
+    // ifElse around streams doesn't preserve the .send() method properly
+    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog, authRefreshStream, wishedAuthCharm, hasDirectAuth });
     const boundStopScan = stopScan({ lastScanAt, isScanning });
     const boundCompleteScan = completeScan({ lastScanAt, isScanning });
 
