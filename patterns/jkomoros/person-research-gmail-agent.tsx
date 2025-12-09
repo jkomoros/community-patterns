@@ -228,6 +228,7 @@ interface PersonResearchInput {
   agenticNotes?: Default<string, "">;
 }
 
+/** Person research results from Gmail analysis. #personResearch */
 interface PersonResearchOutput {
   findings: PersonFindings;
   agenticNotes: string;

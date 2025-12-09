@@ -261,6 +261,8 @@ type ProfileData = {
 };
 
 type Input = ProfileData;
+
+/** Person profile with contact info and relationship data. #person */
 type Output = ProfileData & {
   profile: ProfileData;
 };
