@@ -244,3 +244,178 @@ const pattern = ({ history }) => {
 | Write method | Use `.key(k).set(v)` or `.update({...})` |
 | Never do | `.set({...spread, newKey})` in a loop |
 | Why it matters | Security model + policy tracking, not just performance |
+
+---
+
+## ifElse Executes BOTH Branches
+
+**Blessed by:** Berni (verbal guidance)
+**Date:** 2024-12-09
+**Framework version:** Current
+
+---
+
+### The Rule
+
+**`ifElse` evaluates BOTH branches, not just the "true" one.**
+
+This is counter-intuitive if you're used to JavaScript's `if/else` or ternary operators.
+
+```typescript
+// ❌ WRONG ASSUMPTION: "This will only call generateObject when condition is true"
+const result = ifElse(
+  condition,
+  () => generateObject({ prompt: expensivePrompt }),  // RUNS ANYWAY!
+  () => null
+);
+```
+
+Both branches execute regardless of the condition value.
+
+### Why This Happens
+
+The CommonTools scheduler is currently **push-based (eager)**:
+- It schedules everything that *could* be needed
+- It doesn't know that the output of branch B goes nowhere if condition is false
+- A future "pull-based" scheduler would only run what's actually needed
+
+### The Workaround
+
+To prevent `generateObject` (or other expensive operations) from actually running, **pass an empty prompt**:
+
+```typescript
+// ✅ CORRECT: Empty prompt prevents actual LLM call
+const result = generateObject({
+  prompt: condition.get() ? expensivePrompt : "",  // Empty string = no LLM call
+  // ... other options
+});
+```
+
+When the prompt is empty, `generateObject` doesn't make an LLM call.
+
+### Example: Conditional Generation
+
+```typescript
+// ❌ WRONG: Both branches execute
+const summary = ifElse(
+  hasContent,
+  () => generateObject({
+    prompt: `Summarize: ${content.get()}`,
+    schema: z.object({ summary: z.string() }),
+  }),
+  () => ({ summary: "" })
+);
+
+// ✅ CORRECT: Use conditional prompt
+const summary = generateObject({
+  prompt: hasContent.get() ? `Summarize: ${content.get()}` : "",
+  schema: z.object({ summary: z.string() }),
+});
+```
+
+### Future Improvement
+
+Robin has a change coming that will make this better:
+- If your data doesn't match the schema, the function won't be called
+- This will catch many cases where you're trying to guard with `ifElse`
+
+Until then, use the empty prompt workaround.
+
+### Summary
+
+| Approach | Works? | Why |
+|----------|--------|-----|
+| `ifElse` to skip work | ❌ No | Both branches execute |
+| Conditional in prompt | ✅ Yes | Empty prompt = no LLM call |
+| Guard with undefined check | ❌ No | Function still called |
+
+**Rule of thumb:** Don't use `ifElse` to prevent expensive operations. Use empty/undefined inputs instead.
+
+---
+
+## Don't Use IDs - Use Cell References and cell.equals()
+
+**Blessed by:** Berni (verbal guidance)
+**Date:** 2024-12-09
+**Framework version:** Current
+
+---
+
+### The Rule
+
+**Don't generate your own IDs to track items. Use object references and `cell.equals()` instead.**
+
+```typescript
+// ❌ WRONG: Generating IDs manually
+type Item = {
+  id: string;  // Don't do this
+  name: string;
+};
+
+const items = cell<Item[]>([]);
+
+const findItem = (id: string) => {
+  return items.get().find(item => item.id === id);
+};
+```
+
+```typescript
+// ✅ CORRECT: Use cell references
+const items = cell<Item[]>([]);
+
+// Get a cell reference to a specific item
+const itemCell = items.key(index);
+
+// Compare cells using .equals()
+if (cellA.equals(cellB)) {
+  // Same item
+}
+```
+
+### Why IDs Are Problematic
+
+The framework already tracks object identity under the covers:
+- It knows when objects are the same or different
+- It has its own internal tracking for reactivity
+- Your manual IDs may conflict with or duplicate this tracking
+- Can cause subtle reactivity issues and performance problems
+
+### The Better Approach
+
+Use the framework's built-in mechanisms:
+
+```typescript
+// Get a reference to an item in a collection
+const itemRef = collection.key(itemKey);
+
+// Pass the cell reference around instead of an ID
+<ItemEditor item={itemRef} />
+
+// Compare using .equals()
+const isSameItem = item1.equals(item2);
+```
+
+### When Finding Items in Lists
+
+Instead of:
+```typescript
+// ❌ Finding by ID
+const item = items.get().find(x => x.id === targetId);
+```
+
+Use:
+```typescript
+// ✅ Pass cell references directly
+// The component already has the cell reference it needs
+```
+
+### Summary
+
+| Approach | Recommended? | Why |
+|----------|--------------|-----|
+| Manual ID generation | ❌ No | Duplicates framework tracking |
+| String ID lookups | ❌ No | Loses reactivity benefits |
+| Cell references | ✅ Yes | Works with framework's tracking |
+| `cell.equals()` | ✅ Yes | Proper object identity comparison |
+
+**Rule of thumb:** If you're generating IDs, you're probably doing it wrong. Pass cell references instead.

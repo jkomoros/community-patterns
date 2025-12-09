@@ -139,12 +139,12 @@ ct.render(googleAuthCharm)
 
 ### Community Docs to Create (Blessed)
 
-- [ ] `blessed/dont-use-ids-use-cell-equals.md` - Use cell references not generated IDs
-- [ ] `blessed/handlers-outside-pattern.md` - Define handlers outside pattern function
-- [ ] `blessed/ifelse-executes-both-branches.md` - ifElse runs both branches, use empty prompt to skip
-- [ ] `blessed/schema-auto-inferred.md` - schema: parameter auto-inferred from types
-- [ ] `blessed/never-await-in-handlers.md` - await blocks UI, use fetchData instead
-- [ ] `blessed/ct-render-forces-execution.md` - ct.render forces charm to execute vs just embedding UI
+- [x] `blessed/reactivity.md` - Added: Don't use IDs, use cell.equals() (section added)
+- [x] `blessed/handlers.md` - Created: Define handlers outside pattern function
+- [x] `blessed/reactivity.md` - Added: ifElse runs both branches, use empty prompt to skip (section added)
+- [x] `blessed/llm.md` - Created: schema: parameter auto-inferred from types
+- [x] `blessed/handlers.md` - Added: await blocks UI, use fetchData instead (section added)
+- [x] `blessed/cross-charm.md` - Created: ct.render forces charm to execute
 
 ### Future Work
 
