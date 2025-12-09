@@ -186,11 +186,19 @@ interface StoryWeaverInput {
   synopsisIdeasNonce?: Default<number, 0>;
 }
 
+/** Interactive story generation board with levels and spindles. #storyWeaver */
+interface StoryWeaverOutput {
+  boardTitle: Default<string, "My Story Weaver">;
+  boardDescription: Default<string, "">;
+  levels: Default<LevelConfig[], typeof DEFAULT_LEVELS>;
+  spindles: Default<SpindleConfig[], [typeof DEFAULT_ROOT_SPINDLE]>;
+}
+
 // =============================================================================
 // PATTERN
 // =============================================================================
 
-const StoryWeaver = pattern<StoryWeaverInput>(
+const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
   ({
     boardTitle,
     boardDescription,
