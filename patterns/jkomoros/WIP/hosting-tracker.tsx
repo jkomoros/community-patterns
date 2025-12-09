@@ -20,11 +20,16 @@ import {
   handler,
   ifElse,
   NAME,
+  navigateTo,
   pattern,
   str,
   UI,
   wish,
 } from "commontools";
+import Family from "./family.tsx";
+import CalendarViewer from "./calendar-viewer.tsx";
+// Note: GoogleCalendarImporter is in parent directory, cross-directory imports
+// not supported by compiler. Users should create calendar charms via page-creator.
 import {
   Address,
   ClassificationRule,
@@ -566,6 +571,14 @@ Focus on patterns that are specific enough to avoid false positives.`;
   });
 });
 
+// Handler to create a new Family charm and navigate to it
+// deno-lint-ignore no-explicit-any
+const createFamily = handler<void, void>(() => navigateTo(Family({} as any)));
+
+// Handler to create a new Apple Calendar Viewer charm
+// deno-lint-ignore no-explicit-any
+const createAppleCalendar = handler<void, void>(() => navigateTo(CalendarViewer({} as any)));
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -1001,6 +1014,15 @@ const HostingTracker = pattern<HostingTrackerInput>(
     // Total events count
     const eventCount = derive(hostingEvents, (e) => e.length);
 
+    // Connection status for setup UI
+    const hasFamilies = derive(trackedFamilies, (f) => f.length > 0);
+    const hasGoogleCalendar = derive(googleCalendarCharm, (charm) =>
+      charm?.events && charm.events.length > 0
+    );
+    const hasAppleCalendar = derive(appleCalendarCharm, (charm) =>
+      charm?.events && charm.events.length > 0
+    );
+
     // LLM Rule Suggestions - generateObject call
     // Only runs when ruleSuggestionPrompt is non-empty
     const llmSuggestions = generateObject<RuleSuggestionResponse>({
@@ -1047,6 +1069,131 @@ Include reasoning for each suggestion and potential false positives to watch for
             {/* ========== TAB 1: DASHBOARD ========== */}
             <ct-vscroll flex showScrollbar>
               <ct-vstack style="padding: 16px; gap: 16px;">
+                {/* Setup Status Section */}
+                <ct-vstack style="gap: 8px;">
+                  <h3 style="margin: 0; font-size: 14px;">Setup Status</h3>
+
+                  {/* Tip explaining the system */}
+                  <div
+                    style={{
+                      padding: "12px",
+                      backgroundColor: "#f0f9ff",
+                      borderRadius: "8px",
+                      border: "1px solid #0ea5e9",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <strong>How it works:</strong> Create charms for families and
+                    calendars, then favorite them (star icon) with the appropriate
+                    hashtag. This tracker discovers them automatically.
+                  </div>
+
+                  {/* Status rows */}
+                  <ct-vstack style="gap: 6px;">
+                    {/* Family status */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px 12px",
+                        backgroundColor: "#f9fafb",
+                        borderRadius: "6px",
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          backgroundColor: ifElse(hasFamilies, "#22c55e", "#ef4444"),
+                        }}
+                      />
+                      <span style={{ flex: 1, fontSize: "13px" }}>
+                        Families <code style={{ fontSize: "11px", color: "#666" }}>#family</code>
+                      </span>
+                      {ifElse(
+                        hasFamilies,
+                        <span style={{ fontSize: "12px", color: "#22c55e" }}>
+                          {familyCount} connected
+                        </span>,
+                        <ct-button size="sm" onClick={createFamily()}>
+                          + Add Family
+                        </ct-button>
+                      )}
+                    </div>
+
+                    {/* Google Calendar status */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px 12px",
+                        backgroundColor: "#f9fafb",
+                        borderRadius: "6px",
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          backgroundColor: ifElse(hasGoogleCalendar, "#22c55e", "#d1d5db"),
+                        }}
+                      />
+                      <span style={{ flex: 1, fontSize: "13px" }}>
+                        Google Calendar <code style={{ fontSize: "11px", color: "#666" }}>#googleCalendar</code>
+                      </span>
+                      {ifElse(
+                        hasGoogleCalendar,
+                        <span style={{ fontSize: "12px", color: "#22c55e" }}>
+                          Connected
+                        </span>,
+                        <span style={{ fontSize: "11px", color: "#666" }}>
+                          Use Page Creator
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Apple Calendar status */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "8px 12px",
+                        backgroundColor: "#f9fafb",
+                        borderRadius: "6px",
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          backgroundColor: ifElse(hasAppleCalendar, "#22c55e", "#d1d5db"),
+                        }}
+                      />
+                      <span style={{ flex: 1, fontSize: "13px" }}>
+                        Apple Calendar <code style={{ fontSize: "11px", color: "#666" }}>#appleCalendar</code>
+                      </span>
+                      {ifElse(
+                        hasAppleCalendar,
+                        <span style={{ fontSize: "12px", color: "#22c55e" }}>
+                          Connected
+                        </span>,
+                        <ct-button size="sm" variant="secondary" onClick={createAppleCalendar()}>
+                          + Connect
+                        </ct-button>
+                      )}
+                    </div>
+                  </ct-vstack>
+                </ct-vstack>
+
                 {/* Summary Stats */}
                 <ct-hstack style="gap: 12px; flex-wrap: wrap;">
                   <div
@@ -1298,9 +1445,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                     fontSize: "13px",
                   }}
                 >
-                  <strong>Tip:</strong> Create Family charms and favorite them
-                  (star icon) to track them here. Use wish("#family") to discover
-                  them.
+                  <strong>Tip:</strong> Create a Family charm for each family you
+                  want to track. After creating, favorite it (star icon) with the{" "}
+                  <code>#family</code> hashtag so this tracker can discover it.
+                  <div style={{ marginTop: "8px" }}>
+                    <ct-button size="sm" onClick={createFamily()}>
+                      + Create Family
+                    </ct-button>
+                  </div>
                 </div>
 
                 <h3 style="margin: 0; font-size: 14px;">
