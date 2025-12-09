@@ -43,9 +43,31 @@ import {
   RuleType,
 } from "./util/hosting-types.ts";
 
-// Import calendar event types for normalization
-import type { CalendarEvent as GoogleCalendarEvent } from "../google-calendar-importer.tsx";
-import type { CalendarEvent as AppleCalendarEvent } from "./calendar-viewer.tsx";
+// Calendar event types (defined inline to avoid cross-directory imports)
+// These match the structures from google-calendar-importer.tsx and calendar-viewer.tsx
+interface GoogleCalendarEvent {
+  id: string;
+  summary: string;
+  description: string;
+  location: string;
+  start: string;
+  startDateTime: string;
+  endDateTime: string;
+  isAllDay: boolean;
+  calendarName: string;
+  attendees?: { email: string; displayName: string; responseStatus: string }[];
+}
+
+interface AppleCalendarEvent {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  location: string | null;
+  notes: string | null;
+  calendarName: string;
+  isAllDay: boolean;
+}
 
 // ============================================================================
 // FAMILY TYPE (from wish)
@@ -277,6 +299,47 @@ const updateThreshold = handler<
   if (!isNaN(value) && value > 0) {
     overdueThresholdDays.set(value);
   }
+});
+
+// Handler to select family in manual event form
+const selectManualFamily = handler<
+  { target: { value: string } },
+  {
+    manualEventForm: Cell<{
+      title: string;
+      date: string;
+      location: string;
+      familyId: string;
+      familyName: string;
+      category: HostingCategory;
+      notes: string;
+    }>;
+    trackedFamilies: Cell<Array<{ id: string; name: string }>>;
+  }
+>(({ target }, { manualEventForm, trackedFamilies }) => {
+  const familyId = target.value;
+  const families = trackedFamilies.get();
+  const family = families.find((f) => f.id === familyId);
+  manualEventForm.key("familyId").set(familyId);
+  manualEventForm.key("familyName").set(family?.name || "");
+});
+
+// Handler to select category in manual event form
+const selectManualCategory = handler<
+  { target: { value: string } },
+  {
+    manualEventForm: Cell<{
+      title: string;
+      date: string;
+      location: string;
+      familyId: string;
+      familyName: string;
+      category: HostingCategory;
+      notes: string;
+    }>;
+  }
+>(({ target }, { manualEventForm }) => {
+  manualEventForm.key("category").set(target.value as HostingCategory);
 });
 
 // ============================================================================
@@ -622,10 +685,21 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const unclassifiedEvents = derive(
       { allCalendarEvents, hostingEvents },
       ({ allCalendarEvents, hostingEvents }) => {
-        const classifiedIds = new Set(
-          hostingEvents.filter((e) => e.calendarEventId).map((e) => e.calendarEventId)
-        );
-        return allCalendarEvents.filter((evt) => !classifiedIds.has(evt.id));
+        // Extract calendarEventIds from hosting events that have them
+        const classifiedIds = new Set<string>();
+        for (const e of hostingEvents) {
+          if (e.calendarEventId) {
+            classifiedIds.add(e.calendarEventId);
+          }
+        }
+        // Filter calendar events that aren't already classified
+        const result: NormalizedCalendarEvent[] = [];
+        for (const evt of allCalendarEvents) {
+          if (!classifiedIds.has(evt.id)) {
+            result.push(evt);
+          }
+        }
+        return result;
       }
     );
 
@@ -866,7 +940,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
                             gap: "8px",
                             alignItems: "center",
                             padding: "8px 12px",
-                            backgroundColor: CATEGORY_COLORS[event.category].bg,
+                            backgroundColor: derive(event.category, (cat) => CATEGORY_COLORS[cat].bg),
                             borderRadius: "6px",
                             fontSize: "13px",
                           }}
@@ -877,7 +951,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
                           <span style={{ flex: 1 }}>{event.title}</span>
                           <span
                             style={{
-                              color: CATEGORY_COLORS[event.category].text,
+                              color: derive(event.category, (cat) => CATEGORY_COLORS[cat].text),
                               fontWeight: 500,
                             }}
                           >
@@ -1101,16 +1175,11 @@ const HostingTracker = pattern<HostingTrackerInput>(
                         <label style={{ flex: 1 }}>
                           Family
                           <select
-                            value={derive(manualEventForm, (f) => f.familyId)}
-                            onChange={(e: { target: { value: string } }) => {
-                              const familyId = e.target.value;
-                              const families = trackedFamilies.get();
-                              const family = families.find((f) => f.id === familyId);
-                              manualEventForm.key("familyId").set(familyId);
-                              manualEventForm
-                                .key("familyName")
-                                .set(family?.name || "");
-                            }}
+                            value={manualEventForm.key("familyId")}
+                            onChange={selectManualFamily({
+                              manualEventForm,
+                              trackedFamilies,
+                            })}
                             style={{
                               width: "100%",
                               padding: "8px",
@@ -1127,12 +1196,8 @@ const HostingTracker = pattern<HostingTrackerInput>(
                         <label style={{ flex: 1 }}>
                           Category
                           <select
-                            value={derive(manualEventForm, (f) => f.category)}
-                            onChange={(e: { target: { value: string } }) => {
-                              manualEventForm
-                                .key("category")
-                                .set(e.target.value as HostingCategory);
-                            }}
+                            value={manualEventForm.key("category")}
+                            onChange={selectManualCategory({ manualEventForm })}
                             style={{
                               width: "100%",
                               padding: "8px",
@@ -1171,7 +1236,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
                             gap: "8px",
                             alignItems: "center",
                             padding: "8px 12px",
-                            backgroundColor: CATEGORY_COLORS[event.category].bg,
+                            backgroundColor: derive(event.category, (cat) => CATEGORY_COLORS[cat].bg),
                             borderRadius: "6px",
                             fontSize: "13px",
                           }}
@@ -1334,8 +1399,8 @@ const HostingTracker = pattern<HostingTrackerInput>(
                           <span
                             style={{
                               padding: "2px 8px",
-                              backgroundColor: CATEGORY_COLORS[rule.category].bg,
-                              color: CATEGORY_COLORS[rule.category].text,
+                              backgroundColor: derive(rule.category, (cat) => CATEGORY_COLORS[cat].bg),
+                              color: derive(rule.category, (cat) => CATEGORY_COLORS[cat].text),
                               borderRadius: "4px",
                               fontSize: "11px",
                             }}
