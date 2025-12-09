@@ -1131,16 +1131,41 @@ What common sections might be missing?`,
               borderRadius: "8px",
             }}
           >
-            <h3
+            <div
               style={{
-                margin: "0 0 0.75rem 0",
-                fontSize: "14px",
-                fontWeight: "600",
-                color: "#92400e",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "0.75rem",
               }}
             >
-              🚪 Store Entrances
-            </h3>
+              <h3
+                style={{
+                  margin: "0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#92400e",
+                }}
+              >
+                🚪 Store Entrances
+              </h3>
+              {ifElse(
+                entrancesComplete,
+                <ct-button
+                  size="sm"
+                  variant="default"
+                  onClick={toggleEntrancesComplete({ entrancesComplete })}
+                  style={{
+                    fontSize: "12px",
+                    padding: "4px 10px",
+                    minHeight: "28px",
+                  }}
+                >
+                  ✓ Entrances Complete ({entranceCount})
+                </ct-button>,
+                null
+              )}
+            </div>
             {ifElse(
               entrancesComplete,
               null,
@@ -1310,26 +1335,28 @@ What common sections might be missing?`,
             </div>
             )}
 
-            {/* "No more entrances" button - show when at least one entrance added */}
+            {/* "No more entrances" button - show when at least one entrance added AND not yet complete */}
             {ifElse(
-              derive(entranceCount, (c) => c > 0),
-              <div style={{ marginTop: "1rem", display: "flex", justifyContent: "center" }}>
-                <ct-button
-                  size="sm"
-                  variant={derive(entrancesComplete, (complete) => complete ? "default" : "secondary")}
-                  onClick={toggleEntrancesComplete({ entrancesComplete })}
-                  style={{
-                    fontSize: "13px",
-                    padding: "8px 16px",
-                    minHeight: "36px",
-                  }}
-                >
-                  {derive(entrancesComplete, (complete) =>
-                    complete ? "✓ Entrances Complete" : "✓ No More Entrances"
-                  )}
-                </ct-button>
-              </div>,
-              null
+              entrancesComplete,
+              null,
+              ifElse(
+                derive(entranceCount, (c) => c > 0),
+                <div style={{ marginTop: "1rem", display: "flex", justifyContent: "center" }}>
+                  <ct-button
+                    size="sm"
+                    variant="secondary"
+                    onClick={toggleEntrancesComplete({ entrancesComplete })}
+                    style={{
+                      fontSize: "13px",
+                      padding: "8px 16px",
+                      minHeight: "36px",
+                    }}
+                  >
+                    ✓ No More Entrances
+                  </ct-button>
+                </div>,
+                null
+              )
             )}
 
             {/* Show added entrances */}

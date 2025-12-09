@@ -123,9 +123,9 @@ Conditional display → Text content, styles, or separate passive elements
 ```yaml
 topic: jsx, handlers, conditional-rendering, onClick, derive, ifElse
 discovered: 2025-01-23
-confirmed_count: 5
-last_confirmed: 2025-12-03
-sessions: [fix-food-recipe-image-extraction-button-error, smart-rubric-phase-5, hotel-membership-extractor-stop-scan, spindle-board-inspire-me, fix-hide-cross-space-wish-auth]
+confirmed_count: 6
+last_confirmed: 2025-12-08
+sessions: [fix-food-recipe-image-extraction-button-error, smart-rubric-phase-5, hotel-membership-extractor-stop-scan, spindle-board-inspire-me, fix-hide-cross-space-wish-auth, store-mapper-improvements]
 status: folk_wisdom
 stars: ⭐⭐⭐
 ```
@@ -143,6 +143,8 @@ stars: ⭐⭐⭐
 - ✅ 2025-12-03 - **CONFIRMED: ifElse() with simple cell WORKS for conditional buttons**. hotel-membership-extractor had `derive(isAuthenticated, (auth) => auth ? <buttons> : null)` causing ReadOnlyAddressError. Changed to `ifElse(isAuthenticated, <buttons>, null)` - **clicking Quick Scan worked without ReadOnlyAddressError**. Key difference: ifElse with a plain cell (not a derived parameter) doesn't create the read-only context that derive() does. This is a valid workaround when you need conditional button rendering! (fix-hide-cross-space-wish-auth)
 
 - ⚠️ 2025-12-03 - **CAVEAT: ifElse with cells from COMPOSED PATTERNS may still fail**. In hotel-membership-gmail-agent (which composes GmailAgenticSearch), tried `ifElse(searcher.isAuthenticated, <buttons>, null)` where `searcher` is the composed child pattern. Pattern hung - no errors, charm never rendered, "No telemetry events" in debugger. Also tried `derive([searcher.isAuthenticated, isScanning], ...)` - same hang. Fix: removed all use of composed pattern cells in derives/ifElse. Just always render buttons with `disabled={derive(isScanning, ...)}` using only local cells. **Key insight: ifElse with plain cell works when the cell is LOCAL, but may create reactive loops when the cell comes from a composed sub-pattern.** See superstition: 2025-12-03-avoid-composed-pattern-cells-in-derives.md (hotel-membership-migration-check-recent)
+
+- ✅ 2025-12-08 - **ALSO APPLIES TO DERIVED CONDITIONS (not just handler params)**. In store-mapper, `ifElse(derive(entrancesComplete, (c) => !c), <buttons>, null)` caused buttons to NEVER show - the derived condition evaluated incorrectly. Fix: use plain cell directly and swap branches: `ifElse(entrancesComplete, null, <buttons>)`. **Key insight: don't wrap the ifElse condition in derive() - use the plain cell and swap true/false branches if you need negation.** (store-mapper-improvements)
 
 ---
 
