@@ -644,6 +644,7 @@ const GmailAgenticSearch = pattern<
         communityQueryRefs: Cell<CommunityQueryRef[]>;
         registryWish: Cell<any>;
         agentTypeUrl: Cell<string>;
+        lastExecutedQueryIdCell: Cell<string | null>;
       }
     >(async (input, state) => {
       const authData = state.auth.get();
@@ -801,7 +802,7 @@ const GmailAgenticSearch = pattern<
                 : existing.effectiveness
             );
             // Track this as the last executed query (for foundItems)
-            lastExecutedQueryIdCell.set(existing.id);
+            state.lastExecutedQueryIdCell.set(existing.id);
           } else if (emails.length > 0) {
             // Only add new query if it found results
             const newQueryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -817,7 +818,7 @@ const GmailAgenticSearch = pattern<
             };
             state.localQueries.push(newQuery);
             // Track this as the last executed query (for foundItems)
-            lastExecutedQueryIdCell.set(newQueryId);
+            state.lastExecutedQueryIdCell.set(newQueryId);
           }
 
           // Auto-upvote community queries that found results
@@ -931,6 +932,7 @@ const GmailAgenticSearch = pattern<
             communityQueryRefs,
             registryWish,
             agentTypeUrl,
+            lastExecutedQueryIdCell,
           }),
         },
       };
