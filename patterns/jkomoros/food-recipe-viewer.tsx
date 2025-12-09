@@ -63,6 +63,7 @@ interface ViewerInput {
   completedGroups: Default<GroupCompletion[], []>;
 }
 
+/** Recipe viewer with step tracking. #recipeViewer */
 interface ViewerOutput extends ViewerInput {}
 
 // Handler to toggle step completion

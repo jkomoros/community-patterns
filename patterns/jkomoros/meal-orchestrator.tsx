@@ -108,6 +108,7 @@ interface MealOrchestratorInput {
   notes?: Default<string, "">;
 }
 
+/** Meal planner that coordinates multiple recipes. #mealPlan */
 interface MealOrchestratorOutput extends MealOrchestratorInput {}
 
 // Oven timeline event for visualization
