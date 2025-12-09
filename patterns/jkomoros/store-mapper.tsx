@@ -303,7 +303,7 @@ const mergeExtractedAisle = handler<
     newItems: string[];
     selectedMergeItems: Cell<Record<string, string[]>>;
     selectionKey: string;
-    hiddenPhotoIds: Cell<Set<string>>;
+    hiddenPhotoIds: Cell<string[]>;
     photo: Cell<ImageData>;
     extractedAisles: Array<{ name: string; products: readonly string[] }>;
   }
@@ -360,9 +360,9 @@ const mergeExtractedAisle = handler<
   if (!hasRemainingMerges) {
     const photoData = photo.get();
     const currentHidden = hiddenPhotoIds.get();
-    const newHidden = new Set(currentHidden);
-    newHidden.add(photoData.id);
-    hiddenPhotoIds.set(newHidden);
+    if (!currentHidden.includes(photoData.id)) {
+      hiddenPhotoIds.set([...currentHidden, photoData.id]);
+    }
   }
 });
 
@@ -374,8 +374,9 @@ const batchAddNonConflicting = handler<
     extractedAisles: Array<{ name: string; products: string[] }>;
     uploadedPhotos: Cell<Array<Cell<ImageData>>>;
     photo: Cell<ImageData>;
+    hiddenPhotoIds: Cell<string[]>;
   }
->((_event, { aisles, extractedAisles, uploadedPhotos, photo }) => {
+>((_event, { aisles, extractedAisles, uploadedPhotos, photo, hiddenPhotoIds }) => {
   const currentAisles = aisles.get();
 
   // Filter to only non-conflicting aisles (with whitespace normalization)
@@ -398,10 +399,12 @@ const batchAddNonConflicting = handler<
     });
   });
 
-  // Note: We don't auto-delete photos after adding aisles anymore.
-  // This prevents the photo analysis reset bug where remaining photos
-  // would reset to "Analyzing..." when uploadedPhotos array changes.
-  // Users can manually delete photos using the delete button.
+  // Hide the photo after accepting its aisles
+  const photoData = photo.get();
+  const currentHidden = hiddenPhotoIds.get();
+  if (!currentHidden.includes(photoData.id)) {
+    hiddenPhotoIds.set([...currentHidden, photoData.id]);
+  }
 });
 
 // Batch add non-conflicting aisles from ALL photos at once
@@ -469,16 +472,16 @@ const copyOutline = handler<unknown, { outline: string }>(
 // Delete photo handler
 const deletePhoto = handler<
   unknown,
-  { hiddenPhotoIds: Cell<Set<string>>; photo: Cell<ImageData> }
+  { hiddenPhotoIds: Cell<string[]>; photo: Cell<ImageData> }
 >((_event, { hiddenPhotoIds, photo }) => {
   // Instead of splicing the array (which shifts indices and breaks map identity),
   // just mark the photo as hidden. This preserves array indices and keeps
   // extraction state intact for remaining photos.
   const photoData = photo.get();
   const currentHidden = hiddenPhotoIds.get();
-  const newHidden = new Set(currentHidden);
-  newHidden.add(photoData.id);
-  hiddenPhotoIds.set(newHidden);
+  if (!currentHidden.includes(photoData.id)) {
+    hiddenPhotoIds.set([...currentHidden, photoData.id]);
+  }
 });
 
 // Delete correction handler
@@ -678,7 +681,7 @@ function analyzeOverlap(existingDesc: string, suggestedProducts: string[]): Over
 const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
   ({ storeName, aisles, specialDepartments, unassignedDepartments, entrances, notInStore, inCenterAisles, itemLocations }) => {
     const uploadedPhotos = cell<ImageData[]>([]);
-    const hiddenPhotoIds = cell<Set<string>>(new Set()); // Track deleted photos without splicing array
+    const hiddenPhotoIds = cell<string[]>([]); // Track deleted photos without splicing array
     const customDeptName = cell<string>("");
     const entranceCount = computed(() => entrances.length);
     const entrancesComplete = cell<boolean>(false);
@@ -2349,7 +2352,7 @@ What common sections might be missing?`,
               {photoExtractions.map((extraction) => {
                 // Check if this photo is hidden
                 const photoId = extraction.photo.id;
-                const isHidden = computed(() => hiddenPhotoIds.get().has(photoId));
+                const isHidden = computed(() => hiddenPhotoIds.get().includes(photoId));
 
                 return ifElse(
                   isHidden,
@@ -2466,6 +2469,7 @@ What common sections might be missing?`,
                                   extractedAisles: validAisles,
                                   uploadedPhotos,
                                   photo: extraction.photo,
+                                  hiddenPhotoIds,
                                 })}
                                 style={{
                                   fontSize: "11px",
