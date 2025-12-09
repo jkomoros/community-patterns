@@ -334,13 +334,16 @@ Report memberships as you find them. Don't wait until the end.`,
     // This is the idiomatic pattern: tool writes to state cell, parent watches and increments signal.
     // See: community-docs research on tool-to-parent communication patterns
     // NOTE: Using Cells to track state because closure vars don't persist across derive executions
-    derive([memberships, lastMembershipCountCell], ([list, lastCount]: [MembershipRecord[], number]) => {
+    derive([memberships, lastMembershipCountCell], ([list, _lastCountRef]: [MembershipRecord[], number]) => {
+      // NOTE: derive doesn't unwrap locally-created cells, only pattern input cells
+      // So we use .get() to read the actual value
+      // See: community-docs/superstitions/2025-12-08-locally-created-cells-not-unwrapped-in-derive.md
       const currentCount = list?.length || 0;
+      const lastCount = lastMembershipCountCell.get() || 0;
       if (currentCount > lastCount) {
         // New membership was added - signal the base pattern to mark the query
         console.log(`[HotelMembership] New membership detected (${lastCount} -> ${currentCount}), signaling itemFoundSignal`);
         // Increment the signal - base pattern watches this and marks the query
-        // Read current value from cell (it persists), increment, and set
         const currentSignal = itemFoundSignal.get() || 0;
         itemFoundSignal.set(currentSignal + 1);
         // Update last count cell - prevents this derive from running again with same condition
