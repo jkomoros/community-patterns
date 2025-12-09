@@ -166,6 +166,7 @@ ct.render(googleAuthCharm)
 - [x] Update scanning condition: `isScanning && validToken && fullPrompt`
 - [x] Handler calls refreshTokenStream.send() when token invalid
 - [x] Removed vestigial `validateAndRefreshTokenCrossCharm` from gmail-client.ts
+- [x] Fixed nested derive bug in auth UI - "Connect Gmail" wasn't rendering (see superstition: 2025-12-09-nested-derive-returns-cell-not-jsx.md)
 
 ---
 
