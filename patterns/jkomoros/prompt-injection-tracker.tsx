@@ -536,6 +536,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       debugMode: DEBUG_LOGGING, // Use same flag as pattern debug logging
     },
     authCharm, // Pass explicit auth or null to use wish-based discovery
+    accountType: "default", // Use default account type for multi-account support
   });
 
   // Count for display (emails counted directly from importer)

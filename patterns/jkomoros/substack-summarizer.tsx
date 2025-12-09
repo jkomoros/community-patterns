@@ -18,6 +18,7 @@ const SubstackSummarizer = pattern<SubstackInput>(({ gmailFilterQuery, limit }) 
       debugMode: false,
     },
     authCharm: null,  // Let importer wish for shared auth
+    accountType: "default",  // Use default account type for multi-account support
   });
 
   const emails = importer.emails;
