@@ -31,6 +31,7 @@ import {
   computeHostingStatus,
   daysSince,
   FamilyHostingStats,
+  FamilyMember,
   generateId,
   HostingCategory,
   HostingEvent,
@@ -95,6 +96,15 @@ const CATEGORY_COLORS: Record<HostingCategory, { bg: string; text: string }> = {
   "they-hosted": { bg: "#dbeafe", text: "#1d4ed8" },
   "we-hosted": { bg: "#dcfce7", text: "#15803d" },
   neutral: { bg: "#f3f4f6", text: "#4b5563" },
+};
+
+// Type for classification suggestions
+type EventSuggestion = {
+  category: HostingCategory | null;
+  familyId: string | null;
+  familyName: string | null;
+  confidence: number;
+  matchedRule: ClassificationRule | null;
 };
 
 // ============================================================================
@@ -216,6 +226,53 @@ const classifyEvent = handler<
   hostingEvents.push(newEvent);
 });
 
+// Handler to apply auto-classification suggestion
+const applySuggestion = handler<
+  unknown,
+  {
+    hostingEvents: Cell<HostingEvent[]>;
+    event: NormalizedCalendarEvent;
+    category: HostingCategory;
+    familyId: string | null;
+    familyName: string | null;
+    confidence: number;
+    matchedRule: ClassificationRule | null;
+    rules: Cell<ClassificationRule[]>;
+  }
+>((_, { hostingEvents, event, category, familyId, familyName, confidence, matchedRule, rules }) => {
+  const newEvent: HostingEvent = {
+    id: generateId(),
+    calendarEventId: event.id,
+    title: event.title,
+    date: event.startDate,
+    location: event.location,
+    familyId: familyId || "",
+    familyName: familyName || "(Unknown)",
+    category,
+    classificationMethod: matchedRule ? "auto-rule" : "manual",
+    confidence,
+    notes: matchedRule ? `Matched rule: ${matchedRule.name}` : "",
+    classifiedAt: new Date().toISOString(),
+  };
+
+  hostingEvents.push(newEvent);
+
+  // Update rule match count if a rule was used
+  if (matchedRule) {
+    const currentRules = rules.get();
+    const ruleIndex = currentRules.findIndex(r => r.id === matchedRule.id);
+    if (ruleIndex >= 0) {
+      const updatedRules = [...currentRules];
+      updatedRules[ruleIndex] = {
+        ...updatedRules[ruleIndex],
+        matchCount: updatedRules[ruleIndex].matchCount + 1,
+        correctCount: updatedRules[ruleIndex].correctCount + 1, // Assume correct since user applied it
+      };
+      rules.set(updatedRules);
+    }
+  }
+});
+
 // Handler to remove a hosting event
 const removeHostingEvent = handler<
   unknown,
@@ -248,7 +305,7 @@ const addRule = handler<
     type: rule.type || "location_exact",
     pattern: rule.pattern.trim(),
     familyId: rule.familyId,
-    category: rule.category || "neutral",
+    category: rule.category || "they-hosted",
     isNegative: rule.isNegative || false,
     priority: rule.priority || 50,
     enabled: true,
@@ -340,6 +397,42 @@ const selectManualCategory = handler<
   }
 >(({ target }, { manualEventForm }) => {
   manualEventForm.key("category").set(target.value as HostingCategory);
+});
+
+// Handler to update new rule form name
+const updateRuleName = handler<
+  { target: { value: string } },
+  { newRuleForm: Cell<Partial<ClassificationRule>> }
+>(({ target }, { newRuleForm }) => {
+  const current = newRuleForm.get();
+  newRuleForm.set({ ...current, name: target.value });
+});
+
+// Handler to update new rule form type
+const updateRuleType = handler<
+  { target: { value: string } },
+  { newRuleForm: Cell<Partial<ClassificationRule>> }
+>(({ target }, { newRuleForm }) => {
+  const current = newRuleForm.get();
+  newRuleForm.set({ ...current, type: target.value as RuleType });
+});
+
+// Handler to update new rule form pattern
+const updateRulePattern = handler<
+  { target: { value: string } },
+  { newRuleForm: Cell<Partial<ClassificationRule>> }
+>(({ target }, { newRuleForm }) => {
+  const current = newRuleForm.get();
+  newRuleForm.set({ ...current, pattern: target.value });
+});
+
+// Handler to update new rule form category
+const updateRuleCategory = handler<
+  { target: { value: string } },
+  { newRuleForm: Cell<Partial<ClassificationRule>> }
+>(({ target }, { newRuleForm }) => {
+  const current = newRuleForm.get();
+  newRuleForm.set({ ...current, category: target.value as HostingCategory });
 });
 
 // ============================================================================
@@ -711,6 +804,57 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const unclassifiedCount = derive(
       unclassifiedEvents,
       (events) => events.length
+    );
+
+    // Compute classification suggestions for unclassified events
+    const eventSuggestions = derive(
+      { unclassifiedEvents, rules, myAddresses, familyAddressesMap, neutralPatterns, trackedFamilies },
+      ({
+        unclassifiedEvents,
+        rules,
+        myAddresses,
+        familyAddressesMap,
+        neutralPatterns,
+        trackedFamilies,
+      }: {
+        unclassifiedEvents: NormalizedCalendarEvent[];
+        rules: ClassificationRule[];
+        myAddresses: Address[];
+        familyAddressesMap: Map<string, Address[]>;
+        neutralPatterns: string[];
+        trackedFamilies: Array<{
+          id: string;
+          name: string;
+          addresses: Address[];
+          primaryAddress: Address | null;
+          members: FamilyMember[];
+        }>;
+      }) => {
+        const suggestions: Record<string, EventSuggestion> = {};
+
+        for (const event of unclassifiedEvents) {
+          const result = classifyEventWithRules(
+            event,
+            rules,
+            myAddresses,
+            familyAddressesMap,
+            neutralPatterns
+          );
+
+          // Look up family name if we have a familyId
+          let familyName: string | null = null;
+          if (result.familyId) {
+            const family = trackedFamilies.find((f) => f.id === result.familyId);
+            if (family) {
+              familyName = family.name;
+            }
+          }
+
+          suggestions[event.id] = { ...result, familyName };
+        }
+
+        return suggestions;
+      }
     );
 
     // Total families count
@@ -1092,49 +1236,170 @@ const HostingTracker = pattern<HostingTrackerInput>(
                       events manually.
                     </div>,
                     <ct-vstack style="gap: 6px;">
-                      {derive(unclassifiedEvents, (events) =>
-                        events.slice(0, 10).map((event) => (
-                          <div
-                            style={{
-                              padding: "12px",
-                              backgroundColor: "#f9fafb",
-                              borderRadius: "8px",
-                              border: "1px solid #e5e7eb",
-                            }}
-                          >
-                            <div style={{ marginBottom: "8px" }}>
-                              <strong>{event.title}</strong>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                {event.startDate} | {event.location || "No location"}
-                              </div>
-                            </div>
-                            <ct-hstack style="gap: 8px; flex-wrap: wrap;">
-                              {derive(trackedFamilies, (families) =>
-                                families.map((family) => (
+                      {derive(
+                        { unclassifiedEvents, eventSuggestions },
+                        ({
+                          unclassifiedEvents,
+                          eventSuggestions,
+                        }: {
+                          unclassifiedEvents: NormalizedCalendarEvent[];
+                          eventSuggestions: Record<string, EventSuggestion>;
+                        }) =>
+                          unclassifiedEvents.slice(0, 10).map((event) => {
+                            const suggestion = eventSuggestions[event.id];
+                            const hasSuggestion = suggestion && suggestion.category;
+
+                            return (
+                              <div
+                                style={{
+                                  padding: "12px",
+                                  backgroundColor: hasSuggestion ? "#f0fdf4" : "#f9fafb",
+                                  borderRadius: "8px",
+                                  border: hasSuggestion
+                                    ? "1px solid #22c55e"
+                                    : "1px solid #e5e7eb",
+                                }}
+                              >
+                                <div style={{ marginBottom: "8px" }}>
+                                  <strong>{event.title}</strong>
+                                  <div style={{ fontSize: "12px", color: "#666" }}>
+                                    {event.startDate} | {event.location || "No location"}
+                                  </div>
+                                </div>
+
+                                {/* Show suggestion if available */}
+                                {hasSuggestion ? (
+                                  <div
+                                    style={{
+                                      marginBottom: "8px",
+                                      padding: "6px 10px",
+                                      backgroundColor: "#dcfce7",
+                                      borderRadius: "4px",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    <strong>Suggested:</strong>{" "}
+                                    {suggestion.category === "they-hosted"
+                                      ? `${suggestion.familyName || "They"} hosted`
+                                      : suggestion.category === "we-hosted"
+                                      ? "We hosted"
+                                      : "Neutral venue"}
+                                    {suggestion.matchedRule ? (
+                                      <span style={{ color: "#666" }}>
+                                        {" "}(rule: {suggestion.matchedRule.name})
+                                      </span>
+                                    ) : (
+                                      <span />
+                                    )}
+                                    <span style={{ color: "#666", marginLeft: "8px" }}>
+                                      ({Math.round(suggestion.confidence * 100)}% confidence)
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div />
+                                )}
+
+                                <ct-hstack style="gap: 8px; flex-wrap: wrap;">
+                                  {/* Apply Suggestion button if available */}
+                                  {hasSuggestion && suggestion.category ? (
+                                    <button
+                                      onClick={applySuggestion({
+                                        hostingEvents,
+                                        event,
+                                        category: suggestion.category,
+                                        familyId: suggestion.familyId,
+                                        familyName: suggestion.familyName,
+                                        confidence: suggestion.confidence,
+                                        matchedRule: suggestion.matchedRule,
+                                        rules,
+                                      })}
+                                      style={{
+                                        padding: "4px 10px",
+                                        fontSize: "11px",
+                                        borderRadius: "4px",
+                                        border: "1px solid #22c55e",
+                                        background: "#22c55e",
+                                        color: "white",
+                                        cursor: "pointer",
+                                        fontWeight: "bold",
+                                      }}
+                                    >
+                                      Apply
+                                    </button>
+                                  ) : (
+                                    <span />
+                                  )}
+
+                                  {/* Manual classification buttons */}
+                                  {derive(trackedFamilies, (families) =>
+                                    families.map((family) => (
+                                      <button
+                                        onClick={classifyEvent({
+                                          hostingEvents,
+                                          event,
+                                          familyId: family.id,
+                                          familyName: family.name,
+                                          category: "they-hosted",
+                                        })}
+                                        style={{
+                                          padding: "4px 8px",
+                                          fontSize: "11px",
+                                          borderRadius: "4px",
+                                          border: "1px solid #3b82f6",
+                                          background: "#dbeafe",
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        {family.name} hosted
+                                      </button>
+                                    ))
+                                  )}
+
+                                  {/* We hosted button */}
                                   <button
                                     onClick={classifyEvent({
                                       hostingEvents,
                                       event,
-                                      familyId: family.id,
-                                      familyName: family.name,
-                                      category: "they-hosted",
+                                      familyId: "",
+                                      familyName: "(Unknown)",
+                                      category: "we-hosted",
                                     })}
                                     style={{
                                       padding: "4px 8px",
                                       fontSize: "11px",
                                       borderRadius: "4px",
-                                      border: "1px solid #3b82f6",
-                                      background: "#dbeafe",
+                                      border: "1px solid #f59e0b",
+                                      background: "#fef3c7",
                                       cursor: "pointer",
                                     }}
                                   >
-                                    {family.name} hosted
+                                    We hosted
                                   </button>
-                                ))
-                              )}
-                            </ct-hstack>
-                          </div>
-                        ))
+
+                                  {/* Neutral button */}
+                                  <button
+                                    onClick={classifyEvent({
+                                      hostingEvents,
+                                      event,
+                                      familyId: "",
+                                      familyName: "(Neutral)",
+                                      category: "neutral",
+                                    })}
+                                    style={{
+                                      padding: "4px 8px",
+                                      fontSize: "11px",
+                                      borderRadius: "4px",
+                                      border: "1px solid #6b7280",
+                                      background: "#f3f4f6",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Neutral
+                                  </button>
+                                </ct-hstack>
+                              </div>
+                            );
+                          })
                       )}
                     </ct-vstack>
                   )}
@@ -1426,6 +1691,83 @@ const HostingTracker = pattern<HostingTrackerInput>(
                       ))}
                     </ct-vstack>
                   )}
+
+                  {/* Add Rule Form */}
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "12px",
+                      backgroundColor: "#f0f9ff",
+                      borderRadius: "8px",
+                      border: "1px solid #0ea5e9",
+                    }}
+                  >
+                    <h4 style="margin: 0 0 8px 0; font-size: 13px;">Add New Rule</h4>
+                    <ct-vstack style="gap: 8px;">
+                      <ct-hstack style="gap: 8px;">
+                        <label style={{ flex: 1 }}>
+                          Name
+                          <ct-input
+                            $value={newRuleForm.key("name")}
+                            placeholder="Rule name"
+                          />
+                        </label>
+                        <label style={{ flex: 1 }}>
+                          Type
+                          <select
+                            value={derive(newRuleForm, (r: Partial<ClassificationRule>) => r.type || "location_exact")}
+                            onChange={updateRuleType({ newRuleForm })}
+                            style={{
+                              width: "100%",
+                              padding: "6px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid #d1d5db",
+                              fontSize: "13px",
+                            }}
+                          >
+                            <option value="location_exact">Location (exact)</option>
+                            <option value="location_regex">Location (regex)</option>
+                            <option value="title_regex">Title (regex)</option>
+                            <option value="description_regex">Description (regex)</option>
+                            <option value="attendee_email">Attendee email</option>
+                          </select>
+                        </label>
+                      </ct-hstack>
+                      <label>
+                        Pattern
+                        <ct-input
+                          $value={newRuleForm.key("pattern")}
+                          placeholder="Pattern to match"
+                        />
+                      </label>
+                      <ct-hstack style="gap: 8px;">
+                        <label style={{ flex: 1 }}>
+                          Category
+                          <select
+                            value={derive(newRuleForm, (r: Partial<ClassificationRule>) => r.category || "they-hosted")}
+                            onChange={updateRuleCategory({ newRuleForm })}
+                            style={{
+                              width: "100%",
+                              padding: "6px 8px",
+                              borderRadius: "4px",
+                              border: "1px solid #d1d5db",
+                              fontSize: "13px",
+                            }}
+                          >
+                            <option value="they-hosted">They Hosted</option>
+                            <option value="we-hosted">We Hosted</option>
+                            <option value="neutral">Neutral</option>
+                          </select>
+                        </label>
+                        <ct-button
+                          onClick={addRule({ rules, newRule: newRuleForm })}
+                          style={{ alignSelf: "flex-end" }}
+                        >
+                          Add Rule
+                        </ct-button>
+                      </ct-hstack>
+                    </ct-vstack>
+                  </div>
                 </ct-vstack>
               </ct-vstack>
             </ct-vscroll>
