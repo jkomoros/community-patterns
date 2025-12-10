@@ -153,7 +153,7 @@ ct.render(googleAuthCharm)
 ### Story Weaver Fixes
 
 - [ ] Review for ID usage, refactor to cell.equals()
-- [ ] Move handlers outside pattern function
+- [x] Move handlers outside pattern function
 - [ ] Review ifElse usage for branch execution assumptions
 - [x] Remove redundant schema: parameters
 
