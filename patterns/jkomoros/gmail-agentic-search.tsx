@@ -1102,6 +1102,19 @@ When you're done searching, STOP calling tools and produce your final structured
       );
 
       if (!validation.valid) {
+        // With fire-and-forget refresh, if token expired we trigger refresh and return
+        // The reactive gating on agentPrompt will handle retry when auth becomes valid
+        if (validation.refreshTriggered) {
+          console.log("[GmailAgenticSearch] Token expired - refresh triggered (fire-and-forget)");
+          addDebugLogEntry(state.debugLog, {
+            type: "info",
+            message: "Token expired - refresh triggered. Agent will auto-retry via reactive gating.",
+          });
+          // Don't set auth_error - the reactive gating will pause the agent
+          // and resume it automatically when token refreshes
+          return;
+        }
+
         console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
         addDebugLogEntry(state.debugLog, {
           type: "error",
@@ -1117,13 +1130,7 @@ When you're done searching, STOP calling tools and produce your final structured
         return;
       }
 
-      if (validation.refreshed) {
-        console.log("[GmailAgenticSearch] Token was refreshed automatically");
-        addDebugLogEntry(state.debugLog, {
-          type: "info",
-          message: "Token was expired - refreshed automatically",
-        });
-      }
+      // Token is valid - no refresh was needed
 
       console.log("[GmailAgenticSearch] Token valid, starting scan");
       addDebugLogEntry(state.debugLog, {
