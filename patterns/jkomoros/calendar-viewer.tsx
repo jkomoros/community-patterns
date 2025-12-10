@@ -147,13 +147,10 @@ export default pattern<{
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 
   // Extract unique calendar names for the filter bar
-  const uniqueCalendars = derive(events, (evts: CalendarEvent[]) => {
-    const names = new Set<string>();
-    for (const evt of evts || []) {
-      if (evt?.calendarName) names.add(evt.calendarName);
-    }
-    return Array.from(names).sort();
-  });
+  // Refactored to use filter/map after CT-1102 fix
+  const uniqueCalendars = derive(events, (evts: CalendarEvent[]) =>
+    [...new Set((evts || []).filter(evt => evt?.calendarName).map(evt => evt.calendarName))].sort()
+  );
 
   // Get events grouped by date, filtered by hidden calendars
   const eventsByDate = derive(

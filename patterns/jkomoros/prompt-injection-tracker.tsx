@@ -634,46 +634,45 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   );
 
   // Collect all extracted links for counting (derive is fine for read-only aggregation)
+  // Refactored to use filter/flatMap after CT-1102 fix
   const allExtractedLinks = derive(articleExtractions, (list) => {
-    const links: string[] = [];
     const seen = new Set<string>();
-    for (const item of list) {
-      if (!item) continue; // Skip undefined items during hydration
-      const result = item.extraction?.result;
-      if (result && result.urls) {
-        for (const url of result.urls) {
-          const normalized = normalizeURL(url);
-          if (!seen.has(normalized)) {
-            seen.add(normalized);
-            links.push(url);
-          }
-        }
-      }
-    }
-    return links;
+    return list
+      .filter((item: any) => item?.extraction?.result?.urls)
+      .flatMap((item: any) => item.extraction.result.urls as string[])
+      .filter((url: string) => {
+        const normalized = normalizeURL(url);
+        if (seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
   });
 
   const linkCount = derive(allExtractedLinks, (links) => links.length);
   const reportCount = derive(reports, (list: PromptInjectionReport[]) => list.length);
 
   // Count by classification
-  const classificationCounts = derive(articleExtractions, (list) => {
-    const counts: Record<string, number> = { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 };
-    for (const item of list) {
-      if (!item) continue; // Skip undefined items during hydration
-      const classification = item.extraction?.result?.classification as string | undefined;
-      if (classification && counts[classification] !== undefined) {
-        counts[classification]++;
-      }
-    }
-    return counts;
-  });
+  // Refactored to use reduce after CT-1102 fix
+  const classificationCounts = derive(articleExtractions, (list) =>
+    list
+      .filter((item: any) => item?.extraction?.result?.classification)
+      .reduce(
+        (counts: Record<string, number>, item: any) => {
+          const classification = item.extraction.result.classification as string;
+          if (counts[classification] !== undefined) {
+            counts[classification]++;
+          }
+          return counts;
+        },
+        { "has-security-links": 0, "is-original-report": 0, "no-security-links": 0 }
+      )
+  );
 
   // ==========================================================================
   // LEVELS 2-5: Process URLs from each article through the pipeline
-  // CRITICAL: Must map over cell arrays, not derive results!
-  // We use FIXED SLOTS (3 URLs per article) per superstition:
-  // "2025-11-29-map-only-over-cell-arrays-fixed-slots.md"
+  // NOTE: CT-1102 fix now allows filter/map chains inside derive callbacks.
+  // We still use fixed slots (3 URLs per article) as a design choice to
+  // limit processing, not because of framework limitations.
   // ==========================================================================
 
   const MAX_URLS_PER_ARTICLE = 3;
@@ -834,28 +833,26 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // Flatten all URL slots from all articles into a single list for aggregation
   // Each article has up to 3 slots, each slot has the full L2-L5 pipeline results
-  // Note: Added null checks for page refresh hydration safety
-  const contentClassifications = derive(articleUrlProcessing, (articles) => {
-    const results: any[] = [];
-    for (const article of articles) {
-      if (!article || !article.slots) continue;
-      for (const slot of article.slots) {
-        if (!slot || !slot.sourceUrl) continue;
-        results.push({
-          articleId: article.articleId,
-          articleTitle: article.articleTitle,
-          sourceUrl: slot.sourceUrl,
-          webContent: slot.webContent,
-          classification: slot.classification,
-          originalUrl: slot.originalReportUrl,
-          originalContent: slot.originalContent,
-          isOriginal: slot.isOriginal,
-          summary: slot.summary,
-        });
-      }
-    }
-    return results;
-  });
+  // Refactored to use filter/flatMap after CT-1102 fix
+  const contentClassifications = derive(articleUrlProcessing, (articles: any[]) =>
+    articles
+      .filter((article: any) => article?.slots)
+      .flatMap((article: any) =>
+        article.slots
+          .filter((slot: any) => slot?.sourceUrl)
+          .map((slot: any) => ({
+            articleId: article.articleId,
+            articleTitle: article.articleTitle,
+            sourceUrl: slot.sourceUrl,
+            webContent: slot.webContent,
+            classification: slot.classification,
+            originalUrl: slot.originalReportUrl,
+            originalContent: slot.originalContent,
+            isOriginal: slot.isOriginal,
+            summary: slot.summary,
+          }))
+      )
+  );
 
   // Count total URL slots being processed (for L2/L3 metrics)
   // Now that we process up to 3 URLs per article, we count total slots with non-null URLs

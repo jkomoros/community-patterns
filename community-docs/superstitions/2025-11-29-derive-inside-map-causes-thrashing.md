@@ -1,5 +1,7 @@
 # Derive() Inside Map Callbacks Causes Reactivity Loops
 
+> **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `derive()` callbacks. This superstition is about a different issue: creating `derive()` cells inside `.map()` callbacks creates new cell references on each reactive pass, causing thrashing. This is about object identity/reference tracking. This remains valid.
+
 ## Summary
 
 **Never create `derive()` cells inside `.map()` callbacks.** When deriving values that will be passed to `generateObject`, `fetchData`, or other reactive primitives inside a map, extract the derive outside the map callback. Creating derives inside map iterations causes the framework to see "new" cells on each reactive pass, triggering constant re-evaluation (thrashing).
