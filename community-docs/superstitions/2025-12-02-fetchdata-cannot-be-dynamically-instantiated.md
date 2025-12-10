@@ -176,6 +176,27 @@ This limitation prevents patterns from having:
 3. What's the recommended pattern for "fetch data for each item in a list"?
 4. Would a `fetchDataMany` primitive that takes an array of URLs be feasible?
 
+## Update 2025-12-09: Undefined Guard Workaround
+
+Framework author (Berni) confirmed this is a known timing issue. When accessing derived cells that aggregate fetchData results inside `.map()`, the cell may be **undefined** before the reactive system fully initializes it.
+
+### Workaround: Add undefined guards
+
+When accessing properties of derived cells from fetchData in `.map()`:
+
+```typescript
+// BAD - crashes with "Cannot read properties of undefined (reading 'loading')"
+{derive(starHistory, (sh) => sh.loading ? "Loading..." : `${sh.data.length} points`)}
+
+// GOOD - guard against undefined
+{derive(starHistory, (sh) => {
+  if (!sh) return "Loading...";
+  return sh.loading ? "Loading..." : `${sh.data.length} points`;
+})}
+```
+
+**Note:** Robin is landing a framework fix that will block execution until there is a value, making this guard unnecessary. Until then, always add undefined guards when accessing derived cells that depend on fetchData inside `.map()`.
+
 ## Related
 
 - `2025-12-01-svg-elements-not-supported-in-patterns.md` - another JSX limitation
