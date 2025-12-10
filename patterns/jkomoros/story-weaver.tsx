@@ -194,6 +194,908 @@ interface StoryWeaverOutput {
 }
 
 // =============================================================================
+// HANDLERS (defined outside pattern to avoid accidental closures)
+// =============================================================================
+
+// Helper function to actually apply branch factor change
+function actuallyApplyBranchFactor(
+  levels: Cell<LevelConfig[]>,
+  spindles: Cell<SpindleConfig[]>,
+  levelIndex: number,
+  newFactor: number,
+  currentLevels: LevelConfig[],
+  currentSpindles: SpindleConfig[]
+) {
+  const level = currentLevels[levelIndex];
+  const oldFactor = level.branchFactor;
+
+  // Update level's branch factor
+  currentLevels[levelIndex] = { ...level, branchFactor: newFactor };
+
+  if (newFactor > oldFactor) {
+    // Increasing - create additional spindles for each pinned parent at previous level
+    const previousLevelIndex = levelIndex - 1;
+    if (previousLevelIndex >= 0) {
+      const pinnedParents = currentSpindles.filter(
+        (s) => s.levelIndex === previousLevelIndex && s.pinnedOptionIndex >= 0
+      );
+
+      for (const parent of pinnedParents) {
+        const existingSiblings = currentSpindles.filter((s) => s.parentId === parent.id);
+
+        // Create additional siblings
+        for (let i = oldFactor; i < newFactor; i++) {
+          currentSpindles.push({
+            id: generateId(),
+            levelIndex: levelIndex,
+            positionInLevel: currentSpindles.filter((s) => s.levelIndex === levelIndex).length,
+            siblingIndex: i,
+            siblingCount: newFactor,
+            parentId: parent.id,
+            composedInput: parent.pinnedOutput,
+            extraPrompt: "",
+            pinnedOptionIndex: -1,
+            pinnedOutput: "",
+            parentHashWhenPinned: "",
+            deferGeneration: true, // Don't auto-generate
+          });
+        }
+
+        // Update siblingCount for existing siblings
+        for (const sibling of existingSiblings) {
+          const idx = currentSpindles.findIndex((s) => s.id === sibling.id);
+          if (idx >= 0) {
+            currentSpindles[idx] = { ...currentSpindles[idx], siblingCount: newFactor };
+          }
+        }
+      }
+    }
+  } else {
+    // Decreasing - delete spindles with siblingIndex >= newFactor
+    const spindlesToKeep = currentSpindles.filter(
+      (s) => !(s.levelIndex === levelIndex && s.siblingIndex >= newFactor)
+    );
+
+    // Update siblingCount for remaining spindles at this level
+    for (let i = 0; i < spindlesToKeep.length; i++) {
+      if (spindlesToKeep[i].levelIndex === levelIndex) {
+        spindlesToKeep[i] = { ...spindlesToKeep[i], siblingCount: newFactor };
+      }
+    }
+
+    currentSpindles.length = 0;
+    currentSpindles.push(...spindlesToKeep);
+  }
+
+  levels.set(currentLevels);
+  spindles.set(currentSpindles);
+}
+
+// Generate synopsis ideas
+const generateSynopsisIdeas = handler<unknown, { synopsisIdeasNonce: Cell<number> }>(
+  (_, { synopsisIdeasNonce }) => {
+    synopsisIdeasNonce.set((synopsisIdeasNonce.get() || 0) + 1);
+  }
+);
+
+// Select a synopsis idea - immediately applies it to synopsis text
+const selectSynopsisIdea = handler<
+  unknown,
+  { synopsisText: Cell<string>; synopsisIdeasNonce: Cell<number>; synopsis: string }
+>((_, { synopsisText, synopsisIdeasNonce, synopsis }) => {
+  // Immediately set the synopsis text
+  synopsisText.set(synopsis);
+  // Clear nonce to hide the ideas section
+  synopsisIdeasNonce.set(0);
+});
+
+// Set synopsis text (root spindle)
+const setSynopsis = handler<
+  unknown,
+  { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string>; levels: Cell<LevelConfig[]> }
+>((_, { spindles, synopsisText, levels }) => {
+  const text = synopsisText.get() || "";
+  const current = [...(spindles.get() || [])]; // Copy to make mutable
+  const currentLevels = levels.get() || [];
+  const rootIdx = current.findIndex((s) => s.levelIndex === 0);
+  if (rootIdx >= 0) {
+    const rootSpindle = current[rootIdx];
+    current[rootIdx] = {
+      ...rootSpindle,
+      composedInput: text,
+      pinnedOptionIndex: 0, // Auto-pin for root
+      pinnedOutput: text,
+      parentHashWhenPinned: simpleHash(text),
+    };
+
+    // Check for existing children
+    const existingChildren = current.filter((s) => s.parentId === rootSpindle.id);
+
+    if (existingChildren.length > 0) {
+      // Update existing children's composedInput - keeps same ID to avoid thrashing
+      // The change in composedInput will cause fullPrompt to change, triggering regeneration
+      for (const child of existingChildren) {
+        const childIdx = current.findIndex((s) => s.id === child.id);
+        if (childIdx >= 0) {
+          current[childIdx] = {
+            ...current[childIdx],
+            composedInput: text,
+            // Clear pin since input changed
+            pinnedOptionIndex: -1,
+            pinnedOutput: "",
+            parentHashWhenPinned: "",
+          };
+        }
+      }
+    } else {
+      // Create children for level 1 if it exists and no children yet
+      const level1 = currentLevels[1];
+      if (level1) {
+        const existingAtLevel1 = current.filter((s) => s.levelIndex === 1);
+        let positionInLevel = existingAtLevel1.length;
+
+        for (let i = 0; i < level1.branchFactor; i++) {
+          current.push({
+            id: generateId(),
+            levelIndex: 1,
+            positionInLevel: positionInLevel++,
+            siblingIndex: i,
+            siblingCount: level1.branchFactor,
+            parentId: rootSpindle.id,
+            composedInput: text,
+            extraPrompt: "",
+            pinnedOptionIndex: -1,
+            pinnedOutput: "",
+            parentHashWhenPinned: "",
+          });
+        }
+      }
+    }
+
+    spindles.set(current);
+  }
+});
+
+// Open add level modal
+const openAddLevelModal = handler<
+  unknown,
+  {
+    showAddLevelModal: Cell<boolean>;
+    newLevelTitle: Cell<string>;
+    newLevelPrompt: Cell<string>;
+    newLevelBranch: Cell<number>;
+    levels: Cell<LevelConfig[]>;
+  }
+>((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels }) => {
+  // Set smart defaults based on current level count
+  const currentLevels = levels.get() || [];
+  const levelNum = currentLevels.length;
+  const defaultTitles = ["Story Outline", "Chapters", "Scenes", "Beats", "Details"];
+  const defaultPrompts = [
+    "Create a detailed story outline based on the synopsis.",
+    "Write chapter summaries based on the outline above.",
+    "Break this chapter into detailed scenes.",
+    "Expand this scene into specific beats and moments.",
+    "Add rich details and descriptions.",
+  ];
+  newLevelTitle.set(defaultTitles[levelNum] || `Level ${levelNum}`);
+  newLevelPrompt.set(defaultPrompts[levelNum] || "Continue developing the story.");
+  newLevelBranch.set(1);
+  showAddLevelModal.set(true);
+});
+
+// Close modal
+const closeModal = handler<unknown, { showAddLevelModal: Cell<boolean> }>(
+  (_, { showAddLevelModal }) => {
+    showAddLevelModal.set(false);
+  }
+);
+
+// Add new level
+const addLevel = handler<
+  unknown,
+  {
+    levels: Cell<LevelConfig[]>;
+    spindles: Cell<SpindleConfig[]>;
+    title: Cell<string>;
+    prompt: Cell<string>;
+    branchFactor: Cell<number>;
+    showAddLevelModal: Cell<boolean>;
+  }
+>((_, { levels, spindles, title, prompt, branchFactor, showAddLevelModal }) => {
+  // Read values from Cells
+  const titleVal = title.get() || "";
+  const promptVal = prompt.get() || "";
+  const branchVal = branchFactor.get() || 1;
+
+  const currentLevels = levels.get() || [];
+  const currentSpindles = spindles.get() || [];
+  const newLevelIndex = currentLevels.length;
+
+  // Create new level with actual input values
+  const newLevel: LevelConfig = {
+    id: generateId(),
+    index: newLevelIndex,
+    title: titleVal || "Untitled Level",
+    defaultPrompt: promptVal,
+    branchFactor: branchVal,
+    isRoot: false,
+  };
+
+  levels.set([...currentLevels, newLevel]);
+
+  // Find all pinned spindles at previous level
+  const prevLevelSpindles = currentSpindles.filter(
+    (s) => s.levelIndex === newLevelIndex - 1 && s.pinnedOptionIndex >= 0
+  );
+
+  // Create child spindles for each pinned parent
+  let positionInLevel = 0;
+  const newSpindles: SpindleConfig[] = [];
+
+  for (const parent of prevLevelSpindles) {
+    for (let i = 0; i < newLevel.branchFactor; i++) {
+      newSpindles.push({
+        id: generateId(),
+        levelIndex: newLevelIndex,
+        positionInLevel: positionInLevel++,
+        siblingIndex: i,
+        siblingCount: newLevel.branchFactor,
+        parentId: parent.id,
+        composedInput: parent.pinnedOutput,
+        extraPrompt: "",
+        pinnedOptionIndex: -1,
+        pinnedOutput: "",
+        parentHashWhenPinned: "",
+      });
+    }
+  }
+
+  if (newSpindles.length > 0) {
+    spindles.set([...currentSpindles, ...newSpindles]);
+  }
+
+  showAddLevelModal.set(false);
+});
+
+// Remove a level (only allowed for the last/bottom level, not root)
+const removeLevel = handler<
+  unknown,
+  {
+    levels: Cell<LevelConfig[]>;
+    spindles: Cell<SpindleConfig[]>;
+    levelIndex: Cell<number> | number;
+  }
+>((_, { levels, spindles, levelIndex }) => {
+  const currentLevels = levels.get() || [];
+  const currentSpindles = spindles.get() || [];
+  // Support both Cell and plain number
+  const levelIndexVal = typeof levelIndex === "number" ? levelIndex : levelIndex.get();
+
+  // Safety checks
+  if (levelIndexVal === 0) {
+    console.warn("Cannot remove root level");
+    return;
+  }
+
+  if (levelIndexVal !== currentLevels.length - 1) {
+    console.warn("Can only remove the last level");
+    return;
+  }
+
+  // Remove all spindles at this level
+  const filteredSpindles = currentSpindles.filter((s) => s.levelIndex !== levelIndexVal);
+
+  // Remove the level
+  const filteredLevels = currentLevels.filter((_, idx) => idx !== levelIndexVal);
+
+  // Update both
+  spindles.set(filteredSpindles);
+  levels.set(filteredLevels);
+});
+
+// Pin an option
+// Uses .key().set() for O(1) updates when possible, array replacement only when adding children
+const pinOption = handler<
+  unknown,
+  {
+    spindles: Cell<SpindleConfig[]>;
+    levels: Cell<LevelConfig[]>;
+    spindleId: Cell<string>;
+    optionIndex: number;
+    optionContent: Cell<string>;
+  }
+>((_, { spindles, levels, spindleId, optionIndex, optionContent }) => {
+  const spindlesArray = spindles.get() || [];
+  const currentLevels = levels.get() || [];
+  const spindleIdVal = spindleId.get();
+  const optionContentVal = optionContent.get() || "";
+
+  const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
+  if (spindleIdx < 0) return;
+
+  const spindle = spindlesArray[spindleIdx];
+  const currentPinned = spindle.pinnedOptionIndex;
+
+  // Toggle if clicking same option - just update the one spindle
+  if (currentPinned === optionIndex) {
+    const spindleCell = spindles.key(spindleIdx);
+    spindleCell.set({
+      ...spindle,
+      pinnedOptionIndex: -1,
+      pinnedOutput: "",
+      parentHashWhenPinned: "",
+    });
+    return;
+  }
+
+  // Pin new option - first update the main spindle
+  const spindleCell = spindles.key(spindleIdx);
+  spindleCell.set({
+    ...spindle,
+    pinnedOptionIndex: optionIndex,
+    pinnedOutput: optionContentVal,
+    parentHashWhenPinned: simpleHash(spindle.composedInput),
+  });
+
+  // Update children's composedInput using .key().set()
+  const childIndices: number[] = [];
+  spindlesArray.forEach((s, idx) => {
+    if (s.parentId === spindleIdVal) {
+      childIndices.push(idx);
+    }
+  });
+
+  for (const childIdx of childIndices) {
+    const childCell = spindles.key(childIdx);
+    const childSpindle = childCell.get();
+    childCell.set({
+      ...childSpindle,
+      composedInput: optionContentVal,
+    });
+  }
+
+  // Create new children if next level exists but no children yet
+  // This requires array modification (push), so we do it the old way
+  const nextLevelIndex = spindle.levelIndex + 1;
+  const nextLevel = currentLevels[nextLevelIndex];
+  if (nextLevel && childIndices.length === 0) {
+    // Need to do array push, so get fresh copy and use set()
+    const currentSpindles = [...(spindles.get() || [])];
+    const existingAtLevel = currentSpindles.filter((s) => s.levelIndex === nextLevelIndex);
+    let positionInLevel = existingAtLevel.length;
+
+    for (let i = 0; i < nextLevel.branchFactor; i++) {
+      currentSpindles.push({
+        id: generateId(),
+        levelIndex: nextLevelIndex,
+        positionInLevel: positionInLevel++,
+        siblingIndex: i,
+        siblingCount: nextLevel.branchFactor,
+        parentId: spindleIdVal,
+        composedInput: optionContentVal,
+        extraPrompt: "",
+        pinnedOptionIndex: -1,
+        pinnedOutput: "",
+        parentHashWhenPinned: "",
+        deferGeneration: true, // Don't auto-generate, wait for user to click
+      });
+    }
+    spindles.set(currentSpindles);
+  }
+});
+
+// Respin a spindle
+// Uses .key().set() for O(1) update instead of O(n) array replacement
+const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }>(
+  (_, { spindles, spindleId }) => {
+    const spindleIdVal = spindleId.get();
+    const spindlesArray = spindles.get() || [];
+    const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
+    if (idx >= 0) {
+      const spindleCell = spindles.key(idx);
+      const currentSpindle = spindleCell.get();
+      // Clear pin and force regeneration by incrementing nonce (cache-busting)
+      spindleCell.set({
+        ...currentSpindle,
+        respinNonce: (currentSpindle.respinNonce || 0) + 1,
+        pinnedOptionIndex: -1,
+        pinnedOutput: "",
+        parentHashWhenPinned: "",
+      });
+    }
+  }
+);
+
+// Start generation for a deferred spindle
+// Uses .key().set() for O(1) update instead of O(n) array replacement
+const startGeneration = handler<
+  unknown,
+  { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
+>((_, { spindles, spindleId }) => {
+  const spindleIdVal = spindleId.get();
+  const spindlesArray = spindles.get() || [];
+  const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
+  if (idx >= 0) {
+    // Use .key() to update specific spindle without array replacement
+    const spindleCell = spindles.key(idx);
+    const currentSpindle = spindleCell.get();
+    spindleCell.set({
+      ...currentSpindle,
+      deferGeneration: false,
+    });
+  }
+});
+
+// Set extra prompt
+// Uses .key().set() for O(1) update instead of O(n) array replacement
+const setExtraPrompt = handler<
+  unknown,
+  { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string>; prompt: Cell<string> }
+>((_, { spindles, spindleId, prompt }) => {
+  const spindleIdVal = spindleId.get();
+  const promptVal = prompt.get() || "";
+  const spindlesArray = spindles.get() || [];
+  const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
+  if (idx >= 0) {
+    const spindleCell = spindles.key(idx);
+    const currentSpindle = spindleCell.get();
+    spindleCell.set({
+      ...currentSpindle,
+      extraPrompt: promptVal,
+      // Clear pin when prompt changes
+      pinnedOptionIndex: -1,
+      pinnedOutput: "",
+    });
+  }
+});
+
+// Open edit level modal
+const openEditLevelModal = handler<
+  unknown,
+  {
+    showEditLevelModal: Cell<boolean>;
+    editingLevelIndex: Cell<number>;
+    editLevelTitle: Cell<string>;
+    editLevelPrompt: Cell<string>;
+    levels: Cell<LevelConfig[]>;
+    levelIndex: Cell<number>;
+  }
+>(
+  (
+    _,
+    { showEditLevelModal, editingLevelIndex, editLevelTitle, editLevelPrompt, levels, levelIndex }
+  ) => {
+    const idx = levelIndex.get();
+    const currentLevels = levels.get() || [];
+    const level = currentLevels[idx];
+    if (level) {
+      editingLevelIndex.set(idx);
+      editLevelTitle.set(level.title);
+      editLevelPrompt.set(level.defaultPrompt);
+      showEditLevelModal.set(true);
+    }
+  }
+);
+
+// Close edit level modal
+const closeEditLevelModal = handler<unknown, { showEditLevelModal: Cell<boolean> }>(
+  (_, { showEditLevelModal }) => {
+    showEditLevelModal.set(false);
+  }
+);
+
+// Save edited level
+const saveEditLevel = handler<
+  unknown,
+  {
+    levels: Cell<LevelConfig[]>;
+    editingLevelIndex: Cell<number>;
+    editLevelTitle: Cell<string>;
+    editLevelPrompt: Cell<string>;
+    showEditLevelModal: Cell<boolean>;
+  }
+>(
+  (
+    _,
+    { levels, editingLevelIndex, editLevelTitle, editLevelPrompt, showEditLevelModal }
+  ) => {
+    const idx = editingLevelIndex.get();
+    const newTitle = editLevelTitle.get() || "";
+    const newPrompt = editLevelPrompt.get() || "";
+    const currentLevels = [...(levels.get() || [])];
+
+    if (idx >= 0 && idx < currentLevels.length) {
+      currentLevels[idx] = {
+        ...currentLevels[idx],
+        title: newTitle,
+        defaultPrompt: newPrompt,
+      };
+      levels.set(currentLevels);
+    }
+
+    showEditLevelModal.set(false);
+  }
+);
+
+// Open view prompt modal
+const openViewPromptModal = handler<
+  unknown,
+  {
+    showViewPromptModal: Cell<boolean>;
+    viewPromptSpindleId: Cell<string>;
+    spindleId: Cell<string>;
+  }
+>((_, { showViewPromptModal, viewPromptSpindleId, spindleId }) => {
+  viewPromptSpindleId.set(spindleId.get());
+  showViewPromptModal.set(true);
+});
+
+// Close view prompt modal
+const closeViewPromptModal = handler<unknown, { showViewPromptModal: Cell<boolean> }>(
+  (_, { showViewPromptModal }) => {
+    showViewPromptModal.set(false);
+  }
+);
+
+// Open edit spindle prompt modal
+const openEditSpindlePromptModal = handler<
+  unknown,
+  {
+    showEditSpindlePromptModal: Cell<boolean>;
+    editingSpindlePromptId: Cell<string>;
+    editSpindlePromptText: Cell<string>;
+    spindles: Cell<SpindleConfig[]>;
+    spindleId: Cell<string>;
+  }
+>(
+  (
+    _,
+    {
+      showEditSpindlePromptModal,
+      editingSpindlePromptId,
+      editSpindlePromptText,
+      spindles,
+      spindleId,
+    }
+  ) => {
+    const id = spindleId.get();
+    const currentSpindles = spindles.get() || [];
+    const spindle = currentSpindles.find((s) => s.id === id);
+    if (spindle) {
+      editingSpindlePromptId.set(id);
+      editSpindlePromptText.set(spindle.extraPrompt || "");
+      showEditSpindlePromptModal.set(true);
+    }
+  }
+);
+
+// Close edit spindle prompt modal
+const closeEditSpindlePromptModal = handler<
+  unknown,
+  { showEditSpindlePromptModal: Cell<boolean> }
+>((_, { showEditSpindlePromptModal }) => {
+  showEditSpindlePromptModal.set(false);
+});
+
+// Save spindle prompt
+const saveSpindlePrompt = handler<
+  unknown,
+  {
+    spindles: Cell<SpindleConfig[]>;
+    editingSpindlePromptId: Cell<string>;
+    editSpindlePromptText: Cell<string>;
+    showEditSpindlePromptModal: Cell<boolean>;
+  }
+>(
+  (
+    _,
+    { spindles, editingSpindlePromptId, editSpindlePromptText, showEditSpindlePromptModal }
+  ) => {
+    const id = editingSpindlePromptId.get();
+    const newPrompt = editSpindlePromptText.get() || "";
+    const current = [...(spindles.get() || [])];
+    const idx = current.findIndex((s) => s.id === id);
+    if (idx >= 0) {
+      current[idx] = {
+        ...current[idx],
+        extraPrompt: newPrompt,
+        // Clear pin when prompt changes (forces regeneration)
+        pinnedOptionIndex: -1,
+        pinnedOutput: "",
+        parentHashWhenPinned: "",
+      };
+      spindles.set(current);
+    }
+    showEditSpindlePromptModal.set(false);
+  }
+);
+
+// Clear spindle prompt
+const clearSpindlePrompt = handler<
+  unknown,
+  {
+    spindles: Cell<SpindleConfig[]>;
+    spindleId: Cell<string>;
+  }
+>((_, { spindles, spindleId }) => {
+  const id = spindleId.get();
+  const current = [...(spindles.get() || [])];
+  const idx = current.findIndex((s) => s.id === id);
+  if (idx >= 0) {
+    current[idx] = {
+      ...current[idx],
+      extraPrompt: "",
+      // Clear pin when prompt changes (forces regeneration)
+      pinnedOptionIndex: -1,
+      pinnedOutput: "",
+      parentHashWhenPinned: "",
+    };
+    spindles.set(current);
+  }
+});
+
+// Open edit branch factor modal
+const openEditBranchModal = handler<
+  unknown,
+  {
+    showEditBranchModal: Cell<boolean>;
+    editingBranchLevelIndex: Cell<number>;
+    editBranchFactor: Cell<number>;
+    levels: Cell<LevelConfig[]>;
+    levelIndex: number;
+  }
+>(
+  (
+    _,
+    { showEditBranchModal, editingBranchLevelIndex, editBranchFactor, levels, levelIndex }
+  ) => {
+    const currentLevels = levels.get() || [];
+    const level = currentLevels[levelIndex];
+    if (level) {
+      editingBranchLevelIndex.set(levelIndex);
+      editBranchFactor.set(level.branchFactor);
+      showEditBranchModal.set(true);
+    }
+  }
+);
+
+// Close edit branch factor modal
+const closeEditBranchModal = handler<
+  unknown,
+  { showEditBranchModal: Cell<boolean>; showBranchDeleteWarning: Cell<boolean> }
+>((_, { showEditBranchModal, showBranchDeleteWarning }) => {
+  showEditBranchModal.set(false);
+  showBranchDeleteWarning.set(false);
+});
+
+// Apply branch factor change (may show warning first if decreasing)
+const applyBranchFactor = handler<
+  unknown,
+  {
+    levels: Cell<LevelConfig[]>;
+    spindles: Cell<SpindleConfig[]>;
+    editingBranchLevelIndex: Cell<number>;
+    editBranchFactor: Cell<number>;
+    showEditBranchModal: Cell<boolean>;
+    showBranchDeleteWarning: Cell<boolean>;
+    pendingBranchFactor: Cell<number>;
+  }
+>(
+  (
+    _,
+    {
+      levels,
+      spindles,
+      editingBranchLevelIndex,
+      editBranchFactor,
+      showEditBranchModal,
+      showBranchDeleteWarning,
+      pendingBranchFactor,
+    }
+  ) => {
+    const levelIndex = editingBranchLevelIndex.get();
+    const newFactor = editBranchFactor.get();
+    const currentLevels = [...(levels.get() || [])];
+    const currentSpindles = [...(spindles.get() || [])];
+    const level = currentLevels[levelIndex];
+
+    if (!level) return;
+
+    const oldFactor = level.branchFactor;
+
+    if (newFactor === oldFactor) {
+      // No change
+      showEditBranchModal.set(false);
+      return;
+    }
+
+    if (newFactor < oldFactor) {
+      // Decreasing - count spindles that will be deleted
+      const spindlesToDelete = currentSpindles.filter(
+        (s) => s.levelIndex === levelIndex && s.siblingIndex >= newFactor
+      );
+      if (spindlesToDelete.length > 0) {
+        // Show warning
+        pendingBranchFactor.set(newFactor);
+        showBranchDeleteWarning.set(true);
+        return;
+      }
+    }
+
+    // Apply the change
+    actuallyApplyBranchFactor(
+      levels,
+      spindles,
+      levelIndex,
+      newFactor,
+      currentLevels,
+      currentSpindles
+    );
+    showEditBranchModal.set(false);
+  }
+);
+
+// Confirm branch factor decrease (deletes spindles)
+const confirmBranchDecrease = handler<
+  unknown,
+  {
+    levels: Cell<LevelConfig[]>;
+    spindles: Cell<SpindleConfig[]>;
+    editingBranchLevelIndex: Cell<number>;
+    pendingBranchFactor: Cell<number>;
+    showEditBranchModal: Cell<boolean>;
+    showBranchDeleteWarning: Cell<boolean>;
+  }
+>(
+  (
+    _,
+    {
+      levels,
+      spindles,
+      editingBranchLevelIndex,
+      pendingBranchFactor,
+      showEditBranchModal,
+      showBranchDeleteWarning,
+    }
+  ) => {
+    const levelIndex = editingBranchLevelIndex.get();
+    const newFactor = pendingBranchFactor.get();
+    const currentLevels = [...(levels.get() || [])];
+    const currentSpindles = [...(spindles.get() || [])];
+
+    actuallyApplyBranchFactor(
+      levels,
+      spindles,
+      levelIndex,
+      newFactor,
+      currentLevels,
+      currentSpindles
+    );
+    showBranchDeleteWarning.set(false);
+    showEditBranchModal.set(false);
+  }
+);
+
+// Open option picker modal
+const openOptionPicker = handler<
+  unknown,
+  {
+    showOptionPicker: Cell<boolean>;
+    pickerSpindleId: Cell<string>;
+    pickerPreviewIndex: Cell<number>;
+    spindleId: Cell<string>;
+    currentPinnedIdx: Cell<number>;
+  }
+>(
+  (
+    _,
+    { showOptionPicker, pickerSpindleId, pickerPreviewIndex, spindleId, currentPinnedIdx }
+  ) => {
+    const pinnedIdx = currentPinnedIdx.get();
+    pickerSpindleId.set(spindleId.get());
+    pickerPreviewIndex.set(pinnedIdx >= 0 ? pinnedIdx : 0);
+    showOptionPicker.set(true);
+  }
+);
+
+// Close option picker modal (without pinning)
+const closeOptionPicker = handler<unknown, { showOptionPicker: Cell<boolean> }>(
+  (_, { showOptionPicker }) => {
+    showOptionPicker.set(false);
+  }
+);
+
+// Pin from picker (pins the previewed option and closes)
+// Uses .key().set() for O(1) updates when possible, array replacement only when adding children
+const pinFromPicker = handler<
+  unknown,
+  {
+    spindles: Cell<SpindleConfig[]>;
+    levels: Cell<LevelConfig[]>;
+    pickerSpindleId: Cell<string>;
+    pickerPreviewIndex: Cell<number>;
+    showOptionPicker: Cell<boolean>;
+    optionContent: Cell<string>;
+  }
+>(
+  (
+    _,
+    { spindles, levels, pickerSpindleId, pickerPreviewIndex, showOptionPicker, optionContent }
+  ) => {
+    const spindleIdVal = pickerSpindleId.get();
+    const optionIndex = pickerPreviewIndex.get();
+    const optionContentVal = optionContent.get() || "";
+    const spindlesArray = spindles.get() || [];
+    const currentLevels = levels.get() || [];
+
+    const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
+    if (spindleIdx < 0) {
+      showOptionPicker.set(false);
+      return;
+    }
+
+    const spindle = spindlesArray[spindleIdx];
+
+    // Pin the option using .key().set()
+    const spindleCell = spindles.key(spindleIdx);
+    spindleCell.set({
+      ...spindle,
+      pinnedOptionIndex: optionIndex,
+      pinnedOutput: optionContentVal,
+      parentHashWhenPinned: simpleHash(spindle.composedInput),
+    });
+
+    // Update children's composedInput using .key().set()
+    const childIndices: number[] = [];
+    spindlesArray.forEach((s, idx) => {
+      if (s.parentId === spindleIdVal) {
+        childIndices.push(idx);
+      }
+    });
+
+    for (const childIdx of childIndices) {
+      const childCell = spindles.key(childIdx);
+      const childSpindle = childCell.get();
+      childCell.set({
+        ...childSpindle,
+        composedInput: optionContentVal,
+      });
+    }
+
+    // Create new children if next level exists but no children yet
+    // This requires array modification (push), so we do it the old way
+    const nextLevelIndex = spindle.levelIndex + 1;
+    const nextLevel = currentLevels[nextLevelIndex];
+    if (nextLevel && childIndices.length === 0) {
+      const currentSpindles = [...(spindles.get() || [])];
+      const existingAtLevel = currentSpindles.filter((s) => s.levelIndex === nextLevelIndex);
+      let positionInLevel = existingAtLevel.length;
+
+      for (let i = 0; i < nextLevel.branchFactor; i++) {
+        currentSpindles.push({
+          id: generateId(),
+          levelIndex: nextLevelIndex,
+          positionInLevel: positionInLevel++,
+          siblingIndex: i,
+          siblingCount: nextLevel.branchFactor,
+          parentId: spindleIdVal,
+          composedInput: optionContentVal,
+          extraPrompt: "",
+          pinnedOptionIndex: -1,
+          pinnedOutput: "",
+          parentHashWhenPinned: "",
+          deferGeneration: true,
+        });
+      }
+      spindles.set(currentSpindles);
+    }
+
+    showOptionPicker.set(false);
+  }
+);
+
+// =============================================================================
 // PATTERN
 // =============================================================================
 
@@ -228,845 +1130,9 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     synopsisIdeasNonce,
   }) => {
     // =========================================================================
-    // HANDLERS
+    // NOTE: Handlers are defined at module level (above pattern definition)
+    // to avoid accidentally closing over reactive values.
     // =========================================================================
-
-    // Generate synopsis ideas
-    const generateSynopsisIdeas = handler<
-      unknown,
-      { synopsisIdeasNonce: Cell<number> }
-    >((_, { synopsisIdeasNonce }) => {
-      synopsisIdeasNonce.set((synopsisIdeasNonce.get() || 0) + 1);
-    });
-
-    // Select a synopsis idea - immediately applies it to synopsis text
-    const selectSynopsisIdea = handler<
-      unknown,
-      { synopsisText: Cell<string>; synopsisIdeasNonce: Cell<number>; synopsis: string }
-    >((_, { synopsisText, synopsisIdeasNonce, synopsis }) => {
-      // Immediately set the synopsis text
-      synopsisText.set(synopsis);
-      // Clear nonce to hide the ideas section
-      synopsisIdeasNonce.set(0);
-    });
-
-    // Set synopsis text (root spindle)
-    const setSynopsis = handler<
-      unknown,
-      { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string>; levels: Cell<LevelConfig[]> }
-    >((_, { spindles, synopsisText, levels }) => {
-      const text = synopsisText.get() || "";
-      const current = [...(spindles.get() || [])]; // Copy to make mutable
-      const currentLevels = levels.get() || [];
-      const rootIdx = current.findIndex((s) => s.levelIndex === 0);
-      if (rootIdx >= 0) {
-        const rootSpindle = current[rootIdx];
-        current[rootIdx] = {
-          ...rootSpindle,
-          composedInput: text,
-          pinnedOptionIndex: 0, // Auto-pin for root
-          pinnedOutput: text,
-          parentHashWhenPinned: simpleHash(text),
-        };
-
-        // Check for existing children
-        const existingChildren = current.filter((s) => s.parentId === rootSpindle.id);
-
-        if (existingChildren.length > 0) {
-          // Update existing children's composedInput - keeps same ID to avoid thrashing
-          // The change in composedInput will cause fullPrompt to change, triggering regeneration
-          for (const child of existingChildren) {
-            const childIdx = current.findIndex((s) => s.id === child.id);
-            if (childIdx >= 0) {
-              current[childIdx] = {
-                ...current[childIdx],
-                composedInput: text,
-                // Clear pin since input changed
-                pinnedOptionIndex: -1,
-                pinnedOutput: "",
-                parentHashWhenPinned: "",
-              };
-            }
-          }
-        } else {
-          // Create children for level 1 if it exists and no children yet
-          const level1 = currentLevels[1];
-          if (level1) {
-            const existingAtLevel1 = current.filter((s) => s.levelIndex === 1);
-            let positionInLevel = existingAtLevel1.length;
-
-            for (let i = 0; i < level1.branchFactor; i++) {
-              current.push({
-                id: generateId(),
-                levelIndex: 1,
-                positionInLevel: positionInLevel++,
-                siblingIndex: i,
-                siblingCount: level1.branchFactor,
-                parentId: rootSpindle.id,
-                composedInput: text,
-                extraPrompt: "",
-                pinnedOptionIndex: -1,
-                pinnedOutput: "",
-                parentHashWhenPinned: "",
-              });
-            }
-          }
-        }
-
-        spindles.set(current);
-      }
-    });
-
-    // Open add level modal
-    const openAddLevelModal = handler<
-      unknown,
-      {
-        showAddLevelModal: Cell<boolean>;
-        newLevelTitle: Cell<string>;
-        newLevelPrompt: Cell<string>;
-        newLevelBranch: Cell<number>;
-        levels: Cell<LevelConfig[]>;
-      }
-    >((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels }) => {
-      // Set smart defaults based on current level count
-      const currentLevels = levels.get() || [];
-      const levelNum = currentLevels.length;
-      const defaultTitles = ["Story Outline", "Chapters", "Scenes", "Beats", "Details"];
-      const defaultPrompts = [
-        "Create a detailed story outline based on the synopsis.",
-        "Write chapter summaries based on the outline above.",
-        "Break this chapter into detailed scenes.",
-        "Expand this scene into specific beats and moments.",
-        "Add rich details and descriptions.",
-      ];
-      newLevelTitle.set(defaultTitles[levelNum] || `Level ${levelNum}`);
-      newLevelPrompt.set(defaultPrompts[levelNum] || "Continue developing the story.");
-      newLevelBranch.set(1);
-      showAddLevelModal.set(true);
-    });
-
-    // Close modal
-    const closeModal = handler<unknown, { showAddLevelModal: Cell<boolean> }>(
-      (_, { showAddLevelModal }) => {
-        showAddLevelModal.set(false);
-      }
-    );
-
-    // Add new level
-    const addLevel = handler<
-      unknown,
-      {
-        levels: Cell<LevelConfig[]>;
-        spindles: Cell<SpindleConfig[]>;
-        title: Cell<string>;
-        prompt: Cell<string>;
-        branchFactor: Cell<number>;
-        showAddLevelModal: Cell<boolean>;
-      }
-    >((_, { levels, spindles, title, prompt, branchFactor, showAddLevelModal }) => {
-      // Read values from Cells
-      const titleVal = title.get() || "";
-      const promptVal = prompt.get() || "";
-      const branchVal = branchFactor.get() || 1;
-
-      const currentLevels = levels.get() || [];
-      const currentSpindles = spindles.get() || [];
-      const newLevelIndex = currentLevels.length;
-
-      // Create new level with actual input values
-      const newLevel: LevelConfig = {
-        id: generateId(),
-        index: newLevelIndex,
-        title: titleVal || "Untitled Level",
-        defaultPrompt: promptVal,
-        branchFactor: branchVal,
-        isRoot: false,
-      };
-
-      levels.set([...currentLevels, newLevel]);
-
-      // Find all pinned spindles at previous level
-      const prevLevelSpindles = currentSpindles.filter(
-        (s) => s.levelIndex === newLevelIndex - 1 && s.pinnedOptionIndex >= 0
-      );
-
-      // Create child spindles for each pinned parent
-      let positionInLevel = 0;
-      const newSpindles: SpindleConfig[] = [];
-
-      for (const parent of prevLevelSpindles) {
-        for (let i = 0; i < newLevel.branchFactor; i++) {
-          newSpindles.push({
-            id: generateId(),
-            levelIndex: newLevelIndex,
-            positionInLevel: positionInLevel++,
-            siblingIndex: i,
-            siblingCount: newLevel.branchFactor,
-            parentId: parent.id,
-            composedInput: parent.pinnedOutput,
-            extraPrompt: "",
-            pinnedOptionIndex: -1,
-            pinnedOutput: "",
-            parentHashWhenPinned: "",
-          });
-        }
-      }
-
-      if (newSpindles.length > 0) {
-        spindles.set([...currentSpindles, ...newSpindles]);
-      }
-
-      showAddLevelModal.set(false);
-    });
-
-    // Remove a level (only allowed for the last/bottom level, not root)
-    const removeLevel = handler<
-      unknown,
-      {
-        levels: Cell<LevelConfig[]>;
-        spindles: Cell<SpindleConfig[]>;
-        levelIndex: Cell<number> | number;
-      }
-    >((_, { levels, spindles, levelIndex }) => {
-      const currentLevels = levels.get() || [];
-      const currentSpindles = spindles.get() || [];
-      // Support both Cell and plain number
-      const levelIndexVal = typeof levelIndex === "number" ? levelIndex : levelIndex.get();
-
-      // Safety checks
-      if (levelIndexVal === 0) {
-        console.warn("Cannot remove root level");
-        return;
-      }
-
-      if (levelIndexVal !== currentLevels.length - 1) {
-        console.warn("Can only remove the last level");
-        return;
-      }
-
-      // Remove all spindles at this level
-      const filteredSpindles = currentSpindles.filter(
-        (s) => s.levelIndex !== levelIndexVal
-      );
-
-      // Remove the level
-      const filteredLevels = currentLevels.filter(
-        (_, idx) => idx !== levelIndexVal
-      );
-
-      // Update both
-      spindles.set(filteredSpindles);
-      levels.set(filteredLevels);
-    });
-
-    // Pin an option
-    // Uses .key().set() for O(1) updates when possible, array replacement only when adding children
-    const pinOption = handler<
-      unknown,
-      {
-        spindles: Cell<SpindleConfig[]>;
-        levels: Cell<LevelConfig[]>;
-        spindleId: Cell<string>;
-        optionIndex: number;
-        optionContent: Cell<string>;
-      }
-    >((_, { spindles, levels, spindleId, optionIndex, optionContent }) => {
-      const spindlesArray = spindles.get() || [];
-      const currentLevels = levels.get() || [];
-      const spindleIdVal = spindleId.get();
-      const optionContentVal = optionContent.get() || "";
-
-      const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-      if (spindleIdx < 0) return;
-
-      const spindle = spindlesArray[spindleIdx];
-      const currentPinned = spindle.pinnedOptionIndex;
-
-      // Toggle if clicking same option - just update the one spindle
-      if (currentPinned === optionIndex) {
-        const spindleCell = spindles.key(spindleIdx);
-        spindleCell.set({
-          ...spindle,
-          pinnedOptionIndex: -1,
-          pinnedOutput: "",
-          parentHashWhenPinned: "",
-        });
-        return;
-      }
-
-      // Pin new option - first update the main spindle
-      const spindleCell = spindles.key(spindleIdx);
-      spindleCell.set({
-        ...spindle,
-        pinnedOptionIndex: optionIndex,
-        pinnedOutput: optionContentVal,
-        parentHashWhenPinned: simpleHash(spindle.composedInput),
-      });
-
-      // Update children's composedInput using .key().set()
-      const childIndices: number[] = [];
-      spindlesArray.forEach((s, idx) => {
-        if (s.parentId === spindleIdVal) {
-          childIndices.push(idx);
-        }
-      });
-
-      for (const childIdx of childIndices) {
-        const childCell = spindles.key(childIdx);
-        const childSpindle = childCell.get();
-        childCell.set({
-          ...childSpindle,
-          composedInput: optionContentVal,
-        });
-      }
-
-      // Create new children if next level exists but no children yet
-      // This requires array modification (push), so we do it the old way
-      const nextLevelIndex = spindle.levelIndex + 1;
-      const nextLevel = currentLevels[nextLevelIndex];
-      if (nextLevel && childIndices.length === 0) {
-        // Need to do array push, so get fresh copy and use set()
-        const currentSpindles = [...(spindles.get() || [])];
-        const existingAtLevel = currentSpindles.filter(
-          (s) => s.levelIndex === nextLevelIndex
-        );
-        let positionInLevel = existingAtLevel.length;
-
-        for (let i = 0; i < nextLevel.branchFactor; i++) {
-          currentSpindles.push({
-            id: generateId(),
-            levelIndex: nextLevelIndex,
-            positionInLevel: positionInLevel++,
-            siblingIndex: i,
-            siblingCount: nextLevel.branchFactor,
-            parentId: spindleIdVal,
-            composedInput: optionContentVal,
-            extraPrompt: "",
-            pinnedOptionIndex: -1,
-            pinnedOutput: "",
-            parentHashWhenPinned: "",
-            deferGeneration: true, // Don't auto-generate, wait for user to click
-          });
-        }
-        spindles.set(currentSpindles);
-      }
-    });
-
-    // Respin a spindle
-    // Uses .key().set() for O(1) update instead of O(n) array replacement
-    const respinSpindle = handler<
-      unknown,
-      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
-    >((_, { spindles, spindleId }) => {
-      const spindleIdVal = spindleId.get();
-      const spindlesArray = spindles.get() || [];
-      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-      if (idx >= 0) {
-        const spindleCell = spindles.key(idx);
-        const currentSpindle = spindleCell.get();
-        // Clear pin and force regeneration by incrementing nonce (cache-busting)
-        spindleCell.set({
-          ...currentSpindle,
-          respinNonce: (currentSpindle.respinNonce || 0) + 1,
-          pinnedOptionIndex: -1,
-          pinnedOutput: "",
-          parentHashWhenPinned: "",
-        });
-      }
-    });
-
-    // Start generation for a deferred spindle
-    // Uses .key().set() for O(1) update instead of O(n) array replacement
-    const startGeneration = handler<
-      unknown,
-      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
-    >((_, { spindles, spindleId }) => {
-      const spindleIdVal = spindleId.get();
-      const spindlesArray = spindles.get() || [];
-      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-      if (idx >= 0) {
-        // Use .key() to update specific spindle without array replacement
-        const spindleCell = spindles.key(idx);
-        const currentSpindle = spindleCell.get();
-        spindleCell.set({
-          ...currentSpindle,
-          deferGeneration: false,
-        });
-      }
-    });
-
-    // Set extra prompt
-    // Uses .key().set() for O(1) update instead of O(n) array replacement
-    const setExtraPrompt = handler<
-      unknown,
-      { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string>; prompt: Cell<string> }
-    >((_, { spindles, spindleId, prompt }) => {
-      const spindleIdVal = spindleId.get();
-      const promptVal = prompt.get() || "";
-      const spindlesArray = spindles.get() || [];
-      const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-      if (idx >= 0) {
-        const spindleCell = spindles.key(idx);
-        const currentSpindle = spindleCell.get();
-        spindleCell.set({
-          ...currentSpindle,
-          extraPrompt: promptVal,
-          // Clear pin when prompt changes
-          pinnedOptionIndex: -1,
-          pinnedOutput: "",
-        });
-      }
-    });
-
-    // Open edit level modal
-    const openEditLevelModal = handler<
-      unknown,
-      {
-        showEditLevelModal: Cell<boolean>;
-        editingLevelIndex: Cell<number>;
-        editLevelTitle: Cell<string>;
-        editLevelPrompt: Cell<string>;
-        levels: Cell<LevelConfig[]>;
-        levelIndex: Cell<number>;
-      }
-    >((_, { showEditLevelModal, editingLevelIndex, editLevelTitle, editLevelPrompt, levels, levelIndex }) => {
-      const idx = levelIndex.get();
-      const currentLevels = levels.get() || [];
-      const level = currentLevels[idx];
-      if (level) {
-        editingLevelIndex.set(idx);
-        editLevelTitle.set(level.title);
-        editLevelPrompt.set(level.defaultPrompt);
-        showEditLevelModal.set(true);
-      }
-    });
-
-    // Close edit level modal
-    const closeEditLevelModal = handler<unknown, { showEditLevelModal: Cell<boolean> }>(
-      (_, { showEditLevelModal }) => {
-        showEditLevelModal.set(false);
-      }
-    );
-
-    // Save edited level
-    const saveEditLevel = handler<
-      unknown,
-      {
-        levels: Cell<LevelConfig[]>;
-        editingLevelIndex: Cell<number>;
-        editLevelTitle: Cell<string>;
-        editLevelPrompt: Cell<string>;
-        showEditLevelModal: Cell<boolean>;
-      }
-    >((_, { levels, editingLevelIndex, editLevelTitle, editLevelPrompt, showEditLevelModal }) => {
-      const idx = editingLevelIndex.get();
-      const newTitle = editLevelTitle.get() || "";
-      const newPrompt = editLevelPrompt.get() || "";
-      const currentLevels = [...(levels.get() || [])];
-
-      if (idx >= 0 && idx < currentLevels.length) {
-        currentLevels[idx] = {
-          ...currentLevels[idx],
-          title: newTitle,
-          defaultPrompt: newPrompt,
-        };
-        levels.set(currentLevels);
-      }
-
-      showEditLevelModal.set(false);
-    });
-
-    // Open view prompt modal
-    const openViewPromptModal = handler<
-      unknown,
-      {
-        showViewPromptModal: Cell<boolean>;
-        viewPromptSpindleId: Cell<string>;
-        spindleId: Cell<string>;
-      }
-    >((_, { showViewPromptModal, viewPromptSpindleId, spindleId }) => {
-      viewPromptSpindleId.set(spindleId.get());
-      showViewPromptModal.set(true);
-    });
-
-    // Close view prompt modal
-    const closeViewPromptModal = handler<unknown, { showViewPromptModal: Cell<boolean> }>(
-      (_, { showViewPromptModal }) => {
-        showViewPromptModal.set(false);
-      }
-    );
-
-    // Open edit spindle prompt modal
-    const openEditSpindlePromptModal = handler<
-      unknown,
-      {
-        showEditSpindlePromptModal: Cell<boolean>;
-        editingSpindlePromptId: Cell<string>;
-        editSpindlePromptText: Cell<string>;
-        spindles: Cell<SpindleConfig[]>;
-        spindleId: Cell<string>;
-      }
-    >((_, { showEditSpindlePromptModal, editingSpindlePromptId, editSpindlePromptText, spindles, spindleId }) => {
-      const id = spindleId.get();
-      const currentSpindles = spindles.get() || [];
-      const spindle = currentSpindles.find((s) => s.id === id);
-      if (spindle) {
-        editingSpindlePromptId.set(id);
-        editSpindlePromptText.set(spindle.extraPrompt || "");
-        showEditSpindlePromptModal.set(true);
-      }
-    });
-
-    // Close edit spindle prompt modal
-    const closeEditSpindlePromptModal = handler<unknown, { showEditSpindlePromptModal: Cell<boolean> }>(
-      (_, { showEditSpindlePromptModal }) => {
-        showEditSpindlePromptModal.set(false);
-      }
-    );
-
-    // Save spindle prompt
-    const saveSpindlePrompt = handler<
-      unknown,
-      {
-        spindles: Cell<SpindleConfig[]>;
-        editingSpindlePromptId: Cell<string>;
-        editSpindlePromptText: Cell<string>;
-        showEditSpindlePromptModal: Cell<boolean>;
-      }
-    >((_, { spindles, editingSpindlePromptId, editSpindlePromptText, showEditSpindlePromptModal }) => {
-      const id = editingSpindlePromptId.get();
-      const newPrompt = editSpindlePromptText.get() || "";
-      const current = [...(spindles.get() || [])];
-      const idx = current.findIndex((s) => s.id === id);
-      if (idx >= 0) {
-        current[idx] = {
-          ...current[idx],
-          extraPrompt: newPrompt,
-          // Clear pin when prompt changes (forces regeneration)
-          pinnedOptionIndex: -1,
-          pinnedOutput: "",
-          parentHashWhenPinned: "",
-        };
-        spindles.set(current);
-      }
-      showEditSpindlePromptModal.set(false);
-    });
-
-    // Clear spindle prompt
-    const clearSpindlePrompt = handler<
-      unknown,
-      {
-        spindles: Cell<SpindleConfig[]>;
-        spindleId: Cell<string>;
-      }
-    >((_, { spindles, spindleId }) => {
-      const id = spindleId.get();
-      const current = [...(spindles.get() || [])];
-      const idx = current.findIndex((s) => s.id === id);
-      if (idx >= 0) {
-        current[idx] = {
-          ...current[idx],
-          extraPrompt: "",
-          // Clear pin when prompt changes (forces regeneration)
-          pinnedOptionIndex: -1,
-          pinnedOutput: "",
-          parentHashWhenPinned: "",
-        };
-        spindles.set(current);
-      }
-    });
-
-    // =========================================================================
-    // BRANCH FACTOR HANDLERS
-    // =========================================================================
-
-    // Open edit branch factor modal
-    const openEditBranchModal = handler<
-      unknown,
-      {
-        showEditBranchModal: Cell<boolean>;
-        editingBranchLevelIndex: Cell<number>;
-        editBranchFactor: Cell<number>;
-        levels: Cell<LevelConfig[]>;
-        levelIndex: number;
-      }
-    >((_, { showEditBranchModal, editingBranchLevelIndex, editBranchFactor, levels, levelIndex }) => {
-      const currentLevels = levels.get() || [];
-      const level = currentLevels[levelIndex];
-      if (level) {
-        editingBranchLevelIndex.set(levelIndex);
-        editBranchFactor.set(level.branchFactor);
-        showEditBranchModal.set(true);
-      }
-    });
-
-    // Close edit branch factor modal
-    const closeEditBranchModal = handler<
-      unknown,
-      { showEditBranchModal: Cell<boolean>; showBranchDeleteWarning: Cell<boolean> }
-    >((_, { showEditBranchModal, showBranchDeleteWarning }) => {
-      showEditBranchModal.set(false);
-      showBranchDeleteWarning.set(false);
-    });
-
-    // Apply branch factor change (may show warning first if decreasing)
-    const applyBranchFactor = handler<
-      unknown,
-      {
-        levels: Cell<LevelConfig[]>;
-        spindles: Cell<SpindleConfig[]>;
-        editingBranchLevelIndex: Cell<number>;
-        editBranchFactor: Cell<number>;
-        showEditBranchModal: Cell<boolean>;
-        showBranchDeleteWarning: Cell<boolean>;
-        pendingBranchFactor: Cell<number>;
-      }
-    >((_, { levels, spindles, editingBranchLevelIndex, editBranchFactor, showEditBranchModal, showBranchDeleteWarning, pendingBranchFactor }) => {
-      const levelIndex = editingBranchLevelIndex.get();
-      const newFactor = editBranchFactor.get();
-      const currentLevels = [...(levels.get() || [])];
-      const currentSpindles = [...(spindles.get() || [])];
-      const level = currentLevels[levelIndex];
-
-      if (!level) return;
-
-      const oldFactor = level.branchFactor;
-
-      if (newFactor === oldFactor) {
-        // No change
-        showEditBranchModal.set(false);
-        return;
-      }
-
-      if (newFactor < oldFactor) {
-        // Decreasing - count spindles that will be deleted
-        const spindlesToDelete = currentSpindles.filter(
-          s => s.levelIndex === levelIndex && s.siblingIndex >= newFactor
-        );
-        if (spindlesToDelete.length > 0) {
-          // Show warning
-          pendingBranchFactor.set(newFactor);
-          showBranchDeleteWarning.set(true);
-          return;
-        }
-      }
-
-      // Apply the change
-      actuallyApplyBranchFactor(levels, spindles, levelIndex, newFactor, currentLevels, currentSpindles);
-      showEditBranchModal.set(false);
-    });
-
-    // Confirm branch factor decrease (deletes spindles)
-    const confirmBranchDecrease = handler<
-      unknown,
-      {
-        levels: Cell<LevelConfig[]>;
-        spindles: Cell<SpindleConfig[]>;
-        editingBranchLevelIndex: Cell<number>;
-        pendingBranchFactor: Cell<number>;
-        showEditBranchModal: Cell<boolean>;
-        showBranchDeleteWarning: Cell<boolean>;
-      }
-    >((_, { levels, spindles, editingBranchLevelIndex, pendingBranchFactor, showEditBranchModal, showBranchDeleteWarning }) => {
-      const levelIndex = editingBranchLevelIndex.get();
-      const newFactor = pendingBranchFactor.get();
-      const currentLevels = [...(levels.get() || [])];
-      const currentSpindles = [...(spindles.get() || [])];
-
-      actuallyApplyBranchFactor(levels, spindles, levelIndex, newFactor, currentLevels, currentSpindles);
-      showBranchDeleteWarning.set(false);
-      showEditBranchModal.set(false);
-    });
-
-    // Helper function to actually apply branch factor change
-    function actuallyApplyBranchFactor(
-      levels: Cell<LevelConfig[]>,
-      spindles: Cell<SpindleConfig[]>,
-      levelIndex: number,
-      newFactor: number,
-      currentLevels: LevelConfig[],
-      currentSpindles: SpindleConfig[]
-    ) {
-      const level = currentLevels[levelIndex];
-      const oldFactor = level.branchFactor;
-
-      // Update level's branch factor
-      currentLevels[levelIndex] = { ...level, branchFactor: newFactor };
-
-      if (newFactor > oldFactor) {
-        // Increasing - create additional spindles for each pinned parent at previous level
-        const previousLevelIndex = levelIndex - 1;
-        if (previousLevelIndex >= 0) {
-          const pinnedParents = currentSpindles.filter(
-            s => s.levelIndex === previousLevelIndex && s.pinnedOptionIndex >= 0
-          );
-
-          for (const parent of pinnedParents) {
-            const existingSiblings = currentSpindles.filter(
-              s => s.parentId === parent.id
-            );
-
-            // Create additional siblings
-            for (let i = oldFactor; i < newFactor; i++) {
-              currentSpindles.push({
-                id: generateId(),
-                levelIndex: levelIndex,
-                positionInLevel: currentSpindles.filter(s => s.levelIndex === levelIndex).length,
-                siblingIndex: i,
-                siblingCount: newFactor,
-                parentId: parent.id,
-                composedInput: parent.pinnedOutput,
-                extraPrompt: "",
-                pinnedOptionIndex: -1,
-                pinnedOutput: "",
-                parentHashWhenPinned: "",
-                deferGeneration: true, // Don't auto-generate
-              });
-            }
-
-            // Update siblingCount for existing siblings
-            for (const sibling of existingSiblings) {
-              const idx = currentSpindles.findIndex(s => s.id === sibling.id);
-              if (idx >= 0) {
-                currentSpindles[idx] = { ...currentSpindles[idx], siblingCount: newFactor };
-              }
-            }
-          }
-        }
-      } else {
-        // Decreasing - delete spindles with siblingIndex >= newFactor
-        const spindlesToKeep = currentSpindles.filter(
-          s => !(s.levelIndex === levelIndex && s.siblingIndex >= newFactor)
-        );
-
-        // Update siblingCount for remaining spindles at this level
-        for (let i = 0; i < spindlesToKeep.length; i++) {
-          if (spindlesToKeep[i].levelIndex === levelIndex) {
-            spindlesToKeep[i] = { ...spindlesToKeep[i], siblingCount: newFactor };
-          }
-        }
-
-        currentSpindles.length = 0;
-        currentSpindles.push(...spindlesToKeep);
-      }
-
-      levels.set(currentLevels);
-      spindles.set(currentSpindles);
-    }
-
-    // =========================================================================
-    // OPTION PICKER HANDLERS
-    // =========================================================================
-
-    // Open option picker modal
-    const openOptionPicker = handler<
-      unknown,
-      {
-        showOptionPicker: Cell<boolean>;
-        pickerSpindleId: Cell<string>;
-        pickerPreviewIndex: Cell<number>;
-        spindleId: Cell<string>;
-        currentPinnedIdx: Cell<number>;
-      }
-    >((_, { showOptionPicker, pickerSpindleId, pickerPreviewIndex, spindleId, currentPinnedIdx }) => {
-      const pinnedIdx = currentPinnedIdx.get();
-      pickerSpindleId.set(spindleId.get());
-      pickerPreviewIndex.set(pinnedIdx >= 0 ? pinnedIdx : 0);
-      showOptionPicker.set(true);
-    });
-
-    // Close option picker modal (without pinning)
-    const closeOptionPicker = handler<unknown, { showOptionPicker: Cell<boolean> }>(
-      (_, { showOptionPicker }) => {
-        showOptionPicker.set(false);
-      }
-    );
-
-    // Pin from picker (pins the previewed option and closes)
-    // Uses .key().set() for O(1) updates when possible, array replacement only when adding children
-    const pinFromPicker = handler<
-      unknown,
-      {
-        spindles: Cell<SpindleConfig[]>;
-        levels: Cell<LevelConfig[]>;
-        pickerSpindleId: Cell<string>;
-        pickerPreviewIndex: Cell<number>;
-        showOptionPicker: Cell<boolean>;
-        optionContent: Cell<string>;
-      }
-    >((_, { spindles, levels, pickerSpindleId, pickerPreviewIndex, showOptionPicker, optionContent }) => {
-      const spindleIdVal = pickerSpindleId.get();
-      const optionIndex = pickerPreviewIndex.get();
-      const optionContentVal = optionContent.get() || "";
-      const spindlesArray = spindles.get() || [];
-      const currentLevels = levels.get() || [];
-
-      const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-      if (spindleIdx < 0) {
-        showOptionPicker.set(false);
-        return;
-      }
-
-      const spindle = spindlesArray[spindleIdx];
-
-      // Pin the option using .key().set()
-      const spindleCell = spindles.key(spindleIdx);
-      spindleCell.set({
-        ...spindle,
-        pinnedOptionIndex: optionIndex,
-        pinnedOutput: optionContentVal,
-        parentHashWhenPinned: simpleHash(spindle.composedInput),
-      });
-
-      // Update children's composedInput using .key().set()
-      const childIndices: number[] = [];
-      spindlesArray.forEach((s, idx) => {
-        if (s.parentId === spindleIdVal) {
-          childIndices.push(idx);
-        }
-      });
-
-      for (const childIdx of childIndices) {
-        const childCell = spindles.key(childIdx);
-        const childSpindle = childCell.get();
-        childCell.set({
-          ...childSpindle,
-          composedInput: optionContentVal,
-        });
-      }
-
-      // Create new children if next level exists but no children yet
-      // This requires array modification (push), so we do it the old way
-      const nextLevelIndex = spindle.levelIndex + 1;
-      const nextLevel = currentLevels[nextLevelIndex];
-      if (nextLevel && childIndices.length === 0) {
-        const currentSpindles = [...(spindles.get() || [])];
-        const existingAtLevel = currentSpindles.filter(
-          (s) => s.levelIndex === nextLevelIndex
-        );
-        let positionInLevel = existingAtLevel.length;
-
-        for (let i = 0; i < nextLevel.branchFactor; i++) {
-          currentSpindles.push({
-            id: generateId(),
-            levelIndex: nextLevelIndex,
-            positionInLevel: positionInLevel++,
-            siblingIndex: i,
-            siblingCount: nextLevel.branchFactor,
-            parentId: spindleIdVal,
-            composedInput: optionContentVal,
-            extraPrompt: "",
-            pinnedOptionIndex: -1,
-            pinnedOutput: "",
-            parentHashWhenPinned: "",
-            deferGeneration: true,
-          });
-        }
-        spindles.set(currentSpindles);
-      }
-
-      showOptionPicker.set(false);
-    });
 
     // =========================================================================
     // REACTIVE PROCESSING
