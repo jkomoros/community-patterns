@@ -7,6 +7,8 @@ Personal collection of Common Tools patterns demonstrating various framework fea
 #### `cheeseboard-schedule.tsx`
 Fetch and display Cheeseboard pizza schedule with ingredient preferences.
 
+![cheeseboard-schedule](screenshots/cheeseboard-schedule.png)
+
 **Interesting features:**
 - External data fetching with fetchData
 - **Idempotent side effects in computed** - auto-syncs fetched pizzas to history (reference implementation for `blessed/reactivity.md`)
@@ -79,6 +81,8 @@ Import calendar events from Google Calendar.
 #### `hotel-membership-gmail-agent.tsx`
 Extract hotel loyalty membership numbers from Gmail using LLM analysis.
 Composes the `gmail-agentic-search.tsx` base pattern.
+
+![hotel-membership-gmail-agent](screenshots/hotel-membership-gmail-agent.png)
 
 **Interesting features:**
 - Pattern composition using GmailAgenticSearch base pattern
@@ -237,6 +241,8 @@ Brainstorm and weave story ideas using AI prompts. Generate options, pin favorit
 
 #### `substack-summarizer.tsx`
 Summarize Substack newsletter content.
+
+![substack-summarizer](screenshots/substack-summarizer.png)
 
 #### `assumption-surfacer.tsx`
 LLM chat that surfaces and tracks assumptions in conversation.
