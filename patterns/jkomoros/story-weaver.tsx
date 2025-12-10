@@ -21,7 +21,6 @@ import {
   ifElse,
   NAME,
   pattern,
-  toSchema,
   UI,
 } from "commontools";
 
@@ -1143,7 +1142,6 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           model: "anthropic:claude-sonnet-4-5",
           system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
           prompt: fullPrompt,
-          schema: toSchema<GenerationResult>(),
         }),
         { pending: false, result: undefined, error: undefined }
       );
@@ -1264,7 +1262,6 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           model: "anthropic:claude-sonnet-4-5",
           system: "You are a concise summarizer.",
           prompt: summaryPrompt,
-          schema: toSchema<SummaryResult>(),
         }),
         { pending: false, result: undefined }
       );
@@ -1425,7 +1422,6 @@ Make them diverse in genre and tone:
         model: "anthropic:claude-sonnet-4-5",
         system: "You are a creative writing assistant specializing in story development. Generate compelling, original story premises.",
         prompt: synopsisIdeasPrompt,
-        schema: toSchema<SynopsisIdeasResult>(),
       }),
       { pending: false, result: undefined, error: undefined }
     );

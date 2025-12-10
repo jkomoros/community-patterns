@@ -155,7 +155,7 @@ ct.render(googleAuthCharm)
 - [ ] Review for ID usage, refactor to cell.equals()
 - [ ] Move handlers outside pattern function
 - [ ] Review ifElse usage for branch execution assumptions
-- [ ] Remove redundant schema: parameters
+- [x] Remove redundant schema: parameters
 
 ### Gmail Agentic Search Fixes
 
