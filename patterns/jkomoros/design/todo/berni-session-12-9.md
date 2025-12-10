@@ -152,7 +152,7 @@ ct.render(googleAuthCharm)
 
 ### Story Weaver Fixes
 
-- [ ] Review for ID usage, refactor to cell.equals()
+- [x] Review for ID usage, refactor to cell.equals() - **NOT FEASIBLE**: IDs are architectural (parent-child tree structure uses `parentId` as foreign key). Would require full data model rewrite. Current approach works correctly.
 - [x] Move handlers outside pattern function
 - [x] Review ifElse usage for branch execution assumptions
 - [x] Remove redundant schema: parameters
