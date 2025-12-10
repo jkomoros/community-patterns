@@ -25,6 +25,14 @@ import {
 } from "commontools";
 
 // =============================================================================
+// CONSTANTS
+// =============================================================================
+
+// Sentinel value for "no spindle selected" in modal state
+// Using large positive number because framework bug prevents negative defaults
+const NO_SPINDLE_SELECTED = 999999;
+
+// =============================================================================
 // TYPES
 // =============================================================================
 
@@ -136,7 +144,7 @@ function simpleHash(str: string): string {
  * 3. Updates all parentIndex values to point to the correct new positions
  */
 function remapParentIndices(
-  spindles: SpindleConfig[],
+  spindles: readonly SpindleConfig[],
   deletedIndices: Set<number>
 ): SpindleConfig[] {
   // Build old -> new index mapping
@@ -163,7 +171,7 @@ function remapParentIndices(
  * Returns array of child indices.
  */
 function findChildIndices(
-  spindles: SpindleConfig[],
+  spindles: readonly SpindleConfig[],
   parentIdx: number
 ): number[] {
   const childIndices: number[] = [];
@@ -201,11 +209,11 @@ interface StoryWeaverInput {
 
   // View Prompt Modal state
   showViewPromptModal?: Default<boolean, false>;
-  viewPromptSpindleIndex?: Default<number, -1>; // -1 = none selected
+  viewPromptSpindleIndex?: Default<number, 999999>; // 999999 = none selected (framework bug: negative defaults not supported)
 
   // Edit Spindle Prompt Modal state
   showEditSpindlePromptModal?: Default<boolean, false>;
-  editingSpindlePromptIndex?: Default<number, -1>; // -1 = none selected
+  editingSpindlePromptIndex?: Default<number, 999999>; // 999999 = none selected
   editSpindlePromptText?: Default<string, "">;
 
   // Edit Branch Factor Modal state
@@ -217,7 +225,7 @@ interface StoryWeaverInput {
 
   // Option Picker Modal state
   showOptionPicker?: Default<boolean, false>;
-  pickerSpindleIndex?: Default<number, -1>; // -1 = none selected
+  pickerSpindleIndex?: Default<number, 999999>; // 999999 = none selected
   pickerPreviewIndex?: Default<number, 0>;
 
   // Root synopsis input
@@ -569,7 +577,7 @@ const pinOption = handler<
   const spindleIdx = spindleIndex.get();
   const optionContentVal = optionContent.get() || "";
 
-  if (spindleIdx < 0 || spindleIdx >= spindlesArray.length) return;
+  if (spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED || spindleIdx >= spindlesArray.length) return;
 
   const spindle = spindlesArray[spindleIdx];
   const currentPinned = spindle.pinnedOptionIndex;
@@ -1077,7 +1085,7 @@ const pinFromPicker = handler<
     const spindlesArray = spindles.get() || [];
     const currentLevels = levels.get() || [];
 
-    if (spindleIdx < 0 || spindleIdx >= spindlesArray.length) {
+    if (spindleIdx < 0 || spindleIdx >= NO_SPINDLE_SELECTED || spindleIdx >= spindlesArray.length) {
       showOptionPicker.set(false);
       return;
     }
@@ -1471,7 +1479,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         levels: LevelConfig[];
         viewPromptSpindleIndex: number;
       }) => {
-        if (!deps.spindles || !deps.levels || deps.viewPromptSpindleIndex < 0) return null;
+        if (!deps.spindles || !deps.levels || deps.viewPromptSpindleIndex >= NO_SPINDLE_SELECTED) return null;
         if (deps.viewPromptSpindleIndex >= deps.spindles.length) return null;
 
         const spindle = deps.spindles[deps.viewPromptSpindleIndex];
