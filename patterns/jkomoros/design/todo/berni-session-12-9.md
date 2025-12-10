@@ -185,14 +185,39 @@ ct.render(googleAuthCharm)
 - [x] Update scanning condition - **REVERTED** (approach didn't work)
 - [x] Handler calls refreshTokenStream.send() - **REVERTED** (approach didn't work)
 
-**Framework limitation:**
-- wish() does not preserve Stream.send() on wished charm outputs
-- This is a framework bug/limitation that needs to be addressed
-- See `patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md` for full details
+**UPDATE: SOLVED!** (December 10, 2024)
+
+Berni clarified the correct pattern:
+> "It just needs to know on the handler type that it wants a stream to send to, analogous to how handlers declare Cell for what they want to write to"
+
+**The working pattern:**
+1. Extract stream from wished charm via derive (appears as opaque `$stream` object)
+2. Pass it to a handler that declares `Stream<T>` in its type signature
+3. Framework provides callable stream inside the handler
+
+```typescript
+// Extract stream (will be opaque at derive time)
+const refreshTokenStream = derive(wishedCharm, (charm) => charm?.refreshToken || null);
+
+// Handler declares Stream<T> - framework unwraps it
+const attemptRefresh = handler<
+  Record<string, never>,
+  { refreshStream: Stream<Record<string, never>> }
+>((_event, { refreshStream }) => {
+  refreshStream.send({});  // This works!
+});
+
+// Pass stream to handler
+<button onClick={attemptRefresh({ refreshStream: refreshTokenStream })} />
+```
+
+**Test confirmed this works** - the refresh handler in the auth charm was triggered via cross-charm stream.send().
 
 **Test charms available at:**
 - `patterns/jkomoros/WIP/google-auth-short-ttl.tsx`
 - `patterns/jkomoros/WIP/test-auth-consumer.tsx`
+
+See `patterns/jkomoros/issues/ISSUE-Wish-Does-Not-Expose-Stream-Methods.md` for full test results.
 
 ---
 

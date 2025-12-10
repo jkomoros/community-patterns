@@ -122,15 +122,71 @@ The only current workaround is **direct pattern composition** (importing and ins
 - Testing with local dev server (localhost:8000)
 - Both charms in same space (`auth-test`)
 
+## Insight from Berni (Framework Author)
+
+Berni clarified that `$stream` is the expected marker for streams. The key insight:
+
+> "It just needs to know on the handler type that it wants a stream to send to, analogous to how handlers declare Cell for what they want to write to"
+
+**The pattern should be:**
+1. Extract the stream from the wished charm via derive
+2. Pass it directly to the handler
+3. Declare `Stream<T>` in the handler's type signature
+
+```typescript
+// Extract stream from wished charm
+const refreshTokenStream = derive(wishedCharm, (charm) => charm?.refreshToken || null);
+
+// Handler declares Stream<T> in its signature
+const attemptRefresh = handler<
+  Record<string, never>,
+  { refreshStream: Stream<Record<string, never>> }
+>((_event, { refreshStream }) => {
+  // Framework should provide callable stream here
+  refreshStream.send({}, onCommit);
+});
+
+// Pass stream to handler
+<button onClick={attemptRefresh({ refreshStream: refreshTokenStream })} />
+```
+
+## TEST RESULT: SUCCESS!
+
+**Berni's approach works!** When declaring `Stream<T>` in the handler signature:
+
+```
+refreshStream type: object
+refreshStream keys: runtime, tx, synced, listeners, _frame, _link, _causeContainer, _kind
+typeof refreshStream.send: function
+Found stream with .send() - calling it...
+refreshStream.send({}) called successfully
+```
+
+The handler received a callable stream with `.send()` method, and the cross-charm refresh handler was triggered in the auth charm.
+
+**Key insight:** The reactive derive check (`refreshStreamInfo`) still shows "NO" because it's checking at derive time when the object is still opaque. But when passed to a handler with `Stream<T>` in the signature, the framework "unwraps" it into a callable stream.
+
+## Resolution
+
+**This is NOT a bug.** The pattern is:
+
+1. Extract the stream via derive (it will appear as opaque object with `$stream`)
+2. Pass it to a handler that declares `Stream<T>` in its type signature
+3. The framework will provide a callable stream inside the handler
+
+The confusion arose because:
+- Reactive derives see the opaque `$stream` marker
+- Handlers with proper type signatures get the unwrapped callable stream
+
 ## Questions for Framework Authors
 
-1. Is this the expected behavior of wish()? Should streams be callable on wished charms?
+1. ~~Is this the expected behavior of wish()? Should streams be callable on wished charms?~~
+   **Answered:** Yes, when passed to handlers with `Stream<T>` type declaration.
 
-2. If streams shouldn't be callable via wish(), what is the recommended pattern for cross-charm actions like token refresh?
+2. ~~If the handler signature approach doesn't work, what's the recommended pattern?~~
+   **Answered:** It works! This IS the recommended pattern.
 
-3. Is there a way to "unwrap" the stream from the opaque object to get a callable reference?
-
-4. Should wish() preserve stream methods, or is there a different API for cross-charm stream invocation?
+3. Should there be documentation about this pattern? It's not obvious that streams from wished charms need to be passed through handler signatures to become callable.
 
 ## Related
 

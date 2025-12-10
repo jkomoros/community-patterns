@@ -20,6 +20,7 @@ import {
   handler,
   NAME,
   pattern,
+  Stream,
   UI,
   wish,
 } from "commontools";
@@ -40,10 +41,11 @@ type Auth = {
 };
 
 // What we expect from the google-auth charm via wish
+// Using Stream<T> type as Berni suggested
 type GoogleAuthCharm = {
   auth: Auth;
   scopes?: string[];
-  refreshToken?: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+  refreshToken?: Stream<Record<string, never>>;
   timeRemaining?: number;
   isExpired?: boolean;
 };
@@ -90,6 +92,10 @@ export default pattern<Input, Output>(
 
     const wishedCharm = derive(wishResult, (wr: any) => wr?.result || null);
     const wishError = derive(wishResult, (wr: any) => wr?.error || null);
+
+    // Extract the refreshToken stream from the wished charm
+    // Per Berni: Pass this directly to handlers with Stream<T> type in handler signature
+    const refreshTokenStream = derive(wishedCharm, (charm: any) => charm?.refreshToken || null);
 
     // Get auth data (if available)
     const auth = derive(wishedCharm, (charm: any) => charm?.auth || null);
@@ -174,48 +180,31 @@ export default pattern<Input, Output>(
     });
 
     // Handler to attempt refresh via stream
+    // KEY INSIGHT from Berni: Pass the stream directly to the handler with Stream<T> type
+    // in the handler signature. The framework will give you a callable stream if you
+    // declare it properly, analogous to how handlers declare Cell<T> for what they write to.
     const attemptRefresh = handler<
       Record<string, never>,
-      { testLog: Cell<string[]> }
-    >(async (_event, { testLog: logCell }) => {
+      { testLog: Cell<string[]>; refreshStream: Stream<Record<string, never>> }
+    >(async (_event, { testLog: logCell, refreshStream }) => {
       const logs = logCell.get() || [];
       const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
 
       const results: string[] = [];
       results.push(`[${timestamp}] === ATTEMPTING REFRESH ===`);
+      results.push(`  refreshStream type: ${typeof refreshStream}`);
+      results.push(`  refreshStream keys: ${refreshStream ? Object.keys(refreshStream).join(", ") : "null"}`);
+      results.push(`  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`);
 
-      const charm = wishedCharm.get ? wishedCharm.get() : wishedCharm;
-
-      if (!charm) {
-        results.push(`  ERROR: No charm available`);
+      if (!refreshStream) {
+        results.push(`  ERROR: No stream provided`);
         logCell.set([...logs, ...results]);
         return;
       }
 
-      // Try to find the stream
-      let stream = charm.refreshToken;
-
-      // If it's a cell-like thing, try to get the value
-      if (stream && typeof stream.get === "function" && typeof stream.send !== "function") {
-        results.push(`  refreshToken appears to be a Cell, trying .get()...`);
-        try {
-          stream = stream.get();
-          results.push(`  .get() returned: ${typeof stream}`);
-        } catch (e) {
-          results.push(`  .get() ERROR: ${e}`);
-        }
-      }
-
-      if (!stream) {
-        results.push(`  ERROR: No stream found`);
-        logCell.set([...logs, ...results]);
-        return;
-      }
-
-      if (typeof stream.send !== "function") {
-        results.push(`  ERROR: stream.send is not a function`);
-        results.push(`  stream type: ${typeof stream}`);
-        results.push(`  stream value: ${JSON.stringify(stream)?.slice(0, 200)}`);
+      if (typeof refreshStream.send !== "function") {
+        results.push(`  ERROR: refreshStream.send is not a function`);
+        results.push(`  stream value: ${JSON.stringify(refreshStream)?.slice(0, 200)}`);
         logCell.set([...logs, ...results]);
         return;
       }
@@ -224,32 +213,10 @@ export default pattern<Input, Output>(
       logCell.set([...logs, ...results]);
 
       // Attempt to call the stream
+      // Note: Stream.send() only takes event, no onCommit callback
       try {
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Timeout after 10 seconds"));
-          }, 10000);
-
-          stream.send({}, (tx: any) => {
-            clearTimeout(timeout);
-            const status = tx?.status?.();
-            const statusResults: string[] = [];
-            statusResults.push(`[${new Date().toISOString().split("T")[1].slice(0, 12)}] onCommit callback fired`);
-            statusResults.push(`  tx.status(): ${JSON.stringify(status)}`);
-
-            if (status?.status === "done") {
-              statusResults.push(`  SUCCESS: Refresh completed`);
-              logCell.set([...logCell.get(), ...statusResults]);
-              resolve();
-            } else {
-              statusResults.push(`  FAILURE: ${status?.error || "Unknown error"}`);
-              logCell.set([...logCell.get(), ...statusResults]);
-              reject(new Error(status?.error || "Refresh failed"));
-            }
-          });
-        });
-
-        const successLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] Refresh stream.send() completed successfully`];
+        refreshStream.send({});
+        const successLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] refreshStream.send({}) called successfully`];
         logCell.set([...logCell.get(), ...successLog]);
       } catch (e) {
         const errorLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] Refresh ERROR: ${e}`];
@@ -358,7 +325,7 @@ export default pattern<Input, Output>(
             </button>
 
             <button
-              onClick={attemptRefresh({ testLog })}
+              onClick={attemptRefresh({ testLog, refreshStream: refreshTokenStream })}
               style={{
                 padding: "10px 16px",
                 backgroundColor: "#22c55e",
