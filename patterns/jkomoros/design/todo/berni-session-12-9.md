@@ -152,7 +152,7 @@ ct.render(googleAuthCharm)
 
 ### Story Weaver Fixes
 
-- [x] Review for ID usage, refactor to cell.equals() - **NOT FEASIBLE**: IDs are architectural (parent-child tree structure uses `parentId` as foreign key). Would require full data model rewrite. Current approach works correctly.
+- [x] Review for ID usage, refactor to cell.equals() - **COMPLETED** (branch: `story-weaver-cell-refs`): Full data model refactor from string IDs to array indices. Uses `parentIndex: number | null` instead of `parentId: string | null`. Added `remapParentIndices()` helper for index stability. Discovered framework bug: negative defaults not supported in schema (use 999999 sentinel).
 - [x] Move handlers outside pattern function
 - [x] Review ifElse usage for branch execution assumptions
 - [x] Remove redundant schema: parameters
