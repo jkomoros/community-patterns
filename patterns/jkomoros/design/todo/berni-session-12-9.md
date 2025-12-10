@@ -181,3 +181,31 @@ ct.render(googleAuthCharm)
 - Performance debugging tools are being built
 - Robin has a change coming that will prevent calls when data doesn't match schema
 - The scheduler is currently "push" (eager) and will eventually move to "pull"
+
+---
+
+## Post-Session Update (2024-12-09)
+
+### ID→Index Refactor: Completed
+
+The refactor from string IDs to array indices was **successfully completed** on branch `story-weaver-cell-refs`:
+- Removed manual `id` and `parentId` fields from SpindleConfig
+- Using `parentIndex: number | null` for parent references
+- Added `remapParentIndices()` helper for index stability on deletions
+- Handlers moved outside pattern function
+- Using conditional prompts instead of ifElse for generation control
+
+**This addresses Berni's "Don't use IDs" guidance.**
+
+### Performance Issue: STILL UNRESOLVED
+
+**The reactive loop performance issue was NOT fixed by the refactor.**
+
+During acceptance testing after the refactor:
+- Pattern still becomes unresponsive after entering a synopsis and clicking "Start Story"
+- Page eventually times out (Playwright snapshots fail with 5s timeout)
+- This is the same behavior observed in the debugging session
+
+**The root cause of the reactive loop (transactions 3000→8000+) was never identified.**
+
+The refactor made the code more idiomatic but did not address the underlying performance problem. Further investigation is needed, potentially with the debugging tools Berni mentioned are being built.

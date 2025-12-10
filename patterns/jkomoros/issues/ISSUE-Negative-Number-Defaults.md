@@ -49,9 +49,38 @@ interface PatternInput {
 
 ## Root Cause
 
-The framework's TypeScript-to-schema conversion doesn't properly handle negative number literals. In the TypeScript AST, negative numbers are represented as a `PrefixUnaryExpression` (the `-` operator) applied to a positive number, not as a single negative number literal.
+**CONFIRMED FRAMEWORK BUG** (not user error)
 
-The schema generator appears to expect positive numbers only and fails when it encounters a negative value.
+**Location:** `/Users/alex/Code/labs/packages/ts-transformers/src/transformers/schema-generator.ts` line 125
+
+**Problematic code:**
+```typescript
+if (typeof schema === "number") return factory.createNumericLiteral(schema);
+```
+
+The TypeScript Compiler API's `createNumericLiteral()` function has an internal assertion that rejects negative numbers:
+```typescript
+Debug.assert(text.charCodeAt(0) !== 45 /* minus */,
+  "Negative numbers should be created in combination with createPrefixUnaryExpression");
+```
+
+**The fix** (for framework authors):
+```typescript
+if (typeof schema === "number") {
+  if (schema < 0) {
+    return factory.createPrefixUnaryExpression(
+      ts.SyntaxKind.MinusToken,
+      factory.createNumericLiteral(Math.abs(schema))
+    );
+  }
+  return factory.createNumericLiteral(schema);
+}
+```
+
+This is a well-documented TypeScript Compiler API limitation that has affected other projects:
+- [openapi-ts/openapi-typescript#1659](https://github.com/openapi-ts/openapi-typescript/issues/1659)
+- [hey-api/openapi-ts#466](https://github.com/hey-api/openapi-ts/issues/466)
+- [microsoft/TypeScript#31461](https://github.com/microsoft/TypeScript/issues/31461)
 
 ---
 
