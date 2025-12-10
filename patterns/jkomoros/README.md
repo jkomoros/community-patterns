@@ -222,6 +222,159 @@ Brainstorm and weave story ideas using AI prompts. Generate options, pin favorit
 #### `substack-summarizer.tsx`
 Summarize Substack newsletter content.
 
+#### `assumption-surfacer.tsx`
+LLM chat that surfaces and tracks assumptions in conversation.
+
+**Interesting features:**
+- Analyzes each assistant response for hidden assumptions
+- Shows alternatives for each assumption with selection UI
+- Tracks user corrections to build persistent context
+- Avoids CPU loops using direct display of generateObject results
+
+#### `calendar-event-manager.tsx`
+Create, update, delete, and RSVP to Google Calendar events with mandatory user confirmation.
+
+**Interesting features:**
+- Full CRUD operations for calendar events
+- Mandatory user confirmation before any modification
+- Security gate pattern for sensitive operations
+- Supports event creation, updates, deletion, and RSVP responses
+
+#### `calendar-viewer.tsx`
+View calendar events synced via the apple-sync CLI tool.
+
+**Interesting features:**
+- Displays events from Apple Calendar synced locally
+- Timeline view with date grouping
+- Works with local SQLite database from CLI sync
+
+#### `codenames-helper.tsx`
+Helper for the Codenames board game. Upload photos of the board and keycard for AI-assisted clue generation.
+
+**Interesting features:**
+- Photo extraction of game board (5x5 word grid)
+- Keycard color extraction (red/blue/neutral/assassin)
+- AI-powered clue suggestions with reasoning
+- Manual JSON schema workaround for nested arrays
+
+#### `family.tsx`
+Family unit pattern for tracking reciprocal hosting relationships.
+
+**Interesting features:**
+- Links to person.tsx charms for family members
+- Address storage for location matching
+- Discoverable via wish("#family") when favorited
+- Part of the hosting-tracker ecosystem
+
+#### `favorite-foods-gmail-agent.tsx`
+Gmail agent that extracts food preferences from emails using agentic search.
+
+**Interesting features:**
+- Uses gmail-agentic-search base pattern
+- Searches delivery orders, reservations, recipes
+- Uses elegant defineItemSchema + listTool API (eliminates 3x redundancy)
+- Extracts cuisine, dishes, restaurants with confidence scores
+
+#### `github-auth.tsx`
+GitHub Personal Access Token authentication for GitHub API access.
+
+**Interesting features:**
+- PAT-based auth (classic tokens, no scopes for read-only)
+- Token validation with user info display
+- Rate limit tracking
+- Discoverable via wish("#githubAuth") when favorited
+
+#### `github-repo-card.tsx`
+Display stats for a single GitHub repository.
+
+**Interesting features:**
+- Repo metadata (stars, forks, language, description)
+- Star growth sparkline via API sampling
+- Commit activity bar chart
+- Momentum indicator (accelerating/steady/decelerating)
+- Designed for composition via ct-render
+
+#### `gmail-agentic-search.tsx`
+Base pattern for building Gmail-based agentic searchers. Handles auth and provides tools for LLM agents.
+
+**Interesting features:**
+- Reusable composition pattern for Gmail agents
+- Provides searchGmail tool for LLM agent use
+- Manages Google Auth via wish
+- Supports custom result schemas and suggested queries
+- Used by hotel-membership, favorite-foods, person-research agents
+
+#### `gmail-label-manager.tsx`
+Add or remove labels from emails with mandatory user confirmation.
+
+**Interesting features:**
+- Batch label operations on multiple messages
+- Shows available labels for selection
+- Mandatory confirmation before any modification
+- Security gate pattern for Gmail modifications
+
+#### `gmail-search-registry.tsx`
+Community query database for sharing effective Gmail search queries.
+
+**Interesting features:**
+- Centralized registry for Gmail search patterns
+- Queries grouped by agent type (identified by source URL)
+- Upvote/downvote system for query quality
+- Discoverable via wish("#gmailSearchRegistry")
+
+#### `gmail-sender.tsx`
+Send emails via Gmail API with mandatory user confirmation.
+
+**Interesting features:**
+- Compose emails with to/cc/bcc, subject, body
+- Thread reply support via message/thread IDs
+- Mandatory confirmation showing exact email content
+- Security gate pattern for email sending
+
+#### `google-auth-personal.tsx` / `google-auth-work.tsx`
+Google Auth wrapper patterns that add account type tags.
+
+**Interesting features:**
+- Wraps base google-auth pattern
+- Adds #googleAuthPersonal or #googleAuthWork tags
+- Enables multi-account discovery via wish
+
+#### `google-auth-switcher.tsx`
+Post-hoc Google account classification after login.
+
+**Interesting features:**
+- Log in first, classify account type after seeing email
+- Better UX than pre-hoc account selection
+- Creates appropriate wrapper pattern and navigates to it
+
+#### `hosting-tracker.tsx`
+Track reciprocal hosting between families to maintain balanced relationships.
+
+**Interesting features:**
+- Dashboard showing overdue/balanced families
+- Manual and calendar-based event entry
+- Rule-based event classification with LLM suggestions
+- Integrates with family.tsx and calendar patterns
+
+#### `person-research-gmail-agent.tsx`
+Gmail agent that researches information about a person from your email history.
+
+**Interesting features:**
+- Links to person.tsx via wish("#person") or manual name input
+- Builds dynamic queries based on name and email
+- Outputs markdown "agentic notes" with footnoted sources
+- Uses gmail-agentic-search base pattern
+
+#### `smart-rubric.tsx`
+Decision making tool with weighted multi-dimensional scoring.
+
+**Interesting features:**
+- Dynamic dimension management (categorical and numeric types)
+- Reactive score calculation with derive()
+- Manual ranking override with up/down buttons
+- LLM-powered "Quick Add" extracts dimension values from descriptions
+- Cell.equals() for Cell identity comparison
+
 ---
 
 ## WIP Patterns
@@ -237,11 +390,20 @@ Demo pattern for ct-autocomplete $value binding in single-select and multi-selec
 - "Already added" items shown at bottom with remove functionality
 - Custom values with "Add X" option
 
-#### `WIP/codenames-helper.tsx`
-Helper for the Codenames board game. Includes PRD document.
-
 #### `WIP/favorites-debug.tsx`
 Debugging utilities for the favorites system.
+
+#### `WIP/github-momentum-tracker.tsx`
+Track GitHub repo momentum across multiple repos (in development).
+
+#### `WIP/imessage-viewer.tsx`
+View iMessage conversations synced via apple-sync CLI.
+
+#### `WIP/notes-viewer.tsx`
+View Apple Notes synced via apple-sync CLI.
+
+#### `WIP/reminders-viewer.tsx`
+View Apple Reminders synced via apple-sync CLI.
 
 #### `WIP/map-test-100-items.tsx`
 Performance testing pattern for mapping over large arrays.
@@ -249,11 +411,8 @@ Performance testing pattern for mapping over large arrays.
 #### `WIP/reduce-experiment.tsx`
 Framework experiments with reduce operations.
 
-#### `WIP/smart-rubric.tsx`
-AI-powered grading rubric system.
-
 #### `WIP/test-*.tsx` and `WIP/wish-*.tsx`
-Various test patterns for framework features.
+Various test and reproduction patterns for framework features and bug reports.
 
 ---
 

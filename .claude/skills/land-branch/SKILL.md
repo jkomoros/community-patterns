@@ -160,6 +160,55 @@ cd ../labs && deno task ct charm new \
 3. Re-deploy to verify the fix
 4. Commit the fix before proceeding
 
+## Step 2.6: Verify Pattern README is Up to Date
+
+**IMPORTANT:** Before creating a PR, verify that `patterns/$GITHUB_USER/README.md` is up to date for any patterns touched in this branch.
+
+```bash
+# Get list of changed pattern files
+CHANGED_PATTERNS=$(git diff --name-only $MAIN_REMOTE/main...HEAD -- 'patterns/*/[^W]*.tsx' 'patterns/*/WIP/*.tsx')
+
+if [ -n "$CHANGED_PATTERNS" ]; then
+  echo "Patterns changed in this branch:"
+  echo "$CHANGED_PATTERNS"
+  echo ""
+  echo "⚠️  Verify README.md is updated for these patterns!"
+fi
+```
+
+**For each changed pattern, check:**
+
+1. **New patterns** - Add a complete entry to README.md:
+   - Pattern name as heading
+   - One-line description
+   - "Interesting features" bullet list highlighting notable implementation details
+   - Place in correct section (Stable Patterns or WIP Patterns)
+
+2. **Significantly modified patterns** - Review the existing entry:
+   - Does the description still match what the pattern does?
+   - Are the "Interesting features" still accurate?
+   - Did you add new features worth mentioning?
+
+3. **Patterns moved from WIP to root** - Update both sections:
+   - Remove from WIP Patterns section
+   - Add to Stable Patterns section with full description
+
+**Example README entry format:**
+```markdown
+#### `pattern-name.tsx`
+One-line description of what this pattern does.
+
+**Interesting features:**
+- Notable implementation detail or framework feature used
+- Interesting pattern or technique
+- Integration with other patterns
+```
+
+**If README needs updating:**
+1. Edit `patterns/$GITHUB_USER/README.md` to add/update pattern entries
+2. Commit the README update
+3. Continue with creating the PR
+
 ## Step 3: Create PR
 
 ```bash
@@ -244,34 +293,6 @@ git pull upstream main && \
 git push origin main
 ```
 
-## Step 4.5: Verify README is Up to Date
-
-**IMPORTANT:** Before landing, verify that `patterns/$GITHUB_USER/README.md` is up to date.
-
-```bash
-# Check if any patterns were added/modified
-CHANGED_PATTERNS=$(git diff --name-only $MAIN_REMOTE/main...HEAD -- 'patterns/$GITHUB_USER/*.tsx')
-
-if [ -n "$CHANGED_PATTERNS" ]; then
-  echo "Patterns changed in this branch:"
-  echo "$CHANGED_PATTERNS"
-  echo ""
-  echo "⚠️  Verify README.md includes entries for any NEW patterns!"
-  echo "   Check: patterns/$GITHUB_USER/README.md"
-fi
-```
-
-**What to check:**
-- New patterns should be added to the appropriate section in README.md
-- Pattern descriptions should be accurate and up to date
-- If a pattern was significantly changed, update its description
-- WIP patterns should be documented in the WIP section
-
-**If README needs updating:**
-1. Edit `patterns/$GITHUB_USER/README.md` to add/update pattern entries
-2. Commit the README update
-3. Continue with the merge
-
 ## Important Notes
 
 - **Always uses `--rebase`** for merging (preserves commit history)
@@ -279,4 +300,4 @@ fi
 - **Force-with-lease** is safe - it only pushes if no one else pushed
 - If the PR needs review, stop after Step 3 and wait for approval
 - For self-merging (when you have write access), all steps can run automatically
-- **Always verify README.md** is current with pattern changes
+- **Always verify README.md** is current with pattern changes (Step 2.6)
