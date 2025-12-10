@@ -1201,16 +1201,19 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           !deps.isRoot && deps.fullPrompt.trim() !== "" && !deps.config?.deferGeneration
       );
 
-      // Generate options - only when shouldGenerate is true
-      const generation = ifElse(
-        shouldGenerate,
-        generateObject<GenerationResult>({
-          model: "anthropic:claude-sonnet-4-5",
-          system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
-          prompt: fullPrompt,
-        }),
-        { pending: false, result: undefined, error: undefined }
+      // Generate options - conditional prompt prevents LLM call when shouldGenerate is false
+      // (empty string prompt causes generateObject to return immediately without API call)
+      const conditionalPrompt = derive(
+        { shouldGenerate, fullPrompt },
+        (deps: { shouldGenerate: boolean; fullPrompt: string }) =>
+          deps.shouldGenerate ? deps.fullPrompt : ""
       );
+
+      const generation = generateObject<GenerationResult>({
+        model: "anthropic:claude-sonnet-4-5",
+        system: `You are a creative writing assistant. Generate ${NUM_OPTIONS} distinct options as requested. Each option should take a meaningfully different creative approach.`,
+        prompt: conditionalPrompt,
+      });
 
       // Extract options (fixed slots)
       const option0 = derive(
@@ -1316,21 +1319,18 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
       });
 
       // Summary - only generate when pinned
+      // (empty string prompt causes generateObject to return immediately without API call)
       const hasPinnedOutput = derive(pinnedOutput, (o: string | null) => !!o && o.trim() !== "");
       const summaryPrompt = derive(
         pinnedOutput,
         (o: string | null) =>
           o ? `${o}\n\n---\n\nSummarize the above in 2-3 concise sentences.` : ""
       );
-      const summaryGen = ifElse(
-        hasPinnedOutput,
-        generateObject<SummaryResult>({
-          model: "anthropic:claude-sonnet-4-5",
-          system: "You are a concise summarizer.",
-          prompt: summaryPrompt,
-        }),
-        { pending: false, result: undefined }
-      );
+      const summaryGen = generateObject<SummaryResult>({
+        model: "anthropic:claude-sonnet-4-5",
+        system: "You are a concise summarizer.",
+        prompt: summaryPrompt,
+      });
       const summary = derive(
         { pinnedOutput, summaryGen },
         (deps: {
@@ -1468,10 +1468,12 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
       (s: SpindleConfig[]) => s.some((sp) => sp.levelIndex > 0)
     );
 
+    // Conditional prompt - empty string prevents LLM call when shouldGenerateIdeas is false
     const synopsisIdeasPrompt = derive(
-      synopsisIdeasNonce,
-      (nonce: number) =>
-        `Generate 4 creative story synopsis ideas. Each should be a compelling premise for a novel or screenplay.
+      { shouldGenerateIdeas, synopsisIdeasNonce },
+      (deps: { shouldGenerateIdeas: boolean; synopsisIdeasNonce: number }) =>
+        deps.shouldGenerateIdeas
+          ? `Generate 4 creative story synopsis ideas. Each should be a compelling premise for a novel or screenplay.
 
 Make them diverse in genre and tone:
 - One could be literary/dramatic
@@ -1479,18 +1481,15 @@ Make them diverse in genre and tone:
 - One could be fantasy/sci-fi
 - One could be contemporary/realistic
 
-[Generation attempt: ${nonce}]`
+[Generation attempt: ${deps.synopsisIdeasNonce}]`
+          : ""
     );
 
-    const synopsisIdeasGeneration = ifElse(
-      shouldGenerateIdeas,
-      generateObject<SynopsisIdeasResult>({
-        model: "anthropic:claude-sonnet-4-5",
-        system: "You are a creative writing assistant specializing in story development. Generate compelling, original story premises.",
-        prompt: synopsisIdeasPrompt,
-      }),
-      { pending: false, result: undefined, error: undefined }
-    );
+    const synopsisIdeasGeneration = generateObject<SynopsisIdeasResult>({
+      model: "anthropic:claude-sonnet-4-5",
+      system: "You are a creative writing assistant specializing in story development. Generate compelling, original story premises.",
+      prompt: synopsisIdeasPrompt,
+    });
 
     // Pre-compute ideas data for use outside derive callbacks
     // This allows the onClick to work because it's not inside a derive callback
