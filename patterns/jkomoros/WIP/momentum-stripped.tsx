@@ -678,7 +678,10 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                         </div>
                         {/* ADD: UI that accesses starHistory.loading and starHistory.data */}
                         <div style={{ marginTop: "8px", fontSize: "12px", color: "#666" }}>
-                          Star History: {derive(starHistory, (sh) => sh.loading ? "Loading..." : `${sh.data.length} points`)}
+                          Star History: {derive(starHistory, (sh) => {
+                            if (!sh) return "Loading...";
+                            return sh.loading ? "Loading..." : `${sh.data.length} points`;
+                          })}
                         </div>
                       </div>
                     )

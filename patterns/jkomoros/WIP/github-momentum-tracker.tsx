@@ -784,6 +784,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                       </span>
                       <span style={{ fontSize: "12px", color: "#b45309" }}>
                         {derive(starHistory, (sh) => {
+                          if (!sh) return "Loading...";
                           if (sh.loading) return "Loading...";
                           if (sh.data.length === 0) return "No data";
                           const first = sh.data[0];
@@ -793,12 +794,12 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                       </span>
                     </div>
                     {ifElse(
-                      derive(starHistory, (sh) => sh.loading),
+                      derive(starHistory, (sh) => !sh || sh.loading),
                       <div style={{ color: "#b45309", fontSize: "13px", textAlign: "center", padding: "8px" }}>
                         Loading star history...
                       </div>,
                       ifElse(
-                        derive(starHistory, (sh) => sh.data.length > 0),
+                        derive(starHistory, (sh) => sh?.data?.length > 0),
                         <div style={{
                           display: "flex",
                           alignItems: "flex-end",
@@ -807,6 +808,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                         }}>
                           {/* Render star history as bars (height = star count at that sample) */}
                           {derive(starHistory, (sh) => {
+                            if (!sh || !sh.data) return null;
                             const maxCount = Math.max(...sh.data.map(d => d.count), 1);
                             return sh.data.map((point, i) => {
                               const heightPercent = (point.count / maxCount) * 100;
@@ -833,7 +835,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                     )}
                     {/* Star counts under bars */}
                     {ifElse(
-                      derive(starHistory, (sh) => sh.data.length > 1),
+                      derive(starHistory, (sh) => sh?.data?.length > 1),
                       <div style={{
                         display: "flex",
                         justifyContent: "space-between",
@@ -842,7 +844,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
                         color: "#92400e",
                       }}>
                         {derive(starHistory, (sh) => {
-                          if (sh.data.length === 0) return "";
+                          if (!sh || !sh.data || sh.data.length === 0) return "";
                           return `~${sh.data[0].count.toLocaleString()} stars`;
                         })}
                         {derive(data, (d) => d?.stargazers_count ? `${d.stargazers_count.toLocaleString()} stars now` : "")}
