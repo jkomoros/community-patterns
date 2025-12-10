@@ -83,7 +83,8 @@ export interface DebugLogEntry {
 }
 
 // Type for the refresh token stream from google-auth
-type RefreshStreamType = { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void };
+// NOTE: Stream.send() only takes 1 argument (the event), no onCommit callback
+type RefreshStreamType = Stream<Record<string, never>>;
 
 // What we expect from the google-auth charm via wish
 type GoogleAuthCharm = {
@@ -491,37 +492,28 @@ const GmailAgenticSearch = pattern<
     );
 
     // ========================================================================
-    // CROSS-CHARM TOKEN REFRESH (CURRENTLY BROKEN)
+    // CROSS-CHARM TOKEN REFRESH
     // ========================================================================
-    // The google-auth charm exports a `refreshToken` Stream that should allow
+    // The google-auth charm exports a `refreshToken` Stream that allows
     // other charms to trigger token refresh in google-auth's transaction context.
-    // This would bypass StorageTransactionWriteIsolationError.
     //
-    // HOWEVER: Cross-charm stream invocation doesn't work. All approaches fail:
+    // KEY INSIGHT (from Berni, verified 2024-12-10):
+    // - Streams from wished charms appear as opaque objects with `$stream` marker at derive time
+    // - To call .send(), you must pass the stream to a handler with `Stream<T>` in its type signature
+    // - The framework "unwraps" the opaque stream into a callable one inside the handler
     //
-    // 1. ifElse() wrapping Stream → .get() returns OpaqueRef without .send()
-    //    const authRefreshStream = ifElse(hasDirectAuth, null, wishedAuthCharm.refreshToken);
-    //    authRefreshStream.get()?.send  // undefined
+    // PATTERN:
+    // 1. Extract stream via derive (will be opaque)
+    // 2. Pass to handler with Stream<T> declared in signature
+    // 3. Call .send() inside handler
     //
-    // 2. .key("refreshToken") → Returns Cell, Cell.send() = .set() → isolation error
-    //    wishedAuthCharm.key("refreshToken").send({})  // StorageTransactionWriteIsolationError
-    //
-    // 3. Direct property access on unwrapped charm → Also OpaqueRef without .send()
-    //    const charm = wishedAuthCharm.get();
-    //    charm?.refreshToken?.send  // undefined
-    //
-    // RESULT: Token refresh only works when auth is in the same charm (hasDirectAuth=true).
-    // When using wish() to find google-auth, expired tokens cause 401 errors that
-    // the user must manually resolve by re-authenticating.
-    //
+    // See: community-docs/blessed/cross-charm.md
     // See: patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
     //
-    // We keep authRefreshStream for API compatibility, but it won't actually work
-    // for cross-charm scenarios until the framework adds proper stream export support.
-    const authRefreshStream = ifElse(
-      hasDirectAuth,
-      null as RefreshStreamType | null,
-      wishedAuthCharm.refreshToken as unknown as RefreshStreamType | null
+    // Extract refresh stream from wished charm (will be opaque at derive time)
+    const authRefreshStream = derive(
+      wishedAuthCharm,
+      (charm: GoogleAuthCharm | null) => charm?.refreshToken || null
     );
 
     // Track where auth came from
@@ -685,7 +677,8 @@ const GmailAgenticSearch = pattern<
       { query: string; result?: Cell<any> },
       {
         auth: Cell<Auth>;
-        authRefreshStream: Cell<RefreshStreamType | null>;
+        // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+        authRefreshStream: RefreshStreamType | null;
         progress: Cell<SearchProgress>;
         maxSearches: Cell<Default<number, 0>>;
         debugLog: Cell<DebugLogEntry[]>;
@@ -764,30 +757,22 @@ const GmailAgenticSearch = pattern<
         try {
           console.log(`[SearchGmail Tool] Searching: ${input.query}`);
 
-          // NOTE: Cross-charm token refresh is currently broken (see comment above authRefreshStream).
-          // We attempt to get the refresh stream, but .send() will be undefined for cross-charm cases.
-          // This means 401 errors during cross-charm auth will not auto-recover.
-          const refreshStream = state.authRefreshStream.get();
+          // Cross-charm token refresh via Stream<T> handler signature
+          // The framework unwraps the opaque stream, giving us a callable .send()
+          // See: community-docs/blessed/cross-charm.md
+          const refreshStream = state.authRefreshStream;
           let onRefresh: (() => Promise<void>) | undefined = undefined;
 
           if (refreshStream?.send) {
-            // This branch only works for same-charm auth (hasDirectAuth=true)
+            // Stream.send() only takes the event, no onCommit callback
+            // The refresh happens in the auth charm's transaction context
             onRefresh = async () => {
-              console.log("[SearchGmail Tool] Refreshing token via stream...");
-              await new Promise<void>((resolve, reject) => {
-                refreshStream.send({}, (tx: any) => {
-                  const status = tx?.status?.();
-                  if (status?.status === "done") {
-                    console.log("[SearchGmail Tool] Token refresh succeeded");
-                    resolve();
-                  } else if (status?.status === "error") {
-                    console.log("[SearchGmail Tool] Token refresh failed:", status.error);
-                    reject(new Error(`Refresh failed: ${status.error}`));
-                  } else {
-                    resolve();
-                  }
-                });
-              });
+              console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
+              refreshStream.send({});
+              // Give the refresh handler time to complete
+              // Note: We can't await the transaction completion with current API
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.log("[SearchGmail Tool] Token refresh triggered (stream.send completed)");
             };
           }
 
@@ -1070,7 +1055,8 @@ When you're done searching, STOP calling tools and produce your final structured
         progress: Cell<SearchProgress>;
         auth: Cell<Auth>;
         debugLog: Cell<DebugLogEntry[]>;
-        authRefreshStream: Cell<RefreshStreamType | null>;
+        // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+        authRefreshStream: RefreshStreamType | null;
       }
     >(async (_, state) => {
       if (!state.isAuthenticated.get()) return;
@@ -1086,16 +1072,16 @@ When you're done searching, STOP calling tools and produce your final structured
       });
 
       // Validate token before starting scan
-      // NOTE: Cross-charm refresh is broken (see comment above authRefreshStream).
-      // For cross-charm auth, .send() will be undefined and refresh won't work.
+      // Cross-charm refresh works via Stream<T> handler signature pattern
+      // See: community-docs/blessed/cross-charm.md
       console.log("[GmailAgenticSearch] Validating token before scan...");
       addDebugLogEntry(state.debugLog, {
         type: "info",
         message: "Validating Gmail token...",
       });
 
-      // Get refresh stream - will be null or have undefined .send() for cross-charm
-      const refreshStream = state.authRefreshStream.get();
+      // Stream<T> in handler signature gives us callable .send()
+      const refreshStream = state.authRefreshStream;
 
       const validation = await validateAndRefreshTokenCrossCharm(
         state.auth,

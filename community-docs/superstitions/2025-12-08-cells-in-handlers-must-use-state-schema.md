@@ -1,7 +1,8 @@
-# Cells in Handlers Must Be Passed Through State Schema
+# Cells and Streams in Handlers Must Be Passed Through State Schema
 
 **Date:** 2025-12-08
 **Status:** Superstition (single observation, needs verification)
+**Updated:** 2025-12-10 - Added Stream<T> pattern (verified)
 **Symptom:** `Cannot create cell link: space is required. This can happen when closing over (opaque) cells in a lift or derive.`
 
 ## The Problem
@@ -79,8 +80,35 @@ const pattern = pattern<Input, Output>(({ ... }) => {
 - `handler()` - The main tool for creating event handlers
 - `derive()` - Reactive derivations (use array input instead)
 - `lift()` - Lifting functions to work with cells
+- `Stream<T>` - Same principle applies! See below.
+
+## Streams Follow the Same Pattern
+
+When you need to call `.send()` on a stream (especially from a wished charm), you must declare `Stream<T>` in the handler's type signature:
+
+```typescript
+import { Stream } from "commontools";
+
+// ❌ WRONG - Stream from wished charm appears opaque, no .send()
+const stream = derive(wishedCharm, (c) => c?.refreshToken);
+stream.send({});  // Error: stream.send is not a function
+
+// ✅ CORRECT - Declare Stream<T> in handler signature
+const triggerRefresh = handler<
+  Record<string, never>,
+  { refreshStream: Stream<Record<string, never>> }  // Stream in type!
+>((_event, { refreshStream }) => {
+  refreshStream.send({});  // Works!
+});
+
+// Pass stream when binding handler
+<button onClick={triggerRefresh({ refreshStream: stream })} />
+```
+
+**See:** `community-docs/blessed/cross-charm.md` for the complete pattern for cross-charm stream invocation via wish().
 
 ## Related
 
 - For `derive()`, pass cells as array inputs: `derive([cell1, cell2], ([v1, v2]) => ...)`
+- For streams from wished charms, see: `community-docs/blessed/cross-charm.md`
 - See also: community-docs about closure variables not persisting in derive callbacks
