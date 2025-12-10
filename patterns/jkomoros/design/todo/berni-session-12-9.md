@@ -159,20 +159,40 @@ ct.render(googleAuthCharm)
 
 ### Gmail Agentic Search Fixes
 
-**NOTE: This approach was abandoned.** The cross-charm token refresh hit fundamental framework limitations (cross-space transaction isolation). When the auth charm lives in a different space than the consuming charm, stream `.send()` opens a transaction in the wrong space, causing ConflictError. The changes to gmail-agentic-search.tsx were reverted.
+**NOTE: This approach was abandoned.** Testing on December 10, 2024 revealed the root cause is different than originally thought.
 
-- [ ] Remove await from handlers - **REVERTED** (approach didn't work)
-- [ ] Use ct-render for google-auth charm - **REVERTED** (approach didn't work)
-- [ ] Add refresh button using refreshTokenStream.send() - **REVERTED** (approach didn't work)
-- [ ] Create derived for token validity - **REVERTED** (approach didn't work)
-- [ ] Update scanning condition - **REVERTED** (approach didn't work)
-- [ ] Handler calls refreshTokenStream.send() - **REVERTED** (approach didn't work)
+**Original theory:** Cross-space transaction isolation prevents stream.send() from working.
 
-**The blocker was never resolved:**
-- The auth charm lives in a different space than the consuming charm
-- Cross-charm stream `.send()` doesn't execute in the target charm's transaction context
-- This is a fundamental framework limitation that needs to be addressed at the framework level
+**Actual root cause (confirmed via testing):** The `wish()` API does not expose Stream methods at all. When you access `wishedCharm.refreshToken`:
+- You get an opaque object with `$stream` marker
+- **No `.send()` method is available**
+- This happens even in the **SAME SPACE** (not a cross-space issue)
+
+**Test setup:**
+- `google-auth-short-ttl.tsx` - Auth charm with 60s TTL
+- `test-auth-consumer.tsx` - Consumer using wish()
+- Both deployed to same `auth-test` space
+
+**Test results:**
+- wish() finds the charm and can read data (auth, email, etc.)
+- `refreshToken` has type "object" with key "$stream" but no `.send()`
+- Handlers crash with "Cannot create cell link: space is required" when trying to access wished cells
+
+- [x] Remove await from handlers - **REVERTED** (approach didn't work)
+- [x] Use ct-render for google-auth charm - **REVERTED** (approach didn't work)
+- [x] Add refresh button using refreshTokenStream.send() - **REVERTED** (approach didn't work)
+- [x] Create derived for token validity - **REVERTED** (approach didn't work)
+- [x] Update scanning condition - **REVERTED** (approach didn't work)
+- [x] Handler calls refreshTokenStream.send() - **REVERTED** (approach didn't work)
+
+**Framework limitation:**
+- wish() does not preserve Stream.send() on wished charm outputs
+- This is a framework bug/limitation that needs to be addressed
 - See `patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md` for full details
+
+**Test charms available at:**
+- `patterns/jkomoros/WIP/google-auth-short-ttl.tsx`
+- `patterns/jkomoros/WIP/test-auth-consumer.tsx`
 
 ---
 

@@ -130,4 +130,64 @@ See: `community-docs/folk_wisdom/handlers.md` for the complete pattern.
 
 ---
 
+## Re-Testing Results (December 10, 2024)
+
+The "Resolution" section above claimed workaround #4 worked, but testing shows **it does NOT work** when using `wish()` to access the auth charm.
+
+### Test Setup
+
+Created two test charms in the same space (`auth-test`):
+1. `google-auth-short-ttl.tsx` - Auth charm with 60-second TTL for testing
+2. `test-auth-consumer.tsx` - Consumer that wishes for `#googleAuthShortTTL`
+
+### Test 1: Same-Space Wish + Stream.send()
+
+**Result: FAILED**
+
+**Findings:**
+
+1. **wish() successfully finds the charm** - The favorited auth charm is discovered
+2. **Data is readable** - `auth`, `email`, token status all accessible via derived cells
+3. **Stream is NOT accessible** - `refreshToken` appears as object with `$stream` key but **no `.send()` method**
+4. **Handlers can't access wished cells** - When handlers try to call `.get()` on wished charm derived cells:
+   ```
+   Error: Cannot create cell link: space is required.
+   This can happen when closing over (opaque) cells in a lift or derive.
+   ```
+
+**Raw charm data from wish:**
+```json
+{
+  "keys": ["$NAME", "$UI", "auth", "scopes", "selectedScopes", "refreshToken", "timeRemaining", "isExpired", "backlinks"],
+  "refreshTokenType": "object",
+  "refreshTokenKeys": ["$stream"]
+}
+```
+
+The `refreshToken` property has a `$stream` marker but **no callable `.send()` method**.
+
+### Key Insight
+
+The original "Resolution" was tested with **direct property access** (where the consumer pattern directly composes the auth pattern), NOT via `wish()`.
+
+When using `wish()`:
+- The wish API returns stream properties as **opaque objects**
+- These objects contain `$stream` markers internally but don't expose the `.send()` method
+- Even in the **SAME SPACE**, streams from wished charms are not callable
+
+### Implications
+
+The documented workaround (Stream.send() with onCommit) **only works** when:
+1. The auth pattern is directly composed into the consumer pattern (not via wish)
+2. OR there's a way to get a proper Stream reference from the wished charm (currently not possible)
+
+This is a **framework limitation** with the wish() API - it doesn't properly expose Stream methods on wished charms.
+
+### Test Charms Location
+
+- `patterns/jkomoros/WIP/google-auth-short-ttl.tsx`
+- `patterns/jkomoros/WIP/test-auth-consumer.tsx`
+
+---
+
 **This appears to be a framework limitation around cross-charm cell writes during transactions. Would appreciate guidance on the recommended pattern for this use case.**
