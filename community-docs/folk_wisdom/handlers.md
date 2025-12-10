@@ -6,9 +6,9 @@ Knowledge verified by multiple independent sessions. Still empirical - may not r
 
 ---
 
-## Cross-Charm Writes Require Stream.send() with onCommit
+## Cross-Charm Writes Use Stream.send() (Fire-and-Forget)
 
-**Status:** Verified through framework code analysis (December 2024)
+**Status:** Updated December 2024 - onCommit callback deprecated
 
 **Problem:** When a handler in Charm A tries to write to a cell owned by Charm B, it fails with `StorageTransactionWriteIsolationError`. This is because the framework enforces single-DID write isolation per transaction.
 
@@ -17,7 +17,7 @@ Knowledge verified by multiple independent sessions. Still empirical - may not r
 - Handler transactions can only write to cells owned by one DID at a time
 - Cross-charm writes violate this isolation constraint
 
-**Solution:** Use `Stream.send()` with `onCommit` callback:
+**Solution:** Charm B exports a handler as Stream, Charm A calls it **fire-and-forget**:
 
 1. **Charm B exports a handler as a Stream:**
 ```typescript
@@ -40,38 +40,41 @@ return {
 };
 ```
 
-2. **Charm A calls the stream and waits for completion:**
+2. **Charm A calls the stream (fire-and-forget) and relies on reactivity:**
 ```typescript
-// In gmail-agentic-search.tsx
-await new Promise<void>((resolve, reject) => {
-  authCharm.refreshToken.send({}, (tx) => {
-    // onCommit is called after handler's transaction commits
-    const status = tx?.status?.();
-    if (status?.status === "done") {
-      resolve();  // Success!
-    } else if (status?.status === "error") {
-      reject(status.error);  // Failed
-    } else {
-      resolve();  // Unknown status, assume success
-    }
-  });
-});
+// In gmail-agentic-search.tsx handler
 
-// Now read the updated auth cell
-const newAuth = auth.get();
+// Fire-and-forget - the auth charm will update its cell
+authCharm.refreshToken.send({});
+
+// DO NOT use onCommit callbacks - that's an internal runtime feature
+// The framework automatically propagates cell updates to dependents
+// Your derives will re-run when the auth cell changes
 ```
 
-**Why this works:**
-- `Stream.send()` queues an event via `queueEvent()`
-- Each queued event gets its own fresh transaction
-- That transaction's writes use the **handler's charm's DID**
-- The `onCommit` callback fires after the transaction commits (success or failure)
+**DEPRECATED: onCommit callback**
 
-**Use cases:**
-- Token refresh across charms (google-auth -> gmail-agentic-search)
-- Any cross-charm state mutation from a handler
+The `onCommit` callback is an **internal runtime feature** and should NOT be used in patterns:
+- Causes ConflictError in cross-charm scenarios (wrong transaction context)
+- The framework author has confirmed it's not intended for pattern use
+- Use reactive gating instead - gate your agent/UI on auth validity conditions
+
+**Reactive alternative:** Instead of waiting for refresh to complete, use reactive gating:
+```typescript
+// Gate agent prompt on token validity
+const agentPrompt = derive(
+  [isRunning, prompt, tokenValid],
+  ([running, p, valid]) => {
+    if (!running || !valid) return "";  // Pause when token invalid
+    return p;  // Run when valid
+  }
+);
+
+// When auth refreshes, tokenValid becomes true, agent resumes automatically!
+```
+
+**See also:** `blessed/reactive-thinking.md` - The core reactive principle
 
 **Related:**
-- Issue: `patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md`
+- Issue: `patterns/jkomoros/issues/ISSUE-Cross-Charm-OnCommit-ConflictError.md` (resolved - by design)
 - KeyLearnings: `~/Code/labs/docs/common/wip/KeyLearnings.md` (Exposing Actions via Handlers)
-- Transaction Guide: `~/Code/labs/packages/runner/src/storage/transaction-implementation-guide.md`

@@ -133,39 +133,36 @@ export default pattern(({ /* inputs */ }) => {
 });
 ```
 
-### Stream.send() Supports Optional onCommit Callback
+### Cross-Charm Stream Invocation is Fire-and-Forget
 
-**Updated:** 2024-12-10 - Verified in framework source code
-
-`Stream.send()` supports an optional `onCommit` callback that fires after the transaction commits:
+When calling `stream.send()` on a cross-charm stream, use **fire-and-forget**:
 
 ```typescript
-// Basic usage - fire and forget
+// Correct: Fire and forget
 refreshStream.send({});
 
-// With onCommit callback - wait for transaction to complete
-await new Promise<void>((resolve, reject) => {
-  refreshStream.send({}, (tx) => {
-    const status = tx?.status?.();
-    if (status?.status === "error") {
-      reject(new Error(status.error));
-    } else {
-      resolve();
-    }
-  });
-});
+// The target charm's handler will update its cells
+// Your derives that depend on those cells will re-run automatically
+// No callback or waiting needed - this is reactive programming!
 ```
 
-**Framework source:** `/packages/runner/src/cell.ts` lines 105-108:
+**IMPORTANT:** The `onCommit` callback parameter is an **internal runtime feature** and should NOT be used in patterns:
+
 ```typescript
-interface IStreamable<T> {
-  send(
-    value: AnyCellWrapping<T> | T,
-    onCommit?: (tx: IExtendedStorageTransaction) => void,
-  ): void;
+// WRONG - onCommit is internal API
+stream.send({}, (tx) => { /* ... */ });
+
+// CORRECT - Fire and forget
+stream.send({});
 ```
 
-This is useful when you need to wait for a cross-charm operation to complete before continuing.
+**Why no callback?**
+- `onCommit` is an internal runtime feature, not intended for pattern use
+- Cross-charm callbacks execute in the wrong transaction context (causes ConflictError)
+- The reactive framework automatically propagates cell updates to dependents
+- Use reactive gating instead of callbacks for coordination
+
+**See also:** `blessed/reactive-thinking.md` - The core reactive principle
 
 ---
 

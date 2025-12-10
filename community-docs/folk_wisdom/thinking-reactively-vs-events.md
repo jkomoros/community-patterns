@@ -278,12 +278,50 @@ const displayValue = derive(inputValue, (value) => format(value));
 
 **Performance:** No measurable difference - both reactive.
 
+## Callbacks, Timeouts, and Awaits are Anti-Patterns
+
+These imperative constructs violate the reactive model:
+
+### ❌ Callbacks (including onCommit)
+
+```typescript
+// WRONG - Imperative callback coordination
+stream.send({}, (tx) => { /* ... */ });  // onCommit is internal API!
+somethingAsync.then(() => { /* ... */ });
+addEventListener('click', () => { /* ... */ });
+```
+
+The `onCommit` callback on `stream.send()` is an **internal runtime feature** and should NOT be used in patterns. It causes ConflictError in cross-charm scenarios.
+
+### ❌ Timeouts and Intervals
+
+```typescript
+// WRONG - Manual timing breaks reactive graph
+setTimeout(() => cell.set(value), delay);
+setInterval(() => poll(), interval);
+```
+
+### ❌ Await in Handlers
+
+```typescript
+// WRONG - Blocks UI, breaks reactive model
+const handleClick = handler(async () => {
+  const data = await fetch(url);
+  // ...
+});
+```
+
+**See also:** `blessed/reactive-thinking.md` - The complete reactive principle guide
+
+---
+
 ## Key Takeaways
 
 1. **Default to reactive bindings** - Most CommonTools components provide reactive props
 2. **Use `computed()` or `derive()`** - Both work identically; `computed()` is officially preferred
 3. **Events are for side effects** - Not for state synchronization
 4. **Less code is better** - Reactive approach is usually simpler
+5. **No callbacks/timeouts/awaits** - Use reactive primitives instead
 
 ## Related Patterns
 

@@ -1,6 +1,22 @@
 # Cross-Charm stream.send() onCommit Callback Causes ConflictError
 
-## Summary
+## ✅ RESOLVED - Working as Intended
+
+**Resolution Date:** December 2024
+**Framework Author Guidance:** The `onCommit` callback is an **internal runtime feature** and is NOT intended for use in patterns.
+
+**The Solution:** Use fire-and-forget `stream.send({})` with reactive gating:
+- Don't use callbacks to coordinate cross-charm operations
+- Gate your agent/UI on auth validity conditions (isAuthenticated, tokenExpired, hasScope)
+- When token expires → conditions fail → agent pauses
+- When token refreshes → conditions pass → agent auto-resumes
+- This is the reactive approach - no callbacks needed!
+
+**See:** `community-docs/blessed/reactive-thinking.md` for the full reactive pattern.
+
+---
+
+## Summary (Historical)
 
 When using `stream.send(value, onCommit)` for cross-charm communication (e.g., triggering token refresh from a consumer charm), the `onCommit` callback causes a massive ConflictError (~363KB). The callback receives the wrong transaction context.
 

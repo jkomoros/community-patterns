@@ -760,33 +760,24 @@ const GmailAgenticSearch = pattern<
           // Cross-charm token refresh via Stream<T> handler signature
           // The framework unwraps the opaque stream, giving us a callable .send()
           // See: community-docs/blessed/cross-charm.md
+          //
+          // REACTIVE APPROACH: We use fire-and-forget for refresh.
+          // The agentPrompt is gated on auth validity (isAuthenticated, tokenMayBeExpired, hasGmailScope).
+          // When token expires -> agentPrompt becomes "" -> agent pauses
+          // When token refreshes -> agentPrompt becomes non-empty -> agent resumes automatically
+          // NO callbacks, NO polling - pure reactive data flow!
           const refreshStream = state.authRefreshStream;
           let onRefresh: (() => Promise<void>) | undefined = undefined;
 
           if (refreshStream?.send) {
-            // Stream.send() supports optional onCommit callback (see labs/packages/runner/src/cell.ts)
-            // The refresh happens in the auth charm's transaction context
-            // Note: TypeScript types don't include onCommit, but runtime supports it
+            // Fire-and-forget refresh - reactive gating handles retry
             onRefresh = async () => {
-              console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
-              await new Promise<void>((resolve, reject) => {
-                // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
-                (refreshStream.send as (event: Record<string, never>, onCommit?: (tx: any) => void) => void)(
-                  {},
-                  (tx: any) => {
-                    // onCommit fires after the handler's transaction commits
-                    const status = tx?.status?.();
-                    if (status?.status === "error") {
-                      console.error("[SearchGmail Tool] Token refresh failed:", status.error);
-                      reject(new Error(`Token refresh failed: ${status.error}`));
-                    } else {
-                      console.log("[SearchGmail Tool] Token refresh transaction committed");
-                      resolve();
-                    }
-                  }
-                );
-              });
-              console.log("[SearchGmail Tool] Token refresh completed");
+              console.log("[SearchGmail Tool] Triggering token refresh via cross-charm stream (fire-and-forget)...");
+              refreshStream.send({});  // NO onCommit callback - it's internal API!
+              // The auth charm will update its auth cell
+              // Our agentPrompt will become "" due to tokenMayBeExpired check
+              // When auth refreshes, agentPrompt becomes non-empty and agent retries
+              console.log("[SearchGmail Tool] Token refresh triggered - agent will auto-retry via reactive gating");
             };
           }
 
@@ -959,11 +950,18 @@ const GmailAgenticSearch = pattern<
       },
     );
 
-    // Build agent prompt (only active when scanning)
+    // Build agent prompt (only active when scanning AND auth is valid)
+    // This is the REACTIVE approach to token refresh:
+    // - When token expires, agentPrompt becomes "" and agent pauses
+    // - When token refreshes, agentPrompt becomes non-empty and agent resumes
+    // - No callbacks, no polling - pure reactive data flow!
     const agentPrompt = derive(
-      [isScanning, fullPrompt],
-      ([scanning, prompt]: [boolean, string]) => {
+      [isScanning, fullPrompt, isAuthenticated, tokenMayBeExpired, hasGmailScope],
+      ([scanning, prompt, authenticated, expired, hasScope]: [boolean, string, boolean, boolean, boolean]) => {
         if (!scanning) return ""; // Don't run unless scanning
+        if (!authenticated) return ""; // Not logged in - pause
+        if (expired) return ""; // Token expired - pause until refreshed
+        if (!hasScope) return ""; // Missing Gmail scope - pause
         return prompt;
       },
     );
