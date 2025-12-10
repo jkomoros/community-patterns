@@ -29,7 +29,7 @@ import {
 // =============================================================================
 
 interface LevelConfig {
-  id: string;
+  // id: string; // REMOVED - use index instead
   index: number; // Position in level hierarchy (0 = root)
   title: string;
   defaultPrompt: string;
@@ -38,12 +38,13 @@ interface LevelConfig {
 }
 
 interface SpindleConfig {
-  id: string;
+  // id: string; // REMOVED - use array index instead
+  // parentId: string | null; // REMOVED - use parentIndex instead
+  parentIndex: number | null; // Array index of parent spindle (null for root)
   levelIndex: number;
   positionInLevel: number;
   siblingIndex: number;
   siblingCount: number;
-  parentId: string | null;
   composedInput: string;
   extraPrompt: string;
   pinnedOptionIndex: number; // -1 = none
@@ -74,7 +75,6 @@ const NUM_OPTIONS = 4;
 // Default levels - Synopsis → Characters/Themes → Chapters
 const DEFAULT_LEVELS: LevelConfig[] = [
   {
-    id: "root",
     index: 0,
     title: "Synopsis",
     defaultPrompt: "",
@@ -82,7 +82,6 @@ const DEFAULT_LEVELS: LevelConfig[] = [
     isRoot: true,
   },
   {
-    id: "characters-themes",
     index: 1,
     title: "Characters & Themes",
     defaultPrompt: "Based on the synopsis, identify the main characters, key plot points, and central themes of this story.",
@@ -90,7 +89,6 @@ const DEFAULT_LEVELS: LevelConfig[] = [
     isRoot: false,
   },
   {
-    id: "chapters",
     index: 2,
     title: "Chapters",
     defaultPrompt: "Write detailed chapter summaries that develop the characters and themes identified above.",
@@ -101,12 +99,11 @@ const DEFAULT_LEVELS: LevelConfig[] = [
 
 // Default root spindle
 const DEFAULT_ROOT_SPINDLE: SpindleConfig = {
-  id: "root-spindle",
+  parentIndex: null, // Root has no parent
   levelIndex: 0,
   positionInLevel: 0,
   siblingIndex: 0,
   siblingCount: 1,
-  parentId: null,
   composedInput: "",
   extraPrompt: "",
   pinnedOptionIndex: -1,
@@ -118,9 +115,7 @@ const DEFAULT_ROOT_SPINDLE: SpindleConfig = {
 // UTILITY FUNCTIONS
 // =============================================================================
 
-function generateId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}
+// generateId() REMOVED - no longer using string IDs, using array indices instead
 
 function simpleHash(str: string): string {
   if (!str) return "";
@@ -131,6 +126,53 @@ function simpleHash(str: string): string {
     hash = hash & hash;
   }
   return hash.toString(36);
+}
+
+/**
+ * Remap parentIndex values after spindles are deleted.
+ * When spindles are removed, array indices shift. This function:
+ * 1. Filters out deleted spindles
+ * 2. Builds a mapping from old indices to new indices
+ * 3. Updates all parentIndex values to point to the correct new positions
+ */
+function remapParentIndices(
+  spindles: SpindleConfig[],
+  deletedIndices: Set<number>
+): SpindleConfig[] {
+  // Build old -> new index mapping
+  const indexMap = new Map<number, number>();
+  let newIdx = 0;
+  spindles.forEach((_, oldIdx) => {
+    if (!deletedIndices.has(oldIdx)) {
+      indexMap.set(oldIdx, newIdx++);
+    }
+  });
+
+  // Filter out deleted spindles and remap parent indices
+  return spindles
+    .filter((_, idx) => !deletedIndices.has(idx))
+    .map((s) => ({
+      ...s,
+      parentIndex:
+        s.parentIndex !== null ? (indexMap.get(s.parentIndex) ?? null) : null,
+    }));
+}
+
+/**
+ * Find all children of a spindle by its array index.
+ * Returns array of child indices.
+ */
+function findChildIndices(
+  spindles: SpindleConfig[],
+  parentIdx: number
+): number[] {
+  const childIndices: number[] = [];
+  spindles.forEach((s, idx) => {
+    if (s.parentIndex === parentIdx) {
+      childIndices.push(idx);
+    }
+  });
+  return childIndices;
 }
 
 // =============================================================================
@@ -159,11 +201,11 @@ interface StoryWeaverInput {
 
   // View Prompt Modal state
   showViewPromptModal?: Default<boolean, false>;
-  viewPromptSpindleId?: Default<string, "">;
+  viewPromptSpindleIndex?: Default<number, -1>; // -1 = none selected
 
   // Edit Spindle Prompt Modal state
   showEditSpindlePromptModal?: Default<boolean, false>;
-  editingSpindlePromptId?: Default<string, "">;
+  editingSpindlePromptIndex?: Default<number, -1>; // -1 = none selected
   editSpindlePromptText?: Default<string, "">;
 
   // Edit Branch Factor Modal state
@@ -175,7 +217,7 @@ interface StoryWeaverInput {
 
   // Option Picker Modal state
   showOptionPicker?: Default<boolean, false>;
-  pickerSpindleId?: Default<string, "">;
+  pickerSpindleIndex?: Default<number, -1>; // -1 = none selected
   pickerPreviewIndex?: Default<number, 0>;
 
   // Root synopsis input
@@ -216,22 +258,27 @@ function actuallyApplyBranchFactor(
     // Increasing - create additional spindles for each pinned parent at previous level
     const previousLevelIndex = levelIndex - 1;
     if (previousLevelIndex >= 0) {
-      const pinnedParents = currentSpindles.filter(
-        (s) => s.levelIndex === previousLevelIndex && s.pinnedOptionIndex >= 0
-      );
+      // Find pinned parents with their indices
+      const pinnedParentIndices: number[] = [];
+      currentSpindles.forEach((s, idx) => {
+        if (s.levelIndex === previousLevelIndex && s.pinnedOptionIndex >= 0) {
+          pinnedParentIndices.push(idx);
+        }
+      });
 
-      for (const parent of pinnedParents) {
-        const existingSiblings = currentSpindles.filter((s) => s.parentId === parent.id);
+      for (const parentIdx of pinnedParentIndices) {
+        const parent = currentSpindles[parentIdx];
+        // Find existing siblings (children of this parent at the target level)
+        const existingSiblingIndices = findChildIndices(currentSpindles, parentIdx);
 
         // Create additional siblings
         for (let i = oldFactor; i < newFactor; i++) {
           currentSpindles.push({
-            id: generateId(),
+            parentIndex: parentIdx,
             levelIndex: levelIndex,
             positionInLevel: currentSpindles.filter((s) => s.levelIndex === levelIndex).length,
             siblingIndex: i,
             siblingCount: newFactor,
-            parentId: parent.id,
             composedInput: parent.pinnedOutput,
             extraPrompt: "",
             pinnedOptionIndex: -1,
@@ -242,29 +289,36 @@ function actuallyApplyBranchFactor(
         }
 
         // Update siblingCount for existing siblings
-        for (const sibling of existingSiblings) {
-          const idx = currentSpindles.findIndex((s) => s.id === sibling.id);
-          if (idx >= 0) {
-            currentSpindles[idx] = { ...currentSpindles[idx], siblingCount: newFactor };
-          }
+        for (const siblingIdx of existingSiblingIndices) {
+          currentSpindles[siblingIdx] = {
+            ...currentSpindles[siblingIdx],
+            siblingCount: newFactor,
+          };
         }
       }
     }
   } else {
     // Decreasing - delete spindles with siblingIndex >= newFactor
-    const spindlesToKeep = currentSpindles.filter(
-      (s) => !(s.levelIndex === levelIndex && s.siblingIndex >= newFactor)
-    );
+    // Collect indices to delete
+    const deletedIndices = new Set<number>();
+    currentSpindles.forEach((s, idx) => {
+      if (s.levelIndex === levelIndex && s.siblingIndex >= newFactor) {
+        deletedIndices.add(idx);
+      }
+    });
+
+    // Use remapParentIndices to handle the deletion and remap
+    const remapped = remapParentIndices(currentSpindles, deletedIndices);
 
     // Update siblingCount for remaining spindles at this level
-    for (let i = 0; i < spindlesToKeep.length; i++) {
-      if (spindlesToKeep[i].levelIndex === levelIndex) {
-        spindlesToKeep[i] = { ...spindlesToKeep[i], siblingCount: newFactor };
+    for (let i = 0; i < remapped.length; i++) {
+      if (remapped[i].levelIndex === levelIndex) {
+        remapped[i] = { ...remapped[i], siblingCount: newFactor };
       }
     }
 
     currentSpindles.length = 0;
-    currentSpindles.push(...spindlesToKeep);
+    currentSpindles.push(...remapped);
   }
 
   levels.set(currentLevels);
@@ -299,33 +353,29 @@ const setSynopsis = handler<
   const currentLevels = levels.get() || [];
   const rootIdx = current.findIndex((s) => s.levelIndex === 0);
   if (rootIdx >= 0) {
-    const rootSpindle = current[rootIdx];
     current[rootIdx] = {
-      ...rootSpindle,
+      ...current[rootIdx],
       composedInput: text,
       pinnedOptionIndex: 0, // Auto-pin for root
       pinnedOutput: text,
       parentHashWhenPinned: simpleHash(text),
     };
 
-    // Check for existing children
-    const existingChildren = current.filter((s) => s.parentId === rootSpindle.id);
+    // Check for existing children using parentIndex
+    const existingChildIndices = findChildIndices(current, rootIdx);
 
-    if (existingChildren.length > 0) {
-      // Update existing children's composedInput - keeps same ID to avoid thrashing
+    if (existingChildIndices.length > 0) {
+      // Update existing children's composedInput
       // The change in composedInput will cause fullPrompt to change, triggering regeneration
-      for (const child of existingChildren) {
-        const childIdx = current.findIndex((s) => s.id === child.id);
-        if (childIdx >= 0) {
-          current[childIdx] = {
-            ...current[childIdx],
-            composedInput: text,
-            // Clear pin since input changed
-            pinnedOptionIndex: -1,
-            pinnedOutput: "",
-            parentHashWhenPinned: "",
-          };
-        }
+      for (const childIdx of existingChildIndices) {
+        current[childIdx] = {
+          ...current[childIdx],
+          composedInput: text,
+          // Clear pin since input changed
+          pinnedOptionIndex: -1,
+          pinnedOutput: "",
+          parentHashWhenPinned: "",
+        };
       }
     } else {
       // Create children for level 1 if it exists and no children yet
@@ -336,12 +386,11 @@ const setSynopsis = handler<
 
         for (let i = 0; i < level1.branchFactor; i++) {
           current.push({
-            id: generateId(),
+            parentIndex: rootIdx,
             levelIndex: 1,
             positionInLevel: positionInLevel++,
             siblingIndex: i,
             siblingCount: level1.branchFactor,
-            parentId: rootSpindle.id,
             composedInput: text,
             extraPrompt: "",
             pinnedOptionIndex: -1,
@@ -409,12 +458,11 @@ const addLevel = handler<
   const branchVal = branchFactor.get() || 1;
 
   const currentLevels = levels.get() || [];
-  const currentSpindles = spindles.get() || [];
+  const currentSpindles = [...(spindles.get() || [])];
   const newLevelIndex = currentLevels.length;
 
   // Create new level with actual input values
   const newLevel: LevelConfig = {
-    id: generateId(),
     index: newLevelIndex,
     title: titleVal || "Untitled Level",
     defaultPrompt: promptVal,
@@ -424,24 +472,26 @@ const addLevel = handler<
 
   levels.set([...currentLevels, newLevel]);
 
-  // Find all pinned spindles at previous level
-  const prevLevelSpindles = currentSpindles.filter(
-    (s) => s.levelIndex === newLevelIndex - 1 && s.pinnedOptionIndex >= 0
-  );
+  // Find all pinned spindles at previous level with their indices
+  const pinnedParentIndices: number[] = [];
+  currentSpindles.forEach((s, idx) => {
+    if (s.levelIndex === newLevelIndex - 1 && s.pinnedOptionIndex >= 0) {
+      pinnedParentIndices.push(idx);
+    }
+  });
 
   // Create child spindles for each pinned parent
   let positionInLevel = 0;
-  const newSpindles: SpindleConfig[] = [];
 
-  for (const parent of prevLevelSpindles) {
+  for (const parentIdx of pinnedParentIndices) {
+    const parent = currentSpindles[parentIdx];
     for (let i = 0; i < newLevel.branchFactor; i++) {
-      newSpindles.push({
-        id: generateId(),
+      currentSpindles.push({
+        parentIndex: parentIdx,
         levelIndex: newLevelIndex,
         positionInLevel: positionInLevel++,
         siblingIndex: i,
         siblingCount: newLevel.branchFactor,
-        parentId: parent.id,
         composedInput: parent.pinnedOutput,
         extraPrompt: "",
         pinnedOptionIndex: -1,
@@ -451,8 +501,8 @@ const addLevel = handler<
     }
   }
 
-  if (newSpindles.length > 0) {
-    spindles.set([...currentSpindles, ...newSpindles]);
+  if (pinnedParentIndices.length > 0) {
+    spindles.set(currentSpindles);
   }
 
   showAddLevelModal.set(false);
@@ -483,8 +533,16 @@ const removeLevel = handler<
     return;
   }
 
-  // Remove all spindles at this level
-  const filteredSpindles = currentSpindles.filter((s) => s.levelIndex !== levelIndexVal);
+  // Collect indices of spindles to delete at this level
+  const deletedIndices = new Set<number>();
+  currentSpindles.forEach((s, idx) => {
+    if (s.levelIndex === levelIndexVal) {
+      deletedIndices.add(idx);
+    }
+  });
+
+  // Remove spindles and remap parent indices
+  const filteredSpindles = remapParentIndices(currentSpindles, deletedIndices);
 
   // Remove the level
   const filteredLevels = currentLevels.filter((_, idx) => idx !== levelIndexVal);
@@ -501,18 +559,17 @@ const pinOption = handler<
   {
     spindles: Cell<SpindleConfig[]>;
     levels: Cell<LevelConfig[]>;
-    spindleId: Cell<string>;
+    spindleIndex: Cell<number>;
     optionIndex: number;
     optionContent: Cell<string>;
   }
->((_, { spindles, levels, spindleId, optionIndex, optionContent }) => {
+>((_, { spindles, levels, spindleIndex, optionIndex, optionContent }) => {
   const spindlesArray = spindles.get() || [];
   const currentLevels = levels.get() || [];
-  const spindleIdVal = spindleId.get();
+  const spindleIdx = spindleIndex.get();
   const optionContentVal = optionContent.get() || "";
 
-  const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-  if (spindleIdx < 0) return;
+  if (spindleIdx < 0 || spindleIdx >= spindlesArray.length) return;
 
   const spindle = spindlesArray[spindleIdx];
   const currentPinned = spindle.pinnedOptionIndex;
@@ -539,12 +596,7 @@ const pinOption = handler<
   });
 
   // Update children's composedInput using .key().set()
-  const childIndices: number[] = [];
-  spindlesArray.forEach((s, idx) => {
-    if (s.parentId === spindleIdVal) {
-      childIndices.push(idx);
-    }
-  });
+  const childIndices = findChildIndices(spindlesArray, spindleIdx);
 
   for (const childIdx of childIndices) {
     const childCell = spindles.key(childIdx);
@@ -567,12 +619,11 @@ const pinOption = handler<
 
     for (let i = 0; i < nextLevel.branchFactor; i++) {
       currentSpindles.push({
-        id: generateId(),
+        parentIndex: spindleIdx,
         levelIndex: nextLevelIndex,
         positionInLevel: positionInLevel++,
         siblingIndex: i,
         siblingCount: nextLevel.branchFactor,
-        parentId: spindleIdVal,
         composedInput: optionContentVal,
         extraPrompt: "",
         pinnedOptionIndex: -1,
@@ -587,12 +638,11 @@ const pinOption = handler<
 
 // Respin a spindle
 // Uses .key().set() for O(1) update instead of O(n) array replacement
-const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }>(
-  (_, { spindles, spindleId }) => {
-    const spindleIdVal = spindleId.get();
+const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number> }>(
+  (_, { spindles, spindleIndex }) => {
+    const idx = spindleIndex.get();
     const spindlesArray = spindles.get() || [];
-    const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-    if (idx >= 0) {
+    if (idx >= 0 && idx < spindlesArray.length) {
       const spindleCell = spindles.key(idx);
       const currentSpindle = spindleCell.get();
       // Clear pin and force regeneration by incrementing nonce (cache-busting)
@@ -611,12 +661,11 @@ const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindl
 // Uses .key().set() for O(1) update instead of O(n) array replacement
 const startGeneration = handler<
   unknown,
-  { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string> }
->((_, { spindles, spindleId }) => {
-  const spindleIdVal = spindleId.get();
+  { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number> }
+>((_, { spindles, spindleIndex }) => {
+  const idx = spindleIndex.get();
   const spindlesArray = spindles.get() || [];
-  const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-  if (idx >= 0) {
+  if (idx >= 0 && idx < spindlesArray.length) {
     // Use .key() to update specific spindle without array replacement
     const spindleCell = spindles.key(idx);
     const currentSpindle = spindleCell.get();
@@ -631,13 +680,12 @@ const startGeneration = handler<
 // Uses .key().set() for O(1) update instead of O(n) array replacement
 const setExtraPrompt = handler<
   unknown,
-  { spindles: Cell<SpindleConfig[]>; spindleId: Cell<string>; prompt: Cell<string> }
->((_, { spindles, spindleId, prompt }) => {
-  const spindleIdVal = spindleId.get();
+  { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number>; prompt: Cell<string> }
+>((_, { spindles, spindleIndex, prompt }) => {
+  const idx = spindleIndex.get();
   const promptVal = prompt.get() || "";
   const spindlesArray = spindles.get() || [];
-  const idx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-  if (idx >= 0) {
+  if (idx >= 0 && idx < spindlesArray.length) {
     const spindleCell = spindles.key(idx);
     const currentSpindle = spindleCell.get();
     spindleCell.set({
@@ -723,11 +771,11 @@ const openViewPromptModal = handler<
   unknown,
   {
     showViewPromptModal: Cell<boolean>;
-    viewPromptSpindleId: Cell<string>;
-    spindleId: Cell<string>;
+    viewPromptSpindleIndex: Cell<number>;
+    spindleIndex: Cell<number>;
   }
->((_, { showViewPromptModal, viewPromptSpindleId, spindleId }) => {
-  viewPromptSpindleId.set(spindleId.get());
+>((_, { showViewPromptModal, viewPromptSpindleIndex, spindleIndex }) => {
+  viewPromptSpindleIndex.set(spindleIndex.get());
   showViewPromptModal.set(true);
 });
 
@@ -743,27 +791,27 @@ const openEditSpindlePromptModal = handler<
   unknown,
   {
     showEditSpindlePromptModal: Cell<boolean>;
-    editingSpindlePromptId: Cell<string>;
+    editingSpindlePromptIndex: Cell<number>;
     editSpindlePromptText: Cell<string>;
     spindles: Cell<SpindleConfig[]>;
-    spindleId: Cell<string>;
+    spindleIndex: Cell<number>;
   }
 >(
   (
     _,
     {
       showEditSpindlePromptModal,
-      editingSpindlePromptId,
+      editingSpindlePromptIndex,
       editSpindlePromptText,
       spindles,
-      spindleId,
+      spindleIndex,
     }
   ) => {
-    const id = spindleId.get();
+    const idx = spindleIndex.get();
     const currentSpindles = spindles.get() || [];
-    const spindle = currentSpindles.find((s) => s.id === id);
-    if (spindle) {
-      editingSpindlePromptId.set(id);
+    if (idx >= 0 && idx < currentSpindles.length) {
+      const spindle = currentSpindles[idx];
+      editingSpindlePromptIndex.set(idx);
       editSpindlePromptText.set(spindle.extraPrompt || "");
       showEditSpindlePromptModal.set(true);
     }
@@ -783,29 +831,29 @@ const saveSpindlePrompt = handler<
   unknown,
   {
     spindles: Cell<SpindleConfig[]>;
-    editingSpindlePromptId: Cell<string>;
+    editingSpindlePromptIndex: Cell<number>;
     editSpindlePromptText: Cell<string>;
     showEditSpindlePromptModal: Cell<boolean>;
   }
 >(
   (
     _,
-    { spindles, editingSpindlePromptId, editSpindlePromptText, showEditSpindlePromptModal }
+    { spindles, editingSpindlePromptIndex, editSpindlePromptText, showEditSpindlePromptModal }
   ) => {
-    const id = editingSpindlePromptId.get();
+    const idx = editingSpindlePromptIndex.get();
     const newPrompt = editSpindlePromptText.get() || "";
-    const current = [...(spindles.get() || [])];
-    const idx = current.findIndex((s) => s.id === id);
-    if (idx >= 0) {
-      current[idx] = {
-        ...current[idx],
+    const spindlesArray = spindles.get() || [];
+    if (idx >= 0 && idx < spindlesArray.length) {
+      const spindleCell = spindles.key(idx);
+      const currentSpindle = spindleCell.get();
+      spindleCell.set({
+        ...currentSpindle,
         extraPrompt: newPrompt,
         // Clear pin when prompt changes (forces regeneration)
         pinnedOptionIndex: -1,
         pinnedOutput: "",
         parentHashWhenPinned: "",
-      };
-      spindles.set(current);
+      });
     }
     showEditSpindlePromptModal.set(false);
   }
@@ -816,22 +864,22 @@ const clearSpindlePrompt = handler<
   unknown,
   {
     spindles: Cell<SpindleConfig[]>;
-    spindleId: Cell<string>;
+    spindleIndex: Cell<number>;
   }
->((_, { spindles, spindleId }) => {
-  const id = spindleId.get();
-  const current = [...(spindles.get() || [])];
-  const idx = current.findIndex((s) => s.id === id);
-  if (idx >= 0) {
-    current[idx] = {
-      ...current[idx],
+>((_, { spindles, spindleIndex }) => {
+  const idx = spindleIndex.get();
+  const spindlesArray = spindles.get() || [];
+  if (idx >= 0 && idx < spindlesArray.length) {
+    const spindleCell = spindles.key(idx);
+    const currentSpindle = spindleCell.get();
+    spindleCell.set({
+      ...currentSpindle,
       extraPrompt: "",
       // Clear pin when prompt changes (forces regeneration)
       pinnedOptionIndex: -1,
       pinnedOutput: "",
       parentHashWhenPinned: "",
-    };
-    spindles.set(current);
+    });
   }
 });
 
@@ -982,18 +1030,18 @@ const openOptionPicker = handler<
   unknown,
   {
     showOptionPicker: Cell<boolean>;
-    pickerSpindleId: Cell<string>;
+    pickerSpindleIndex: Cell<number>;
     pickerPreviewIndex: Cell<number>;
-    spindleId: Cell<string>;
+    spindleIndex: Cell<number>;
     currentPinnedIdx: Cell<number>;
   }
 >(
   (
     _,
-    { showOptionPicker, pickerSpindleId, pickerPreviewIndex, spindleId, currentPinnedIdx }
+    { showOptionPicker, pickerSpindleIndex, pickerPreviewIndex, spindleIndex, currentPinnedIdx }
   ) => {
     const pinnedIdx = currentPinnedIdx.get();
-    pickerSpindleId.set(spindleId.get());
+    pickerSpindleIndex.set(spindleIndex.get());
     pickerPreviewIndex.set(pinnedIdx >= 0 ? pinnedIdx : 0);
     showOptionPicker.set(true);
   }
@@ -1013,7 +1061,7 @@ const pinFromPicker = handler<
   {
     spindles: Cell<SpindleConfig[]>;
     levels: Cell<LevelConfig[]>;
-    pickerSpindleId: Cell<string>;
+    pickerSpindleIndex: Cell<number>;
     pickerPreviewIndex: Cell<number>;
     showOptionPicker: Cell<boolean>;
     optionContent: Cell<string>;
@@ -1021,16 +1069,15 @@ const pinFromPicker = handler<
 >(
   (
     _,
-    { spindles, levels, pickerSpindleId, pickerPreviewIndex, showOptionPicker, optionContent }
+    { spindles, levels, pickerSpindleIndex, pickerPreviewIndex, showOptionPicker, optionContent }
   ) => {
-    const spindleIdVal = pickerSpindleId.get();
+    const spindleIdx = pickerSpindleIndex.get();
     const optionIndex = pickerPreviewIndex.get();
     const optionContentVal = optionContent.get() || "";
     const spindlesArray = spindles.get() || [];
     const currentLevels = levels.get() || [];
 
-    const spindleIdx = spindlesArray.findIndex((s) => s.id === spindleIdVal);
-    if (spindleIdx < 0) {
+    if (spindleIdx < 0 || spindleIdx >= spindlesArray.length) {
       showOptionPicker.set(false);
       return;
     }
@@ -1047,12 +1094,7 @@ const pinFromPicker = handler<
     });
 
     // Update children's composedInput using .key().set()
-    const childIndices: number[] = [];
-    spindlesArray.forEach((s, idx) => {
-      if (s.parentId === spindleIdVal) {
-        childIndices.push(idx);
-      }
-    });
+    const childIndices = findChildIndices(spindlesArray, spindleIdx);
 
     for (const childIdx of childIndices) {
       const childCell = spindles.key(childIdx);
@@ -1074,12 +1116,11 @@ const pinFromPicker = handler<
 
       for (let i = 0; i < nextLevel.branchFactor; i++) {
         currentSpindles.push({
-          id: generateId(),
+          parentIndex: spindleIdx,
           levelIndex: nextLevelIndex,
           positionInLevel: positionInLevel++,
           siblingIndex: i,
           siblingCount: nextLevel.branchFactor,
-          parentId: spindleIdVal,
           composedInput: optionContentVal,
           extraPrompt: "",
           pinnedOptionIndex: -1,
@@ -1114,9 +1155,9 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     editLevelTitle,
     editLevelPrompt,
     showViewPromptModal,
-    viewPromptSpindleId,
+    viewPromptSpindleIndex,
     showEditSpindlePromptModal,
-    editingSpindlePromptId,
+    editingSpindlePromptIndex,
     editSpindlePromptText,
     showEditBranchModal,
     editingBranchLevelIndex,
@@ -1124,7 +1165,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     showBranchDeleteWarning,
     pendingBranchFactor,
     showOptionPicker,
-    pickerSpindleId,
+    pickerSpindleIndex,
     pickerPreviewIndex,
     synopsisText,
     synopsisIdeasNonce,
@@ -1139,7 +1180,8 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // =========================================================================
 
     // Map over spindles to create generations
-    const spindleResults = spindles.map((config) => {
+    // NOTE: spindleIndex is the array index, used for identity instead of string IDs
+    const spindleResults = spindles.map((config, spindleIndex) => {
       // Get level config
       const levelConfig = derive(
         { config, levels },
@@ -1287,7 +1329,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
       // UI-needed derived values (computed here to avoid derives-inside-map thrashing)
       // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
       // Note: Use explicit null checks because config can be undefined during reactive passes
-      const spindleId = derive(config, (c) => (c as SpindleConfig)?.id || "");
+      // spindleId REMOVED - now using array index instead
       const levelIndex = derive(config, (c) => (c as SpindleConfig)?.levelIndex ?? 0);
       const siblingIndex = derive(config, (c) => (c as SpindleConfig)?.siblingIndex ?? 0);
       const siblingCount = derive(config, (c) => (c as SpindleConfig)?.siblingCount ?? 1);
@@ -1365,7 +1407,8 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         isStale,
         summary,
         // UI-needed derived values (pre-computed to avoid derives-inside-map thrashing)
-        spindleId,
+        // spindleIndex is the array index - used for identity instead of string IDs
+        spindleIndex,
         levelIndex,
         siblingIndex,
         siblingCount,
@@ -1422,15 +1465,16 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // Get prompt details for the selected spindle (for View Prompt modal)
     // Computed at top level with labeled sections for display
     const viewPromptDetails = derive(
-      { spindles, levels, viewPromptSpindleId },
+      { spindles, levels, viewPromptSpindleIndex },
       (deps: {
         spindles: SpindleConfig[];
         levels: LevelConfig[];
-        viewPromptSpindleId: string;
+        viewPromptSpindleIndex: number;
       }) => {
-        if (!deps.spindles || !deps.levels || !deps.viewPromptSpindleId) return null;
+        if (!deps.spindles || !deps.levels || deps.viewPromptSpindleIndex < 0) return null;
+        if (deps.viewPromptSpindleIndex >= deps.spindles.length) return null;
 
-        const spindle = deps.spindles.find((s) => s && s.id === deps.viewPromptSpindleId);
+        const spindle = deps.spindles[deps.viewPromptSpindleIndex];
         if (!spindle) return null;
 
         const level = deps.levels[spindle.levelIndex];
@@ -1905,8 +1949,8 @@ Make them diverse in genre and tone:
                       <button
                         onClick={openViewPromptModal({
                           showViewPromptModal,
-                          viewPromptSpindleId,
-                          spindleId: result.spindleId,
+                          viewPromptSpindleIndex,
+                          spindleIndex: result.spindleIndex,
                         })}
                         style={{
                           padding: "6px 12px",
@@ -1942,7 +1986,7 @@ Make them diverse in genre and tone:
                         Edit Prompt
                       </button>
                       <button
-                        onClick={respinSpindle({ spindles, spindleId: result.spindleId })}
+                        onClick={respinSpindle({ spindles, spindleIndex: result.spindleIndex })}
                         style={{
                           padding: "6px 12px",
                           background: "#3b82f6",
@@ -2047,10 +2091,10 @@ Make them diverse in genre and tone:
                         <button
                           onClick={openEditSpindlePromptModal({
                             showEditSpindlePromptModal,
-                            editingSpindlePromptId,
+                            editingSpindlePromptIndex,
                             editSpindlePromptText,
                             spindles,
-                            spindleId: result.spindleId,
+                            spindleIndex: result.spindleIndex,
                           })}
                           style={{
                             padding: "2px 8px",
@@ -2069,7 +2113,7 @@ Make them diverse in genre and tone:
                           <button
                             onClick={clearSpindlePrompt({
                               spindles,
-                              spindleId: result.spindleId,
+                              spindleIndex: result.spindleIndex,
                             })}
                             style={{
                               padding: "2px 8px",
@@ -2130,7 +2174,7 @@ Make them diverse in genre and tone:
                       <button
                         onClick={startGeneration({
                           spindles,
-                          spindleId: result.spindleId,
+                          spindleIndex: result.spindleIndex,
                         })}
                         style={{
                           padding: "12px 24px",
@@ -2181,9 +2225,9 @@ Make them diverse in genre and tone:
                           <button
                             onClick={openOptionPicker({
                               showOptionPicker,
-                              pickerSpindleId,
+                              pickerSpindleIndex,
                               pickerPreviewIndex,
-                              spindleId: result.spindleId,
+                              spindleIndex: result.spindleIndex,
                               currentPinnedIdx: result.pinnedIdx,
                             })}
                             style={{
@@ -2286,7 +2330,7 @@ Make them diverse in genre and tone:
                                 onClick={pinOption({
                                   spindles,
                                   levels,
-                                  spindleId: result.spindleId,
+                                  spindleIndex: result.spindleIndex,
                                   optionIndex: 0,
                                   optionContent: result.option0,
                                 })}
@@ -2398,7 +2442,7 @@ Make them diverse in genre and tone:
                                 onClick={pinOption({
                                   spindles,
                                   levels,
-                                  spindleId: result.spindleId,
+                                  spindleIndex: result.spindleIndex,
                                   optionIndex: 1,
                                   optionContent: result.option1,
                                 })}
@@ -2510,7 +2554,7 @@ Make them diverse in genre and tone:
                                 onClick={pinOption({
                                   spindles,
                                   levels,
-                                  spindleId: result.spindleId,
+                                  spindleIndex: result.spindleIndex,
                                   optionIndex: 2,
                                   optionContent: result.option2,
                                 })}
@@ -2622,7 +2666,7 @@ Make them diverse in genre and tone:
                                 onClick={pinOption({
                                   spindles,
                                   levels,
-                                  spindleId: result.spindleId,
+                                  spindleIndex: result.spindleIndex,
                                   optionIndex: 3,
                                   optionContent: result.option3,
                                 })}
@@ -3392,7 +3436,7 @@ Make them diverse in genre and tone:
                   <button
                     onClick={saveSpindlePrompt({
                       spindles,
-                      editingSpindlePromptId,
+                      editingSpindlePromptIndex,
                       editSpindlePromptText,
                       showEditSpindlePromptModal,
                     })}
@@ -3640,12 +3684,12 @@ Make them diverse in genre and tone:
                   onClick={pinFromPicker({
                     spindles,
                     levels,
-                    pickerSpindleId,
+                    pickerSpindleIndex,
                     pickerPreviewIndex,
                     showOptionPicker,
                     optionContent: derive(
-                      { pickerSpindleId, pickerPreviewIndex, spindleResults },
-                      (deps: { pickerSpindleId: string; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
+                      { pickerSpindleIndex, pickerPreviewIndex, spindleResults },
+                      (deps: { pickerSpindleIndex: number; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
                         // This is a simplified approach - would need proper lookup
                         return "";
                       }
