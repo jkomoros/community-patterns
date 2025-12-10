@@ -2,6 +2,8 @@
 
 **Status:** Superstition (single observation)
 
+> **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `derive()` callbacks. This superstition is about a different issue: creating reactive primitives (`computed()`, `cell()`, `derive()`) inside render callbacks causes object identity issues and thrashing. This remains valid.
+
 ## Problem
 
 When rendering a list with `.map()` and creating `computed()` inside the callback, the pattern causes:

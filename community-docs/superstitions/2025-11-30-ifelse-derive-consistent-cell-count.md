@@ -1,5 +1,7 @@
 # ifElse and Derive Require Consistent Cell Count (Like React Hooks)
 
+> **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `derive()` callbacks. This superstition is about a different issue: creating different numbers of cells (via `derive()` or `ifElse()`) on different reactive passes breaks cell tracking. This is about consistent cell counts, like React's Rules of Hooks. This remains valid.
+
 ## Observation
 
 When using `ifElse()` or `derive()` inside nested maps or conditional contexts, the framework may fail to track reactive updates correctly if different reactive passes create different numbers of cells.
