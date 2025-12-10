@@ -174,21 +174,6 @@ const addItem = handler<
   items.push({ title: detail.message, done: false });
 });
 
-// Handler for keyboard input that keeps focus and clears after adding
-// Uses a cell for the input value to allow clearing reactively
-const addItemOnEnter = handler<
-  any,
-  { items: Cell<ShoppingItem[]>; newItemText: Cell<string> }
->((event, { items, newItemText }) => {
-  if (event?.key === "Enter") {
-    const value = newItemText.get().trim();
-    if (value) {
-      items.push({ title: value, done: false });
-      newItemText.set(""); // Clear the input via cell
-    }
-  }
-});
-
 // Handler for omnibot to add multiple items at once
 const addItems = handler<
   { itemNames: string[] },
@@ -351,9 +336,6 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
 
     // Cell to store uploaded images
     const uploadedImages = cell<ImageData[]>([]);
-
-    // Cell for new item input - allows clearing after adding
-    const newItemText = cell("");
 
     // Process uploaded images with vision LLM to extract shopping items
     const imageExtractions = uploadedImages.map((image) => {
@@ -679,18 +661,17 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                 </ct-button>
               </div>
             ))}
-            <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-              <ct-input
-                $value={newItemText}
-                placeholder="💬 Type to add item..."
-                {...{ onkeydown: addItemOnEnter({ items, newItemText }) } as any}
-                style="flex: 1; padding: 0.75rem 1rem; border: 1px solid #e0e0e0; border-radius: 20px; font-size: 15px;"
+            <div style={{ marginTop: "0.5rem" }}>
+              <ct-message-input
+                placeholder="💬 Type to add item, or ask omnibot..."
+                appearance="rounded"
+                onct-send={addItem({ items })}
               />
             </div>
           </ct-vstack>
 
           {/* Sorted view - Grouped by aisle with headers (using boxing pattern) */}
-          <ct-vstack gap={4} style={isBasicView ? "display: none;" : "display: flex;"}>
+          <div style={isBasicView ? { display: "none" } : { display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
             {aisleGroups.map((group) => {
               return (
                 <div style={{
@@ -766,8 +747,6 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                         border: assignment.item.done ? "1px solid #e5e7eb" : "1px solid #d1d5db",
                         borderRadius: "6px",
                         opacity: assignment.item.done ? 0.6 : 1,
-                        overflow: "hidden",
-                        minWidth: 0,
                       }}>
                         <ct-checkbox $checked={assignment.item.done} />
                         <span style={{
@@ -839,7 +818,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                 </div>
               );
             })}
-          </ct-vstack>
+          </div>
 
           {/* Correction Panel - appears at bottom when correcting an item */}
           {derive(
