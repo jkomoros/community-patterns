@@ -17,6 +17,8 @@ Fetch and display Cheeseboard pizza schedule with ingredient preferences.
 #### `cozy-poll.tsx`
 Multi-voter anonymous polling system. Create polls and share with friends.
 
+![cozy-poll](screenshots/cozy-poll.png)
+
 **Interesting features:**
 - Anonymous voting with voter name collection
 - Results visualization
@@ -36,6 +38,8 @@ Debug view for examining favorited/wish system.
 
 #### `food-recipe.tsx`
 Full-featured recipe management with ingredient tracking, step groups, dietary analysis, and LLM-powered extraction from images/text.
+
+![food-recipe](screenshots/food-recipe.png)
 
 **Interesting features:**
 - LLM extraction from uploaded recipe images or pasted text
@@ -86,6 +90,8 @@ Composes the `gmail-agentic-search.tsx` base pattern.
 #### `meal-orchestrator.tsx`
 Plan multi-recipe meals with equipment scheduling and dietary analysis. Links to food-recipe and prepared-food charms.
 
+![meal-orchestrator](screenshots/meal-orchestrator.png)
+
 **Interesting features:**
 - LLM-powered recipe linking from free-form planning notes
 - Equipment tracking (multiple ovens, stovetop burners)
@@ -111,6 +117,8 @@ Launcher/home screen for creating new charms. Imports patterns directly and uses
 
 #### `person.tsx`
 Contact/person management with structured fields and LLM enrichment.
+
+![person](screenshots/person.png)
 
 **Interesting features:**
 - Structured contact info (emails, phones, social links)
@@ -160,6 +168,8 @@ Extended redactor with secure PII vault storage.
 #### `reward-spinner.tsx`
 A fun prize spinner for kids with adjustable odds.
 
+![reward-spinner](screenshots/reward-spinner.png)
+
 **Interesting features:**
 - Three prize types: 3 jelly beans, 1 jelly bean, or a hug
 - Adjustable "generosity" slider (0 = mostly hugs, 10 = lots of candy)
@@ -192,6 +202,8 @@ AI-powered space setup wizard. Guides users through creating an initial set of c
 #### `star-chart.tsx`
 A reward calendar for children learning daily habits. Shows a rolling 30-day timeline with gold stars for successful days.
 
+![star-chart](screenshots/star-chart.png)
+
 **Interesting features:**
 - Stars appear as magical stickers with random tilts and shimmer effects
 - Streak tracking with milestone celebrations (3 days, 1 week, 2 weeks, 1 month)
@@ -202,6 +214,8 @@ A reward calendar for children learning daily habits. Shows a rolling 30-day tim
 #### `store-mapper.tsx`
 Map and memorize grocery store layouts. Configure aisles, departments, and entrances.
 
+![store-mapper](screenshots/store-mapper.png)
+
 **Interesting features:**
 - Visual store map with draggable departments
 - Aisle naming and organization
@@ -211,6 +225,8 @@ Map and memorize grocery store layouts. Configure aisles, departments, and entra
 
 #### `story-weaver.tsx` (formerly spindle-board)
 Brainstorm and weave story ideas using AI prompts. Generate options, pin favorites, and vote on directions.
+
+![story-weaver](screenshots/story-weaver.png)
 
 **Interesting features:**
 - Multiple prompt levels (story level vs spindle/detail level)
@@ -225,6 +241,8 @@ Summarize Substack newsletter content.
 #### `assumption-surfacer.tsx`
 LLM chat that surfaces and tracks assumptions in conversation.
 
+![assumption-surfacer](screenshots/assumption-surfacer.png)
+
 **Interesting features:**
 - Analyzes each assistant response for hidden assumptions
 - Shows alternatives for each assumption with selection UI
@@ -233,6 +251,8 @@ LLM chat that surfaces and tracks assumptions in conversation.
 
 #### `calendar-event-manager.tsx`
 Create, update, delete, and RSVP to Google Calendar events with mandatory user confirmation.
+
+![calendar-event-manager](screenshots/calendar-event-manager.png)
 
 **Interesting features:**
 - Full CRUD operations for calendar events
@@ -250,6 +270,8 @@ View calendar events synced via the apple-sync CLI tool.
 
 #### `codenames-helper.tsx`
 Helper for the Codenames board game. Upload photos of the board and keycard for AI-assisted clue generation.
+
+![codenames-helper](screenshots/codenames-helper.png)
 
 **Interesting features:**
 - Photo extraction of game board (5x5 word grid)
@@ -350,6 +372,8 @@ Post-hoc Google account classification after login.
 #### `hosting-tracker.tsx`
 Track reciprocal hosting between families to maintain balanced relationships.
 
+![hosting-tracker](screenshots/hosting-tracker.png)
+
 **Interesting features:**
 - Dashboard showing overdue/balanced families
 - Manual and calendar-based event entry
@@ -367,6 +391,8 @@ Gmail agent that researches information about a person from your email history.
 
 #### `smart-rubric.tsx`
 Decision making tool with weighted multi-dimensional scoring.
+
+![smart-rubric](screenshots/smart-rubric.png)
 
 **Interesting features:**
 - Dynamic dimension management (categorical and numeric types)
