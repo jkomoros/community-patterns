@@ -133,17 +133,39 @@ export default pattern(({ /* inputs */ }) => {
 });
 ```
 
-### Stream.send() Takes Only 1 Argument
+### Stream.send() Supports Optional onCommit Callback
 
-Note that `Stream.send()` only takes the event argument, **not** an `onCommit` callback:
+**Updated:** 2024-12-10 - Verified in framework source code
+
+`Stream.send()` supports an optional `onCommit` callback that fires after the transaction commits:
 
 ```typescript
-// ✅ CORRECT
+// Basic usage - fire and forget
 refreshStream.send({});
 
-// ❌ WRONG - no onCommit callback
-refreshStream.send({}, () => console.log("done"));  // Error!
+// With onCommit callback - wait for transaction to complete
+await new Promise<void>((resolve, reject) => {
+  refreshStream.send({}, (tx) => {
+    const status = tx?.status?.();
+    if (status?.status === "error") {
+      reject(new Error(status.error));
+    } else {
+      resolve();
+    }
+  });
+});
 ```
+
+**Framework source:** `/packages/runner/src/cell.ts` lines 105-108:
+```typescript
+interface IStreamable<T> {
+  send(
+    value: AnyCellWrapping<T> | T,
+    onCommit?: (tx: IExtendedStorageTransaction) => void,
+  ): void;
+```
+
+This is useful when you need to wait for a cross-charm operation to complete before continuing.
 
 ---
 

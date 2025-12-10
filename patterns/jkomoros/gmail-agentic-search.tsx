@@ -764,15 +764,29 @@ const GmailAgenticSearch = pattern<
           let onRefresh: (() => Promise<void>) | undefined = undefined;
 
           if (refreshStream?.send) {
-            // Stream.send() only takes the event, no onCommit callback
+            // Stream.send() supports optional onCommit callback (see labs/packages/runner/src/cell.ts)
             // The refresh happens in the auth charm's transaction context
+            // Note: TypeScript types don't include onCommit, but runtime supports it
             onRefresh = async () => {
               console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
-              refreshStream.send({});
-              // Give the refresh handler time to complete
-              // Note: We can't await the transaction completion with current API
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              console.log("[SearchGmail Tool] Token refresh triggered (stream.send completed)");
+              await new Promise<void>((resolve, reject) => {
+                // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
+                (refreshStream.send as (event: Record<string, never>, onCommit?: (tx: any) => void) => void)(
+                  {},
+                  (tx: any) => {
+                    // onCommit fires after the handler's transaction commits
+                    const status = tx?.status?.();
+                    if (status?.status === "error") {
+                      console.error("[SearchGmail Tool] Token refresh failed:", status.error);
+                      reject(new Error(`Token refresh failed: ${status.error}`));
+                    } else {
+                      console.log("[SearchGmail Tool] Token refresh transaction committed");
+                      resolve();
+                    }
+                  }
+                );
+              });
+              console.log("[SearchGmail Tool] Token refresh completed");
             };
           }
 

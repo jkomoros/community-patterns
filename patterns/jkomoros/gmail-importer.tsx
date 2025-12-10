@@ -1137,7 +1137,7 @@ export default pattern<{
         </ct-screen>
       ),
       emails,
-      emailCount: derive(emails, (list) => list?.length || 0),
+      emailCount: derive(emails, (list: Email[]) => list?.length || 0),
       bgUpdater: googleUpdater({ emails, auth, settings }),
       // Pattern tools for omnibot
       searchEmails: patternTool(
@@ -1156,7 +1156,7 @@ export default pattern<{
       ),
       getEmailCount: patternTool(
         ({ emails }: { emails: Email[] }) => {
-          return derive(emails, (list) => list?.length || 0);
+          return derive(emails, (list: Email[]) => list?.length || 0);
         },
         { emails }
       ),

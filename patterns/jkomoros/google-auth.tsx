@@ -402,13 +402,12 @@ export default pattern<Input, Output>(
                     const friendly = Object.entries(SCOPE_MAP).find(
                       ([, url]) => url === scope
                     );
-                    return friendly
+                    const displayName = friendly
                       ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
                       : scope;
+                    return <li>{displayName}</li>;
                   })
-                ).map((name: string) => (
-                  <li>{name}</li>
-                ))}
+                )}
               </ul>
             </div>
           )}
