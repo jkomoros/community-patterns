@@ -811,18 +811,19 @@ return {
 
 ---
 
-### 🟢 CONFIRMED: ct.render() for Hidden Charm Execution
+### 🟢 CONFIRMED: `<ct-render>` for Hidden Charm Execution
 
 **Issue:** How to make auth charm run in background?
 
-**Framework idiom:** "ct.render() Forces Charm Execution"
+**Framework idiom:** Use `<ct-render $cell={charm} />` to force charm execution.
 
+From actual patterns (`google-calendar-importer.tsx:702`, `gmail-importer.tsx:1026`):
 ```typescript
 return (
   <div>
     {/* Hidden: forces auth charm to execute */}
     <div style={{ display: "none" }}>
-      {ct.render(authCharm)}
+      <ct-render $cell={effectiveAuthCharm} />
     </div>
 
     {/* Your actual CRM dashboard UI */}
@@ -830,6 +831,8 @@ return (
   </div>
 );
 ```
+
+**Note:** Must use `$cell` attribute, NOT `charm` or `pattern` attributes.
 
 ---
 
