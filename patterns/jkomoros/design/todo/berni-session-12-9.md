@@ -82,11 +82,11 @@ The current implementation has several issues:
 
 Berni's recommended approach for making token refresh work:
 
-#### Step 1: Use ct.render to include the auth charm (forces execution)
+#### Step 1: Use `<ct-render>` to include the auth charm (forces execution)
 ```tsx
-// Don't just embed UI - use ct.render which forces the charm to execute
+// Use <ct-render> which forces the charm to execute
 // Even a hidden div will work
-ct.render(googleAuthCharm)
+<ct-render $cell={googleAuthCharm} />
 ```
 
 #### Step 2: Import and use the refresh token stream
@@ -144,7 +144,7 @@ ct.render(googleAuthCharm)
 - [x] `blessed/reactivity.md` - Added: ifElse runs both branches, use empty prompt to skip (section added)
 - [x] `blessed/llm.md` - Created: schema: parameter auto-inferred from types
 - [x] `blessed/handlers.md` - Added: await blocks UI, use fetchData instead (section added)
-- [x] `blessed/cross-charm.md` - Created: ct.render forces charm to execute
+- [x] `blessed/cross-charm.md` - Created: `<ct-render $cell={charm}>` forces charm to execute
 
 ### Future Work
 
