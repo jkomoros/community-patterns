@@ -400,6 +400,21 @@ const toggleDebugMode = handler<
   },
 );
 
+const nextPage = handler<unknown, { currentPage: Cell<number> }>(
+  (_, { currentPage }) => {
+    currentPage.set(currentPage.get() + 1);
+  },
+);
+
+const prevPage = handler<unknown, { currentPage: Cell<number> }>(
+  (_, { currentPage }) => {
+    const current = currentPage.get();
+    if (current > 0) {
+      currentPage.set(current - 1);
+    }
+  },
+);
+
 // Handler to create a new GoogleAuth charm and navigate to it
 const createGoogleAuth = handler<unknown, Record<string, never>>(
   () => {
@@ -474,6 +489,8 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
     const calendars = cell<Calendar[]>([]);
     const showAuth = cell(false);
     const fetching = cell(false);
+    const currentPage = cell(0);
+    const PAGE_SIZE = 10;
 
     // Wish for a favorited auth charm (unified Google auth)
     const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
@@ -536,6 +553,34 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
       if (settings.debugMode) {
         console.log("events", events.get().length);
       }
+    });
+
+    // Computed values for pagination
+    const upcomingEvents = derive(events, (evts: CalendarEvent[]) => {
+      const now = new Date();
+      return [...evts]
+        .filter(e => new Date(e.startDateTime || e.start) >= now)
+        .sort((a, b) =>
+          new Date(a.startDateTime || a.start).getTime() - new Date(b.startDateTime || b.start).getTime()
+        );
+    });
+
+    const totalUpcoming = derive(upcomingEvents, (evts: CalendarEvent[]) => evts.length);
+    const maxPageNum = derive(totalUpcoming, (total: number) => Math.max(0, Math.ceil(total / PAGE_SIZE) - 1));
+
+    // Paginated events for display - use computed with events Cell directly
+    const paginatedEvents = computed(() => {
+      const allEvents = events.get() || [];
+      const now = new Date();
+      const upcoming = [...allEvents]
+        .filter((e: CalendarEvent) => new Date(e.startDateTime || e.start) >= now)
+        .sort((a: CalendarEvent, b: CalendarEvent) =>
+          new Date(a.startDateTime || a.start).getTime() - new Date(b.startDateTime || b.start).getTime()
+        );
+      const page = currentPage.get();
+      const start = page * PAGE_SIZE;
+      const end = Math.min(start + PAGE_SIZE, upcoming.length);
+      return upcoming.slice(start, end);
     });
 
     return {
@@ -761,54 +806,28 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
                 <div />
               )}
 
-              {/* Events table */}
+              {/*
+                * Events summary - showing only count instead of full event list.
+                *
+                * NOTE: This minimal UI is intentional due to performance limitations.
+                * Rendering 200+ events with reactive cells causes Chrome CPU to spike
+                * to 100% for extended periods. Ideally we'd show all events in a full
+                * table/list view, but until the framework supports virtualization or
+                * more efficient rendering, we display just the summary.
+                *
+                * See: https://linear.app/common-tools/issue/CT-1111/performance-derive-inside-map-causes-8x-more-calls-than-expected-never
+                *
+                * The full event data is still available via the `events` output for
+                * other patterns to access via linking/wishing.
+                */}
               <div style={{ marginTop: "16px" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #e0e0e0" }}>DATE/TIME</th>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #e0e0e0" }}>EVENT</th>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #e0e0e0" }}>CALENDAR</th>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #e0e0e0" }}>LOCATION</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events.map((event) => (
-                      <tr>
-                        <td style={{ padding: "10px", borderBottom: "1px solid #e0e0e0", whiteSpace: "nowrap" }}>
-                          {derive(
-                            { startDateTime: event.startDateTime, endDateTime: event.endDateTime, isAllDay: event.isAllDay, eventId: event.id },
-                            ({ startDateTime, endDateTime, isAllDay, eventId }) => {
-                              logDeriveCall(`formatEventDate[${eventId}]`, true);
-                              return formatEventDate(startDateTime, endDateTime, isAllDay);
-                            }
-                          )}
-                        </td>
-                        <td style={{ padding: "10px", borderBottom: "1px solid #e0e0e0" }}>
-                          <div>
-                            <strong>{event.summary}</strong>
-                            {ifElse(
-                              event.description,
-                              <details style={{ marginTop: "4px" }}>
-                                <summary style={{ cursor: "pointer", fontSize: "12px", color: "#666" }}>Show details</summary>
-                                <pre style={{ whiteSpace: "pre-wrap", fontSize: "12px", marginTop: "4px" }}>
-                                  {event.description}
-                                </pre>
-                              </details>,
-                              <div />
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: "10px", borderBottom: "1px solid #e0e0e0", fontSize: "12px" }}>
-                          {event.calendarName}
-                        </td>
-                        <td style={{ padding: "10px", borderBottom: "1px solid #e0e0e0", fontSize: "12px" }}>
-                          {event.location}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <h4 style={{ fontSize: "16px", margin: 0 }}>
+                  {derive(events, (evts: CalendarEvent[]) => `${evts.length} events imported`)}
+                </h4>
+                <p style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                  Full event data available for other patterns via linking.
+                  (Event list hidden for performance - rendering 200+ items causes CPU issues)
+                </p>
               </div>
             </ct-vstack>
           </ct-vscroll>
