@@ -84,20 +84,6 @@ function getRelativeLabel(dateStr: string): string {
   }
 }
 
-// Group events by date - returns plain object (Maps don't serialize well in framework)
-function groupEventsByDate(
-  events: CalendarEvent[]
-): Record<string, CalendarEvent[]> {
-  const byDate: Record<string, CalendarEvent[]> = {};
-  for (const evt of events) {
-    if (!evt || !evt.startDate) continue;
-    const dateKey = new Date(evt.startDate).toDateString();
-    if (!byDate[dateKey]) byDate[dateKey] = [];
-    byDate[dateKey].push(evt);
-  }
-  return byDate;
-}
-
 // Calendar color based on name
 function getCalendarColor(calendarName: string): string {
   const colors: Record<string, string> = {
@@ -109,14 +95,6 @@ function getCalendarColor(calendarName: string): string {
   };
   return colors[calendarName] || "#8E8E93";
 }
-
-// Handler to select an event
-const selectEvent = handler<
-  unknown,
-  { eventId: string; selectedEventId: Cell<string | null> }
->((_, { eventId, selectedEventId }) => {
-  selectedEventId.set(eventId);
-});
 
 // Handler to toggle calendar visibility
 const toggleCalendar = handler<
@@ -131,18 +109,27 @@ const toggleCalendar = handler<
   }
 });
 
-// Handler to go back to event list
-const backToList = handler<unknown, { selectedEventId: Cell<string | null> }>(
-  (_, { selectedEventId }) => {
-    selectedEventId.set(null);
-  }
+const nextPage = handler<unknown, { currentPage: Cell<number> }>(
+  (_, { currentPage }) => {
+    currentPage.set(currentPage.get() + 1);
+  },
+);
+
+const prevPage = handler<unknown, { currentPage: Cell<number> }>(
+  (_, { currentPage }) => {
+    const current = currentPage.get();
+    if (current > 0) {
+      currentPage.set(current - 1);
+    }
+  },
 );
 
 export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
-  const selectedEventId = cell<string | null>(null);
   const hiddenCalendars = cell<string[]>([]);
+  const currentPage = cell(0);
+  const PAGE_SIZE = 10;
 
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 
@@ -152,67 +139,18 @@ export default pattern<{
     [...new Set((evts || []).filter(evt => evt?.calendarName).map(evt => evt.calendarName))].sort()
   );
 
-  // Get events grouped by date, filtered by hidden calendars
-  const eventsByDate = derive(
-    { events, hiddenCalendars },
-    ({
-      events,
-      hiddenCalendars,
-    }: {
-      events: CalendarEvent[];
-      hiddenCalendars: string[];
-    }) => {
-      // Early return for empty/invalid data
-      if (!events?.length) return [];
-
-      const hidden = hiddenCalendars || [];
-      const filtered = events.filter(
-        (evt) => evt && !hidden.includes(evt.calendarName)
+  // Upcoming events (sorted by start date)
+  const upcomingEvents = derive(events, (evts: CalendarEvent[]) => {
+    const now = new Date();
+    return [...(evts || [])]
+      .filter((e: CalendarEvent) => new Date(e.startDate) >= now)
+      .sort((a: CalendarEvent, b: CalendarEvent) =>
+        new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
       );
-      const byDate = groupEventsByDate(filtered);
-      const groups: Array<{
-        date: string;
-        label: string;
-        events: CalendarEvent[];
-      }> = [];
+  });
 
-      // Use Object.entries since byDate is now a plain object (not Map)
-      for (const [dateKey, dateEvents] of Object.entries(byDate)) {
-        // Spread before sort to avoid mutating (defensive, per community docs)
-        const sortedEvents = [...dateEvents].sort(
-          (a, b) =>
-            new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
-        );
-        groups.push({
-          date: dateKey,
-          label: getRelativeLabel(sortedEvents[0].startDate),
-          events: sortedEvents,
-        });
-      }
-
-      // Sort groups by date
-      groups.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-
-      return groups;
-    }
-  );
-
-  // Get selected event details
-  const selectedEvent = derive(
-    { events, selectedEventId },
-    ({
-      events,
-      selectedEventId,
-    }: {
-      events: CalendarEvent[];
-      selectedEventId: string | null;
-    }) => {
-      if (!selectedEventId || !events) return null;
-      return events.find((e: CalendarEvent) => e && e.id === selectedEventId) || null;
-    }
-  );
+  const totalUpcoming = derive(upcomingEvents, (evts: CalendarEvent[]) => evts.length);
+  const maxPageNum = derive(totalUpcoming, (total: number) => Math.max(0, Math.ceil(total / PAGE_SIZE) - 1));
 
   return {
     [NAME]: derive(eventCount, (count: number) => `Calendar (${count} events)`),
@@ -235,22 +173,7 @@ export default pattern<{
             gap: "12px",
           }}
         >
-          {ifElse(
-            derive(selectedEventId, (id: string | null) => id !== null),
-            <button
-              onClick={backToList({ selectedEventId })}
-              style={{
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                fontSize: "18px",
-                padding: "4px 8px",
-              }}
-            >
-              Back
-            </button>,
-            <span style={{ fontSize: "24px" }}>Calendar</span>
-          )}
+          <span style={{ fontSize: "24px" }}>Calendar</span>
         </div>
 
         {/* Calendar Filter Bar */}
@@ -352,154 +275,114 @@ export default pattern<{
                 </pre>
               </div>
             </div>,
-            // Has events
-            ifElse(
-              derive(selectedEventId, (id: string | null) => id === null),
-              // Event list view (grouped by date)
-              <div>
-                {derive(eventsByDate, (groups) =>
-                  groups.map((group, groupIdx: number) => (
-                    <div key={groupIdx}>
-                      {/* Date header */}
+            /*
+             * Paginated event preview - showing 10 events at a time.
+             *
+             * NOTE: This pagination is intentional due to performance limitations.
+             * Rendering 200+ events with reactive cells causes Chrome CPU to spike
+             * to 100% for extended periods. Ideally we'd show all events at once,
+             * but until the framework supports virtualization or more efficient
+             * rendering, we paginate to keep the UI responsive.
+             *
+             * See: https://linear.app/common-tools/issue/CT-1111/performance-derive-inside-map-causes-8x-more-calls-than-expected-never
+             *
+             * The full event data is still available via the `events` output for
+             * other patterns to access via linking.
+             */
+            <div style={{ padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <div style={{ fontSize: "18px", fontWeight: "bold" }}>
+                  Upcoming Events ({totalUpcoming} total)
+                </div>
+                <div style={{ fontSize: "12px", color: "#666" }}>
+                  Showing {derive(currentPage, (p: number) => p * PAGE_SIZE + 1)}-{derive({ currentPage, totalUpcoming }, ({ currentPage: p, totalUpcoming: total }: { currentPage: number; totalUpcoming: number }) => Math.min((p + 1) * PAGE_SIZE, total))} of {totalUpcoming}
+                </div>
+              </div>
+              <p style={{ fontSize: "14px", color: "#666", margin: "0 0 16px 0" }}>
+                Full event data available for other patterns via linking.
+                (Paginated for performance - rendering 200+ items causes CPU issues)
+              </p>
+
+              {derive({ upcomingEvents, currentPage }, ({ upcomingEvents: evts, currentPage: page }: { upcomingEvents: CalendarEvent[]; currentPage: number }) => {
+                const start = page * PAGE_SIZE;
+                const end = Math.min(start + PAGE_SIZE, evts.length);
+                const pageEvents = evts.slice(start, end);
+
+                if (pageEvents.length === 0) {
+                  return <div style={{ color: "#999" }}>No upcoming events</div>;
+                }
+
+                return (
+                  <div>
+                    {pageEvents.map((evt: CalendarEvent, idx: number) => (
                       <div
+                        key={idx}
                         style={{
-                          padding: "8px 16px",
-                          backgroundColor:
-                            group.label === "Today" ? "#e3f2fd" : "#e8e8e8",
-                          borderLeft:
-                            group.label === "Today"
-                              ? "4px solid #2196f3"
-                              : "none",
-                          fontWeight: "600",
-                          fontSize: "14px",
-                          color: group.label === "Today" ? "#1976d2" : "#666",
-                          position: "sticky",
-                          top: 0,
-                        }}
-                      >
-                        {group.label}
-                      </div>
-                      {/* Events for this date */}
-                      {group.events.map((evt, idx: number) => (
-                        <div
-                          key={idx}
-                          onClick={selectEvent({ eventId: evt.id, selectedEventId })}
-                          style={{
-                            padding: "12px 16px",
-                            backgroundColor: "#fff",
-                            borderBottom: "1px solid #f0f0f0",
-                            cursor: "pointer",
-                            display: "flex",
-                            gap: "12px",
-                          }}
-                        >
-                          {/* Calendar color indicator */}
-                          <div
-                            style={{
-                              width: "4px",
-                              backgroundColor: getCalendarColor(evt.calendarName),
-                              borderRadius: "2px",
-                              flexShrink: 0,
-                            }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: "600" }}>{evt.title}</div>
-                            <div style={{ fontSize: "14px", color: "#666" }}>
-                              {evt.isAllDay
-                                ? "All day"
-                                : `${formatTime(evt.startDate)} - ${formatTime(evt.endDate)}`}
-                            </div>
-                            <div style={{ fontSize: "13px", color: "#999" }}>
-                              {evt.location || ""}
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#999",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {evt.calendarName}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))
-                )}
-              </div>,
-              // Event detail view
-              <div style={{ padding: "20px", backgroundColor: "#fff" }}>
-                {derive(selectedEvent, (evt: CalendarEvent | null) =>
-                  evt ? (
-                    <div>
-                      {/* Calendar indicator */}
-                      <div
-                        style={{
+                          padding: "12px 16px",
+                          backgroundColor: "#fff",
+                          borderBottom: "1px solid #f0f0f0",
                           display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          marginBottom: "16px",
+                          gap: "12px",
                         }}
                       >
                         <div
                           style={{
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "6px",
+                            width: "4px",
                             backgroundColor: getCalendarColor(evt.calendarName),
+                            borderRadius: "2px",
+                            flexShrink: 0,
                           }}
                         />
-                        <span style={{ color: "#666" }}>{evt.calendarName}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: "600" }}>{evt.title}</div>
+                          <div style={{ fontSize: "14px", color: "#666" }}>
+                            {getRelativeLabel(evt.startDate)} {evt.isAllDay ? "(All day)" : formatTime(evt.startDate)}
+                          </div>
+                          {evt.location && (
+                            <div style={{ fontSize: "13px", color: "#999" }}>{evt.location}</div>
+                          )}
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                );
+              })}
 
-                      {/* Title */}
-                      <div style={{ margin: "0 0 16px 0", fontSize: "24px", fontWeight: "bold" }}>
-                        {evt.title}
-                      </div>
-
-                      {/* Date & Time */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Date and Time
-                        </div>
-                        <div style={{ color: "#666" }}>
-                          {formatDate(evt.startDate)}
-                          {evt.isAllDay
-                            ? " (All day)"
-                            : `, ${formatTime(evt.startDate)} - ${formatTime(evt.endDate)}`}
-                        </div>
-                      </div>
-
-                      {/* Location */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Location
-                        </div>
-                        <div style={{ color: "#666" }}>{evt.location || "Not specified"}</div>
-                      </div>
-
-                      {/* Notes */}
-                      <div style={{ marginBottom: "16px" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                          Notes
-                        </div>
-                        <div
-                          style={{
-                            color: "#666",
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
-                          {evt.notes || "No notes"}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>Event not found</div>
-                  )
-                )}
-              </div>
-            )
+              {/* Pagination controls */}
+              {ifElse(
+                derive(totalUpcoming, (t: number) => t > PAGE_SIZE),
+                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "12px" }}>
+                  <button
+                    onClick={prevPage({ currentPage })}
+                    disabled={derive(currentPage, (p: number) => p === 0)}
+                    style={{
+                      padding: "6px 12px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ← Previous
+                  </button>
+                  <span style={{ padding: "6px 12px", fontSize: "14px" }}>
+                    Page {derive(currentPage, (p: number) => p + 1)} of {derive(maxPageNum, (m: number) => m + 1)}
+                  </span>
+                  <button
+                    onClick={nextPage({ currentPage })}
+                    disabled={derive({ currentPage, maxPageNum }, ({ currentPage: p, maxPageNum: max }: { currentPage: number; maxPageNum: number }) => p >= max)}
+                    style={{
+                      padding: "6px 12px",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>,
+                <div />
+              )}
+            </div>
           )}
         </div>
       </ct-screen>
