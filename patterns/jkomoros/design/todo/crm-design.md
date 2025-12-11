@@ -632,6 +632,11 @@ const createGoogleAuth = handler<unknown, Record<string, never>>(
 
 **Framework idiom:** "Cross-Charm Writes Require Stream.send() with onCommit"
 
+**✅ VERIFIED** in actual .tsx files:
+- `gmail-agentic-search.tsx:774` - with onCommit callback
+- `gmail-client.ts:701` - utility function `validateAndRefreshTokenCrossCharm`
+- `blessed/cross-charm.md` - author-approved documentation
+
 ```typescript
 // Source charm exposes a stream
 interface Output {
@@ -639,8 +644,12 @@ interface Output {
 }
 
 // Consumer calls the stream
+// ⚠️ IMPORTANT: onCommit callback is NOT in TypeScript types - requires type cast!
 await new Promise<void>((resolve, reject) => {
-  interactionCharm.updateStream.send(
+  (interactionCharm.updateStream.send as (
+    event: { email: string; personId: string },
+    onCommit?: (tx: any) => void
+  ) => void)(
     { email, personId },
     (tx) => {
       const status = tx?.status?.();
@@ -661,7 +670,10 @@ await new Promise<void>((resolve, reject) => {
 
 **Framework idiom:** "Boxing Pattern - wrap cells before sorting to preserve identity"
 
-From `shopping-list-launcher.tsx`:
+**✅ VERIFIED** in actual .tsx files:
+- `store-mapper.tsx:879-888` - explicitly named "Boxing pattern for sorting"
+- `shopping-list-launcher.tsx:472-498` - "BERNI'S BOXING APPROACH"
+
 ```typescript
 // 1. Box the items (wrap in object)
 const boxedContacts = contacts.map(contact => ({ contact }));
@@ -681,6 +693,8 @@ const sortedBoxed = derive(boxedContacts, (boxed) => {
 
 **Why needed:** Sorting without boxing creates new cell instances, breaking reactivity and `.equals()` comparisons.
 
+**Note:** This is institutional knowledge ("Berni's boxing approach"), NOT in official labs docs.
+
 ---
 
 ### 🟡 CAUTION: Handlers Inside derive() Cause Errors
@@ -688,6 +702,12 @@ const sortedBoxed = derive(boxedContacts, (boxed) => {
 **Issue:** Dashboard UI will have conditional buttons based on state.
 
 **Framework idiom:** "Pre-bind Handlers Outside derive() for ReadOnlyAddressError"
+
+**✅ VERIFIED** in actual .tsx files:
+- `gmail-agentic-search.tsx:1210-1212` - pre-binds `boundStartScan`, `boundStopScan`, `boundCompleteScan`
+- `gmail-search-registry.tsx:191-194` - pre-binds `boundSubmitQuery`, `boundUpvoteQuery`, `boundDownvoteQuery`
+- `ReadOnlyAddressError` defined in `labs/packages/runner/src/storage/interface.ts:883-892`
+- 6+ independent confirmations in `folk_wisdom/onclick-handlers-conditional-rendering.md`
 
 ```typescript
 // ❌ WRONG - Handler binding inside derive causes ReadOnlyAddressError
@@ -793,7 +813,16 @@ return {
 };
 ```
 
-**Note:** Background service has a bug with async handler error handling - errors and retries don't work reliably for async bgUpdater handlers.
+**⚠️ VERIFIED LIMITATION:** Async handler error handling bug.
+
+**Source:** Official FIXME in `labs/packages/background-charm-service/README.md`:
+> "FIXME(ja): all of this is built on a lie: If update method is async (uses fetch - like gmail) the handler will 'finish' while work is still happening!"
+
+**What this means:**
+- Async handlers ARE used in production (`gmail-importer.tsx:143`, `google-calendar-importer.tsx:309`)
+- Basic sync functionality WORKS
+- Error tracking and retry scheduling DON'T work reliably
+- Implement your own error monitoring/retry logic if needed
 
 ---
 
