@@ -15,7 +15,7 @@ description: >
 
 **Prerequisites before filing:**
 1. ✅ Checked official `~/Code/labs/docs/common/` documentation
-2. ✅ Searched community-docs (blessed, folk_wisdom, superstitions)
+2. ✅ Searched community-docs superstitions
 3. ✅ Studied similar working patterns
 4. ✅ Tried multiple different approaches (document all attempts)
 5. ✅ **Asked user if they want you to file an issue**
@@ -139,7 +139,7 @@ What you want to happen:
 1. **Encounter framework confusion** that docs don't resolve
 2. **Exhaust recovery strategies:**
    - Check official labs/docs/
-   - Search community-docs (all tiers)
+   - Search community-docs superstitions
    - Study similar working patterns
    - Try multiple different approaches
    - Consider asking user for clarification first

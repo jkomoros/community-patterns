@@ -31,13 +31,11 @@ The name emphasizes:
 - **Scientific method** - This is a hypothesis to test
 - **Honesty** - We're not claiming authority
 
-Just like folk superstitions ("don't walk under ladders"), these may or may not reflect reality - but someone believed they observed a pattern!
-
 ## How to Use Superstitions
 
 ### When Completely Stuck
 
-If official docs and folk wisdom don't help, search superstitions:
+If official docs don't help, search superstitions:
 
 ```bash
 # Search for related superstitions
@@ -65,10 +63,10 @@ Read it! It reminds you:
 
 ### After Trying
 
-**If it works:**
-1. Update superstition metadata (confirmed_count: 2)
-2. Promote to folk_wisdom with guestbook
-3. Commit the promotion
+**If it works (verified correct):**
+1. **Upstream to labs docs** - Add the information to the appropriate doc in `~/Code/labs/docs/common/`
+2. Create a PR to labs
+3. Once merged, delete the superstition
 
 **If it doesn't work:**
 1. Add contradiction note to superstition
@@ -78,7 +76,6 @@ Read it! It reminds you:
 **If you're not sure:**
 - Add a note about partial success
 - Document differences from described behavior
-- Don't promote yet - needs clearer confirmation
 
 ## Creating a Superstition
 
@@ -99,9 +96,7 @@ Create a superstition when you:
 ls ~/Code/labs/docs/common/
 grep -r "your topic" ~/Code/labs/docs/common/
 
-# Check community-docs
-grep -r "your topic" community-docs/blessed/
-grep -r "your topic" community-docs/folk_wisdom/
+# Check existing superstitions
 grep -r "your topic" community-docs/superstitions/
 ```
 
@@ -122,15 +117,6 @@ Don't create if it already exists or is in official docs!
 - `debugging-` - General debugging strategies
 - `framework-` - Core framework behavior
 
-**Examples:**
-```
-2025-01-15-types-cell-arrays-in-handlers.md
-2025-01-16-reactivity-computed-outside-jsx.md
-2025-01-20-jsx-ifelse-vs-ternary.md
-2025-01-22-handlers-llm-calls-not-allowed.md
-2025-01-25-patterns-navigateto-within-handlers.md
-```
-
 ### Template
 
 Copy and fill this template:
@@ -139,12 +125,9 @@ Copy and fill this template:
 ---
 topic: [types|reactivity|jsx|handlers|llm|patterns|deployment|debugging|framework]
 discovered: YYYY-MM-DD
-confirmed_count: 1
-last_confirmed: YYYY-MM-DD
 sessions: [session-id-here]
 related_labs_docs: ~/Code/labs/docs/common/FILENAME.md (or "none" if no related doc)
 status: superstition
-stars: ⭐
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
@@ -160,7 +143,7 @@ stars: ⭐
 2. Working examples in labs/packages/patterns/
 3. Your own testing
 
-**If this works for you,** update the metadata and consider promoting to folk_wisdom.
+**If this is verified correct,** upstream it to labs docs and delete this superstition.
 
 ---
 
@@ -206,103 +189,17 @@ Important details:
 - What were you trying to accomplish?
 - What else did you try that didn't work?
 - Any related framework docs that might explain it?
-- Links to similar issues or patterns
-- Your environment (framework version, etc.)
 
 ## Related Documentation
 
 - **Official docs:** `~/Code/labs/docs/common/FILE.md` (or "none found")
 - **Related patterns:** `labs/packages/patterns/example.tsx`
-- **Similar issues:** Link to GitHub issues if any
 
 ## Next Steps
 
-- [ ] Needs confirmation by another session
-- [ ] Check if this contradicts official docs
-- [ ] Framework author feedback requested
-- [ ] Related to open framework issue #XXX
-
-## Notes
-
-Any additional observations or thoughts:
-- Edge cases you noticed
-- Partial successes
-- Alternative approaches you tried
-
----
-
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
-```
-
-### Example Superstition
-
-See the template above filled out with a real example:
-
-```markdown
----
-topic: types
-discovered: 2025-01-15
-confirmed_count: 1
-last_confirmed: 2025-01-15
-sessions: [cheeseboard-schedule-dev]
-related_labs_docs: ~/Code/labs/docs/common/TYPES_AND_SCHEMAS.md
-status: superstition
-stars: ⭐
----
-
-# ⚠️ SUPERSTITION - UNVERIFIED
-
-[standard disclaimer]
-
----
-
-# Use Cell<Item[]> Not Cell<OpaqueRef<Item>[]> in Handler Signatures
-
-## Problem
-
-When defining handlers that need to mutate array cells, using `Cell<OpaqueRef<Item>[]>` causes type errors:
-
-```
-Type 'OpaqueRef<Item>[]' is not assignable to type 'Item[]'
-Property 'push' does not exist on type 'OpaqueRef<Item>[]'
-```
-
-## Solution That Seemed To Work
-
-Changed handler signature to use `Cell<Item[]>` instead:
-
-```typescript
-// Before (didn't work)
-const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
-  (_, { items }) => {
-    items.push({ title: "New", done: false }); // Type error!
-  }
-);
-
-// After (seemed to work)
-const addItem = handler<unknown, { items: Cell<Item[]> }>(
-  (_, { items }) => {
-    items.push({ title: "New", done: false }); // Works!
-  }
-);
-```
-
-## Context
-
-Working on cheeseboard-schedule pattern. Needed handler to add ingredient preferences to a Cell<IngredientPreference[]>.
-
-Originally tried Cell<OpaqueRef<IngredientPreference>[]> based on type errors elsewhere, but that caused issues in handler.
-
-## Related Documentation
-
-- **Official docs:** ~/Code/labs/docs/common/TYPES_AND_SCHEMAS.md
-- Mentions Cell<> and OpaqueRef<> but doesn't specifically address handler signatures
-
-## Next Steps
-
-- [ ] Confirm this is correct with another pattern
-- [ ] Check if official docs explain this
-- [ ] Ask framework author if this is the intended pattern
+- [ ] Verify against official docs
+- [ ] If correct, upstream to labs docs
+- [ ] Then delete this superstition
 
 ---
 
@@ -311,36 +208,29 @@ Originally tried Cell<OpaqueRef<IngredientPreference>[]> based on type errors el
 
 ## Superstition Lifecycle
 
-### Stage 1: Created (⭐)
+### Stage 1: Created
 
 - Single observation
 - Highly uncertain
 - Needs verification
 
-### Stage 2: Tested by Others
+### Stage 2: Verified
 
-**If it works for others:**
-- Update confirmed_count
-- Add their session to metadata
-- When confirmed_count >= 2, promote to folk_wisdom
+**If it's verified correct:**
+- Upstream to labs docs (`~/Code/labs/docs/common/`)
+- Create PR to labs
+- Once merged, delete the superstition
 
-**If it doesn't work:**
-- Add contradiction note
-- Document the different context
-- May need revision or removal
-
-### Stage 3: Promoted (⭐⭐)
-
-- Becomes folk_wisdom entry
-- Gets guestbook
-- Superstition file marked [PROMOTED] or removed
-
-### Alternative: Deprecated
-
-If a superstition is found to be wrong or contradicted by official docs:
+**If it's wrong:**
 - Add [DEPRECATED] to filename
 - Add note explaining why it's wrong
-- Keep for historical reference (so others don't repeat)
+- Keep for historical reference
+
+### Stage 3: Deleted
+
+Once the knowledge is in labs docs, the superstition is no longer needed.
+
+**The goal is for verified knowledge to live in official docs, not here.**
 
 ## Quality Guidelines
 
@@ -354,7 +244,6 @@ If a superstition is found to be wrong or contradicted by official docs:
 - Document your context thoroughly
 - Reference related docs (even if they don't fully explain)
 - Be humble about uncertainty
-- Document what else you tried
 
 ❌ **Don't:**
 - State as absolute fact
@@ -362,41 +251,15 @@ If a superstition is found to be wrong or contradicted by official docs:
 - Be vague about the problem
 - Skip code examples
 - Ignore official docs
-- Claim to understand why (unless you really do)
-- Make it overly broad
-
-### Good Confirmations
-
-When someone tests a superstition:
-
-✅ **Do:**
-- Try it thoroughly in your context
-- Document whether it worked
-- Note any differences from described behavior
-- Update metadata accurately
-- Promote if confirmed
-
-❌ **Don't:**
-- Confirm without actually testing
-- Promote based on reading alone
-- Ignore contradictions
-- Skip documentation
 
 ## Maintenance
 
 ### Regular Review
 
 Check superstitions periodically:
-- **Older than 3 months, no confirmations?** Consider archiving
-- **Contradicted by new official docs?** Mark as deprecated
-- **Multiple contradictions?** Mark as likely wrong
-- **Ready for promotion?** Move to folk_wisdom
-
-### When Framework Changes
-
-- Test superstitions against new versions
-- Update or deprecate outdated ones
-- Document version-specific behavior
+- **Contradicted by official docs?** Mark as deprecated
+- **Already in labs docs?** Delete
+- **Verified correct?** Upstream to labs
 
 ## Remember
 
@@ -410,8 +273,4 @@ Superstitions are **working hypotheses:**
 
 Use them as starting points for investigation, not as authoritative answers.
 
-When in doubt, trust:
-1. Official labs/docs/ (highest authority)
-2. Blessed community-docs (framework-approved)
-3. Folk wisdom (multiple confirmations)
-4. Superstitions (single observation - be skeptical!)
+When in doubt, trust official labs/docs/ (highest authority).
