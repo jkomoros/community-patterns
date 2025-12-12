@@ -234,11 +234,11 @@ After each verification, consider:
 
 | Finding | Action |
 |---------|--------|
-| **Confirmed** | Add second vote to superstition, may promote to folk-wisdom |
+| **Confirmed** | Upstream to labs docs, then delete superstition |
 | **Has limitations** | Update superstition with narrower scope |
 | **Disconfirmed (low evidence)** | See deletion workflow below |
 | **Disconfirmed (high evidence)** | File bug or tighten scope - don't delete without pattern cleanup proof |
-| **Now in official docs** | Promote to folk-wisdom/blessed with pointer to docs |
+| **Now in official docs** | Delete superstition (already documented) |
 
 ## Deletion Workflow (for disconfirmed superstitions)
 
