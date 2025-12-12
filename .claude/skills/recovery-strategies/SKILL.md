@@ -139,7 +139,7 @@ If Steps 1-3 don't resolve the issue:
 ## Additional Resources
 
 **After exhausting Steps 1-4, consider:**
-- **Community docs** - Check blessed, folk_wisdom, and superstitions for empirical knowledge
+- **Community superstitions** - Check `community-docs/superstitions/` for empirical knowledge (treat with skepticism)
 - **Issue filing** - Document complex framework questions for authors (requires user permission)
 
 **Remember:** This recovery strategy is your safety net. Follow it systematically to avoid spinning your wheels!
