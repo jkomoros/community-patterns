@@ -26,21 +26,29 @@ ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
 - Avoids path resolution issues
 - Matches framework expectations
 
-## Use pattern-dev Skill for Reference
+## Framework Documentation
 
-When learning patterns or stuck on implementation:
+The labs repo contains all framework documentation. Start with the README for a guided reading order:
 
 ```
-"Use the pattern-dev skill to refresh your understanding of framework patterns"
+../labs/docs/common/README.md
 ```
 
-The pattern-dev skill reads all latest pattern documentation from the labs repo.
+**Essential docs to read before writing patterns:**
+- `../labs/docs/common/PATTERNS.md` - Main tutorial, start here
+- `../labs/docs/common/CELLS_AND_REACTIVITY.md` - Core reactive model
+- `../labs/docs/common/COMPONENTS.md` - UI components reference
+- `../labs/docs/common/TYPES_AND_SCHEMAS.md` - Type system
 
-**When to use:**
-- Starting a new pattern
-- Confused about framework features
-- Need examples of best practices
-- Encountering framework-related issues
+**When stuck or debugging:**
+- `../labs/docs/common/DEBUGGING.md` - Troubleshooting errors
+- `../labs/docs/common/PATTERN_DEV_DEPLOY.md` - Build/deploy workflow
+
+**When to read docs:**
+- Starting a new pattern - read Essential docs first
+- Confused about framework features - check relevant doc
+- Encountering errors - check DEBUGGING.md
+- Using LLM features - check LLM.md
 
 ## Space Naming Conventions
 

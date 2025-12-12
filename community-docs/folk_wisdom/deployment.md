@@ -1,12 +1,24 @@
 # Deployment - Folk Wisdom
 
+> **SUPERSEDED (2025-12-11):** The setsrc bug described below was **fixed on Nov 21, 2025** (commit cc0aaa551). The `ct charm setsrc` command now works correctly. Use `setsrc` for updating existing charms—it's faster than creating new ones with `charm new`.
+>
+> **Current best practices:** See `docs/common/PATTERN_DEV_DEPLOY.md` in labs repo.
+
+---
+
+## Historical Record (Pre-Nov 21, 2025)
+
+*The following describes behavior that existed before the bug fix. Kept for historical reference.*
+
+---
+
 Knowledge verified by multiple independent sessions. Still empirical - may not reflect official framework guarantees.
 
 **Official docs:** `~/Code/labs/docs/common/` (CT CLI documentation)
 
 ---
 
-## Avoid `charm setsrc` - Use `charm new` Instead (Framework Bug)
+## ~~Avoid `charm setsrc` - Use `charm new` Instead (Framework Bug)~~ FIXED
 
 ⭐⭐⭐ (Verified via testing - confirmed silently fails)
 
