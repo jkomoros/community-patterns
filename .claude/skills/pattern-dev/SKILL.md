@@ -1,5 +1,5 @@
 ---
-name: pattern-development
+name: pattern-dev
 description: >
   Day-to-day pattern development best practices. Use when actively developing
   patterns. Covers incremental development, commits, communication guidelines,
@@ -7,6 +7,13 @@ description: >
 ---
 
 # Pattern Development Best Practices
+
+## CT Commands: Use the Labs ct Skill
+
+**For all ct commands** (deploying, linking, inspecting charms), refer to the **ct skill in labs**:
+- Located at `../labs/.claude/skills/ct/skill.md`
+- Covers: deployment, charm management, linking, local dev servers
+- Always use `deno task ct` from the labs directory
 
 ## Always Use `deno task ct`, Never `ct` Directly
 
