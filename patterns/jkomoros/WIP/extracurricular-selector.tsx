@@ -24,6 +24,7 @@ import {
   NAME,
   pattern,
   str,
+  toSchema,
   UI,
 } from "commontools";
 
@@ -94,6 +95,30 @@ interface StagedClass extends Class {
   triageStatus: TriageStatus;
   eligibilityReason: string;
   eligibilityConfidence: number;
+}
+
+// Types for LLM extraction response - at module scope for toSchema<T>()
+interface ExtractedClassInfo {
+  name: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  gradeMin: string;
+  gradeMax: string;
+  suggestedTags: string[];
+  eligibility: {
+    eligible: "true" | "false" | "uncertain";
+    reason: string;
+    confidence: number;
+  };
+  cost: number;
+  costPer: "session" | "semester" | "month";
+  notes: string;
+}
+
+interface ExtractionResponse {
+  classes: ExtractedClassInfo[];
+  suggestedNewTags: string[];
 }
 
 interface Friend {
@@ -269,6 +294,119 @@ const removeFriend = handler<
   }
 });
 
+// Confirm import handler - moves staged classes to main classes list
+const confirmImport = handler<
+  unknown,
+  {
+    classes: Cell<Class[]>;
+    stagedClasses: Cell<StagedClass[]>;
+    processedStagedClasses: Cell<StagedClass[]>;
+    importText: Cell<string>;
+  }
+>((_, { classes, stagedClasses, processedStagedClasses, importText }) => {
+  // Get staged classes that should be imported (auto_kept or user_kept)
+  const staged = processedStagedClasses.get();
+  const toImport = staged.filter(
+    (c) => c.triageStatus === "auto_kept" || c.triageStatus === "user_kept"
+  );
+
+  if (toImport.length === 0) return;
+
+  // Convert StagedClass to Class (remove triage fields)
+  const newClasses: Class[] = toImport.map((staged) => ({
+    id: generateId(), // Generate fresh IDs to avoid duplicates
+    name: staged.name,
+    locationId: staged.locationId,
+    locationName: staged.locationName,
+    timeSlots: staged.timeSlots,
+    cost: staged.cost,
+    costPer: staged.costPer,
+    categoryTagIds: staged.categoryTagIds,
+    categoryTagNames: staged.categoryTagNames,
+    gradeMin: staged.gradeMin,
+    gradeMax: staged.gradeMax,
+    description: staged.description,
+    startDate: staged.startDate,
+    endDate: staged.endDate,
+  }));
+
+  // Add all imported classes to the main classes list
+  const currentClasses = classes.get();
+  classes.set([...currentClasses, ...newClasses]);
+
+  // Clear the import text to reset the triage UI
+  importText.set("");
+
+  // Clear staged classes
+  stagedClasses.set([]);
+});
+
+// Manual class entry handler
+const addManualClass = handler<
+  unknown,
+  {
+    classes: Cell<Class[]>;
+    manualClassForm: Cell<{
+      name: string;
+      day: DayOfWeek;
+      startTime: string;
+      endTime: string;
+      cost: number;
+      costPer: "semester" | "month" | "session";
+      gradeMin: string;
+      gradeMax: string;
+      description: string;
+    }>;
+    importLocationId: Cell<string>;
+    locations: Cell<Location[]>;
+  }
+>((_, { classes, manualClassForm, importLocationId, locations }) => {
+  const form = manualClassForm.get();
+  const locId = importLocationId.get();
+  const locs = locations.get();
+
+  if (!form.name.trim()) return;
+  if (!locId) return;
+
+  const locationName = locs.find((l) => l.id === locId)?.name || "";
+
+  const newClass: Class = {
+    id: generateId(),
+    name: form.name.trim(),
+    locationId: locId,
+    locationName,
+    timeSlots: [{
+      day: form.day,
+      startTime: form.startTime,
+      endTime: form.endTime,
+    }],
+    cost: form.cost,
+    costPer: form.costPer,
+    categoryTagIds: [],
+    categoryTagNames: [],
+    gradeMin: form.gradeMin,
+    gradeMax: form.gradeMax,
+    description: form.description,
+    startDate: "",
+    endDate: "",
+  };
+
+  classes.push(newClass);
+
+  // Reset form
+  manualClassForm.set({
+    name: "",
+    day: "monday",
+    startTime: "15:00",
+    endTime: "16:00",
+    cost: 0,
+    costPer: "session",
+    gradeMin: "",
+    gradeMax: "",
+    description: "",
+  });
+});
+
 // ============================================================================
 // PATTERN
 // ============================================================================
@@ -334,6 +472,19 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Form state for adding new friends
     const newFriendName = cell<string>("");
 
+    // Form state for manual class entry
+    const manualClassForm = cell({
+      name: "",
+      day: "monday" as DayOfWeek,
+      startTime: "15:00",
+      endTime: "16:00",
+      cost: 0,
+      costPer: "session" as "semester" | "month" | "session",
+      gradeMin: "",
+      gradeMax: "",
+      description: "",
+    });
+
     // ========================================================================
     // LLM EXTRACTION
     // ========================================================================
@@ -384,10 +535,11 @@ If cost is not specified, use null.`;
     );
 
     // Run extraction when prompt is ready
+    // Using explicit JSON schema like person.tsx does
     const extractionResult = generateObject({
-      prompt: extractionPrompt,
-      system: "You are a precise data extraction assistant. Extract class information exactly as found in the source text. Do not invent or assume information not present.",
       model: "anthropic:claude-sonnet-4-5",
+      prompt: extractionPrompt,
+      system: "You are a precise data extraction assistant. Extract class information exactly as found in the source text. Do not invent or assume information not present. For times, use 24-hour format. For days, use lowercase (monday, tuesday, etc.).",
       schema: {
         type: "object",
         properties: {
@@ -396,43 +548,28 @@ If cost is not specified, use null.`;
             items: {
               type: "object",
               properties: {
-                name: { type: "string", description: "Name of the class" },
-                dayOfWeek: { type: "string", description: "Day of week (monday, tuesday, etc.)" },
-                startTime: { type: "string", description: "Start time in 24h format (e.g., 15:30)" },
-                endTime: { type: "string", description: "End time in 24h format (e.g., 16:30)" },
-                durationMinutes: { type: "number", description: "Duration in minutes" },
-                cost: { type: "number", description: "Cost in dollars (null if not specified)" },
-                costPer: { type: "string", enum: ["session", "semester", "month"], description: "What the cost covers" },
-                numberOfMeetings: { type: "number", description: "Number of meetings in the session" },
-                gradeMin: { type: "string", description: "Minimum grade (e.g., 'K', '3')" },
-                gradeMax: { type: "string", description: "Maximum grade (e.g., '3', '8')" },
-                suggestedTags: {
-                  type: "array",
-                  items: { type: "string" },
-                  description: "Category tags that apply (use existing tag names when possible)"
-                },
-                eligibility: {
-                  type: "object",
-                  properties: {
-                    eligible: { type: "string", enum: ["true", "false", "uncertain"] },
-                    reason: { type: "string", description: "Why this eligibility was determined" },
-                    confidence: { type: "number", minimum: 0, maximum: 1 }
-                  },
-                  required: ["eligible", "reason", "confidence"]
-                },
-                notes: { type: "string", description: "Any additional notes about the class" }
+                name: { type: "string" },
+                dayOfWeek: { type: "string" },
+                startTime: { type: "string" },
+                endTime: { type: "string" },
+                gradeMin: { type: "string" },
+                gradeMax: { type: "string" },
+                suggestedTags: { type: "array", items: { type: "string" } },
+                eligible: { type: "string" },
+                eligibilityReason: { type: "string" },
+                eligibilityConfidence: { type: "number" },
+                cost: { type: ["number", "null"] },
+                costPer: { type: ["string", "null"] },
+                notes: { type: ["string", "null"] },
               },
-              required: ["name", "dayOfWeek", "startTime", "endTime", "eligibility"]
-            }
+            },
           },
           suggestedNewTags: {
             type: "array",
             items: { type: "string" },
-            description: "New category tags not in the existing list that should be added"
-          }
+          },
         },
-        required: ["classes", "suggestedNewTags"]
-      }
+      },
     });
 
     // Process extraction results into staged classes
@@ -454,11 +591,13 @@ If cost is not specified, use null.`;
         const resolvedLocationName = locs.find((l: Location) => l.id === locId)?.name || "";
 
         return result.classes.map((cls: any, index: number): StagedClass => {
-          // Determine triage status based on eligibility
+          // Determine triage status based on eligibility (flattened fields)
           let triageStatus: TriageStatus;
-          if (cls.eligibility.eligible === "true" && cls.eligibility.confidence >= 0.8) {
+          const eligible = cls.eligible || "uncertain";
+          const confidence = cls.eligibilityConfidence || 0;
+          if (eligible === "true" && confidence >= 0.8) {
             triageStatus = "auto_kept";
-          } else if (cls.eligibility.eligible === "false" && cls.eligibility.confidence >= 0.8) {
+          } else if (eligible === "false" && confidence >= 0.8) {
             triageStatus = "auto_discarded";
           } else {
             triageStatus = "needs_review";
@@ -497,8 +636,8 @@ If cost is not specified, use null.`;
             startDate: "",
             endDate: "",
             triageStatus,
-            eligibilityReason: cls.eligibility.reason || "",
-            eligibilityConfidence: cls.eligibility.confidence || 0
+            eligibilityReason: cls.eligibilityReason || "",
+            eligibilityConfidence: confidence
           };
         });
       }
@@ -709,7 +848,7 @@ If cost is not specified, use null.`;
                               ))}
                             </ct-vstack>
                           </div>
-                        ) : null;
+                        ) : <></>;
                       })()}
 
                       {/* Needs review classes */}
@@ -740,7 +879,7 @@ If cost is not specified, use null.`;
                               ))}
                             </ct-vstack>
                           </div>
-                        ) : null;
+                        ) : <></>;
                       })()}
 
                       {/* Auto-discarded classes */}
@@ -770,7 +909,7 @@ If cost is not specified, use null.`;
                               ))}
                             </ct-vstack>
                           </div>
-                        ) : null;
+                        ) : <></>;
                       })()}
 
                       {/* Suggested new tags */}
@@ -792,11 +931,153 @@ If cost is not specified, use null.`;
                               Add these in Settings to use them in future imports.
                             </div>
                           </div>
-                        ) : null;
+                        ) : <></>;
                       })}
+
+                      {/* Confirm Import Button */}
+                      {(() => {
+                        const importableCount = staged.filter(
+                          (c: StagedClass) => c.triageStatus === "auto_kept" || c.triageStatus === "user_kept"
+                        ).length;
+                        return importableCount > 0 ? (
+                          <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 16px; text-align: center;">
+                            <ct-button
+                              variant="default"
+                              style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
+                              onClick={confirmImport({ classes, stagedClasses, processedStagedClasses, importText })}
+                            >
+                              ✅ Import {importableCount} Class{importableCount === 1 ? "" : "es"}
+                            </ct-button>
+                            <div style="font-size: 12px; color: #059669; margin-top: 8px;">
+                              Classes marked "Ready to Import" will be added to your class list.
+                            </div>
+                          </div>
+                        ) : <></>;
+                      })()}
                     </ct-vstack>
-                  ) : null
+                  ) : <></>
                 )}
+
+                {/* Manual Class Entry */}
+                <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin-top: 16px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                    Add Class Manually
+                  </h3>
+                  <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                    Add a single class directly without LLM extraction.
+                  </p>
+
+                  <ct-vstack style="gap: 12px;">
+                    <ct-hstack style="gap: 12px;">
+                      <div style="flex: 2;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Class Name *
+                        </label>
+                        <ct-input
+                          placeholder="e.g., Ballet, Soccer, Robotics"
+                          $value={manualClassForm.key("name")}
+                        />
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Day
+                        </label>
+                        <ct-select
+                          $value={manualClassForm.key("day")}
+                          items={DAYS_OF_WEEK.map((d) => ({ label: DAY_LABELS[d], value: d }))}
+                        />
+                      </div>
+                    </ct-hstack>
+
+                    <ct-hstack style="gap: 12px;">
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Start Time
+                        </label>
+                        <ct-input
+                          type="time"
+                          $value={manualClassForm.key("startTime")}
+                        />
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          End Time
+                        </label>
+                        <ct-input
+                          type="time"
+                          $value={manualClassForm.key("endTime")}
+                        />
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Cost ($)
+                        </label>
+                        <ct-input
+                          type="number"
+                          placeholder="0"
+                          $value={manualClassForm.key("cost")}
+                        />
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Per
+                        </label>
+                        <ct-select
+                          $value={manualClassForm.key("costPer")}
+                          items={[
+                            { label: "Session", value: "session" },
+                            { label: "Month", value: "month" },
+                            { label: "Semester", value: "semester" },
+                          ]}
+                        />
+                      </div>
+                    </ct-hstack>
+
+                    <ct-hstack style="gap: 12px;">
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Grade Min
+                        </label>
+                        <ct-input
+                          placeholder="e.g., K"
+                          $value={manualClassForm.key("gradeMin")}
+                        />
+                      </div>
+                      <div style="flex: 1;">
+                        <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                          Grade Max
+                        </label>
+                        <ct-input
+                          placeholder="e.g., 3"
+                          $value={manualClassForm.key("gradeMax")}
+                        />
+                      </div>
+                    </ct-hstack>
+
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                        Notes (optional)
+                      </label>
+                      <ct-input
+                        placeholder="Any additional details..."
+                        $value={manualClassForm.key("description")}
+                      />
+                    </div>
+
+                    {ifElse(
+                      derive(importLocationId, (locId: string) => !locId),
+                      <div style="color: #f59e0b; font-size: 12px;">
+                        Select a location above before adding a class.
+                      </div>,
+                      <ct-button
+                        variant="default"
+                        onClick={addManualClass({ classes, manualClassForm, importLocationId, locations })}
+                      >
+                        Add Class
+                      </ct-button>
+                    )}
+                  </ct-vstack>
+                </div>
               </ct-vstack>
             </ct-vscroll>
 
