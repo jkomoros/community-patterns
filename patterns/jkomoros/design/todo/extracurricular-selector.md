@@ -1,5 +1,28 @@
 # Extracurricular Selector Pattern - Implementation Plan
 
+## Acceptance Testing Feedback (2025-12-13)
+
+**UX Issues to Address:**
+
+1. **Settings as Dialog** - Settings panel at bottom is awkward. Should be a dialog that:
+   - Auto-opens on first visit (when no locations configured)
+   - Can be reopened later via a settings button/icon
+
+2. **Location Types** - Current options (afterschool/private_school/external) are confusing. Better:
+   - `afterschool-onsite` - At the school
+   - `afterschool-offsite` - Requires travel from school
+   - `external` - Standalone class location
+
+3. **Add Location Button** - Too subtle, looks like text not a button. Make it a proper styled button.
+
+4. **Travel Time Entry** - Need manual entry for travel times between location pairs, not just 15-min default. Add a travel time matrix UI in Settings.
+
+5. **Image Import** - Add ability to upload an image (photo of schedule) and have LLM extract text from it before import processing.
+
+6. **File Upload** - Add `ct-file-upload` component for importing schedule files (PDF, text, etc.)
+
+---
+
 ## Overview
 
 A pattern to help parents select compatible extracurricular activities from multiple sources (afterschool programs, private schools, external classes). Key features:
@@ -387,6 +410,100 @@ function scoreClass(cls: Class, currentPins: Set<string>): number {
 6. **Use handlers for mutations** - All state changes through handlers
 7. **TBS constraint** - Check `location.hasFlatDailyRate` when scoring
 8. **Category tags as controlled vocabulary** - Classes have 0-n tags from a managed set; LLM can suggest new tags during import
+
+---
+
+## Future Enhancements
+
+### Phase 4: Person.tsx Integration for Child Profile (RESEARCHED)
+
+**Goal**: Auto-populate child profile from an existing person.tsx charm
+
+**Research Summary (2025-12-13)**:
+
+Wish **cannot query charms by content** (like "find person where name = X"). It only supports:
+- Hashtag lookups in favorites (`#person`, `#child-adeline`)
+- Direct cell paths (`/some/path`)
+- Generic queries (launches interactive suggestion UI)
+
+**Recommended Approaches (in order of preference)**:
+
+#### Option A: Charm Linking (Recommended - Zero Code)
+
+Link an existing person.tsx charm to extracurricular-selector at deploy time:
+
+```bash
+# 1. Create person.tsx for child
+deno task ct charm new ... patterns/jkomoros/person.tsx
+# Returns: person-charm-id
+
+# 2. Create extracurricular-selector
+deno task ct charm new ... patterns/jkomoros/WIP/extracurricular-selector.tsx
+# Returns: selector-charm-id
+
+# 3. Link person's profile to selector's childProfile
+deno task ct charm link \
+  --identity your-key \
+  --api-url http://localhost:8000 \
+  --space myspace \
+  person-charm-id/profile \
+  selector-charm-id/childProfile
+```
+
+**Pros**: Fully reactive sync, zero code needed
+**Cons**: Manual one-time setup per child
+
+#### Option B: Favorites with Hashtags (User-Driven)
+
+User favorites their person.tsx with hashtag like `#child-adeline`, then wish looks it up:
+
+```typescript
+const wishedPerson = wish<PersonOutput>({
+  query: derive(childNameInput, (name) => `#child-${name.toLowerCase().replace(/\s+/g, '-')}`),
+});
+
+const childProfileFromWish = derive(wishedPerson, (wr) => {
+  if (wr?.result) {
+    return {
+      name: wr.result.displayName || "",
+      grade: "K", // Can't reliably infer grade from birthday
+      birthDate: wr.result.birthday || "",
+    };
+  }
+  return null;
+});
+```
+
+**Pros**: Discoverable, fallback UI if not found
+**Cons**: User must maintain hashtags in favorites
+
+#### Option C: Button-Triggered UI Modal
+
+A "Find Child Profile" button that launches wish's interactive suggestion UI:
+
+```typescript
+const showFinder = cell<boolean>(false);
+const wishedPerson = wish<PersonOutput>({
+  query: derive(
+    { name: childNameInput, triggered: showFinder },
+    ({ name, triggered }) => triggered ? `Find person for "${name}"` : ""
+  ),
+});
+
+// In UI:
+<ct-button onClick={() => showFinder.set(true)}>Find Child Profile</ct-button>
+{ifElse(showFinder, <div>{wishedPerson?.$UI}</div>, null)}
+```
+
+**Pros**: User sees selection UI for ambiguous queries
+**Cons**: Requires user interaction, not automatic
+
+**Limitations to Note**:
+- person.tsx disabled `"#person": true` due to infinite loop bug (line 1289)
+- Wish is a discovery tool, not a database query system
+- No content-based querying exists in the framework
+
+**Decision**: For MVP, keep manual input. Document Option A (charm linking) for power users who want to sync with existing person.tsx charms. This is a "nice to have" feature, not required for the pattern to be useful.
 
 ---
 
