@@ -295,6 +295,32 @@ const removeFriend = handler<
   }
 });
 
+// Travel time handler - set or update travel time between two locations
+const setTravelTime = handler<
+  unknown,
+  { travelTimes: Cell<TravelTime[]>; fromLocationId: string; toLocationId: string; minutes: number }
+>((_, { travelTimes, fromLocationId, toLocationId, minutes }) => {
+  if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) return;
+
+  const current = travelTimes.get();
+  // Check for existing entry (either direction)
+  const existingIndex = current.findIndex(
+    (t) =>
+      (t.fromLocationId === fromLocationId && t.toLocationId === toLocationId) ||
+      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId)
+  );
+
+  if (existingIndex >= 0) {
+    // Update existing
+    const updated = [...current];
+    updated[existingIndex] = { fromLocationId, toLocationId, minutes };
+    travelTimes.set(updated);
+  } else {
+    // Add new
+    travelTimes.push({ fromLocationId, toLocationId, minutes });
+  }
+});
+
 // Confirm import handler - moves staged classes to main classes list
 const confirmImport = handler<
   unknown,
@@ -498,6 +524,25 @@ const switchActiveSet = handler<
   activePinnedSetId.set(setId);
 });
 
+// Add all classes from a suggested set
+const addSuggestedSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classIds: string[] }
+>((_, { pinnedSets, activePinnedSetId, classIds }) => {
+  const activeId = activePinnedSetId.get();
+  if (!activeId) return;
+
+  const sets = pinnedSets.get();
+  pinnedSets.set(
+    sets.map((s) => {
+      if (s.id !== activeId) return s;
+      // Add all classes that aren't already in the set
+      const newIds = classIds.filter((id) => !s.classIds.includes(id));
+      return { ...s, classIds: [...s.classIds, ...newIds] };
+    })
+  );
+});
+
 // ============================================================================
 // CONFLICT DETECTION HELPERS
 // ============================================================================
@@ -508,8 +553,34 @@ function parseTimeToMinutes(time: string): number {
   return hours * 60 + minutes;
 }
 
-// Check if two time ranges overlap
-function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): boolean {
+// Get travel time between two locations (in minutes)
+function getTravelTime(
+  fromLocationId: string,
+  toLocationId: string,
+  travelTimes: TravelTime[]
+): number {
+  // Same location = no travel time
+  if (fromLocationId === toLocationId) return 0;
+
+  // Look for explicit travel time entry
+  const entry = travelTimes.find(
+    (t) =>
+      (t.fromLocationId === fromLocationId && t.toLocationId === toLocationId) ||
+      (t.fromLocationId === toLocationId && t.toLocationId === fromLocationId)
+  );
+
+  // Return found time or default of 15 minutes between different locations
+  return entry?.minutes ?? 15;
+}
+
+// Check if two time ranges overlap, considering travel time between locations
+function timeSlotsOverlapWithTravel(
+  slot1: TimeSlot,
+  slot2: TimeSlot,
+  loc1Id: string,
+  loc2Id: string,
+  travelTimes: TravelTime[]
+): boolean {
   if (slot1.day !== slot2.day) return false;
 
   const start1 = parseTimeToMinutes(slot1.startTime);
@@ -517,15 +588,46 @@ function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): boolean {
   const start2 = parseTimeToMinutes(slot2.startTime);
   const end2 = parseTimeToMinutes(slot2.endTime);
 
-  // Check if ranges overlap
-  return start1 < end2 && start2 < end1;
+  // Get travel time between the two locations
+  const travel = getTravelTime(loc1Id, loc2Id, travelTimes);
+
+  // Check if ranges overlap accounting for travel time
+  // class1 ends, travel, then class2 starts: need end1 + travel <= start2
+  // class2 ends, travel, then class1 starts: need end2 + travel <= start1
+  return (start1 < end2 + travel) && (start2 < end1 + travel);
 }
 
-// Check if two classes conflict
+// Check if two classes conflict (simple overlap, no travel time)
 function classesConflict(class1: Class, class2: Class): boolean {
   for (const slot1 of class1.timeSlots) {
     for (const slot2 of class2.timeSlots) {
-      if (timeSlotsOverlap(slot1, slot2)) {
+      if (slot1.day === slot2.day) {
+        const start1 = parseTimeToMinutes(slot1.startTime);
+        const end1 = parseTimeToMinutes(slot1.endTime);
+        const start2 = parseTimeToMinutes(slot2.startTime);
+        const end2 = parseTimeToMinutes(slot2.endTime);
+        if (start1 < end2 && start2 < end1) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// Check if two classes conflict considering travel time
+function classesConflictWithTravel(
+  class1: Class,
+  class2: Class,
+  travelTimes: TravelTime[]
+): boolean {
+  for (const slot1 of class1.timeSlots) {
+    for (const slot2 of class2.timeSlots) {
+      if (timeSlotsOverlapWithTravel(
+        slot1, slot2,
+        class1.locationId, class2.locationId,
+        travelTimes
+      )) {
         return true;
       }
     }
@@ -533,11 +635,228 @@ function classesConflict(class1: Class, class2: Class): boolean {
   return false;
 }
 
-// Get all classes that conflict with a given class
-function getConflictingClasses(targetClass: Class, allClasses: Class[]): Class[] {
-  return allClasses.filter(
-    (c) => c.id !== targetClass.id && classesConflict(targetClass, c)
-  );
+// Get conflict reason string
+function getConflictReason(
+  class1: Class,
+  class2: Class,
+  travelTimes: TravelTime[]
+): string {
+  // Check for direct overlap first
+  if (classesConflict(class1, class2)) {
+    return "time overlap";
+  }
+
+  // If not direct overlap but still conflicts, it's due to travel time
+  const travel = getTravelTime(class1.locationId, class2.locationId, travelTimes);
+  if (travel > 0) {
+    return `${travel}min travel needed`;
+  }
+
+  return "schedule conflict";
+}
+
+// ============================================================================
+// SCORING ALGORITHM
+// ============================================================================
+
+interface ScoredClass {
+  cls: Class;
+  score: number;
+  breakdown: {
+    preferenceScore: number;
+    friendBonus: number;
+    travelPenalty: number;
+    tbsPenalty: number;
+  };
+  conflictsWithPinned: boolean;
+  conflictReasons: string[];
+}
+
+// Score a class for suggestions
+function scoreClass(
+  cls: Class,
+  pinnedClasses: Class[],
+  preferencePriorities: PreferencePriority[],
+  friendInterests: FriendClassInterest[],
+  travelTimes: TravelTime[],
+  locations: Location[]
+): ScoredClass {
+  let preferenceScore = 0;
+  let friendBonus = 0;
+  let travelPenalty = 0;
+  let tbsPenalty = 0;
+
+  // Preference rank scoring (priority 1 = 100pts, priority 2 = 70pts, etc.)
+  for (const pref of preferencePriorities) {
+    if (
+      (pref.type === "category" && cls.categoryTagIds.includes(pref.categoryId)) ||
+      (pref.type === "specific_class" && cls.id === pref.classId)
+    ) {
+      preferenceScore = Math.round(100 * Math.pow(0.7, pref.rank - 1));
+      break;
+    }
+  }
+
+  // Friend bonus (+15 per friend interested in this class)
+  const friendsInClass = friendInterests.filter((fi) => fi.classId === cls.id);
+  friendBonus = friendsInClass.length * 15;
+
+  // Travel penalty - count new location transitions
+  // For each day where adding this class creates a transition
+  const pinnedLocationsByDay = new Map<DayOfWeek, Set<string>>();
+  for (const pinned of pinnedClasses) {
+    for (const slot of pinned.timeSlots) {
+      if (!pinnedLocationsByDay.has(slot.day)) {
+        pinnedLocationsByDay.set(slot.day, new Set());
+      }
+      pinnedLocationsByDay.get(slot.day)!.add(pinned.locationId);
+    }
+  }
+
+  for (const slot of cls.timeSlots) {
+    const dayLocations = pinnedLocationsByDay.get(slot.day);
+    if (dayLocations && dayLocations.size > 0 && !dayLocations.has(cls.locationId)) {
+      // New location on this day - apply travel penalty
+      travelPenalty += 10;
+    }
+  }
+
+  // TBS partial day penalty (-25) - if location has flat daily rate
+  const classLocation = locations.find((l) => l.id === cls.locationId);
+  if (classLocation?.hasFlatDailyRate) {
+    // Check if this would create a partial day
+    for (const slot of cls.timeSlots) {
+      const dayLocations = pinnedLocationsByDay.get(slot.day);
+      if (dayLocations && !dayLocations.has(cls.locationId)) {
+        // Would be a partial day at this flat-rate location
+        tbsPenalty += 25;
+      }
+    }
+  }
+
+  // Check for conflicts with pinned classes
+  const conflictReasons: string[] = [];
+  let conflictsWithPinned = false;
+  for (const pinned of pinnedClasses) {
+    if (classesConflictWithTravel(cls, pinned, travelTimes)) {
+      conflictsWithPinned = true;
+      const reason = getConflictReason(cls, pinned, travelTimes);
+      conflictReasons.push(`${pinned.name} (${reason})`);
+    }
+  }
+
+  const score = preferenceScore + friendBonus - travelPenalty - tbsPenalty;
+
+  return {
+    cls,
+    score,
+    breakdown: {
+      preferenceScore,
+      friendBonus,
+      travelPenalty,
+      tbsPenalty,
+    },
+    conflictsWithPinned,
+    conflictReasons,
+  };
+}
+
+// Generate suggested class sets (groupings by category)
+interface SuggestedSet {
+  name: string;
+  description: string;
+  classIds: string[];
+  totalScore: number;
+  hasConflicts: boolean;
+}
+
+function generateSuggestedSets(
+  availableClasses: Class[],
+  pinnedClasses: Class[],
+  categoryTags: CategoryTag[],
+  friendInterests: FriendClassInterest[],
+  travelTimes: TravelTime[]
+): SuggestedSet[] {
+  const sets: SuggestedSet[] = [];
+
+  // Group available classes by their primary category
+  const classesByCategory = new Map<string, Class[]>();
+  for (const cls of availableClasses) {
+    if (cls.categoryTagIds.length > 0) {
+      const primaryCategory = cls.categoryTagIds[0];
+      if (!classesByCategory.has(primaryCategory)) {
+        classesByCategory.set(primaryCategory, []);
+      }
+      classesByCategory.get(primaryCategory)!.push(cls);
+    }
+  }
+
+  // Create category-focused sets
+  for (const [categoryId, classes] of classesByCategory.entries()) {
+    if (classes.length >= 2) {
+      const category = categoryTags.find((t) => t.id === categoryId);
+      if (category) {
+        // Filter to non-conflicting classes within this category
+        const nonConflicting: Class[] = [];
+        for (const cls of classes) {
+          const conflictsWithSet = nonConflicting.some((existing) =>
+            classesConflictWithTravel(cls, existing, travelTimes)
+          );
+          const conflictsWithPinned = pinnedClasses.some((pinned) =>
+            classesConflictWithTravel(cls, pinned, travelTimes)
+          );
+          if (!conflictsWithSet && !conflictsWithPinned) {
+            nonConflicting.push(cls);
+          }
+        }
+
+        if (nonConflicting.length >= 2) {
+          sets.push({
+            name: `${category.name} Focus`,
+            description: `${nonConflicting.length} ${category.name} classes without conflicts`,
+            classIds: nonConflicting.map((c) => c.id),
+            totalScore: nonConflicting.length * 50, // Simple scoring
+            hasConflicts: false,
+          });
+        }
+      }
+    }
+  }
+
+  // Create a "friend classes" set if there are classes friends are interested in
+  const friendClassIds = new Set(friendInterests.map((fi) => fi.classId));
+  const friendClasses = availableClasses.filter((c) => friendClassIds.has(c.id));
+  if (friendClasses.length >= 2) {
+    // Filter to non-conflicting
+    const nonConflicting: Class[] = [];
+    for (const cls of friendClasses) {
+      const conflictsWithSet = nonConflicting.some((existing) =>
+        classesConflictWithTravel(cls, existing, travelTimes)
+      );
+      const conflictsWithPinned = pinnedClasses.some((pinned) =>
+        classesConflictWithTravel(cls, pinned, travelTimes)
+      );
+      if (!conflictsWithSet && !conflictsWithPinned) {
+        nonConflicting.push(cls);
+      }
+    }
+
+    if (nonConflicting.length >= 2) {
+      sets.push({
+        name: "With Friends",
+        description: `${nonConflicting.length} classes your friends are taking`,
+        classIds: nonConflicting.map((c) => c.id),
+        totalScore: nonConflicting.length * 65, // Higher score for friend bonus
+        hasConflicts: false,
+      });
+    }
+  }
+
+  // Sort by total score descending
+  sets.sort((a, b) => b.totalScore - a.totalScore);
+
+  // Return top 3
+  return sets.slice(0, 3);
 }
 
 // ============================================================================
@@ -818,8 +1137,10 @@ If cost is not specified, use null.`;
     // Pinned classes for active set
     const pinnedClassIds = computed(() => activeSetData?.classIds || []);
 
+    // Inside computed(), the framework auto-unwraps both Cells and computed values
+    // Access everything directly without .get()
     const pinnedClasses = computed(() => {
-      return classes.filter((c) => pinnedClassIds.includes(c.id));
+      return classes.filter((c: Class) => pinnedClassIds.includes(c.id));
     });
 
     const hasPinnedClasses = computed(() => pinnedClasses.length > 0);
@@ -827,7 +1148,7 @@ If cost is not specified, use null.`;
 
     // Available (unpinned) classes
     const availableClasses = computed(() => {
-      return classes.filter((c) => !pinnedClassIds.includes(c.id));
+      return classes.filter((c: Class) => !pinnedClassIds.includes(c.id));
     });
 
     const hasAvailableClasses = computed(() => availableClasses.length > 0);
@@ -835,16 +1156,18 @@ If cost is not specified, use null.`;
 
     // Total cost of pinned classes
     const totalPinnedCost = computed(() => {
-      return pinnedClasses.reduce((sum, c) => sum + (c.cost || 0), 0);
+      return pinnedClasses.reduce((sum: number, c: Class) => sum + (c.cost || 0), 0);
     });
 
-    // Conflict detection
+    // Conflict detection with travel time
+    // Inside computed(), access all values directly (framework auto-unwraps)
     const conflictingPairs = computed(() => {
-      const pairs: Array<[Class, Class]> = [];
+      const pairs: Array<{ c1: Class; c2: Class; reason: string }> = [];
       for (let i = 0; i < pinnedClasses.length; i++) {
         for (let j = i + 1; j < pinnedClasses.length; j++) {
-          if (classesConflict(pinnedClasses[i], pinnedClasses[j])) {
-            pairs.push([pinnedClasses[i], pinnedClasses[j]]);
+          if (classesConflictWithTravel(pinnedClasses[i], pinnedClasses[j], travelTimes)) {
+            const reason = getConflictReason(pinnedClasses[i], pinnedClasses[j], travelTimes);
+            pairs.push({ c1: pinnedClasses[i], c2: pinnedClasses[j], reason });
           }
         }
       }
@@ -855,12 +1178,40 @@ If cost is not specified, use null.`;
 
     // Conflict warnings JSX - computed for pure rendering (no handlers inside)
     const conflictWarnings = computed(() => {
-      return conflictingPairs.map(([c1, c2]) => (
+      return conflictingPairs.map(({ c1, c2, reason }: { c1: Class; c2: Class; reason: string }) => (
         <div style="font-size: 11px; color: #991b1b; margin-top: 4px;">
-          {c1.name} ↔ {c2.name}
+          {c1.name} ↔ {c2.name} ({reason})
         </div>
       ));
     });
+
+    // ========================================================================
+    // SUGGESTIONS - SCORED CLASSES AND SUGGESTED SETS
+    // ========================================================================
+
+    // Score and rank all available classes
+    // Inside computed(), access all values directly (framework auto-unwraps)
+    const rankedClasses = computed(() => {
+      const scored = availableClasses.map((cls: Class) =>
+        scoreClass(cls, pinnedClasses, preferencePriorities, friendInterests, travelTimes, locations)
+      );
+      // Sort by score descending, with conflicts at the bottom
+      scored.sort((a: ScoredClass, b: ScoredClass) => {
+        if (a.conflictsWithPinned && !b.conflictsWithPinned) return 1;
+        if (!a.conflictsWithPinned && b.conflictsWithPinned) return -1;
+        return b.score - a.score;
+      });
+      return scored;
+    });
+
+    const hasRankedClasses = computed(() => rankedClasses.length > 0);
+
+    // Generate suggested sets (groupings by category or friends)
+    const suggestedSets = computed(() => {
+      return generateSuggestedSets(availableClasses, pinnedClasses, categoryTags, friendInterests, travelTimes);
+    });
+
+    const hasSuggestedSets = computed(() => suggestedSets.length > 0);
 
     // ========================================================================
     // SELECTION BUILDER - COMPUTED JSX FRAGMENTS (display only, no handlers inside)
@@ -887,9 +1238,11 @@ If cost is not specified, use null.`;
     });
 
     // Pinned schedule grouped by day - computed for display
+    // Inside computed(), access values directly (framework auto-unwraps)
     const pinnedScheduleByDay = computed(() => {
+      const pinned = pinnedClasses as Class[];
       return DAYS_OF_WEEK.map((day: DayOfWeek) => {
-        const dayClasses = pinnedClasses.filter((c) =>
+        const dayClasses = pinned.filter((c) =>
           c.timeSlots.some((slot) => slot.day === day)
         );
         if (dayClasses.length === 0) return null;
@@ -927,58 +1280,6 @@ If cost is not specified, use null.`;
           </div>
         );
       }).filter(Boolean);
-    });
-
-    // Available class cards with conflict detection - computed for display
-    const availableClassCards = computed(() => {
-      return availableClasses.map((cls) => {
-        // Check if this class would conflict with pinned classes
-        const conflicts = pinnedClasses.filter((pinnedCls) =>
-          classesConflict(cls, pinnedCls)
-        );
-        const hasConflict = conflicts.length > 0;
-
-        return (
-          <div
-            style={{
-              background: hasConflict ? "#fef2f2" : "white",
-              border: hasConflict ? "1px solid #fca5a5" : "1px solid #e5e7eb",
-              borderRadius: "6px",
-              padding: "10px 12px",
-            }}
-          >
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-              <div style="flex: 1;">
-                <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
-                <div style="font-size: 11px; color: #6b7280;">
-                  {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek]} {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
-                  {cls.cost > 0 && ` • $${cls.cost}`}
-                </div>
-                {hasConflict && (
-                  <div style="font-size: 10px; color: #dc2626; margin-top: 2px;">
-                    ⚠️ Conflicts with: {conflicts.map((c) => c.name).join(", ")}
-                  </div>
-                )}
-              </div>
-              <button
-                style={{
-                  padding: "4px 10px",
-                  border: "none",
-                  borderRadius: "4px",
-                  background: hasConflict ? "#fca5a5" : "#3b82f6",
-                  color: "white",
-                  fontSize: "11px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                }}
-                onClick={addClassToSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
-              >
-                + Add
-              </button>
-            </div>
-          </div>
-        );
-      });
     });
 
     // ========================================================================
@@ -1536,17 +1837,125 @@ If cost is not specified, use null.`;
                       )}
                     </div>
 
-                    {/* Right column: Available Classes */}
+                    {/* Right column: Suggestions Panel */}
                     <div style="flex: 1; min-width: 300px;">
+                      {/* Suggested Sets Section */}
+                      {ifElse(
+                        hasSuggestedSets,
+                        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                          <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #166534;">
+                            💡 Suggested Sets
+                          </h3>
+                          <ct-vstack style="gap: 8px;">
+                            {/* Use .map() directly on computed - JSX is automatically reactive */}
+                            {suggestedSets.map((set: SuggestedSet) => (
+                              <div style="background: white; border-radius: 6px; padding: 10px 12px; border: 1px solid #bbf7d0;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                  <div style="flex: 1;">
+                                    <div style="font-size: 13px; font-weight: 600; color: #166534;">
+                                      {set.name}
+                                    </div>
+                                    <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                                      {set.description}
+                                    </div>
+                                  </div>
+                                  <button
+                                    style={{
+                                      padding: "4px 10px",
+                                      border: "none",
+                                      borderRadius: "4px",
+                                      background: "#22c55e",
+                                      color: "white",
+                                      fontSize: "11px",
+                                      cursor: "pointer",
+                                      fontWeight: "500",
+                                    }}
+                                    onClick={addSuggestedSet({ classIds: set.classIds, pinnedSets, activePinnedSetId })}
+                                  >
+                                    + Add All
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </ct-vstack>
+                        </div>,
+                        null
+                      )}
+
+                      {/* Ranked Individual Classes Section */}
                       <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                         <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                          Available Classes ({availableClassCount})
+                          📊 Ranked Classes ({availableClassCount})
                         </h3>
+                        <p style="font-size: 11px; color: #6b7280; margin: 0 0 12px 0;">
+                          Scored by preferences, friends, and schedule compatibility
+                        </p>
 
                         {ifElse(
-                          hasAvailableClasses,
+                          hasRankedClasses,
                           <ct-vstack style="gap: 8px;">
-                            {availableClassCards}
+                            {/* Use .map() directly on computed - JSX is automatically reactive */}
+                            {rankedClasses.map((scored: ScoredClass) => (
+                              <div
+                                style={{
+                                  background: scored.conflictsWithPinned ? "#fef2f2" : "white",
+                                  border: scored.conflictsWithPinned ? "1px solid #fca5a5" : "1px solid #e5e7eb",
+                                  borderRadius: "6px",
+                                  padding: "10px 12px",
+                                }}
+                              >
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                  <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                      <span style="font-size: 13px; font-weight: 500;">{scored.cls.name}</span>
+                                      <span style={{
+                                        padding: "2px 6px",
+                                        borderRadius: "10px",
+                                        background: scored.score > 0 ? "#dcfce7" : scored.score < 0 ? "#fee2e2" : "#f3f4f6",
+                                        color: scored.score > 0 ? "#166534" : scored.score < 0 ? "#991b1b" : "#6b7280",
+                                        fontSize: "10px",
+                                        fontWeight: "600",
+                                      }}>
+                                        {scored.score > 0 ? "+" : ""}{scored.score} pts
+                                      </span>
+                                    </div>
+                                    <div style="font-size: 11px; color: #6b7280;">
+                                      {DAY_LABELS[scored.cls.timeSlots[0]?.day as DayOfWeek]} {scored.cls.timeSlots[0]?.startTime}-{scored.cls.timeSlots[0]?.endTime}
+                                      {scored.cls.cost > 0 && ` • $${scored.cls.cost}`}
+                                    </div>
+                                    {/* Score breakdown */}
+                                    {(scored.breakdown.preferenceScore > 0 || scored.breakdown.friendBonus > 0 || scored.breakdown.travelPenalty > 0 || scored.breakdown.tbsPenalty > 0) && (
+                                      <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">
+                                        {scored.breakdown.preferenceScore > 0 && <span style="color: #16a34a;">+{scored.breakdown.preferenceScore} pref </span>}
+                                        {scored.breakdown.friendBonus > 0 && <span style="color: #2563eb;">+{scored.breakdown.friendBonus} friends </span>}
+                                        {scored.breakdown.travelPenalty > 0 && <span style="color: #dc2626;">-{scored.breakdown.travelPenalty} travel </span>}
+                                        {scored.breakdown.tbsPenalty > 0 && <span style="color: #dc2626;">-{scored.breakdown.tbsPenalty} partial </span>}
+                                      </div>
+                                    )}
+                                    {scored.conflictsWithPinned && (
+                                      <div style="font-size: 10px; color: #dc2626; margin-top: 2px;">
+                                        ⚠️ Conflicts: {scored.conflictReasons.join(", ")}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button
+                                    style={{
+                                      padding: "4px 10px",
+                                      border: "none",
+                                      borderRadius: "4px",
+                                      background: scored.conflictsWithPinned ? "#fca5a5" : "#3b82f6",
+                                      color: "white",
+                                      fontSize: "11px",
+                                      cursor: "pointer",
+                                      fontWeight: "500",
+                                    }}
+                                    onClick={addClassToSet({ classId: scored.cls.id, pinnedSets, activePinnedSetId })}
+                                  >
+                                    + Add
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </ct-vstack>,
                           <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
                             All classes are pinned to this set!
@@ -1695,6 +2104,43 @@ If cost is not specified, use null.`;
                     </ct-vstack>
                   </div>
                 </div>
+
+                {/* Travel Times Section */}
+                {derive(locations, (locs: Location[]) =>
+                  locs.length >= 2 ? (
+                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                        Travel Times
+                      </h3>
+                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                        Travel time between different locations is used for conflict detection.
+                        Default is 15 minutes between any two different locations.
+                      </p>
+                      {derive(travelTimes, (times: TravelTime[]) =>
+                        times.length > 0 ? (
+                          <ct-vstack style="gap: 8px;">
+                            {times.map((t: TravelTime) => {
+                              const fromLoc = locs.find((l: Location) => l.id === t.fromLocationId);
+                              const toLoc = locs.find((l: Location) => l.id === t.toLocationId);
+                              return (
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                  <span style="font-size: 12px; flex: 1;">{fromLoc?.name || "?"}</span>
+                                  <span style="font-size: 12px; color: #9ca3af;">↔</span>
+                                  <span style="font-size: 12px; flex: 1;">{toLoc?.name || "?"}</span>
+                                  <span style="font-size: 12px; font-weight: 600; color: #374151;">{t.minutes} min</span>
+                                </div>
+                              );
+                            })}
+                          </ct-vstack>
+                        ) : (
+                          <div style="font-size: 12px; color: #9ca3af; font-style: italic;">
+                            Using default 15 minutes between all location pairs.
+                          </div>
+                        )
+                      )}
+                    </div>
+                  ) : null
+                )}
 
                 {/* Category Tags Section */}
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
