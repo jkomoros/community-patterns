@@ -2,6 +2,8 @@
 
 **Status:** Superstition (single observation)
 
+> **Note (2025-12-12):** Framework author guidance: "You should just never rely on derives, ONLY use computed()." See `blessed/computed-over-derive.md`. This superstition's **solution** uses `derive()`, which should be replaced with `computed()` per framework guidance. The core issue (don't create reactive primitives inside `.map()`) remains valid.
+
 > **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `derive()` callbacks. This superstition is about a different issue: creating reactive primitives (`computed()`, `cell()`, `derive()`) inside render callbacks causes object identity issues and thrashing. This remains valid.
 
 ## Problem
@@ -31,13 +33,11 @@ Each `computed()` creation triggers a subscription, which can trigger re-renders
 **Pre-compute the derived state in a `computed()` BEFORE the render:**
 
 ```typescript
-// GOOD - Compute once in a computed, use plain values in render
+// GOOD - Compute once in a computed(), use plain values in render
 const listWithReadState = computed(() => {
-  const list = myList;
-  const read = readUrls;
-  return list.map((item) => ({
+  return myList.map((item) => ({
     ...item,
-    isRead: read.includes(item.url),
+    isRead: readUrls.includes(item.url),
   }));
 });
 
@@ -54,7 +54,7 @@ const listWithReadState = computed(() => {
 - `computed()` creates a single reactive computation that updates when inputs change
 - The `.map()` in render only deals with plain JavaScript values
 - No new reactive subscriptions created during render
-- Clean separation: reactivity in computeds, plain values in UI
+- Clean separation: reactivity in computed(), plain values in UI
 
 ## General Rule
 
