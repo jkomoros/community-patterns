@@ -335,6 +335,176 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const newFriendName = cell<string>("");
 
     // ========================================================================
+    // LLM EXTRACTION
+    // ========================================================================
+
+    // Build extraction prompt - only when we have text to extract
+    const extractionPrompt = derive(
+      { importText, childGrade, categoryTags, importLocationId, locations },
+      (values) => {
+        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+        const text: string = (values.importText as any)?.get ? (values.importText as any).get() : values.importText;
+        const locId: string = (values.importLocationId as any)?.get ? (values.importLocationId as any).get() : values.importLocationId;
+        const grade: string = (values.childGrade as any)?.get ? (values.childGrade as any).get() : values.childGrade;
+        const tags: CategoryTag[] = (values.categoryTags as any)?.get ? (values.categoryTags as any).get() : values.categoryTags;
+        const locs: Location[] = (values.locations as any)?.get ? (values.locations as any).get() : values.locations;
+
+        // Don't extract if no text or no location selected
+        if (!text || text.trim().length < 50 || !locId) {
+          return "";
+        }
+
+        const locationName = locs.find((l: Location) => l.id === locId)?.name || "Unknown";
+        const tagNames = tags.map((t: CategoryTag) => t.name).join(", ");
+
+        return `You are extracting extracurricular class information from a schedule.
+
+CHILD'S GRADE: ${grade}
+
+EXISTING CATEGORY TAGS: ${tagNames}
+
+SOURCE LOCATION: ${locationName}
+
+For each class you find, determine:
+1. Is this class eligible for a grade ${grade} student?
+2. What category tags apply (prefer existing tags, but suggest new ones if needed)?
+
+SCHEDULE TEXT:
+${text}
+
+Extract all classes you can identify. For grade eligibility:
+- If the class explicitly includes grade ${grade}, mark eligible=true with high confidence
+- If the grade range is unclear, mark eligible="uncertain"
+- If the class explicitly excludes grade ${grade}, mark eligible=false
+
+For times, use 24-hour format (e.g., "15:30" for 3:30 PM).
+For days, use lowercase: monday, tuesday, wednesday, thursday, friday.
+If cost is not specified, use null.`;
+      }
+    );
+
+    // Run extraction when prompt is ready
+    const extractionResult = generateObject({
+      prompt: extractionPrompt,
+      system: "You are a precise data extraction assistant. Extract class information exactly as found in the source text. Do not invent or assume information not present.",
+      model: "anthropic:claude-sonnet-4-5",
+      schema: {
+        type: "object",
+        properties: {
+          classes: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Name of the class" },
+                dayOfWeek: { type: "string", description: "Day of week (monday, tuesday, etc.)" },
+                startTime: { type: "string", description: "Start time in 24h format (e.g., 15:30)" },
+                endTime: { type: "string", description: "End time in 24h format (e.g., 16:30)" },
+                durationMinutes: { type: "number", description: "Duration in minutes" },
+                cost: { type: "number", description: "Cost in dollars (null if not specified)" },
+                costPer: { type: "string", enum: ["session", "semester", "month"], description: "What the cost covers" },
+                numberOfMeetings: { type: "number", description: "Number of meetings in the session" },
+                gradeMin: { type: "string", description: "Minimum grade (e.g., 'K', '3')" },
+                gradeMax: { type: "string", description: "Maximum grade (e.g., '3', '8')" },
+                suggestedTags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Category tags that apply (use existing tag names when possible)"
+                },
+                eligibility: {
+                  type: "object",
+                  properties: {
+                    eligible: { type: "string", enum: ["true", "false", "uncertain"] },
+                    reason: { type: "string", description: "Why this eligibility was determined" },
+                    confidence: { type: "number", minimum: 0, maximum: 1 }
+                  },
+                  required: ["eligible", "reason", "confidence"]
+                },
+                notes: { type: "string", description: "Any additional notes about the class" }
+              },
+              required: ["name", "dayOfWeek", "startTime", "endTime", "eligibility"]
+            }
+          },
+          suggestedNewTags: {
+            type: "array",
+            items: { type: "string" },
+            description: "New category tags not in the existing list that should be added"
+          }
+        },
+        required: ["classes", "suggestedNewTags"]
+      }
+    });
+
+    // Process extraction results into staged classes
+    const processedStagedClasses = derive(
+      { extractionResult, importLocationId, locations, categoryTags },
+      (values) => {
+        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
+        const extractionState = (values.extractionResult as any)?.get ? (values.extractionResult as any).get() : values.extractionResult;
+        const locId: string = (values.importLocationId as any)?.get ? (values.importLocationId as any).get() : values.importLocationId;
+        const locs: Location[] = (values.locations as any)?.get ? (values.locations as any).get() : values.locations;
+        const tags: CategoryTag[] = (values.categoryTags as any)?.get ? (values.categoryTags as any).get() : values.categoryTags;
+
+        // extractionResult is a state object with .result property
+        const result = extractionState?.result;
+        if (!result || !result.classes) {
+          return [] as StagedClass[];
+        }
+
+        const resolvedLocationName = locs.find((l: Location) => l.id === locId)?.name || "";
+
+        return result.classes.map((cls: any, index: number): StagedClass => {
+          // Determine triage status based on eligibility
+          let triageStatus: TriageStatus;
+          if (cls.eligibility.eligible === "true" && cls.eligibility.confidence >= 0.8) {
+            triageStatus = "auto_kept";
+          } else if (cls.eligibility.eligible === "false" && cls.eligibility.confidence >= 0.8) {
+            triageStatus = "auto_discarded";
+          } else {
+            triageStatus = "needs_review";
+          }
+
+          // Match suggested tags to existing category tags
+          const matchedTagIds: string[] = [];
+          const matchedTagNames: string[] = [];
+          for (const suggestedTag of cls.suggestedTags || []) {
+            const existing = tags.find(
+              (t: CategoryTag) => t.name.toLowerCase() === suggestedTag.toLowerCase()
+            );
+            if (existing) {
+              matchedTagIds.push(existing.id);
+              matchedTagNames.push(existing.name);
+            }
+          }
+
+          return {
+            id: `staged-${index}-${Date.now()}`,
+            name: cls.name || "Unknown Class",
+            locationId: locId,
+            locationName: resolvedLocationName,
+            timeSlots: [{
+              day: (cls.dayOfWeek || "monday") as DayOfWeek,
+              startTime: cls.startTime || "15:00",
+              endTime: cls.endTime || "16:00"
+            }],
+            cost: cls.cost || 0,
+            costPer: cls.costPer || "session",
+            categoryTagIds: matchedTagIds,
+            categoryTagNames: matchedTagNames,
+            gradeMin: cls.gradeMin || "",
+            gradeMax: cls.gradeMax || "",
+            description: cls.notes || "",
+            startDate: "",
+            endDate: "",
+            triageStatus,
+            eligibilityReason: cls.eligibility.reason || "",
+            eligibilityConfidence: cls.eligibility.confidence || 0
+          };
+        });
+      }
+    );
+
+    // ========================================================================
     // DERIVED STATE
     // ========================================================================
 
@@ -463,22 +633,18 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
                     <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">
                       Source Location
                     </label>
-                    {derive(locations, (locs) =>
-                      locs.length === 0 ? (
-                        <div style="color: #f59e0b; font-size: 14px;">
-                          Add locations in Settings before importing classes.
-                        </div>
-                      ) : (
-                        <select
-                          style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
-                          value={importLocationId}
-                        >
-                          <option value="">Select a location...</option>
-                          {locs.map((loc) => (
-                            <option value={loc.id}>{loc.name}</option>
-                          ))}
-                        </select>
-                      )
+                    {ifElse(
+                      derive(locations, (locs) => locs.length === 0),
+                      <div style="color: #f59e0b; font-size: 14px;">
+                        Add locations in Settings before importing classes.
+                      </div>,
+                      <ct-select
+                        $value={importLocationId}
+                        items={derive(locations, (locs: Location[]) => [
+                          { label: "Select a location...", value: "" },
+                          ...locs.map((loc: Location) => ({ label: loc.name, value: loc.id }))
+                        ])}
+                      />
                     )}
                   </div>
 
@@ -494,20 +660,141 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
                     />
                   </div>
 
-                  <ct-button variant="default">
-                    Extract Classes
-                  </ct-button>
+                  {/* Extraction status */}
+                  {ifElse(
+                    derive(extractionResult, (r: any) => r?.pending === true),
+                    <div style="padding: 8px 12px; background: #dbeafe; border-radius: 6px; color: #1e40af; font-size: 14px; margin-bottom: 12px;">
+                      Extracting classes from {derive(importText, (t: string) => t.length)} characters of text...
+                    </div>,
+                    null
+                  )}
                 </div>
 
-                {/* Triage results (placeholder) */}
-                {derive(stagedClasses, (staged) =>
+                {/* Triage results from extraction */}
+                {derive(processedStagedClasses, (staged: StagedClass[]) =>
                   staged.length > 0 ? (
-                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">
-                        Triage Results
-                      </h3>
-                      <div>{staged.length} classes extracted</div>
-                    </div>
+                    <ct-vstack style="gap: 16px;">
+                      {/* Auto-kept classes (eligible) */}
+                      {(() => {
+                        const autoKept = staged.filter((c: StagedClass) => c.triageStatus === "auto_kept");
+                        return autoKept.length > 0 ? (
+                          <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 16px;">
+                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #166534;">
+                              Ready to Import ({autoKept.length})
+                            </h3>
+                            <ct-vstack style="gap: 8px;">
+                              {autoKept.map((cls: StagedClass) => (
+                                <div style="background: white; border-radius: 4px; padding: 8px 12px;">
+                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                      <div style="font-weight: 500;">{cls.name}</div>
+                                      <div style="font-size: 12px; color: #6b7280;">
+                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                        {cls.cost > 0 && ` - $${cls.cost}`}
+                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                      </div>
+                                      <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
+                                        {cls.eligibilityReason}
+                                      </div>
+                                    </div>
+                                    {cls.categoryTagNames.length > 0 && (
+                                      <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                        {cls.categoryTagNames.map((tag: string) => (
+                                          <span style="font-size: 10px; padding: 2px 6px; background: #e5e7eb; border-radius: 8px;">{tag}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </ct-vstack>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Needs review classes */}
+                      {(() => {
+                        const needsReview = staged.filter((c: StagedClass) => c.triageStatus === "needs_review");
+                        return needsReview.length > 0 ? (
+                          <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 16px;">
+                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #854d0e;">
+                              Needs Review ({needsReview.length})
+                            </h3>
+                            <ct-vstack style="gap: 8px;">
+                              {needsReview.map((cls: StagedClass) => (
+                                <div style="background: white; border-radius: 4px; padding: 8px 12px;">
+                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                      <div style="font-weight: 500;">{cls.name}</div>
+                                      <div style="font-size: 12px; color: #6b7280;">
+                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                        {cls.cost > 0 && ` - $${cls.cost}`}
+                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                      </div>
+                                      <div style="font-size: 11px; color: #ca8a04; margin-top: 2px;">
+                                        {cls.eligibilityReason} (confidence: {Math.round(cls.eligibilityConfidence * 100)}%)
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </ct-vstack>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Auto-discarded classes */}
+                      {(() => {
+                        const autoDiscarded = staged.filter((c: StagedClass) => c.triageStatus === "auto_discarded");
+                        return autoDiscarded.length > 0 ? (
+                          <div style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 16px;">
+                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
+                              Auto-Discarded ({autoDiscarded.length})
+                            </h3>
+                            <ct-vstack style="gap: 8px;">
+                              {autoDiscarded.map((cls: StagedClass) => (
+                                <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
+                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div>
+                                      <div style="font-weight: 500; text-decoration: line-through;">{cls.name}</div>
+                                      <div style="font-size: 12px; color: #9ca3af;">
+                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                      </div>
+                                      <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
+                                        {cls.eligibilityReason}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </ct-vstack>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Suggested new tags */}
+                      {derive(extractionResult, (result: any) => {
+                        const newTags: string[] = result?.result?.suggestedNewTags || [];
+                        return newTags.length > 0 ? (
+                          <div style="background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 8px; padding: 16px;">
+                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b21a8;">
+                              Suggested New Tags
+                            </h3>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                              {newTags.map((tag: string) => (
+                                <span style="padding: 4px 12px; background: white; border: 1px solid #c4b5fd; border-radius: 16px; font-size: 12px;">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                            <div style="font-size: 11px; color: #7c3aed; margin-top: 8px;">
+                              Add these in Settings to use them in future imports.
+                            </div>
+                          </div>
+                        ) : null;
+                      })}
+                    </ct-vstack>
                   ) : null
                 )}
               </ct-vstack>
