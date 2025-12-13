@@ -158,32 +158,38 @@ const totalPrice = computed(() => items.reduce((sum, i) => sum + i.price, 0));
 
 ---
 
-## computed() and derive() Are The Same Thing
+## ⚠️ ALWAYS Use computed() Instead of derive()
 
-⭐⭐ (2 confirmations)
+⭐⭐⭐⭐⭐ (BLESSED - Framework Author Confirmed)
 
-**These are functionally identical.** Code review of `packages/runner/src/builder/module.ts` shows:
+**Framework author guidance (December 2025): "You should just never rely on derives, ONLY use computed()."**
+
+While internally similar (both use `lift()`), `derive()` has practical issues:
+
+1. **ReadOnlyAddressError** - Cells inside derive() become read-only proxies, breaking handlers
+2. **Unpredictable behavior** - In complex reactive contexts, derive() can cause issues
+3. **Deprecated pattern** - `computed()` is the modern, preferred API
+
+### Migration
 
 ```typescript
-derive(input, fn) → calls lift(fn)(input) → returns OpaqueRef<T>
-computed(fn)      → calls lift(fn)(undefined) → returns OpaqueRef<T>
+// ❌ AVOID derive()
+{derive({ items }, ({ items }) => items.map(i => <div>{i.name}</div>))}
+
+// ✅ USE computed()
+const itemNames = computed(() => items.get().map(i => i.name));
+{itemNames.map(name => <div>{name}</div>)}
+
+// ✅ For conditionals, use ifElse
+{ifElse(isLoading, <Loading />, <Content />)}
 ```
 
-**Both return `OpaqueRef<T>`** - they are fundamentally the same!
-
-The only difference:
-- `derive(deps, fn)` - explicit dependencies in first argument
-- `computed(fn)` - dependencies captured from closure
-
-**Implication:** Any claim that one works where the other doesn't is likely caused by something else (a different bug fixed during refactoring, or explicit vs implicit dependency tracking).
-
-**Use `computed()` in new code** - it's the preferred modern name per official docs.
-
-**Related:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md` (line 197: "You may see derive() in some docs - it's the same as computed()")
+**See:** `blessed/computed-over-derive.md` for full migration guide.
 
 **Guestbook:**
 - ✅ 2025-11-25 - Code review confirmed both use lift() internally (jkomoros)
 - ✅ 2025-11-26 - Verified against official docs (jkomoros)
+- ✅ 2025-12-12 - **BLESSED**: Framework author explicitly said to use computed() only (jkomoros)
 
 ---
 

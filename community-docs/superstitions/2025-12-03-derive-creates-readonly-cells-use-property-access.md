@@ -9,6 +9,8 @@ status: folk_wisdom
 stars: ⭐⭐
 ---
 
+> **Note (2025-12-12):** Framework author guidance: "You should just never rely on derives, ONLY use computed()." See `blessed/computed-over-derive.md`. This folk wisdom remains valid—it's about property access vs derived projections for writability—but when you need reactive transformations, prefer `computed()` over `derive()`.
+
 # ✅ FOLK WISDOM - CONFIRMED
 
 **This pattern has been confirmed multiple times.**

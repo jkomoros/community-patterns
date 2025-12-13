@@ -1,5 +1,7 @@
 # computed() Inside Map Callbacks Causes Reactivity Loops
 
+> **Note (2025-12-12):** Framework author guidance: "You should just never rely on derives, ONLY use computed()." See `blessed/computed-over-derive.md`. This superstition applies equally to both `derive()` and `computed()` inside `.map()` callbacks—the issue is creating new reactive cells on each pass, regardless of which function you use.
+
 > **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `computed()` callbacks. This superstition is about a different issue: creating `computed()` cells inside `.map()` callbacks creates new cell references on each reactive pass, causing thrashing. This is about object identity/reference tracking. This remains valid.
 
 ## Summary

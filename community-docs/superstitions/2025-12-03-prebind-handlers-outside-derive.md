@@ -1,5 +1,13 @@
 # Pre-bind Handlers Outside computed() Callbacks to Avoid ReadOnlyAddressError
 
+**⚠️ SUPERSEDED** - See `blessed/computed-over-derive.md` instead!
+
+**Framework author guidance (December 2025):** "You should just never rely on derives, ONLY use computed()."
+
+The best solution is to **avoid derive() entirely** and use `computed()` + `ifElse()` instead. The pre-binding workaround below still works but is no longer recommended.
+
+---
+
 **SUPERSTITION** - Single observation, unverified. Use with skepticism!
 
 ## Topic

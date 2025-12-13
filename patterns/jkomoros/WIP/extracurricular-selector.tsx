@@ -16,6 +16,7 @@
 import {
   Cell,
   cell,
+  computed,
   Default,
   derive,
   generateObject,
@@ -408,6 +409,138 @@ const addManualClass = handler<
 });
 
 // ============================================================================
+// PINNED SET HANDLERS
+// ============================================================================
+
+// Create a new pinned set
+const createPinnedSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string> }
+>((_, { pinnedSets, activePinnedSetId }) => {
+  const sets = pinnedSets.get();
+  const newId = generateId();
+  const newSet: PinnedSet = {
+    id: newId,
+    name: `Set ${String.fromCharCode(65 + sets.length)}`, // A, B, C...
+    classIds: [],
+  };
+  pinnedSets.set([...sets, newSet]);
+  activePinnedSetId.set(newId);
+});
+
+// Delete a pinned set
+const deletePinnedSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; setId: string }
+>((_, { pinnedSets, activePinnedSetId, setId }) => {
+  const sets = pinnedSets.get();
+  const newSets = sets.filter((s) => s.id !== setId);
+  pinnedSets.set(newSets);
+
+  // If we deleted the active set, switch to first remaining or clear
+  const activeId = activePinnedSetId.get();
+  if (activeId === setId) {
+    activePinnedSetId.set(newSets.length > 0 ? newSets[0].id : "");
+  }
+});
+
+// Rename a pinned set
+const renamePinnedSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; setId: string; newName: string }
+>((_, { pinnedSets, setId, newName }) => {
+  const sets = pinnedSets.get();
+  pinnedSets.set(
+    sets.map((s) => (s.id === setId ? { ...s, name: newName } : s))
+  );
+});
+
+// Add a class to the active pinned set
+const addClassToSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classId: string }
+>((_, { pinnedSets, activePinnedSetId, classId }) => {
+  const activeId = activePinnedSetId.get();
+  if (!activeId) return;
+
+  const sets = pinnedSets.get();
+  pinnedSets.set(
+    sets.map((s) => {
+      if (s.id !== activeId) return s;
+      if (s.classIds.includes(classId)) return s; // Already in set
+      return { ...s, classIds: [...s.classIds, classId] };
+    })
+  );
+});
+
+// Remove a class from the active pinned set
+const removeClassFromSet = handler<
+  unknown,
+  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classId: string }
+>((_, { pinnedSets, activePinnedSetId, classId }) => {
+  const activeId = activePinnedSetId.get();
+  if (!activeId) return;
+
+  const sets = pinnedSets.get();
+  pinnedSets.set(
+    sets.map((s) => {
+      if (s.id !== activeId) return s;
+      return { ...s, classIds: s.classIds.filter((id) => id !== classId) };
+    })
+  );
+});
+
+// Switch active pinned set
+const switchActiveSet = handler<
+  unknown,
+  { activePinnedSetId: Cell<string>; setId: string }
+>((_, { activePinnedSetId, setId }) => {
+  activePinnedSetId.set(setId);
+});
+
+// ============================================================================
+// CONFLICT DETECTION HELPERS
+// ============================================================================
+
+// Parse time string (e.g., "14:30") to minutes since midnight
+function parseTimeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+// Check if two time ranges overlap
+function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): boolean {
+  if (slot1.day !== slot2.day) return false;
+
+  const start1 = parseTimeToMinutes(slot1.startTime);
+  const end1 = parseTimeToMinutes(slot1.endTime);
+  const start2 = parseTimeToMinutes(slot2.startTime);
+  const end2 = parseTimeToMinutes(slot2.endTime);
+
+  // Check if ranges overlap
+  return start1 < end2 && start2 < end1;
+}
+
+// Check if two classes conflict
+function classesConflict(class1: Class, class2: Class): boolean {
+  for (const slot1 of class1.timeSlots) {
+    for (const slot2 of class2.timeSlots) {
+      if (timeSlotsOverlap(slot1, slot2)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Get all classes that conflict with a given class
+function getConflictingClasses(targetClass: Class, allClasses: Class[]): Class[] {
+  return allClasses.filter(
+    (c) => c.id !== targetClass.id && classesConflict(targetClass, c)
+  );
+}
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -648,17 +781,234 @@ If cost is not specified, use null.`;
     // ========================================================================
 
     // Pattern name - when childName is empty, we show a default
-    // Use derive to check if childName has any non-whitespace content
-    const hasChildName = derive(childName, (n: string) => n && n.trim().length > 0);
+    // Use computed to check if childName has any non-whitespace content
+    const hasChildName = computed(() => {
+      const n = childName.get();
+      return n && n.trim().length > 0;
+    });
     const patternName = ifElse(
       hasChildName,
       str`${childName}'s Activities`,
       "Extracurricular Selector"
     );
 
-    const locationCount = derive(locations, (locs) => locs.length);
-    const classCount = derive(classes, (cls) => cls.length);
-    const friendCount = derive(friends, (f) => f.length);
+    // Use computed() for reactive transformations
+    // Per official docs: inside computed(), access reactive values directly
+    // The framework's CTS transformer handles unwrapping automatically - NO CASTS NEEDED
+    const locationCount = computed(() => locations.length);
+    const classCount = computed(() => classes.length);
+    const friendCount = computed(() => friends.length);
+
+    // ========================================================================
+    // SELECTION BUILDER - COMPUTED VALUES
+    // ========================================================================
+
+    // Basic state checks
+    const hasClasses = computed(() => classes.length > 0);
+
+    // Active set info
+    const activeSetData = computed(() => {
+      return pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+    });
+
+    const hasActiveSet = computed(() => activeSetData !== null);
+    const activeSetName = computed(() => activeSetData?.name || "");
+    const canDeleteSet = computed(() => pinnedSets.length > 1);
+
+    // Pinned classes for active set
+    const pinnedClassIds = computed(() => activeSetData?.classIds || []);
+
+    const pinnedClasses = computed(() => {
+      return classes.filter((c) => pinnedClassIds.includes(c.id));
+    });
+
+    const hasPinnedClasses = computed(() => pinnedClasses.length > 0);
+    const pinnedClassCount = computed(() => pinnedClasses.length);
+
+    // Available (unpinned) classes
+    const availableClasses = computed(() => {
+      return classes.filter((c) => !pinnedClassIds.includes(c.id));
+    });
+
+    const hasAvailableClasses = computed(() => availableClasses.length > 0);
+    const availableClassCount = computed(() => availableClasses.length);
+
+    // Total cost of pinned classes
+    const totalPinnedCost = computed(() => {
+      return pinnedClasses.reduce((sum, c) => sum + (c.cost || 0), 0);
+    });
+
+    // Conflict detection
+    const conflictingPairs = computed(() => {
+      const pairs: Array<[Class, Class]> = [];
+      for (let i = 0; i < pinnedClasses.length; i++) {
+        for (let j = i + 1; j < pinnedClasses.length; j++) {
+          if (classesConflict(pinnedClasses[i], pinnedClasses[j])) {
+            pairs.push([pinnedClasses[i], pinnedClasses[j]]);
+          }
+        }
+      }
+      return pairs;
+    });
+
+    const hasConflicts = computed(() => conflictingPairs.length > 0);
+
+    // Conflict warnings JSX - computed for pure rendering (no handlers inside)
+    const conflictWarnings = computed(() => {
+      return conflictingPairs.map(([c1, c2]) => (
+        <div style="font-size: 11px; color: #991b1b; margin-top: 4px;">
+          {c1.name} ↔ {c2.name}
+        </div>
+      ));
+    });
+
+    // ========================================================================
+    // SELECTION BUILDER - COMPUTED JSX FRAGMENTS (display only, no handlers inside)
+    // ========================================================================
+
+    // Set tabs - computed for display
+    const selectionSetTabs = computed(() => {
+      return pinnedSets.map((set) => (
+        <button
+          style={{
+            padding: "6px 12px",
+            border: set.id === activePinnedSetId ? "2px solid #3b82f6" : "1px solid #d1d5db",
+            borderRadius: "6px",
+            background: set.id === activePinnedSetId ? "#eff6ff" : "white",
+            fontWeight: set.id === activePinnedSetId ? "600" : "400",
+            cursor: "pointer",
+            fontSize: "13px",
+          }}
+          onClick={switchActiveSet({ setId: set.id, activePinnedSetId })}
+        >
+          {set.name}
+        </button>
+      ));
+    });
+
+    // Pinned schedule grouped by day - computed for display
+    const pinnedScheduleByDay = computed(() => {
+      return DAYS_OF_WEEK.map((day: DayOfWeek) => {
+        const dayClasses = pinnedClasses.filter((c) =>
+          c.timeSlots.some((slot) => slot.day === day)
+        );
+        if (dayClasses.length === 0) return null;
+
+        return (
+          <div style="border-left: 3px solid #3b82f6; padding-left: 12px;">
+            <div style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">
+              {DAY_LABELS[day]}
+            </div>
+            {dayClasses.map((cls) => (
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #e5e7eb;">
+                <div>
+                  <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
+                  <div style="font-size: 11px; color: #6b7280;">
+                    {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
+                    {cls.locationName && ` @ ${cls.locationName}`}
+                  </div>
+                </div>
+                <button
+                  style={{
+                    padding: "2px 8px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "4px",
+                    background: "white",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                    color: "#6b7280",
+                  }}
+                  onClick={removeClassFromSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      }).filter(Boolean);
+    });
+
+    // Available class cards with conflict detection - computed for display
+    const availableClassCards = computed(() => {
+      return availableClasses.map((cls) => {
+        // Check if this class would conflict with pinned classes
+        const conflicts = pinnedClasses.filter((pinnedCls) =>
+          classesConflict(cls, pinnedCls)
+        );
+        const hasConflict = conflicts.length > 0;
+
+        return (
+          <div
+            style={{
+              background: hasConflict ? "#fef2f2" : "white",
+              border: hasConflict ? "1px solid #fca5a5" : "1px solid #e5e7eb",
+              borderRadius: "6px",
+              padding: "10px 12px",
+            }}
+          >
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+              <div style="flex: 1;">
+                <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
+                <div style="font-size: 11px; color: #6b7280;">
+                  {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek]} {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
+                  {cls.cost > 0 && ` • $${cls.cost}`}
+                </div>
+                {hasConflict && (
+                  <div style="font-size: 10px; color: #dc2626; margin-top: 2px;">
+                    ⚠️ Conflicts with: {conflicts.map((c) => c.name).join(", ")}
+                  </div>
+                )}
+              </div>
+              <button
+                style={{
+                  padding: "4px 10px",
+                  border: "none",
+                  borderRadius: "4px",
+                  background: hasConflict ? "#fca5a5" : "#3b82f6",
+                  color: "white",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                }}
+                onClick={addClassToSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+        );
+      });
+    });
+
+    // ========================================================================
+    // SELECTION BUILDER - PRE-BOUND HANDLERS (outside reactive context)
+    // ========================================================================
+
+    // Pre-bind handlers with their Cell dependencies
+    // These are bound at pattern evaluation time, not inside derive
+    const boundCreatePinnedSet = createPinnedSet({ pinnedSets, activePinnedSetId });
+
+    // Delete active set - need to get activeSetId at click time, so we create a wrapper handler
+    const deleteActiveSetHandler = handler<
+      unknown,
+      { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string> }
+    >((_, { pinnedSets, activePinnedSetId }) => {
+      const activeId = activePinnedSetId.get();
+      if (!activeId) return;
+
+      const sets = pinnedSets.get();
+      const newSets = sets.filter((s) => s.id !== activeId);
+      pinnedSets.set(newSets);
+
+      // Switch to first remaining set
+      if (newSets.length > 0) {
+        activePinnedSetId.set(newSets[0].id);
+      } else {
+        activePinnedSetId.set("");
+      }
+    });
+    const boundDeleteActiveSet = deleteActiveSetHandler({ pinnedSets, activePinnedSetId });
 
     // ========================================================================
     // RENDER
@@ -1086,11 +1436,127 @@ If cost is not specified, use null.`;
               <ct-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Selection Builder</h2>
 
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                  <p style="color: #9ca3af; font-style: italic;">
-                    Selection builder coming in Phase 2. Import classes first!
-                  </p>
-                </div>
+                {/* Show message if no classes imported yet */}
+                {ifElse(
+                  hasClasses,
+                  null,
+                  <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px;">
+                    <p style="color: #92400e; margin: 0;">
+                      No classes imported yet. Go to the Import tab to add classes first!
+                    </p>
+                  </div>
+                )}
+
+                {/* Main selection builder - using computed values and ifElse instead of derive */}
+                {ifElse(
+                  hasClasses,
+                  <ct-hstack style="gap: 16px; align-items: flex-start;">
+                    {/* Left column: Pinned Schedule */}
+                    <div style="flex: 1; min-width: 300px;">
+                      {/* Set tabs - using computed for display, handlers bound outside */}
+                      <div style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;">
+                        {selectionSetTabs}
+                        <button
+                          style={{
+                            padding: "6px 12px",
+                            border: "1px dashed #9ca3af",
+                            borderRadius: "6px",
+                            background: "transparent",
+                            cursor: "pointer",
+                            color: "#6b7280",
+                            fontSize: "13px",
+                          }}
+                          onClick={boundCreatePinnedSet}
+                        >
+                          + New Set
+                        </button>
+                      </div>
+
+                      {/* Active set content */}
+                      {ifElse(
+                        hasActiveSet,
+                        <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                          {/* Header with set name and delete button */}
+                          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="font-size: 14px; font-weight: 600; margin: 0; color: #374151;">
+                              {activeSetName} ({pinnedClassCount} classes)
+                            </h3>
+                            {ifElse(
+                              canDeleteSet,
+                              <ct-button
+                                size="sm"
+                                variant="destructive"
+                                onClick={boundDeleteActiveSet}
+                              >
+                                Delete Set
+                              </ct-button>,
+                              null
+                            )}
+                          </div>
+
+                          {/* Conflict warning */}
+                          {ifElse(
+                            hasConflicts,
+                            <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px;">
+                              <div style="font-size: 12px; font-weight: 600; color: #dc2626;">
+                                ⚠️ Schedule Conflicts
+                              </div>
+                              {conflictWarnings}
+                            </div>,
+                            null
+                          )}
+
+                          {/* Day-by-day schedule */}
+                          {ifElse(
+                            hasPinnedClasses,
+                            <ct-vstack style="gap: 8px;">
+                              {pinnedScheduleByDay}
+                            </ct-vstack>,
+                            <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
+                              No classes pinned yet. Add classes from the right panel.
+                            </p>
+                          )}
+
+                          {/* Cost summary */}
+                          {ifElse(
+                            hasPinnedClasses,
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                              <div style="font-size: 12px; color: #6b7280;">
+                                <strong>Total Cost:</strong> ${totalPinnedCost}
+                              </div>
+                            </div>,
+                            null
+                          )}
+                        </div>,
+                        <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                          <p style="color: #9ca3af; font-size: 13px; margin: 0;">
+                            Create a set to start building your schedule.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right column: Available Classes */}
+                    <div style="flex: 1; min-width: 300px;">
+                      <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                          Available Classes ({availableClassCount})
+                        </h3>
+
+                        {ifElse(
+                          hasAvailableClasses,
+                          <ct-vstack style="gap: 8px;">
+                            {availableClassCards}
+                          </ct-vstack>,
+                          <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
+                            All classes are pinned to this set!
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </ct-hstack>,
+                  null
+                )}
               </ct-vstack>
             </ct-vscroll>
 
