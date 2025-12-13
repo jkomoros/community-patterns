@@ -603,6 +603,14 @@ const closeSettingsDialog = handler<
   showSettingsDialog.set(false);
 });
 
+// Set active tab for custom tab UI
+const setActiveTab = handler<
+  unknown,
+  { activeTab: Cell<"dashboard" | "import" | "selection">; tab: "dashboard" | "import" | "selection" }
+>((_, { activeTab, tab }) => {
+  activeTab.set(tab);
+});
+
 // Handle file upload change - extract text content from uploaded file
 const handleFileUploadChange = handler<
   { detail: { files: Array<{ data: string; name: string; type: string }> } },
@@ -670,6 +678,17 @@ const copyOcrToImportText = handler<
   const result = imageOcrResult?.get ? imageOcrResult.get() : imageOcrResult;
   if (result?.result?.extractedText) {
     importText.set(result.result.extractedText);
+  }
+});
+
+// Trigger class extraction from current import text
+const triggerExtraction = handler<
+  unknown,
+  { importText: Cell<string>; extractionTriggerText: Cell<string> }
+>((_, { importText, extractionTriggerText }) => {
+  const text = importText.get();
+  if (text && text.trim().length >= 50) {
+    extractionTriggerText.set(text);
   }
 });
 
@@ -1070,21 +1089,57 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = cell<string>("");
 
-    // Settings dialog state - auto-open when no locations configured
-    const showSettingsDialog = cell<boolean>(false);
+    // Settings dialog state - starts open by default, closes only when user manually closes
+    const showSettingsDialog = cell<boolean>(true);
+
+    // Active tab state for custom tab UI (ct-tabs not available in JSX types)
+    const activeTab = cell<"dashboard" | "import" | "selection">("dashboard");
+
+    // Computed values for tab visibility
+    const isDashboardTab = computed(() => activeTab.get() === "dashboard");
+    const isImportTab = computed(() => activeTab.get() === "import");
+    const isSelectionTab = computed(() => activeTab.get() === "selection");
 
     // File upload state - stores uploaded files (ct-file-input provides FileData[])
     const uploadedFiles = cell<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
 
-    // Image upload state for OCR - stores a single image for OCR processing
-    // ct-image-input returns an array, but we use a handler to extract the first image
-    const uploadedImageForOcr = cell<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number } | null>(null);
+    // Image upload state for OCR - stores array of images (ct-image-input uses $images two-way binding)
+    const uploadedImagesForOcr = cell<ImageData[]>([]);
 
-    // Computed: should auto-open settings on first visit (no locations yet)
-    const shouldAutoOpenSettings = derive(locations, (locs) => locs.length === 0);
+    // Extraction trigger - user must click button to extract classes
+    // Stores the text that was submitted for extraction (empty = not triggered)
+    const extractionTriggerText = cell<string>("");
+
+    // Computed: Can extraction button be enabled? (text >= 50 chars AND location selected)
+    const canExtract = computed(() => {
+      const text = importText.get();
+      const locId = importLocationId.get();
+      const textStr = typeof text === "string" ? text : "";
+      return textStr.trim().length >= 50 && !!locId;
+    });
+
+    // Computed: Should show extraction help text? (missing location or insufficient text)
+    const showExtractionHelp = computed(() => {
+      const text = importText.get();
+      const locId = importLocationId.get();
+      const textStr = typeof text === "string" ? text : "";
+      return !locId || textStr.trim().length < 50;
+    });
+
+    // Computed: Is location missing? (for help text branching)
+    const isLocationMissing = computed(() => !importLocationId.get());
+
+    // Computed: Character count for extraction trigger text
+    const extractionTextLength = computed(() => {
+      const text = extractionTriggerText.get();
+      return typeof text === "string" ? text.length : 0;
+    });
 
     // Computed: location pairs for travel time editing
-    const locationPairs = derive({ locations, travelTimes }, ({ locations: locs, travelTimes: times }) => {
+    // Note: locations/travelTimes are Default<> inputs, not Cell<>, so access directly (no .get())
+    const locationPairs = computed(() => {
+      const locs = locations;
+      const times = travelTimes;
       if (locs.length < 2) return [];
       const pairs: Array<{ loc1Id: string; loc1Name: string; loc2Id: string; loc2Name: string; minutes: number }> = [];
       for (let i = 0; i < locs.length; i++) {
@@ -1108,30 +1163,37 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
       return pairs;
     });
 
+    // Settings dialog visibility - just follows the showSettingsDialog cell
+    // (starts open by default, closes only when user manually closes)
+    const isSettingsDialogVisible = showSettingsDialog;
+
     // ========================================================================
     // LLM EXTRACTION
     // ========================================================================
 
-    // Build extraction prompt - only when we have text to extract
-    const extractionPrompt = derive(
-      { importText, childGrade, categoryTags, importLocationId, locations },
-      (values) => {
-        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
-        const text: string = (values.importText as any)?.get ? (values.importText as any).get() : values.importText;
-        const locId: string = (values.importLocationId as any)?.get ? (values.importLocationId as any).get() : values.importLocationId;
-        const grade: string = (values.childGrade as any)?.get ? (values.childGrade as any).get() : values.childGrade;
-        const tags: CategoryTag[] = (values.categoryTags as any)?.get ? (values.categoryTags as any).get() : values.categoryTags;
-        const locs: Location[] = (values.locations as any)?.get ? (values.locations as any).get() : values.locations;
+    // Build extraction prompt - only when user triggers extraction
+    // Inside computed(), all inputs may be wrapped - use defensive access
+    const extractionPrompt = computed(() => {
+      // Use the triggered text, not live importText - extraction only runs when button clicked
+      const text = extractionTriggerText.get();
+      const locId = importLocationId.get();
+      const grade = childGrade.get();
+      // Access arrays - may be wrapped inside computed(), so try .get() first
+      const tags = (categoryTags as any)?.get?.() ?? categoryTags ?? [];
+      const locs = (locations as any)?.get?.() ?? locations ?? [];
 
-        // Don't extract if no text or no location selected
-        if (!text || text.trim().length < 50 || !locId) {
-          return "";
-        }
+      // Don't extract if no triggered text or no location selected
+      if (!text || typeof text !== "string" || text.trim().length < 50 || !locId) {
+        return "";
+      }
 
-        const locationName = locs.find((l: Location) => l.id === locId)?.name || "Unknown";
-        const tagNames = tags.map((t: CategoryTag) => t.name).join(", ");
+      const locsArray = Array.isArray(locs) ? locs : [];
+      const tagsArray = Array.isArray(tags) ? tags : [];
 
-        return `You are extracting extracurricular class information from a schedule.
+      const locationName = locsArray.find((l: Location) => l.id === locId)?.name || "Unknown";
+      const tagNames = tagsArray.map((t: CategoryTag) => t.name).join(", ");
+
+      return `You are extracting extracurricular class information from a schedule.
 
 CHILD'S GRADE: ${grade}
 
@@ -1154,8 +1216,7 @@ Extract all classes you can identify. For grade eligibility:
 For times, use 24-hour format (e.g., "15:30" for 3:30 PM).
 For days, use lowercase: monday, tuesday, wednesday, thursday, friday.
 If cost is not specified, use null.`;
-      }
-    );
+    });
 
     // Run extraction when prompt is ready
     // Using explicit JSON schema like person.tsx does
@@ -1195,20 +1256,26 @@ If cost is not specified, use null.`;
       },
     });
 
-    // Image OCR extraction - extracts text from uploaded photos
-    const imageOcrResult = generateObject({
-      model: "anthropic:claude-sonnet-4-5",
-      prompt: derive(uploadedImageForOcr, (img: ImageData | null) => {
-        // Only run when there's an image uploaded
-        if (!img || !img.data) {
-          return ""; // Empty prompt prevents API call
-        }
+    // Computed: Is extraction in progress? (defined after extractionResult)
+    const isExtractionPending = computed(() => (extractionResult as any)?.pending === true);
 
-        return [
-          { type: "image" as const, image: img.data },
-          {
-            type: "text" as const,
-            text: `Extract all text from this image of a class schedule or activity listing.
+    // Image OCR extraction - extracts text from uploaded photos
+    const imageOcrPrompt = computed(() => {
+      const images = uploadedImagesForOcr.get();
+      // Only run when there's an image uploaded - get the most recent one
+      if (!images || images.length === 0) {
+        return ""; // Empty prompt prevents API call
+      }
+      const img = images[images.length - 1];
+      if (!img || !img.data) {
+        return "";
+      }
+
+      return [
+        { type: "image" as const, image: img.data },
+        {
+          type: "text" as const,
+          text: `Extract all text from this image of a class schedule or activity listing.
 
 Preserve the structure and formatting as much as possible. Include:
 - Class/activity names
@@ -1219,9 +1286,13 @@ Preserve the structure and formatting as much as possible. Include:
 - Any other relevant information
 
 Return the complete extracted text.`
-          }
-        ];
-      }),
+        }
+      ];
+    });
+
+    const imageOcrResult = generateObject({
+      model: "anthropic:claude-sonnet-4-5",
+      prompt: imageOcrPrompt,
       schema: {
         type: "object",
         properties: {
@@ -1232,75 +1303,73 @@ Return the complete extracted text.`
     });
 
     // Process extraction results into staged classes
-    const processedStagedClasses = derive(
-      { extractionResult, importLocationId, locations, categoryTags },
-      (values) => {
-        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
-        const extractionState = (values.extractionResult as any)?.get ? (values.extractionResult as any).get() : values.extractionResult;
-        const locId: string = (values.importLocationId as any)?.get ? (values.importLocationId as any).get() : values.importLocationId;
-        const locs: Location[] = (values.locations as any)?.get ? (values.locations as any).get() : values.locations;
-        const tags: CategoryTag[] = (values.categoryTags as any)?.get ? (values.categoryTags as any).get() : values.categoryTags;
+    const processedStagedClasses = computed(() => {
+      // extractionResult is a generateObject result with .result, .pending, .error properties
+      // Access via extractionResult directly - framework handles reactivity
+      const extractionState = (extractionResult as any);
+      const locId = importLocationId.get();  // Cell<> - use .get()
+      const locs = locations;                // Default<> - access directly
+      const tags = categoryTags;             // Default<> - access directly
 
-        // extractionResult is a state object with .result property
-        const result = extractionState?.result;
-        if (!result || !result.classes) {
-          return [] as StagedClass[];
+      // extractionResult is a state object with .result property
+      const result = extractionState?.result;
+      if (!result || !result.classes) {
+        return [] as StagedClass[];
+      }
+
+      const resolvedLocationName = locs.find((l: Location) => l.id === locId)?.name || "";
+
+      return result.classes.map((cls: any, index: number): StagedClass => {
+        // Determine triage status based on eligibility (flattened fields)
+        let triageStatus: TriageStatus;
+        const eligible = cls.eligible || "uncertain";
+        const confidence = cls.eligibilityConfidence || 0;
+        if (eligible === "true" && confidence >= 0.8) {
+          triageStatus = "auto_kept";
+        } else if (eligible === "false" && confidence >= 0.8) {
+          triageStatus = "auto_discarded";
+        } else {
+          triageStatus = "needs_review";
         }
 
-        const resolvedLocationName = locs.find((l: Location) => l.id === locId)?.name || "";
-
-        return result.classes.map((cls: any, index: number): StagedClass => {
-          // Determine triage status based on eligibility (flattened fields)
-          let triageStatus: TriageStatus;
-          const eligible = cls.eligible || "uncertain";
-          const confidence = cls.eligibilityConfidence || 0;
-          if (eligible === "true" && confidence >= 0.8) {
-            triageStatus = "auto_kept";
-          } else if (eligible === "false" && confidence >= 0.8) {
-            triageStatus = "auto_discarded";
-          } else {
-            triageStatus = "needs_review";
+        // Match suggested tags to existing category tags
+        const matchedTagIds: string[] = [];
+        const matchedTagNames: string[] = [];
+        for (const suggestedTag of cls.suggestedTags || []) {
+          const existing = tags.find(
+            (t: CategoryTag) => t.name.toLowerCase() === suggestedTag.toLowerCase()
+          );
+          if (existing) {
+            matchedTagIds.push(existing.id);
+            matchedTagNames.push(existing.name);
           }
+        }
 
-          // Match suggested tags to existing category tags
-          const matchedTagIds: string[] = [];
-          const matchedTagNames: string[] = [];
-          for (const suggestedTag of cls.suggestedTags || []) {
-            const existing = tags.find(
-              (t: CategoryTag) => t.name.toLowerCase() === suggestedTag.toLowerCase()
-            );
-            if (existing) {
-              matchedTagIds.push(existing.id);
-              matchedTagNames.push(existing.name);
-            }
-          }
-
-          return {
-            id: `staged-${index}-${Date.now()}`,
-            name: cls.name || "Unknown Class",
-            locationId: locId,
-            locationName: resolvedLocationName,
-            timeSlots: [{
-              day: (cls.dayOfWeek || "monday") as DayOfWeek,
-              startTime: cls.startTime || "15:00",
-              endTime: cls.endTime || "16:00"
-            }],
-            cost: cls.cost || 0,
-            costPer: cls.costPer || "session",
-            categoryTagIds: matchedTagIds,
-            categoryTagNames: matchedTagNames,
-            gradeMin: cls.gradeMin || "",
-            gradeMax: cls.gradeMax || "",
-            description: cls.notes || "",
-            startDate: "",
-            endDate: "",
-            triageStatus,
-            eligibilityReason: cls.eligibilityReason || "",
-            eligibilityConfidence: confidence
-          };
-        });
-      }
-    );
+        return {
+          id: `staged-${index}-${Date.now()}`,
+          name: cls.name || "Unknown Class",
+          locationId: locId,
+          locationName: resolvedLocationName,
+          timeSlots: [{
+            day: (cls.dayOfWeek || "monday") as DayOfWeek,
+            startTime: cls.startTime || "15:00",
+            endTime: cls.endTime || "16:00"
+          }],
+          cost: cls.cost || 0,
+          costPer: cls.costPer || "session",
+          categoryTagIds: matchedTagIds,
+          categoryTagNames: matchedTagNames,
+          gradeMin: cls.gradeMin || "",
+          gradeMax: cls.gradeMax || "",
+          description: cls.notes || "",
+          startDate: "",
+          endDate: "",
+          triageStatus,
+          eligibilityReason: cls.eligibilityReason || "",
+          eligibilityConfidence: confidence
+        };
+      });
+    });
 
     // ========================================================================
     // DERIVED STATE
@@ -1741,6 +1810,72 @@ Return the complete extracted text.`
       }).filter(Boolean);
     });
 
+    // Status summary JSX - computed for Dashboard tab
+    // All these are Default<> inputs - access directly (no .get())
+    const statusSummaryDisplay = computed(() => {
+      const sets = pinnedSets;
+      const activeId = activePinnedSetId;
+      const statuses = classStatuses;
+      const allClasses = classes;
+
+      const activeSet = sets.find((s) => s.id === activeId);
+      if (!activeSet || activeSet.classIds.length === 0) {
+        return (
+          <div style="color: #9ca3af; font-style: italic;">
+            No classes pinned yet. Add classes from the Selection tab.
+          </div>
+        );
+      }
+
+      // Count statuses for pinned classes
+      const pinnedIds = activeSet.classIds;
+      const counts: Record<string, number> = {};
+      STATUS_TYPES.forEach((st) => { counts[st.key] = 0; });
+
+      for (const classId of pinnedIds) {
+        const status = statuses.find((s) => s.classId === classId);
+        if (status) {
+          STATUS_TYPES.forEach((st) => {
+            if (status.statuses[st.key]) {
+              counts[st.key]++;
+            }
+          });
+        }
+      }
+
+      const totalPinned = pinnedIds.length;
+
+      return (
+        <div>
+          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+            {totalPinned} classes in "{activeSet.name}"
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            {STATUS_TYPES.map((st) => (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "4px 10px",
+                borderRadius: "16px",
+                background: counts[st.key] > 0 ? `${st.color}15` : "#f3f4f6",
+                border: `1px solid ${counts[st.key] > 0 ? st.color : "#e5e7eb"}`,
+              }}>
+                <span style="font-size: 12px;">{st.icon}</span>
+                <span style={{
+                  fontSize: "12px",
+                  fontWeight: counts[st.key] > 0 ? "600" : "400",
+                  color: counts[st.key] > 0 ? st.color : "#9ca3af",
+                }}>
+                  {counts[st.key]}/{totalPinned} {st.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    });
+
     // ========================================================================
     // SELECTION BUILDER - PRE-BOUND HANDLERS (outside reactive context)
     // ========================================================================
@@ -1816,9 +1951,51 @@ Return the complete extracted text.`
             </ct-hstack>
           </div>
 
-          <ct-autolayout tabNames={["Dashboard", "Import", "Selection"]}>
+          {/* Custom Tab Navigation (ct-tabs not available in JSX types) */}
+          <div style="display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
+            {ifElse(
+              isDashboardTab,
+              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+                Dashboard
+              </button>,
+              <button
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
+                onClick={setActiveTab({ activeTab, tab: "dashboard" })}
+              >
+                Dashboard
+              </button>
+            )}
+            {ifElse(
+              isImportTab,
+              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+                Import
+              </button>,
+              <button
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
+                onClick={setActiveTab({ activeTab, tab: "import" })}
+              >
+                Import
+              </button>
+            )}
+            {ifElse(
+              isSelectionTab,
+              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+                Selection
+              </button>,
+              <button
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
+                onClick={setActiveTab({ activeTab, tab: "selection" })}
+              >
+                Selection
+              </button>
+            )}
+          </div>
+
+          {/* Tab Content */}
+          <div style="flex: 1; overflow: auto;">
             {/* ========== TAB 1: DASHBOARD ========== */}
-            <ct-vscroll flex showScrollbar>
+            {ifElse(
+              isDashboardTab,
               <ct-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Dashboard</h2>
 
@@ -1866,75 +2043,15 @@ Return the complete extracted text.`
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #374151;">
                     Status Summary
                   </h3>
-                  {derive({ pinnedSets, activePinnedSetId, classStatuses, classes }, (values) => {
-                    const sets = values.pinnedSets as PinnedSet[];
-                    const activeId = values.activePinnedSetId as string;
-                    const statuses = values.classStatuses as ClassStatus[];
-                    const allClasses = values.classes as Class[];
-
-                    const activeSet = sets.find((s) => s.id === activeId);
-                    if (!activeSet || activeSet.classIds.length === 0) {
-                      return (
-                        <div style="color: #9ca3af; font-style: italic;">
-                          No classes pinned yet. Add classes from the Selection tab.
-                        </div>
-                      );
-                    }
-
-                    // Count statuses for pinned classes
-                    const pinnedIds = activeSet.classIds;
-                    const counts: Record<string, number> = {};
-                    STATUS_TYPES.forEach((st) => { counts[st.key] = 0; });
-
-                    for (const classId of pinnedIds) {
-                      const status = statuses.find((s) => s.classId === classId);
-                      if (status) {
-                        STATUS_TYPES.forEach((st) => {
-                          if (status.statuses[st.key]) {
-                            counts[st.key]++;
-                          }
-                        });
-                      }
-                    }
-
-                    const totalPinned = pinnedIds.length;
-
-                    return (
-                      <div>
-                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-                          {totalPinned} classes in "{activeSet.name}"
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                          {STATUS_TYPES.map((st) => (
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              padding: "4px 10px",
-                              borderRadius: "16px",
-                              background: counts[st.key] > 0 ? `${st.color}15` : "#f3f4f6",
-                              border: `1px solid ${counts[st.key] > 0 ? st.color : "#e5e7eb"}`,
-                            }}>
-                              <span style="font-size: 12px;">{st.icon}</span>
-                              <span style={{
-                                fontSize: "12px",
-                                fontWeight: counts[st.key] > 0 ? "600" : "400",
-                                color: counts[st.key] > 0 ? st.color : "#9ca3af",
-                              }}>
-                                {counts[st.key]}/{totalPinned} {st.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {statusSummaryDisplay}
                 </div>
-              </ct-vstack>
-            </ct-vscroll>
+              </ct-vstack>,
+              null
+            )}
 
             {/* ========== TAB 2: IMPORT ========== */}
-            <ct-vscroll flex showScrollbar>
+            {ifElse(
+              isImportTab,
               <ct-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Import Classes</h2>
 
@@ -1998,28 +2115,28 @@ Return the complete extracted text.`
                         size="sm"
                         showPreview={true}
                         previewSize="sm"
-                        onct-change={handleImageUploadForOcr({ uploadedImageForOcr })}
+                        $images={uploadedImagesForOcr}
                       />
                       <span style="font-size: 12px; color: #6b7280;">
                         Take a photo of a schedule for OCR extraction
                       </span>
                     </div>
                     {ifElse(
-                      derive(uploadedImageForOcr, (img: ImageData | null) => img !== null),
+                      computed(() => uploadedImagesForOcr.get().length > 0),
                       <div style="margin-top: 8px; font-size: 12px; color: #059669;">
                         ✓ Image uploaded
                       </div>,
                       null
                     )}
                     {ifElse(
-                      derive(imageOcrResult, (r: any) => r?.pending === true),
+                      computed(() => (imageOcrResult as any)?.pending === true),
                       <div style="margin-top: 8px; padding: 8px; background: #dbeafe; border-radius: 4px; color: #1e40af; font-size: 12px;">
                         🔍 Extracting text from image...
                       </div>,
                       null
                     )}
                     {ifElse(
-                      derive(imageOcrResult, (r: any) => r?.result?.extractedText && !r?.pending),
+                      computed(() => (imageOcrResult as any)?.result?.extractedText && !(imageOcrResult as any)?.pending),
                       <div style="margin-top: 8px;">
                         <div style="font-size: 12px; color: #059669; margin-bottom: 4px;">
                           ✓ Text extracted from image
@@ -2041,18 +2158,44 @@ Return the complete extracted text.`
                     <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">
                       Schedule Text (paste or use upload above)
                     </label>
-                    <ct-input
-                      style={{ width: "100%", height: "200px" }}
+                    <ct-textarea
+                      style={{ width: "100%", minHeight: "200px" }}
                       placeholder="Paste the class schedule here, or upload a file/photo above..."
                       $value={importText}
                     />
                   </div>
 
+                  {/* Extract Classes button */}
+                  <div style="margin-bottom: 12px;">
+                    {ifElse(
+                      canExtract,
+                      <ct-button
+                        onClick={triggerExtraction({ importText, extractionTriggerText })}
+                      >
+                        🔍 Extract Classes
+                      </ct-button>,
+                      <ct-button disabled>
+                        🔍 Extract Classes
+                      </ct-button>
+                    )}
+                    {ifElse(
+                      showExtractionHelp,
+                      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+                        {ifElse(
+                          isLocationMissing,
+                          <span>Select a source location above to enable extraction.</span>,
+                          <span>Enter at least 50 characters of schedule text to enable extraction.</span>
+                        )}
+                      </div>,
+                      null
+                    )}
+                  </div>
+
                   {/* Extraction status */}
                   {ifElse(
-                    derive(extractionResult, (r: any) => r?.pending === true),
+                    isExtractionPending,
                     <div style="padding: 8px 12px; background: #dbeafe; border-radius: 6px; color: #1e40af; font-size: 14px; margin-bottom: 12px;">
-                      Extracting classes from {derive(importText, (t: string) => t.length)} characters of text...
+                      Extracting classes from {extractionTextLength} characters of text...
                     </div>,
                     null
                   )}
@@ -2327,11 +2470,13 @@ Return the complete extracted text.`
                     )}
                   </ct-vstack>
                 </div>
-              </ct-vstack>
-            </ct-vscroll>
+              </ct-vstack>,
+              null
+            )}
 
             {/* ========== TAB 3: SELECTION ========== */}
-            <ct-vscroll flex showScrollbar>
+            {ifElse(
+              isSelectionTab,
               <ct-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Selection Builder</h2>
 
@@ -2476,14 +2621,14 @@ Return the complete extracted text.`
                   </ct-hstack>,
                   null
                 )}
-              </ct-vstack>
-            </ct-vscroll>
-
-          </ct-autolayout>
+              </ct-vstack>,
+              null
+            )}
+          </div>
 
           {/* ========== SETTINGS DIALOG (Modal Overlay) ========== */}
           {ifElse(
-            derive({ showSettingsDialog, shouldAutoOpenSettings }, ({ showSettingsDialog, shouldAutoOpenSettings }) => showSettingsDialog || shouldAutoOpenSettings),
+            isSettingsDialogVisible,
             <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
               <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
                 <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1;">
@@ -2619,8 +2764,6 @@ Return the complete extracted text.`
                             )}
                           </ct-hstack>
                           <ct-button
-                            variant="default"
-                            style="background: #3b82f6; color: white; font-weight: 600; padding: 10px 20px; border-radius: 6px; width: 100%;"
                             onClick={addLocation({ locations, newLocationForm })}
                           >
                             + Add Location
@@ -2631,25 +2774,24 @@ Return the complete extracted text.`
 
                     {/* Travel Times Section */}
                     {ifElse(
-                      derive(locationPairs, (pairs) => pairs.length > 0),
+                      computed(() => locationPairs.length > 0),
                       <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                         <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
                           Travel Times
                         </h3>
                         <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                          Set travel time between locations for accurate conflict detection.
+                          Set travel time (in minutes) between each pair of locations. Used for detecting schedule conflicts.
                         </p>
-                        <ct-vstack style="gap: 8px;">
+                        <ct-vstack style="gap: 12px;">
                           {locationPairs.map((pair) => (
-                            <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                              <span style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{pair.loc1Name}</span>
-                              <span style="font-size: 12px; color: #9ca3af;">↔</span>
-                              <span style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{pair.loc2Name}</span>
-                              <ct-hstack style="gap: 4px; align-items: center;">
+                            <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
+                              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 13px; font-weight: 500;">{pair.loc1Name}</span>
+                                <span style="font-size: 12px; color: #9ca3af;">↔</span>
+                                <span style="font-size: 13px; font-weight: 500;">{pair.loc2Name}</span>
+                              </div>
+                              <ct-hstack style="gap: 8px; align-items: center;">
                                 <ct-button
-                                  size="sm"
-                                  variant="outline"
-                                  style="padding: 2px 8px; min-width: 28px;"
                                   onClick={setTravelTime({
                                     travelTimes,
                                     fromLocationId: pair.loc1Id,
@@ -2657,15 +2799,12 @@ Return the complete extracted text.`
                                     minutes: Math.max(0, pair.minutes - 5),
                                   })}
                                 >
-                                  -
+                                  − 5 min
                                 </ct-button>
-                                <span style="font-size: 14px; font-weight: 600; min-width: 35px; text-align: center;">
-                                  {pair.minutes}
-                                </span>
+                                <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 6px; font-size: 16px; font-weight: 600; min-width: 80px; text-align: center;">
+                                  {pair.minutes} min
+                                </div>
                                 <ct-button
-                                  size="sm"
-                                  variant="outline"
-                                  style="padding: 2px 8px; min-width: 28px;"
                                   onClick={setTravelTime({
                                     travelTimes,
                                     fromLocationId: pair.loc1Id,
@@ -2673,10 +2812,9 @@ Return the complete extracted text.`
                                     minutes: pair.minutes + 5,
                                   })}
                                 >
-                                  +
+                                  + 5 min
                                 </ct-button>
                               </ct-hstack>
-                              <span style="font-size: 12px; color: #6b7280;">min</span>
                             </div>
                           ))}
                         </ct-vstack>
