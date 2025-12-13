@@ -543,6 +543,15 @@ const addSuggestedSet = handler<
   );
 });
 
+// Toggle selected class for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
+const toggleSelectedClass = handler<
+  unknown,
+  { selectedClassId: Cell<string>; classId: string }
+>((_, { selectedClassId, classId }) => {
+  const current = selectedClassId.get();
+  selectedClassId.set(current === classId ? "" : classId);
+});
+
 // ============================================================================
 // CONFLICT DETECTION HELPERS
 // ============================================================================
@@ -937,6 +946,9 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
       description: "",
     });
 
+    // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
+    const selectedClassId = cell<string>("");
+
     // ========================================================================
     // LLM EXTRACTION
     // ========================================================================
@@ -1137,10 +1149,10 @@ If cost is not specified, use null.`;
     // Pinned classes for active set
     const pinnedClassIds = computed(() => activeSetData?.classIds || []);
 
-    // Inside computed(), the framework auto-unwraps both Cells and computed values
-    // Access everything directly without .get()
+    // Inside computed(), the framework wraps values in OpaqueCell
+    // Use .some() with direct comparison instead of .includes() to handle wrapped values
     const pinnedClasses = computed(() => {
-      return classes.filter((c: Class) => pinnedClassIds.includes(c.id));
+      return classes.filter((c: Class) => pinnedClassIds.some((id: string) => id === c.id));
     });
 
     const hasPinnedClasses = computed(() => pinnedClasses.length > 0);
@@ -1148,7 +1160,7 @@ If cost is not specified, use null.`;
 
     // Available (unpinned) classes
     const availableClasses = computed(() => {
-      return classes.filter((c: Class) => !pinnedClassIds.includes(c.id));
+      return classes.filter((c: Class) => !pinnedClassIds.some((id: string) => id === c.id));
     });
 
     const hasAvailableClasses = computed(() => availableClasses.length > 0);
@@ -1189,29 +1201,241 @@ If cost is not specified, use null.`;
     // SUGGESTIONS - SCORED CLASSES AND SUGGESTED SETS
     // ========================================================================
 
-    // Score and rank all available classes
-    // Inside computed(), access all values directly (framework auto-unwraps)
-    const rankedClasses = computed(() => {
-      const scored = availableClasses.map((cls: Class) =>
-        scoreClass(cls, pinnedClasses, preferencePriorities, friendInterests, travelTimes, locations)
+    // hasRankedClasses - computed inline from inputs to avoid nested computed access
+    const hasRankedClasses = computed(() => {
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const pinnedIds: string[] = activeSet?.classIds || [];
+      const availableCount = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id)).length;
+      return availableCount > 0;
+    });
+
+    // hasSuggestedSets - computed inline from inputs to avoid nested computed access
+    const hasSuggestedSets = computed(() => {
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const pinnedIds: string[] = activeSet?.classIds || [];
+      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
+      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
+      const sets = generateSuggestedSets(available, pinned, categoryTags, friendInterests, travelTimes);
+      return sets.length > 0;
+    });
+
+    // Ranked classes JSX - computed to avoid mapping computed array in JSX
+    // Compute EVERYTHING inline from inputs - no nested computed access
+    // NOTE: Inside computed, all Cell values are auto-unwrapped to plain values
+    const rankedClassesDisplay = computed(() => {
+      // First, get the active set's class IDs
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const pinnedIds: string[] = activeSet?.classIds || [];
+
+      // Compute available and pinned classes inline from the classes input
+      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
+      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
+
+      // Get active class ID (selected via click/tap)
+      // Use .get() to explicitly read the cell value and create a reactive dependency
+      const activeClassId = selectedClassId.get() || "";
+
+      // Score each class inline rather than using nested computed
+      const scored = available.map((cls: Class) =>
+        scoreClass(cls, pinned, preferencePriorities, friendInterests, travelTimes, locations)
       );
-      // Sort by score descending, with conflicts at the bottom
+
+      // Sort by score
       scored.sort((a: ScoredClass, b: ScoredClass) => {
         if (a.conflictsWithPinned && !b.conflictsWithPinned) return 1;
         if (!a.conflictsWithPinned && b.conflictsWithPinned) return -1;
         return b.score - a.score;
       });
-      return scored;
+
+      // Compute "what becomes incompatible" for each class
+      // For each class, find other available classes that would conflict if this one were added
+      const incompatibilityMap = new Map<string, Array<{ name: string; reason: string }>>();
+      for (const item of scored) {
+        const wouldBlock: Array<{ name: string; reason: string }> = [];
+        for (const other of scored) {
+          if (item.cls.id === other.cls.id) continue;
+          if (other.conflictsWithPinned) continue; // Already conflicts with pinned
+          // Check if adding item.cls would create a conflict with other.cls
+          if (classesConflictWithTravel(item.cls, other.cls, travelTimes)) {
+            const reason = getConflictReason(item.cls, other.cls, travelTimes);
+            wouldBlock.push({ name: other.cls.name, reason });
+          }
+        }
+        incompatibilityMap.set(item.cls.id, wouldBlock);
+      }
+
+      // Build simple display data to avoid opaque value issues
+      const displayItems = scored.map((item: ScoredClass) => {
+        const wouldBlock = incompatibilityMap.get(item.cls.id) || [];
+        return {
+          name: String(item.cls.name || ""),
+          score: Number(item.score) || 0,
+          day: String(item.cls.timeSlots[0]?.day || ""),
+          startTime: String(item.cls.timeSlots[0]?.startTime || ""),
+          endTime: String(item.cls.timeSlots[0]?.endTime || ""),
+          cost: Number(item.cls.cost) || 0,
+          conflictsWithPinned: Boolean(item.conflictsWithPinned),
+          conflictReasons: item.conflictReasons ? [...item.conflictReasons].join(", ") : "",
+          classId: String(item.cls.id || ""),
+          prefScore: Number(item.breakdown?.preferenceScore) || 0,
+          friendBonus: Number(item.breakdown?.friendBonus) || 0,
+          travelPenalty: Number(item.breakdown?.travelPenalty) || 0,
+          tbsPenalty: Number(item.breakdown?.tbsPenalty) || 0,
+          wouldBlockCount: wouldBlock.length,
+          wouldBlockList: wouldBlock.map(b => `${b.name} (${b.reason})`).join(", "),
+          wouldBlockLabel: wouldBlock.length === 1 ? "1 other class" : `${wouldBlock.length} other classes`,
+          isActive: String(item.cls.id) === String(activeClassId),
+        };
+      });
+
+      return displayItems.map((item) => (
+        <div
+          style={{
+            background: item.isActive ? "#eff6ff" : item.conflictsWithPinned ? "#fef2f2" : "white",
+            border: item.isActive ? "2px solid #3b82f6" : item.conflictsWithPinned ? "1px solid #fca5a5" : "1px solid #e5e7eb",
+            borderRadius: "6px",
+            padding: "10px 12px",
+          }}
+        >
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            {/* Clickable area for selecting class to see conflicts */}
+            <button
+              style={{
+                flex: "1",
+                background: "transparent",
+                border: "none",
+                padding: "0",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+              onClick={toggleSelectedClass({ selectedClassId, classId: item.classId })}
+            >
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 13px; font-weight: 500;">{item.name}</span>
+                <span style={{
+                  padding: "2px 6px",
+                  borderRadius: "10px",
+                  background: item.score > 0 ? "#dcfce7" : item.score < 0 ? "#fee2e2" : "#f3f4f6",
+                  color: item.score > 0 ? "#166534" : item.score < 0 ? "#991b1b" : "#6b7280",
+                  fontSize: "10px",
+                  fontWeight: "600",
+                }}>
+                  {item.score > 0 ? "+" : ""}{item.score} pts
+                </span>
+                {/* Show block count badge when not active */}
+                {!item.isActive && item.wouldBlockCount > 0 && (
+                  <span style={{
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    background: "#fef3c7",
+                    color: "#92400e",
+                    fontSize: "9px",
+                    fontWeight: "500",
+                  }}>
+                    blocks {item.wouldBlockCount}
+                  </span>
+                )}
+              </div>
+              <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                {DAY_LABELS[item.day as DayOfWeek]} {item.startTime}-{item.endTime}
+                {item.cost > 0 && ` • $${item.cost}`}
+              </div>
+              {/* Score breakdown */}
+              {(item.prefScore > 0 || item.friendBonus > 0 || item.travelPenalty > 0 || item.tbsPenalty > 0) && (
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">
+                  {item.prefScore > 0 && <span style="color: #16a34a;">+{item.prefScore} pref </span>}
+                  {item.friendBonus > 0 && <span style="color: #2563eb;">+{item.friendBonus} friends </span>}
+                  {item.travelPenalty > 0 && <span style="color: #dc2626;">-{item.travelPenalty} travel </span>}
+                  {item.tbsPenalty > 0 && <span style="color: #dc2626;">-{item.tbsPenalty} partial </span>}
+                </div>
+              )}
+              {item.conflictsWithPinned && (
+                <div style="font-size: 10px; color: #dc2626; margin-top: 2px;">
+                  ⚠️ Conflicts with pinned: {item.conflictReasons}
+                </div>
+              )}
+              {/* "What becomes incompatible" - shown when selected */}
+              {item.isActive && item.wouldBlockCount > 0 && (
+                <div style="font-size: 10px; color: #b45309; margin-top: 4px; padding: 6px 8px; background: #fef3c7; border-radius: 4px;">
+                  <div style="font-weight: 600; margin-bottom: 2px;">
+                    ⚠️ Adding this would block {item.wouldBlockLabel}:
+                  </div>
+                  <div style="font-size: 9px; color: #92400e;">
+                    {item.wouldBlockList}
+                  </div>
+                </div>
+              )}
+              {item.isActive && item.wouldBlockCount === 0 && !item.conflictsWithPinned && (
+                <div style="font-size: 10px; color: #16a34a; margin-top: 4px; padding: 6px 8px; background: #dcfce7; border-radius: 4px;">
+                  ✓ No conflicts - safe to add!
+                </div>
+              )}
+            </button>
+            <button
+              style={{
+                padding: "4px 10px",
+                border: "none",
+                borderRadius: "4px",
+                background: item.conflictsWithPinned ? "#fca5a5" : "#3b82f6",
+                color: "white",
+                fontSize: "11px",
+                cursor: "pointer",
+                fontWeight: "500",
+                marginLeft: "8px",
+              }}
+              onClick={addClassToSet({ classId: item.classId, pinnedSets, activePinnedSetId })}
+            >
+              + Add
+            </button>
+          </div>
+        </div>
+      ));
     });
 
-    const hasRankedClasses = computed(() => rankedClasses.length > 0);
+    // Suggested sets JSX - computed to avoid mapping computed array in JSX
+    // Compute EVERYTHING inline from inputs - no nested computed access
+    const suggestedSetsDisplay = computed(() => {
+      // First, get the active set's class IDs
+      const activeSet = pinnedSets.find((s) => s.id === activePinnedSetId) || null;
+      const pinnedIds = activeSet?.classIds || [];
 
-    // Generate suggested sets (groupings by category or friends)
-    const suggestedSets = computed(() => {
-      return generateSuggestedSets(availableClasses, pinnedClasses, categoryTags, friendInterests, travelTimes);
+      // Compute available and pinned classes inline from the classes input
+      const available = classes.filter((c: Class) => !pinnedIds.some((id: string) => id === c.id));
+      const pinned = classes.filter((c: Class) => pinnedIds.some((id: string) => id === c.id));
+
+      // Generate suggested sets inline
+      const sets = generateSuggestedSets(available, pinned, categoryTags, friendInterests, travelTimes);
+
+      return sets.map((set: SuggestedSet) => (
+        <div style="background: white; border-radius: 6px; padding: 10px 12px; border: 1px solid #bbf7d0;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 600; color: #166534;">
+                {set.name}
+              </div>
+              <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                {set.description}
+              </div>
+            </div>
+            <button
+              style={{
+                padding: "4px 10px",
+                border: "none",
+                borderRadius: "4px",
+                background: "#22c55e",
+                color: "white",
+                fontSize: "11px",
+                cursor: "pointer",
+                fontWeight: "500",
+              }}
+              onClick={addSuggestedSet({ classIds: set.classIds, pinnedSets, activePinnedSetId })}
+            >
+              + Add All
+            </button>
+          </div>
+        </div>
+      ));
     });
-
-    const hasSuggestedSets = computed(() => suggestedSets.length > 0);
 
     // ========================================================================
     // SELECTION BUILDER - COMPUTED JSX FRAGMENTS (display only, no handlers inside)
@@ -1847,36 +2071,8 @@ If cost is not specified, use null.`;
                             💡 Suggested Sets
                           </h3>
                           <ct-vstack style="gap: 8px;">
-                            {/* Use .map() directly on computed - JSX is automatically reactive */}
-                            {suggestedSets.map((set: SuggestedSet) => (
-                              <div style="background: white; border-radius: 6px; padding: 10px 12px; border: 1px solid #bbf7d0;">
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                  <div style="flex: 1;">
-                                    <div style="font-size: 13px; font-weight: 600; color: #166534;">
-                                      {set.name}
-                                    </div>
-                                    <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
-                                      {set.description}
-                                    </div>
-                                  </div>
-                                  <button
-                                    style={{
-                                      padding: "4px 10px",
-                                      border: "none",
-                                      borderRadius: "4px",
-                                      background: "#22c55e",
-                                      color: "white",
-                                      fontSize: "11px",
-                                      cursor: "pointer",
-                                      fontWeight: "500",
-                                    }}
-                                    onClick={addSuggestedSet({ classIds: set.classIds, pinnedSets, activePinnedSetId })}
-                                  >
-                                    + Add All
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                            {/* Use pre-computed JSX - cannot map computed arrays directly in JSX */}
+                            {suggestedSetsDisplay}
                           </ct-vstack>
                         </div>,
                         null
@@ -1894,68 +2090,8 @@ If cost is not specified, use null.`;
                         {ifElse(
                           hasRankedClasses,
                           <ct-vstack style="gap: 8px;">
-                            {/* Use .map() directly on computed - JSX is automatically reactive */}
-                            {rankedClasses.map((scored: ScoredClass) => (
-                              <div
-                                style={{
-                                  background: scored.conflictsWithPinned ? "#fef2f2" : "white",
-                                  border: scored.conflictsWithPinned ? "1px solid #fca5a5" : "1px solid #e5e7eb",
-                                  borderRadius: "6px",
-                                  padding: "10px 12px",
-                                }}
-                              >
-                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                  <div style="flex: 1;">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                      <span style="font-size: 13px; font-weight: 500;">{scored.cls.name}</span>
-                                      <span style={{
-                                        padding: "2px 6px",
-                                        borderRadius: "10px",
-                                        background: scored.score > 0 ? "#dcfce7" : scored.score < 0 ? "#fee2e2" : "#f3f4f6",
-                                        color: scored.score > 0 ? "#166534" : scored.score < 0 ? "#991b1b" : "#6b7280",
-                                        fontSize: "10px",
-                                        fontWeight: "600",
-                                      }}>
-                                        {scored.score > 0 ? "+" : ""}{scored.score} pts
-                                      </span>
-                                    </div>
-                                    <div style="font-size: 11px; color: #6b7280;">
-                                      {DAY_LABELS[scored.cls.timeSlots[0]?.day as DayOfWeek]} {scored.cls.timeSlots[0]?.startTime}-{scored.cls.timeSlots[0]?.endTime}
-                                      {scored.cls.cost > 0 && ` • $${scored.cls.cost}`}
-                                    </div>
-                                    {/* Score breakdown */}
-                                    {(scored.breakdown.preferenceScore > 0 || scored.breakdown.friendBonus > 0 || scored.breakdown.travelPenalty > 0 || scored.breakdown.tbsPenalty > 0) && (
-                                      <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">
-                                        {scored.breakdown.preferenceScore > 0 && <span style="color: #16a34a;">+{scored.breakdown.preferenceScore} pref </span>}
-                                        {scored.breakdown.friendBonus > 0 && <span style="color: #2563eb;">+{scored.breakdown.friendBonus} friends </span>}
-                                        {scored.breakdown.travelPenalty > 0 && <span style="color: #dc2626;">-{scored.breakdown.travelPenalty} travel </span>}
-                                        {scored.breakdown.tbsPenalty > 0 && <span style="color: #dc2626;">-{scored.breakdown.tbsPenalty} partial </span>}
-                                      </div>
-                                    )}
-                                    {scored.conflictsWithPinned && (
-                                      <div style="font-size: 10px; color: #dc2626; margin-top: 2px;">
-                                        ⚠️ Conflicts: {scored.conflictReasons.join(", ")}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <button
-                                    style={{
-                                      padding: "4px 10px",
-                                      border: "none",
-                                      borderRadius: "4px",
-                                      background: scored.conflictsWithPinned ? "#fca5a5" : "#3b82f6",
-                                      color: "white",
-                                      fontSize: "11px",
-                                      cursor: "pointer",
-                                      fontWeight: "500",
-                                    }}
-                                    onClick={addClassToSet({ classId: scored.cls.id, pinnedSets, activePinnedSetId })}
-                                  >
-                                    + Add
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                            {/* Use pre-computed JSX - cannot map computed arrays directly in JSX */}
+                            {rankedClassesDisplay}
                           </ct-vstack>,
                           <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
                             All classes are pinned to this set!
