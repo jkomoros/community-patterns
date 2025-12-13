@@ -37,7 +37,7 @@ type Grade = "PK" | "TK" | "K" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
 
 type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
-type LocationType = "afterschool" | "private_school" | "external" | "other";
+type LocationType = "afterschool-onsite" | "afterschool-offsite" | "external";
 
 type TriageStatus = "auto_kept" | "auto_discarded" | "needs_review" | "user_kept" | "user_discarded";
 
@@ -177,6 +177,15 @@ const DAY_LABELS: Record<DayOfWeek, string> = {
 
 const GRADE_OPTIONS: Grade[] = ["PK", "TK", "K", "1", "2", "3", "4", "5", "6", "7", "8"];
 
+// Status types for tracking class registration progress
+const STATUS_TYPES = [
+  { key: "registered", label: "Registered", color: "#3b82f6", icon: "📝" },
+  { key: "confirmed", label: "Confirmed", color: "#8b5cf6", icon: "✓" },
+  { key: "waitlisted", label: "Waitlisted", color: "#f59e0b", icon: "⏳" },
+  { key: "paid", label: "Paid", color: "#10b981", icon: "💵" },
+  { key: "onCalendar", label: "On Calendar", color: "#06b6d4", icon: "📅" },
+] as const;
+
 const DEFAULT_CATEGORY_TAGS: CategoryTag[] = [
   { id: "robotics", name: "Robotics", color: "#3b82f6" },
   { id: "dance", name: "Dance", color: "#ec4899" },
@@ -220,7 +229,7 @@ const addLocation = handler<
   };
 
   locations.push(newLocation);
-  newLocationForm.set({ name: "", type: "afterschool", address: "", hasFlatDailyRate: false, dailyRate: 0 });
+  newLocationForm.set({ name: "", type: "afterschool-onsite", address: "", hasFlatDailyRate: false, dailyRate: 0 });
 });
 
 const removeLocation = handler<
@@ -550,6 +559,118 @@ const toggleSelectedClass = handler<
 >((_, { selectedClassId, classId }) => {
   const current = selectedClassId.get();
   selectedClassId.set(current === classId ? "" : classId);
+});
+
+// Toggle a status checkbox for a class
+const toggleClassStatus = handler<
+  unknown,
+  { classStatuses: Cell<ClassStatus[]>; classId: string; statusKey: string }
+>((_, { classStatuses, classId, statusKey }) => {
+  const statuses = classStatuses.get();
+  const existingIndex = statuses.findIndex((s) => s.classId === classId);
+
+  if (existingIndex >= 0) {
+    // Update existing status record
+    const existing = statuses[existingIndex];
+    const newStatuses = existing.statuses[statusKey] ? { ...existing.statuses } : { ...existing.statuses };
+    newStatuses[statusKey] = !newStatuses[statusKey];
+    classStatuses.set([
+      ...statuses.slice(0, existingIndex),
+      { ...existing, statuses: newStatuses },
+      ...statuses.slice(existingIndex + 1),
+    ]);
+  } else {
+    // Create new status record
+    classStatuses.set([
+      ...statuses,
+      { classId, statuses: { [statusKey]: true }, notes: "" },
+    ]);
+  }
+});
+
+// Open/close settings dialog
+const openSettingsDialog = handler<
+  unknown,
+  { showSettingsDialog: Cell<boolean> }
+>((_, { showSettingsDialog }) => {
+  showSettingsDialog.set(true);
+});
+
+const closeSettingsDialog = handler<
+  unknown,
+  { showSettingsDialog: Cell<boolean> }
+>((_, { showSettingsDialog }) => {
+  showSettingsDialog.set(false);
+});
+
+// Handle file upload change - extract text content from uploaded file
+const handleFileUploadChange = handler<
+  { detail: { files: Array<{ data: string; name: string; type: string }> } },
+  { importText: Cell<string> }
+>((event, { importText }) => {
+  const files = event?.detail?.files;
+  if (!files || files.length === 0) return;
+
+  const file = files[0];
+  // The file.data is a data URL (e.g., "data:text/plain;base64,...")
+  // We need to decode it to get the actual text content
+  try {
+    const dataUrl = file.data;
+    // Check if it's a data URL
+    if (dataUrl.startsWith("data:")) {
+      // Extract base64 content after the comma
+      const base64Content = dataUrl.split(",")[1];
+      if (base64Content) {
+        // Decode base64 to text
+        const textContent = atob(base64Content);
+        importText.set(textContent);
+      }
+    }
+  } catch (e) {
+    console.error("Error decoding file content:", e);
+  }
+});
+
+// Clear uploaded files
+const clearUploadedFiles = handler<
+  unknown,
+  { uploadedFiles: Cell<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>> }
+>((_, { uploadedFiles }) => {
+  uploadedFiles.set([]);
+});
+
+// ImageData type for ct-image-input
+type ImageData = { id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number };
+
+// Handle image upload for OCR - extracts first image from the array
+const handleImageUploadForOcr = handler<
+  { detail: { images: ImageData[] } },
+  { uploadedImageForOcr: Cell<ImageData | null> }
+>(({ detail }, { uploadedImageForOcr }) => {
+  if (!detail.images || detail.images.length === 0) return;
+  // Get the most recently uploaded image
+  const mostRecentImage = detail.images[detail.images.length - 1];
+  uploadedImageForOcr.set(mostRecentImage);
+});
+
+// Clear uploaded image for OCR
+const clearUploadedImageForOcr = handler<
+  unknown,
+  { uploadedImageForOcr: Cell<ImageData | null> }
+>((_, { uploadedImageForOcr }) => {
+  uploadedImageForOcr.set(null);
+});
+
+// Copy OCR extracted text to import text field
+const copyOcrToImportText = handler<
+  unknown,
+  { imageOcrResult: any; importText: Cell<string> }
+>((_, { imageOcrResult, importText }) => {
+  // imageOcrResult is the reactive result object from generateObject
+  const result = imageOcrResult?.get ? imageOcrResult.get() : imageOcrResult;
+  if (result?.result?.extractedText) {
+    importText.set(result.result.extractedText);
+  }
 });
 
 // ============================================================================
@@ -925,7 +1046,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // ========================================================================
 
     // Form state for adding new locations
-    const newLocationForm = cell({ name: "", type: "afterschool" as LocationType, address: "", hasFlatDailyRate: false, dailyRate: 0 });
+    const newLocationForm = cell({ name: "", type: "afterschool-onsite" as LocationType, address: "", hasFlatDailyRate: false, dailyRate: 0 });
 
     // Form state for adding new tags
     const newTagName = cell<string>("");
@@ -948,6 +1069,44 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
 
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = cell<string>("");
+
+    // Settings dialog state - auto-open when no locations configured
+    const showSettingsDialog = cell<boolean>(false);
+
+    // File upload state - stores uploaded files (ct-file-input provides FileData[])
+    const uploadedFiles = cell<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
+
+    // Image upload state for OCR - stores a single image for OCR processing
+    // ct-image-input returns an array, but we use a handler to extract the first image
+    const uploadedImageForOcr = cell<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number } | null>(null);
+
+    // Computed: should auto-open settings on first visit (no locations yet)
+    const shouldAutoOpenSettings = derive(locations, (locs) => locs.length === 0);
+
+    // Computed: location pairs for travel time editing
+    const locationPairs = derive({ locations, travelTimes }, ({ locations: locs, travelTimes: times }) => {
+      if (locs.length < 2) return [];
+      const pairs: Array<{ loc1Id: string; loc1Name: string; loc2Id: string; loc2Name: string; minutes: number }> = [];
+      for (let i = 0; i < locs.length; i++) {
+        for (let j = i + 1; j < locs.length; j++) {
+          const loc1 = locs[i];
+          const loc2 = locs[j];
+          const existing = times.find(
+            (t: TravelTime) =>
+              (t.fromLocationId === loc1.id && t.toLocationId === loc2.id) ||
+              (t.fromLocationId === loc2.id && t.toLocationId === loc1.id)
+          );
+          pairs.push({
+            loc1Id: loc1.id,
+            loc1Name: loc1.name,
+            loc2Id: loc2.id,
+            loc2Name: loc2.name,
+            minutes: existing?.minutes ?? 15,
+          });
+        }
+      }
+      return pairs;
+    });
 
     // ========================================================================
     // LLM EXTRACTION
@@ -1032,6 +1191,42 @@ If cost is not specified, use null.`;
             type: "array",
             items: { type: "string" },
           },
+        },
+      },
+    });
+
+    // Image OCR extraction - extracts text from uploaded photos
+    const imageOcrResult = generateObject({
+      model: "anthropic:claude-sonnet-4-5",
+      prompt: derive(uploadedImageForOcr, (img: ImageData | null) => {
+        // Only run when there's an image uploaded
+        if (!img || !img.data) {
+          return ""; // Empty prompt prevents API call
+        }
+
+        return [
+          { type: "image" as const, image: img.data },
+          {
+            type: "text" as const,
+            text: `Extract all text from this image of a class schedule or activity listing.
+
+Preserve the structure and formatting as much as possible. Include:
+- Class/activity names
+- Days and times
+- Grade levels or age ranges
+- Costs/fees
+- Descriptions
+- Any other relevant information
+
+Return the complete extracted text.`
+          }
+        ];
+      }),
+      schema: {
+        type: "object",
+        properties: {
+          extractedText: { type: "string", description: "All text extracted from the image, preserving structure" },
+          confidence: { type: "number", description: "Confidence in extraction quality (0-1)" },
         },
       },
     });
@@ -1465,6 +1660,14 @@ If cost is not specified, use null.`;
     // Inside computed(), access values directly (framework auto-unwraps)
     const pinnedScheduleByDay = computed(() => {
       const pinned = pinnedClasses as Class[];
+      const statuses = classStatuses as ClassStatus[];
+
+      // Helper to get status for a class
+      const getClassStatus = (classId: string): Record<string, boolean> => {
+        const status = statuses.find((s) => s.classId === classId);
+        return status?.statuses || {};
+      };
+
       return DAYS_OF_WEEK.map((day: DayOfWeek) => {
         const dayClasses = pinned.filter((c) =>
           c.timeSlots.some((slot) => slot.day === day)
@@ -1476,31 +1679,63 @@ If cost is not specified, use null.`;
             <div style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">
               {DAY_LABELS[day]}
             </div>
-            {dayClasses.map((cls) => (
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #e5e7eb;">
-                <div>
-                  <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
-                  <div style="font-size: 11px; color: #6b7280;">
-                    {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
-                    {cls.locationName && ` @ ${cls.locationName}`}
+            {dayClasses.map((cls) => {
+              const clsStatuses = getClassStatus(cls.id);
+              return (
+                <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                      <div style="font-size: 13px; font-weight: 500;">{cls.name}</div>
+                      <div style="font-size: 11px; color: #6b7280;">
+                        {cls.timeSlots[0]?.startTime}-{cls.timeSlots[0]?.endTime}
+                        {cls.locationName && ` @ ${cls.locationName}`}
+                      </div>
+                    </div>
+                    <button
+                      style={{
+                        padding: "2px 8px",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "4px",
+                        background: "white",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        color: "#6b7280",
+                      }}
+                      onClick={removeClassFromSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {/* Status checkboxes */}
+                  <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px;">
+                    {STATUS_TYPES.map((statusType) => {
+                      const isChecked = !!clsStatuses[statusType.key];
+                      return (
+                        <button
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            padding: "2px 6px",
+                            border: isChecked ? `1px solid ${statusType.color}` : "1px solid #d1d5db",
+                            borderRadius: "12px",
+                            background: isChecked ? `${statusType.color}15` : "white",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                            color: isChecked ? statusType.color : "#9ca3af",
+                            fontWeight: isChecked ? "500" : "400",
+                          }}
+                          onClick={toggleClassStatus({ classStatuses, classId: cls.id, statusKey: statusType.key })}
+                        >
+                          <span>{statusType.icon}</span>
+                          <span>{statusType.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <button
-                  style={{
-                    padding: "2px 8px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "4px",
-                    background: "white",
-                    fontSize: "11px",
-                    cursor: "pointer",
-                    color: "#6b7280",
-                  }}
-                  onClick={removeClassFromSet({ classId: cls.id, pinnedSets, activePinnedSetId })}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       }).filter(Boolean);
@@ -1566,15 +1801,22 @@ If cost is not specified, use null.`;
               <h1 style="font-size: 24px; font-weight: bold; margin: 0;">
                 {patternName}
               </h1>
-              <ct-hstack style="gap: 16px; font-size: 14px; color: #6b7280;">
+              <ct-hstack style="gap: 16px; font-size: 14px; color: #6b7280; align-items: center;">
                 <span>{locationCount} locations</span>
                 <span>{classCount} classes</span>
                 <span>{friendCount} friends</span>
+                <ct-button
+                  variant="secondary"
+                  style="padding: 6px 12px; font-size: 16px;"
+                  onClick={openSettingsDialog({ showSettingsDialog })}
+                >
+                  ⚙️ Settings
+                </ct-button>
               </ct-hstack>
             </ct-hstack>
           </div>
 
-          <ct-autolayout tabNames={["Dashboard", "Import", "Selection", "Settings"]}>
+          <ct-autolayout tabNames={["Dashboard", "Import", "Selection"]}>
             {/* ========== TAB 1: DASHBOARD ========== */}
             <ct-vscroll flex showScrollbar>
               <ct-vstack style="padding: 16px; gap: 16px;">
@@ -1619,14 +1861,74 @@ If cost is not specified, use null.`;
                   )}
                 </div>
 
-                {/* Status Summary (placeholder) */}
+                {/* Status Summary */}
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #374151;">
                     Status Summary
                   </h3>
-                  <div style="color: #9ca3af; font-style: italic;">
-                    Status tracking will appear here once classes are pinned.
-                  </div>
+                  {derive({ pinnedSets, activePinnedSetId, classStatuses, classes }, (values) => {
+                    const sets = values.pinnedSets as PinnedSet[];
+                    const activeId = values.activePinnedSetId as string;
+                    const statuses = values.classStatuses as ClassStatus[];
+                    const allClasses = values.classes as Class[];
+
+                    const activeSet = sets.find((s) => s.id === activeId);
+                    if (!activeSet || activeSet.classIds.length === 0) {
+                      return (
+                        <div style="color: #9ca3af; font-style: italic;">
+                          No classes pinned yet. Add classes from the Selection tab.
+                        </div>
+                      );
+                    }
+
+                    // Count statuses for pinned classes
+                    const pinnedIds = activeSet.classIds;
+                    const counts: Record<string, number> = {};
+                    STATUS_TYPES.forEach((st) => { counts[st.key] = 0; });
+
+                    for (const classId of pinnedIds) {
+                      const status = statuses.find((s) => s.classId === classId);
+                      if (status) {
+                        STATUS_TYPES.forEach((st) => {
+                          if (status.statuses[st.key]) {
+                            counts[st.key]++;
+                          }
+                        });
+                      }
+                    }
+
+                    const totalPinned = pinnedIds.length;
+
+                    return (
+                      <div>
+                        <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+                          {totalPinned} classes in "{activeSet.name}"
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                          {STATUS_TYPES.map((st) => (
+                            <div style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "4px 10px",
+                              borderRadius: "16px",
+                              background: counts[st.key] > 0 ? `${st.color}15` : "#f3f4f6",
+                              border: `1px solid ${counts[st.key] > 0 ? st.color : "#e5e7eb"}`,
+                            }}>
+                              <span style="font-size: 12px;">{st.icon}</span>
+                              <span style={{
+                                fontSize: "12px",
+                                fontWeight: counts[st.key] > 0 ? "600" : "400",
+                                color: counts[st.key] > 0 ? st.color : "#9ca3af",
+                              }}>
+                                {counts[st.key]}/{totalPinned} {st.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </ct-vstack>
             </ct-vscroll>
@@ -1662,14 +1964,86 @@ If cost is not specified, use null.`;
                     )}
                   </div>
 
+                  {/* File upload section */}
+                  <div style="margin-bottom: 12px; padding: 12px; background: white; border: 1px dashed #d1d5db; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                      <ct-file-input
+                        accept=".txt,.html,.htm,.pdf"
+                        buttonText="📄 Upload File"
+                        variant="outline"
+                        size="sm"
+                        showPreview={false}
+                        $files={uploadedFiles}
+                        onct-change={handleFileUploadChange({ importText })}
+                      />
+                      <span style="font-size: 12px; color: #6b7280;">
+                        Upload a .txt, .html, or .pdf schedule file
+                      </span>
+                    </div>
+                    {ifElse(
+                      derive(uploadedFiles, (files: Array<{ id: string; name: string }>) => files.length > 0),
+                      <div style="margin-top: 8px; font-size: 12px; color: #059669;">
+                        ✓ File loaded - text extracted to field below
+                      </div>,
+                      null
+                    )}
+                  </div>
+
+                  {/* Image upload section for OCR */}
+                  <div style="margin-bottom: 12px; padding: 12px; background: white; border: 1px dashed #d1d5db; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                      <ct-image-input
+                        buttonText="📷 Upload Photo"
+                        variant="outline"
+                        size="sm"
+                        showPreview={true}
+                        previewSize="sm"
+                        onct-change={handleImageUploadForOcr({ uploadedImageForOcr })}
+                      />
+                      <span style="font-size: 12px; color: #6b7280;">
+                        Take a photo of a schedule for OCR extraction
+                      </span>
+                    </div>
+                    {ifElse(
+                      derive(uploadedImageForOcr, (img: ImageData | null) => img !== null),
+                      <div style="margin-top: 8px; font-size: 12px; color: #059669;">
+                        ✓ Image uploaded
+                      </div>,
+                      null
+                    )}
+                    {ifElse(
+                      derive(imageOcrResult, (r: any) => r?.pending === true),
+                      <div style="margin-top: 8px; padding: 8px; background: #dbeafe; border-radius: 4px; color: #1e40af; font-size: 12px;">
+                        🔍 Extracting text from image...
+                      </div>,
+                      null
+                    )}
+                    {ifElse(
+                      derive(imageOcrResult, (r: any) => r?.result?.extractedText && !r?.pending),
+                      <div style="margin-top: 8px;">
+                        <div style="font-size: 12px; color: #059669; margin-bottom: 4px;">
+                          ✓ Text extracted from image
+                        </div>
+                        <ct-button
+                          size="sm"
+                          variant="outline"
+                          onClick={copyOcrToImportText({ imageOcrResult, importText })}
+                        >
+                          Use Extracted Text →
+                        </ct-button>
+                      </div>,
+                      null
+                    )}
+                  </div>
+
                   {/* Text input */}
                   <div style="margin-bottom: 12px;">
                     <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">
-                      Paste Schedule (HTML or text)
+                      Schedule Text (paste or use upload above)
                     </label>
                     <ct-input
                       style={{ width: "100%", height: "200px" }}
-                      placeholder="Paste the class schedule here..."
+                      placeholder="Paste the class schedule here, or upload a file/photo above..."
                       $value={importText}
                     />
                   </div>
@@ -2105,271 +2479,306 @@ If cost is not specified, use null.`;
               </ct-vstack>
             </ct-vscroll>
 
-            {/* ========== TAB 4: SETTINGS ========== */}
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style="padding: 16px; gap: 24px;">
-                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Settings</h2>
+          </ct-autolayout>
 
-                {/* Child Profile Section */}
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                    Child Profile
-                  </h3>
-                  <ct-vstack style="gap: 12px;">
-                    <div>
-                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                        Name
-                      </label>
-                      <ct-input
-                        placeholder="Child's name"
-                        $value={childName}
-                      />
-                    </div>
-                    <div>
-                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                        Grade
-                      </label>
-                      <ct-select
-                        $value={childGrade}
-                        items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
-                      />
-                    </div>
-                    <div>
-                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                        Birth Date
-                      </label>
-                      <ct-input
-                        type="date"
-                        $value={childBirthDate}
-                      />
-                    </div>
-                    <div>
-                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                        Eligibility Notes
-                      </label>
-                      <ct-input
-                        style={{ height: "60px" }}
-                        placeholder="Any special eligibility requirements or notes..."
-                        $value={childEligibilityNotes}
-                      />
-                    </div>
-                  </ct-vstack>
+          {/* ========== SETTINGS DIALOG (Modal Overlay) ========== */}
+          {ifElse(
+            derive({ showSettingsDialog, shouldAutoOpenSettings }, ({ showSettingsDialog, shouldAutoOpenSettings }) => showSettingsDialog || shouldAutoOpenSettings),
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+              <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+                <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1;">
+                  <h2 style="font-size: 20px; font-weight: 600; margin: 0;">⚙️ Settings</h2>
+                  <ct-button
+                    variant="secondary"
+                    style="padding: 4px 12px;"
+                    onClick={closeSettingsDialog({ showSettingsDialog })}
+                  >
+                    ✕ Close
+                  </ct-button>
                 </div>
-
-                {/* Locations Section */}
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                    Locations
-                  </h3>
-
-                  {/* Existing locations */}
-                  {derive(locations, (locs) =>
-                    locs.length > 0 ? (
-                      <ct-vstack style="gap: 8px; margin-bottom: 16px;">
-                        {locs.map((loc) => (
-                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                            <div>
-                              <div style="font-weight: 500;">{loc.name}</div>
-                              <div style="font-size: 12px; color: #6b7280;">
-                                {loc.type}
-                                {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
-                              </div>
-                            </div>
-                            <ct-button
-                              size="sm"
-                              variant="destructive"
-                              onClick={removeLocation({ locations, locationId: loc.id })}
-                            >
-                              Remove
-                            </ct-button>
-                          </div>
-                        ))}
-                      </ct-vstack>
-                    ) : (
-                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
-                        No locations added yet.
-                      </div>
-                    )
-                  )}
-
-                  {/* Add new location form */}
-                  <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
-                    <h4 style="font-size: 12px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
-                      Add Location
-                    </h4>
-                    <ct-vstack style="gap: 8px;">
-                      <ct-input
-                        placeholder="Location name (e.g., TBS Afterschool)"
-                        $value={newLocationForm.key("name")}
-                      />
-                      <select
-                        style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
-                        value={newLocationForm.key("type")}
-                      >
-                        <option value="afterschool">Afterschool Program</option>
-                        <option value="private_school">Private School</option>
-                        <option value="external">External Class</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <ct-input
-                        placeholder="Address (optional)"
-                        $value={newLocationForm.key("address")}
-                      />
-                      <ct-hstack style="gap: 8px; align-items: center;">
-                        <ct-checkbox
-                          $checked={newLocationForm.key("hasFlatDailyRate")}
-                        />
-                        <span style="font-size: 14px;">Has flat daily rate</span>
-                        {ifElse(
-                          newLocationForm.key("hasFlatDailyRate"),
-                          <ct-input
-                            type="number"
-                            style={{ width: "80px" }}
-                            placeholder="$/day"
-                            $value={newLocationForm.key("dailyRate")}
-                          />,
-                          null
-                        )}
-                      </ct-hstack>
-                      <ct-button
-                        variant="default"
-                        onClick={addLocation({ locations, newLocationForm })}
-                      >
-                        Add Location
-                      </ct-button>
-                    </ct-vstack>
-                  </div>
-                </div>
-
-                {/* Travel Times Section */}
-                {derive(locations, (locs: Location[]) =>
-                  locs.length >= 2 ? (
+                <div style="padding: 20px;">
+                  <ct-vstack style="gap: 24px;">
+                    {/* Child Profile Section */}
                     <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
                       <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                        Travel Times
+                        Child Profile
                       </h3>
-                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                        Travel time between different locations is used for conflict detection.
-                        Default is 15 minutes between any two different locations.
-                      </p>
-                      {derive(travelTimes, (times: TravelTime[]) =>
-                        times.length > 0 ? (
-                          <ct-vstack style="gap: 8px;">
-                            {times.map((t: TravelTime) => {
-                              const fromLoc = locs.find((l: Location) => l.id === t.fromLocationId);
-                              const toLoc = locs.find((l: Location) => l.id === t.toLocationId);
-                              return (
-                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                                  <span style="font-size: 12px; flex: 1;">{fromLoc?.name || "?"}</span>
-                                  <span style="font-size: 12px; color: #9ca3af;">↔</span>
-                                  <span style="font-size: 12px; flex: 1;">{toLoc?.name || "?"}</span>
-                                  <span style="font-size: 12px; font-weight: 600; color: #374151;">{t.minutes} min</span>
+                      <ct-vstack style="gap: 12px;">
+                        <div>
+                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                            Name
+                          </label>
+                          <ct-input
+                            placeholder="Child's name"
+                            $value={childName}
+                          />
+                        </div>
+                        <div>
+                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                            Grade
+                          </label>
+                          <ct-select
+                            $value={childGrade}
+                            items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
+                          />
+                        </div>
+                        <div>
+                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                            Birth Date
+                          </label>
+                          <ct-input
+                            type="date"
+                            $value={childBirthDate}
+                          />
+                        </div>
+                        <div>
+                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                            Eligibility Notes
+                          </label>
+                          <ct-input
+                            style={{ height: "60px" }}
+                            placeholder="Any special eligibility requirements or notes..."
+                            $value={childEligibilityNotes}
+                          />
+                        </div>
+                      </ct-vstack>
+                    </div>
+
+                    {/* Locations Section */}
+                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                        Locations
+                      </h3>
+
+                      {/* Existing locations */}
+                      {derive(locations, (locs) =>
+                        locs.length > 0 ? (
+                          <ct-vstack style="gap: 8px; margin-bottom: 16px;">
+                            {locs.map((loc) => (
+                              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                <div>
+                                  <div style="font-weight: 500;">{loc.name}</div>
+                                  <div style="font-size: 12px; color: #6b7280;">
+                                    {loc.type}
+                                    {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
+                                  </div>
                                 </div>
-                              );
-                            })}
+                                <ct-button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={removeLocation({ locations, locationId: loc.id })}
+                                >
+                                  Remove
+                                </ct-button>
+                              </div>
+                            ))}
                           </ct-vstack>
                         ) : (
-                          <div style="font-size: 12px; color: #9ca3af; font-style: italic;">
-                            Using default 15 minutes between all location pairs.
+                          <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
+                            No locations added yet.
                           </div>
                         )
                       )}
-                    </div>
-                  ) : null
-                )}
 
-                {/* Category Tags Section */}
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                    Category Tags
-                  </h3>
-                  <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                    Tags help categorize classes. The AI will use these when importing.
-                  </p>
-
-                  {/* Existing tags */}
-                  <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                    {categoryTags.map((tag) => (
-                      <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
-                        <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
-                        <ct-button
-                          size="sm"
-                          variant="ghost"
-                          onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
-                        >
-                          ×
-                        </ct-button>
+                      {/* Add new location form */}
+                      <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
+                        <h4 style="font-size: 12px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
+                          Add Location
+                        </h4>
+                        <ct-vstack style="gap: 8px;">
+                          <ct-input
+                            placeholder="Location name (e.g., TBS Afterschool)"
+                            $value={newLocationForm.key("name")}
+                          />
+                          <select
+                            style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
+                            value={newLocationForm.key("type")}
+                          >
+                            <option value="afterschool-onsite">Afterschool - On-site</option>
+                            <option value="afterschool-offsite">Afterschool - Off-site</option>
+                            <option value="external">External Location</option>
+                          </select>
+                          <ct-input
+                            placeholder="Address (optional)"
+                            $value={newLocationForm.key("address")}
+                          />
+                          <ct-hstack style="gap: 8px; align-items: center;">
+                            <ct-checkbox
+                              $checked={newLocationForm.key("hasFlatDailyRate")}
+                            />
+                            <span style="font-size: 14px;">Has flat daily rate</span>
+                            {ifElse(
+                              newLocationForm.key("hasFlatDailyRate"),
+                              <ct-input
+                                type="number"
+                                style={{ width: "80px" }}
+                                placeholder="$/day"
+                                $value={newLocationForm.key("dailyRate")}
+                              />,
+                              null
+                            )}
+                          </ct-hstack>
+                          <ct-button
+                            variant="default"
+                            style="background: #3b82f6; color: white; font-weight: 600; padding: 10px 20px; border-radius: 6px; width: 100%;"
+                            onClick={addLocation({ locations, newLocationForm })}
+                          >
+                            + Add Location
+                          </ct-button>
+                        </ct-vstack>
                       </div>
-                    ))}
-                  </ct-hstack>
+                    </div>
 
-                  {/* Add new tag */}
-                  <ct-hstack style="gap: 8px;">
-                    <ct-input
-                      style={{ flex: "1" }}
-                      placeholder="New tag name..."
-                      $value={newTagName}
-                    />
-                    <ct-button
-                      variant="secondary"
-                      onClick={addCategoryTag({ categoryTags, newTagName })}
-                    >
-                      Add
-                    </ct-button>
-                  </ct-hstack>
-                </div>
+                    {/* Travel Times Section */}
+                    {ifElse(
+                      derive(locationPairs, (pairs) => pairs.length > 0),
+                      <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                          Travel Times
+                        </h3>
+                        <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                          Set travel time between locations for accurate conflict detection.
+                        </p>
+                        <ct-vstack style="gap: 8px;">
+                          {locationPairs.map((pair) => (
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                              <span style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{pair.loc1Name}</span>
+                              <span style="font-size: 12px; color: #9ca3af;">↔</span>
+                              <span style="font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{pair.loc2Name}</span>
+                              <ct-hstack style="gap: 4px; align-items: center;">
+                                <ct-button
+                                  size="sm"
+                                  variant="outline"
+                                  style="padding: 2px 8px; min-width: 28px;"
+                                  onClick={setTravelTime({
+                                    travelTimes,
+                                    fromLocationId: pair.loc1Id,
+                                    toLocationId: pair.loc2Id,
+                                    minutes: Math.max(0, pair.minutes - 5),
+                                  })}
+                                >
+                                  -
+                                </ct-button>
+                                <span style="font-size: 14px; font-weight: 600; min-width: 35px; text-align: center;">
+                                  {pair.minutes}
+                                </span>
+                                <ct-button
+                                  size="sm"
+                                  variant="outline"
+                                  style="padding: 2px 8px; min-width: 28px;"
+                                  onClick={setTravelTime({
+                                    travelTimes,
+                                    fromLocationId: pair.loc1Id,
+                                    toLocationId: pair.loc2Id,
+                                    minutes: pair.minutes + 5,
+                                  })}
+                                >
+                                  +
+                                </ct-button>
+                              </ct-hstack>
+                              <span style="font-size: 12px; color: #6b7280;">min</span>
+                            </div>
+                          ))}
+                        </ct-vstack>
+                      </div>,
+                      null
+                    )}
 
-                {/* Friends Section */}
-                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                    Friends
-                  </h3>
-                  <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                    Track friends to prioritize classes they're taking.
-                  </p>
+                    {/* Category Tags Section */}
+                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                        Category Tags
+                      </h3>
+                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                        Tags help categorize classes. The AI will use these when importing.
+                      </p>
 
-                  {/* Existing friends */}
-                  {derive(friends, (f) =>
-                    f.length > 0 ? (
+                      {/* Existing tags */}
                       <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                        {f.map((friend) => (
-                          <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
-                            <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
+                        {categoryTags.map((tag) => (
+                          <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
+                            <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
                             <ct-button
                               size="sm"
                               variant="ghost"
-                              onClick={removeFriend({ friends, friendId: friend.id })}
+                              onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
                             >
                               ×
                             </ct-button>
                           </div>
                         ))}
                       </ct-hstack>
-                    ) : (
-                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
-                        No friends added yet.
-                      </div>
-                    )
-                  )}
 
-                  {/* Add new friend */}
-                  <ct-hstack style="gap: 8px;">
-                    <ct-input
-                      style={{ flex: "1" }}
-                      placeholder="Friend's name..."
-                      $value={newFriendName}
-                    />
-                    <ct-button
-                      variant="default"
-                      onClick={addFriend({ friends, newFriendName })}
-                    >
-                      Add
-                    </ct-button>
-                  </ct-hstack>
+                      {/* Add new tag */}
+                      <ct-hstack style="gap: 8px;">
+                        <ct-input
+                          style={{ flex: "1" }}
+                          placeholder="New tag name..."
+                          $value={newTagName}
+                        />
+                        <ct-button
+                          variant="secondary"
+                          onClick={addCategoryTag({ categoryTags, newTagName })}
+                        >
+                          Add
+                        </ct-button>
+                      </ct-hstack>
+                    </div>
+
+                    {/* Friends Section */}
+                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                        Friends
+                      </h3>
+                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                        Track friends to prioritize classes they're taking.
+                      </p>
+
+                      {/* Existing friends */}
+                      {derive(friends, (f) =>
+                        f.length > 0 ? (
+                          <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                            {f.map((friend) => (
+                              <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
+                                <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
+                                <ct-button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={removeFriend({ friends, friendId: friend.id })}
+                                >
+                                  ×
+                                </ct-button>
+                              </div>
+                            ))}
+                          </ct-hstack>
+                        ) : (
+                          <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
+                            No friends added yet.
+                          </div>
+                        )
+                      )}
+
+                      {/* Add new friend */}
+                      <ct-hstack style="gap: 8px;">
+                        <ct-input
+                          style={{ flex: "1" }}
+                          placeholder="Friend's name..."
+                          $value={newFriendName}
+                        />
+                        <ct-button
+                          variant="default"
+                          onClick={addFriend({ friends, newFriendName })}
+                        >
+                          Add
+                        </ct-button>
+                      </ct-hstack>
+                    </div>
+                  </ct-vstack>
                 </div>
-              </ct-vstack>
-            </ct-vscroll>
-          </ct-autolayout>
+              </div>
+            </div>,
+            null
+          )}
         </ct-screen>
       ),
     };
