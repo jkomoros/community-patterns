@@ -21,6 +21,12 @@
 
 6. **File Upload** - Add `ct-file-upload` component for importing schedule files (PDF, text, etc.)
 
+## Acceptance Testing Feedback (2025-12-14)
+
+**Future Enhancement:**
+
+7. **Merge File/Photo Upload** - Currently there are separate "Upload File" and "Upload Photo" buttons. Ideally this would be a single upload that auto-detects if the file is an image (for OCR extraction) vs text/PDF. Lower priority - add to future phase.
+
 ---
 
 ## Overview
