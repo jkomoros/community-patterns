@@ -606,7 +606,7 @@ const closeSettingsDialog = handler<
 // Set active tab for custom tab UI
 const setActiveTab = handler<
   unknown,
-  { activeTab: Cell<"dashboard" | "import" | "selection">; tab: "dashboard" | "import" | "selection" }
+  { activeTab: Cell<"dashboard" | "configure" | "import" | "selection">; tab: "dashboard" | "configure" | "import" | "selection" }
 >((_, { activeTab, tab }) => {
   activeTab.set(tab);
 });
@@ -1093,10 +1093,11 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const showSettingsDialog = cell<boolean>(true);
 
     // Active tab state for custom tab UI (ct-tabs not available in JSX types)
-    const activeTab = cell<"dashboard" | "import" | "selection">("dashboard");
+    const activeTab = cell<"dashboard" | "configure" | "import" | "selection">("dashboard");
 
     // Computed values for tab visibility
     const isDashboardTab = computed(() => activeTab.get() === "dashboard");
+    const isConfigureTab = computed(() => activeTab.get() === "configure");
     const isImportTab = computed(() => activeTab.get() === "import");
     const isSelectionTab = computed(() => activeTab.get() === "selection");
 
@@ -1940,13 +1941,6 @@ Return the complete extracted text.`
                 <span>{locationCount} locations</span>
                 <span>{classCount} classes</span>
                 <span>{friendCount} friends</span>
-                <ct-button
-                  variant="secondary"
-                  style="padding: 6px 12px; font-size: 16px;"
-                  onClick={openSettingsDialog({ showSettingsDialog })}
-                >
-                  ⚙️ Settings
-                </ct-button>
               </ct-hstack>
             </ct-hstack>
           </div>
@@ -1963,6 +1957,18 @@ Return the complete extracted text.`
                 onClick={setActiveTab({ activeTab, tab: "dashboard" })}
               >
                 Dashboard
+              </button>
+            )}
+            {ifElse(
+              isConfigureTab,
+              <button style="padding: 12px 20px; border: none; border-bottom: 2px solid #3b82f6; background: transparent; cursor: pointer; font-weight: 600; color: #1d4ed8;">
+                Configure
+              </button>,
+              <button
+                style="padding: 12px 20px; border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; font-weight: 400; color: #6b7280;"
+                onClick={setActiveTab({ activeTab, tab: "configure" })}
+              >
+                Configure
               </button>
             )}
             {ifElse(
@@ -2015,7 +2021,7 @@ Return the complete extracted text.`
                       )}
                     </div>,
                     <div style="color: #9ca3af; font-style: italic;">
-                      No child profile set. Go to Settings to configure.
+                      No child profile set. Go to Configure tab to set up.
                     </div>
                   )}
                 </div>
@@ -2049,7 +2055,285 @@ Return the complete extracted text.`
               null
             )}
 
-            {/* ========== TAB 2: IMPORT ========== */}
+            {/* ========== TAB 2: CONFIGURE ========== */}
+            {ifElse(
+              isConfigureTab,
+              <ct-vstack style="padding: 16px; gap: 16px;">
+                <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Configure</h2>
+
+                {/* Child Profile Section */}
+                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                    Child Profile
+                  </h3>
+                  <ct-vstack style="gap: 12px;">
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                        Name
+                      </label>
+                      <ct-input
+                        placeholder="Child's name"
+                        $value={childName}
+                      />
+                    </div>
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                        Grade
+                      </label>
+                      <ct-select
+                        $value={childGrade}
+                        items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
+                      />
+                    </div>
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                        Birth Date
+                      </label>
+                      <ct-input
+                        type="date"
+                        $value={childBirthDate}
+                      />
+                    </div>
+                    <div>
+                      <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
+                        Eligibility Notes
+                      </label>
+                      <ct-input
+                        style={{ height: "60px" }}
+                        placeholder="Any special eligibility requirements or notes..."
+                        $value={childEligibilityNotes}
+                      />
+                    </div>
+                  </ct-vstack>
+                </div>
+
+                {/* Locations Section */}
+                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                    Locations
+                  </h3>
+
+                  {/* Existing locations */}
+                  {derive(locations, (locs) =>
+                    locs.length > 0 ? (
+                      <ct-vstack style="gap: 8px; margin-bottom: 16px;">
+                        {locs.map((loc) => (
+                          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                            <div>
+                              <div style="font-weight: 500;">{loc.name}</div>
+                              <div style="font-size: 12px; color: #6b7280;">
+                                {loc.type}
+                                {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
+                              </div>
+                            </div>
+                            <ct-button
+                              size="sm"
+                              variant="destructive"
+                              onClick={removeLocation({ locations, locationId: loc.id })}
+                            >
+                              Remove
+                            </ct-button>
+                          </div>
+                        ))}
+                      </ct-vstack>
+                    ) : (
+                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
+                        No locations added yet.
+                      </div>
+                    )
+                  )}
+
+                  {/* Add new location form */}
+                  <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
+                    <h4 style="font-size: 12px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
+                      Add Location
+                    </h4>
+                    <ct-vstack style="gap: 8px;">
+                      <ct-input
+                        placeholder="Location name (e.g., TBS Afterschool)"
+                        $value={newLocationForm.key("name")}
+                      />
+                      <select
+                        style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
+                        value={newLocationForm.key("type")}
+                      >
+                        <option value="afterschool-onsite">Afterschool - On-site</option>
+                        <option value="afterschool-offsite">Afterschool - Off-site</option>
+                        <option value="external">External Location</option>
+                      </select>
+                      <ct-input
+                        placeholder="Address (optional)"
+                        $value={newLocationForm.key("address")}
+                      />
+                      <ct-hstack style="gap: 8px; align-items: center;">
+                        <ct-checkbox
+                          $checked={newLocationForm.key("hasFlatDailyRate")}
+                        />
+                        <span style="font-size: 14px;">Has flat daily rate</span>
+                        {ifElse(
+                          newLocationForm.key("hasFlatDailyRate"),
+                          <ct-input
+                            type="number"
+                            style={{ width: "80px" }}
+                            placeholder="$/day"
+                            $value={newLocationForm.key("dailyRate")}
+                          />,
+                          null
+                        )}
+                      </ct-hstack>
+                      <ct-button
+                        onClick={addLocation({ locations, newLocationForm })}
+                      >
+                        + Add Location
+                      </ct-button>
+                    </ct-vstack>
+                  </div>
+                </div>
+
+                {/* Travel Times Section */}
+                {ifElse(
+                  computed(() => locationPairs.length > 0),
+                  <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                    <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                      Travel Times
+                    </h3>
+                    <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                      Set travel time (in minutes) between each pair of locations. Used for detecting schedule conflicts.
+                    </p>
+                    <ct-vstack style="gap: 12px;">
+                      {locationPairs.map((pair) => (
+                        <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
+                          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 13px; font-weight: 500;">{pair.loc1Name}</span>
+                            <span style="font-size: 12px; color: #9ca3af;">↔</span>
+                            <span style="font-size: 13px; font-weight: 500;">{pair.loc2Name}</span>
+                          </div>
+                          <ct-hstack style="gap: 8px; align-items: center;">
+                            <ct-button
+                              onClick={setTravelTime({
+                                travelTimes,
+                                fromLocationId: pair.loc1Id,
+                                toLocationId: pair.loc2Id,
+                                minutes: Math.max(0, pair.minutes - 5),
+                              })}
+                            >
+                              − 5 min
+                            </ct-button>
+                            <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 6px; font-size: 16px; font-weight: 600; min-width: 80px; text-align: center;">
+                              {pair.minutes} min
+                            </div>
+                            <ct-button
+                              onClick={setTravelTime({
+                                travelTimes,
+                                fromLocationId: pair.loc1Id,
+                                toLocationId: pair.loc2Id,
+                                minutes: pair.minutes + 5,
+                              })}
+                            >
+                              + 5 min
+                            </ct-button>
+                          </ct-hstack>
+                        </div>
+                      ))}
+                    </ct-vstack>
+                  </div>,
+                  null
+                )}
+
+                {/* Category Tags Section */}
+                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                    Category Tags
+                  </h3>
+                  <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                    Tags help categorize classes. The AI will use these when importing.
+                  </p>
+
+                  {/* Existing tags */}
+                  <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                    {categoryTags.map((tag) => (
+                      <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
+                        <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
+                        <ct-button
+                          size="sm"
+                          variant="ghost"
+                          onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
+                        >
+                          ×
+                        </ct-button>
+                      </div>
+                    ))}
+                  </ct-hstack>
+
+                  {/* Add new tag */}
+                  <ct-hstack style="gap: 8px;">
+                    <ct-input
+                      style={{ flex: "1" }}
+                      placeholder="New tag name..."
+                      $value={newTagName}
+                    />
+                    <ct-button
+                      variant="secondary"
+                      onClick={addCategoryTag({ categoryTags, newTagName })}
+                    >
+                      Add
+                    </ct-button>
+                  </ct-hstack>
+                </div>
+
+                {/* Friends Section */}
+                <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
+                  <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
+                    Friends
+                  </h3>
+                  <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
+                    Track friends to prioritize classes they're taking.
+                  </p>
+
+                  {/* Existing friends */}
+                  {derive(friends, (f) =>
+                    f.length > 0 ? (
+                      <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        {f.map((friend) => (
+                          <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
+                            <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
+                            <ct-button
+                              size="sm"
+                              variant="ghost"
+                              onClick={removeFriend({ friends, friendId: friend.id })}
+                            >
+                              ×
+                            </ct-button>
+                          </div>
+                        ))}
+                      </ct-hstack>
+                    ) : (
+                      <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
+                        No friends added yet.
+                      </div>
+                    )
+                  )}
+
+                  {/* Add new friend */}
+                  <ct-hstack style="gap: 8px;">
+                    <ct-input
+                      style={{ flex: "1" }}
+                      placeholder="Friend's name..."
+                      $value={newFriendName}
+                    />
+                    <ct-button
+                      variant="default"
+                      onClick={addFriend({ friends, newFriendName })}
+                    >
+                      Add
+                    </ct-button>
+                  </ct-hstack>
+                </div>
+              </ct-vstack>,
+              null
+            )}
+
+            {/* ========== TAB 3: IMPORT ========== */}
             {ifElse(
               isImportTab,
               <ct-vstack style="padding: 16px; gap: 16px;">
@@ -2069,7 +2353,7 @@ Return the complete extracted text.`
                     {ifElse(
                       derive(locations, (locs) => locs.length === 0),
                       <div style="color: #f59e0b; font-size: 14px;">
-                        Add locations in Settings before importing classes.
+                        Add locations in the Configure tab before importing classes.
                       </div>,
                       <ct-select
                         $value={importLocationId}
@@ -2474,7 +2758,7 @@ Return the complete extracted text.`
               null
             )}
 
-            {/* ========== TAB 3: SELECTION ========== */}
+            {/* ========== TAB 4: SELECTION ========== */}
             {ifElse(
               isSelectionTab,
               <ct-vstack style="padding: 16px; gap: 16px;">
@@ -2625,298 +2909,6 @@ Return the complete extracted text.`
               null
             )}
           </div>
-
-          {/* ========== SETTINGS DIALOG (Modal Overlay) ========== */}
-          {ifElse(
-            isSettingsDialogVisible,
-            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
-              <div style="background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
-                <div style="padding: 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1;">
-                  <h2 style="font-size: 20px; font-weight: 600; margin: 0;">⚙️ Settings</h2>
-                  <ct-button
-                    variant="secondary"
-                    style="padding: 4px 12px;"
-                    onClick={closeSettingsDialog({ showSettingsDialog })}
-                  >
-                    ✕ Close
-                  </ct-button>
-                </div>
-                <div style="padding: 20px;">
-                  <ct-vstack style="gap: 24px;">
-                    {/* Child Profile Section */}
-                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                        Child Profile
-                      </h3>
-                      <ct-vstack style="gap: 12px;">
-                        <div>
-                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                            Name
-                          </label>
-                          <ct-input
-                            placeholder="Child's name"
-                            $value={childName}
-                          />
-                        </div>
-                        <div>
-                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                            Grade
-                          </label>
-                          <ct-select
-                            $value={childGrade}
-                            items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
-                          />
-                        </div>
-                        <div>
-                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                            Birth Date
-                          </label>
-                          <ct-input
-                            type="date"
-                            $value={childBirthDate}
-                          />
-                        </div>
-                        <div>
-                          <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
-                            Eligibility Notes
-                          </label>
-                          <ct-input
-                            style={{ height: "60px" }}
-                            placeholder="Any special eligibility requirements or notes..."
-                            $value={childEligibilityNotes}
-                          />
-                        </div>
-                      </ct-vstack>
-                    </div>
-
-                    {/* Locations Section */}
-                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                        Locations
-                      </h3>
-
-                      {/* Existing locations */}
-                      {derive(locations, (locs) =>
-                        locs.length > 0 ? (
-                          <ct-vstack style="gap: 8px; margin-bottom: 16px;">
-                            {locs.map((loc) => (
-                              <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                                <div>
-                                  <div style="font-weight: 500;">{loc.name}</div>
-                                  <div style="font-size: 12px; color: #6b7280;">
-                                    {loc.type}
-                                    {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
-                                  </div>
-                                </div>
-                                <ct-button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={removeLocation({ locations, locationId: loc.id })}
-                                >
-                                  Remove
-                                </ct-button>
-                              </div>
-                            ))}
-                          </ct-vstack>
-                        ) : (
-                          <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
-                            No locations added yet.
-                          </div>
-                        )
-                      )}
-
-                      {/* Add new location form */}
-                      <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
-                        <h4 style="font-size: 12px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
-                          Add Location
-                        </h4>
-                        <ct-vstack style="gap: 8px;">
-                          <ct-input
-                            placeholder="Location name (e.g., TBS Afterschool)"
-                            $value={newLocationForm.key("name")}
-                          />
-                          <select
-                            style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px" }}
-                            value={newLocationForm.key("type")}
-                          >
-                            <option value="afterschool-onsite">Afterschool - On-site</option>
-                            <option value="afterschool-offsite">Afterschool - Off-site</option>
-                            <option value="external">External Location</option>
-                          </select>
-                          <ct-input
-                            placeholder="Address (optional)"
-                            $value={newLocationForm.key("address")}
-                          />
-                          <ct-hstack style="gap: 8px; align-items: center;">
-                            <ct-checkbox
-                              $checked={newLocationForm.key("hasFlatDailyRate")}
-                            />
-                            <span style="font-size: 14px;">Has flat daily rate</span>
-                            {ifElse(
-                              newLocationForm.key("hasFlatDailyRate"),
-                              <ct-input
-                                type="number"
-                                style={{ width: "80px" }}
-                                placeholder="$/day"
-                                $value={newLocationForm.key("dailyRate")}
-                              />,
-                              null
-                            )}
-                          </ct-hstack>
-                          <ct-button
-                            onClick={addLocation({ locations, newLocationForm })}
-                          >
-                            + Add Location
-                          </ct-button>
-                        </ct-vstack>
-                      </div>
-                    </div>
-
-                    {/* Travel Times Section */}
-                    {ifElse(
-                      computed(() => locationPairs.length > 0),
-                      <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                          Travel Times
-                        </h3>
-                        <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                          Set travel time (in minutes) between each pair of locations. Used for detecting schedule conflicts.
-                        </p>
-                        <ct-vstack style="gap: 12px;">
-                          {locationPairs.map((pair) => (
-                            <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
-                              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                <span style="font-size: 13px; font-weight: 500;">{pair.loc1Name}</span>
-                                <span style="font-size: 12px; color: #9ca3af;">↔</span>
-                                <span style="font-size: 13px; font-weight: 500;">{pair.loc2Name}</span>
-                              </div>
-                              <ct-hstack style="gap: 8px; align-items: center;">
-                                <ct-button
-                                  onClick={setTravelTime({
-                                    travelTimes,
-                                    fromLocationId: pair.loc1Id,
-                                    toLocationId: pair.loc2Id,
-                                    minutes: Math.max(0, pair.minutes - 5),
-                                  })}
-                                >
-                                  − 5 min
-                                </ct-button>
-                                <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 6px; font-size: 16px; font-weight: 600; min-width: 80px; text-align: center;">
-                                  {pair.minutes} min
-                                </div>
-                                <ct-button
-                                  onClick={setTravelTime({
-                                    travelTimes,
-                                    fromLocationId: pair.loc1Id,
-                                    toLocationId: pair.loc2Id,
-                                    minutes: pair.minutes + 5,
-                                  })}
-                                >
-                                  + 5 min
-                                </ct-button>
-                              </ct-hstack>
-                            </div>
-                          ))}
-                        </ct-vstack>
-                      </div>,
-                      null
-                    )}
-
-                    {/* Category Tags Section */}
-                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                        Category Tags
-                      </h3>
-                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                        Tags help categorize classes. The AI will use these when importing.
-                      </p>
-
-                      {/* Existing tags */}
-                      <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                        {categoryTags.map((tag) => (
-                          <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
-                            <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
-                            <ct-button
-                              size="sm"
-                              variant="ghost"
-                              onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
-                            >
-                              ×
-                            </ct-button>
-                          </div>
-                        ))}
-                      </ct-hstack>
-
-                      {/* Add new tag */}
-                      <ct-hstack style="gap: 8px;">
-                        <ct-input
-                          style={{ flex: "1" }}
-                          placeholder="New tag name..."
-                          $value={newTagName}
-                        />
-                        <ct-button
-                          variant="secondary"
-                          onClick={addCategoryTag({ categoryTags, newTagName })}
-                        >
-                          Add
-                        </ct-button>
-                      </ct-hstack>
-                    </div>
-
-                    {/* Friends Section */}
-                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
-                      <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
-                        Friends
-                      </h3>
-                      <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
-                        Track friends to prioritize classes they're taking.
-                      </p>
-
-                      {/* Existing friends */}
-                      {derive(friends, (f) =>
-                        f.length > 0 ? (
-                          <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
-                            {f.map((friend) => (
-                              <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
-                                <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
-                                <ct-button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={removeFriend({ friends, friendId: friend.id })}
-                                >
-                                  ×
-                                </ct-button>
-                              </div>
-                            ))}
-                          </ct-hstack>
-                        ) : (
-                          <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
-                            No friends added yet.
-                          </div>
-                        )
-                      )}
-
-                      {/* Add new friend */}
-                      <ct-hstack style="gap: 8px;">
-                        <ct-input
-                          style={{ flex: "1" }}
-                          placeholder="Friend's name..."
-                          $value={newFriendName}
-                        />
-                        <ct-button
-                          variant="default"
-                          onClick={addFriend({ friends, newFriendName })}
-                        >
-                          Add
-                        </ct-button>
-                      </ct-hstack>
-                    </div>
-                  </ct-vstack>
-                </div>
-              </div>
-            </div>,
-            null
-          )}
         </ct-screen>
       ),
     };
