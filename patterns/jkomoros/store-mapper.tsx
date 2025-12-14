@@ -2274,7 +2274,7 @@ What common sections might be missing?`,
                 <ct-code-editor
                   $value={aisle.description}
                   placeholder="What's in this aisle? (e.g., Fruits, vegetables, salads, herbs)"
-                  language="text/plain"
+                  language="text/markdown"
                   theme="light"
                   wordWrap
                   style="min-height: 60px; border: 1px solid #e0e0e0; border-radius: 4px;"
