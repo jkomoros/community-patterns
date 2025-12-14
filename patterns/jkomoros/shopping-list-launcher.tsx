@@ -665,6 +665,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
               <ct-message-input
                 placeholder="💬 Type to add item, or ask omnibot..."
                 appearance="rounded"
+                buttonText="Add"
                 onct-send={addItem({ items })}
               />
             </div>
