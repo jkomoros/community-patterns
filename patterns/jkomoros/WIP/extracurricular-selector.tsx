@@ -98,6 +98,12 @@ interface StagedClass extends Class {
   eligibilityConfidence: number;
 }
 
+// Extended type for staged classes with user selection state
+// NOTE: Using plain boolean since we'll track selections in a separate Cell<Record<string, boolean>>
+interface StagedClassWithSelection extends StagedClass {
+  selected: boolean;
+}
+
 // Types for LLM extraction response - at module scope for toSchema<T>()
 interface ExtractedClassInfo {
   name: string;
@@ -331,21 +337,22 @@ const setTravelTime = handler<
   }
 });
 
-// Confirm import handler - moves staged classes to main classes list
+// Confirm import handler - moves selected staged classes to main classes list
+// NOTE: Uses separate stagedClasses (data) + stagedClassSelections (Record<id, boolean>) architecture
+// because $checked binding on computed array items causes ReadOnlyAddressError
 const confirmImport = handler<
   unknown,
   {
     classes: Cell<Class[]>;
     stagedClasses: Cell<StagedClass[]>;
-    processedStagedClasses: Cell<StagedClass[]>;
+    stagedClassSelections: Cell<Record<string, boolean>>;
     importText: Cell<string>;
   }
->((_, { classes, stagedClasses, processedStagedClasses, importText }) => {
-  // Get staged classes that should be imported (auto_kept or user_kept)
-  const staged = processedStagedClasses.get();
-  const toImport = staged.filter(
-    (c) => c.triageStatus === "auto_kept" || c.triageStatus === "user_kept"
-  );
+>((_, { classes, stagedClasses, stagedClassSelections, importText }) => {
+  // Get staged classes where user has selected them for import
+  const staged = stagedClasses.get();
+  const selections = stagedClassSelections.get();
+  const toImport = staged.filter((c) => selections[c.id] === true);
 
   if (toImport.length === 0) return;
 
@@ -374,8 +381,9 @@ const confirmImport = handler<
   // Clear the import text to reset the triage UI
   importText.set("");
 
-  // Clear staged classes
+  // Clear staged classes and selections
   stagedClasses.set([]);
+  stagedClassSelections.set({});
 });
 
 // Manual class entry handler
@@ -692,6 +700,10 @@ const triggerExtraction = handler<
     extractionTriggerText.set(text);
   }
 });
+
+// NOTE: toggleStagedClassSelection handler was removed because passing Cell references
+// as handler parameters inside .map() callbacks causes "opaque ref via closure" errors.
+// Instead, we use inline arrow functions in the JSX that directly mutate stagedClassSelections.
 
 // ============================================================================
 // CONFLICT DETECTION HELPERS
@@ -1032,6 +1044,11 @@ interface ExtracurricularSelectorInput {
   activePinnedSetId: Default<string, "">;
   // Import state - Cell for $value binding
   stagedClasses: Default<StagedClass[], []>;
+  // Staged class selections - separate Cell<Record<id, boolean>> for writable checkbox state
+  // NOTE: We can't use $checked on array items from computed() - they become read-only
+  // So we track selections separately and combine with processedStagedClasses for display
+  // Using Cell<> without Default<> for direct closure capture compatibility (like todo-list.tsx)
+  stagedClassSelections: Cell<Record<string, boolean>>;
   importText: Cell<Default<string, "">>;
   importLocationId: Cell<Default<string, "">>;
 }
@@ -1058,6 +1075,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     pinnedSets,
     activePinnedSetId,
     stagedClasses,
+    stagedClassSelections,
     importText,
     importLocationId,
   }) => {
@@ -1089,6 +1107,9 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
 
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = cell<string>("");
+
+    // Note: Selection state uses separate stagedClassSelections Cell<Record<string, boolean>>
+    // because $checked on computed array items causes ReadOnlyAddressError
 
     // Settings dialog state - starts open by default, closes only when user manually closes
     const showSettingsDialog = cell<boolean>(true);
@@ -1261,6 +1282,13 @@ If cost is not specified, use null.`;
     // Computed: Is extraction in progress? (defined after extractionResult)
     const isExtractionPending = computed(() => (extractionResult as any)?.pending === true);
 
+    // Computed: Suggested new tags from extraction result (for display in UI)
+    const suggestedNewTags = computed(() => {
+      const r = (extractionResult as any)?.result;
+      return (r?.suggestedNewTags as string[]) || [];
+    });
+    const hasSuggestedNewTags = derive(suggestedNewTags, (tags) => tags.length > 0);
+
     // Image OCR extraction - extracts text from uploaded photos
     const imageOcrPrompt = computed(() => {
       const images = uploadedImagesForOcr.get();
@@ -1380,6 +1408,81 @@ Return the complete extracted text.`
         };
       });
     });
+
+    // Initialize default selections when new classes are extracted
+    // Auto-select "auto_kept" classes, deselect others
+    // This runs as a side effect sync - sets selections when processedStagedClasses changes
+    // NOTE: We're calling .set() inside computed() which is a side effect - but this is intentional
+    // to initialize default selections. The key insight is that stagedClassSelections is a simple
+    // Record<string, boolean>, not an array with items that need OpaqueRef wrapping.
+    computed(() => {
+      const staged = processedStagedClasses;
+      const currentSelections = stagedClassSelections.get();
+
+      // Build new selections, preserving existing user choices
+      const newSelections: Record<string, boolean> = {};
+      staged.forEach((cls: StagedClass) => {
+        if (currentSelections[cls.id] !== undefined) {
+          // Preserve existing selection
+          newSelections[cls.id] = currentSelections[cls.id];
+        } else {
+          // Default: auto_kept → selected, others → not selected
+          newSelections[cls.id] = cls.triageStatus === "auto_kept";
+        }
+      });
+
+      stagedClassSelections.set(newSelections);
+    });
+
+    // Helper to check if a class is selected - reads from stagedClassSelections
+    const isClassSelected = (classId: string): boolean => {
+      const selections = stagedClassSelections.get();
+      return selections[classId] ?? false;
+    };
+
+    // Computed values for staged class counts and checks
+    // Now using processedStagedClasses (read-only computed) + stagedClassSelections (writable Cell)
+    const stagedClassCount = computed(() => processedStagedClasses.length);
+    const hasStagedClasses = computed(() => stagedClassCount > 0);
+    const autoKeptCount = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").length
+    );
+    const hasAutoKeptClasses = computed(() => autoKeptCount > 0);
+    const needsReviewCount = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").length
+    );
+    const hasNeedsReviewClasses = computed(() => needsReviewCount > 0);
+    const autoDiscardedCount = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").length
+    );
+    const hasAutoDiscardedClasses = computed(() => autoDiscardedCount > 0);
+    const selectedClassCount = computed(() => {
+      const selections = stagedClassSelections.get();
+      return processedStagedClasses.filter((c: StagedClass) => selections[c.id]).length;
+    });
+    const hasSelectedClasses = computed(() => selectedClassCount > 0);
+    const selectedClassCountIsOne = computed(() => selectedClassCount === 1);
+
+    // Computed: staged classes with selection state for display
+    // Combines processedStagedClasses (data) with stagedClassSelections (state)
+    const stagedClassesWithSelections = computed(() => {
+      const selections = stagedClassSelections.get();
+      return processedStagedClasses.map((cls: StagedClass) => ({
+        ...cls,
+        selected: selections[cls.id] ?? false
+      }));
+    });
+
+    // Filter computeds for triage UI
+    const autoKeptClasses = computed(() =>
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "auto_kept")
+    );
+    const needsReviewClasses = computed(() =>
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "needs_review")
+    );
+    const autoDiscardedClasses = computed(() =>
+      stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "auto_discarded")
+    );
 
     // ========================================================================
     // DERIVED STATE
@@ -1935,6 +2038,7 @@ Return the complete extracted text.`
       pinnedSets,
       activePinnedSetId,
       stagedClasses,
+      stagedClassSelections,
       importText,
       importLocationId,
       [NAME]: patternName,
@@ -2487,68 +2591,86 @@ Return the complete extracted text.`
                   {/* Extraction status */}
                   {ifElse(
                     isExtractionPending,
-                    <div style="padding: 8px 12px; background: #dbeafe; border-radius: 6px; color: #1e40af; font-size: 14px; margin-bottom: 12px;">
-                      Extracting classes from {extractionTextLength} characters of text...
+                    <div style="padding: 16px; background: #dbeafe; border-radius: 8px; margin-bottom: 12px;">
+                      <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                        <ct-loader />
+                        <span style="color: #1e40af; font-weight: 500;">Extracting classes...</span>
+                      </div>
+                      <div style="text-align: center; color: #1e40af; font-size: 12px; margin-top: 8px;">
+                        Analyzing {extractionTextLength} characters of text
+                      </div>
                     </div>,
                     null
                   )}
                 </div>
 
-                {/* Triage results from extraction */}
-                {derive(processedStagedClasses, (staged: StagedClass[]) =>
-                  staged.length > 0 ? (
-                    <ct-vstack style="gap: 16px;">
-                      {/* Auto-kept classes (eligible) */}
-                      {(() => {
-                        const autoKept = staged.filter((c: StagedClass) => c.triageStatus === "auto_kept");
-                        return autoKept.length > 0 ? (
-                          <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 16px;">
-                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #166534;">
-                              Ready to Import ({autoKept.length})
-                            </h3>
-                            <ct-vstack style="gap: 8px;">
-                              {autoKept.map((cls: StagedClass) => (
+                {/* Triage results from extraction - uses handler for checkbox toggling */}
+                {ifElse(
+                  hasStagedClasses,
+                  <ct-vstack style="gap: 16px;">
+                    {/* Auto-kept classes (eligible) - using filtered computed + handler */}
+                    {ifElse(
+                      hasAutoKeptClasses,
+                      <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #166534;">
+                          Ready to Import ({autoKeptCount})
+                        </h3>
+                        <ct-vstack style="gap: 8px;">
+                          {derive(
+                            { autoKeptClasses, stagedClassSelections },
+                            ({ autoKeptClasses: classes, stagedClassSelections: selections }) =>
+                              classes.map((cls: StagedClassWithSelection) => (
                                 <div style="background: white; border-radius: 4px; padding: 8px 12px;">
-                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <div>
-                                      <div style="font-weight: 500;">{cls.name}</div>
-                                      <div style="font-size: 12px; color: #6b7280;">
-                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
-                                        {cls.cost > 0 && ` - $${cls.cost}`}
-                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
-                                      </div>
-                                      <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
-                                        {cls.eligibilityReason}
-                                      </div>
+                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                    <ct-checkbox
+                                      checked={cls.selected}
+                                      onClick={() => {
+                                        const current = selections.get();
+                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                      }}
+                                    />
+                                  <div style="flex: 1;">
+                                    <div style="font-weight: 500;">{cls.name}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">
+                                      {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                      {cls.cost > 0 && ` - $${cls.cost}`}
+                                      {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
                                     </div>
-                                    {cls.categoryTagNames.length > 0 && (
-                                      <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                        {cls.categoryTagNames.map((tag: string) => (
-                                          <span style="font-size: 10px; padding: 2px 6px; background: #e5e7eb; border-radius: 8px;">{tag}</span>
-                                        ))}
-                                      </div>
-                                    )}
+                                    <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
+                                      {cls.eligibilityReason}
+                                    </div>
                                   </div>
                                 </div>
-                              ))}
-                            </ct-vstack>
-                          </div>
-                        ) : <></>;
-                      })()}
+                              </div>
+                              ))
+                          )}
+                        </ct-vstack>
+                      </div>,
+                      null
+                    )}
 
-                      {/* Needs review classes */}
-                      {(() => {
-                        const needsReview = staged.filter((c: StagedClass) => c.triageStatus === "needs_review");
-                        return needsReview.length > 0 ? (
-                          <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 16px;">
-                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #854d0e;">
-                              Needs Review ({needsReview.length})
-                            </h3>
-                            <ct-vstack style="gap: 8px;">
-                              {needsReview.map((cls: StagedClass) => (
+                    {/* Needs review classes - using filtered computed + handler */}
+                    {ifElse(
+                      hasNeedsReviewClasses,
+                      <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #854d0e;">
+                          Needs Review ({needsReviewCount})
+                        </h3>
+                        <ct-vstack style="gap: 8px;">
+                          {derive(
+                            { needsReviewClasses, stagedClassSelections },
+                            ({ needsReviewClasses: classes, stagedClassSelections: selections }) =>
+                              classes.map((cls: StagedClassWithSelection) => (
                                 <div style="background: white; border-radius: 4px; padding: 8px 12px;">
-                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <div>
+                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                    <ct-checkbox
+                                      checked={cls.selected}
+                                      onClick={() => {
+                                        const current = selections.get();
+                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                      }}
+                                    />
+                                    <div style="flex: 1;">
                                       <div style="font-weight: 500;">{cls.name}</div>
                                       <div style="font-size: 12px; color: #6b7280;">
                                         {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
@@ -2561,25 +2683,35 @@ Return the complete extracted text.`
                                     </div>
                                   </div>
                                 </div>
-                              ))}
-                            </ct-vstack>
-                          </div>
-                        ) : <></>;
-                      })()}
+                              ))
+                          )}
+                        </ct-vstack>
+                      </div>,
+                      null
+                    )}
 
-                      {/* Auto-discarded classes */}
-                      {(() => {
-                        const autoDiscarded = staged.filter((c: StagedClass) => c.triageStatus === "auto_discarded");
-                        return autoDiscarded.length > 0 ? (
-                          <div style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 16px;">
-                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
-                              Auto-Discarded ({autoDiscarded.length})
-                            </h3>
-                            <ct-vstack style="gap: 8px;">
-                              {autoDiscarded.map((cls: StagedClass) => (
+                    {/* Auto-discarded classes - using filtered computed + handler */}
+                    {ifElse(
+                      hasAutoDiscardedClasses,
+                      <div style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
+                          Auto-Discarded ({autoDiscardedCount})
+                        </h3>
+                        <ct-vstack style="gap: 8px;">
+                          {derive(
+                            { autoDiscardedClasses, stagedClassSelections },
+                            ({ autoDiscardedClasses: classes, stagedClassSelections: selections }) =>
+                              classes.map((cls: StagedClassWithSelection) => (
                                 <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
-                                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                                    <div>
+                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                    <ct-checkbox
+                                      checked={cls.selected}
+                                      onClick={() => {
+                                        const current = selections.get();
+                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                      }}
+                                    />
+                                    <div style="flex: 1;">
                                       <div style="font-weight: 500; text-decoration: line-through;">{cls.name}</div>
                                       <div style="font-size: 12px; color: #9ca3af;">
                                         {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
@@ -2591,56 +2723,53 @@ Return the complete extracted text.`
                                     </div>
                                   </div>
                                 </div>
-                              ))}
-                            </ct-vstack>
-                          </div>
-                        ) : <></>;
-                      })()}
+                              ))
+                          )}
+                        </ct-vstack>
+                      </div>,
+                      null
+                    )}
 
-                      {/* Suggested new tags */}
-                      {derive(extractionResult, (result: any) => {
-                        const newTags: string[] = result?.result?.suggestedNewTags || [];
-                        return newTags.length > 0 ? (
-                          <div style="background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 8px; padding: 16px;">
-                            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b21a8;">
-                              Suggested New Tags
-                            </h3>
-                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                              {newTags.map((tag: string) => (
-                                <span style="padding: 4px 12px; background: white; border: 1px solid #c4b5fd; border-radius: 16px; font-size: 12px;">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                            <div style="font-size: 11px; color: #7c3aed; margin-top: 8px;">
-                              Add these in Settings to use them in future imports.
-                            </div>
-                          </div>
-                        ) : <></>;
-                      })}
+                    {/* Suggested new tags - use ifElse with pre-computed values */}
+                    {ifElse(
+                      hasSuggestedNewTags,
+                      <div style="background: #f3e8ff; border: 1px solid #c4b5fd; border-radius: 8px; padding: 16px;">
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b21a8;">
+                          Suggested New Tags
+                        </h3>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                          {suggestedNewTags.map((tag: string) => (
+                            <span style="padding: 4px 12px; background: white; border: 1px solid #c4b5fd; border-radius: 16px; font-size: 12px;">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        <div style="font-size: 11px; color: #7c3aed; margin-top: 8px;">
+                          Add these in Settings to use them in future imports.
+                        </div>
+                      </div>,
+                      null
+                    )}
 
-                      {/* Confirm Import Button */}
-                      {(() => {
-                        const importableCount = staged.filter(
-                          (c: StagedClass) => c.triageStatus === "auto_kept" || c.triageStatus === "user_kept"
-                        ).length;
-                        return importableCount > 0 ? (
-                          <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 16px; text-align: center;">
-                            <ct-button
-                              variant="default"
-                              style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
-                              onClick={confirmImport({ classes, stagedClasses, processedStagedClasses, importText })}
-                            >
-                              ✅ Import {importableCount} Class{importableCount === 1 ? "" : "es"}
-                            </ct-button>
-                            <div style="font-size: 12px; color: #059669; margin-top: 8px;">
-                              Classes marked "Ready to Import" will be added to your class list.
-                            </div>
-                          </div>
-                        ) : <></>;
-                      })()}
-                    </ct-vstack>
-                  ) : <></>
+                    {/* Confirm Import Button - counts selected classes */}
+                    {ifElse(
+                      hasSelectedClasses,
+                      <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 16px; text-align: center;">
+                        <ct-button
+                          variant="default"
+                          style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
+                          onClick={confirmImport({ classes, stagedClasses, stagedClassSelections, importText })}
+                        >
+                          ✅ Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
+                        </ct-button>
+                        <div style="font-size: 12px; color: #059669; margin-top: 8px;">
+                          Selected classes will be added to your class list.
+                        </div>
+                      </div>,
+                      null
+                    )}
+                  </ct-vstack>,
+                  null
                 )}
 
                 {/* Manual Class Entry */}
