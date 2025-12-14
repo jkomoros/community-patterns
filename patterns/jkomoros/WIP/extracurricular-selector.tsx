@@ -217,15 +217,16 @@ const addLocation = handler<
   { locations: Cell<Location[]>; newLocationForm: Cell<{ name: string; type: LocationType; address: string; hasFlatDailyRate: boolean; dailyRate: number }> }
 >((_, { locations, newLocationForm }) => {
   const form = newLocationForm.get();
-  if (!form.name.trim()) return;
+  const name = form.name || "";
+  if (!name.trim()) return;
 
   const newLocation: Location = {
     id: generateId(),
-    name: form.name.trim(),
-    type: form.type,
-    address: form.address.trim(),
-    hasFlatDailyRate: form.hasFlatDailyRate,
-    dailyRate: form.dailyRate,
+    name: name.trim(),
+    type: form.type || "afterschool-onsite",
+    address: (form.address || "").trim(),
+    hasFlatDailyRate: form.hasFlatDailyRate || false,
+    dailyRate: form.dailyRate || 0,
   };
 
   locations.push(newLocation);
