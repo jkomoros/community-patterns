@@ -1304,6 +1304,14 @@ Return the complete extracted text.`
       },
     });
 
+    // Pre-computed values for image OCR state (must be outside JSX for reactivity)
+    const hasUploadedImage = computed(() => uploadedImagesForOcr.get().length > 0);
+    const isImageOcrPending = computed(() => (imageOcrResult as any)?.pending === true);
+    const hasImageOcrResult = computed(() => {
+      const r = imageOcrResult as any;
+      return r?.result?.extractedText && !r?.pending;
+    });
+
     // Process extraction results into staged classes
     const processedStagedClasses = computed(() => {
       // extractionResult is a generateObject result with .result, .pending, .error properties
@@ -2407,21 +2415,21 @@ Return the complete extracted text.`
                       </span>
                     </div>
                     {ifElse(
-                      computed(() => uploadedImagesForOcr.get().length > 0),
+                      hasUploadedImage,
                       <div style="margin-top: 8px; font-size: 12px; color: #059669;">
                         ✓ Image uploaded
                       </div>,
                       null
                     )}
                     {ifElse(
-                      computed(() => (imageOcrResult as any)?.pending === true),
+                      isImageOcrPending,
                       <div style="margin-top: 8px; padding: 8px; background: #dbeafe; border-radius: 4px; color: #1e40af; font-size: 12px;">
                         🔍 Extracting text from image...
                       </div>,
                       null
                     )}
                     {ifElse(
-                      computed(() => (imageOcrResult as any)?.result?.extractedText && !(imageOcrResult as any)?.pending),
+                      hasImageOcrResult,
                       <div style="margin-top: 8px;">
                         <div style="font-size: 12px; color: #059669; margin-bottom: 4px;">
                           ✓ Text extracted from image

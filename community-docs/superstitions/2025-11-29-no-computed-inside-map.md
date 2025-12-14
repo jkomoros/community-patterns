@@ -1,6 +1,10 @@
 # Never Create computed() Inside .map() Callbacks
 
-**Status:** Superstition (single observation)
+**Status:** Folk Wisdom (verified - root cause understood)
+
+> **See also:** `folk_wisdom/2025-12-14-computed-must-be-statement-level.md` for the comprehensive explanation of WHY this happens (node identity and CTS transformation).
+
+> **Note (2025-12-14):** Root cause verified through code analysis. The issue is that `computed()` created inside any function call (`.map()`, `ifElse()`, etc.) creates a **new reactive node on every render**, breaking the dependency chain. Nodes need stable identity to maintain reactive connections.
 
 > **Note (2025-12-12):** Framework author guidance: "You should just never rely on derives, ONLY use computed()." See `blessed/computed-over-derive.md`. This superstition's **solution** uses `derive()`, which should be replaced with `computed()` per framework guidance. The core issue (don't create reactive primitives inside `.map()`) remains valid.
 
@@ -70,12 +74,15 @@ const listWithReadState = computed(() => {
 ## Metadata
 
 ```yaml
-topic: computed, map, reactivity, performance, infinite-loop
+topic: computed, map, reactivity, performance, infinite-loop, node-identity
 discovered: 2025-11-29
+verified: 2025-12-14
 session: prompt-injection-tracker-map-approach
-status: superstition
+status: folk_wisdom
+related: folk_wisdom/2025-12-14-computed-must-be-statement-level.md
 ```
 
 ## Guestbook
 
 - 2025-11-29 - Discovered while building prompt-injection-tracker-v3. Had `computed()` inside `.map()` to check if items were read. Caused 260% CPU and tab crash. Fixed by pre-computing isRead flag in a computed. (prompt-injection-tracker-map-approach)
+- 2025-12-14 - Root cause verified: inline `computed()` creates new reactive node on every render, breaking node identity needed for dependency tracking. Same issue affects `ifElse()` and any inline context. (extracurricular-selector / jkomoros)
