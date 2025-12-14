@@ -2,9 +2,15 @@
 
 **Status:** Folk Wisdom (verified through implementation)
 
+> **See also:** `2025-12-14-checked-binding-cell-vs-computed.md` for WHY `$checked` doesn't work on computed results (read-only data URIs) and when to use this pattern vs direct `$checked`.
+
 ## Summary
 
-When you need to toggle checkboxes inside a `.map()` on a `computed()` result, you cannot directly reference input Cells in the `onClick` handler. The framework throws "Accessing an opaque ref via closure is not supported". The solution is to wrap the `.map()` in a `derive()` that explicitly passes the Cell as an input.
+When you need to toggle checkboxes inside a `.map()` on a `computed()` result, you cannot:
+1. Use `$checked` bidirectional binding (throws `ReadOnlyAddressError` - computed results are read-only)
+2. Directly reference input Cells in the `onClick` handler (throws "opaque ref via closure" error)
+
+**The solution:** Use a separate `Cell<Record<string, boolean>>` for selection state, merge it in computed for display, and wrap the `.map()` in `derive()` to pass the Cell for mutation.
 
 ## The Problem
 
@@ -110,20 +116,24 @@ selections: Cell<Record<string, boolean>>;  // Still fails in .map()
 - The todo-list.tsx example works because `items.map()` is on a direct input Cell
 - Using `$checked` bidirectional binding on items that were added via `.push()` to a `Cell<T[]>`
 
-## Related Issues
+## Related Documentation
 
-- `$checked` binding on computed array items causes `ReadOnlyAddressError`
-- Items populated via `.set()` inside computed() are read-only
-- See `2025-12-04-default-inputs-readonly-use-local-cell.md` for related issues
+- `2025-12-14-checked-binding-cell-vs-computed.md` - Why $checked fails on computed (data URIs are read-only)
+- `2025-12-14-opaque-ref-closure-frame-limitation.md` - Understanding frame/scope limitations
+- `2025-12-04-default-inputs-readonly-use-local-cell.md` - Related read-only input issues
+- `patterns/jkomoros/issues/ISSUE-checked-binding-computed-arrays.md` - Full technical analysis
 
 ## Metadata
 
 ```yaml
-topic: computed, map, derive, checkbox, closure, Cell, onClick
+topic: computed, map, derive, checkbox, closure, Cell, onClick, $checked
 discovered: 2025-12-14
 verified_by: extracurricular-selector pattern implementation
 status: folk_wisdom
 pattern: extracurricular-selector
+related:
+  - 2025-12-14-checked-binding-cell-vs-computed.md
+  - 2025-12-14-opaque-ref-closure-frame-limitation.md
 ```
 
 ## Guestbook
