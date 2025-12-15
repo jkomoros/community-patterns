@@ -3,7 +3,6 @@ import {
   Cell,
   computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -78,7 +77,7 @@ const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => v
     const isLoading = computed(() => !wishResult || (!wishResult.result && !wishResult.error));
 
     return {
-      [NAME]: derive(widget, (w) => `Widget: ${w.query.slice(0, 20)}...`),
+      [NAME]: computed(() => `Widget: ${widget.query.slice(0, 20)}...`),
       [UI]: (
         <div style={{
           border: "1px solid #ddd",
@@ -148,7 +147,8 @@ const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => v
                     Finding patterns...
                   </span>
                 </div>,
-                derive(wishResult, (r) => {
+                computed(() => {
+                  const r = wishResult;
                   if (!r) return <span>No result</span>;
                   if (r.error) {
                     return (
@@ -174,7 +174,7 @@ export default pattern<DynamicDashboardInput>(({ widgets }) => {
   const widgetCount = computed(() => widgets.length);
 
   return {
-    [NAME]: derive(widgetCount, (count) => `Dynamic Dashboard (${count} widgets)`),
+    [NAME]: computed(() => `Dynamic Dashboard (${widgetCount} widgets)`),
     [UI]: (
       <div style={{ padding: "1rem", maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{

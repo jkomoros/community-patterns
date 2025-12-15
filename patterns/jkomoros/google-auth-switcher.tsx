@@ -11,8 +11,8 @@
  */
 import {
   Cell,
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   navigateTo,
@@ -89,18 +89,18 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
   const baseAuth = GoogleAuth({ auth, selectedScopes });
 
   // Check if logged in
-  const isLoggedIn = derive(baseAuth.auth, (a) => !!a?.user?.email);
-  const userEmail = derive(baseAuth.auth, (a) => a?.user?.email || "");
+  const isLoggedIn = computed(() => !!baseAuth.auth?.user?.email);
+  const userEmail = computed(() => baseAuth.auth?.user?.email || "");
 
   return {
-    [NAME]: derive(baseAuth.auth, (a) =>
-      a?.user?.email ? `Google Auth Setup - ${a.user.email}` : "Google Auth Setup"
+    [NAME]: computed(() =>
+      baseAuth.auth?.user?.email ? `Google Auth Setup - ${baseAuth.auth.user.email}` : "Google Auth Setup"
     ),
     [UI]: (
       <div>
         {/* CLASSIFICATION CTA - Show at TOP after login */}
-        {derive(isLoggedIn, (loggedIn) =>
-          loggedIn ? (
+        {computed(() =>
+          isLoggedIn ? (
             <div
               style={{
                 marginBottom: "20px",

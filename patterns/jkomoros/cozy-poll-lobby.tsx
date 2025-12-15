@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { cell, Cell, Default, derive, handler, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
+import { Cell, computed, Default, handler, NAME, navigateTo, pattern, str, UI } from "commontools";
 import CozyPollBallot from "./cozy-poll-ballot.tsx";
 
 /**
@@ -89,10 +89,10 @@ export default pattern<ViewerInput, ViewerOutput>(
   ({ question, options, votes, voterCharms }) => {
 
     // Derived: Organize all votes by option ID and vote type
-    const votesByOption = derive(votes, (allVotes: Vote[]) => {
+    const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
 
-      for (const vote of allVotes) {
+      for (const vote of votes as Vote[]) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -103,7 +103,9 @@ export default pattern<ViewerInput, ViewerOutput>(
     });
 
     // Derived: Ranked options (fewest reds, then most greens)
-    const rankedOptions = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+    const rankedOptions = computed(() => {
+      const allVotes = votes as Vote[];
+      const currentOptions = options as Option[];
       const voteCounts = currentOptions.map(option => {
         const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
@@ -132,7 +134,8 @@ export default pattern<ViewerInput, ViewerOutput>(
           </h2>
 
           {/* Top Choice Display */}
-          {derive(rankedOptions, (ranked) => {
+          {computed(() => {
+            const ranked = rankedOptions;
             if (!ranked || ranked.length === 0 || ranked[0].totalVotes === 0) return null;
             const top = ranked[0];
             const parts: string[] = [];
@@ -162,7 +165,9 @@ export default pattern<ViewerInput, ViewerOutput>(
           })}
 
           {/* Summary View - All Options */}
-          {derive({ rankedOptions, votesByOption }, ({ rankedOptions: ranked, votesByOption: votes }) => {
+          {computed(() => {
+            const ranked = rankedOptions;
+            const votesData = votesByOption;
             if (!ranked || ranked.length === 0) return null;
             return (
               <div style={{
@@ -190,7 +195,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                       {item.option.title}
                     </div>
                     <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                      {votes[item.option.id]?.green?.map((voterName: string) => (
+                      {votesData[item.option.id]?.green?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -204,7 +209,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.yellow?.map((voterName: string) => (
+                      {votesData[item.option.id]?.yellow?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -218,7 +223,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.red?.map((voterName: string) => (
+                      {votesData[item.option.id]?.red?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
