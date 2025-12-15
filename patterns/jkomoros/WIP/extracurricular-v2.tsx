@@ -421,21 +421,17 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       // New extraction complete - populate stagedClasses with pre-computed triage
       const childGrade = child.get()?.grade || "K";
 
-      // Clear existing staged classes first
-      stagedClasses.set([]);
-
-      // Push each class individually - this ensures proper Cell wrapping for $checked binding
-      // (Different from .set(array) which may not wrap nested properties correctly)
-      response.classes.filter(Boolean).forEach((cls: ExtractedClassInfo) => {
-        if (!cls) return;
+      // Construct full array then set once (avoids N+1 reactive updates from .push())
+      const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
         const triage = triageClass(cls, childGrade as Grade);
-        stagedClasses.push({
+        return {
           ...cls,
-          selected: triage.status !== "auto_discarded",  // Triage affects initial selection
-          triageStatus: triage.status,    // Pre-computed - no Cell access needed in JSX
-          triageReason: triage.reason,    // Pre-computed - no Cell access needed in JSX
-        });
+          selected: triage.status !== "auto_discarded",
+          triageStatus: triage.status,
+          triageReason: triage.reason,
+        };
       });
+      stagedClasses.set(newClasses);
 
       lastProcessedExtractionText.set(triggerText);
     });
