@@ -351,7 +351,7 @@ const confirmImport = handler<
 >((_, { classes, stagedClasses, stagedClassSelections, importText }) => {
   // Get staged classes where user has selected them for import
   const staged = stagedClasses.get();
-  const selections = stagedClassSelections.get();
+  const selections = stagedClassSelections.get() || {};
   const toImport = staged.filter((c) => selections[c.id] === true);
 
   if (toImport.length === 0) return;
@@ -1409,34 +1409,23 @@ Return the complete extracted text.`
       });
     });
 
-    // Initialize default selections when new classes are extracted
-    // Auto-select "auto_kept" classes, deselect others
-    // This runs as a side effect sync - sets selections when processedStagedClasses changes
-    // NOTE: We're calling .set() inside computed() which is a side effect - but this is intentional
-    // to initialize default selections. The key insight is that stagedClassSelections is a simple
-    // Record<string, boolean>, not an array with items that need OpaqueRef wrapping.
+    // Initialize default selections (idempotent side effect)
+    // Uses check-before-write pattern per blessed/reactivity.md
+    // - Run 1: Keys don't exist → write defaults
+    // - Run 2+: All keys exist → all skipped, no writes → system settles
     computed(() => {
-      const staged = processedStagedClasses;
-      const currentSelections = stagedClassSelections.get();
+      for (const cls of processedStagedClasses) {
+        // Skip if already set - maintains idempotency
+        if (stagedClassSelections.key(cls.id).get() !== undefined) continue;
 
-      // Build new selections, preserving existing user choices
-      const newSelections: Record<string, boolean> = {};
-      staged.forEach((cls: StagedClass) => {
-        if (currentSelections[cls.id] !== undefined) {
-          // Preserve existing selection
-          newSelections[cls.id] = currentSelections[cls.id];
-        } else {
-          // Default: auto_kept → selected, others → not selected
-          newSelections[cls.id] = cls.triageStatus === "auto_kept";
-        }
-      });
-
-      stagedClassSelections.set(newSelections);
+        // Default: auto_kept → selected, others → not selected
+        stagedClassSelections.key(cls.id).set(cls.triageStatus === "auto_kept");
+      }
     });
 
     // Helper to check if a class is selected - reads from stagedClassSelections
     const isClassSelected = (classId: string): boolean => {
-      const selections = stagedClassSelections.get();
+      const selections = stagedClassSelections.get() || {};
       return selections[classId] ?? false;
     };
 
@@ -1457,7 +1446,7 @@ Return the complete extracted text.`
     );
     const hasAutoDiscardedClasses = computed(() => autoDiscardedCount > 0);
     const selectedClassCount = computed(() => {
-      const selections = stagedClassSelections.get();
+      const selections = stagedClassSelections.get() || {};
       return processedStagedClasses.filter((c: StagedClass) => selections[c.id]).length;
     });
     const hasSelectedClasses = computed(() => selectedClassCount > 0);
@@ -1466,7 +1455,7 @@ Return the complete extracted text.`
     // Computed: staged classes with selection state for display
     // Combines processedStagedClasses (data) with stagedClassSelections (state)
     const stagedClassesWithSelections = computed(() => {
-      const selections = stagedClassSelections.get();
+      const selections = stagedClassSelections.get() || {};
       return processedStagedClasses.map((cls: StagedClass) => ({
         ...cls,
         selected: selections[cls.id] ?? false
