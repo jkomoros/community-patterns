@@ -8,7 +8,7 @@
  * - Embed references (location: Location, not locationId)
  * - Fewer top-level Default<> inputs
  *
- * Phase 3: LLM Import Flow
+ * Phase 4: Child Profile & Triage Logic
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
@@ -17,6 +17,17 @@ import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse,
 // ============================================================================
 
 type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+
+// Grade levels for eligibility filtering
+type Grade = "TK" | "K" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
+
+// Child profile for triage logic
+interface ChildProfile {
+  name: string;
+  grade: Grade;
+  birthDate: string;
+  eligibilityNotes: string;
+}
 
 interface Location {
   name: string;
@@ -73,18 +84,24 @@ interface ExtractionResponse {
   classes: ExtractedClassInfo[];
 }
 
+// Triage status for eligibility filtering
+type TriageStatus = "auto_kept" | "auto_discarded" | "needs_review";
+
 // Staged class for import preview - selection state ON object
 interface StagedClass extends ExtractedClassInfo {
   selected: boolean;  // STATE ON OBJECT
+  triageStatus: TriageStatus;
+  triageReason: string;
 }
 
 // ============================================================================
-// PATTERN INPUT - Phase 3
+// PATTERN INPUT - Phase 4
 // ============================================================================
 
 interface ExtracurricularInput {
   locations: Cell<Location[]>;
   classes: Cell<Class[]>;
+  child: Cell<ChildProfile>;  // Cell<> for write access, not Default<>
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -96,8 +113,60 @@ interface ExtracurricularOutput extends ExtracurricularInput {
 // PATTERN
 // ============================================================================
 
+// ============================================================================
+// TRIAGE LOGIC - Phase 4
+// ============================================================================
+
+// Grade order for comparison
+const GRADE_ORDER: Grade[] = ["TK", "K", "1", "2", "3", "4", "5", "6", "7", "8"];
+
+function gradeToIndex(grade: string): number {
+  const normalized = grade.toUpperCase().trim();
+  const idx = GRADE_ORDER.indexOf(normalized as Grade);
+  return idx >= 0 ? idx : -1;
+}
+
+function isGradeInRange(childGrade: Grade, gradeMin: string, gradeMax: string): { eligible: boolean; reason: string } {
+  const childIdx = gradeToIndex(childGrade);
+  const minIdx = gradeToIndex(gradeMin);
+  const maxIdx = gradeToIndex(gradeMax);
+
+  // If we can't parse the grades, needs review
+  if (childIdx < 0) return { eligible: false, reason: "Unknown child grade" };
+  if (minIdx < 0 || maxIdx < 0) return { eligible: false, reason: "Unknown class grade range" };
+
+  if (childIdx >= minIdx && childIdx <= maxIdx) {
+    return { eligible: true, reason: `Grade ${childGrade} is within ${gradeMin}-${gradeMax}` };
+  } else if (childIdx < minIdx) {
+    return { eligible: false, reason: `Grade ${childGrade} is below minimum (${gradeMin})` };
+  } else {
+    return { eligible: false, reason: `Grade ${childGrade} is above maximum (${gradeMax})` };
+  }
+}
+
+function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: TriageStatus; reason: string } {
+  // Check for "with permission" or similar notes that suggest needs_review
+  const notes = (cls.notes || "").toLowerCase();
+  const hasPermissionNote = notes.includes("permission") || notes.includes("approval");
+
+  const { eligible, reason } = isGradeInRange(childGrade, cls.gradeMin, cls.gradeMax);
+
+  if (eligible) {
+    if (hasPermissionNote) {
+      return { status: "needs_review", reason: `${reason}, but requires permission` };
+    }
+    return { status: "auto_kept", reason };
+  } else {
+    return { status: "auto_discarded", reason };
+  }
+}
+
+// ============================================================================
+// PATTERN
+// ============================================================================
+
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes }) => {
+  ({ locations, classes, child }) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
@@ -160,22 +229,30 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       },
     });
 
-    // Compute staged classes directly from extraction response (avoids closure issues)
+    // Compute staged classes with triage status based on child's grade
     const computedStagedClasses = computed(() => {
       const response = extractionResponse as any;
       if (!response?.classes) return [] as StagedClass[];
-      return response.classes.map((cls: ExtractedClassInfo) => ({
-        ...cls,
-        selected: true, // Default to selected
-      }));
+
+      const childGrade = child.get().grade || "K";
+
+      return response.classes.map((cls: ExtractedClassInfo) => {
+        const triage = triageClass(cls, childGrade as Grade);
+        return {
+          ...cls,
+          selected: triage.status !== "auto_discarded", // Auto-select kept and needs_review
+          triageStatus: triage.status,
+          triageReason: triage.reason,
+        };
+      });
     });
 
-    // Import all extracted classes (simplified for Phase 3 - no individual selection)
+    // Import selected (eligible) classes - filters out auto_discarded
     // Uses handler pattern to avoid closure issues
     const doImportAll = handler<
       unknown,
-      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; extracted: any; trigger: Cell<string>; text: Cell<string> }
-    >((_, { locIdx, locs, classList, extracted, trigger, text }) => {
+      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; extracted: any; trigger: Cell<string>; text: Cell<string>; childCell: Cell<ChildProfile> }
+    >((_, { locIdx, locs, classList, extracted, trigger, text, childCell }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
       if (locationIndex < 0 || locationIndex >= locationList.length) return;
@@ -184,7 +261,14 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const response = extracted as any;
       if (!response?.classes) return;
 
+      // Get child grade for triage
+      const childGrade = childCell.get().grade;
+
       for (const cls of response.classes) {
+        // Re-run triage to check eligibility
+        const triage = triageClass(cls, childGrade);
+        if (triage.status === "auto_discarded") continue; // Skip ineligible classes
+
         classList.push({
           name: cls.name || "",
           description: cls.notes || "",
@@ -233,11 +317,67 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       }
     };
 
+    // Handler to update child grade
+    const setChildGrade = handler<
+      { target: { value: string } },
+      { childCell: Cell<ChildProfile> }
+    >((event, state) => {
+      const current = state.childCell.get();
+      state.childCell.set({ ...current, grade: event.target.value as Grade });
+    });
+
+    // Handler to update child name
+    const setChildName = handler<
+      { target: { value: string } },
+      { childCell: Cell<ChildProfile> }
+    >((event, state) => {
+      const current = state.childCell.get();
+      state.childCell.set({ ...current, name: event.target.value });
+    });
+
     return {
       [NAME]: "Extracurricular Selector v2",
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
           <h1 style={{ marginBottom: "1rem" }}>Extracurricular Selector v2</h1>
+
+          {/* Child Profile Section - Phase 4 */}
+          <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e8f5e9", borderRadius: "4px" }}>
+            <h2 style={{ marginBottom: "0.5rem" }}>Child Profile</h2>
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Name:</label>
+                <input
+                  type="text"
+                  style={{ padding: "0.5rem", width: "200px" }}
+                  value={(child as any).name || ""}
+                  onChange={setChildName({ childCell: child })}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Grade:</label>
+                <select
+                  style={{ padding: "0.5rem" }}
+                  value={(child as any).grade || "K"}
+                  onChange={setChildGrade({ childCell: child })}
+                >
+                  <option value="TK">TK</option>
+                  <option value="K">K</option>
+                  <option value="1">1st</option>
+                  <option value="2">2nd</option>
+                  <option value="3">3rd</option>
+                  <option value="4">4th</option>
+                  <option value="5">5th</option>
+                  <option value="6">6th</option>
+                  <option value="7">7th</option>
+                  <option value="8">8th</option>
+                </select>
+              </div>
+            </div>
+            <p style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#555" }}>
+              Classes will be auto-triaged based on grade eligibility
+            </p>
+          </div>
 
           {/* Locations Section */}
           <div style={{ marginBottom: "2rem" }}>
@@ -501,49 +641,89 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
                 null
               )}
 
-              {/* Show extracted classes and import button */}
+              {/* Show extracted classes with triage status */}
               {derive({ computedStagedClasses }, ({ computedStagedClasses: staged }) => {
                   // In derive, values are already unwrapped - no .get() needed
                   const list = staged as StagedClass[];
                   if (!list || list.length === 0) return null;
-                  return (
-                    <div style={{ marginTop: "1rem", padding: "1rem", background: "#e3f2fd", borderRadius: "4px" }}>
-                      <h4 style={{ marginBottom: "0.5rem" }}>Extracted Classes ({list.length})</h4>
-                      {list.map((s: StagedClass) => (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            padding: "0.5rem",
-                            background: "#fff",
-                            borderRadius: "4px",
-                            marginBottom: "0.25rem",
-                          }}
-                        >
-                          <span style={{ fontWeight: "bold" }}>{s.name}</span>
-                          <span style={{ color: "#666", fontSize: "0.85em" }}>
-                            {s.dayOfWeek} {s.startTime}-{s.endTime}
-                          </span>
-                          {s.gradeMin && s.gradeMax && (
-                            <span style={{ color: "#888", fontSize: "0.8em" }}>
-                              Gr {s.gradeMin}-{s.gradeMax}
-                            </span>
-                          )}
-                          {s.cost > 0 && (
-                            <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
-                              ${s.cost}
-                            </span>
-                          )}
-                        </div>
-                      ))}
 
-                      {/* Import all button - pass original Cell references via handler pattern */}
+                  // Group by triage status
+                  const kept = list.filter(s => s.triageStatus === "auto_kept");
+                  const needsReview = list.filter(s => s.triageStatus === "needs_review");
+                  const discarded = list.filter(s => s.triageStatus === "auto_discarded");
+                  const selectedCount = list.filter(s => s.selected).length;
+
+                  const getStatusColor = (status: TriageStatus) => {
+                    switch (status) {
+                      case "auto_kept": return { bg: "#e8f5e9", border: "#4caf50" };
+                      case "needs_review": return { bg: "#fff3e0", border: "#ff9800" };
+                      case "auto_discarded": return { bg: "#ffebee", border: "#f44336" };
+                    }
+                  };
+
+                  const getStatusEmoji = (status: TriageStatus) => {
+                    switch (status) {
+                      case "auto_kept": return "✓";
+                      case "needs_review": return "?";
+                      case "auto_discarded": return "✗";
+                    }
+                  };
+
+                  return (
+                    <div style={{ marginTop: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "4px" }}>
+                      <h4 style={{ marginBottom: "0.5rem" }}>
+                        Extracted Classes - Triage Results
+                      </h4>
+                      <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.5rem" }}>
+                        ✓ Eligible: {kept.length} | ? Review: {needsReview.length} | ✗ Ineligible: {discarded.length}
+                      </p>
+
+                      {list.map((s: StagedClass) => {
+                        const colors = getStatusColor(s.triageStatus);
+                        return (
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.5rem",
+                              background: colors.bg,
+                              borderLeft: `3px solid ${colors.border}`,
+                              borderRadius: "4px",
+                              marginBottom: "0.25rem",
+                              opacity: s.triageStatus === "auto_discarded" ? 0.6 : 1,
+                            }}
+                          >
+                            <span style={{ fontWeight: "bold", minWidth: "20px" }}>
+                              {getStatusEmoji(s.triageStatus)}
+                            </span>
+                            <span style={{ fontWeight: "bold" }}>{s.name}</span>
+                            <span style={{ color: "#666", fontSize: "0.85em" }}>
+                              {s.dayOfWeek} {s.startTime}-{s.endTime}
+                            </span>
+                            {s.gradeMin && s.gradeMax && (
+                              <span style={{ color: "#888", fontSize: "0.8em" }}>
+                                Gr {s.gradeMin}-{s.gradeMax}
+                              </span>
+                            )}
+                            {s.cost > 0 && (
+                              <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
+                                ${s.cost}
+                              </span>
+                            )}
+                            <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
+                              {s.triageReason}
+                            </span>
+                          </div>
+                        );
+                      })}
+
+                      {/* Import button - only imports selected (non-discarded) classes */}
                       <button
                         style={{
                           marginTop: "0.5rem",
                           padding: "0.5rem 1rem",
-                          background: "#1976d2",
+                          background: selectedCount > 0 ? "#1976d2" : "#ccc",
                           color: "white",
                           border: "none",
                           borderRadius: "4px",
@@ -555,9 +735,10 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
                           extracted: extractionResponse,
                           trigger: extractionTriggerText,
                           text: importText,
+                          childCell: child,
                         })}
                       >
-                        Import All {list.length} Classes
+                        Import {selectedCount} Eligible Classes
                       </button>
                     </div>
                   );
@@ -570,13 +751,14 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
             <h3>Debug Info</h3>
             <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 3: LLM Import Flow - paste schedule text, extract, review, confirm
+              Phase 4: Child profile & triage logic - auto-filter classes by grade eligibility
             </p>
           </div>
         </div>
       ),
       locations,
       classes,
+      child,
     };
   }
 );
