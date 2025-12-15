@@ -8,9 +8,9 @@
  * - Embed references (location: Location, not locationId)
  * - Fewer top-level Default<> inputs
  *
- * Phase 2: Classes with embedded state
+ * Phase 3: LLM Import Flow
  */
-import { cell, Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
+import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 // ============================================================================
 // TYPES
@@ -45,13 +45,41 @@ interface Class {
   location: Location;           // EMBEDDED reference, not ID
   timeSlots: TimeSlot[];
   cost: number;
+  gradeMin: string;
+  gradeMax: string;
   // STATE ON OBJECT (not in separate maps)
   pinnedInSets: string[];       // Which sets this class is pinned to
   statuses: StatusFlags;        // Registration status tracking
 }
 
 // ============================================================================
-// PATTERN INPUT - Phase 2
+// LLM EXTRACTION TYPES - Phase 3
+// ============================================================================
+
+// What the LLM extracts from schedule text
+interface ExtractedClassInfo {
+  name: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  gradeMin: string;
+  gradeMax: string;
+  cost: number;
+  notes: string;
+}
+
+// Full extraction response from LLM
+interface ExtractionResponse {
+  classes: ExtractedClassInfo[];
+}
+
+// Staged class for import preview - selection state ON object
+interface StagedClass extends ExtractedClassInfo {
+  selected: boolean;  // STATE ON OBJECT
+}
+
+// ============================================================================
+// PATTERN INPUT - Phase 3
 // ============================================================================
 
 interface ExtracurricularInput {
@@ -79,6 +107,110 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
       { idx: Cell<number> }
     >((event, state) => {
       state.idx.set(parseInt(event.target.value, 10));
+    });
+
+    // =========================================================================
+    // PHASE 3: IMPORT FLOW
+    // =========================================================================
+
+    // Import state
+    const importText = cell<string>("");
+    const importLocationIndex = cell<number>(-1);
+    const extractionTriggerText = cell<string>(""); // Triggers LLM when set
+
+    // NOTE: For Phase 3, we skip individual selection and just import all extracted classes
+    // Selection state can be added in a later phase if needed
+
+    // Build extraction prompt from trigger text
+    const extractionPrompt = computed(() => {
+      const text = extractionTriggerText.get();
+      if (!text || text.length < 50) return "";
+      return `Extract class information from this schedule text:
+
+${text}
+
+For each class found, extract: name, dayOfWeek (lowercase), startTime (24h format), endTime (24h format), gradeMin, gradeMax, cost (number), and notes.`;
+    });
+
+    // Run LLM extraction - destructure result/pending like food-recipe.tsx
+    const { result: extractionResponse, pending: extractionPending } = generateObject({
+      model: "anthropic:claude-sonnet-4-5",
+      prompt: extractionPrompt,
+      system: "You are a precise data extraction assistant. Extract class information exactly as found. Do not invent information.",
+      schema: {
+        type: "object",
+        properties: {
+          classes: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                dayOfWeek: { type: "string" },
+                startTime: { type: "string" },
+                endTime: { type: "string" },
+                gradeMin: { type: "string" },
+                gradeMax: { type: "string" },
+                cost: { type: "number" },
+                notes: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Compute staged classes directly from extraction response (avoids closure issues)
+    const computedStagedClasses = computed(() => {
+      const response = extractionResponse as any;
+      if (!response?.classes) return [] as StagedClass[];
+      return response.classes.map((cls: ExtractedClassInfo) => ({
+        ...cls,
+        selected: true, // Default to selected
+      }));
+    });
+
+    // Import all extracted classes (simplified for Phase 3 - no individual selection)
+    // Uses handler pattern to avoid closure issues
+    const doImportAll = handler<
+      unknown,
+      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; extracted: any; trigger: Cell<string>; text: Cell<string> }
+    >((_, { locIdx, locs, classList, extracted, trigger, text }) => {
+      const locationIndex = locIdx.get();
+      const locationList = locs.get();
+      if (locationIndex < 0 || locationIndex >= locationList.length) return;
+
+      const location = locationList[locationIndex];
+      const response = extracted as any;
+      if (!response?.classes) return;
+
+      for (const cls of response.classes) {
+        classList.push({
+          name: cls.name || "",
+          description: cls.notes || "",
+          location,
+          timeSlots: [{
+            day: (cls.dayOfWeek || "monday") as DayOfWeek,
+            startTime: cls.startTime || "",
+            endTime: cls.endTime || "",
+          }],
+          cost: cls.cost || 0,
+          gradeMin: cls.gradeMin || "",
+          gradeMax: cls.gradeMax || "",
+          pinnedInSets: [],
+          statuses: {
+            registered: false,
+            confirmed: false,
+            waitlisted: false,
+            paid: false,
+            onCalendar: false,
+          },
+        });
+      }
+
+      // Clear import state
+      trigger.set("");
+      text.set("");
     });
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
@@ -294,6 +426,8 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
                       location: locs[locIdx],  // EMBED the actual location object
                       timeSlots: [],
                       cost: 0,
+                      gradeMin: "",
+                      gradeMax: "",
                       pinnedInSets: [],
                       statuses: {
                         registered: false,
@@ -309,11 +443,134 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
             </div>
           </div>
 
+          {/* Import Section - Phase 3 */}
+          <div style={{ marginBottom: "2rem" }}>
+            <h2 style={{ marginBottom: "0.5rem" }}>Import Classes</h2>
+            <div
+              style={{
+                padding: "1rem",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+              }}
+            >
+              {/* Location selector for import */}
+              <div style={{ marginBottom: "0.5rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
+                  Import to Location:
+                </label>
+                <select
+                  style={{ width: "100%", padding: "0.5rem" }}
+                  onChange={setLocationIndex({ idx: importLocationIndex })}
+                >
+                  <option value="-1">-- Select a location --</option>
+                  {locations.map((loc, idx) => (
+                    <option value={idx}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Text input for schedule */}
+              <div style={{ marginBottom: "0.5rem" }}>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
+                  Paste schedule text:
+                </label>
+                <ct-textarea
+                  style={{ width: "100%", minHeight: "150px" }}
+                  placeholder="Paste schedule HTML or text here..."
+                  $value={importText}
+                />
+              </div>
+
+              {/* Extract button */}
+              <button
+                style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
+                onClick={() => {
+                  const text = importText.get();
+                  if (text && text.length >= 50) {
+                    extractionTriggerText.set(text);
+                  }
+                }}
+              >
+                Extract Classes
+              </button>
+
+              {/* Extraction status */}
+              {ifElse(
+                extractionPending,
+                <p style={{ color: "#666", fontStyle: "italic" }}>Extracting classes...</p>,
+                null
+              )}
+
+              {/* Show extracted classes and import button */}
+              {derive({ computedStagedClasses }, ({ computedStagedClasses: staged }) => {
+                  // In derive, values are already unwrapped - no .get() needed
+                  const list = staged as StagedClass[];
+                  if (!list || list.length === 0) return null;
+                  return (
+                    <div style={{ marginTop: "1rem", padding: "1rem", background: "#e3f2fd", borderRadius: "4px" }}>
+                      <h4 style={{ marginBottom: "0.5rem" }}>Extracted Classes ({list.length})</h4>
+                      {list.map((s: StagedClass) => (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            padding: "0.5rem",
+                            background: "#fff",
+                            borderRadius: "4px",
+                            marginBottom: "0.25rem",
+                          }}
+                        >
+                          <span style={{ fontWeight: "bold" }}>{s.name}</span>
+                          <span style={{ color: "#666", fontSize: "0.85em" }}>
+                            {s.dayOfWeek} {s.startTime}-{s.endTime}
+                          </span>
+                          {s.gradeMin && s.gradeMax && (
+                            <span style={{ color: "#888", fontSize: "0.8em" }}>
+                              Gr {s.gradeMin}-{s.gradeMax}
+                            </span>
+                          )}
+                          {s.cost > 0 && (
+                            <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
+                              ${s.cost}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Import all button - pass original Cell references via handler pattern */}
+                      <button
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "0.5rem 1rem",
+                          background: "#1976d2",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                        }}
+                        onClick={doImportAll({
+                          locIdx: importLocationIndex,
+                          locs: locations,
+                          classList: classes,
+                          extracted: extractionResponse,
+                          trigger: extractionTriggerText,
+                          text: importText,
+                        })}
+                      >
+                        Import All {list.length} Classes
+                      </button>
+                    </div>
+                  );
+                }
+              )}
+            </div>
+          </div>
+
           {/* Debug info */}
           <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
             <h3>Debug Info</h3>
             <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 2: Classes with embedded state - verify location reference and status toggles
+              Phase 3: LLM Import Flow - paste schedule text, extract, review, confirm
             </p>
           </div>
         </div>
