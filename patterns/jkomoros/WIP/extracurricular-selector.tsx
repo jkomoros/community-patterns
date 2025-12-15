@@ -337,78 +337,10 @@ const setTravelTime = handler<
   }
 });
 
-// Confirm import handler - moves selected staged classes to main classes list
-// NOTE: Uses separate stagedClasses (data) + stagedClassSelections (Record<id, {selected: boolean}>) architecture
-// because $checked binding on computed array items causes ReadOnlyAddressError
-// Boolean must be wrapped in object because framework storage can't handle primitives at key paths
-const confirmImport = handler<
-  unknown,
-  {
-    classes: Cell<Class[]>;
-    stagedClasses: Cell<StagedClass[]>;
-    stagedClassSelections: Cell<Default<Record<string, boolean>, {}>>;
-    importText: Cell<string>;
-  }
->((_, { classes, stagedClasses, stagedClassSelections, importText }) => {
-  // Get staged classes where user has selected them for import
-  const staged = stagedClasses.get();
-  const selections = stagedClassSelections.get() || {};
-  // Use lazy defaults: auto_kept → true by default, others → false
-  const toImport = staged.filter((c) =>
-    selections[c.id] ?? (c.triageStatus === "auto_kept")
-  );
-
-  if (toImport.length === 0) return;
-
-  // Convert StagedClass to Class (remove triage fields)
-  const newClasses: Class[] = toImport.map((staged) => ({
-    id: generateId(), // Generate fresh IDs to avoid duplicates
-    name: staged.name,
-    locationId: staged.locationId,
-    locationName: staged.locationName,
-    timeSlots: staged.timeSlots,
-    cost: staged.cost,
-    costPer: staged.costPer,
-    categoryTagIds: staged.categoryTagIds,
-    categoryTagNames: staged.categoryTagNames,
-    gradeMin: staged.gradeMin,
-    gradeMax: staged.gradeMax,
-    description: staged.description,
-    startDate: staged.startDate,
-    endDate: staged.endDate,
-  }));
-
-  // Add all imported classes to the main classes list
-  const currentClasses = classes.get();
-  classes.set([...currentClasses, ...newClasses]);
-
-  // Clear the import text to reset the triage UI
-  importText.set("");
-
-  // Clear staged classes and selections
-  stagedClasses.set([]);
-  stagedClassSelections.set({});
-});
-
-// Select/deselect all classes in a triage category
-// These handlers work because they're invoked from OUTSIDE the computed map context
-const selectAllInCategory = handler<
-  unknown,
-  {
-    selections: Cell<Default<Record<string, boolean>, {}>>;
-    stagedClasses: Cell<StagedClass[]>;
-    triageStatus: TriageStatus;
-    selected: boolean;
-  }
->((_, { selections, stagedClasses, triageStatus, selected }) => {
-  const staged = stagedClasses.get();
-  const current = selections.get() || {};
-  const updated = { ...current };
-  staged.filter(c => c.triageStatus === triageStatus).forEach(c => {
-    updated[c.id] = selected;
-  });
-  selections.set(updated);
-});
+// NOTE: confirmImport and selectAllInCategory handlers were removed.
+// Now using doConfirmImport() and doSelectAllInCategory() plain functions inside the pattern.
+// This fixes ConflictError by reducing writes and reading from processedStagedClasses (computed)
+// instead of the dead stagedClasses Cell.
 
 // Manual class entry handler
 const addManualClass = handler<
@@ -1066,9 +998,9 @@ interface ExtracurricularSelectorInput {
   classStatuses: Default<ClassStatus[], []>;
   pinnedSets: Default<PinnedSet[], []>;
   activePinnedSetId: Default<string, "">;
-  // Import state - Cell for $value binding
-  stagedClasses: Default<StagedClass[], []>;
-  // Staged class selections - separate Cell<Record<id, {selected: boolean}>> for writable checkbox state
+  // Staged class selections - separate Cell<Record<id, boolean>> for writable checkbox state
+  // NOTE: stagedClasses Cell was removed - it was dead code (never populated, only cleared)
+  // Actual staged classes are derived from extractionResult via processedStagedClasses computed
   // NOTE: We can't use $checked on array items from computed() - they become read-only
   // So we track selections separately and combine with processedStagedClasses for display
   // Uses Default<> to ensure cell starts as {} (required for .key().set() to work)
@@ -1099,7 +1031,6 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     classStatuses,
     pinnedSets,
     activePinnedSetId,
-    stagedClasses,
     stagedClassSelections,
     importText,
     importLocationId,
@@ -1150,6 +1081,49 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
         updated[c.id] = selected;
       });
       stagedClassSelections.set(updated);
+    };
+
+    // Plain function for confirming import - moves selected staged classes to main classes list
+    // Uses closure access to processedStagedClasses (computed) instead of reading from a Cell
+    // This is the FIX for ConflictError: reduces writes from 4 to 2
+    const doConfirmImport = () => {
+      // Read from processedStagedClasses (computed) via closure - NOT from a Cell
+      const selections = stagedClassSelections.get() || {};
+      // Use lazy defaults: auto_kept → true by default, others → false
+      const toImport = processedStagedClasses.filter((c: StagedClass) =>
+        selections[c.id] ?? (c.triageStatus === "auto_kept")
+      );
+
+      if (toImport.length === 0) return;
+
+      // Convert StagedClass to Class (remove triage fields)
+      const newClasses: Class[] = toImport.map((staged: StagedClass) => ({
+        id: generateId(), // Generate fresh IDs to avoid duplicates
+        name: staged.name,
+        locationId: staged.locationId,
+        locationName: staged.locationName,
+        timeSlots: staged.timeSlots,
+        cost: staged.cost,
+        costPer: staged.costPer,
+        categoryTagIds: staged.categoryTagIds,
+        categoryTagNames: staged.categoryTagNames,
+        gradeMin: staged.gradeMin,
+        gradeMax: staged.gradeMax,
+        description: staged.description,
+        startDate: staged.startDate,
+        endDate: staged.endDate,
+      }));
+
+      // Add all imported classes to the main classes list
+      const currentClasses = classes.get();
+      classes.set([...currentClasses, ...newClasses]);
+
+      // Clear import state - only 2 writes now (down from 4):
+      // 1. Clear import text (which clears extractionResult → clears processedStagedClasses)
+      importText.set("");
+      // 2. Clear selection state
+      stagedClassSelections.set({});
+      // NOTE: No more stagedClasses.set([]) - that Cell was dead code
     };
 
     // Note: Selection state uses separate stagedClassSelections Cell<Record<string, boolean>>
@@ -1204,9 +1178,10 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
 
     // Computed: location pairs for travel time editing
     // Note: locations/travelTimes are Default<> inputs, not Cell<>, so access directly (no .get())
+    // Defensive filtering: arrays may contain undefined elements due to framework quirks
     const locationPairs = computed(() => {
-      const locs = locations;
-      const times = travelTimes;
+      const locs = (locations || []).filter((l) => l != null);
+      const times = (travelTimes || []).filter((t) => t != null);
       if (locs.length < 2) return [];
       const pairs: Array<{ loc1Id: string; loc1Name: string; loc2Id: string; loc2Name: string; minutes: number }> = [];
       for (let i = 0; i < locs.length; i++) {
@@ -2063,7 +2038,6 @@ Return the complete extracted text.`
       classStatuses,
       pinnedSets,
       activePinnedSetId,
-      stagedClasses,
       stagedClassSelections,
       importText,
       importLocationId,
@@ -2253,8 +2227,10 @@ Return the complete extracted text.`
                   </h3>
 
                   {/* Existing locations */}
-                  {derive(locations, (locs) =>
-                    locs.length > 0 ? (
+                  {derive(locations, (rawLocs) => {
+                    // Defensive filtering: arrays may contain undefined elements
+                    const locs = (rawLocs || []).filter((l) => l != null);
+                    return locs.length > 0 ? (
                       <ct-vstack style="gap: 8px; margin-bottom: 16px;">
                         {locs.map((loc) => (
                           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
@@ -2279,8 +2255,8 @@ Return the complete extracted text.`
                       <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
                         No locations added yet.
                       </div>
-                    )
-                  )}
+                    );
+                  })}
 
                   {/* Add new location form */}
                   <div style="border-top: 1px solid #e5e7eb; padding-top: 12px;">
@@ -2498,7 +2474,7 @@ Return the complete extracted text.`
                         $value={importLocationId}
                         items={derive(locations, (locs: Location[]) => [
                           { label: "Select a location...", value: "" },
-                          ...locs.map((loc: Location) => ({ label: loc.name, value: loc.id }))
+                          ...(locs || []).filter((l) => l != null).map((loc) => ({ label: loc.name, value: loc.id }))
                         ])}
                       />
                     )}
@@ -2657,6 +2633,8 @@ Return the complete extracted text.`
                           {autoKeptClasses.map((cls: StagedClassWithSelection) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                {/* TODO: Individual checkbox toggle doesn't work - onClick inside computed.map()
+                                    causes framework issues. All/None buttons work as workaround. */}
                                 <ct-checkbox
                                   checked={cls.selected}
                                   disabled
@@ -2799,7 +2777,7 @@ Return the complete extracted text.`
                         <ct-button
                           variant="default"
                           style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
-                          onClick={confirmImport({ classes, stagedClasses, stagedClassSelections, importText })}
+                          onClick={() => doConfirmImport()}
                         >
                           ✅ Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
                         </ct-button>
