@@ -278,6 +278,44 @@ function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): { overlaps: boolean
 }
 
 // ============================================================================
+// WEEKLY SCHEDULE VIEW HELPERS
+// ============================================================================
+
+// Schedule display constants
+const SCHEDULE_DAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const SCHEDULE_START_HOUR = 14;  // 2 PM
+const SCHEDULE_END_HOUR = 18;    // 6 PM
+const SCHEDULE_HOUR_HEIGHT = 60; // pixels per hour
+
+// Calculate top position for a time within the schedule
+function timeToTopPosition(timeStr: string): number {
+  const mins = parseTimeToMinutes(timeStr);
+  if (mins < 0) return 0;
+  const startMins = SCHEDULE_START_HOUR * 60;
+  const offsetMins = mins - startMins;
+  return (offsetMins / 60) * SCHEDULE_HOUR_HEIGHT;
+}
+
+// Calculate height for a duration
+function durationToHeight(startStr: string, endStr: string): number {
+  const startMins = parseTimeToMinutes(startStr);
+  const endMins = parseTimeToMinutes(endStr);
+  if (startMins < 0 || endMins < 0) return SCHEDULE_HOUR_HEIGHT; // default 1 hour
+  const durationMins = endMins - startMins;
+  return (durationMins / 60) * SCHEDULE_HOUR_HEIGHT;
+}
+
+// Color palette for classes (by index)
+const CLASS_COLORS = [
+  { bg: "#e3f2fd", border: "#1976d2" }, // blue
+  { bg: "#f3e5f5", border: "#7b1fa2" }, // purple
+  { bg: "#e8f5e9", border: "#388e3c" }, // green
+  { bg: "#fff3e0", border: "#f57c00" }, // orange
+  { bg: "#fce4ec", border: "#c2185b" }, // pink
+  { bg: "#e0f7fa", border: "#0097a7" }, // cyan
+];
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -779,6 +817,132 @@ Return all visible text.`
                       </span>
                     </div>
                   ))}
+                </div>
+              );
+            })}
+
+            {/* Weekly Schedule View */}
+            {derive(pinnedClasses, (pinned: Class[]) => {
+              const list = pinned as Class[];
+              if (!list || list.length === 0) return null;
+
+              const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
+              const hourLabels: Array<{ hour: number; label: string }> = [];
+              for (let h = SCHEDULE_START_HOUR; h <= SCHEDULE_END_HOUR; h++) {
+                const label = h > 12 ? `${h - 12}pm` : h === 12 ? "12pm" : `${h}am`;
+                hourLabels.push({ hour: h, label });
+              }
+
+              return (
+                <div style={{ marginTop: "1rem" }}>
+                  <h4 style={{ marginBottom: "0.5rem" }}>Weekly Schedule</h4>
+                  <div style={{ display: "flex", border: "1px solid #e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
+                    {/* Time labels column */}
+                    <div style={{ width: "50px", flexShrink: 0, borderRight: "1px solid #e0e0e0", background: "#fafafa" }}>
+                      <div style={{ height: "30px", borderBottom: "1px solid #e0e0e0" }} />
+                      <div style={{ position: "relative", height: `${totalHeight}px` }}>
+                        {hourLabels.map(({ hour, label }) => (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: `${(hour - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT - 8}px`,
+                              right: "4px",
+                              fontSize: "0.7em",
+                              color: "#666",
+                            }}
+                          >
+                            {label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Day columns */}
+                    {SCHEDULE_DAYS.map((day) => {
+                      // Get classes for this day
+                      const dayClasses = list.filter((cls) =>
+                        (cls.timeSlots || []).some((slot) => slot.day === day)
+                      );
+
+                      return (
+                        <div style={{ flex: 1, borderRight: "1px solid #e0e0e0", minWidth: "80px" }}>
+                          {/* Day header */}
+                          <div
+                            style={{
+                              height: "30px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              borderBottom: "1px solid #e0e0e0",
+                              background: "#fafafa",
+                              fontSize: "0.8em",
+                              fontWeight: "bold",
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {day.slice(0, 3)}
+                          </div>
+
+                          {/* Time grid */}
+                          <div style={{ position: "relative", height: `${totalHeight}px`, background: "#fff" }}>
+                            {/* Hour lines */}
+                            {hourLabels.slice(0, -1).map(({ hour }) => (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: `${(hour - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT}px`,
+                                  left: 0,
+                                  right: 0,
+                                  borderTop: "1px dashed #eee",
+                                }}
+                              />
+                            ))}
+
+                            {/* Classes for this day */}
+                            {dayClasses.map((cls, classIdx) => {
+                              const slots = (cls.timeSlots || []).filter((slot) => slot.day === day);
+                              const colorIdx = list.indexOf(cls) % CLASS_COLORS.length;
+                              const colors = CLASS_COLORS[colorIdx];
+
+                              return slots.map((slot) => {
+                                const top = timeToTopPosition(slot.startTime);
+                                const height = durationToHeight(slot.startTime, slot.endTime);
+
+                                return (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: `${top}px`,
+                                      left: "2px",
+                                      right: "2px",
+                                      height: `${Math.max(height - 2, 20)}px`,
+                                      background: colors.bg,
+                                      border: `1px solid ${colors.border}`,
+                                      borderRadius: "3px",
+                                      padding: "2px 4px",
+                                      fontSize: "0.7em",
+                                      overflow: "hidden",
+                                      cursor: "default",
+                                    }}
+                                    title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location.name}`}
+                                  >
+                                    <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {cls.name}
+                                    </div>
+                                    {height > 35 && (
+                                      <div style={{ fontSize: "0.9em", color: "#666" }}>
+                                        {slot.startTime}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              });
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
