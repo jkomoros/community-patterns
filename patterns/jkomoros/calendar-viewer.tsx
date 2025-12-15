@@ -109,27 +109,11 @@ const toggleCalendar = handler<
   }
 });
 
-const nextPage = handler<unknown, { currentPage: Cell<number> }>(
-  (_, { currentPage }) => {
-    currentPage.set(currentPage.get() + 1);
-  },
-);
-
-const prevPage = handler<unknown, { currentPage: Cell<number> }>(
-  (_, { currentPage }) => {
-    const current = currentPage.get();
-    if (current > 0) {
-      currentPage.set(current - 1);
-    }
-  },
-);
 
 export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
   const hiddenCalendars = cell<string[]>([]);
-  const currentPage = cell(0);
-  const PAGE_SIZE = 10;
 
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 
@@ -143,14 +127,13 @@ export default pattern<{
   const upcomingEvents = derive(events, (evts: CalendarEvent[]) => {
     const now = new Date();
     return [...(evts || [])]
-      .filter((e: CalendarEvent) => new Date(e.startDate) >= now)
+      .filter((e: CalendarEvent) => e?.startDate && new Date(e.startDate) >= now)
       .sort((a: CalendarEvent, b: CalendarEvent) =>
         new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
       );
   });
 
   const totalUpcoming = derive(upcomingEvents, (evts: CalendarEvent[]) => evts.length);
-  const maxPageNum = derive(totalUpcoming, (total: number) => Math.max(0, Math.ceil(total / PAGE_SIZE) - 1));
 
   return {
     [NAME]: derive(eventCount, (count: number) => `Calendar (${count} events)`),
@@ -290,31 +273,21 @@ export default pattern<{
              * other patterns to access via linking.
              */
             <div style={{ padding: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                <div style={{ fontSize: "18px", fontWeight: "bold" }}>
-                  Upcoming Events ({totalUpcoming} total)
-                </div>
-                <div style={{ fontSize: "12px", color: "#666" }}>
-                  Showing {derive(currentPage, (p: number) => p * PAGE_SIZE + 1)}-{derive({ currentPage, totalUpcoming }, ({ currentPage: p, totalUpcoming: total }: { currentPage: number; totalUpcoming: number }) => Math.min((p + 1) * PAGE_SIZE, total))} of {totalUpcoming}
-                </div>
+              <div style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "8px" }}>
+                Upcoming Events ({totalUpcoming} total)
               </div>
-              <p style={{ fontSize: "14px", color: "#666", margin: "0 0 16px 0" }}>
-                Full event data available for other patterns via linking.
-                (Paginated for performance - rendering 200+ items causes CPU issues)
-              </p>
 
-              {derive({ upcomingEvents, currentPage }, ({ upcomingEvents: evts, currentPage: page }: { upcomingEvents: CalendarEvent[]; currentPage: number }) => {
-                const start = page * PAGE_SIZE;
-                const end = Math.min(start + PAGE_SIZE, evts.length);
-                const pageEvents = evts.slice(start, end);
-
-                if (pageEvents.length === 0) {
+              {derive(upcomingEvents, (evts: CalendarEvent[]) => {
+                if (!evts || evts.length === 0) {
                   return <div style={{ color: "#999" }}>No upcoming events</div>;
                 }
 
+                // Show first 10 events (simplified - no pagination)
+                const displayEvents = evts.slice(0, 10);
+
                 return (
                   <div>
-                    {pageEvents.map((evt: CalendarEvent, idx: number) => (
+                    {displayEvents.map((evt: CalendarEvent, idx: number) => (
                       <div
                         key={idx}
                         style={{
@@ -348,40 +321,6 @@ export default pattern<{
                 );
               })}
 
-              {/* Pagination controls */}
-              {ifElse(
-                derive(totalUpcoming, (t: number) => t > PAGE_SIZE),
-                <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "12px" }}>
-                  <button
-                    onClick={prevPage({ currentPage })}
-                    disabled={derive(currentPage, (p: number) => p === 0)}
-                    style={{
-                      padding: "6px 12px",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ← Previous
-                  </button>
-                  <span style={{ padding: "6px 12px", fontSize: "14px" }}>
-                    Page {derive(currentPage, (p: number) => p + 1)} of {derive(maxPageNum, (m: number) => m + 1)}
-                  </span>
-                  <button
-                    onClick={nextPage({ currentPage })}
-                    disabled={derive({ currentPage, maxPageNum }, ({ currentPage: p, maxPageNum: max }: { currentPage: number; maxPageNum: number }) => p >= max)}
-                    style={{
-                      padding: "6px 12px",
-                      border: "1px solid #ddd",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Next →
-                  </button>
-                </div>,
-                <div />
-              )}
             </div>
           )}
         </div>
