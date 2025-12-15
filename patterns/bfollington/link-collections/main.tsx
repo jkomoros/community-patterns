@@ -14,7 +14,7 @@ import type {
   Link,
   LinkCollectionsInput,
   LinkCollectionsOutput,
-} from "./schemas.tsx";
+} from "./schemas.ts";
 import CollectionDetail from "./collection.tsx";
 
 /**
