@@ -2614,8 +2614,9 @@ Return the complete extracted text.`
                                     <ct-checkbox
                                       checked={cls.selected}
                                       onClick={() => {
-                                        const current = selections.get();
-                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                        // Use .key() pattern to toggle - avoids spread issues
+                                        const currentValue = selections.key(cls.id).get() ?? false;
+                                        selections.key(cls.id).set(!currentValue);
                                       }}
                                     />
                                   <div style="flex: 1;">
@@ -2655,8 +2656,9 @@ Return the complete extracted text.`
                                     <ct-checkbox
                                       checked={cls.selected}
                                       onClick={() => {
-                                        const current = selections.get();
-                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                        // Use .key() pattern to toggle - avoids spread issues
+                                        const currentValue = selections.key(cls.id).get() ?? false;
+                                        selections.key(cls.id).set(!currentValue);
                                       }}
                                     />
                                     <div style="flex: 1;">
@@ -2696,8 +2698,9 @@ Return the complete extracted text.`
                                     <ct-checkbox
                                       checked={cls.selected}
                                       onClick={() => {
-                                        const current = selections.get();
-                                        selections.set({ ...current, [cls.id]: !current[cls.id] });
+                                        // Use .key() pattern to toggle - avoids spread issues
+                                        const currentValue = selections.key(cls.id).get() ?? false;
+                                        selections.key(cls.id).set(!currentValue);
                                       }}
                                     />
                                     <div style="flex: 1;">
