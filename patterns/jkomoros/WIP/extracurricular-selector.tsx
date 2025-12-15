@@ -338,21 +338,25 @@ const setTravelTime = handler<
 });
 
 // Confirm import handler - moves selected staged classes to main classes list
-// NOTE: Uses separate stagedClasses (data) + stagedClassSelections (Record<id, boolean>) architecture
+// NOTE: Uses separate stagedClasses (data) + stagedClassSelections (Record<id, {selected: boolean}>) architecture
 // because $checked binding on computed array items causes ReadOnlyAddressError
+// Boolean must be wrapped in object because framework storage can't handle primitives at key paths
 const confirmImport = handler<
   unknown,
   {
     classes: Cell<Class[]>;
     stagedClasses: Cell<StagedClass[]>;
-    stagedClassSelections: Cell<Record<string, boolean>>;
+    stagedClassSelections: Cell<Default<Record<string, boolean>, {}>>;
     importText: Cell<string>;
   }
 >((_, { classes, stagedClasses, stagedClassSelections, importText }) => {
   // Get staged classes where user has selected them for import
   const staged = stagedClasses.get();
   const selections = stagedClassSelections.get() || {};
-  const toImport = staged.filter((c) => selections[c.id] === true);
+  // Use lazy defaults: auto_kept → true by default, others → false
+  const toImport = staged.filter((c) =>
+    selections[c.id] ?? (c.triageStatus === "auto_kept")
+  );
 
   if (toImport.length === 0) return;
 
@@ -384,6 +388,26 @@ const confirmImport = handler<
   // Clear staged classes and selections
   stagedClasses.set([]);
   stagedClassSelections.set({});
+});
+
+// Select/deselect all classes in a triage category
+// These handlers work because they're invoked from OUTSIDE the computed map context
+const selectAllInCategory = handler<
+  unknown,
+  {
+    selections: Cell<Default<Record<string, boolean>, {}>>;
+    stagedClasses: Cell<StagedClass[]>;
+    triageStatus: TriageStatus;
+    selected: boolean;
+  }
+>((_, { selections, stagedClasses, triageStatus, selected }) => {
+  const staged = stagedClasses.get();
+  const current = selections.get() || {};
+  const updated = { ...current };
+  staged.filter(c => c.triageStatus === triageStatus).forEach(c => {
+    updated[c.id] = selected;
+  });
+  selections.set(updated);
 });
 
 // Manual class entry handler
@@ -1044,11 +1068,12 @@ interface ExtracurricularSelectorInput {
   activePinnedSetId: Default<string, "">;
   // Import state - Cell for $value binding
   stagedClasses: Default<StagedClass[], []>;
-  // Staged class selections - separate Cell<Record<id, boolean>> for writable checkbox state
+  // Staged class selections - separate Cell<Record<id, {selected: boolean}>> for writable checkbox state
   // NOTE: We can't use $checked on array items from computed() - they become read-only
   // So we track selections separately and combine with processedStagedClasses for display
-  // Using Cell<> without Default<> for direct closure capture compatibility (like todo-list.tsx)
-  stagedClassSelections: Cell<Record<string, boolean>>;
+  // Uses Default<> to ensure cell starts as {} (required for .key().set() to work)
+  // Lazy defaults at read time: auto_kept → true, others → false
+  stagedClassSelections: Default<Record<string, boolean>, {}>;
   importText: Cell<Default<string, "">>;
   importLocationId: Cell<Default<string, "">>;
 }
@@ -1107,6 +1132,25 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
 
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = cell<string>("");
+
+    // Plain function for toggling staged class selection
+    // Defined here at pattern level to capture stagedClassSelections BEFORE any derive() context
+    // This avoids the read-only proxy issue when accessing cells via closure inside derive
+    const doToggleSelection = (classId: string, currentSelected: boolean) => {
+      const current = stagedClassSelections.get() || {};
+      stagedClassSelections.set({ ...current, [classId]: !currentSelected });
+    };
+
+    // Plain function for selecting/deselecting all classes in a triage category
+    // Uses same pattern as doToggleSelection - .get() and .set() work on argument cells
+    const doSelectAllInCategory = (triageStatus: TriageStatus, selected: boolean) => {
+      const current = stagedClassSelections.get() || {};
+      const updated: Record<string, boolean> = { ...current };
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === triageStatus).forEach((c: StagedClass) => {
+        updated[c.id] = selected;
+      });
+      stagedClassSelections.set(updated);
+    };
 
     // Note: Selection state uses separate stagedClassSelections Cell<Record<string, boolean>>
     // because $checked on computed array items causes ReadOnlyAddressError
@@ -1265,9 +1309,9 @@ If cost is not specified, use null.`;
                 eligible: { type: "string" },
                 eligibilityReason: { type: "string" },
                 eligibilityConfidence: { type: "number" },
-                cost: { type: ["number", "null"] },
-                costPer: { type: ["string", "null"] },
-                notes: { type: ["string", "null"] },
+                cost: { type: "number", description: "Cost of class, 0 if not specified" },
+                costPer: { type: "string", description: "Cost period: semester, month, or session. Empty string if not specified" },
+                notes: { type: "string", description: "Additional notes, empty string if none" },
               },
             },
           },
@@ -1409,25 +1453,8 @@ Return the complete extracted text.`
       });
     });
 
-    // Initialize default selections (idempotent side effect)
-    // Uses check-before-write pattern per blessed/reactivity.md
-    // - Run 1: Keys don't exist → write defaults
-    // - Run 2+: All keys exist → all skipped, no writes → system settles
-    computed(() => {
-      for (const cls of processedStagedClasses) {
-        // Skip if already set - maintains idempotency
-        if (stagedClassSelections.key(cls.id).get() !== undefined) continue;
-
-        // Default: auto_kept → selected, others → not selected
-        stagedClassSelections.key(cls.id).set(cls.triageStatus === "auto_kept");
-      }
-    });
-
-    // Helper to check if a class is selected - reads from stagedClassSelections
-    const isClassSelected = (classId: string): boolean => {
-      const selections = stagedClassSelections.get() || {};
-      return selections[classId] ?? false;
-    };
+    // No initialization needed - lazy defaults computed at read time
+    // Default: auto_kept → selected (true), others → not selected (false)
 
     // Computed values for staged class counts and checks
     // Now using processedStagedClasses (read-only computed) + stagedClassSelections (writable Cell)
@@ -1446,19 +1473,25 @@ Return the complete extracted text.`
     );
     const hasAutoDiscardedClasses = computed(() => autoDiscardedCount > 0);
     const selectedClassCount = computed(() => {
-      const selections = stagedClassSelections.get() || {};
-      return processedStagedClasses.filter((c: StagedClass) => selections[c.id]).length;
+      // Argument cells are auto-proxied - access directly without .get()
+      const selections = stagedClassSelections || {};
+      // Lazy defaults: auto_kept → true, others → false
+      return processedStagedClasses.filter((c: StagedClass) =>
+        selections[c.id] ?? (c.triageStatus === "auto_kept")
+      ).length;
     });
     const hasSelectedClasses = computed(() => selectedClassCount > 0);
     const selectedClassCountIsOne = computed(() => selectedClassCount === 1);
 
     // Computed: staged classes with selection state for display
     // Combines processedStagedClasses (data) with stagedClassSelections (state)
+    // Uses lazy defaults: auto_kept → true, others → false
     const stagedClassesWithSelections = computed(() => {
-      const selections = stagedClassSelections.get() || {};
+      // Argument cells are auto-proxied - access directly without .get()
+      const selections = stagedClassSelections || {};
       return processedStagedClasses.map((cls: StagedClass) => ({
         ...cls,
-        selected: selections[cls.id] ?? false
+        selected: selections[cls.id] ?? (cls.triageStatus === "auto_kept")
       }));
     });
 
@@ -1472,6 +1505,10 @@ Return the complete extracted text.`
     const autoDiscardedClasses = computed(() =>
       stagedClassesWithSelections.filter((cls: StagedClassWithSelection) => cls.triageStatus === "auto_discarded")
     );
+
+    // NOTE: Checkbox toggle is handled inline in derive callbacks below.
+    // Using handler() inside derive causes "Cannot create cell link" errors.
+    // Instead, pass stagedClassSelections through derive and use direct function calls.
 
     // ========================================================================
     // DERIVED STATE
@@ -2601,39 +2638,43 @@ Return the complete extracted text.`
                     {ifElse(
                       hasAutoKeptClasses,
                       <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 16px;">
-                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #166534;">
-                          Ready to Import ({autoKeptCount})
-                        </h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                          <h3 style="font-size: 14px; font-weight: 600; margin: 0; color: #166534;">
+                            Ready to Import ({autoKeptCount})
+                          </h3>
+                          <div style="display: flex; gap: 8px;">
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: #166534; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("auto_kept", true)}
+                            >All</button>
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: white; color: #166534; border: 1px solid #166534; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("auto_kept", false)}
+                            >None</button>
+                          </div>
+                        </div>
                         <ct-vstack style="gap: 8px;">
-                          {derive(
-                            { autoKeptClasses, stagedClassSelections },
-                            ({ autoKeptClasses: classes, stagedClassSelections: selections }) =>
-                              classes.map((cls: StagedClassWithSelection) => (
-                                <div style="background: white; border-radius: 4px; padding: 8px 12px;">
-                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                    <ct-checkbox
-                                      checked={cls.selected}
-                                      onClick={() => {
-                                        // Use .key() pattern to toggle - avoids spread issues
-                                        const currentValue = selections.key(cls.id).get() ?? false;
-                                        selections.key(cls.id).set(!currentValue);
-                                      }}
-                                    />
-                                  <div style="flex: 1;">
-                                    <div style="font-weight: 500;">{cls.name}</div>
-                                    <div style="font-size: 12px; color: #6b7280;">
-                                      {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
-                                      {cls.cost > 0 && ` - $${cls.cost}`}
-                                      {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
-                                    </div>
-                                    <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
-                                      {cls.eligibilityReason}
-                                    </div>
+                          {autoKeptClasses.map((cls: StagedClassWithSelection) => (
+                            <div style="background: white; border-radius: 4px; padding: 8px 12px;">
+                              <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                <ct-checkbox
+                                  checked={cls.selected}
+                                  disabled
+                                />
+                                <div style="flex: 1;">
+                                  <div style="font-weight: 500;">{cls.name}</div>
+                                  <div style="font-size: 12px; color: #6b7280;">
+                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {cls.cost > 0 && ` - $${cls.cost}`}
+                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                  </div>
+                                  <div style="font-size: 11px; color: #16a34a; margin-top: 2px;">
+                                    {cls.eligibilityReason}
                                   </div>
                                 </div>
                               </div>
-                              ))
-                          )}
+                            </div>
+                          ))}
                         </ct-vstack>
                       </div>,
                       null
@@ -2643,39 +2684,43 @@ Return the complete extracted text.`
                     {ifElse(
                       hasNeedsReviewClasses,
                       <div style="background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 16px;">
-                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #854d0e;">
-                          Needs Review ({needsReviewCount})
-                        </h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                          <h3 style="font-size: 14px; font-weight: 600; margin: 0; color: #854d0e;">
+                            Needs Review ({needsReviewCount})
+                          </h3>
+                          <div style="display: flex; gap: 8px;">
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: #854d0e; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("needs_review", true)}
+                            >All</button>
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: white; color: #854d0e; border: 1px solid #854d0e; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("needs_review", false)}
+                            >None</button>
+                          </div>
+                        </div>
                         <ct-vstack style="gap: 8px;">
-                          {derive(
-                            { needsReviewClasses, stagedClassSelections },
-                            ({ needsReviewClasses: classes, stagedClassSelections: selections }) =>
-                              classes.map((cls: StagedClassWithSelection) => (
-                                <div style="background: white; border-radius: 4px; padding: 8px 12px;">
-                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                    <ct-checkbox
-                                      checked={cls.selected}
-                                      onClick={() => {
-                                        // Use .key() pattern to toggle - avoids spread issues
-                                        const currentValue = selections.key(cls.id).get() ?? false;
-                                        selections.key(cls.id).set(!currentValue);
-                                      }}
-                                    />
-                                    <div style="flex: 1;">
-                                      <div style="font-weight: 500;">{cls.name}</div>
-                                      <div style="font-size: 12px; color: #6b7280;">
-                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
-                                        {cls.cost > 0 && ` - $${cls.cost}`}
-                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
-                                      </div>
-                                      <div style="font-size: 11px; color: #ca8a04; margin-top: 2px;">
-                                        {cls.eligibilityReason} (confidence: {Math.round(cls.eligibilityConfidence * 100)}%)
-                                      </div>
-                                    </div>
+                          {needsReviewClasses.map((cls: StagedClassWithSelection) => (
+                            <div style="background: white; border-radius: 4px; padding: 8px 12px;">
+                              <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                <ct-checkbox
+                                  checked={cls.selected}
+                                  disabled
+                                />
+                                <div style="flex: 1;">
+                                  <div style="font-weight: 500;">{cls.name}</div>
+                                  <div style="font-size: 12px; color: #6b7280;">
+                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {cls.cost > 0 && ` - $${cls.cost}`}
+                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                  </div>
+                                  <div style="font-size: 11px; color: #ca8a04; margin-top: 2px;">
+                                    {cls.eligibilityReason} (confidence: {Math.round(cls.eligibilityConfidence * 100)}%)
                                   </div>
                                 </div>
-                              ))
-                          )}
+                              </div>
+                            </div>
+                          ))}
                         </ct-vstack>
                       </div>,
                       null
@@ -2685,38 +2730,42 @@ Return the complete extracted text.`
                     {ifElse(
                       hasAutoDiscardedClasses,
                       <div style="background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px; padding: 16px;">
-                        <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
-                          Auto-Discarded ({autoDiscardedCount})
-                        </h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                          <h3 style="font-size: 14px; font-weight: 600; margin: 0; color: #6b7280;">
+                            Auto-Discarded ({autoDiscardedCount})
+                          </h3>
+                          <div style="display: flex; gap: 8px;">
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("auto_discarded", true)}
+                            >All</button>
+                            <button
+                              style="font-size: 11px; padding: 2px 8px; background: white; color: #6b7280; border: 1px solid #6b7280; border-radius: 4px; cursor: pointer;"
+                              onClick={() => doSelectAllInCategory("auto_discarded", false)}
+                            >None</button>
+                          </div>
+                        </div>
                         <ct-vstack style="gap: 8px;">
-                          {derive(
-                            { autoDiscardedClasses, stagedClassSelections },
-                            ({ autoDiscardedClasses: classes, stagedClassSelections: selections }) =>
-                              classes.map((cls: StagedClassWithSelection) => (
-                                <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
-                                  <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                    <ct-checkbox
-                                      checked={cls.selected}
-                                      onClick={() => {
-                                        // Use .key() pattern to toggle - avoids spread issues
-                                        const currentValue = selections.key(cls.id).get() ?? false;
-                                        selections.key(cls.id).set(!currentValue);
-                                      }}
-                                    />
-                                    <div style="flex: 1;">
-                                      <div style="font-weight: 500; text-decoration: line-through;">{cls.name}</div>
-                                      <div style="font-size: 12px; color: #9ca3af;">
-                                        {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
-                                        {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
-                                      </div>
-                                      <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
-                                        {cls.eligibilityReason}
-                                      </div>
-                                    </div>
+                          {autoDiscardedClasses.map((cls: StagedClassWithSelection) => (
+                            <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
+                              <div style="display: flex; gap: 12px; align-items: flex-start;">
+                                <ct-checkbox
+                                  checked={cls.selected}
+                                  disabled
+                                />
+                                <div style="flex: 1;">
+                                  <div style="font-weight: 500; text-decoration: line-through;">{cls.name}</div>
+                                  <div style="font-size: 12px; color: #9ca3af;">
+                                    {DAY_LABELS[cls.timeSlots[0]?.day as DayOfWeek] || "?"} {cls.timeSlots[0]?.startTime || "?"}-{cls.timeSlots[0]?.endTime || "?"}
+                                    {cls.gradeMin && ` - Grades ${cls.gradeMin}-${cls.gradeMax}`}
+                                  </div>
+                                  <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">
+                                    {cls.eligibilityReason}
                                   </div>
                                 </div>
-                              ))
-                          )}
+                              </div>
+                            </div>
+                          ))}
                         </ct-vstack>
                       </div>,
                       null
