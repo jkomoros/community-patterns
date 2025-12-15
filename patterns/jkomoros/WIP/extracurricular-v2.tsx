@@ -399,19 +399,25 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     const stagedSelectionOverrides = cell<Record<number, boolean>>({});
 
     // Compute staged classes with triage status based on child's grade
+    // Also idempotently initialize selection defaults using .key().set()
     const computedStagedClasses = computed(() => {
       const response = extractionResponse as any;
       if (!response?.classes) return [] as StagedClass[];
 
-      const childGrade = child.get().grade || "K";
-      const overrides = stagedSelectionOverrides.get();
+      const childGrade = child.get()?.grade || "K";
 
       return response.classes.filter(Boolean).map((cls: ExtractedClassInfo, idx: number) => {
         if (!cls) return null; // Extra safety check
         const triage = triageClass(cls, childGrade as Grade);
-        // Check if user has overridden the selection
         const defaultSelected = triage.status !== "auto_discarded";
-        const isSelected = idx in overrides ? overrides[idx] : defaultSelected;
+
+        // Idempotent: only set default if not already set (per blessed/reactivity.md)
+        if (stagedSelectionOverrides.key(idx).get() === undefined) {
+          stagedSelectionOverrides.key(idx).set(defaultSelected);
+        }
+
+        // Read current selection state from the cell
+        const isSelected = stagedSelectionOverrides.key(idx).get() ?? defaultSelected;
         return {
           ...cls,
           selected: isSelected,
@@ -419,18 +425,6 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           triageReason: triage.reason,
         };
       }).filter(Boolean) as StagedClass[];
-    });
-
-    // Handler to toggle staged class selection
-    // CRITICAL: Don't pass computedStagedClasses here - causes infinite loop!
-    // Instead, pass the current selection state at render time.
-    const toggleStagedSelection = handler<
-      unknown,
-      { overrides: Cell<Record<number, boolean>>; idx: number; currentlySelected: boolean }
-    >((_, { overrides, idx, currentlySelected }) => {
-      const current = overrides.get();
-      // Toggle: set to opposite of current selection state
-      overrides.set({ ...current, [idx]: !currentlySelected });
     });
 
     // Import selected classes - uses computed staged classes with user selections
@@ -1412,17 +1406,10 @@ Return all visible text.`
                               opacity: !s.selected ? 0.6 : 1,
                             }}
                           >
-                            {/* Checkbox to toggle selection */}
-                            <span
-                              onClick={toggleStagedSelection({
-                                overrides: stagedSelectionOverrides,
-                                idx,
-                                currentlySelected: s.selected,
-                              })}
-                              style={{ cursor: "pointer", fontSize: "1.1em" }}
-                            >
-                              {s.selected ? "☑" : "☐"}
-                            </span>
+                            {/* Checkbox with two-way binding to selection state */}
+                            <ct-checkbox
+                              $checked={stagedSelectionOverrides.key(idx)}
+                            />
                             <span style={{ fontWeight: "bold", minWidth: "20px" }}>
                               {getStatusEmoji(s.triageStatus)}
                             </span>
