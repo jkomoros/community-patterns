@@ -29,9 +29,11 @@ interface ChildProfile {
   eligibilityNotes: string;
 }
 
+type LocationType = "afterschool-onsite" | "afterschool-offsite" | "external";
+
 interface Location {
   name: string;
-  type: "afterschool-onsite" | "afterschool-offsite" | "external";
+  type: LocationType;
   address: string;
 }
 
@@ -324,6 +326,9 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
+    // Local cell for new location type when adding a location
+    const newLocationType = cell<LocationType>("afterschool-onsite");
+
     // Handler to update selected location index
     const setLocationIndex = handler<
       { target: { value: string } },
@@ -389,45 +394,62 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       },
     });
 
+    // Cell to track user selection overrides for staged classes (by index)
+    // Map of index -> boolean (true = selected, false = deselected)
+    const stagedSelectionOverrides = cell<Record<number, boolean>>({});
+
     // Compute staged classes with triage status based on child's grade
     const computedStagedClasses = computed(() => {
       const response = extractionResponse as any;
       if (!response?.classes) return [] as StagedClass[];
 
       const childGrade = child.get().grade || "K";
+      const overrides = stagedSelectionOverrides.get();
 
-      return response.classes.map((cls: ExtractedClassInfo) => {
+      return response.classes.filter(Boolean).map((cls: ExtractedClassInfo, idx: number) => {
+        if (!cls) return null; // Extra safety check
         const triage = triageClass(cls, childGrade as Grade);
+        // Check if user has overridden the selection
+        const defaultSelected = triage.status !== "auto_discarded";
+        const isSelected = idx in overrides ? overrides[idx] : defaultSelected;
         return {
           ...cls,
-          selected: triage.status !== "auto_discarded", // Auto-select kept and needs_review
+          selected: isSelected,
           triageStatus: triage.status,
           triageReason: triage.reason,
         };
-      });
+      }).filter(Boolean) as StagedClass[];
     });
 
-    // Import selected (eligible) classes - filters out auto_discarded
+    // Handler to toggle staged class selection
+    // CRITICAL: Don't pass computedStagedClasses here - causes infinite loop!
+    // Instead, pass the current selection state at render time.
+    const toggleStagedSelection = handler<
+      unknown,
+      { overrides: Cell<Record<number, boolean>>; idx: number; currentlySelected: boolean }
+    >((_, { overrides, idx, currentlySelected }) => {
+      const current = overrides.get();
+      // Toggle: set to opposite of current selection state
+      overrides.set({ ...current, [idx]: !currentlySelected });
+    });
+
+    // Import selected classes - uses computed staged classes with user selections
     // Uses handler pattern to avoid closure issues
     const doImportAll = handler<
       unknown,
-      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; extracted: any; trigger: Cell<string>; text: Cell<string>; childCell: Cell<ChildProfile> }
-    >((_, { locIdx, locs, classList, extracted, trigger, text, childCell }) => {
+      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: any; trigger: Cell<string>; text: Cell<string>; overrides: Cell<Record<number, boolean>> }
+    >((_, { locIdx, locs, classList, staged, trigger, text, overrides }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
       if (locationIndex < 0 || locationIndex >= locationList.length) return;
 
       const location = locationList[locationIndex];
-      const response = extracted as any;
-      if (!response?.classes) return;
+      const stagedList = staged as StagedClass[];
+      if (!stagedList || stagedList.length === 0) return;
 
-      // Get child grade for triage
-      const childGrade = childCell.get().grade;
-
-      for (const cls of response.classes) {
-        // Re-run triage to check eligibility
-        const triage = triageClass(cls, childGrade);
-        if (triage.status === "auto_discarded") continue; // Skip ineligible classes
+      // Import only classes that are selected (respects user overrides)
+      for (const cls of stagedList) {
+        if (!cls || !cls.selected) continue; // Skip unselected classes
 
         classList.push({
           name: cls.name || "",
@@ -455,6 +477,7 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       // Clear import state
       trigger.set("");
       text.set("");
+      overrides.set({}); // Reset selection overrides
     });
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
@@ -672,6 +695,25 @@ Return all visible text.`
       { activeCell: Cell<string> }
     >((event, state) => {
       state.activeCell.set(event.target.value);
+    });
+
+    // Handler to toggle pin on a class
+    const togglePinClass = handler<
+      unknown,
+      { classList: Cell<Class[]>; activeSet: Cell<string>; idx: number }
+    >((_, { classList, activeSet, idx }) => {
+      const current = classList.get();
+      const setName = activeSet.get();
+      if (idx < 0 || idx >= current.length) return;
+
+      const cls = current[idx];
+      const currentPins: string[] = Array.isArray(cls.pinnedInSets) ? cls.pinnedInSets : [];
+      const isPinned = currentPins.includes(setName);
+      const newPins = isPinned
+        ? currentPins.filter((s: string) => s !== setName)
+        : [...currentPins, setName];
+      const updated = { ...cls, pinnedInSets: newPins };
+      classList.set(current.toSpliced(idx, 1, updated));
     });
 
     return {
@@ -975,7 +1017,7 @@ Return all visible text.`
                       - {loc.address}
                     </span>
                   )}
-                  <button
+                  <ct-button
                     style={{ marginLeft: "auto" }}
                     onClick={() => {
                       const current = locations.get();
@@ -988,7 +1030,7 @@ Return all visible text.`
                     }}
                   >
                     Remove
-                  </button>
+                  </ct-button>
                 </div>
               ))}
             </div>
@@ -1002,14 +1044,27 @@ Return all visible text.`
               }}
             >
               <h3 style={{ marginBottom: "0.5rem" }}>Add Location</h3>
+              <div style={{ marginBottom: "0.5rem" }}>
+                <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>Type:</label>
+                <ct-select
+                  $value={newLocationType}
+                  items={[
+                    { label: "Afterschool (On-site)", value: "afterschool-onsite" },
+                    { label: "Afterschool (Off-site)", value: "afterschool-offsite" },
+                    { label: "External", value: "external" },
+                  ]}
+                  style={{ padding: "0.25rem" }}
+                />
+              </div>
               <ct-message-input
                 placeholder="Location name (e.g., TBS, BAM)"
+                button-text="Add"
                 onct-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {
                     locations.push({
                       name,
-                      type: "afterschool-onsite",
+                      type: newLocationType.get(),
                       address: "",
                     });
                   }
@@ -1036,37 +1091,28 @@ Return all visible text.`
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      {/* Pin button using inline closure */}
-                      <button
+                      {/* Pin button using handler pattern */}
+                      <ct-button
                         style={{
                           border: "none",
                           borderRadius: "4px",
                           padding: "0.25rem 0.5rem",
                           cursor: "pointer",
                         }}
-                        onClick={() => {
-                          const current = classes.get();
-                          const setName = activeSetName.get();
-                          if (idx >= 0 && idx < current.length) {
-                            const rawPins = current[idx].pinnedInSets;
-                            const currentPins: string[] = Array.isArray(rawPins) ? rawPins : [];
-                            const isPinned = currentPins.indexOf(setName) >= 0;
-                            const newPins = isPinned
-                              ? currentPins.filter((s: string) => s !== setName)
-                              : [...currentPins, setName];
-                            const updated = { ...current[idx], pinnedInSets: newPins };
-                            classes.set(current.toSpliced(idx, 1, updated));
-                          }
-                        }}
+                        onClick={togglePinClass({
+                          classList: classes,
+                          activeSet: activeSetName,
+                          idx,
+                        })}
                       >
                         📍
-                      </button>
+                      </ct-button>
                       <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
                       <span style={{ marginLeft: "0.5rem", color: "#666", fontSize: "0.9em" }}>
                         @ {cls.location.name}
                       </span>
                     </div>
-                    <button
+                    <ct-button
                       onClick={() => {
                         const current = classes.get();
                         const index = current.findIndex((el) => Cell.equals(cls, el));
@@ -1076,7 +1122,7 @@ Return all visible text.`
                       }}
                     >
                       Remove
-                    </button>
+                    </ct-button>
                   </div>
                   {cls.description && (
                     <p style={{ margin: "0.5rem 0", color: "#555", fontSize: "0.9em" }}>
@@ -1220,14 +1266,15 @@ Return all visible text.`
                   </span>
                 </div>
 
-                {/* Error state */}
-                {ifElse(
-                  derive(uploadExtractionError, (e) => e !== null),
-                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
-                    {uploadExtractionError}
-                  </div>,
-                  null
-                )}
+                {/* Error state - only show when error is truthy */}
+                {derive(uploadExtractionError, (e) => {
+                  if (!e) return null;
+                  return (
+                    <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
+                      {e}
+                    </div>
+                  );
+                })}
 
                 {/* Processing state (image OCR) */}
                 {ifElse(
@@ -1252,8 +1299,8 @@ Return all visible text.`
                     $value={previewText}
                   />
                   <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-                    <button
-                      style={{ padding: "0.5rem 1rem", background: "#16a34a", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                    <ct-button
+                      variant="primary"
                       onClick={applyExtractedText({
                         extractedText: uploadExtractedText,
                         importText,
@@ -1263,9 +1310,9 @@ Return all visible text.`
                       })}
                     >
                       Use This Text
-                    </button>
-                    <button
-                      style={{ padding: "0.5rem 1rem" }}
+                    </ct-button>
+                    <ct-button
+                      variant="secondary"
                       onClick={cancelUpload({
                         uploadedFile,
                         extractedText: uploadExtractedText,
@@ -1274,7 +1321,7 @@ Return all visible text.`
                       })}
                     >
                       Cancel
-                    </button>
+                    </ct-button>
                   </div>
                 </div>,
                 null
@@ -1293,7 +1340,7 @@ Return all visible text.`
               </div>
 
               {/* Extract button */}
-              <button
+              <ct-button
                 style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
                 onClick={() => {
                   const text = importText.get();
@@ -1303,7 +1350,7 @@ Return all visible text.`
                 }}
               >
                 Extract Classes
-              </button>
+              </ct-button>
 
               {/* Extraction status */}
               {ifElse(
@@ -1349,7 +1396,7 @@ Return all visible text.`
                         ✓ Eligible: {kept.length} | ? Review: {needsReview.length} | ✗ Ineligible: {discarded.length}
                       </p>
 
-                      {list.map((s: StagedClass) => {
+                      {list.map((s: StagedClass, idx: number) => {
                         const colors = getStatusColor(s.triageStatus);
                         return (
                           <div
@@ -1362,9 +1409,20 @@ Return all visible text.`
                               borderLeft: `3px solid ${colors.border}`,
                               borderRadius: "4px",
                               marginBottom: "0.25rem",
-                              opacity: s.triageStatus === "auto_discarded" ? 0.6 : 1,
+                              opacity: !s.selected ? 0.6 : 1,
                             }}
                           >
+                            {/* Checkbox to toggle selection */}
+                            <span
+                              onClick={toggleStagedSelection({
+                                overrides: stagedSelectionOverrides,
+                                idx,
+                                currentlySelected: s.selected,
+                              })}
+                              style={{ cursor: "pointer", fontSize: "1.1em" }}
+                            >
+                              {s.selected ? "☑" : "☐"}
+                            </span>
                             <span style={{ fontWeight: "bold", minWidth: "20px" }}>
                               {getStatusEmoji(s.triageStatus)}
                             </span>
@@ -1389,28 +1447,23 @@ Return all visible text.`
                         );
                       })}
 
-                      {/* Import button - only imports selected (non-discarded) classes */}
-                      <button
-                        style={{
-                          marginTop: "0.5rem",
-                          padding: "0.5rem 1rem",
-                          background: selectedCount > 0 ? "#1976d2" : "#ccc",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "4px",
-                        }}
+                      {/* Import button - imports selected classes */}
+                      <ct-button
+                        variant="primary"
+                        style={{ marginTop: "0.5rem" }}
+                        disabled={selectedCount === 0}
                         onClick={doImportAll({
                           locIdx: importLocationIndex,
                           locs: locations,
                           classList: classes,
-                          extracted: extractionResponse,
+                          staged: computedStagedClasses,
                           trigger: extractionTriggerText,
                           text: importText,
-                          childCell: child,
+                          overrides: stagedSelectionOverrides,
                         })}
                       >
-                        Import {selectedCount} Eligible Classes
-                      </button>
+                        Import {selectedCount} Selected Classes
+                      </ct-button>
                     </div>
                   );
                 }
