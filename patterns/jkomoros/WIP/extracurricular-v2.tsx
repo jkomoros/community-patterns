@@ -361,26 +361,6 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       state.activeCell.set(event.target.value);
     });
 
-    // Toggle pin state for a class in the active set
-    const togglePin = (
-      classList: Cell<Class[]>,
-      cls: Class,
-      setName: string
-    ) => {
-      const current = classList.get();
-      const index = current.findIndex((el) => Cell.equals(cls, el));
-      if (index >= 0) {
-        const rawPins = current[index].pinnedInSets;
-        const currentPins = Array.isArray(rawPins) ? rawPins : [];
-        const isPinned = currentPins.indexOf(setName) >= 0;
-        const newPins = isPinned
-          ? currentPins.filter((s: string) => s !== setName)  // Unpin
-          : [...currentPins, setName];              // Pin
-        const updated = { ...current[index], pinnedInSets: newPins };
-        classList.set(current.toSpliced(index, 1, updated));
-      }
-    };
-
     return {
       [NAME]: "Extracurricular Selector v2",
       [UI]: (
@@ -573,81 +553,104 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           <div style={{ marginBottom: "2rem" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
 
-            {/* List classes - use derive() to avoid closure issues */}
+            {/* List classes - direct Cell mapping, no derive needed */}
             <div style={{ marginBottom: "1rem" }}>
-              {derive({ classes }, ({ classes: classList }) =>
-                classList.map((cls) => (
-                  <div
-                    style={{
-                      padding: "0.75rem",
-                      background: "#f9f9f9",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "4px",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
-                        <span style={{ marginLeft: "0.5rem", color: "#666", fontSize: "0.9em" }}>
-                          @ {cls.location.name}
-                        </span>
-                      </div>
+              {classes.map((cls, idx) => (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    background: "#f9f9f9",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: "4px",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      {/* Pin button using inline closure */}
                       <button
+                        style={{
+                          border: "none",
+                          borderRadius: "4px",
+                          padding: "0.25rem 0.5rem",
+                          cursor: "pointer",
+                        }}
                         onClick={() => {
-                          const current = classList.get();
-                          const index = current.findIndex((el) => Cell.equals(cls, el));
-                          if (index >= 0) {
-                            classList.set(current.toSpliced(index, 1));
+                          const current = classes.get();
+                          const setName = activeSetName.get();
+                          if (idx >= 0 && idx < current.length) {
+                            const rawPins = current[idx].pinnedInSets;
+                            const currentPins: string[] = Array.isArray(rawPins) ? rawPins : [];
+                            const isPinned = currentPins.indexOf(setName) >= 0;
+                            const newPins = isPinned
+                              ? currentPins.filter((s: string) => s !== setName)
+                              : [...currentPins, setName];
+                            const updated = { ...current[idx], pinnedInSets: newPins };
+                            classes.set(current.toSpliced(idx, 1, updated));
                           }
                         }}
                       >
-                        Remove
+                        📍
                       </button>
+                      <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
+                      <span style={{ marginLeft: "0.5rem", color: "#666", fontSize: "0.9em" }}>
+                        @ {cls.location.name}
+                      </span>
                     </div>
-                    {cls.description && (
-                      <p style={{ margin: "0.5rem 0", color: "#555", fontSize: "0.9em" }}>
-                        {cls.description}
-                      </p>
-                    )}
-                    {/* Status checkboxes - embedded state */}
-                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={cls.statuses.registered}
-                          onChange={() => toggleStatus(classList, cls, "registered")}
-                        />
-                        Registered
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={cls.statuses.confirmed}
-                          onChange={() => toggleStatus(classList, cls, "confirmed")}
-                        />
-                        Confirmed
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={cls.statuses.paid}
-                          onChange={() => toggleStatus(classList, cls, "paid")}
-                        />
-                        Paid
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={cls.statuses.onCalendar}
-                          onChange={() => toggleStatus(classList, cls, "onCalendar")}
-                        />
-                        On Calendar
-                      </label>
-                    </div>
+                    <button
+                      onClick={() => {
+                        const current = classes.get();
+                        const index = current.findIndex((el) => Cell.equals(cls, el));
+                        if (index >= 0) {
+                          classes.set(current.toSpliced(index, 1));
+                        }
+                      }}
+                    >
+                      Remove
+                    </button>
                   </div>
-                ))
-              )}
+                  {cls.description && (
+                    <p style={{ margin: "0.5rem 0", color: "#555", fontSize: "0.9em" }}>
+                      {cls.description}
+                    </p>
+                  )}
+                  {/* Status checkboxes - embedded state */}
+                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                      <input
+                        type="checkbox"
+                        checked={cls.statuses.registered}
+                        onChange={() => toggleStatus(classes, cls, "registered")}
+                      />
+                      Registered
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                      <input
+                        type="checkbox"
+                        checked={cls.statuses.confirmed}
+                        onChange={() => toggleStatus(classes, cls, "confirmed")}
+                      />
+                      Confirmed
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                      <input
+                        type="checkbox"
+                        checked={cls.statuses.paid}
+                        onChange={() => toggleStatus(classes, cls, "paid")}
+                      />
+                      Paid
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                      <input
+                        type="checkbox"
+                        checked={cls.statuses.onCalendar}
+                        onChange={() => toggleStatus(classes, cls, "onCalendar")}
+                      />
+                      On Calendar
+                    </label>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Add class form */}
