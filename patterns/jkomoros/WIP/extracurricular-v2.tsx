@@ -110,10 +110,11 @@ type FileData = {
 type ProcessingStatus = "idle" | "processing" | "complete" | "error";
 
 // Staged class for import preview - selection state ON object
+// Triage computed when populating (re-populates on grade change via separate logic)
 interface StagedClass extends ExtractedClassInfo {
-  selected: boolean;  // STATE ON OBJECT
-  triageStatus: TriageStatus;
-  triageReason: string;
+  selected: Default<boolean, true>;  // Default<> enables cell-like $checked binding
+  triageStatus: TriageStatus;        // Pre-computed when populating
+  triageReason: string;              // Pre-computed when populating
 }
 
 // ============================================================================
@@ -127,6 +128,9 @@ interface ExtracurricularInput {
   // Phase 5: Pinned sets
   pinnedSetNames: Cell<string[]>;  // Available set names
   activeSetName: Cell<string>;     // Currently active set
+  // Staged classes for import preview - pattern input for idiomatic $checked binding
+  // Cell<Default<>> wrapper enables cell-like property access in .map()
+  stagedClasses: Cell<Default<StagedClass[], []>>;
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -322,7 +326,7 @@ const CLASS_COLORS = [
 // ============================================================================
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes, child, pinnedSetNames, activeSetName }) => {
+  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses }) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
@@ -394,54 +398,63 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       },
     });
 
-    // Cell to track user selection overrides for staged classes (by index)
-    // Map of index -> boolean (true = selected, false = deselected)
-    const stagedSelectionOverrides = cell<Record<number, boolean>>({});
+    // NOTE: stagedClasses is a PATTERN INPUT (not a local cell) because:
+    // - Local cells don't support cell-like property access in .map()
+    // - Pattern inputs DO support $checked={item.selected} binding
+    // - This enables the idiomatic "state on objects" pattern
+    // Trade-off: stagedClasses persists across sessions (can be cleared on import)
 
-    // Compute staged classes with triage status based on child's grade
-    // Also idempotently initialize selection defaults using .key().set()
-    const computedStagedClasses = computed(() => {
+    // Track last processed extraction to detect new extractions
+    const lastProcessedExtractionText = cell<string>("");
+
+    // Populate stagedClasses when extraction completes (idempotent side effect)
+    // Pre-computes triage at population time (not render time) to avoid Cell.map() closure issues
+    computed(() => {
       const response = extractionResponse as any;
-      if (!response?.classes) return [] as StagedClass[];
+      const triggerText = extractionTriggerText.get();
+      const lastText = lastProcessedExtractionText.get();
 
+      // Skip if no response or same extraction already processed
+      if (!response?.classes || !triggerText) return;
+      if (triggerText === lastText) return;
+
+      // New extraction complete - populate stagedClasses with pre-computed triage
       const childGrade = child.get()?.grade || "K";
 
-      return response.classes.filter(Boolean).map((cls: ExtractedClassInfo, idx: number) => {
-        if (!cls) return null; // Extra safety check
+      // Clear existing staged classes first
+      stagedClasses.set([]);
+
+      // Push each class individually - this ensures proper Cell wrapping for $checked binding
+      // (Different from .set(array) which may not wrap nested properties correctly)
+      response.classes.filter(Boolean).forEach((cls: ExtractedClassInfo) => {
+        if (!cls) return;
         const triage = triageClass(cls, childGrade as Grade);
-        const defaultSelected = triage.status !== "auto_discarded";
-
-        // Idempotent: only set default if not already set (per blessed/reactivity.md)
-        if (stagedSelectionOverrides.key(idx).get() === undefined) {
-          stagedSelectionOverrides.key(idx).set(defaultSelected);
-        }
-
-        // Read current selection state from the cell
-        const isSelected = stagedSelectionOverrides.key(idx).get() ?? defaultSelected;
-        return {
+        stagedClasses.push({
           ...cls,
-          selected: isSelected,
-          triageStatus: triage.status,
-          triageReason: triage.reason,
-        };
-      }).filter(Boolean) as StagedClass[];
+          selected: triage.status !== "auto_discarded",  // Triage affects initial selection
+          triageStatus: triage.status,    // Pre-computed - no Cell access needed in JSX
+          triageReason: triage.reason,    // Pre-computed - no Cell access needed in JSX
+        });
+      });
+
+      lastProcessedExtractionText.set(triggerText);
     });
 
-    // Import selected classes - uses computed staged classes with user selections
+    // Import selected classes - uses stagedClasses cell directly
     // Uses handler pattern to avoid closure issues
     const doImportAll = handler<
       unknown,
-      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: any; trigger: Cell<string>; text: Cell<string>; overrides: Cell<Record<number, boolean>> }
-    >((_, { locIdx, locs, classList, staged, trigger, text, overrides }) => {
+      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: Cell<StagedClass[]>; trigger: Cell<string>; text: Cell<string>; lastText: Cell<string> }
+    >((_, { locIdx, locs, classList, staged, trigger, text, lastText }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
       if (locationIndex < 0 || locationIndex >= locationList.length) return;
 
       const location = locationList[locationIndex];
-      const stagedList = staged as StagedClass[];
+      const stagedList = staged.get();
       if (!stagedList || stagedList.length === 0) return;
 
-      // Import only classes that are selected (respects user overrides)
+      // Import only classes that are selected
       for (const cls of stagedList) {
         if (!cls || !cls.selected) continue; // Skip unselected classes
 
@@ -471,7 +484,8 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       // Clear import state
       trigger.set("");
       text.set("");
-      overrides.set({}); // Reset selection overrides
+      staged.set([]);  // Clear staged classes
+      lastText.set(""); // Allow re-extraction
     });
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
@@ -636,6 +650,34 @@ Return all visible text.`
       const textFromFile = uploadExtractedText.get();
       const textFromOcr = (ocrResult as any)?.extractedText || "";
       return textFromFile || textFromOcr;
+    });
+
+    // =========================================================================
+    // STAGED CLASSES DISPLAY VALUES (computed, not derive)
+    // =========================================================================
+
+    // Computed: whether there are staged classes to show
+    const hasStaged = computed(() => {
+      const list = stagedClasses.get();
+      return list && list.length > 0;
+    });
+
+    // Computed: count of selected staged classes
+    const selectedCount = computed(() => {
+      const list = stagedClasses.get();
+      if (!list) return 0;
+      return list.filter(s => s.selected).length;
+    });
+
+    // Computed: triage counts for display (uses pre-computed triageStatus on objects)
+    const triageCounts = computed(() => {
+      const list = stagedClasses.get();
+      if (!list || list.length === 0) return { kept: 0, needsReview: 0, discarded: 0 };
+      return {
+        kept: list.filter(s => s.triageStatus === "auto_kept").length,
+        needsReview: list.filter(s => s.triageStatus === "needs_review").length,
+        discarded: list.filter(s => s.triageStatus === "auto_discarded").length,
+      };
     });
 
     // =========================================================================
@@ -1353,107 +1395,94 @@ Return all visible text.`
                 null
               )}
 
-              {/* Show extracted classes with triage status */}
-              {derive({ computedStagedClasses }, ({ computedStagedClasses: staged }) => {
-                  // In derive, values are already unwrapped - no .get() needed
-                  const list = staged as StagedClass[];
-                  if (!list || list.length === 0) return null;
+              {/* Show extracted classes with triage status - idiomatic pattern */}
+              {/* stagedClasses is pattern input Cell<Default<StagedClass[], []>> */}
+              {/* CRITICAL: Only access properties of 's' - NO external cell access (like child) */}
+              {/* Triage is pre-computed at population time to avoid Cell.map() closure issues */}
+              {stagedClasses.map((s) => {
+                // Use pre-computed triage - stored on object, no external cell access
+                const colors = s.triageStatus === "auto_kept"
+                  ? { bg: "#e8f5e9", border: "#4caf50" }
+                  : s.triageStatus === "needs_review"
+                  ? { bg: "#fff3e0", border: "#ff9800" }
+                  : { bg: "#ffebee", border: "#f44336" };
 
-                  // Group by triage status
-                  const kept = list.filter(s => s.triageStatus === "auto_kept");
-                  const needsReview = list.filter(s => s.triageStatus === "needs_review");
-                  const discarded = list.filter(s => s.triageStatus === "auto_discarded");
-                  const selectedCount = list.filter(s => s.selected).length;
+                const emoji = s.triageStatus === "auto_kept" ? "✓"
+                  : s.triageStatus === "needs_review" ? "?"
+                  : "✗";
 
-                  const getStatusColor = (status: TriageStatus) => {
-                    switch (status) {
-                      case "auto_kept": return { bg: "#e8f5e9", border: "#4caf50" };
-                      case "needs_review": return { bg: "#fff3e0", border: "#ff9800" };
-                      case "auto_discarded": return { bg: "#ffebee", border: "#f44336" };
-                    }
-                  };
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.5rem",
+                      background: colors.bg,
+                      borderLeft: `3px solid ${colors.border}`,
+                      borderRadius: "4px",
+                      marginBottom: "0.25rem",
+                      opacity: !s.selected ? 0.6 : 1,
+                    }}
+                  >
+                    {/* Direct $checked binding - idiomatic pattern! */}
+                    <ct-checkbox $checked={s.selected} />
+                    <span style={{ fontWeight: "bold", minWidth: "20px" }}>
+                      {emoji}
+                    </span>
+                    <span style={{ fontWeight: "bold" }}>{s.name}</span>
+                    <span style={{ color: "#666", fontSize: "0.85em" }}>
+                      {s.dayOfWeek} {s.startTime}-{s.endTime}
+                    </span>
+                    {s.gradeMin && s.gradeMax && (
+                      <span style={{ color: "#888", fontSize: "0.8em" }}>
+                        Gr {s.gradeMin}-{s.gradeMax}
+                      </span>
+                    )}
+                    {s.cost > 0 && (
+                      <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
+                        ${s.cost}
+                      </span>
+                    )}
+                    <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
+                      {s.triageReason}
+                    </span>
+                  </div>
+                );
+              })}
 
-                  const getStatusEmoji = (status: TriageStatus) => {
-                    switch (status) {
-                      case "auto_kept": return "✓";
-                      case "needs_review": return "?";
-                      case "auto_discarded": return "✗";
-                    }
-                  };
+              {/* Header with triage counts - using computed values */}
+              {ifElse(
+                hasStaged,
+                <div style={{ marginTop: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "4px" }}>
+                  <h4 style={{ marginBottom: "0.5rem" }}>Extracted Classes - Triage Results</h4>
+                  <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.5rem" }}>
+                    ✓ Eligible: {triageCounts.kept} | ? Review: {triageCounts.needsReview} | ✗ Ineligible: {triageCounts.discarded}
+                  </p>
+                </div>,
+                null
+              )}
 
-                  return (
-                    <div style={{ marginTop: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "4px" }}>
-                      <h4 style={{ marginBottom: "0.5rem" }}>
-                        Extracted Classes - Triage Results
-                      </h4>
-                      <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.5rem" }}>
-                        ✓ Eligible: {kept.length} | ? Review: {needsReview.length} | ✗ Ineligible: {discarded.length}
-                      </p>
-
-                      {list.map((s: StagedClass, idx: number) => {
-                        const colors = getStatusColor(s.triageStatus);
-                        return (
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.5rem",
-                              padding: "0.5rem",
-                              background: colors.bg,
-                              borderLeft: `3px solid ${colors.border}`,
-                              borderRadius: "4px",
-                              marginBottom: "0.25rem",
-                              opacity: !s.selected ? 0.6 : 1,
-                            }}
-                          >
-                            {/* Checkbox with two-way binding to selection state */}
-                            <ct-checkbox
-                              $checked={stagedSelectionOverrides.key(idx)}
-                            />
-                            <span style={{ fontWeight: "bold", minWidth: "20px" }}>
-                              {getStatusEmoji(s.triageStatus)}
-                            </span>
-                            <span style={{ fontWeight: "bold" }}>{s.name}</span>
-                            <span style={{ color: "#666", fontSize: "0.85em" }}>
-                              {s.dayOfWeek} {s.startTime}-{s.endTime}
-                            </span>
-                            {s.gradeMin && s.gradeMax && (
-                              <span style={{ color: "#888", fontSize: "0.8em" }}>
-                                Gr {s.gradeMin}-{s.gradeMax}
-                              </span>
-                            )}
-                            {s.cost > 0 && (
-                              <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
-                                ${s.cost}
-                              </span>
-                            )}
-                            <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
-                              {s.triageReason}
-                            </span>
-                          </div>
-                        );
-                      })}
-
-                      {/* Import button - imports selected classes */}
-                      <ct-button
-                        variant="primary"
-                        style={{ marginTop: "0.5rem" }}
-                        disabled={selectedCount === 0}
-                        onClick={doImportAll({
-                          locIdx: importLocationIndex,
-                          locs: locations,
-                          classList: classes,
-                          staged: computedStagedClasses,
-                          trigger: extractionTriggerText,
-                          text: importText,
-                          overrides: stagedSelectionOverrides,
-                        })}
-                      >
-                        Import {selectedCount} Selected Classes
-                      </ct-button>
-                    </div>
-                  );
-                }
+              {/* Import button - using computed values, handler uses original cell refs */}
+              {ifElse(
+                hasStaged,
+                <ct-button
+                  variant="primary"
+                  style={{ marginTop: "0.5rem" }}
+                  disabled={selectedCount === 0}
+                  onClick={doImportAll({
+                    locIdx: importLocationIndex,
+                    locs: locations,
+                    classList: classes,
+                    staged: stagedClasses,
+                    trigger: extractionTriggerText,
+                    text: importText,
+                    lastText: lastProcessedExtractionText,
+                  })}
+                >
+                  Import {selectedCount} Selected Classes
+                </ct-button>,
+                null
               )}
             </div>
           </div>
@@ -1472,6 +1501,9 @@ Return all visible text.`
       child,
       pinnedSetNames,
       activeSetName,
+      // stagedClasses is a pattern INPUT (not local cell) for idiomatic $checked binding
+      // Local cells don't support cell-like property access in .map(); pattern inputs do
+      stagedClasses,
     };
   }
 );
