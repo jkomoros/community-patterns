@@ -81,9 +81,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // -------------------------------------------------------------------------
     // Local UI State
     // -------------------------------------------------------------------------
-    const searchQuery = cell("");
-    const isOpen = cell(false);
-    const highlightedIndex = cell(0); // Index of currently highlighted item
+    const searchQuery = Cell.of("");
+    const isOpen = Cell.of(false);
+    const highlightedIndex = Cell.of(0); // Index of currently highlighted item
 
     // -------------------------------------------------------------------------
     // Derived Data (using computed() with direct cell access)

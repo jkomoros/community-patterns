@@ -1212,7 +1212,7 @@ When you're done searching, STOP calling tools and produce your final structured
     const boundCompleteScan = completeScan({ lastScanAt, isScanning });
 
     // Track if debug log is expanded (local UI state)
-    const debugExpanded = cell(false);
+    const debugExpanded = Cell.of(false);
     const toggleDebug = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
       state.expanded.set(!state.expanded.get());
     });
@@ -2281,7 +2281,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     });
 
     // Track if pending submissions UI is expanded
-    const pendingSubmissionsExpanded = cell(false);
+    const pendingSubmissionsExpanded = Cell.of(false);
     const togglePendingSubmissions = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
       state.expanded.set(!state.expanded.get());
     });

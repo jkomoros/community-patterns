@@ -735,15 +735,15 @@ export default pattern<{
   accountType: Default<AccountType, "default">;
 }, Output>(
   ({ settings, authCharm, accountType }) => {
-    const emails = cell<Confidential<Email[]>>([]);
-    const showAuth = cell(false);
-    const fetching = cell(false);
+    const emails = Cell.of<Confidential<Email[]>>([]);
+    const showAuth = Cell.of(false);
+    const fetching = Cell.of(false);
 
     // Local writable cell for account type selection
     // Input `accountType` may be read-only (Default cells are read-only when using default value)
     // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
     // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
-    const selectedAccountType = cell<AccountType>("default");
+    const selectedAccountType = Cell.of<AccountType>("default");
 
     // Handler to change account type (writes to local writable cell)
     const setAccountType = handler<

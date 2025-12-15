@@ -824,7 +824,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const familyWishResult = wish<FamilyCharm>({ query: "#family" });
 
     // Form state for manual event entry
-    const manualEventForm = cell({
+    const manualEventForm = Cell.of({
       title: "",
       date: "",
       location: "",
@@ -835,17 +835,17 @@ const HostingTracker = pattern<HostingTrackerInput>(
     });
 
     // Form state for new rule
-    const newRuleForm = cell<Partial<ClassificationRule>>({});
+    const newRuleForm = Cell.of<Partial<ClassificationRule>>({});
 
     // Selected family for event assignment
-    const selectedFamilyId = cell("");
+    const selectedFamilyId = Cell.of("");
 
     // LLM rule suggestion state
     // When this is non-empty, generateObject will run to suggest rules
-    const ruleSuggestionPrompt = cell("");
+    const ruleSuggestionPrompt = Cell.of("");
 
     // Track pending suggestions that user can accept/reject
-    const pendingSuggestions = cell<RuleSuggestion[]>([]);
+    const pendingSuggestions = Cell.of<RuleSuggestion[]>([]);
 
     // Derive list of tracked families from wish result
     // Note: wish({ query }) returns a single match, not an array

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, NAME, patternTool, pattern, UI } from "commontools";
+import { Cell, computed, Default, handler, NAME, patternTool, pattern, UI } from "commontools";
 
 interface ShoppingItem {
   title: string;
@@ -60,13 +60,13 @@ const updateItem = handler<
 export default pattern<InputSchema, Output>(
   ({ title, items }) => {
     // Computed values
-    const totalCount = derive(items, (list) => list.length);
-    const doneCount = derive(items, (list) => list.filter(item => item.done).length);
+    const totalCount = computed(() => items.length);
+    const doneCount = computed(() => items.filter(item => item.done).length);
 
     // Create a search tool for omnibot - takes a query parameter
     const searchItems = patternTool(
       ({ items, query }: { items: ShoppingItem[], query: string }) => {
-        return derive({ items, query }, ({ items, query }) =>
+        return computed(() =>
           items.filter((item: ShoppingItem) =>
             item.title.toLowerCase().includes(query.toLowerCase())
           )

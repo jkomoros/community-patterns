@@ -458,9 +458,9 @@ const PersonResearchGmailAgent = pattern<
     // become read-only when using default values. Create local writable cells
     // for UI input handling.
     // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md
-    const localPersonName = cell("");
-    const localKnownEmail = cell("");
-    const localContextNotes = cell("");
+    const localPersonName = Cell.of("");
+    const localKnownEmail = Cell.of("");
+    const localContextNotes = Cell.of("");
 
     // ========================================================================
     // EFFECTIVE VALUES FROM MANUAL INPUT

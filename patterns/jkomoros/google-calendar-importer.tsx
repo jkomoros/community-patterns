@@ -485,11 +485,11 @@ interface Output {
 
 const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
   ({ settings, authCharm }) => {
-    const events = cell<Confidential<CalendarEvent[]>>([]);
-    const calendars = cell<Calendar[]>([]);
-    const showAuth = cell(false);
-    const fetching = cell(false);
-    const currentPage = cell(0);
+    const events = Cell.of<Confidential<CalendarEvent[]>>([]);
+    const calendars = Cell.of<Calendar[]>([]);
+    const showAuth = Cell.of(false);
+    const fetching = Cell.of(false);
+    const currentPage = Cell.of(0);
     const PAGE_SIZE = 10;
 
     // Wish for a favorited auth charm (unified Google auth)

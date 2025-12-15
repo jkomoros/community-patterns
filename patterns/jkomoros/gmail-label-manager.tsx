@@ -266,11 +266,11 @@ export default pattern<Input, Output>(
     const hasAuth = derive(auth, (a) => !!a?.token);
 
     // UI state
-    const availableLabels = cell<GmailLabel[]>([]);
-    const loadingLabels = cell(false);
-    const pendingOp = cell<LabelOperation | null>(null);
-    const processing = cell(false);
-    const result = cell<OperationResult | null>(null);
+    const availableLabels = Cell.of<GmailLabel[]>([]);
+    const loadingLabels = Cell.of(false);
+    const pendingOp = Cell.of<LabelOperation | null>(null);
+    const processing = Cell.of(false);
+    const result = Cell.of<OperationResult | null>(null);
 
     // Computed
     const messageCount = derive(messageIds, (ids) => ids.length);

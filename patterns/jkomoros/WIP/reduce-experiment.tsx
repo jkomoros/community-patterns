@@ -42,7 +42,7 @@ function isProxy(value: any): boolean {
 // EXPERIMENT 1: Simple array with derive + reduce
 // =============================================================================
 
-const simpleNumbers = cell([1, 2, 3, 4, 5]);
+const simpleNumbers = Cell.of([1, 2, 3, 4, 5]);
 
 const simpleSum = derive([simpleNumbers], (nums) => {
   console.log("[Exp1] nums type:", typeof nums);
@@ -171,7 +171,7 @@ const aggregatedResults = derive([mockLLMResults], (results) => {
 // EXPERIMENT 4: Real map() output with derive reduce
 // =============================================================================
 
-const urls = cell(["url1", "url2", "url3"]);
+const urls = Cell.of(["url1", "url2", "url3"]);
 
 // This creates Cell references in the array
 const fetched = urls.map((url) => ({

@@ -431,9 +431,9 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
   const hasAuth = derive(auth, (a) => !!a?.token);
 
   // UI state
-  const pendingOp = cell<PendingOperation>(null);
-  const processing = cell(false);
-  const result = cell<OperationResult>(null);
+  const pendingOp = Cell.of<PendingOperation>(null);
+  const processing = Cell.of(false);
+  const result = Cell.of<OperationResult>(null);
 
   // Computed helpers
   const hasExistingEvent = derive(existingEvent, (e) => !!e?.id);
