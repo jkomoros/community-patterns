@@ -110,11 +110,15 @@ type FileData = {
 type ProcessingStatus = "idle" | "processing" | "complete" | "error";
 
 // Staged class for import preview - selection state ON object
-// Triage computed when populating (re-populates on grade change via separate logic)
+// Triage AND display values computed when populating (avoids .get() in Cell.map())
 interface StagedClass extends ExtractedClassInfo {
   selected: Default<boolean, true>;  // Default<> enables cell-like $checked binding
   triageStatus: TriageStatus;        // Pre-computed when populating
   triageReason: string;              // Pre-computed when populating
+  // Pre-computed display values (cannot call .get() inside Cell.map())
+  triageEmoji: string;               // ✓, ?, or ✗
+  triageBgColor: string;             // Background color
+  triageBorderColor: string;         // Border color
 }
 
 // ============================================================================
@@ -422,13 +426,23 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const childGrade = child.get()?.grade || "K";
 
       // Construct full array then set once (avoids N+1 reactive updates from .push())
+      // Pre-compute ALL display values here - cannot call .get() inside Cell.map()
       const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
         const triage = triageClass(cls, childGrade as Grade);
+        // Pre-compute display values based on triage status
+        const displayValues = triage.status === "auto_kept"
+          ? { emoji: "✓", bg: "#e8f5e9", border: "#4caf50" }
+          : triage.status === "needs_review"
+          ? { emoji: "?", bg: "#fff3e0", border: "#ff9800" }
+          : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
         return {
           ...cls,
           selected: triage.status !== "auto_discarded",
           triageStatus: triage.status,
           triageReason: triage.reason,
+          triageEmoji: displayValues.emoji,
+          triageBgColor: displayValues.bg,
+          triageBorderColor: displayValues.border,
         };
       });
       stagedClasses.set(newClasses);
@@ -1396,17 +1410,12 @@ Return all visible text.`
               {/* CRITICAL: Only access properties of 's' - NO external cell access (like child) */}
               {/* Triage is pre-computed at population time to avoid Cell.map() closure issues */}
               {stagedClasses.map((s) => {
-                // Use pre-computed triage - stored on object, no external cell access
-                const colors = s.triageStatus === "auto_kept"
-                  ? { bg: "#e8f5e9", border: "#4caf50" }
-                  : s.triageStatus === "needs_review"
-                  ? { bg: "#fff3e0", border: "#ff9800" }
-                  : { bg: "#ffebee", border: "#f44336" };
-
-                const emoji = s.triageStatus === "auto_kept" ? "✓"
-                  : s.triageStatus === "needs_review" ? "?"
-                  : "✗";
-
+                // Inside Cell.map(), ALL properties are auto-wrapped as Cells
+                // - Framework auto-unwraps for JSX text content: {s.name} works
+                // - $checked binding handles cells directly: $checked={s.selected} works
+                // - CANNOT call .get() - causes "space is required" error
+                // - CANNOT do comparisons (s.triageStatus === "foo") - comparing Cell to string
+                // Solution: Pre-compute ALL display values at population time
                 return (
                   <div
                     style={{
@@ -1414,17 +1423,16 @@ Return all visible text.`
                       alignItems: "center",
                       gap: "0.5rem",
                       padding: "0.5rem",
-                      background: colors.bg,
-                      borderLeft: `3px solid ${colors.border}`,
+                      background: s.triageBgColor,
+                      borderLeft: `3px solid ${s.triageBorderColor}`,
                       borderRadius: "4px",
                       marginBottom: "0.25rem",
-                      opacity: !s.selected ? 0.6 : 1,
                     }}
                   >
                     {/* Direct $checked binding - idiomatic pattern! */}
                     <ct-checkbox $checked={s.selected} />
                     <span style={{ fontWeight: "bold", minWidth: "20px" }}>
-                      {emoji}
+                      {s.triageEmoji}
                     </span>
                     <span style={{ fontWeight: "bold" }}>{s.name}</span>
                     <span style={{ color: "#666", fontSize: "0.85em" }}>
@@ -1433,11 +1441,6 @@ Return all visible text.`
                     {s.gradeMin && s.gradeMax && (
                       <span style={{ color: "#888", fontSize: "0.8em" }}>
                         Gr {s.gradeMin}-{s.gradeMax}
-                      </span>
-                    )}
-                    {s.cost > 0 && (
-                      <span style={{ color: "#2e7d32", fontSize: "0.8em" }}>
-                        ${s.cost}
                       </span>
                     )}
                     <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
