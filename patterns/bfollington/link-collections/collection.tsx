@@ -16,7 +16,7 @@ import type {
   CollectionDetailInput,
   CollectionDetailOutput,
   Link,
-} from "./schemas.tsx";
+} from "./schemas.ts";
 
 /**
  * Collection Detail - View/edit a single collection's links
