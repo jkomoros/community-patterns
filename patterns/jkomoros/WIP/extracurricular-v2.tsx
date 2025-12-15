@@ -8,7 +8,7 @@
  * - Embed references (location: Location, not locationId)
  * - Fewer top-level Default<> inputs
  *
- * Phase 5: Pinned Sets
+ * Phase 5.5: Unified File/Image Upload with OCR
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
@@ -86,6 +86,26 @@ interface ExtractionResponse {
 
 // Triage status for eligibility filtering
 type TriageStatus = "auto_kept" | "auto_discarded" | "needs_review";
+
+// ============================================================================
+// PHASE 5.5: FILE/IMAGE UPLOAD TYPES
+// ============================================================================
+
+// File/Image data type for unified upload
+type FileData = {
+  id: string;
+  name: string;
+  url: string;
+  data: string;  // base64 encoded
+  timestamp: number;
+  size: number;
+  type: string;  // MIME type
+  width?: number;
+  height?: number;
+};
+
+// Processing state for uploaded file
+type ProcessingStatus = "idle" | "processing" | "complete" | "error";
 
 // Staged class for import preview - selection state ON object
 interface StagedClass extends ExtractedClassInfo {
@@ -165,6 +185,19 @@ function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: Tria
 }
 
 // ============================================================================
+// PHASE 5.5: FILE TYPE DETECTION
+// ============================================================================
+
+function detectFileType(file: FileData): "image" | "text" | "unsupported" {
+  const mimeType = file.type.toLowerCase();
+  const ext = file.name.toLowerCase().split('.').pop() || '';
+
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("text/") || ["txt", "md", "html", "htm"].includes(ext)) return "text";
+  return "unsupported";
+}
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -189,6 +222,12 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     const importText = cell<string>("");
     const importLocationIndex = cell<number>(-1);
     const extractionTriggerText = cell<string>(""); // Triggers LLM when set
+
+    // Phase 5.5: Unified file/image upload state
+    const uploadedFile = cell<FileData | null>(null);
+    const uploadProcessingStatus = cell<ProcessingStatus>("idle");
+    const uploadExtractedText = cell<string>("");  // Preview/edit buffer
+    const uploadExtractionError = cell<string | null>(null);
 
     // NOTE: For Phase 3, we skip individual selection and just import all extracted classes
     // Selection state can be added in a later phase if needed
@@ -336,6 +375,132 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     >((event, state) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, name: event.target.value });
+    });
+
+    // =========================================================================
+    // PHASE 5.5: FILE/IMAGE UPLOAD HANDLERS
+    // =========================================================================
+
+    // Handle unified file upload
+    const handleFileUpload = handler<
+      { detail: { files: FileData[] } },
+      {
+        uploadedFile: Cell<FileData | null>;
+        processingStatus: Cell<ProcessingStatus>;
+        extractedText: Cell<string>;
+        extractionError: Cell<string | null>;
+      }
+    >(({ detail }, { uploadedFile, processingStatus, extractedText, extractionError }) => {
+      if (!detail?.files || detail.files.length === 0) return;
+
+      const file = detail.files[detail.files.length - 1];  // Take most recent
+      const fileType = detectFileType(file);
+
+      // Reset state
+      extractionError.set(null);
+      extractedText.set("");
+
+      if (fileType === "text") {
+        // Direct text decode
+        try {
+          const base64 = file.data.split(",")[1];
+          const text = atob(base64);
+          extractedText.set(text);
+          processingStatus.set("complete");
+          uploadedFile.set(file);
+        } catch (e) {
+          extractionError.set("Failed to read text file");
+          processingStatus.set("error");
+        }
+      } else if (fileType === "image") {
+        // Trigger OCR (handled by generateObject reactive flow)
+        uploadedFile.set(file);
+        processingStatus.set("processing");
+      } else {
+        extractionError.set("Unsupported file type. Use images or text files.");
+        processingStatus.set("error");
+      }
+    });
+
+    // Apply extracted text to import field
+    const applyExtractedText = handler<
+      unknown,
+      {
+        extractedText: Cell<string>;
+        importText: Cell<string>;
+        uploadedFile: Cell<FileData | null>;
+        processingStatus: Cell<ProcessingStatus>;
+        ocrText: string | null;
+      }
+    >((_, { extractedText, importText, uploadedFile, processingStatus, ocrText }) => {
+      // Use extracted text from file, or OCR result from image
+      const text = extractedText.get() || ocrText || "";
+      if (text) {
+        importText.set(text);
+        // Reset upload state
+        uploadedFile.set(null);
+        extractedText.set("");
+        processingStatus.set("idle");
+      }
+    });
+
+    // Cancel upload and reset state
+    const cancelUpload = handler<
+      unknown,
+      {
+        uploadedFile: Cell<FileData | null>;
+        extractedText: Cell<string>;
+        processingStatus: Cell<ProcessingStatus>;
+        extractionError: Cell<string | null>;
+      }
+    >((_, { uploadedFile, extractedText, processingStatus, extractionError }) => {
+      uploadedFile.set(null);
+      extractedText.set("");
+      processingStatus.set("idle");
+      extractionError.set(null);
+    });
+
+    // Image OCR via generateObject - only fires when image is uploaded
+    // CRITICAL: Use derive() for prompt, not computed() - derive handles generateObject reactivity correctly
+    const { result: ocrResult, pending: ocrPending } = generateObject({
+      model: "anthropic:claude-sonnet-4-5",
+      prompt: derive(uploadedFile, (file: FileData | null) => {
+        // Return empty string to prevent API call when no image
+        if (!file || !file.data || detectFileType(file) !== "image") {
+          return "";
+        }
+
+        return [
+          { type: "image" as const, image: file.data },
+          {
+            type: "text" as const,
+            text: `Extract all text from this image of a class schedule or activity list.
+Preserve the structure and formatting. Include: class names, days, times, grade levels, costs, and any descriptions or notes.
+Return all visible text.`
+          }
+        ];
+      }),
+      schema: {
+        type: "object",
+        properties: {
+          extractedText: { type: "string", description: "All text extracted from the image" },
+        },
+      },
+    });
+
+    // Computed: should show preview step
+    const showPreview = computed(() => {
+      const status = uploadProcessingStatus.get();
+      const ocrText = (ocrResult as any)?.extractedText;
+      const isOcrPending = ocrPending;
+      return status === "complete" || (!isOcrPending && !!ocrText);
+    });
+
+    // Computed: text to show in preview (either from text file or OCR)
+    const previewText = computed(() => {
+      const textFromFile = uploadExtractedText.get();
+      const textFromOcr = (ocrResult as any)?.extractedText || "";
+      return textFromFile || textFromOcr;
     });
 
     // =========================================================================
@@ -732,6 +897,85 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
                 </select>
               </div>
 
+              {/* Phase 5.5: Unified Upload Section */}
+              <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "4px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <ct-file-input
+                    accept="image/*,.txt,.md,.html,.htm"
+                    buttonText="Upload Schedule"
+                    maxSizeBytes={3932160}
+                    onct-change={handleFileUpload({
+                      uploadedFile,
+                      processingStatus: uploadProcessingStatus,
+                      extractedText: uploadExtractedText,
+                      extractionError: uploadExtractionError,
+                    })}
+                  />
+                  <span style={{ fontSize: "0.85em", color: "#64748b" }}>
+                    Photo (for OCR) or text file
+                  </span>
+                </div>
+
+                {/* Error state */}
+                {ifElse(
+                  derive(uploadExtractionError, (e) => e !== null),
+                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
+                    {uploadExtractionError}
+                  </div>,
+                  null
+                )}
+
+                {/* Processing state (image OCR) */}
+                {ifElse(
+                  ocrPending,
+                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#dbeafe", borderRadius: "4px", color: "#1e40af", fontSize: "0.85em" }}>
+                    Extracting text from image...
+                  </div>,
+                  null
+                )}
+              </div>
+
+              {/* Preview Step - shown when extraction complete */}
+              {ifElse(
+                showPreview,
+                <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "4px" }}>
+                  <div style={{ marginBottom: "0.5rem", color: "#166534", fontWeight: "bold", fontSize: "0.9em" }}>
+                    Text Extracted - Review & Edit
+                  </div>
+                  <ct-textarea
+                    style={{ width: "100%", minHeight: "200px", fontFamily: "monospace", fontSize: "0.85em" }}
+                    placeholder="Extracted text will appear here..."
+                    $value={previewText}
+                  />
+                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
+                    <button
+                      style={{ padding: "0.5rem 1rem", background: "#16a34a", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                      onClick={applyExtractedText({
+                        extractedText: uploadExtractedText,
+                        importText,
+                        uploadedFile,
+                        processingStatus: uploadProcessingStatus,
+                        ocrText: (ocrResult as any)?.extractedText || null,
+                      })}
+                    >
+                      Use This Text
+                    </button>
+                    <button
+                      style={{ padding: "0.5rem 1rem" }}
+                      onClick={cancelUpload({
+                        uploadedFile,
+                        extractedText: uploadExtractedText,
+                        processingStatus: uploadProcessingStatus,
+                        extractionError: uploadExtractionError,
+                      })}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>,
+                null
+              )}
+
               {/* Text input for schedule */}
               <div style={{ marginBottom: "0.5rem" }}>
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
@@ -874,7 +1118,7 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
             <h3>Debug Info</h3>
             <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 5: Pinned sets - create and compare different schedule combinations
+              Phase 5.5: Unified file/image upload with OCR preview
             </p>
           </div>
         </div>
