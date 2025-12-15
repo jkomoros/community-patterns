@@ -9,7 +9,7 @@
  * 1. Pre-hoc: Create this directly, log in, and favorite
  * 2. Post-hoc: Created by google-auth-switcher after login
  */
-import { Default, derive, NAME, pattern, UI } from "commontools";
+import { computed, Default, NAME, pattern, UI } from "commontools";
 import GoogleAuth, { Auth } from "./google-auth.tsx";
 
 // Same selected scopes type as base GoogleAuth
@@ -58,8 +58,8 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
   const baseAuth = GoogleAuth({ auth, selectedScopes });
 
   return {
-    [NAME]: derive(baseAuth.auth, (a) =>
-      `Google Auth (Personal)${a?.user?.email ? ` - ${a.user.email}` : ""}`
+    [NAME]: computed(() =>
+      `Google Auth (Personal)${baseAuth.auth?.user?.email ? ` - ${baseAuth.auth.user.email}` : ""}`
     ),
     [UI]: (
       <div>
@@ -87,14 +87,14 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
           >
             PERSONAL
           </span>
-          <span>{derive(baseAuth.auth, (a) => a?.user?.email || "Not logged in")}</span>
+          <span>{computed(() => baseAuth.auth?.user?.email || "Not logged in")}</span>
         </div>
 
         {/* Embed the base auth UI */}
         {baseAuth}
 
         {/* Prominent favorite CTA */}
-        {derive(baseAuth.auth, (a) => a?.user?.email) && (
+        {computed(() => baseAuth.auth?.user?.email) && (
           <div
             style={{
               marginTop: "16px",

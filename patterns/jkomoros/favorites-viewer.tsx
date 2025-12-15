@@ -8,7 +8,7 @@
  * Note: Links to charms in other spaces may not work until
  * navigateTo supports multi-space navigation.
  */
-import { Cell, derive, NAME, pattern, UI, wish } from "commontools";
+import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
 
 // Favorites can have either 'tag' or 'description' field depending on version
 type Favorite = { cell: Cell<{ [NAME]?: string }>; tag?: string; description?: string };
@@ -31,10 +31,7 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
   // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
   const favorites = wish<Array<Favorite>>("#favorites");
 
-  const favoriteCount = derive(
-    favorites,
-    (favs) => favs?.length ?? 0,
-  );
+  const favoriteCount = computed(() => favorites?.length ?? 0);
 
   return {
     [NAME]: "⭐ Favorites",
@@ -58,14 +55,14 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
           <div>
             <h2 style={{ margin: 0 }}>Your Favorites</h2>
             <div style={{ color: "#666", fontSize: "14px" }}>
-              {favoriteCount} favorited charm{derive(favoriteCount, (c) => c === 1 ? "" : "s")}
+              {favoriteCount} favorited charm{computed(() => favoriteCount === 1 ? "" : "s")}
             </div>
           </div>
         </div>
 
 
-        {derive(favoriteCount, (count) =>
-          count === 0
+        {computed(() =>
+          favoriteCount === 0
             ? (
               <div
                 style={{
@@ -112,7 +109,7 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
                   fontFamily: "monospace",
                 }}
               >
-                {derive(fav, (f) => getPrimaryTag(getTag(f)))}
+                {computed(() => getPrimaryTag(getTag(fav)))}
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Default, derive, NAME, pattern, UI } from "commontools";
+import { computed, Default, NAME, pattern, UI } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
 interface SubstackInput {
@@ -34,10 +34,10 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
   const emails = importer.emails;
 
   // Group emails by newsletter (extract from 'from' field)
-  const groupedByNewsletter = derive(emails, (emailList: any[]) => {
+  const groupedByNewsletter = computed(() => {
     const groups: Record<string, Array<{ subject: string; date: string; from: string }>> = {};
 
-    for (const email of emailList) {
+    for (const email of emails as any[]) {
       const subject = email.subject || "No Subject";
       const date = email.date || "";
       const from = email.from || "";
@@ -68,8 +68,8 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
     return groups;
   });
 
-  const newsletterCount = derive(groupedByNewsletter, (groups) => Object.keys(groups).length);
-  const totalEmails = derive(emails, (list) => list.length);
+  const newsletterCount = computed(() => Object.keys(groupedByNewsletter).length);
+  const totalEmails = computed(() => emails.length);
 
   return {
     [NAME]: "📧 Substack Summarizer",
@@ -83,7 +83,8 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
                 <h3 style={{ margin: 0, fontSize: "15px" }}>Newsletters</h3>
                 <span style={{ fontSize: "13px", color: "#666" }}>📧 {totalEmails} emails · 📰 {newsletterCount} newsletters</span>
               </div>
-              {derive(groupedByNewsletter, (groups) => {
+              {computed(() => {
+                const groups = groupedByNewsletter;
                 const newsletters = Object.keys(groups).sort();
                 if (newsletters.length === 0) {
                   return <div style={{ padding: "1rem", textAlign: "center", color: "#999" }}>
@@ -92,14 +93,14 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
                 }
 
                 return newsletters.map((newsletter) => {
-                  const emails = groups[newsletter];
+                  const emailsForNewsletter = groups[newsletter];
                   return (
                     <details open style={{ borderBottom: "1px solid #ddd", marginBottom: "0.5rem" }}>
                       <summary style={{ cursor: "pointer", padding: "0.5rem", fontWeight: "600", fontSize: "14px" }}>
-                        {newsletter} <span style={{ color: "#666", fontWeight: "normal" }}>({emails.length})</span>
+                        {newsletter} <span style={{ color: "#666", fontWeight: "normal" }}>({emailsForNewsletter.length})</span>
                       </summary>
                       <div style={{ paddingLeft: "1.5rem", paddingBottom: "0.5rem" }}>
-                        {emails.map((email) => (
+                        {emailsForNewsletter.map((email) => (
                           <div style={{ fontSize: "13px", padding: "4px 0", color: "#333" }}>
                             • {email.subject}
                           </div>
