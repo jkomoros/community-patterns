@@ -8,7 +8,7 @@
  * - Embed references (location: Location, not locationId)
  * - Fewer top-level Default<> inputs
  *
- * Phase 4: Child Profile & Triage Logic
+ * Phase 5: Pinned Sets
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
@@ -95,13 +95,16 @@ interface StagedClass extends ExtractedClassInfo {
 }
 
 // ============================================================================
-// PATTERN INPUT - Phase 4
+// PATTERN INPUT - Phase 5
 // ============================================================================
 
 interface ExtracurricularInput {
   locations: Cell<Location[]>;
   classes: Cell<Class[]>;
   child: Cell<ChildProfile>;  // Cell<> for write access, not Default<>
+  // Phase 5: Pinned sets
+  pinnedSetNames: Cell<string[]>;  // Available set names
+  activeSetName: Cell<string>;     // Currently active set
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -166,7 +169,7 @@ function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: Tria
 // ============================================================================
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes, child }) => {
+  ({ locations, classes, child, pinnedSetNames, activeSetName }) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
@@ -335,6 +338,49 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       state.childCell.set({ ...current, name: event.target.value });
     });
 
+    // =========================================================================
+    // PHASE 5: PINNED SETS
+    // =========================================================================
+
+    // Computed: classes pinned to the active set
+    const pinnedClasses = computed(() => {
+      const setName = activeSetName.get();
+      const classList = classes.get();
+      return classList.filter(cls => {
+        const rawPins = cls.pinnedInSets;
+        const pinArray: string[] = Array.isArray(rawPins) ? rawPins as string[] : [];
+        return pinArray.indexOf(setName) >= 0;
+      });
+    });
+
+    // Handler to switch active set
+    const setActiveSet = handler<
+      { target: { value: string } },
+      { activeCell: Cell<string> }
+    >((event, state) => {
+      state.activeCell.set(event.target.value);
+    });
+
+    // Toggle pin state for a class in the active set
+    const togglePin = (
+      classList: Cell<Class[]>,
+      cls: Class,
+      setName: string
+    ) => {
+      const current = classList.get();
+      const index = current.findIndex((el) => Cell.equals(cls, el));
+      if (index >= 0) {
+        const rawPins = current[index].pinnedInSets;
+        const currentPins = Array.isArray(rawPins) ? rawPins : [];
+        const isPinned = currentPins.indexOf(setName) >= 0;
+        const newPins = isPinned
+          ? currentPins.filter((s: string) => s !== setName)  // Unpin
+          : [...currentPins, setName];              // Pin
+        const updated = { ...current[index], pinnedInSets: newPins };
+        classList.set(current.toSpliced(index, 1, updated));
+      }
+    };
+
     return {
       [NAME]: "Extracurricular Selector v2",
       [UI]: (
@@ -377,6 +423,80 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
             <p style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#555" }}>
               Classes will be auto-triaged based on grade eligibility
             </p>
+          </div>
+
+          {/* Pinned Sets Section - Phase 5 */}
+          <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e3f2fd", borderRadius: "4px" }}>
+            <h2 style={{ marginBottom: "0.5rem" }}>Pinned Sets</h2>
+            <p style={{ fontSize: "0.85em", color: "#555", marginBottom: "0.5rem" }}>
+              Create different schedule combinations to compare
+            </p>
+
+            {/* Set selector and add new set */}
+            <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", marginBottom: "1rem", flexWrap: "wrap" }}>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Active Set:</label>
+                <select
+                  style={{ padding: "0.5rem", minWidth: "150px" }}
+                  value={(activeSetName as any) || "Set A"}
+                  onChange={setActiveSet({ activeCell: activeSetName })}
+                >
+                  {pinnedSetNames.map((name) => (
+                    <option value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <ct-message-input
+                  placeholder="New set name..."
+                  onct-send={(e: { detail: { message: string } }) => {
+                    const name = e.detail?.message?.trim();
+                    if (name) {
+                      const current = pinnedSetNames.get();
+                      if (!current.includes(name)) {
+                        pinnedSetNames.push(name);
+                        activeSetName.set(name);
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Pinned classes in active set */}
+            {derive({ pinnedClasses, activeSetName }, ({ pinnedClasses: pinned, activeSetName: setName }) => {
+              const list = pinned as Class[];
+              if (!list || list.length === 0) {
+                return (
+                  <p style={{ color: "#666", fontStyle: "italic" }}>
+                    No classes pinned to "{setName}". Use the 📌 button below to pin classes.
+                  </p>
+                );
+              }
+              return (
+                <div>
+                  <h4 style={{ marginBottom: "0.25rem" }}>Classes in "{setName}":</h4>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    {list.map((cls: Class) => (
+                      <div
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          background: "#fff",
+                          border: "1px solid #1976d2",
+                          borderRadius: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span>{cls.name}</span>
+                        <span style={{ fontSize: "0.8em", color: "#666" }}>@ {cls.location.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Locations Section */}
@@ -751,7 +871,7 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
             <h3>Debug Info</h3>
             <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 4: Child profile & triage logic - auto-filter classes by grade eligibility
+              Phase 5: Pinned sets - create and compare different schedule combinations
             </p>
           </div>
         </div>
@@ -759,6 +879,8 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       locations,
       classes,
       child,
+      pinnedSetNames,
+      activeSetName,
     };
   }
 );
