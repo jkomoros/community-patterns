@@ -3,7 +3,7 @@
  * Simple config pattern - used as imported dependency for repro testing
  */
 
-import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
 
 interface Input {
   multiplier?: Default<number, 1>;
@@ -15,7 +15,7 @@ interface Output {
 }
 
 export default pattern<Input, Output>(({ multiplier }) => {
-  const doubled = derive(multiplier, (m) => m * 2);
+  const doubled = computed(() => multiplier * 2);
 
   return {
     [NAME]: "Simple Config",

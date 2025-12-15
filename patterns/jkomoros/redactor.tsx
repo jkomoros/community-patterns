@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, derive, NAME, pattern, UI, wish } from "commontools";
+import { Cell, computed, Default, NAME, pattern, UI, wish } from "commontools";
 
 // ============================================================================
 // Types
@@ -501,8 +501,8 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
 
         {/* Status bar */}
         <div style={{ marginBottom: "1rem", fontSize: "13px" }}>
-          {derive(hasPII, (has) =>
-            has ? (
+          {computed(() =>
+            hasPII ? (
               <span style={{ color: "#16a34a" }}>
                 ✓ {piiCount} PII entries loaded - auto-redacting
               </span>
@@ -515,8 +515,8 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
         </div>
 
         {/* Warning banner when no PII */}
-        {derive(hasPII, (has) =>
-          !has ? (
+        {computed(() =>
+          !hasPII ? (
             <div
               style={{
                 padding: "1rem",

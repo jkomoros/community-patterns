@@ -1,9 +1,8 @@
 /// <cts-enable />
 import {
-  cell,
   Cell,
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
@@ -129,20 +128,17 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
     requiresReheating,
     tags,
   }) => {
-    const displayName = derive(name, (n) => n.trim() || "Untitled Item");
+    const displayName = computed(() => name.trim() || "Untitled Item");
 
     // Derive dietary compatibility from user-provided tags
-    const dietaryCompatibility = derive(
-      { dietaryTags, primaryIngredients },
-      ({ dietaryTags: tags, primaryIngredients: ingredients }) => ({
-        compatible: tags || [],
-        incompatible: [], // User doesn't specify what it's NOT compatible with
-        warnings: [
-          "User-specified tags only - not automatically analyzed",
-        ],
-        primaryIngredients: ingredients || [],
-      }),
-    );
+    const dietaryCompatibility = computed(() => ({
+      compatible: dietaryTags || [],
+      incompatible: [], // User doesn't specify what it's NOT compatible with
+      warnings: [
+        "User-specified tags only - not automatically analyzed",
+      ],
+      primaryIngredients: primaryIngredients || [],
+    }));
 
     return {
       [NAME]: str`🛒 ${displayName}`,
