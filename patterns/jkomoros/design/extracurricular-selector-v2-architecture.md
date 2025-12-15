@@ -153,7 +153,7 @@ interface Friend {
   name: string;
   // Embedded class interests (not separate FriendClassInterest collection)
   classInterests: Array<{
-    className: string;          // Match by name, not ID
+    class: Class;               // Direct reference, not name string (use .equals() to compare)
     certainty: "confirmed" | "likely" | "maybe";
   }>;
 }
@@ -191,7 +191,7 @@ interface ExtracurricularInput {
 
   // Import state (transient but useful to persist)
   importText: Default<string, "">;
-  importLocationName: Default<string, "">;  // Match by name to find Location
+  importLocation: Location | null;  // Direct reference to selected location
 }
 
 // Total: 10 top-level inputs (down from 17 in v1)
@@ -220,23 +220,21 @@ const addLocation = () => {
 
 ```typescript
 // 1. User selects location from dropdown
-// importLocationName binds to selected location's name
+// importLocation binds directly to the selected Location object
 
 // 2. User pastes text and clicks "Extract"
-const extractionResult = generateObject({
+const extractionResult = generateObject<ExtractionResponse>({
   prompt: computed(() => `Extract classes from: ${importText}\nChild: ${child.name}, Grade: ${child.grade}`),
-  schema: toSchema<ExtractionResponse>(),
 });
 
 // 3. Computed transforms extraction to StagedClass[] with selection state
 const stagedClasses = computed(() => {
   const result = extractionResult?.classes ?? [];
-  const location = locations.find(l => l.name === importLocationName);
-  if (!location) return [];
+  if (!importLocation) return [];  // Direct reference, no lookup needed
 
   return result.map(cls => ({
     ...cls,
-    location,  // Embed the actual Location object
+    location: importLocation,  // Embed the actual Location object
     selected: cls.triageStatus === "auto_kept",  // Default selection ON object
     pinnedInSets: [],
     statuses: { registered: false, confirmed: false, waitlisted: false, paid: false, onCalendar: false },
@@ -357,61 +355,82 @@ function checkConflict(a: Class, b: Class, travelTimes: TravelTime[]): string | 
 
 ---
 
-## Open Questions for Framework Author
+## Framework Author Feedback (Resolved)
 
-### 1. Cross-Collection References
+**Reviewer:** seefeldb (2025-12-15)
 
-Is embedding Location directly on Class correct?
+### 1. Cross-Collection References ✅
+
+**Answer:** Yes, embedding is correct. Use direct object references.
 ```typescript
 interface Class {
-  location: Location;  // Full object embedded
+  location: Location;  // ✅ Correct - direct reference
 }
 ```
 
-Or should there be a different pattern for referencing entities that exist in another collection?
+### 2. Friend Class Interests ✅
 
-### 2. Travel Times (Pairwise Relationships)
-
-TravelTime connects two Locations. Is this the right structure?
+**Answer:** Use object reference, not name string.
 ```typescript
-interface TravelTime {
-  fromLocation: Location;
-  toLocation: Location;
-  minutes: number;
-}
+// ❌ Wrong
+classInterests: Array<{ className: string; ... }>;
+
+// ✅ Correct
+classInterests: Array<{ class: Class; ... }>;
 ```
 
-Or is there a better pattern for pairwise relationships between entities?
+### 3. generateObject Syntax ✅
 
-### 3. Transient vs Persisted State
-
-Should import staging be:
-- **Local `cell<>()`** - Lost on page refresh, but no persistence overhead
-- **Pattern inputs** - Persisted across sessions, useful for resuming work
-
-Currently proposing: Pattern inputs (persisted) because users often paste text, get interrupted, come back later.
-
-### 4. Many Default<> Inputs and ConflictError
-
-v1 has 17 Default<> inputs and gets ConflictError on load. Is consolidating to ~10 inputs (as proposed) the right fix? Or is there a different underlying issue?
-
-### 5. Matching by Name vs Cell.equals()
-
-For friend class interests, I propose matching by class name string:
+**Answer:** Can use type parameter instead of schema:
 ```typescript
-interface Friend {
-  classInterests: Array<{
-    className: string;  // Match classes.find(c => c.name === className)
-    certainty: "confirmed" | "likely" | "maybe";
-  }>;
-}
+// ✅ Shorter form
+generateObject<ExtractionResponse>({ prompt: ... })
+
+// Also valid
+generateObject({ prompt: ..., schema: toSchema<ExtractionResponse>() })
 ```
 
-Is this okay, or should we reference classes differently?
+### 4. Use .equals() Not Name Matching ✅
 
-### 6. Nested Property $checked Binding
+**Answer:** Always use `.equals()` for object comparison, not string names.
+```typescript
+// ❌ Wrong
+locations.find(l => l.name === importLocationName)
 
-Does `$checked={cls.statuses.registered}` work for nested properties? Or do we need a different approach for toggling nested state?
+// ✅ Correct - use direct reference, no lookup needed
+if (!importLocation) return [];
+// importLocation is already the Location object
+```
+
+### 5. String-Based Sets ✅
+
+**Answer:** Using strings for set names (like tags) is fine.
+```typescript
+pinnedInSets: string[];  // ✅ OK - sets by name like tags
+pinnedSetNames: string[];  // ✅ OK
+```
+
+### 6. Boxing Selected/Active State (NEW GUIDANCE)
+
+**Important pattern for selected state:**
+
+> "Let's make sure to add guidance to box active/selected/etc selections. So write into something of type `Cell<{ selected: Cell<...> }>`. Then this will be `active.selected` or so. This avoids the `Cell<Cell<...>>` stuff that is brittle."
+
+```typescript
+// ❌ Avoid Cell<Cell<...>>
+const selected = cell<Cell<Class> | null>(null);
+
+// ✅ Better - box the selection
+interface Selection {
+  selected: Cell<Class | null>;
+}
+const active = cell<Selection>({ selected: null });
+
+// Access via:
+active.selected  // The selected class
+```
+
+This pattern is cleaner for tracking which item is currently active/selected.
 
 ---
 
