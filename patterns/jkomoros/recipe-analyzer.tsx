@@ -1,7 +1,7 @@
 /// <cts-enable />
 import {
+  computed,
   Default,
-  derive,
   generateObject,
   pattern,
   UI,
@@ -65,23 +65,20 @@ These are used for custom "no-X" matching (e.g., "no-mushrooms", "no-cilantro").
 export default pattern<RecipeAnalyzerInput, RecipeAnalyzerOutput>(
   ({ recipeName, ingredients, category, tags }) => {
     // Trigger re-analysis when ingredients change
-    const analysisPrompt = derive(
-      { name: recipeName, ingredients, category, tags },
-      ({ name, ingredients: ings, category: cat, tags: tagList }) => {
-        if (!ings || ings.length === 0) {
-          return "No ingredients to analyze";
-        }
+    const analysisPrompt = computed(() => {
+      if (!ingredients || ingredients.length === 0) {
+        return "No ingredients to analyze";
+      }
 
-        return `Analyze this recipe for dietary compatibility:
+      return `Analyze this recipe for dietary compatibility:
 
-Recipe: ${name || "Untitled"}
-Category: ${cat || "other"}
-Tags: ${tagList.join(", ") || "none"}
+Recipe: ${recipeName || "Untitled"}
+Category: ${category || "other"}
+Tags: ${tags.join(", ") || "none"}
 
 Ingredients:
-${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
-      },
-    );
+${ingredients.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
+    });
 
     const { result: analysis, pending } = generateObject({
       system: SYSTEM_PROMPT,
@@ -121,22 +118,21 @@ ${ings.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
       },
     });
 
-    const dietaryCompatibility = derive(
-      analysis,
-      (result) =>
-        result || {
-          compatible: [],
-          incompatible: [],
-          warnings: [],
-          primaryIngredients: [],
-        },
+    const dietaryCompatibility = computed(() =>
+      analysis || {
+        compatible: [],
+        incompatible: [],
+        warnings: [],
+        primaryIngredients: [],
+      }
     );
 
     return {
       [UI]: (
         <div style={{ padding: "8px" }}>
           <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
-          {derive(dietaryCompatibility, (dc) => {
+          {computed(() => {
+            const dc = dietaryCompatibility;
             if (dc.compatible.length === 0 && dc.incompatible.length === 0) {
               return <div style={{ fontStyle: "italic", color: "#666" }}>
                 Add ingredients to see dietary analysis

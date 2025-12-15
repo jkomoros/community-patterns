@@ -7,7 +7,7 @@
  * creating a multi-select experience from the single-select autocomplete component.
  */
 
-import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
 
 // Sample relationship types for demo
 const RELATIONSHIP_ITEMS = [
@@ -48,10 +48,9 @@ const getLabel = (value: string) => {
 
 export default pattern<Input, Result>(
   ({ selectedTags }) => {
-    // Use derive to compute available items reactively
-    // Cast to any to work around opaque ref type issues
-    const availableItems = derive(selectedTags, (selected: TagItem[]) => {
-      const selectedValues = (selected || []).map(t => t.value);
+    // Use computed to compute available items reactively
+    const availableItems = computed(() => {
+      const selectedValues = (selectedTags || []).map(t => t.value);
       return RELATIONSHIP_ITEMS.filter(item => !selectedValues.includes(item.value as any));
     });
 
@@ -150,7 +149,7 @@ export default pattern<Input, Result>(
                 fontSize: "0.75rem",
                 whiteSpace: "pre-wrap",
               }}>
-                {derive(selectedTags, (tags: TagItem[]) => JSON.stringify(tags || [], null, 2))}
+                {computed(() => JSON.stringify(selectedTags || [], null, 2))}
               </code>
             </ct-vstack>
           </ct-card>

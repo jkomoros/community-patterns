@@ -12,8 +12,8 @@
  */
 import {
   Cell,
+  computed,
   Default,
-  derive,
   generateObject,
   handler,
   NAME,
@@ -48,7 +48,7 @@ const addItem = handler<unknown, { items: Cell<Item[]> }>((_event, { items }) =>
 
 export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
   // Count for display
-  const itemCount = derive(items, (list) => list.length);
+  const itemCount = computed(() => items.length);
 
   // THE SIMPLE MAP:
   // Just map over items with generateObject
@@ -70,8 +70,8 @@ export default pattern<MapTestInput, MapTestOutput>(({ items }) => {
   }));
 
   // Count pending extractions
-  const pendingCount = derive(extractions, (list) =>
-    list.filter((e: any) => e.extraction?.pending).length
+  const pendingCount = computed(() =>
+    extractions.filter((e: any) => e.extraction?.pending).length
   );
 
   return {

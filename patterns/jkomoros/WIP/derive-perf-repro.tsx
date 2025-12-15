@@ -1,10 +1,8 @@
 /// <cts-enable />
 import {
   Cell,
-  cell,
   computed,
   Default,
-  derive,
   handler,
   pattern,
   UI,
@@ -97,7 +95,7 @@ interface DerivePerfReproInput {
  */
 const DerivePerfRepro = pattern<DerivePerfReproInput, { events: FakeEvent[]; eventCount: number }>(
   ({ count }) => {
-    const events = cell<FakeEvent[]>([]);
+    const events = Cell.of<FakeEvent[]>([]);
     const eventCount = computed(() => events.get().length);
 
     return {
@@ -149,13 +147,10 @@ const DerivePerfRepro = pattern<DerivePerfReproInput, { events: FakeEvent[]; eve
               {events.map((event) => (
                 <tr>
                   <td style={{ padding: "10px", borderBottom: "1px solid #eee" }}>
-                    {/* THIS IS THE PROBLEMATIC PATTERN - derive inside map */}
-                    {derive(
-                      { startDateTime: event.startDateTime, endDateTime: event.endDateTime, isAllDay: event.isAllDay },
-                      ({ startDateTime, endDateTime, isAllDay }) => {
-                        return formatEventDate(startDateTime, endDateTime, isAllDay);
-                      }
-                    )}
+                    {/* THIS IS THE PROBLEMATIC PATTERN - computed inside map */}
+                    {computed(() => {
+                      return formatEventDate(event.startDateTime, event.endDateTime, event.isAllDay);
+                    })}
                   </td>
                   <td style={{ padding: "10px", borderBottom: "1px solid #eee" }}>
                     {event.summary}
