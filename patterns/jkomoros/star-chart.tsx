@@ -344,11 +344,9 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
     });
 
     // Generate list for corrections view (last 30 days)
-    const correctionsList = derive(
-      { days, debugDate },
-      ({ days: daysCell, debugDate: debugDateCell }) => {
-        const daysArray = daysCell.get();
-        const override = typeof debugDateCell === "string" ? debugDateCell : debugDateCell?.get?.() ?? "";
+    const correctionsList = computed(() => {
+        const daysArray = days.get();
+        const override = typeof debugDate === "string" ? debugDate : debugDate?.get?.() ?? "";
         const todayStr = override || getTodayString();
 
         const result: { date: string; displayDate: string; hasStar: boolean; isProtected: boolean }[] = [];
@@ -375,16 +373,13 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
         }
 
         return result;
-      }
-    );
+    });
 
     // Generate timeline: dates from first recorded day to today
-    // Using derive to pre-compute to avoid computed() inside map (causes infinite loops)
-    const timeline = derive(
-      { days, debugDate },
-      ({ days: daysCell, debugDate: debugDateCell }) => {
-        const daysArray = daysCell.get();
-        const override = typeof debugDateCell === "string" ? debugDateCell : debugDateCell?.get?.() ?? "";
+    // Using computed to pre-compute to avoid computed() inside map (causes infinite loops)
+    const timeline = computed(() => {
+        const daysArray = days.get();
+        const override = typeof debugDate === "string" ? debugDate : debugDate?.get?.() ?? "";
         const todayStr = override || getTodayString();
 
         // Find the earliest recorded date (earned or protected)
@@ -424,8 +419,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
         }
 
         return result;
-      }
-    );
+    });
 
     return {
       [NAME]: "Star Chart",
@@ -840,8 +834,8 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                           animation: "bounce 0.5s ease-out",
                         }}
                       >
-                        {derive({ m: currentMilestone }, ({ m }) => {
-                          const milestone = m as unknown as { message: string } | null;
+                        {computed(() => {
+                          const milestone = currentMilestone as unknown as { message: string } | null;
                           return milestone?.message || "Great job!";
                         })}
                       </div>
