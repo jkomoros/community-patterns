@@ -8,7 +8,7 @@
  * - Embed references (location: Location, not locationId)
  * - Fewer top-level Default<> inputs
  *
- * Phase 5.5: Unified File/Image Upload with OCR
+ * Phase 6: Conflict Detection
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
@@ -195,6 +195,86 @@ function detectFileType(file: FileData): "image" | "text" | "unsupported" {
   if (mimeType.startsWith("image/")) return "image";
   if (mimeType.startsWith("text/") || ["txt", "md", "html", "htm"].includes(ext)) return "text";
   return "unsupported";
+}
+
+// ============================================================================
+// PHASE 6: CONFLICT DETECTION
+// ============================================================================
+
+// A conflict between two classes
+interface TimeConflict {
+  class1: Class;
+  class2: Class;
+  day: DayOfWeek;
+  overlapStart: string;
+  overlapEnd: string;
+}
+
+// Parse "15:00" or "3:00 PM" to minutes since midnight
+function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return -1;
+
+  const cleaned = timeStr.trim().toUpperCase();
+
+  // Handle 24h format "15:00"
+  if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
+    const [hours, mins] = cleaned.split(":").map(Number);
+    return hours * 60 + mins;
+  }
+
+  // Handle 12h format "3:00 PM" or "3:00PM"
+  const match12h = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (match12h) {
+    let hours = parseInt(match12h[1], 10);
+    const mins = parseInt(match12h[2], 10);
+    const period = match12h[3];
+
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+
+    return hours * 60 + mins;
+  }
+
+  return -1;  // Invalid format
+}
+
+// Check if two time slots on the same day overlap
+function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): { overlaps: boolean; overlapStart?: string; overlapEnd?: string } {
+  // Different days = no conflict
+  if (slot1.day !== slot2.day) {
+    return { overlaps: false };
+  }
+
+  const start1 = parseTimeToMinutes(slot1.startTime);
+  const end1 = parseTimeToMinutes(slot1.endTime);
+  const start2 = parseTimeToMinutes(slot2.startTime);
+  const end2 = parseTimeToMinutes(slot2.endTime);
+
+  // Invalid times = no conflict (can't determine)
+  if (start1 < 0 || end1 < 0 || start2 < 0 || end2 < 0) {
+    return { overlaps: false };
+  }
+
+  // Check for overlap: NOT (end1 <= start2 OR end2 <= start1)
+  if (end1 <= start2 || end2 <= start1) {
+    return { overlaps: false };
+  }
+
+  // There is overlap - calculate the overlap window
+  const overlapStartMins = Math.max(start1, start2);
+  const overlapEndMins = Math.min(end1, end2);
+
+  const formatTime = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h}:${m.toString().padStart(2, "0")}`;
+  };
+
+  return {
+    overlaps: true,
+    overlapStart: formatTime(overlapStartMins),
+    overlapEnd: formatTime(overlapEndMins),
+  };
 }
 
 // ============================================================================
@@ -518,6 +598,36 @@ Return all visible text.`
       });
     });
 
+    // Phase 6: Computed conflicts in active pinned set
+    // Inside computed, directly access properties/indexes on other computeds (no casts needed)
+    const pinnedSetConflicts = computed(() => {
+      if (!pinnedClasses || pinnedClasses.length < 2) return [];
+
+      const conflicts: TimeConflict[] = [];
+      for (let i = 0; i < pinnedClasses.length; i++) {
+        for (let j = i + 1; j < pinnedClasses.length; j++) {
+          const class1 = pinnedClasses[i];
+          const class2 = pinnedClasses[j];
+
+          for (const slot1 of class1.timeSlots || []) {
+            for (const slot2 of class2.timeSlots || []) {
+              const result = timeSlotsOverlap(slot1, slot2);
+              if (result.overlaps) {
+                conflicts.push({
+                  class1,
+                  class2,
+                  day: slot1.day,
+                  overlapStart: result.overlapStart || "",
+                  overlapEnd: result.overlapEnd || "",
+                });
+              }
+            }
+          }
+        }
+      }
+      return conflicts;
+    });
+
     // Handler to switch active set
     const setActiveSet = handler<
       { target: { value: string } },
@@ -639,6 +749,36 @@ Return all visible text.`
                       </div>
                     ))}
                   </div>
+                </div>
+              );
+            })}
+
+            {/* Phase 6: Conflict warnings */}
+            {derive(pinnedSetConflicts, (conflicts: TimeConflict[]) => {
+              if (!conflicts || conflicts.length === 0) return null;
+              return (
+                <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#ffebee", border: "1px solid #ef5350", borderRadius: "4px" }}>
+                  <h4 style={{ color: "#c62828", marginBottom: "0.5rem" }}>
+                    Schedule Conflicts ({conflicts.length})
+                  </h4>
+                  {conflicts.map((conflict: TimeConflict) => (
+                    <div
+                      style={{
+                        padding: "0.5rem",
+                        background: "#fff",
+                        borderRadius: "4px",
+                        marginBottom: "0.25rem",
+                        fontSize: "0.9em",
+                      }}
+                    >
+                      <span style={{ fontWeight: "bold" }}>{conflict.class1.name}</span>
+                      <span style={{ color: "#666" }}> conflicts with </span>
+                      <span style={{ fontWeight: "bold" }}>{conflict.class2.name}</span>
+                      <span style={{ color: "#888", marginLeft: "0.5rem" }}>
+                        ({conflict.day} {conflict.overlapStart}-{conflict.overlapEnd})
+                      </span>
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -1118,7 +1258,7 @@ Return all visible text.`
           <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
             <h3>Debug Info</h3>
             <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 5.5: Unified file/image upload with OCR preview
+              Phase 6: Conflict detection for pinned sets
             </p>
           </div>
         </div>
