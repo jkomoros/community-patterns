@@ -115,19 +115,11 @@ interface StagedClass extends ExtractedClassInfo {
   selected: Default<boolean, true>;  // Default<> enables cell-like $checked binding
   triageStatus: TriageStatus;        // Pre-computed when populating
   triageReason: string;              // Pre-computed when populating
-  // FRAMEWORK NOTE: Pre-computed display values are REQUIRED here.
-  // Inside Cell.map(), item properties are OpaqueRefs, NOT full Cells.
-  // We tested computed(() => s.triageStatus.get() === "auto_kept") - it fails with:
-  //   TypeError: s.triageStatus.get is not a function
-  // The "blessed" pattern (inline computed with .get()) only works on EXTERNAL cells,
-  // not on item properties. Item properties are auto-unwrapped ONLY for:
-  //   - JSX text content: {s.name} works
-  //   - Bidirectional bindings: $checked={s.selected} works
-  // But NOT for: comparisons (OpaqueRef === "string" is always false) or .get() calls.
-  // This is WAI per CT-1036. See also: DESIGN-reactive-reduce-and-keyed-map.md
+  // WORKAROUND: Pre-computed display values because === comparison doesn't
+  // work on item properties inside Cell.map() (comparing proxy to string = always false)
   triageEmoji: string;               // ✓, ?, or ✗
-  triageBgColor: string;             // Background color
-  triageBorderColor: string;         // Border color
+  triageBgColor: string;             // Background color based on triageStatus
+  triageBorderColor: string;         // Border color based on triageStatus
 }
 
 // ============================================================================
@@ -435,15 +427,11 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const childGrade = child.get()?.grade || "K";
 
       // Construct full array then set once (avoids N+1 reactive updates from .push())
-      // FRAMEWORK NOTE: We MUST pre-compute ALL display values here because inside
-      // Cell.map(), item properties (like s.triageStatus) are OpaqueRefs that:
-      //   - Don't expose .get() method (TypeError: s.triageStatus.get is not a function)
-      //   - Can't be compared directly (OpaqueRef === "string" is always false)
-      //   - Are auto-unwrapped ONLY for JSX text content and $checked binding
-      // This is WAI per CT-1036. See also: DESIGN-reactive-reduce-and-keyed-map.md
+      // WORKAROUND: Must pre-compute colors/emoji here because inside Cell.map(),
+      // s.triageStatus === "auto_kept" doesn't work (proxy vs string = always false)
       const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
         const triage = triageClass(cls, childGrade as Grade);
-        // Pre-compute display values based on triage status (see FRAMEWORK NOTE above)
+        // Pre-compute display values based on triage status
         const displayValues = triage.status === "auto_kept"
           ? { emoji: "✓", bg: "#e8f5e9", border: "#4caf50" }
           : triage.status === "needs_review"
@@ -1419,24 +1407,10 @@ Return all visible text.`
                 null
               )}
 
-              {/* FRAMEWORK NOTE: Cell.map() item properties are OpaqueRefs, NOT full Cells.
-                  We tested: computed(() => s.triageStatus.get() === "auto_kept")
-                  Result: TypeError: s.triageStatus.get is not a function
-
-                  What WORKS inside Cell.map():
-                    - {s.name} in JSX: Framework auto-unwraps for text content
-                    - $checked={s.selected}: Bidirectional binding handles OpaqueRefs
-
-                  What FAILS inside Cell.map():
-                    - s.triageStatus.get(): "get is not a function" (OpaqueRef, not Cell)
-                    - s.triageStatus === "foo": Comparing OpaqueRef to string (always false)
-                    - computed(() => externalCell.get()): "Cannot create cell link: space is required"
-
-                  The ONLY solution: Pre-compute ALL conditional display values (colors, emojis,
-                  etc.) at population time and store as string properties on the objects.
-                  This is WAI per CT-1036. See also: DESIGN-reactive-reduce-and-keyed-map.md */}
+              {/* WORKAROUND: Using pre-computed s.triageBgColor because
+                  s.triageStatus === "auto_kept" doesn't work inside Cell.map() */}
               {stagedClasses.map((s) => {
-                // s.triageBgColor, s.triageBorderColor, s.triageEmoji are all pre-computed strings
+                // s.triageBgColor, s.triageBorderColor, s.triageEmoji are pre-computed strings
                 return (
                   <div
                     style={{
