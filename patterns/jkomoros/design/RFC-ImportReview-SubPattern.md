@@ -286,6 +286,212 @@ export default pattern(({ aisles, notes }) => {
 });
 ```
 
+## Companion Component: SmartTextInput
+
+### Problem: Multi-Source Text Input
+
+The ImportReview pattern assumes the parent pattern provides text (via the trigger Cell). But collecting that text from multiple sources is itself error-prone:
+
+1. **Direct typing/pasting** - Simple, just bind to a Cell
+2. **Text file uploads** - Need to read file contents
+3. **Image uploads with OCR** - Need LLM extraction, pending states, error handling
+4. **Multiple images** - Need parallel OCR, per-image status, selection
+
+Patterns like `store-mapper.tsx` handle multiple image uploads (up to 50 photos) with parallel OCR extraction. This is ~200 lines of boilerplate that's easy to mess up.
+
+### Proposed Solution: SmartTextInput
+
+A companion component that provides unified text input from multiple sources:
+
+```typescript
+interface SmartTextInputProps {
+  // Required: Target text cell
+  $value: Cell<string>;
+
+  // Optional: Configuration
+  placeholder?: string;
+  maxImages?: number;              // Default: 50
+  ocrPrompt?: string;              // Custom prompt for image text extraction
+  imageResultMode?: "concatenate" | "separate";  // Default: "concatenate"
+  separator?: string;              // For concatenate mode, default: "\n\n---\n\n"
+  autoCommit?: boolean;            // Auto-apply OCR results
+}
+
+interface SmartTextInputOutput {
+  // State
+  value: Cell<string>;
+  pendingOCR: boolean;
+  hasUncommittedResults: boolean;
+
+  // For separate mode (like store-mapper)
+  imageResults: PerImageResult[];
+  selectedCount: number;
+
+  // Actions
+  commitResults: () => void;
+  selectAll: () => void;
+  selectNone: () => void;
+
+  // Pre-composed UI
+  ui: {
+    complete: VNode;          // Full input (drop-in usage)
+    textArea: VNode;          // Individual pieces for custom layouts
+    uploadButtons: VNode;
+    imageResultsList: VNode;
+    commitButton: VNode;
+  };
+}
+
+interface PerImageResult {
+  imageId: string;
+  imageName: string;
+  pending: boolean;
+  error?: string;
+  extractedText: string | null;
+  selected: Cell<boolean>;
+}
+```
+
+### Multi-Image Result Modes
+
+**Concatenate mode** (simpler, default):
+- All OCR results automatically join into single text block
+- Good for: recipe import, document scanning
+
+**Separate mode** (like store-mapper):
+- Per-image results shown with checkboxes
+- User selects which results to include
+- Good for: batch photo processing where some images may fail
+
+### Data Flow
+
+```
+User Input Sources:
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  Direct Typing  │  │  Text File      │  │  Image Upload   │
+│  (ct-textarea)  │  │  (ct-file-input)│  │  (ct-image-input│
+└────────┬────────┘  └────────┬────────┘  └────────┬────────┘
+         │                    │                    │
+         │                    │                    ▼
+         │                    │           generateObject()
+         │                    │           (OCR extraction)
+         │                    │                    │
+         ▼                    ▼                    ▼
+      ┌──────────────────────────────────────────────┐
+      │           Mode Handler                        │
+      │  "concatenate" → append all to value         │
+      │  "separate"    → show per-image selection    │
+      └──────────────────────────────────────────────┘
+                              │
+                              ▼
+                    Cell<string> $value
+                              │
+                              ▼
+                    ImportReview.trigger
+                    (for structured extraction)
+```
+
+### Usage Examples
+
+**Simple drop-in:**
+```typescript
+const notes = cell<string>("");
+
+return {
+  [UI]: (
+    <SmartTextInput
+      $value={notes}
+      placeholder="Type, paste, or upload images..."
+    />
+  ),
+};
+```
+
+**With ImportReview integration:**
+```typescript
+const notes = cell<string>("");
+const trigger = Cell.of<string>("");
+
+const smartInput = SmartTextInput({ $value: notes });
+
+const extraction = ImportReview({
+  schema: PersonSchema,
+  systemPrompt: "Extract profile fields...",
+  trigger,
+  existingItems: [profile],
+  getKey: (p) => p.email,
+});
+
+const startExtraction = handler((_, { notes, trigger }) => {
+  trigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
+});
+
+return {
+  [UI]: (
+    <ct-vstack>
+      {smartInput.ui.complete}
+
+      <ct-button onClick={startExtraction({ notes, trigger })}>
+        Extract Profile Data
+      </ct-button>
+
+      {ifElse(extraction.hasResults, extraction.ui.reviewPanel, null)}
+    </ct-vstack>
+  ),
+};
+```
+
+**Multi-image with separate results:**
+```typescript
+const notes = cell<string>("");
+const smartInput = SmartTextInput({
+  $value: notes,
+  maxImages: 10,
+  imageResultMode: "separate",
+  autoCommit: false,
+});
+
+return {
+  [UI]: (
+    <ct-vstack>
+      {smartInput.ui.textArea}
+      {smartInput.ui.uploadButtons}
+
+      {/* Per-image results with checkboxes */}
+      {smartInput.ui.imageResultsList}
+
+      <ct-button
+        onClick={smartInput.commitResults}
+        disabled={smartInput.selectedCount === 0}
+      >
+        Apply {smartInput.selectedCount} Results
+      </ct-button>
+    </ct-vstack>
+  ),
+};
+```
+
+### Implementation Notes
+
+SmartTextInput reuses proven patterns from existing code:
+
+1. **From store-mapper.tsx**: Multi-image upload via `ct-image-input multiple`, `.map()` with `generateObject` for parallel OCR, `hiddenPhotoIds` pattern for deletion without array mutation bugs
+
+2. **From food-recipe.tsx**: Single image OCR, "Add to Notes" confirmation flow
+
+3. **Framework-safe**: All `generateObject()` calls in pattern body, handler pattern for mutations
+
+### Question for Framework Author
+
+**Question 7: Is SmartTextInput the right abstraction level?**
+
+SmartTextInput handles text collection from multiple sources, while ImportReview handles structured extraction from that text. This separation means:
+
+- SmartTextInput: `images/files → raw text`
+- ImportReview: `raw text → schema-validated objects`
+
+**Is this separation correct?** Or should ImportReview directly accept images/files as input sources?
+
 ## Success Criteria
 
 If this pattern is idiomatic:
