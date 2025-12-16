@@ -426,10 +426,8 @@ export default pattern<Input, Output>(
       auth,
       scopes,
       selectedScopes,
-      // Export the refresh handler as a Stream for cross-charm calling
-      refreshToken: refreshTokenHandler({ auth }) as unknown as Stream<
-        Record<string, never>
-      >,
+      // Export the refresh handler for cross-charm calling
+      refreshToken: refreshTokenHandler({ auth }),
     };
   },
 );

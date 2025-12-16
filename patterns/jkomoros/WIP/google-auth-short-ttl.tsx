@@ -423,7 +423,7 @@ export default pattern<Input, Output>(
       auth,
       scopes,
       selectedScopes,
-      refreshToken: refreshTokenHandler({ auth }) as unknown as Stream<Record<string, never>>,
+      refreshToken: refreshTokenHandler({ auth }),
       timeRemaining,
       isExpired,
     };
