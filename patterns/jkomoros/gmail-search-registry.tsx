@@ -19,10 +19,9 @@
  * TODO: Future framework enhancement will support wish() without requiring favorites
  */
 import {
-  cell,
   Cell,
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
@@ -88,9 +87,9 @@ const GmailSearchRegistry = pattern<
   GmailSearchRegistryOutput
 >(({ queries }) => {
   // Compute grouped registries view from flat queries array
-  const registries = derive(queries, (allQueries: SharedQuery[]) => {
+  const registries = computed(() => {
     const grouped: Record<string, AgentTypeRegistry> = {};
-    for (const q of allQueries || []) {
+    for (const q of queries || []) {
       if (!q || !q.agentTypeUrl) continue; // Skip null/undefined during hydration
       if (!grouped[q.agentTypeUrl]) {
         grouped[q.agentTypeUrl] = {
@@ -208,7 +207,8 @@ const GmailSearchRegistry = pattern<
   };
 
   // Stats
-  const stats = derive(registries, (regs: Record<string, AgentTypeRegistry>) => {
+  const stats = computed(() => {
+    const regs = registries;
     const agentTypes = Object.keys(regs || {});
     const totalQueries = agentTypes.reduce(
       (sum, key) => sum + (regs[key]?.queries?.length || 0),
@@ -218,8 +218,8 @@ const GmailSearchRegistry = pattern<
   });
 
   // Pre-compute registry entries as cell for .map() usage
-  const registryEntries = derive(registries, (regs: Record<string, AgentTypeRegistry>) =>
-    Object.entries(regs || {})
+  const registryEntries = computed(() =>
+    Object.entries(registries || {})
       .filter(([url, reg]) => url && reg) // Guard against undefined during hydration
       .map(([url, reg]) => ({ url, ...reg, queries: reg.queries || [] }))
   );
@@ -277,13 +277,13 @@ const GmailSearchRegistry = pattern<
             >
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "24px", fontWeight: "600", color: "#1e293b" }}>
-                  {derive(stats, (s) => s.agentTypeCount)}
+                  {computed(() => stats.agentTypeCount)}
                 </div>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>Agent Types</div>
               </div>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "24px", fontWeight: "600", color: "#1e293b" }}>
-                  {derive(stats, (s) => s.totalQueries)}
+                  {computed(() => stats.totalQueries)}
                 </div>
                 <div style={{ fontSize: "11px", color: "#64748b" }}>Total Queries</div>
               </div>
@@ -292,8 +292,8 @@ const GmailSearchRegistry = pattern<
             {/* Registry list - use .map() on cell instead of derive() for onClick to work */}
             <div>
               {/* Empty state */}
-              {derive(registryEntries, (entries) =>
-                entries.length === 0 ? (
+              {computed(() =>
+                registryEntries.length === 0 ? (
                   <div
                     style={{
                       padding: "24px",

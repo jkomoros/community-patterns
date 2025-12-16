@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * Star Chart Pattern
@@ -307,25 +307,22 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
 
     // Check if today already has a star
     // days is a Cell, use .get() to get the array, then use array methods
-    // effectiveToday is a computed, access it directly (no .get())
+    // effectiveToday is a computed, access it directly (auto-unwraps in computed)
     const todayHasStar = computed(() => {
-      const todayStr = effectiveToday as unknown as string;
       const allDays = days.get();
-      return allDays.some((d) => d.date === todayStr && d.earned);
+      return allDays.some((d) => d.date === effectiveToday && d.earned);
     });
 
     // Calculate current streak
     const currentStreak = computed(() => {
-      const todayStr = effectiveToday as unknown as string;
       const allDays = days.get();
-      return calculateStreak(allDays, todayStr);
+      return calculateStreak(allDays, effectiveToday);
     });
 
     // Check if we just hit a milestone (streak equals a milestone value and > last celebrated)
     const currentMilestone = computed(() => {
-      const streak = currentStreak as unknown as number;
       const lastMilestone = lastCelebratedMilestone.get();
-      const milestone = getMilestoneForStreak(streak);
+      const milestone = getMilestoneForStreak(currentStreak);
       // Show milestone if it matches current streak and is >= last celebrated
       if (milestone && milestone.days >= lastMilestone) {
         return milestone;
@@ -752,7 +749,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                     color: "#d97706",
                   }}
                 >
-                  🔥 {currentStreak} day{ifElse(computed(() => (currentStreak as unknown as number) === 1), "", "s")}!
+                  🔥 {currentStreak} day{ifElse(computed(() => currentStreak === 1), "", "s")}!
                 </div>
                 {ifElse(
                   bestStreak,
@@ -834,10 +831,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                           animation: "bounce 0.5s ease-out",
                         }}
                       >
-                        {computed(() => {
-                          const milestone = currentMilestone as unknown as { message: string } | null;
-                          return milestone?.message || "Great job!";
-                        })}
+                        {computed(() => currentMilestone?.message || "Great job!")}
                       </div>
                       {/* Extra confetti sparkles for milestones */}
                       <div className="confetti-burst">

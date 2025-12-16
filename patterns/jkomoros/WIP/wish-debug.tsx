@@ -5,7 +5,7 @@
  * Debug pattern to understand why wish({ tag: "#googleAuth" }) fails
  * even when favorites-debug shows the tag is present
  */
-import { Cell, derive, NAME, pattern, UI, wish } from "commontools";
+import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
 
 type Favorite = { cell: Cell<unknown>; tag: string };
 
@@ -30,9 +30,9 @@ export default pattern<Record<string, never>>((_) => {
           marginBottom: "20px",
         }}>
           <div>Error: {googleAuthWish.error ?? "(none)"}</div>
-          <div>Has result: {derive(googleAuthWish, (w) => w?.result ? "YES" : "NO")}</div>
+          <div>Has result: {computed(() => googleAuthWish?.result ? "YES" : "NO")}</div>
           <pre style={{ fontSize: "12px", overflow: "auto" }}>
-            {derive(googleAuthWish, (w) => JSON.stringify(w, (k, v) => k === "$UI" ? "[omit]" : v, 2))}
+            {computed(() => JSON.stringify(googleAuthWish, (k, v) => k === "$UI" ? "[omit]" : v, 2))}
           </pre>
         </div>
 
@@ -42,13 +42,13 @@ export default pattern<Record<string, never>>((_) => {
           backgroundColor: "#f5f5f5",
           borderRadius: "4px",
         }}>
-          <div>Count: {derive(favoritesWish, (w) => w?.result?.length ?? 0)}</div>
+          <div>Count: {computed(() => favoritesWish?.result?.length ?? 0)}</div>
           <div>
             {favoritesWish.result?.map((fav, i) => (
               <div style={{ margin: "10px 0", padding: "10px", backgroundColor: "#e0e0e0", borderRadius: "4px" }}>
                 <div><strong>Favorite {i}:</strong></div>
-                <div>Tag contains "googleauth": {derive(fav, (f) => String(f?.tag?.toLowerCase().includes("googleauth") ?? false))}</div>
-                <div>Tag length: {derive(fav, (f) => f?.tag?.length ?? 0)}</div>
+                <div>Tag contains "googleauth": {computed(() => String(fav?.tag?.toLowerCase().includes("googleauth") ?? false))}</div>
+                <div>Tag length: {computed(() => fav?.tag?.length ?? 0)}</div>
               </div>
             ))}
           </div>
@@ -60,9 +60,9 @@ export default pattern<Record<string, never>>((_) => {
           backgroundColor: "#ffffcc",
           borderRadius: "4px",
         }}>
-          {derive(favoritesWish, (fw) => {
+          {computed(() => {
             try {
-              const favorites = fw?.result;
+              const favorites = favoritesWish?.result;
               if (!favorites) return "No favorites result";
               if (!Array.isArray(favorites)) return `Favorites is not array: ${typeof favorites}`;
 

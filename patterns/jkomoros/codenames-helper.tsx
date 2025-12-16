@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { cell, Cell, Default, derive, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI } from "commontools";
+import { Cell, computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -472,17 +472,17 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // Note: board starts empty, user must click "Create Board" or it initializes on first interaction
 
     // Image upload for board and key card
-    const uploadedPhotos = cell<ImageData[]>([]);
+    const uploadedPhotos = Cell.of<ImageData[]>([]);
 
     // Approval state for each photo (tracks corrections, approval status)
-    const approvalState = cell<Array<{
+    const approvalState = Cell.of<Array<{
       correctionText: string;
       applied: boolean;
     }>>([]);
 
     // AI extraction for each uploaded photo
-    // Note: uploadedPhotos.map() returns reactive values, but we still need derive()
-    // to reactively access properties like photo.data
+    // Note: uploadedPhotos.map() returns reactive values
+    // Use computed() to reactively access properties like photo.data
     const photoExtractions = uploadedPhotos.map((photo) => {
       return generateObject({
         model: "anthropic:claude-sonnet-4-5",
@@ -503,16 +503,16 @@ If the user provides a correction, apply it to your previous extraction. The use
 - "second row, third column" = row 1, col 2
 Parse these descriptions and update the extraction accordingly.`,
 
-        // Use derive() to access photo properties reactively
-        prompt: derive(photo, (p) => {
+        // Use computed() to access photo properties reactively
+        prompt: computed(() => {
           // Check if data is available
-          if (!p?.data) {
+          if (!photo?.data) {
             return "Waiting for image data...";
           }
 
           // Return the multipart prompt
           return [
-            { type: "image" as const, image: p.data },
+            { type: "image" as const, image: photo.data },
             {
               type: "text" as const,
               text: `Analyze this photo and determine if it shows:
@@ -553,11 +553,12 @@ CRITICAL RULES:
 4. Only suggest clues for UNREVEALED words
 5. Be creative with connections (synonyms, categories, rhymes, cultural references)`,
 
-      prompt: derive({ board, setupMode, myTeam }, (values) => {
-        // Unwrap Cell values - derive() doesn't do this automatically when passing an object
-        const setupModeValue = (values.setupMode as any).get ? (values.setupMode as any).get() : values.setupMode;
-        const boardData: BoardWord[] = (values.board as any).get ? (values.board as any).get() : values.board;
-        const myTeamValue: Team = (values.myTeam as any).get ? (values.myTeam as any).get() : values.myTeam;
+      prompt: computed(() => {
+        // Pattern inputs auto-unwrap in computed()
+        // setupMode, board, myTeam are Cell types - use .get() for local cells, direct access for pattern inputs
+        const setupModeValue = setupMode.get();
+        const boardData = board.get();
+        const myTeamValue = myTeam.get();
 
         // Only run in Game Mode
         if (setupModeValue) {
@@ -765,7 +766,8 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
           </div>
 
           {/* Initialize Board Button - only show if board is empty */}
-          {derive(board, (boardData) => {
+          {computed(() => {
+            const boardData = board.get();
             // Check if board is initialized and is an array
             if (!boardData || !Array.isArray(boardData) || boardData.length === 0) {
               // Board not initialized or empty, show the button
@@ -964,7 +966,8 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 fontSize: "0.75rem",
                 flexWrap: "wrap",
               }}>
-                {derive(board, (boardData: BoardWord[]) => {
+                {computed(() => {
+                  const boardData = board.get();
                   const counts: Record<WordOwner, number> = {
                     red: 0,
                     blue: 0,
@@ -1085,17 +1088,11 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 {photoExtractions.map((extraction, photoIdx) => {
                   // Use photoIdx directly from .map() parameter
 
-                  return derive(
-                    {
-                      pending: extraction.pending,
-                      result: extraction.result,
-                      approvalState: approvalState
-                    },
-                    (values) => {
-                      // Unwrap Cell values - derive() doesn't do this automatically when passing an object
-                      const pending = (values.pending as any).get ? (values.pending as any).get() : values.pending;
-                      const result = (values.result as any).get ? (values.result as any).get() : values.result;
-                      const approvalStateValue = (values.approvalState as any).get ? (values.approvalState as any).get() : values.approvalState;
+                  return computed(() => {
+                      // In computed(), access Cell values using .get() for local cells
+                      const pending = extraction.pending;
+                      const result = extraction.result;
+                      const approvalStateValue = approvalState.get();
 
                       const approval = approvalStateValue[photoIdx] || { correctionText: "", applied: false };
 
@@ -1380,8 +1377,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                           </div>
                         </div>
                       );
-                    }
-                  );
+                  });
                 })}
               </div>
             </div>,
@@ -1418,7 +1414,10 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 🤖 AI Clue Suggestions
               </h3>
 
-              {derive({ pending: clueSuggestions.pending, result: clueSuggestions.result }, ({ pending, result }) => {
+              {computed(() => {
+                const pending = clueSuggestions.pending;
+                const result = clueSuggestions.result;
+
                 if (pending) {
                   return (
                     <div style={{

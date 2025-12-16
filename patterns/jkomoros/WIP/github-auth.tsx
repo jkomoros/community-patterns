@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, fetchData, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * GitHub Personal Access Token Authentication
@@ -70,11 +70,11 @@ const GITHUB_TOKEN_URL = "https://github.com/settings/tokens/new?description=Com
 export default pattern<Input, Output>(({ token }) => {
   // Only fetch when we have a non-empty token
   // This prevents 401 errors when the pattern loads without a token
-  const hasToken = derive(token, (t) => !!t && t.length > 0);
+  const hasToken = computed(() => !!token && token.length > 0);
 
   // Derive URLs that are empty when no token (fetchData skips fetch when URL is empty)
-  const userUrl = derive(hasToken, (has) => has ? "https://api.github.com/user" : "");
-  const rateLimitUrl = derive(hasToken, (has) => has ? "https://api.github.com/rate_limit" : "");
+  const userUrl = computed(() => hasToken ? "https://api.github.com/user" : "");
+  const rateLimitUrl = computed(() => hasToken ? "https://api.github.com/rate_limit" : "");
 
   // Fetch user info to validate token (skipped when URL is empty)
   const userResponse = fetchData<GitHubUser>({
@@ -82,8 +82,8 @@ export default pattern<Input, Output>(({ token }) => {
     mode: "json",
     options: {
       method: "GET",
-      headers: derive(token, (t) => ({
-        "Authorization": `Bearer ${t}`,
+      headers: computed(() => ({
+        "Authorization": `Bearer ${token}`,
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       })),
@@ -96,8 +96,8 @@ export default pattern<Input, Output>(({ token }) => {
     mode: "json",
     options: {
       method: "GET",
-      headers: derive(token, (t) => ({
-        "Authorization": `Bearer ${t}`,
+      headers: computed(() => ({
+        "Authorization": `Bearer ${token}`,
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       })),
@@ -105,25 +105,22 @@ export default pattern<Input, Output>(({ token }) => {
   });
 
   // Derive validation status
-  const isValid = derive(
-    { token, userResponse },
-    ({ token, userResponse }) => {
-      if (!token) return false;
-      if (!userResponse) return false;
-      if (userResponse.pending) return false;
-      if (userResponse.error) return false;
-      return !!userResponse.result?.login;
-    }
-  );
+  const isValid = computed(() => {
+    if (!token) return false;
+    if (!userResponse) return false;
+    if (userResponse.pending) return false;
+    if (userResponse.error) return false;
+    return !!userResponse.result?.login;
+  });
 
   // Derive user info
-  const username = derive(userResponse, (resp) => resp?.result?.login || "");
-  const avatarUrl = derive(userResponse, (resp) => resp?.result?.avatar_url || "");
-  const displayName = derive(userResponse, (resp) => resp?.result?.name || resp?.result?.login || "");
+  const username = computed(() => userResponse?.result?.login || "");
+  const avatarUrl = computed(() => userResponse?.result?.avatar_url || "");
+  const displayName = computed(() => userResponse?.result?.name || userResponse?.result?.login || "");
 
   // Derive rate limit info
-  const rateLimit = derive(rateLimitResponse, (resp) => {
-    const core = resp?.result?.resources?.core;
+  const rateLimit = computed(() => {
+    const core = rateLimitResponse?.result?.resources?.core;
     if (!core) return { remaining: 0, limit: 0, resetAt: "" };
     const resetDate = new Date(core.reset * 1000);
     return {
@@ -134,19 +131,13 @@ export default pattern<Input, Output>(({ token }) => {
   });
 
   // Check if currently validating
-  const isValidating = derive(
-    { token, userResponse },
-    ({ token, userResponse }) => !!token && userResponse?.pending === true
-  );
+  const isValidating = computed(() => !!token && userResponse?.pending === true);
 
   // Check for error
-  const hasError = derive(
-    { token, userResponse },
-    ({ token, userResponse }) => {
-      if (!token) return false;
-      return !!userResponse?.error || (userResponse?.result === null && !userResponse?.pending);
-    }
-  );
+  const hasError = computed(() => {
+    if (!token) return false;
+    return !!userResponse?.error || (userResponse?.result === null && !userResponse?.pending);
+  });
 
   return {
     [NAME]: "GitHub Auth",
@@ -162,8 +153,8 @@ export default pattern<Input, Output>(({ token }) => {
           padding: "16px",
           borderRadius: "8px",
           marginBottom: "20px",
-          backgroundColor: derive(isValid, (v) => v ? "#d4edda" : "#f8f9fa"),
-          border: derive(isValid, (v) => v ? "1px solid #28a745" : "1px solid #dee2e6"),
+          backgroundColor: computed(() => isValid ? "#d4edda" : "#f8f9fa"),
+          border: computed(() => isValid ? "1px solid #28a745" : "1px solid #dee2e6"),
         }}>
           {ifElse(
             isValid,
@@ -207,8 +198,8 @@ export default pattern<Input, Output>(({ token }) => {
             fontSize: "14px",
           }}>
             <strong>API Rate Limit:</strong>{" "}
-            {derive(rateLimit, (r) => `${r.remaining.toLocaleString()} / ${r.limit.toLocaleString()}`)} remaining
-            {derive(rateLimit, (r) => r.resetAt ? ` (resets at ${r.resetAt})` : "")}
+            {computed(() => `${rateLimit.remaining.toLocaleString()} / ${rateLimit.limit.toLocaleString()}`)} remaining
+            {computed(() => rateLimit.resetAt ? ` (resets at ${rateLimit.resetAt})` : "")}
           </div>,
           null
         )}
