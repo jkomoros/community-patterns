@@ -1,4 +1,4 @@
-# Superstition: Conditional fetchData Requires Derived URL (ifElse Doesn't Work)
+# Superstition: Conditional fetchData Requires Computed URL (ifElse Doesn't Work)
 
 **Date:** 2025-12-01
 **Author:** jkomoros
@@ -7,13 +7,13 @@
 
 ## Summary
 
-`ifElse()` wrapping `fetchData()` does NOT prevent the fetch from executing. JavaScript evaluates all function arguments before calling the function. The correct approach is to use a derived URL that returns empty string when the condition is false.
+`ifElse()` wrapping `fetchData()` does NOT prevent the fetch from executing. JavaScript evaluates all function arguments before calling the function. The correct approach is to use a computed URL that returns empty string when the condition is false.
 
 ## Observed Behavior
 
 ### Doesn't Work (ifElse wrapper)
 ```typescript
-const hasToken = derive(token, (t) => !!t && t.length > 0);
+const hasToken = computed(() => !!token && token.length > 0);
 
 // BUG: fetchData() is called BEFORE ifElse runs!
 // JavaScript evaluates all arguments first, then calls the function.
@@ -29,12 +29,12 @@ const userResponse = ifElse(
 
 This causes 401 errors on initial load when `token` is empty because the fetch runs before `ifElse` can decide which branch to use.
 
-### Works (Derived URL)
+### Works (Computed URL)
 ```typescript
-const hasToken = derive(token, (t) => !!t && t.length > 0);
+const hasToken = computed(() => !!token && token.length > 0);
 
 // URL is empty when no token, so fetchData skips the fetch entirely
-const userUrl = derive(hasToken, (has) => has ? "https://api.github.com/user" : "");
+const userUrl = computed(() => hasToken ? "https://api.github.com/user" : "");
 
 const userResponse = fetchData<GitHubUser>({
   url: userUrl,  // Empty string = no fetch
@@ -64,9 +64,9 @@ When the URL is falsy (empty string, null, undefined), `fetchData()` skips the H
 
 From `patterns/jkomoros/github-auth.tsx`:
 ```typescript
-// Derive URLs that are empty when no token (fetchData skips fetch when URL is empty)
-const userUrl = derive(hasToken, (has) => has ? "https://api.github.com/user" : "");
-const rateLimitUrl = derive(hasToken, (has) => has ? "https://api.github.com/rate_limit" : "");
+// Computed URLs that are empty when no token (fetchData skips fetch when URL is empty)
+const userUrl = computed(() => hasToken ? "https://api.github.com/user" : "");
+const rateLimitUrl = computed(() => hasToken ? "https://api.github.com/rate_limit" : "");
 
 // Fetch user info to validate token (skipped when URL is empty)
 const userResponse = fetchData<GitHubUser>({
@@ -74,8 +74,8 @@ const userResponse = fetchData<GitHubUser>({
   mode: "json",
   options: {
     method: "GET",
-    headers: derive(token, (t) => ({
-      "Authorization": `Bearer ${t}`,
+    headers: computed(() => ({
+      "Authorization": `Bearer ${token}`,
       // ...
     })),
   },
@@ -88,7 +88,7 @@ This bug caused 401 Unauthorized errors on initial page load when the GitHub aut
 
 ## Rule of Thumb
 
-- **For conditional fetching:** Use a derived URL that returns empty string when condition is false
+- **For conditional fetching:** Use a computed URL that returns empty string when condition is false
 - **ifElse() is for UI:** Use `ifElse()` for conditional rendering in JSX, not for preventing side effects
 - **JavaScript execution order:** All function arguments are evaluated before the function is called
 - **fetchData behavior:** Empty/falsy URL = no fetch (early return)

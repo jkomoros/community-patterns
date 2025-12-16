@@ -9,8 +9,6 @@ status: folk_wisdom
 stars: ⭐⭐
 ---
 
-> **API DEPRECATION (2025-12-15):** `derive()` is deprecated in favor of `computed()`. The guidance in this document still applies - just use `computed()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
-
 # ✅ FOLK WISDOM - CONFIRMED
 
 **This pattern has been confirmed multiple times.**
@@ -20,11 +18,11 @@ Same bug found and fixed in `gmail-agentic-search.tsx` (2025-12-05).
 
 ---
 
-# Use Property Access Instead of derive() When You Need Writable Cells
+# Use Property Access Instead of computed() When You Need Writable Cells
 
 ## Problem
 
-When you use `derive()` to extract a property from a charm or cell, the result is a **read-only projection**. Any attempts to write to it (via `.set()`, `.update()`, `.push()`) will silently fail.
+When you use `computed()` to extract a property from a charm or cell, the result is a **read-only projection**. Any attempts to write to it (via `.set()`, `.update()`, `.push()`) will silently fail.
 
 This is particularly insidious because:
 1. No error is thrown
@@ -36,11 +34,11 @@ This is particularly insidious because:
 ```typescript
 // Wish for an auth charm
 const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
-const wishedAuthCharm = derive(wishResult, (wr) => wr?.result || null);
+const wishedAuthCharm = computed(() => wishResult?.result || null);
 
-// ❌ WRONG: derive() creates a read-only projection
-const auth = derive(wishedAuthCharm, (charm) =>
-  charm?.auth || { token: "", /* defaults */ });
+// ❌ WRONG: computed() creates a read-only projection
+const auth = computed(() =>
+  wishedAuthCharm?.auth || { token: "", /* defaults */ });
 
 // Later in a handler...
 async function refreshAuth() {
@@ -59,17 +57,16 @@ async function refreshAuth() {
 
 ### Option 1: Property Access
 
-Access the property directly via property path instead of `derive()`:
+Access the property directly via property path instead of `computed()`:
 
 ```typescript
 // Wish for an auth charm
 const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
-const effectiveAuthCharm = derive(
-  { authCharm, wishedAuthCharm },
-  ({ authCharm, wishedAuthCharm }) => authCharm || wishedAuthCharm || null
+const effectiveAuthCharm = computed(() =>
+  authCharm || wishedAuthCharm || null
 );
 
-// ✅ CORRECT: Access .auth as a property path (NOT derived)
+// ✅ CORRECT: Access .auth as a property path (NOT computed)
 const auth = effectiveAuthCharm.auth;
 
 // Later in a handler...
@@ -93,7 +90,7 @@ When you need to choose between two auth sources (e.g., direct input vs wished c
 import { ifElse } from "commontools";
 
 // Get auth from either direct input or wished charm
-const hasDirectAuth = derive(inputAuth, (a) => !!a?.token);
+const hasDirectAuth = computed(() => !!inputAuth?.token);
 const auth = ifElse(
   hasDirectAuth,        // condition
   inputAuth,            // if true: use direct auth
@@ -106,7 +103,7 @@ const auth = ifElse(
 **Why ifElse() is often better:**
 - Explicitly handles the "use A or B" pattern
 - Both branches maintain writability
-- Clearer intent than nested derives
+- Clearer intent than nested computeds
 - Used in `gmail-agentic-search.tsx` fix (2025-12-05)
 
 ## Key Insight
@@ -115,11 +112,11 @@ The difference is subtle but critical:
 
 | Approach | Result | Writable? |
 |----------|--------|-----------|
-| `derive(charm, c => c?.auth)` | Read-only projection | ❌ No |
+| `computed(() => charm?.auth)` | Read-only projection | ❌ No |
 | `charm.auth` | Live Cell reference | ✅ Yes |
 
 **Rule of thumb:**
-- Use `derive()` when you only need to READ and transform data
+- Use `computed()` when you only need to READ and transform data
 - Use property access when you need to WRITE back to the source
 
 ## Context
@@ -129,12 +126,12 @@ Discovered while debugging Gmail importer auth expiration issue:
 - `refreshAuth()` successfully got new tokens from backend
 - `auth.update(newToken)` appeared to work but didn't persist
 - Next API call still used expired token
-- Root cause: `auth` was derived, making it read-only
+- Root cause: `auth` was computed, making it read-only
 
 ## Related Documentation
 
 - **Official docs:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md`
-- **Folk wisdom:** `community-docs/folk_wisdom/reactivity.md` - "Derives Cannot Mutate Cells"
+- **Folk wisdom:** `community-docs/folk_wisdom/reactivity.md` - "Computeds Cannot Mutate Cells"
 - **Related superstition:** `2025-01-24-pass-cells-as-handler-params-not-closure.md`
 - **Related superstition:** `2025-12-05-bgupdater-background-charm-service.md` - Background sync and token refresh
 

@@ -26,8 +26,6 @@ stars: ⭐
 
 ---
 
-> **API DEPRECATION (2025-12-15):** `cell()` is deprecated in favor of `Cell.of()`. The guidance in this document still applies - just use `Cell.of()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
-
 # Default<> Input Cells May Be Read-Only - Use Local Cell.of() for UI State
 
 ## Problem
@@ -70,7 +68,7 @@ export default pattern<Input>(({ accountType }) => {
 
 ## Solution That Seemed To Work
 
-Create a **local writable cell** using `cell()` for UI state:
+Create a **local writable cell** using `Cell.of()` for UI state:
 
 ```typescript
 interface Input {
@@ -79,7 +77,7 @@ interface Input {
 
 export default pattern<Input>(({ accountType }) => {
   // ✅ Create local writable cell for UI state
-  const selectedAccountType = cell<"default" | "personal" | "work">("default");
+  const selectedAccountType = Cell.of<"default" | "personal" | "work">("default");
 
   // Handler writes to local cell (always writable)
   const setAccountType = handler<
@@ -91,7 +89,8 @@ export default pattern<Input>(({ accountType }) => {
   });
 
   // Derive reactive values from local cell
-  const wishTag = derive(selectedAccountType, (type) => {
+  const wishTag = computed(() => {
+    const type = selectedAccountType.get();
     switch (type) {
       case "personal": return "#googleAuthPersonal";
       case "work": return "#googleAuthWork";
@@ -111,7 +110,7 @@ export default pattern<Input>(({ accountType }) => {
 ```
 
 **Why this works:**
-- `cell()` creates a fresh, always-writable cell
+- `Cell.of()` creates a fresh, always-writable cell
 - Local cells are owned by the pattern instance
 - No dependency on how the pattern was instantiated
 
@@ -119,14 +118,14 @@ export default pattern<Input>(({ accountType }) => {
 
 | Cell Source | Writable? |
 |-------------|-----------|
-| `cell()` (local) | ✅ Always writable |
+| `Cell.of()` (local) | ✅ Always writable |
 | Pattern input with Default<> | ⚠️ May be read-only |
-| `derive()` result | ❌ Read-only projection |
+| `computed()` result | ❌ Read-only projection |
 
 **Rule of thumb:**
-- Use `cell()` for UI state that needs to be written via handlers
+- Use `Cell.of()` for UI state that needs to be written via handlers
 - Use pattern inputs for configuration passed from parent patterns
-- Use `derive()` for computed/transformed values (read-only)
+- Use `computed()` for computed/transformed values (read-only)
 
 ## Context
 
@@ -134,7 +133,7 @@ Discovered while implementing multi-account Gmail auth dropdown:
 - Pattern had `accountType: Default<"default" | "personal" | "work", "default">`
 - Dropdown onChange handler tried to write to `accountType`
 - Visual selection worked but cell value didn't update
-- Fix: Create local `selectedAccountType = cell(...)` for UI state
+- Fix: Create local `selectedAccountType = Cell.of(...)` for UI state
 
 ## Related Documentation
 
