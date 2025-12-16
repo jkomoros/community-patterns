@@ -7,20 +7,19 @@
 
 ## Summary
 
-Using JavaScript `Map` objects as derive output values causes runtime errors when the Map is later accessed. The framework seems to serialize/deserialize values in a way that loses Map functionality.
+Using JavaScript `Map` objects as computed output values causes runtime errors when the Map is later accessed. The framework seems to serialize/deserialize values in a way that loses Map functionality.
 
 ## Observed Behavior
 
 ### Didn't Work (Map)
 ```typescript
-const itemMap = derive(
-  [items],
-  ([itemList]: [Item[]]) =>
-    new Map(itemList.map((item) => [item.value, item]))
+const itemMap = computed(() =>
+  new Map(items.map((item) => [item.value, item]))
 );
 
-// Later in another derive or UI:
-derive([selected, itemMap], ([sel, map]) => {
+// Later in another computed or UI:
+computed(() => {
+  const map = itemMap;
   const item = map.get(value);  // ERROR: map.get is not a function
   // ...
 });
@@ -30,19 +29,17 @@ derive([selected, itemMap], ([sel, map]) => {
 
 ### Works (Plain Object)
 ```typescript
-const itemLookup = derive(
-  [items],
-  ([itemList]: [Item[]]) => {
-    const lookup: Record<string, Item> = {};
-    for (const item of itemList) {
-      lookup[item.value] = item;
-    }
-    return lookup;
+const itemLookup = computed(() => {
+  const lookup: Record<string, Item> = {};
+  for (const item of items) {
+    lookup[item.value] = item;
   }
-);
+  return lookup;
+});
 
 // Later:
-derive([selected, itemLookup], ([sel, lookup]) => {
+computed(() => {
+  const lookup = itemLookup;
   const item = lookup[value];  // Works correctly
   // ...
 });
@@ -54,7 +51,7 @@ The framework likely serializes Cell values to JSON for persistence/sync, and `M
 
 ## Workaround
 
-Use plain JavaScript objects (`Record<string, T>`) instead of `Map` for lookup tables in derive outputs.
+Use plain JavaScript objects (`Record<string, T>`) instead of `Map` for lookup tables in computed outputs.
 
 ## Related Issues
 

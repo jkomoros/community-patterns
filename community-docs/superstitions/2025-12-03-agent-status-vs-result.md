@@ -51,8 +51,8 @@ const searchGmail = defineTool({
 });
 
 // In UI:
-{derive(searchProgress, (p) =>
-  p.status === "auth_error" ? <AuthErrorUI /> : null
+{computed(() =>
+  searchProgress.status === "auth_error" ? <AuthErrorUI /> : null
 )}
 ```
 
@@ -78,8 +78,8 @@ const { pending: agentPending, result: agentResult } = useAgent<AgentResult>({
 });
 
 // Derive error state from agent result summary (reactive approach)
-const hasAuthError = derive(agentResult, (r) => {
-  const summary = r?.summary || "";
+const hasAuthError = computed(() => {
+  const summary = agentResult?.summary || "";
   return summary.includes("401") || summary.toLowerCase().includes("authentication error");
 });
 

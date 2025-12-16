@@ -39,17 +39,17 @@ We observed both error messages:
 
 ## What We Did (Defensive Fix)
 
-Added null checks to ALL derives that iterate over arrays:
+Added null checks to ALL computeds that iterate over arrays:
 
 ```typescript
 // BEFORE (crashes during hydration)
-const completedCount = derive(items, (list) =>
-  list.filter((e: any) => !e.extraction?.pending).length
+const completedCount = computed(() =>
+  items.filter((e: any) => !e.extraction?.pending).length
 );
 
 // AFTER (defensive)
-const completedCount = derive(items, (list) =>
-  list.filter((e: any) => e && !e.extraction?.pending).length
+const completedCount = computed(() =>
+  items.filter((e: any) => e && !e.extraction?.pending).length
 );
 
 // For loops also need checks
@@ -74,7 +74,7 @@ This hypothesis would be **confirmed** if:
 ## Related Observations
 
 - Pattern was using complex nested maps: `manualArticleProcessing.map(processArticleUrl)`
-- Each `processArticleUrl` creates multiple derived cells (L2-L5)
+- Each `processArticleUrl` creates multiple computed cells (L2-L5)
 - Storage shows many concurrent transaction conflicts
 - Issue only manifests on page REFRESH, not initial load
 
@@ -88,13 +88,13 @@ This hypothesis would be **confirmed** if:
 ## Metadata
 
 ```yaml
-topic: hydration, page-refresh, arrays, undefined, reactivity-loops, derives
+topic: hydration, page-refresh, arrays, undefined, reactivity-loops, computeds
 discovered: 2025-11-29
 confirmed_count: 1
 last_confirmed: 2025-11-29
 confidence: low
 sessions: [prompt-injection-tracker-caching-investigation]
-related_functions: derive, map, filter, page refresh
+related_functions: computed, map, filter, page refresh
 stars: 4
 status: needs-investigation
 ```

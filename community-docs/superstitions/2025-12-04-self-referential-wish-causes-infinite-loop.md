@@ -31,8 +31,8 @@ export default recipe(HotelMembershipExtractorSchema, ({ memberships }) => {
   // The wish resolves to THIS charm, which triggers re-evaluation,
   // which wishes again, which resolves to THIS charm... infinite loop
 
-  const wishedMemberships = derive(wishedMembershipsCharm, ...);
-  const allMemberships = derive([memberships, wishedMemberships], ...);
+  const wishedMemberships = computed(() => wishedMembershipsCharm);
+  const allMemberships = computed(() => [memberships, wishedMemberships]);
 
   return { memberships, allMemberships, /* ... */ };
 });
@@ -100,8 +100,8 @@ Hypothetically, you could filter out your own charm from wish results, but this 
 ```typescript
 // ⚠️ UNTESTED - may not work
 const wishedCharms = wish<HotelMembershipOutput>({ query: "#hotelMemberships" });
-const otherCharms = derive(wishedCharms, charms =>
-  charms?.filter(c => c.id !== currentCharmId)  // How to get currentCharmId?
+const otherCharms = computed(() =>
+  wishedCharms?.filter(c => c.id !== currentCharmId)  // How to get currentCharmId?
 );
 ```
 

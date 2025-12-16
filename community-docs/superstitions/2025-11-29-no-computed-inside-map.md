@@ -28,19 +28,18 @@ Each `computed()` creation triggers a subscription, which can trigger re-renders
 
 ## Solution
 
-**Pre-compute the derived state in a `derive()` BEFORE the render:**
+**Pre-compute the derived state in a `computed()` BEFORE the render:**
 
 ```typescript
-// GOOD - Compute once in a derive, use plain values in render
-const listWithReadState = derive(
-  { list: myList, read: readUrls },
-  ({ list, read }) => {
-    return list.map((item) => ({
-      ...item,
-      isRead: read.includes(item.url),
-    }));
-  }
-);
+// GOOD - Compute once in a computed, use plain values in render
+const listWithReadState = computed(() => {
+  const list = myList;
+  const read = readUrls;
+  return list.map((item) => ({
+    ...item,
+    isRead: read.includes(item.url),
+  }));
+});
 
 // In render - just use the pre-computed value
 {listWithReadState.map((item) => (
@@ -52,14 +51,14 @@ const listWithReadState = derive(
 
 ## Why This Works
 
-- `derive()` creates a single reactive computation that updates when inputs change
+- `computed()` creates a single reactive computation that updates when inputs change
 - The `.map()` in render only deals with plain JavaScript values
 - No new reactive subscriptions created during render
-- Clean separation: reactivity in derives, plain values in UI
+- Clean separation: reactivity in computeds, plain values in UI
 
 ## General Rule
 
-**Never create reactive primitives (`computed()`, `cell()`, `derive()`) inside render callbacks.** All reactive state should be defined at the top level of your pattern function, before the return statement.
+**Never create reactive primitives (`computed()`, `Cell.of()`) inside render callbacks.** All reactive state should be defined at the top level of your pattern function, before the return statement.
 
 ## Symptoms to Watch For
 
@@ -79,4 +78,4 @@ status: superstition
 
 ## Guestbook
 
-- 2025-11-29 - Discovered while building prompt-injection-tracker-v3. Had `computed()` inside `.map()` to check if items were read. Caused 260% CPU and tab crash. Fixed by pre-computing isRead flag in a derive. (prompt-injection-tracker-map-approach)
+- 2025-11-29 - Discovered while building prompt-injection-tracker-v3. Had `computed()` inside `.map()` to check if items were read. Caused 260% CPU and tab crash. Fixed by pre-computing isRead flag in a computed. (prompt-injection-tracker-map-approach)

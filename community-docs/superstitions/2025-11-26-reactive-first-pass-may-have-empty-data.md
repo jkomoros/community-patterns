@@ -53,7 +53,7 @@ The reactive system may need multiple passes to:
 - Populate arrays from async sources
 - Sync with remote data
 
-Pattern code using `derive()` handles this automatically - it re-runs when data changes.
+Pattern code using `computed()` handles this automatically - it re-runs when data changes.
 
 ### 2. Distinguish "not found" from "found but empty"
 When checking for data from a wished charm:
@@ -68,13 +68,13 @@ The framework author (Berni) mentioned he's removing the confusing error logging
 ## What To Do
 
 1. **Don't panic at first-pass errors** - Check if subsequent reactive updates fix it
-2. **Use derive() for reactive data** - It automatically re-evaluates when inputs change
+2. **Use computed() for reactive data** - It automatically re-evaluates when inputs change
 3. **Check the final UI state** - Not just console errors during loading
-4. **Add console.log in derive()** - To see all reactive passes, not just the first
+4. **Add console.log in computed()** - To see all reactive passes, not just the first
 
 ```typescript
 // This will log on EVERY reactive update, showing the progression
-derive(wishResult, (wr) => console.log("wishResult", wr));
+computed(() => console.log("wishResult", wishResult));
 ```
 
 ## When This Applies
@@ -92,7 +92,7 @@ discovered: 2025-11-26
 confirmed_count: 1
 last_confirmed: 2025-11-26
 sessions: [gmail-auth-wish-refactor]
-related_functions: wish, derive, cell, favorites
+related_functions: wish, computed, Cell.of, favorites
 stars: 5
 status: confirmed
 ```

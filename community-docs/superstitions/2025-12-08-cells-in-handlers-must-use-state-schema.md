@@ -7,7 +7,7 @@
 
 ## The Problem
 
-When you create a cell with `cell()` in the pattern body and then try to use it inside a handler via closure, you get:
+When you create a cell with `Cell.of()` in the pattern body and then try to use it inside a handler via closure, you get:
 
 ```
 Cannot create cell link: space is required. This can happen when closing
@@ -15,14 +15,14 @@ over (opaque) cells in a lift or derive. Instead pass those cells into
 the lift or derive directly as Cell<> inputs.
 ```
 
-This happens because handlers (like `derive` and `lift`) run in isolated contexts and cannot access cells through JavaScript closures.
+This happens because handlers (like `computed` and `lift`) run in isolated contexts and cannot access cells through JavaScript closures.
 
 ## Wrong Pattern
 
 ```typescript
 const pattern = pattern<Input, Output>(({ ... }) => {
   // Create a cell in the pattern body
-  const myTrackingCell = cell<string | null>(null);
+  const myTrackingCell = Cell.of<string | null>(null);
 
   // ❌ WRONG - Handler captures cell via closure
   const myHandler = handler<
@@ -44,7 +44,7 @@ const pattern = pattern<Input, Output>(({ ... }) => {
 ```typescript
 const pattern = pattern<Input, Output>(({ ... }) => {
   // Create a cell in the pattern body
-  const myTrackingCell = cell<string | null>(null);
+  const myTrackingCell = Cell.of<string | null>(null);
 
   // ✅ CORRECT - Cell is in handler's state schema
   const myHandler = handler<
@@ -78,7 +78,7 @@ const pattern = pattern<Input, Output>(({ ... }) => {
 ## This Applies To
 
 - `handler()` - The main tool for creating event handlers
-- `derive()` - Reactive derivations (use array input instead)
+- `computed()` - Reactive derivations
 - `lift()` - Lifting functions to work with cells
 - `Stream<T>` - Same principle applies! See below.
 
@@ -90,7 +90,7 @@ When you need to call `.send()` on a stream (especially from a wished charm), yo
 import { Stream } from "commontools";
 
 // ❌ WRONG - Stream from wished charm appears opaque, no .send()
-const stream = derive(wishedCharm, (c) => c?.refreshToken);
+const stream = computed(() => wishedCharm?.refreshToken);
 stream.send({});  // Error: stream.send is not a function
 
 // ✅ CORRECT - Declare Stream<T> in handler signature
@@ -109,6 +109,6 @@ const triggerRefresh = handler<
 
 ## Related
 
-- For `derive()`, pass cells as array inputs: `derive([cell1, cell2], ([v1, v2]) => ...)`
+- For `computed()`, cells are auto-tracked when accessed
 - For streams from wished charms, see: `community-docs/blessed/cross-charm.md`
-- See also: community-docs about closure variables not persisting in derive callbacks
+- See also: community-docs about closure variables not persisting in computed callbacks

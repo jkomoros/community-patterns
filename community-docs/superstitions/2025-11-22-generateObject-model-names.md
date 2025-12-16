@@ -133,7 +133,7 @@ const photoExtractions = uploadedPhotos.map((photo) => {
   return generateObject({
     model: "claude-3-5-sonnet-20241022",  // ❌ Not in registry
     system: `You are an image analysis assistant...`,
-    prompt: derive(photo, (p) => { /* ... */ }),
+    prompt: computed(() => { /* ... */ }),
     schema: toSchema<PhotoExtractionResult>()
   });
 });
@@ -143,7 +143,7 @@ const photoExtractions = uploadedPhotos.map((photo) => {
   return generateObject({
     model: "anthropic:claude-sonnet-4-5",  // ✅ Valid registry name
     system: `You are an image analysis assistant...`,
-    prompt: derive(photo, (p) => { /* ... */ }),
+    prompt: computed(() => { /* ... */ }),
     schema: toSchema<PhotoExtractionResult>()
   });
 });

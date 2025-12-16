@@ -20,20 +20,19 @@ This manifests as the server getting stuck at 100%+ CPU with no output.
 
 ```tsx
 // DON'T DO THIS - causes infinite loop!
-const memberships = cell<MembershipRecord[]>([]);
+const memberships = Cell.of<MembershipRecord[]>([]);
 
-const agentGoal = derive(
-  [memberships, maxSearches],  // <-- memberships is written by the agent!
-  ([found, max]) => {
-    const foundBrands = found.map(m => m.brand);
-    return `Find memberships. Already saved: ${foundBrands.join(", ")}`;
-  }
-);
+const agentGoal = computed(() => {
+  const found = memberships;
+  const max = maxSearches;
+  const foundBrands = found.map(m => m.brand);
+  return `Find memberships. Already saved: ${foundBrands.join(", ")}`;
+});
 
 // This will infinite loop because:
 // agent writes to memberships → agentGoal changes → prompt changes → agent restarts
 const agent = generateObject({
-  prompt: derive([agentGoal], ([goal]) => goal),  // Changes when memberships change!
+  prompt: computed(() => agentGoal),  // Changes when memberships change!
   tools: { reportMembership: { handler: (args) => memberships.push(args) } },
   ...
 });
@@ -43,18 +42,17 @@ const agent = generateObject({
 
 ```tsx
 // DO THIS INSTEAD - goal is static, doesn't depend on agent output
-const memberships = cell<MembershipRecord[]>([]);
+const memberships = Cell.of<MembershipRecord[]>([]);
 
-const agentGoal = derive(
-  [maxSearches, scanMode],  // Only derive from configuration, NOT from output
-  ([max, mode]) => {
-    return `Find hotel loyalty memberships. Search up to ${max} times.`;
-  }
-);
+const agentGoal = computed(() => {
+  const max = maxSearches;
+  const mode = scanMode;
+  return `Find hotel loyalty memberships. Search up to ${max} times.`;
+});
 
 // Agent can still write to memberships, but agentGoal won't change
 const agent = generateObject({
-  prompt: derive([agentGoal], ([goal]) => goal),  // Stable prompt
+  prompt: computed(() => agentGoal),  // Stable prompt
   tools: { reportMembership: { handler: (args) => memberships.push(args) } },
   ...
 });
@@ -79,7 +77,7 @@ The `generateObject` prompt should be **stable** during agent execution. If any 
 ## Debugging Tips
 
 If your server gets stuck at 100% CPU:
-1. Check if any `derive()` building the agent prompt depends on cells the agent writes to
+1. Check if any `computed()` building the agent prompt depends on cells the agent writes to
 2. Look for any "feedback loops" where output affects input
 3. The pattern might work initially but loop when the agent succeeds at its task
 

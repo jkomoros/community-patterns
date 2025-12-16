@@ -60,13 +60,13 @@ const respinSpindle = handler<...>((_, { spindles, spindleId }) => {
 
 3. Include the nonce in the prompt:
 ```typescript
-const fullPrompt = derive({ config, levelConfig }, (deps) => {
+const fullPrompt = computed(() => {
   const parts: string[] = [];
   // ... build prompt parts ...
 
   // Cache-busting nonce (only added when respin is used)
-  if (deps.config.respinNonce) {
-    parts.push(`[Generation attempt: ${deps.config.respinNonce}]`);
+  if (config.respinNonce) {
+    parts.push(`[Generation attempt: ${config.respinNonce}]`);
   }
 
   return parts.join("\n\n");

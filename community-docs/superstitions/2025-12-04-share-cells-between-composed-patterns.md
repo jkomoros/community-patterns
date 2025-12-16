@@ -46,9 +46,9 @@ const BasePattern = pattern<...>(({ isScanning }) => {
   });
 
   // Progress UI depends on BOTH isScanning AND searchProgress
-  const progressUI = derive([isScanning, searchProgress], ([scanning, progress]) => {
-    if (!scanning || progress.status === "idle") return null;
-    return <LoadingIndicator queries={progress.completedQueries} />;
+  const progressUI = computed(() => {
+    if (!isScanning || searchProgress.status === "idle") return null;
+    return <LoadingIndicator queries={searchProgress.completedQueries} />;
   });
 
   return { progressUI, searcher: { searchProgress } };
@@ -76,9 +76,9 @@ const BasePattern = pattern<BaseInput, ...>(
   ({ isScanning, searchProgress }) => {
     // searchProgress comes from input - parent can pass their own cell
 
-    const progressUI = derive([isScanning, searchProgress], ([scanning, progress]) => {
-      if (!scanning || progress.status === "idle") return null;
-      return <LoadingIndicator queries={progress.completedQueries} />;
+    const progressUI = computed(() => {
+      if (!isScanning || searchProgress.status === "idle") return null;
+      return <LoadingIndicator queries={searchProgress.completedQueries} />;
     });
 
     return { progressUI };

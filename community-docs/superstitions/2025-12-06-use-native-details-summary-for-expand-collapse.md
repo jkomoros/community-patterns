@@ -8,7 +8,7 @@ Implementing expand/collapse functionality in pattern UIs
 
 ## Problem
 
-Trying to implement custom expand/collapse with `cell()` state and `handler()` for onClick events leads to complex code that often doesn't work:
+Trying to implement custom expand/collapse with `Cell.of()` state and `handler()` for onClick events leads to complex code that often doesn't work:
 
 1. Handlers inside `derive()` cause `ReadOnlyAddressError`
 2. Handler binding syntax is tricky (`handler<Input, State>` where State includes both Cells AND plain values)
@@ -18,7 +18,7 @@ Trying to implement custom expand/collapse with `cell()` state and `handler()` f
 
 ```typescript
 // ❌ COMPLEX: Custom state + handler approach
-const expandedAgents = cell<Record<string, boolean>>({});
+const expandedAgents = Cell.of<Record<string, boolean>>({});
 
 const toggleExpand = handler<
   unknown,
@@ -33,10 +33,10 @@ const toggleExpand = handler<
 
 // In UI:
 <div onClick={toggleExpand({ expanded: expandedAgents, url: registry.url })}>
-  {derive(expandedAgents, (exp) => exp[registry.url] ? "▼" : "▶")}
+  {computed(() => expandedAgents[registry.url] ? "▼" : "▶")}
   Agent Name
 </div>
-{derive(expandedAgents, (exp) => exp[registry.url] ? <Content /> : null)}
+{computed(() => expandedAgents[registry.url] ? <Content /> : null)}
 ```
 
 **Problems:**
@@ -120,7 +120,7 @@ Examples:
 
 - **Pattern:** gmail-search-registry.tsx
 - **Use case:** Expanding agent type sections to show queries
-- **Original approach:** Custom `cell()` + `handler()` - onClick didn't work
+- **Original approach:** Custom `Cell.of()` + `handler()` - onClick didn't work
 - **Working approach:** Native `<details>/<summary>` - works immediately
 
 ## Related
@@ -144,7 +144,7 @@ stars: ⭐⭐⭐
 
 ## Guestbook
 
-- 2025-12-06 - gmail-search-registry.tsx. Tried custom expand/collapse with `cell()` + `handler()` for agent type sections. onClick handlers weren't triggering despite various binding approaches. Switched to native `<details>/<summary>` and it worked immediately. Much simpler code too. (gmail-search-registry-expand-collapse)
+- 2025-12-06 - gmail-search-registry.tsx. Tried custom expand/collapse with `Cell.of()` + `handler()` for agent type sections. onClick handlers weren't triggering despite various binding approaches. Switched to native `<details>/<summary>` and it worked immediately. Much simpler code too. (gmail-search-registry-expand-collapse)
 
 ---
 

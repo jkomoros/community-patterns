@@ -20,7 +20,7 @@ export default pattern<Input, Output>(({ repos }) => {
   // This FAILS at runtime with "Frame mismatch" or undefined results
   const repoDataList = repos.map((repoNameCell) => {
     const metadata = fetchData<Metadata>({
-      url: derive(repoNameCell, name => `https://api.github.com/repos/${name}`),
+      url: computed(() => `https://api.github.com/repos/${repoNameCell}`),
       mode: "json"
     });
     return { repoName: repoNameCell, metadata };
@@ -47,7 +47,7 @@ The `fetchData` primitive appears to require static allocation during pattern ev
 ### Approach 1: Direct fetchData in .map()
 ```typescript
 repos.map((repo) => {
-  const data = fetchData({ url: derive(repo, r => `.../${r}`) });
+  const data = fetchData({ url: computed(() => `.../${repo}`) });
   return data;
 });
 ```
@@ -84,13 +84,13 @@ Based on how `prompt-injection-tracker` uses `ifElse()` for conditional fetchDat
 
 ```typescript
 repos.map((repoNameCell) => {
-  const shouldFetch = derive(repoNameCell, (name) => !!name);
+  const shouldFetch = computed(() => !!repoNameCell);
 
   // Wrap fetchData in ifElse
   const metadata = ifElse(
     shouldFetch,
     fetchData<Metadata>({
-      url: derive(repoNameCell, name => `.../${name}`),
+      url: computed(() => `.../${repoNameCell}`),
       mode: "json"
     }),
     null
@@ -111,22 +111,22 @@ repos.map((repoNameCell) => {
 Make a single fetchData call that returns all the data you need:
 ```typescript
 const allRepoData = fetchData({
-  url: derive(repos, (rs) => `/api/batch?repos=${rs.join(",")}`),
+  url: computed(() => `/api/batch?repos=${repos.join(",")}`),
   mode: "json"
 });
 ```
 **Limitation:** Requires a backend that supports batch queries.
 
 ### Workaround 2: Fixed Maximum Repos at Top Level (RECOMMENDED)
-Pre-create a fixed number of fetchData slots **at the top level** (outside any `.map()`) and derive URLs from the array:
+Pre-create a fixed number of fetchData slots **at the top level** (outside any `.map()`) and computed URLs from the array:
 
 ```typescript
 export default pattern<Input, Output>(({ repos }) => {
   // Fixed slots at top level - these are evaluated once during pattern init
-  const slot0_url = derive(repos, (rs) => rs[0] ? `.../${rs[0]}` : "");
+  const slot0_url = computed(() => repos[0] ? `.../${repos[0]}` : "");
   const slot0 = fetchData({ url: slot0_url, mode: "json" });
 
-  const slot1_url = derive(repos, (rs) => rs[1] ? `.../${rs[1]}` : "");
+  const slot1_url = computed(() => repos[1] ? `.../${repos[1]}` : "");
   const slot1 = fetchData({ url: slot1_url, mode: "json" });
 
   // ... up to max slots (e.g., 5-10 repos)
@@ -153,7 +153,7 @@ export default pattern<Input, Output>(({ repos }) => {
 ### Workaround 3: External State Management
 Store fetched data in a cell that persists across renders, fetch via handler:
 ```typescript
-const repoDataCache = cell<Record<string, Data>>({});
+const repoDataCache = Cell.of<Record<string, Data>>({});
 const addRepo = handler((_, { repo }) => {
   fetch(`.../${repo}`).then(data => {
     repoDataCache.set(prev => ({ ...prev, [repo]: data }));
@@ -182,16 +182,16 @@ Framework author (Berni) confirmed this is a known timing issue. When accessing 
 
 ### Workaround: Add undefined guards
 
-When accessing properties of derived cells from fetchData in `.map()`:
+When accessing properties of computed cells from fetchData in `.map()`:
 
 ```typescript
 // BAD - crashes with "Cannot read properties of undefined (reading 'loading')"
-{derive(starHistory, (sh) => sh.loading ? "Loading..." : `${sh.data.length} points`)}
+{computed(() => starHistory.loading ? "Loading..." : `${starHistory.data.length} points`)}
 
 // GOOD - guard against undefined
-{derive(starHistory, (sh) => {
-  if (!sh) return "Loading...";
-  return sh.loading ? "Loading..." : `${sh.data.length} points`;
+{computed(() => {
+  if (!starHistory) return "Loading...";
+  return starHistory.loading ? "Loading..." : `${starHistory.data.length} points`;
 })}
 ```
 

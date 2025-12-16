@@ -6,15 +6,15 @@ This may be wrong, incomplete, or context-specific. Use with extreme skepticism 
 
 ## Topic
 
-Accessing Cells inside handlers within reactive contexts (`.map()`, `derive()`, etc.)
+Accessing Cells inside handlers within reactive contexts (`.map()`, `computed()`, etc.)
 
 ## Problem
 
-When you capture a Cell from closure inside a reactive context (`.map()`, `derive()`, etc.) and try to use it in a handler, the Cell gets unwrapped to its plain value and loses all Cell methods (`.set()`, `.get()`, `.key()`), causing "is not a function" errors.
+When you capture a Cell from closure inside a reactive context (`.map()`, `computed()`, etc.) and try to use it in a handler, the Cell gets unwrapped to its plain value and loses all Cell methods (`.set()`, `.get()`, `.key()`), causing "is not a function" errors.
 
 **This affects:**
 - ✅ onClick handlers inside `.map()` contexts
-- ✅ Handlers inside `derive()` blocks
+- ✅ Handlers inside `computed()` blocks
 - ✅ Any handler that captures Cells from outer scope in reactive contexts
 
 ### What Didn't Work
@@ -123,7 +123,7 @@ export default pattern<RubricInput, RubricOutput>(
 
 There's a difference between how Cells are captured in closures vs passed as handler parameters:
 
-1. **Closure capture inside reactive contexts (`.map()`, `derive()`, etc.):**
+1. **Closure capture inside reactive contexts (`.map()`, `computed()`, etc.):**
    - These callbacks create reactive contexts
    - Cells from outer scope get auto-unwrapped for convenience (so you can access properties directly)
    - This unwrapping strips Cell methods
@@ -138,8 +138,8 @@ There's a difference between how Cells are captured in closures vs passed as han
 
 **Mental model:**
 ```
-Closure capture in .map()/derive():  Cell → unwrapped value (no methods)
-Handler parameter:                    Cell → Cell (methods intact)
+Closure capture in .map()/computed():  Cell → unwrapped value (no methods)
+Handler parameter:                      Cell → Cell (methods intact)
 ```
 
 ## Comparison to Other Cells
@@ -231,13 +231,13 @@ const toggleItem = handler<unknown, { id: string, listCell: Cell<string[]> }>(
 ))}
 ```
 
-### ✅ Works in derive() blocks too
+### ✅ Works in computed() blocks too
 
-The same pattern applies to handlers inside `derive()` blocks:
+The same pattern applies to handlers inside `computed()` blocks:
 
 ```typescript
 export default pattern<Input, Output>(({ options, selection }) => {
-  // Save Cell reference BEFORE derive block
+  // Save Cell reference BEFORE computed block
   const optionsCell = options;
 
   const updateValue = handler<unknown, { optionName: string, value: number, optionsCell: Cell<Option[]> }>(
@@ -252,24 +252,23 @@ export default pattern<Input, Output>(({ options, selection }) => {
 
   return {
     [UI]: (
-      {derive(
-        { selected: selection, opts: options },
-        ({ selected, opts }) => {
-          const selectedOpt = opts.find(o => o.name === selected);
+      {computed(() => {
+        const selected = selection;
+        const opts = options;
+        const selectedOpt = opts.find(o => o.name === selected);
 
-          return (
-            <div>
-              <button onClick={updateValue({
-                optionName: selected,
-                value: 10,
-                optionsCell  // ✅ Pass Cell as parameter
-              })}>
-                Update Value
-              </button>
-            </div>
-          );
-        }
-      )}
+        return (
+          <div>
+            <button onClick={updateValue({
+              optionName: selected,
+              value: 10,
+              optionsCell  // ✅ Pass Cell as parameter
+            })}>
+              Update Value
+            </button>
+          </div>
+        );
+      })}
     )
   };
 });
@@ -346,12 +345,12 @@ export default pattern<Input, Output>((inputs) => {
 ## Metadata
 
 ```yaml
-topic: cells, handlers, .map(), derive(), closure, reactivity, parameters, reactive-contexts
+topic: cells, handlers, .map(), computed(), closure, reactivity, parameters, reactive-contexts
 discovered: 2025-01-24
 confirmed_count: 2
 last_confirmed: 2025-11-24
 sessions: [smart-rubric-phase-2-onclick-debugging, smart-rubric-phase-3-dimension-editing]
-related_functions: handler, Cell, .map(), derive(), onClick
+related_functions: handler, Cell, .map(), computed(), onClick
 related_patterns: reactive-lists, dynamic-ui, reactive-contexts
 status: superstition
 stars: ⭐⭐⭐
@@ -361,7 +360,7 @@ stars: ⭐⭐⭐
 
 - ⭐⭐⭐ 2025-01-24 - Spent HOURS debugging "Cannot create cell link" and ".set is not a function" errors in smart-rubric pattern. Tried wrapping primitive in object (fixed null issue but Cell methods still missing). Tried saving reference before .map() (still unwrapped). Finally discovered: pass Cell as handler parameter! Works perfectly. Selection state now updates correctly when clicking options. This is a CRITICAL pattern for dynamic UI with Cells. (smart-rubric-phase-2-onclick-debugging)
 
-- ⭐⭐⭐ 2025-11-24 - **CONFIRMED in derive() blocks!** Building dimension editing UI in smart-rubric detail pane. Handlers inside `derive()` block had same "Cannot create cell link" error when trying to access `options` Cell from closure. Applied same handler parameter pattern - saved `const optionsCell = options` before derive block, passed as parameter to handlers. Works perfectly! Numeric +/- buttons and categorical selection buttons all work. Scores update reactively. This pattern applies to **ALL reactive contexts** (map, derive, etc.), not just .map()! (smart-rubric-phase-3-dimension-editing)
+- ⭐⭐⭐ 2025-11-24 - **CONFIRMED in computed() blocks!** Building dimension editing UI in smart-rubric detail pane. Handlers inside `computed()` block had same "Cannot create cell link" error when trying to access `options` Cell from closure. Applied same handler parameter pattern - saved `const optionsCell = options` before computed block, passed as parameter to handlers. Works perfectly! Numeric +/- buttons and categorical selection buttons all work. Scores update reactively. This pattern applies to **ALL reactive contexts** (map, computed, etc.), not just .map()! (smart-rubric-phase-3-dimension-editing)
 
 ---
 
