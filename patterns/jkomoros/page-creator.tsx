@@ -19,7 +19,6 @@ import HotelMembershipExtractor from "./hotel-membership-gmail-agent.tsx";
 import GoogleCalendarImporter from "./google-calendar-importer.tsx";
 import SmartRubric from "./smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
-import RedactorWithVault from "./redactor-with-vault.tsx";
 import StarChart from "./star-chart.tsx";
 import StoryWeaver from "./story-weaver.tsx";
 import CodenamesHelper from "./codenames-helper.tsx";
@@ -48,8 +47,6 @@ const handleCreateHotelMembershipExtractor = handler<void, void>(() => navigateT
 const handleCreateGoogleCalendarImporter = handler<void, void>(() => navigateTo(GoogleCalendarImporter({})));
 const handleCreateSmartRubric = handler<void, void>(() => navigateTo(SmartRubric({})));
 const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(FavoritesViewer({})));
-// HACK: Combined vault + redactor pattern while wish("#pii-vault") is broken
-const handleCreateRedactorWithVault = handler<void, void>(() => navigateTo(RedactorWithVault({})));
 const handleCreateStarChart = handler<void, void>(() => navigateTo(StarChart({})));
 const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(StoryWeaver({})));
 const handleCreateCodenamesHelper = handler<void, void>(() => navigateTo(CodenamesHelper({})));
@@ -135,10 +132,6 @@ export default pattern<Input, Output>(
 
                 <ct-button onClick={handleCreateFavoritesViewer()} size="lg">
                   ⭐ Favorites Viewer
-                </ct-button>
-
-                <ct-button onClick={handleCreateRedactorWithVault()} size="lg">
-                  🛡️ PII Redactor
                 </ct-button>
 
                 <ct-button onClick={handleCreateStarChart()} size="lg">
