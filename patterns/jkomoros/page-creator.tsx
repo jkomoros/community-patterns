@@ -1,6 +1,9 @@
 /// <cts-enable />
 import { handler, NAME, navigateTo, pattern, UI } from "commontools";
 
+// Demo data for extraction demos
+import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";
+
 // Import patterns directly - optional defaults make {} work for all fields
 import Person from "./person.tsx";
 import Counter from "./lib/counter.tsx";
@@ -31,10 +34,12 @@ type Output = {
 
 // Handlers call patterns directly with {} - optional defaults handle all fields
 const handleCreatePerson = handler<void, void>(() => navigateTo(Person({})));
+const handleCreatePersonDemo = handler<void, void>(() => navigateTo(Person({ notes: DEMO_PERSON_NOTES })));
 const handleCreateCounter = handler<void, void>(() => navigateTo(Counter({})));
 const handleCreateShoppingList = handler<void, void>(() => navigateTo(ShoppingListLauncher({})));
 const handleCreateStoreMapper = handler<void, void>(() => navigateTo(StoreMapper({})));
 const handleCreateFoodRecipe = handler<void, void>(() => navigateTo(FoodRecipe({})));
+const handleCreateFoodRecipeDemo = handler<void, void>(() => navigateTo(FoodRecipe({ notes: DEMO_RECIPE_NOTES })));
 const handleCreateMetaAnalyzer = handler<void, void>(() => navigateTo(MetaAnalyzer({})));
 const handleCreatePromptInjectionTracker = handler<void, void>(() => navigateTo(PromptInjectionTracker({})));
 const handleCreateSubstackSummarizer = handler<void, void>(() => navigateTo(SubstackSummarizer({})));
@@ -66,9 +71,14 @@ export default pattern<Input, Output>(
               <p style="margin: 0; fontSize: 13px; color: #666;">Select a page type to create:</p>
 
               <ct-vstack style="gap: 8px;">
-                <ct-button onClick={handleCreatePerson()} size="lg">
-                  👤 New Person
-                </ct-button>
+                <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                  <ct-button onClick={handleCreatePerson()} size="lg">
+                    👤 New Person
+                  </ct-button>
+                  <ct-button onClick={handleCreatePersonDemo()} variant="secondary" size="sm">
+                    Demo
+                  </ct-button>
+                </div>
 
                 <ct-button onClick={handleCreateCounter()} size="lg">
                   🔢 New Counter
@@ -82,9 +92,14 @@ export default pattern<Input, Output>(
                   🗺️ Store Mapper
                 </ct-button>
 
-                <ct-button onClick={handleCreateFoodRecipe()} size="lg">
-                  🍳 New Recipe
-                </ct-button>
+                <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                  <ct-button onClick={handleCreateFoodRecipe()} size="lg">
+                    🍳 New Recipe
+                  </ct-button>
+                  <ct-button onClick={handleCreateFoodRecipeDemo()} variant="secondary" size="sm">
+                    Demo
+                  </ct-button>
+                </div>
 
                 <ct-button onClick={handleCreateMetaAnalyzer()} size="lg">
                   ⚡ Field Suggestions (Meta Analyzer)
