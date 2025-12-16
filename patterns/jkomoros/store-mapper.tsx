@@ -1208,17 +1208,21 @@ What common sections might be missing?`,
               margin: 0 auto;
             }
             /* Corner gradients connect adjacent wall colors */
-            /* Layout: Back (orange) at top, Front (blue) at bottom */
-            /* Left (green) on left, Right (purple) on right */
+            /* Layout: Back (orange) at top (row 1), Front (blue) at bottom (row 3) */
+            /* Left (green) on left (col 1), Right (purple) on right (col 3) */
             .store-map-corner { background: #d1d5db; }
-            /* TL: Back (orange, top) + Left (green, left side) */
-            .store-map-corner-tl { background: linear-gradient(to bottom right, #fed7aa 50%, #bbf7d0 50%); }
-            /* TR: Back (orange, top) + Right (purple, right side) */
-            .store-map-corner-tr { background: linear-gradient(to bottom left, #fed7aa 50%, #e9d5ff 50%); }
-            /* BL: Front (blue, bottom) + Left (green, left side) */
-            .store-map-corner-bl { background: linear-gradient(to top right, #dbeafe 50%, #bbf7d0 50%); }
-            /* BR: Front (blue, bottom) + Right (purple, right side) */
-            .store-map-corner-br { background: linear-gradient(to top left, #dbeafe 50%, #e9d5ff 50%); }
+            /* TL: adjacent to Back (right edge) + Left (bottom edge) */
+            /* Orange top-right, Green bottom-left */
+            .store-map-corner-tl { background: linear-gradient(to bottom left, #fed7aa 50%, #bbf7d0 50%); }
+            /* TR: adjacent to Back (left edge) + Right (bottom edge) */
+            /* Orange top-left, Purple bottom-right */
+            .store-map-corner-tr { background: linear-gradient(to bottom right, #fed7aa 50%, #e9d5ff 50%); }
+            /* BL: adjacent to Front (right edge) + Left (top edge) */
+            /* Blue bottom-right, Green top-left */
+            .store-map-corner-bl { background: linear-gradient(to top left, #dbeafe 50%, #bbf7d0 50%); }
+            /* BR: adjacent to Front (left edge) + Right (top edge) */
+            /* Blue bottom-left, Purple top-right */
+            .store-map-corner-br { background: linear-gradient(to top right, #dbeafe 50%, #e9d5ff 50%); }
             .store-map-wall {
               display: flex;
               padding: 4px;
