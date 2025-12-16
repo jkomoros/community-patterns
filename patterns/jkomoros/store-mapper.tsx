@@ -1207,7 +1207,18 @@ What common sections might be missing?`,
               background: #e5e7eb;
               margin: 0 auto;
             }
+            /* Corner gradients connect adjacent wall colors */
+            /* Layout: Back (orange) at top, Front (blue) at bottom */
+            /* Left (green) on left, Right (purple) on right */
             .store-map-corner { background: #d1d5db; }
+            /* TL: Back (orange, top) + Left (green, left side) */
+            .store-map-corner-tl { background: linear-gradient(to bottom right, #fed7aa 50%, #bbf7d0 50%); }
+            /* TR: Back (orange, top) + Right (purple, right side) */
+            .store-map-corner-tr { background: linear-gradient(to bottom left, #fed7aa 50%, #e9d5ff 50%); }
+            /* BL: Front (blue, bottom) + Left (green, left side) */
+            .store-map-corner-bl { background: linear-gradient(to top right, #dbeafe 50%, #bbf7d0 50%); }
+            /* BR: Front (blue, bottom) + Right (purple, right side) */
+            .store-map-corner-br { background: linear-gradient(to top left, #dbeafe 50%, #e9d5ff 50%); }
             .store-map-wall {
               display: flex;
               padding: 4px;
@@ -1218,10 +1229,12 @@ What common sections might be missing?`,
             }
             .store-map-wall-horizontal { flex-direction: row; }
             .store-map-wall-vertical { flex-direction: column; }
-            .store-map-wall-front { grid-column: 2; grid-row: 1; background: #eff6ff; border-bottom: 2px solid #3b82f6; }
-            .store-map-wall-back { grid-column: 2; grid-row: 3; background: #fff7ed; border-top: 2px solid #f97316; }
-            .store-map-wall-left { grid-column: 1; grid-row: 2; background: #f0fdf4; border-right: 2px solid #10b981; }
-            .store-map-wall-right { grid-column: 3; grid-row: 2; background: #faf5ff; border-left: 2px solid #a855f7; }
+            /* Walls use background colors only, no internal borders */
+            /* Front at bottom (row 3), Back at top (row 1) */
+            .store-map-wall-front { grid-column: 2; grid-row: 3; background: #dbeafe; }
+            .store-map-wall-back { grid-column: 2; grid-row: 1; background: #fed7aa; }
+            .store-map-wall-left { grid-column: 1; grid-row: 2; background: #bbf7d0; }
+            .store-map-wall-right { grid-column: 3; grid-row: 2; background: #e9d5ff; }
             .store-map-slot {
               flex: 1;
               display: flex;
@@ -1231,6 +1244,11 @@ What common sections might be missing?`,
               min-height: 0;
               gap: 2px;
               flex-wrap: wrap;
+            }
+            /* Entrance slots show as "breaks" in the wall */
+            .store-map-entrance-slot {
+              background: #374151;
+              border-radius: 2px;
             }
             .store-map-center {
               grid-column: 2;
@@ -1244,11 +1262,11 @@ What common sections might be missing?`,
               font-size: 12px;
             }
             .store-map-badge {
-              font-size: 14px;
+              font-size: 32px;
               cursor: default;
             }
             .store-map-entrance {
-              font-size: 12px;
+              font-size: 36px;
               cursor: default;
             }
           `}</style>
@@ -2376,19 +2394,22 @@ What common sections might be missing?`,
                 🏪 Store Layout Overview
               </h3>
               <div className="store-map">
-                {/* Corners */}
-                <div className="store-map-corner" style={{ gridColumn: 1, gridRow: 1 }} />
-                <div className="store-map-corner" style={{ gridColumn: 3, gridRow: 1 }} />
-                <div className="store-map-corner" style={{ gridColumn: 1, gridRow: 3 }} />
-                <div className="store-map-corner" style={{ gridColumn: 3, gridRow: 3 }} />
+                {/* Corners with gradient colors */}
+                <div className="store-map-corner store-map-corner-tl" style={{ gridColumn: 1, gridRow: 1 }} />
+                <div className="store-map-corner store-map-corner-tr" style={{ gridColumn: 3, gridRow: 1 }} />
+                <div className="store-map-corner store-map-corner-bl" style={{ gridColumn: 1, gridRow: 3 }} />
+                <div className="store-map-corner store-map-corner-br" style={{ gridColumn: 3, gridRow: 3 }} />
 
-                {/* Front wall (top) */}
+                {/* Front wall (bottom - where you enter) */}
                 <div className="store-map-wall store-map-wall-horizontal store-map-wall-front">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const hasEntranceFL = (items["front-left"]?.entrances || []).length > 0;
+                    const hasEntranceFC = (items["front-center"]?.entrances || []).length > 0;
+                    const hasEntranceFR = (items["front-right"]?.entrances || []).length > 0;
                     return (
                       <>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceFL ? " store-map-entrance-slot" : ""}`}>
                           {(items["front-left"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2396,7 +2417,7 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceFC ? " store-map-entrance-slot" : ""}`}>
                           {(items["front-center"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2404,7 +2425,7 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceFR ? " store-map-entrance-slot" : ""}`}>
                           {(items["front-right"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2421,17 +2442,20 @@ What common sections might be missing?`,
                 <div className="store-map-wall store-map-wall-vertical store-map-wall-left">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const hasEntranceLB = (items["left-back"]?.entrances || []).length > 0;
+                    const hasEntranceLC = (items["left-center"]?.entrances || []).length > 0;
+                    const hasEntranceLF = (items["left-front"]?.entrances || []).length > 0;
                     return (
                       <>
-                        <div className="store-map-slot">
-                          {(items["left-front"]?.entrances || []).map((e) => (
+                        <div className={`store-map-slot${hasEntranceLB ? " store-map-entrance-slot" : ""}`}>
+                          {(items["left-back"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
-                          {(items["left-front"]?.depts || []).map((d) => (
+                          {(items["left-back"]?.depts || []).map((d) => (
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceLC ? " store-map-entrance-slot" : ""}`}>
                           {(items["left-center"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2439,11 +2463,11 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
-                          {(items["left-back"]?.entrances || []).map((e) => (
+                        <div className={`store-map-slot${hasEntranceLF ? " store-map-entrance-slot" : ""}`}>
+                          {(items["left-front"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
-                          {(items["left-back"]?.depts || []).map((d) => (
+                          {(items["left-front"]?.depts || []).map((d) => (
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
@@ -2462,17 +2486,20 @@ What common sections might be missing?`,
                 <div className="store-map-wall store-map-wall-vertical store-map-wall-right">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const hasEntranceRB = (items["right-back"]?.entrances || []).length > 0;
+                    const hasEntranceRC = (items["right-center"]?.entrances || []).length > 0;
+                    const hasEntranceRF = (items["right-front"]?.entrances || []).length > 0;
                     return (
                       <>
-                        <div className="store-map-slot">
-                          {(items["right-front"]?.entrances || []).map((e) => (
+                        <div className={`store-map-slot${hasEntranceRB ? " store-map-entrance-slot" : ""}`}>
+                          {(items["right-back"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
-                          {(items["right-front"]?.depts || []).map((d) => (
+                          {(items["right-back"]?.depts || []).map((d) => (
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceRC ? " store-map-entrance-slot" : ""}`}>
                           {(items["right-center"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2480,11 +2507,11 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
-                          {(items["right-back"]?.entrances || []).map((e) => (
+                        <div className={`store-map-slot${hasEntranceRF ? " store-map-entrance-slot" : ""}`}>
+                          {(items["right-front"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
-                          {(items["right-back"]?.depts || []).map((d) => (
+                          {(items["right-front"]?.depts || []).map((d) => (
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
@@ -2493,13 +2520,16 @@ What common sections might be missing?`,
                   })}
                 </div>
 
-                {/* Back wall (bottom) */}
+                {/* Back wall (top - far end of store) */}
                 <div className="store-map-wall store-map-wall-horizontal store-map-wall-back">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const hasEntranceBL = (items["back-left"]?.entrances || []).length > 0;
+                    const hasEntranceBC = (items["back-center"]?.entrances || []).length > 0;
+                    const hasEntranceBR = (items["back-right"]?.entrances || []).length > 0;
                     return (
                       <>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceBL ? " store-map-entrance-slot" : ""}`}>
                           {(items["back-left"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2507,7 +2537,7 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceBC ? " store-map-entrance-slot" : ""}`}>
                           {(items["back-center"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
@@ -2515,7 +2545,7 @@ What common sections might be missing?`,
                             <span className="store-map-badge" title={d.name}>{d.icon}</span>
                           ))}
                         </div>
-                        <div className="store-map-slot">
+                        <div className={`store-map-slot${hasEntranceBR ? " store-map-entrance-slot" : ""}`}>
                           {(items["back-right"]?.entrances || []).map((e) => (
                             <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
                           ))}
