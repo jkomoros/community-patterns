@@ -881,8 +881,8 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     const unassignedCount = computed(() => unassignedDepartments.length);
 
     // Gap detection for numbered aisles
-    const detectedGaps = derive(aisles, (aislesList) => {
-      const numbered = aislesList
+    const detectedGaps = computed(() => {
+      const numbered = (aisles as unknown as StoreAisle[])
         .map((a) => a.name.match(/^(\d+)/)?.[1])  // Extract just leading digits from name like "5" or "5A"
         .filter(Boolean)
         .map((n) => parseInt(n!))
@@ -902,8 +902,8 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     });
 
     // Pre-compute aisle names for LLM prompt (avoid .map() inside derive)
-    const aisleNamesForLLM = derive(aisles, (aislesList) =>
-      aislesList.map((a) => `Aisle ${a.name}`).join("\n") || "(none)"
+    const aisleNamesForLLM = computed(() =>
+      (aisles as unknown as StoreAisle[]).map((a) => `Aisle ${a.name}`).join("\n") || "(none)"
     );
 
     // LLM suggestions for common sections
@@ -941,7 +941,8 @@ What common sections might be missing?`,
       model: "anthropic:claude-sonnet-4-5",
     });
 
-    const llmSuggestions = derive(commonSectionsLLM.result, (result) => {
+    const llmSuggestions = computed(() => {
+      const result = commonSectionsLLM.result as unknown as string | null;
       if (!result || typeof result !== "string") return [];
       return result
         .split("\n")
