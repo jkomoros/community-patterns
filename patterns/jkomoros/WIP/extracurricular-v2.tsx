@@ -112,7 +112,7 @@ type ProcessingStatus = "idle" | "processing" | "complete" | "error";
 // Staged class for import preview - selection state ON object
 // Triage AND display values computed when populating (avoids .get() in Cell.map())
 interface StagedClass extends ExtractedClassInfo {
-  selected: Default<boolean, true>;  // Default<> enables cell-like $checked binding
+  selected: boolean;  // Plain boolean - $checked doesn't work inside Cell.map() (see ISSUE file)
   triageStatus: TriageStatus;        // Pre-computed when populating
   triageReason: string;              // Pre-computed when populating
   // WORKAROUND: Pre-computed display values because === comparison doesn't
@@ -498,6 +498,20 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       text.set("");
       staged.set([]);  // Clear staged classes
       lastText.set(""); // Allow re-extraction
+    });
+
+    // Toggle selection on a staged class
+    // WORKAROUND: $checked doesn't work inside Cell.map() because OpaqueRef returns
+    // values (not Cells), and CellController.setValue() silently ignores non-Cell values.
+    // See: patterns/jkomoros/issues/ISSUE-checked-binding-cellmap-silent-failure.md
+    const toggleStagedSelection = handler<
+      unknown,
+      { staged: Cell<StagedClass[]>; idx: number }
+    >((_, { staged, idx }) => {
+      const current = staged.get();
+      if (idx < 0 || idx >= current.length) return;
+      const updated = { ...current[idx], selected: !current[idx].selected };
+      staged.set(current.toSpliced(idx, 1, updated));
     });
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
@@ -1409,7 +1423,7 @@ Return all visible text.`
 
               {/* WORKAROUND: Using pre-computed s.triageBgColor because
                   s.triageStatus === "auto_kept" doesn't work inside Cell.map() */}
-              {stagedClasses.map((s) => {
+              {stagedClasses.map((s, idx) => {
                 // s.triageBgColor, s.triageBorderColor, s.triageEmoji are pre-computed strings
                 return (
                   <div
@@ -1424,8 +1438,11 @@ Return all visible text.`
                       marginBottom: "0.25rem",
                     }}
                   >
-                    {/* Direct $checked binding - idiomatic pattern! */}
-                    <ct-checkbox $checked={s.selected} />
+                    {/* WORKAROUND: Use onClick handler instead of $checked - see ISSUE file */}
+                    <ct-checkbox
+                      checked={s.selected}
+                      onClick={toggleStagedSelection({ staged: stagedClasses, idx })}
+                    />
                     <span style={{ fontWeight: "bold", minWidth: "20px" }}>
                       {s.triageEmoji}
                     </span>
