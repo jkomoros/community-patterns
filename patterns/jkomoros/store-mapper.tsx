@@ -1196,21 +1196,26 @@ What common sections might be missing?`,
             /* Store map visualization */
             .store-map {
               display: grid;
-              grid-template-columns: 60px 1fr 60px;
+              grid-template-columns: 50px 1fr 50px;
               grid-template-rows: 50px 120px 50px;
+              gap: 0;
               width: 100%;
               max-width: 400px;
               height: 220px;
               border: 3px solid #374151;
               border-radius: 8px;
               overflow: hidden;
-              background: #e5e7eb;
+              background: transparent;
               margin: 0 auto;
             }
             /* Corner gradients connect adjacent wall colors */
             /* Layout: Back (orange) at top (row 1), Front (blue) at bottom (row 3) */
             /* Left (green) on left (col 1), Right (purple) on right (col 3) */
-            .store-map-corner { background: #d1d5db; }
+            .store-map-corner {
+              background: #d1d5db;
+              width: 100%;
+              height: 100%;
+            }
             /* TL: adjacent to Back (right edge) + Left (bottom edge) */
             /* Orange top-right, Green bottom-left */
             .store-map-corner-tl { background: linear-gradient(to bottom left, #fed7aa 50%, #bbf7d0 50%); }
