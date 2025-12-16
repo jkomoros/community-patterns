@@ -395,6 +395,182 @@ const processedExtractions = computed(() => {
 - [ ] Refactor store-mapper.tsx
 - [ ] Documentation
 
+## Agent Critiques (2024-12-16)
+
+Four specialized agents reviewed this design. Key findings below.
+
+---
+
+### Critique 1: Framework Constraints (CRITICAL ISSUES)
+
+**Issue 1: Utilities Cannot Wrap generateObject** ❌
+The proposed `createTriggeredExtraction()` utility CANNOT call `generateObject` - that must remain in the pattern body. Utilities can only return *configuration*, not wrapped extraction.
+
+**Fix:** Change API to return config, not wrapped calls:
+```typescript
+// ❌ WRONG - Can't wrap generateObject
+export function createTriggeredExtraction<T>(...) {
+  return generateObject({ ... }); // FAILS - not in pattern body
+}
+
+// ✅ CORRECT - Return configuration only
+export function createExtractionConfig<T>(config) {
+  return {
+    trigger: Cell.of<string>(""),
+    schema: config.schema,
+    system: config.systemPrompt,
+  };
+}
+// Pattern body still calls: generateObject({ prompt: config.trigger, ... })
+```
+
+**Issue 2: Render Callbacks Hit Opaque Ref Scoping** ❌
+The `renderItem: (item: T) => JSX.Element` callback in ReviewList won't work - items in `.map()` are opaque refs that can't be passed to arbitrary functions.
+
+**Fix:** Return data instead of using render callbacks:
+```typescript
+// ❌ WRONG - Opaque ref scoping breaks this
+renderItem: (item: T, isNew: boolean) => JSX.Element
+
+// ✅ CORRECT - Return data, parent renders
+interface ReviewListOutput<T> {
+  processedItems: Array<{ item: T; isNew: boolean; isConflict: boolean }>;
+  // Parent maps over processedItems in its own JSX
+}
+```
+
+**Issue 3: Pattern Composition Needs Explicit Cell<> Passing**
+For sub-patterns to mutate parent state, parent must pass `Cell<T>` references explicitly. Design should document this requirement.
+
+**Verified Correct:**
+- ✅ Trigger pattern prevents reactive storms
+- ✅ Selection state Record pattern is efficient
+- ✅ Stream-based events (onAccept: Stream<void>) avoid ReadOnlyAddressError
+
+---
+
+### Critique 2: UX Consistency (SIGNIFICANT GAPS)
+
+**Missing Review Mode: Per-Field Selection**
+Current person.tsx does field diff *display* but only *all-or-nothing acceptance*. Users should be able to accept email but reject phone.
+
+**Recommended Mode Taxonomy:**
+```
+Selection Granularity (orthogonal to diff display):
+├── All-or-Nothing: Accept all or reject all
+├── Per-Item: Checkboxes per row
+├── Per-Field: Checkboxes per field  ← MISSING
+└── Hybrid: Per-item + edit before accept
+```
+
+**Critical UX Issues to Fix BEFORE Abstracting:**
+1. person.tsx: Add per-field selection checkboxes
+2. person.tsx: Make review fields editable (not just display)
+3. store-mapper.tsx: Add merge confirmation feedback (toast + scroll)
+4. Both: Add undo capability (5s toast with undo button)
+5. Both: Standardize color semantics (green=new, yellow=conflict, red=destructive)
+6. store-mapper.tsx: Increase touch targets to 44px minimum (accessibility)
+
+**Error/Loading/Empty States NOT Addressed:**
+- LLM failure: Need error toast + retry button
+- Timeout: Need 30s timeout + retry
+- No changes detected: Friendly message instead of empty modal
+- Partial extraction: Warning badge "3 of 5 extracted"
+
+**Mobile Issues:**
+- person.tsx modal fixed at 600px (overflows on phones)
+- Checkbox touch targets too small (10px font = ~20px target)
+
+---
+
+### Critique 3: YAGNI - Simpler Alternative
+
+**Core Argument:** The ~60-100 lines of "duplication" is mostly pattern-specific variation, not true duplication:
+- 30% = Diff logic → Already in diff-utils.ts ✅
+- 40% = Pattern-specific UI decisions → Should NOT be abstracted
+- 30% = JSX boilerplate → Cost of abstraction > benefit
+
+**Recommended Minimal Approach:**
+1. Add ONE helper function (5 lines):
+```typescript
+export function triggerExtraction(content: string, cell: Cell<string>): void {
+  cell.set(`${content}\n---EXTRACT-${Date.now()}---`);
+}
+```
+
+2. Add comprehensive JSDoc documentation to diff-utils.ts (~50 lines of comments)
+
+3. Add cross-references between patterns
+
+4. **SKIP:** Pattern abstractions, component libraries, factory functions
+
+**When to Reconsider Full Abstraction:**
+- 5+ patterns using the flow
+- Found a bug that required fixing in 3+ places
+- Someone new keeps getting the trigger pattern wrong
+
+---
+
+### Critique 4: Performance Analysis
+
+**Verified Correct:**
+- ✅ Trigger pattern prevents reactive storms
+- ✅ Selection Record pattern is O(1) updates, ~12KB for 50 photos
+- ✅ Framework caching works with `.map()` over photos
+
+**Performance Issues Found:**
+
+**Issue 1: Duplicate computed() Work** (store-mapper.tsx lines 792-865)
+Both `totalNonConflictingAisles` and `batchAllPhotosData` iterate all photos and check conflicts independently.
+- **Fix:** Combine into single computed() returning `{ totalCount, aislesToAdd }`
+- **Savings:** 50% reduction in conflict-checking
+
+**Issue 2: analyzeOverlap() in Render Loop** (line 2872)
+Called inside `.map()` in JSX - runs O(P·a·n·i·j) = 225,000 ops with 50 photos.
+- **Fix:** Move to computed() outside JSX, cache results
+- **Benefit:** Only recomputes when photos/aisles change
+
+**Issue 3: Photo Memory Leak** (lines 692-695)
+Hidden photos stay in `uploadedPhotos` array indefinitely (workaround for reactive storm).
+- **Fix:** Schedule actual removal 5 minutes after hide
+- **Benefit:** Prevents OOM with 100+ photos
+
+**Scale Limits (50 photos):**
+- Initial render: ~200ms (acceptable but noticeable)
+- Adding one aisle: ~50-100ms lag (from triple recomputation)
+- Memory: ~250MB for photo data (browser-dependent)
+
+---
+
+## Revised Recommendation
+
+Based on agent critiques, the recommendation shifts from **Hybrid (B + Utilities)** to:
+
+### Option A-Enhanced: Minimal Utilities + Documentation
+
+**Phase 1: Fix Critical Issues (Do First)**
+1. Fix duplicate computed() in store-mapper.tsx
+2. Move analyzeOverlap() out of render loop
+3. Add per-field selection to person.tsx (UX)
+4. Add undo capability to both patterns (UX)
+
+**Phase 2: Minimal Utility Additions**
+1. Add `triggerExtraction()` helper (5 lines)
+2. Enhance diff-utils.ts JSDoc with full pattern documentation
+3. Document pitfalls: opaque refs, generateObject location, render callbacks
+
+**Phase 3: Skip (YAGNI)**
+- Skip pattern abstractions
+- Skip component libraries
+- Skip factory functions
+
+**Reconsider Abstraction When:**
+- 5+ patterns use the flow
+- Bug required fixing in 3+ places
+- Pattern-specific logic converges
+
+---
+
 ## Session Notes
 
 _Use this section for session-specific notes during implementation._
