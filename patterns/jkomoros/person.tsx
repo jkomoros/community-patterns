@@ -1142,7 +1142,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           <ct-button
                             size="sm"
                             variant={computed(() =>
-                              origins.includes(origin as Origin) ? "primary" : "secondary"
+                              (origins as unknown as Origin[]).includes(origin as Origin) ? "primary" : "secondary"
                             )}
                             onClick={toggleOrigin({
                               origins,
