@@ -413,6 +413,25 @@ Decision making tool with weighted multi-dimensional scoring.
 
 Work-in-progress patterns in active development. May be incomplete or experimental.
 
+#### `WIP/extracurricular-selector.tsx` ⚠️ KNOWN ISSUES
+First attempt at extracurricular class scheduling. **Deprecated in favor of extracurricular-v2**.
+
+#### `WIP/extracurricular-v2.tsx` ⚠️ KNOWN ISSUES
+Multi-step extracurricular class scheduling for children. Paste schedule text, extract with LLM, review/triage classes, and build weekly schedule with conflict detection.
+
+**Status:** Has a known unresolved issue with "one-shot population from LLM results" pattern.
+See `issues/ISSUE-one-shot-population-from-llm.md` for details.
+
+**Interesting features:**
+- LLM extraction from pasted schedule text via `generateObject`
+- Auto-triage: keeps grade-appropriate, discards age-inappropriate classes
+- Checkbox selection with triage status indicators
+- Weekly schedule view with conflict detection
+- File/image upload with OCR for schedule text
+- "Pinned sets" feature for different schedule configurations
+
+**Known issue:** During LLM extraction, checkboxes thrash wildly (100% CPU). After extraction settles, checkbox clicks may not persist properly. The core problem is the "initialize from derived data, then allow mutation" pattern which appears to conflict with the reactive model. Seeking framework author guidance.
+
 #### `WIP/autocomplete-value-demo.tsx`
 Demo pattern for ct-autocomplete $value binding in single-select and multi-select modes.
 
