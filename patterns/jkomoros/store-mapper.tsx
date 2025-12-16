@@ -1032,6 +1032,20 @@ What common sections might be missing?`,
       return byWall;
     });
 
+    // Pre-filtered departments per wall (fixes filter+derive bug)
+    const frontDepartments = computed(() =>
+      specialDepartments.filter((dept) => dept.location?.startsWith("front"))
+    );
+    const backDepartments = computed(() =>
+      specialDepartments.filter((dept) => dept.location?.startsWith("back"))
+    );
+    const leftDepartments = computed(() =>
+      specialDepartments.filter((dept) => dept.location?.startsWith("left"))
+    );
+    const rightDepartments = computed(() =>
+      specialDepartments.filter((dept) => dept.location?.startsWith("right"))
+    );
+
     // Filter unassigned to exclude dismissed departments and those in center aisles
     const visibleUnassigned = computed(() => {
       return unassignedDepartments.filter(
@@ -2012,9 +2026,7 @@ What common sections might be missing?`,
                       gap: "0.5rem",
                     }}
                   >
-                    {specialDepartments
-                      .filter((dept) => derive(dept, d => d.location.startsWith("front")))
-                      .map((dept: OpaqueRef<DepartmentRecord>) => (
+                    {frontDepartments.map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-front"
                           style={{
@@ -2083,9 +2095,7 @@ What common sections might be missing?`,
                       gap: "0.5rem",
                     }}
                   >
-                    {specialDepartments
-                      .filter((dept) => derive(dept, d => d.location.startsWith("back")))
-                      .map((dept: OpaqueRef<DepartmentRecord>) => (
+                    {backDepartments.map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-back"
                           style={{
@@ -2154,9 +2164,7 @@ What common sections might be missing?`,
                       gap: "0.5rem",
                     }}
                   >
-                    {specialDepartments
-                      .filter((dept) => derive(dept, d => d.location.startsWith("left")))
-                      .map((dept: OpaqueRef<DepartmentRecord>) => (
+                    {leftDepartments.map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-left"
                           style={{
@@ -2225,9 +2233,7 @@ What common sections might be missing?`,
                       gap: "0.5rem",
                     }}
                   >
-                    {specialDepartments
-                      .filter((dept) => derive(dept, d => d.location.startsWith("right")))
-                      .map((dept: OpaqueRef<DepartmentRecord>) => (
+                    {rightDepartments.map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-right"
                           style={{
