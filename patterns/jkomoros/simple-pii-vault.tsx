@@ -49,11 +49,7 @@ const removeEntry = handler<
   unknown,
   { entries: Cell<Array<Cell<PIIEntry>>>; entry: Cell<PIIEntry> }
 >((_event, { entries, entry }) => {
-  const current = entries.get();
-  const index = current.findIndex((el) => el.equals(entry));
-  if (index >= 0) {
-    entries.set(current.toSpliced(index, 1));
-  }
+  entries.remove(entry);
 });
 
 export default pattern<InputSchema, Output>(({ title, entries }) => {

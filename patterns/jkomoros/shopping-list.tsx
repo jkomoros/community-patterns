@@ -39,11 +39,7 @@ const removeItem = handler<
   unknown,
   { items: Cell<Array<Cell<ShoppingItem>>>; item: Cell<ShoppingItem> }
 >((_event, { items, item }) => {
-  const currentItems = items.get();
-  const index = currentItems.findIndex((el) => el.equals(item));
-  if (index >= 0) {
-    items.set(currentItems.toSpliced(index, 1));
-  }
+  items.remove(item);
 });
 
 const updateItem = handler<
