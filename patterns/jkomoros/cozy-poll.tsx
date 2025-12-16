@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, Default, derive, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
+import { Cell, computed, Default, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
 import CozyPollLobby from "./cozy-poll-lobby.tsx";
 
 /**
@@ -89,8 +89,8 @@ const startNewSession = handler<
     const currentOptions = options.get();
 
     // Create new cells for the fresh session
-    const newVotes = cell<Vote[]>([]);
-    const newVoterCharms = cell<VoterCharmRef[]>([]);
+    const newVotes = Cell.of<Vote[]>([]);
+    const newVoterCharms = Cell.of<VoterCharmRef[]>([]);
 
     console.log(`Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`);
 
@@ -126,10 +126,10 @@ const CozyPoll = pattern<PollInput, PollOutput>(
   ({ question, options, votes, voterCharms, nextOptionId }) => {
 
     // Derived: Organize all votes by option ID and vote type
-    const votesByOption = derive(votes, (allVotes: Vote[]) => {
+    const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
 
-      for (const vote of allVotes) {
+      for (const vote of votes) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -140,10 +140,10 @@ const CozyPoll = pattern<PollInput, PollOutput>(
     });
 
     // Derived: Ranked options (fewest reds, then most greens)
-    const rankedOptions = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+    const rankedOptions = computed(() => {
       // Count votes for each option
-      const voteCounts = currentOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+      const voteCounts = options.map(option => {
+        const optionVotes = votes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
         const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
@@ -162,10 +162,10 @@ const CozyPoll = pattern<PollInput, PollOutput>(
     });
 
     // Derived: Map option IDs to their rank numbers
-    const optionRanks = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+    const optionRanks = computed(() => {
       // Count votes for each option
-      const voteCounts = currentOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+      const voteCounts = options.map(option => {
+        const optionVotes = votes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
 
@@ -193,7 +193,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
     return {
       [NAME]: ifElse(
-        derive(question, (q: string) => q && q.trim().length > 0),
+        computed(() => question && question.trim().length > 0),
         str`Poll - ${question}`,
         str`Poll`
       ),
@@ -239,9 +239,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
           </div>
 
           {/* Top Choice Display */}
-          {derive(rankedOptions, (ranked) => {
-            if (!ranked || ranked.length === 0 || ranked[0].totalVotes === 0) return null;
-            const top = ranked[0];
+          {computed(() => {
+            if (!rankedOptions || rankedOptions.length === 0 || rankedOptions[0].totalVotes === 0) return null;
+            const top = rankedOptions[0];
             const parts: string[] = [];
             if (top.greens > 0) parts.push(`${top.greens} love it`);
             if (top.yellows > 0) parts.push(`${top.yellows} okay with it`);
@@ -269,8 +269,8 @@ const CozyPoll = pattern<PollInput, PollOutput>(
           })}
 
           {/* Summary View - All Options */}
-          {derive({ rankedOptions, votesByOption }, ({ rankedOptions: ranked, votesByOption: votes }) => {
-            if (!ranked || ranked.length === 0) return null;
+          {computed(() => {
+            if (!rankedOptions || rankedOptions.length === 0) return null;
             return (
               <div style={{
                 marginBottom: "1.5rem",
@@ -282,7 +282,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                 <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
                   ALL OPTIONS
                 </div>
-                {ranked.map((item) => (
+                {rankedOptions.map((item) => (
                   <div style={{
                     display: "flex",
                     alignItems: "center",
@@ -297,7 +297,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                       {item.option.title}
                     </div>
                     <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                      {votes[item.option.id]?.green?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.green?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -311,7 +311,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.yellow?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.yellow?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -325,7 +325,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.red?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.red?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
