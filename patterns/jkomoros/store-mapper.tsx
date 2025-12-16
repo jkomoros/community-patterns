@@ -1196,11 +1196,11 @@ What common sections might be missing?`,
             /* Store map visualization */
             .store-map {
               display: grid;
-              grid-template-columns: 50px 1fr 50px;
-              grid-template-rows: 40px 1fr 40px;
+              grid-template-columns: 60px 1fr 60px;
+              grid-template-rows: 50px 120px 50px;
               width: 100%;
               max-width: 400px;
-              aspect-ratio: 4/3;
+              height: 220px;
               border: 3px solid #374151;
               border-radius: 8px;
               overflow: hidden;
@@ -1213,13 +1213,15 @@ What common sections might be missing?`,
               padding: 4px;
               gap: 2px;
               overflow: hidden;
+              width: 100%;
+              height: 100%;
             }
             .store-map-wall-horizontal { flex-direction: row; }
             .store-map-wall-vertical { flex-direction: column; }
-            .store-map-wall-front { background: #eff6ff; border-bottom: 2px solid #3b82f6; }
-            .store-map-wall-back { background: #fff7ed; border-top: 2px solid #f97316; }
-            .store-map-wall-left { background: #f0fdf4; border-right: 2px solid #10b981; }
-            .store-map-wall-right { background: #faf5ff; border-left: 2px solid #a855f7; }
+            .store-map-wall-front { grid-column: 2; grid-row: 1; background: #eff6ff; border-bottom: 2px solid #3b82f6; }
+            .store-map-wall-back { grid-column: 2; grid-row: 3; background: #fff7ed; border-top: 2px solid #f97316; }
+            .store-map-wall-left { grid-column: 1; grid-row: 2; background: #f0fdf4; border-right: 2px solid #10b981; }
+            .store-map-wall-right { grid-column: 3; grid-row: 2; background: #faf5ff; border-left: 2px solid #a855f7; }
             .store-map-slot {
               flex: 1;
               display: flex;
@@ -1231,6 +1233,8 @@ What common sections might be missing?`,
               flex-wrap: wrap;
             }
             .store-map-center {
+              grid-column: 2;
+              grid-row: 2;
               background: #f9fafb;
               display: flex;
               flex-direction: column;
@@ -2379,10 +2383,7 @@ What common sections might be missing?`,
                 <div className="store-map-corner" style={{ gridColumn: 3, gridRow: 3 }} />
 
                 {/* Front wall (top) */}
-                <div
-                  className="store-map-wall store-map-wall-horizontal store-map-wall-front"
-                  style={{ gridColumn: 2, gridRow: 1 }}
-                >
+                <div className="store-map-wall store-map-wall-horizontal store-map-wall-front">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
                     return (
@@ -2417,10 +2418,7 @@ What common sections might be missing?`,
                 </div>
 
                 {/* Left wall */}
-                <div
-                  className="store-map-wall store-map-wall-vertical store-map-wall-left"
-                  style={{ gridColumn: 1, gridRow: 2 }}
-                >
+                <div className="store-map-wall store-map-wall-vertical store-map-wall-left">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
                     return (
@@ -2455,16 +2453,13 @@ What common sections might be missing?`,
                 </div>
 
                 {/* Center area */}
-                <div className="store-map-center" style={{ gridColumn: 2, gridRow: 2 }}>
+                <div className="store-map-center">
                   <div style={{ fontWeight: "500" }}>Center</div>
                   <div>{aisleCount} aisles</div>
                 </div>
 
                 {/* Right wall */}
-                <div
-                  className="store-map-wall store-map-wall-vertical store-map-wall-right"
-                  style={{ gridColumn: 3, gridRow: 2 }}
-                >
+                <div className="store-map-wall store-map-wall-vertical store-map-wall-right">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
                     return (
@@ -2499,10 +2494,7 @@ What common sections might be missing?`,
                 </div>
 
                 {/* Back wall (bottom) */}
-                <div
-                  className="store-map-wall store-map-wall-horizontal store-map-wall-back"
-                  style={{ gridColumn: 2, gridRow: 3 }}
-                >
+                <div className="store-map-wall store-map-wall-horizontal store-map-wall-back">
                   {computed(() => {
                     const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
                     return (
