@@ -677,3 +677,345 @@ Coordinate composed patterns? → Signal (Cell<number>)
 ## Session Notes
 
 _Use this section for session-specific notes during implementation._
+
+---
+
+## REVISED DESIGN: Idiomatic UI Composition Approach (2024-12-16)
+
+Based on deep research into framework composition patterns (chatbot, omnibot, wishes, etc.), here's a new design that aligns with how the framework authors intended patterns to be composed.
+
+### Key Insights from Framework Research
+
+**1. Patterns Return Both State AND UI Components**
+
+The chatbot pattern returns:
+```typescript
+return {
+  messages,
+  pending,
+  addMessage: Stream<...>,
+  ui: {
+    chatLog: VNode,      // Pre-composed UI component
+    promptInput: VNode,  // Pre-composed UI component
+    attachmentsAndTools: VNode,
+  },
+};
+```
+
+This enables consumers to:
+- Use the complete UI (default)
+- Compose with individual returned UI components
+- Access state and streams directly
+
+**2. Shared Cells = Automatic Sync**
+
+When multiple patterns receive the same Cell reference, changes sync automatically:
+```typescript
+const listView = ShoppingList({ items });
+const catView = CategoryView({ items });
+
+// Both receive the SAME items cell - changes sync automatically
+return {
+  [UI]: (
+    <div>
+      {listView}
+      {catView}
+    </div>
+  ),
+};
+```
+
+**3. Pattern Composition via Sub-Pattern Calls**
+
+Patterns are functions that can be called to create instances:
+```typescript
+const chat = Chat({ messages, tools });  // Creates a pattern instance
+return {
+  [UI]: <div>{chat}</div>,  // Render directly
+};
+```
+
+**4. Bidirectional Binding Eliminates Handlers**
+
+For simple state sync, use `$` prefix instead of handlers:
+```typescript
+<ct-checkbox $checked={item.selected} />  // Automatic two-way sync
+<ct-input $value={title} />               // No handler needed
+```
+
+### Proposed Design: Composable Import/Review Pattern
+
+Based on these insights, here's an idiomatic design:
+
+#### Core Pattern: `ImportReview`
+
+```typescript
+/// <cts-enable />
+import { Cell, computed, Default, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+
+interface ExtractedItem<T> {
+  item: T;
+  isNew: boolean;
+  isConflict: boolean;
+  conflictingItem?: T;
+  selected: Cell<boolean>;
+}
+
+interface ImportReviewInput<T> {
+  // Configuration
+  schema: JSONSchema;
+  systemPrompt: string;
+
+  // Data
+  sourceText?: string;
+  sourceImages?: ImageData[];
+  existingItems?: T[];
+
+  // Comparison
+  getKey: (item: T) => string;
+  fuzzyMatch?: (a: T, b: T) => boolean;
+}
+
+interface ImportReviewOutput<T> {
+  // State (reactive)
+  pending: boolean;
+  error?: string;
+  extractedItems: ExtractedItem<T>[];
+  selectedItems: T[];  // Convenience: items where selected=true
+
+  // Actions (handlers, not streams - single charm)
+  trigger: () => void;
+  acceptSelected: () => void;
+  cancel: () => void;
+  selectAll: () => void;
+  selectNone: () => void;
+
+  // Pre-composed UI components
+  ui: {
+    triggerButton: VNode;     // "Extract Data" button with loading state
+    reviewPanel: VNode;       // Full review panel with checkboxes
+    itemList: VNode;          // Just the item list (for custom layouts)
+    diffPreview: VNode;       // Word-level diff display
+    actionButtons: VNode;     // Accept/Cancel buttons
+  };
+}
+
+export const ImportReview = pattern<ImportReviewInput<any>, ImportReviewOutput<any>>(
+  ({ schema, systemPrompt, sourceText, sourceImages, existingItems, getKey, fuzzyMatch }) => {
+    // Trigger cell (avoids reactive storms)
+    const extractTrigger = Cell.of<string>("");
+
+    // LLM extraction (only runs when trigger changes)
+    const { result, pending, error } = generateObject({
+      system: systemPrompt,
+      prompt: extractTrigger,
+      schema,
+    });
+
+    // Process extracted items with selection state
+    const processedItems = computed(() => {
+      if (!result) return [];
+      const items = Array.isArray(result) ? result : [result];
+      return items.map(item => ({
+        item,
+        isNew: !existingItems?.some(e => getKey(e) === getKey(item)),
+        isConflict: existingItems?.some(e => fuzzyMatch?.(e, item) ?? false) ?? false,
+        conflictingItem: existingItems?.find(e => fuzzyMatch?.(e, item)),
+        selected: Cell.of(true),  // Default selected
+      }));
+    });
+
+    // Convenience: currently selected items
+    const selectedItems = computed(() =>
+      processedItems.filter(p => p.selected.get()).map(p => p.item)
+    );
+
+    // Handlers
+    const trigger = handler((_, { text, trigger }) => {
+      trigger.set(`${text}\n---EXTRACT-${Date.now()}---`);
+    });
+
+    const acceptSelected = handler((_, { selected, onAccept }) => {
+      onAccept?.(selected);
+    });
+
+    const cancel = handler((_, { trigger }) => {
+      trigger.set("");  // Clear extraction
+    });
+
+    const selectAll = handler((_, { items }) => {
+      items.forEach(i => i.selected.set(true));
+    });
+
+    const selectNone = handler((_, { items }) => {
+      items.forEach(i => i.selected.set(false));
+    });
+
+    // Pre-composed UI components
+    const triggerButton = (
+      <ct-button
+        onClick={trigger({ text: sourceText, trigger: extractTrigger })}
+        disabled={pending}
+      >
+        {ifElse(pending,
+          <span><ct-loader size="sm" /> Extracting...</span>,
+          "Extract Data"
+        )}
+      </ct-button>
+    );
+
+    const itemList = (
+      <div>
+        {processedItems.map(({ item, isNew, isConflict, selected }) => (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px" }}>
+            <ct-checkbox $checked={selected} />
+            <span style={isNew ? { color: "green" } : isConflict ? { color: "orange" } : {}}>
+              {getKey(item)}
+            </span>
+            {ifElse(isNew, <ct-tag>NEW</ct-tag>, null)}
+            {ifElse(isConflict, <ct-tag variant="warning">CONFLICT</ct-tag>, null)}
+          </div>
+        ))}
+      </div>
+    );
+
+    const actionButtons = (
+      <div style={{ display: "flex", gap: "8px" }}>
+        <ct-button onClick={selectAll({ items: processedItems })}>Select All</ct-button>
+        <ct-button onClick={selectNone({ items: processedItems })}>Select None</ct-button>
+        <ct-button variant="primary" onClick={acceptSelected({ selected: selectedItems })}>
+          Accept ({selectedItems.length} items)
+        </ct-button>
+        <ct-button onClick={cancel({ trigger: extractTrigger })}>Cancel</ct-button>
+      </div>
+    );
+
+    const reviewPanel = (
+      <ct-card>
+        <h3>Review Extracted Data</h3>
+        {ifElse(error,
+          <ct-alert variant="error">{error}</ct-alert>,
+          null
+        )}
+        {itemList}
+        {actionButtons}
+      </ct-card>
+    );
+
+    return {
+      pending,
+      error,
+      extractedItems: processedItems,
+      selectedItems,
+      trigger,
+      acceptSelected,
+      cancel,
+      selectAll,
+      selectNone,
+      ui: {
+        triggerButton,
+        reviewPanel,
+        itemList,
+        diffPreview: null,  // TODO: implement
+        actionButtons,
+      },
+    };
+  }
+);
+```
+
+#### Usage in Consumer Pattern
+
+```typescript
+export default pattern<PersonInput, PersonOutput>(({ notes, profile }) => {
+  // Create import/review instance with shared data
+  const extraction = ImportReview({
+    schema: PersonSchema,
+    systemPrompt: "Extract person profile from notes...",
+    sourceText: notes,
+    existingItems: [profile],
+    getKey: (p) => p.email || p.name,
+    fuzzyMatch: (a, b) =>
+      a.email?.toLowerCase() === b.email?.toLowerCase(),
+  });
+
+  // Handle accept by merging into profile
+  const onAccept = handler((_, { selected, profile }) => {
+    const extracted = selected[0];
+    if (extracted) {
+      // Merge extracted fields into profile
+      Object.entries(extracted).forEach(([key, value]) => {
+        if (value) profile.key(key).set(value);
+      });
+    }
+  });
+
+  return {
+    [NAME]: "Person Profile",
+    [UI]: (
+      <ct-screen>
+        <ct-textarea $value={notes} />
+
+        {/* Use pre-composed trigger button */}
+        {extraction.ui.triggerButton}
+
+        {/* Show review panel when extraction has results */}
+        {ifElse(
+          extraction.extractedItems.length > 0,
+          extraction.ui.reviewPanel,
+          null
+        )}
+
+        {/* Or compose custom layout using individual components */}
+        {/* {extraction.ui.itemList} */}
+        {/* {extraction.ui.actionButtons} */}
+      </ct-screen>
+    ),
+    notes,
+    profile,
+  };
+});
+```
+
+### Why This Design is Idiomatic
+
+1. **Pattern returns UI components** - Like chatbot, consumers can use full UI or individual pieces
+2. **Shared Cells sync automatically** - Selection state, items, etc. are all reactive
+3. **Bidirectional binding** - `$checked` eliminates handler boilerplate
+4. **Trigger pattern** - Prevents reactive storms (timestamp suffix)
+5. **No Streams needed** - Single-charm flow uses handlers, not cross-charm streams
+6. **Composable** - Consumer decides layout, ImportReview provides building blocks
+
+### Comparison to Previous Design
+
+| Aspect | Previous (Utilities) | New (Composable Pattern) |
+|--------|---------------------|-------------------------|
+| Code reuse | ~30% (utilities only) | ~80% (full UI reuse) |
+| Consumer code | 200+ lines | 20-30 lines |
+| Customization | Full control | Use ui.* components |
+| Performance | Manual optimization | Built-in best practices |
+| Framework alignment | Utilities pattern | Pattern composition pattern |
+
+### Implementation Priority
+
+1. **HIGH**: Implement basic ImportReview pattern (text input, checkboxes)
+2. **MEDIUM**: Add image extraction support
+3. **MEDIUM**: Add word-level diff UI component
+4. **LOW**: Add field-level diff mode (for person.tsx use case)
+5. **LOW**: Add merge strategies (replace, append, smart merge)
+
+### Open Questions
+
+1. **Should ImportReview be a pattern or a recipe?**
+   - Pattern: Read-only input by default (current choice)
+   - Recipe: Assumes mutable state
+
+2. **How to handle type safety for schema?**
+   - Option A: Generic `ImportReview<T>` with schema inference
+   - Option B: Runtime validation only
+   - Decision: Start with runtime validation, add generics later
+
+3. **Should ui.* components be VNodes or Cells?**
+   - VNodes: Simpler, direct rendering
+   - Cells: More flexible, can be transformed
+   - Decision: VNodes (like chatbot pattern)
