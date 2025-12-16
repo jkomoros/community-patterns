@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
+import { Cell, cell, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
 import StoreMapper from "./store-mapper.tsx";
 
 interface ShoppingItem {
@@ -324,18 +324,18 @@ const submitCorrection = handler<
 
 const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
   ({ items, storeData, storeName }) => {
-    const currentView = Cell.of<"basic" | "sorted">("basic");
+    const currentView = cell<"basic" | "sorted">("basic");
     const isBasicView = computed(() => currentView.get() === "basic");
 
     // Mutable store data cell to allow runtime corrections
     // For now, just use ANDRONICOS_DATA (not the input storeData) to avoid circular refs
-    const mutableStoreData = Cell.of<StoreData | null>(ANDRONICOS_DATA);
+    const mutableStoreData = cell<StoreData | null>(ANDRONICOS_DATA);
 
     // Cell to track which item is being corrected
-    const correctionState = Cell.of<CorrectionState | null>(null);
+    const correctionState = cell<CorrectionState | null>(null);
 
     // Cell to store uploaded images
-    const uploadedImages = Cell.of<ImageData[]>([]);
+    const uploadedImages = cell<ImageData[]>([]);
 
     // Process uploaded images with vision LLM to extract shopping items
     const imageExtractions = uploadedImages.map((image) => {
@@ -379,15 +379,16 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     });
 
     // Demo: Mock community mapping for "Andronico's on Shattuck"
-    const hasCommunityMapping = computed(() => {
-      const storeDataVal = mutableStoreData.get();
-      return storeName === "Andronico's on Shattuck" || (storeDataVal !== null && (storeDataVal.aisles.length > 0 || storeDataVal.departments.length > 0));
-    });
+    const hasCommunityMapping = derive(
+      { storeName, storeData: mutableStoreData },
+      ({ storeName, storeData }: { storeName: string; storeData: StoreData | null }) =>
+        storeName === "Andronico's on Shattuck" || (storeData !== null && (storeData.aisles.length > 0 || storeData.departments.length > 0))
+    );
 
     // Computed stats
-    const totalCount = computed(() => (items as ShoppingItem[]).length);
-    const doneCount = computed(() => (items as ShoppingItem[]).filter(item => item.done).length);
-    const remainingCount = computed(() => totalCount.get() - doneCount.get());
+    const totalCount = derive(items, (list) => list.length);
+    const doneCount = derive(items, (list) => list.filter(item => item.done).length);
+    const remainingCount = derive([totalCount, doneCount], ([total, done]) => total - done);
     const correctionsCount = computed(() => {
       const data = mutableStoreData.get();
       return (data && data.itemLocations) ? data.itemLocations.length : 0;
@@ -397,34 +398,34 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     const itemsWithAisles = items.map((item) => {
       const assignment = generateObject({
         model: "anthropic:claude-sonnet-4-5",
-        prompt: computed(() => {
-            const title = item.title;
-            const storeDataVal = mutableStoreData.get();
-            const seed = item.aisleSeed || 0;
+        prompt: derive(
+          { title: item.title, storeData: mutableStoreData, seed: item.aisleSeed || 0 },
+          ({ title, storeData, seed }: { title: string; storeData: StoreData | null; seed: number }) => {
             // Include seed to force re-evaluation on retry (even though we don't use it)
-            const storeMarkdown = storeDataVal ? storeDataToMarkdown(storeDataVal) : ANDRONICOS_OUTLINE;
+            const storeMarkdown = storeData ? storeDataToMarkdown(storeData) : ANDRONICOS_OUTLINE;
 
             // Build list of valid location names from store data
             const validLocations: string[] = [];
 
-            if (storeDataVal) {
+            if (storeData) {
               // Add aisles (just "Aisle 1", "Aisle 2", etc.)
-              storeDataVal.aisles.forEach(aisle => {
+              storeData.aisles.forEach(aisle => {
                 validLocations.push(`Aisle ${aisle.name}`);
               });
 
               // Add departments (just the name)
-              storeDataVal.departments.forEach(dept => {
+              storeData.departments.forEach(dept => {
                 validLocations.push(dept.name);
               });
             }
 
             validLocations.push("Other");
 
-            console.log(`[LLM Context] Item: ${title}, Seed: ${seed}, Corrections: ${storeDataVal?.itemLocations.length || 0}`);
+            console.log(`[LLM Context] Item: ${title}, Seed: ${seed}, Corrections: ${storeData?.itemLocations.length || 0}`);
 
             return `Store layout (for context):\n${storeMarkdown}\n\nItem: ${title}\n\nDetermine which aisle or department this item is in. You must respond with one of these exact values: ${validLocations.join(", ")}`;
-          }),
+          }
+        ),
         schema: {
           type: "object",
           properties: {
@@ -437,8 +438,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
         }
       });
 
-      const aisleName = computed(() => {
-        const result = assignment.result;
+      const aisleName = derive(assignment.result, (result) => {
         console.log(`[Aisle Assignment] Item: ${item.title}, Result:`, result);
 
         if (!result || !result.location) {
@@ -452,9 +452,9 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
       });
 
       // Track status: pending, success, failed, timeout
-      const status = computed(() => {
-          const isPending = assignment.pending;
-          const result = assignment.result;
+      const status = derive(
+        { isPending: assignment.pending, result: assignment.result },
+        ({ isPending, result }) => {
           if (isPending) return "pending";
           if (result) return "success";
           return "failed";  // No result and not pending = failed or timeout
@@ -473,9 +473,8 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     // 1. Box the items
     const boxedItems = itemsWithAisles.map(assignment => ({ assignment }));
 
-    // 2. Sort boxed items by aisle (cells accessed inside computed auto-materialize)
-    const sortedBoxedItems = computed(() => {
-      const boxed = boxedItems as Array<{ assignment: { aisle: string; item: ShoppingItem; isPending: boolean; status: string } }>;
+    // 2. Sort boxed items by aisle (cells accessed inside derive auto-materialize)
+    const sortedBoxedItems = derive(boxedItems, (boxed) => {
       return boxed.slice().sort((a, b) => {
         const aAisle = a.assignment.aisle || "Other";
         const bAisle = b.assignment.aisle || "Other";
@@ -499,8 +498,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     });
 
     // 3. Group sorted items by aisle for display with headers and compute completion metrics
-    const aisleGroups = computed(() => {
-      const sorted = sortedBoxedItems.get();
+    const aisleGroups = derive(sortedBoxedItems, (sorted) => {
       const groups: Array<{
         aisleName: string;
         items: typeof sorted;
@@ -574,7 +572,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
               <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "600" }}>🛒 {storeName || "Andronico's on Shattuck"}</h2>
               <div style={{ fontSize: "13px", marginTop: "4px", opacity: 0.9 }}>
                 {remainingCount} items to get • {doneCount} checked off
-                {computed(() => correctionsCount.get() > 0 ? ` • ${correctionsCount.get()} correction${correctionsCount.get() !== 1 ? 's' : ''}` : '')}
+                {derive(correctionsCount, (count) => count > 0 ? ` • ${count} correction${count !== 1 ? 's' : ''}` : '')}
               </div>
             </div>
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -611,15 +609,12 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
             <div style={{ marginBottom: "1rem" }}>
               <ct-image-input
                 capture="environment"
-                buttonText="📸 Scan List or Recipe"
                 variant="secondary"
                 showPreview={false}
                 maxSizeBytes={3700000}
                 onct-change={handlePhotoUpload({ uploadedImages })}
               />
-              {computed(() => {
-                const images = uploadedImages.get();
-                const extractions = imageExtractions as any[];
+              {derive({ images: uploadedImages, extractions: imageExtractions }, ({ images, extractions }: { images: ImageData[]; extractions: any[] }) => {
                 if (images.length === 0) return null;
 
                 // Collect extraction status
@@ -669,7 +664,6 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
               <ct-message-input
                 placeholder="💬 Type to add item, or ask omnibot..."
                 appearance="rounded"
-                buttonText="Add"
                 onct-send={addItem({ items })}
               />
             </div>
@@ -764,12 +758,13 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                           whiteSpace: "nowrap",
                         }}>
                           {assignment.item.title}
-                          {computed(() => {
-                              const data = mutableStoreData.get();
-                              const itemTitle = assignment.item.title;
+                          {derive(
+                            { storeData: mutableStoreData, itemTitle: assignment.item.title },
+                            (values: { storeData: Cell<StoreData | null>; itemTitle: string }) => {
+                              const data = values.storeData.get();
                               if (!data) return null;
-                              if (!itemTitle) return null;
-                              const itemName = itemTitle.toLowerCase();
+                              if (!values.itemTitle) return null;
+                              const itemName = values.itemTitle.toLowerCase();
                               const hasCorrection = data.itemLocations.some((loc: ItemLocation) =>
                                 loc.itemName && loc.itemName.toLowerCase() === itemName
                               );
@@ -783,14 +778,14 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                                   ✓
                                 </span>
                               ) : null;
-                            })}
+                            }
+                          )}
                         </span>
-                        {computed(() => {
-                          const statusVal = assignment.status;
-                          if (statusVal === "pending") {
+                        {derive(assignment.status, (status) => {
+                          if (status === "pending") {
                             return <span style={{ fontSize: "11px", color: "#667eea", fontStyle: "italic", flexShrink: 0 }}>🔄 sorting...</span>;
                           }
-                          if (statusVal === "failed") {
+                          if (status === "failed") {
                             return (
                               <ct-button
                                 variant="ghost"
@@ -825,9 +820,12 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
           </div>
 
           {/* Correction Panel - appears at bottom when correcting an item */}
-          {computed(() => {
-              const state = correctionState.get();
-              const currentData = mutableStoreData.get();
+          {derive(
+            { correctionState, storeData: mutableStoreData },
+            (values) => {
+              // When derive receives an object of cells, we need to call .get() to unwrap them
+              const state = values.correctionState.get();
+              const currentData = values.storeData.get();
 
               if (!state || !state.item) return null;
               if (!currentData) return null;
@@ -923,7 +921,8 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                 </div>
               </div>
             );
-            })}
+            }
+          )}
         </ct-vstack>
       ),
       items,
