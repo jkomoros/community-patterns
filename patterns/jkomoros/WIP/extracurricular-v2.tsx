@@ -410,6 +410,8 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     // Trade-off: stagedClasses persists across sessions (can be cleared on import)
 
     // Track last processed extraction to detect new extractions
+    // Using cell (not closure variable) because closures don't persist across pattern re-instantiation
+    // The computed is idempotent: first run sets data, subsequent runs hit guard and return early
     const lastProcessedExtractionText = cell<string>("");
 
     // Populate stagedClasses when extraction completes (idempotent side effect)
@@ -417,7 +419,7 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     computed(() => {
       const response = extractionResponse as any;
       const triggerText = extractionTriggerText.get();
-      const lastText = lastProcessedExtractionText.get();
+      const lastText = lastProcessedExtractionText.get();  // Cell - creates dependency, but computed is idempotent
 
       // Skip if no response or same extraction already processed
       if (!response?.classes || !triggerText) return;
@@ -447,8 +449,10 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           triageBorderColor: displayValues.border,
         };
       });
+      // CRITICAL ORDER: Set data FIRST, then update guard
+      // This ensures data is written before guard cell triggers re-run
+      // On re-run, guard matches and returns early (idempotent)
       stagedClasses.set(newClasses);
-
       lastProcessedExtractionText.set(triggerText);
     });
 
@@ -716,9 +720,9 @@ Return all visible text.`
     // Ensure default set exists and is active on first load
     computed(() => {
       const names = pinnedSetNames.get();
-      // Add default set if missing
+      // Add default set if missing - use .set() not .push() for predictable reactivity
       if (!names.includes("")) {
-        pinnedSetNames.push("");
+        pinnedSetNames.set([...names, ""]);
       }
       // Set active to default if not set
       const active = activeSetName.get();
