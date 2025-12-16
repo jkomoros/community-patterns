@@ -97,11 +97,7 @@ const removeAisle = handler<
   unknown,
   { aisles: Cell<Array<Cell<StoreAisle>>>; aisle: Cell<StoreAisle> }
 >((_event, { aisles, aisle }) => {
-  const currentAisles = aisles.get();
-  const index = currentAisles.findIndex((el) => el.equals(aisle));
-  if (index >= 0) {
-    aisles.set(currentAisles.toSpliced(index, 1));
-  }
+  aisles.remove(aisle);
 });
 
 const moveAisleUp = handler<
@@ -444,11 +440,7 @@ const removeEntrance = handler<
   unknown,
   { entrances: Cell<Array<Cell<Entrance>>>; entrance: Cell<Entrance> }
 >((_event, { entrances, entrance }) => {
-  const current = entrances.get();
-  const index = current.findIndex((el) => el.equals(entrance));
-  if (index >= 0) {
-    entrances.set(current.toSpliced(index, 1));
-  }
+  entrances.remove(entrance);
 });
 
 const toggleEntrancesComplete = handler<
@@ -490,11 +482,7 @@ const deleteCorrection = handler<
   unknown,
   { itemLocations: Cell<Array<Cell<ItemLocation>>>; correction: Cell<ItemLocation> }
 >((_event, { itemLocations, correction }) => {
-  const current = itemLocations.get();
-  const index = current.findIndex((el) => el.equals(correction));
-  if (index >= 0) {
-    itemLocations.set(current.toSpliced(index, 1));
-  }
+  itemLocations.remove(correction);
 });
 
 // Add new item location correction

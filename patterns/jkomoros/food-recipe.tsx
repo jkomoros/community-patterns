@@ -208,11 +208,7 @@ const removeIngredient = handler<
     ingredient: Cell<Ingredient>;
   }
 >((_event, { ingredients, ingredient }) => {
-  const currentIngredients = ingredients.get();
-  const index = currentIngredients.findIndex((el) => ingredient.equals(el));
-  if (index >= 0) {
-    ingredients.set(currentIngredients.toSpliced(index, 1));
-  }
+  ingredients.remove(ingredient);
 });
 
 // Step Group handlers
@@ -244,11 +240,7 @@ const removeStepGroup = handler<
     stepGroup: Cell<StepGroup>;
   }
 >((_event, { stepGroups, stepGroup }) => {
-  const currentGroups = stepGroups.get();
-  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
-  if (index >= 0) {
-    stepGroups.set(currentGroups.toSpliced(index, 1));
-  }
+  stepGroups.remove(stepGroup);
 });
 
 const moveGroupUp = handler<
@@ -435,11 +427,7 @@ const removeTag = handler<
   unknown,
   { tags: Cell<Array<Cell<string>>>; tag: Cell<string> }
 >((_event, { tags, tag }) => {
-  const currentTags = tags.get();
-  const index = currentTags.findIndex((el) => tag.equals(el));
-  if (index >= 0) {
-    tags.set(currentTags.toSpliced(index, 1));
-  }
+  tags.remove(tag);
 });
 
 // Scaling handlers

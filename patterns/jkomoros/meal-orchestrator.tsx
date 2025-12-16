@@ -135,11 +135,7 @@ const removeOven = handler<
   unknown,
   { ovens: Cell<Array<Cell<OvenConfig>>>; oven: Cell<OvenConfig> }
 >((_event, { ovens, oven }) => {
-  const currentOvens = ovens.get();
-  const index = currentOvens.findIndex((el) => oven.equals(el));
-  if (index >= 0) {
-    ovens.set(currentOvens.toSpliced(index, 1));
-  }
+  ovens.remove(oven);
 });
 
 // Handlers for dietary profiles
@@ -160,11 +156,7 @@ const removeDietaryProfile = handler<
     profile: Cell<GuestDietaryProfile>;
   }
 >((_event, { dietaryProfiles, profile }) => {
-  const currentProfiles = dietaryProfiles.get();
-  const index = currentProfiles.findIndex((el) => profile.equals(el));
-  if (index >= 0) {
-    dietaryProfiles.set(currentProfiles.toSpliced(index, 1));
-  }
+  dietaryProfiles.remove(profile);
 });
 
 // Handler for adding dietary requirement tags
@@ -206,11 +198,7 @@ const removeRecipe = handler<
     recipe: Cell<OpaqueRef<FoodRecipe>>;
   }
 >((_event, { recipes, recipe }) => {
-  const currentRecipes = recipes.get();
-  const index = currentRecipes.findIndex((el) => recipe.equals(el));
-  if (index >= 0) {
-    recipes.set(currentRecipes.toSpliced(index, 1));
-  }
+  recipes.remove(recipe);
 });
 
 // Handler for removing prepared foods
@@ -221,11 +209,7 @@ const removePreparedFood = handler<
     preparedFood: Cell<OpaqueRef<PreparedFood>>;
   }
 >((_event, { preparedFoods, preparedFood }) => {
-  const currentFoods = preparedFoods.get();
-  const index = currentFoods.findIndex((el) => preparedFood.equals(el));
-  if (index >= 0) {
-    preparedFoods.set(currentFoods.toSpliced(index, 1));
-  }
+  preparedFoods.remove(preparedFood);
 });
 
 // LLM Recipe Linking Types
