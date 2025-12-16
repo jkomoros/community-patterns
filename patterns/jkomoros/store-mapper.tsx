@@ -1046,6 +1046,27 @@ What common sections might be missing?`,
       specialDepartments.filter((dept) => dept.location?.startsWith("right"))
     );
 
+    // Group all items by exact position for the store map visualization
+    const itemsByPosition = computed(() => {
+      const byPos: Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }> = {};
+
+      // Add departments
+      for (const dept of specialDepartments) {
+        if (dept.location) {
+          if (!byPos[dept.location]) byPos[dept.location] = { depts: [], entrances: [] };
+          byPos[dept.location].depts.push(dept);
+        }
+      }
+
+      // Add entrances
+      for (const entrance of entrances) {
+        if (!byPos[entrance.position]) byPos[entrance.position] = { depts: [], entrances: [] };
+        byPos[entrance.position].entrances.push(entrance);
+      }
+
+      return byPos;
+    });
+
     // Filter unassigned to exclude dismissed departments and those in center aisles
     const visibleUnassigned = computed(() => {
       return unassignedDepartments.filter(
@@ -1170,6 +1191,61 @@ What common sections might be missing?`,
               background: #ef4444;
               color: white;
               border-color: #ef4444;
+            }
+
+            /* Store map visualization */
+            .store-map {
+              display: grid;
+              grid-template-columns: 50px 1fr 50px;
+              grid-template-rows: 40px 1fr 40px;
+              width: 100%;
+              max-width: 400px;
+              aspect-ratio: 4/3;
+              border: 3px solid #374151;
+              border-radius: 8px;
+              overflow: hidden;
+              background: #e5e7eb;
+              margin: 0 auto;
+            }
+            .store-map-corner { background: #d1d5db; }
+            .store-map-wall {
+              display: flex;
+              padding: 4px;
+              gap: 2px;
+              overflow: hidden;
+            }
+            .store-map-wall-horizontal { flex-direction: row; }
+            .store-map-wall-vertical { flex-direction: column; }
+            .store-map-wall-front { background: #eff6ff; border-bottom: 2px solid #3b82f6; }
+            .store-map-wall-back { background: #fff7ed; border-top: 2px solid #f97316; }
+            .store-map-wall-left { background: #f0fdf4; border-right: 2px solid #10b981; }
+            .store-map-wall-right { background: #faf5ff; border-left: 2px solid #a855f7; }
+            .store-map-slot {
+              flex: 1;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-width: 0;
+              min-height: 0;
+              gap: 2px;
+              flex-wrap: wrap;
+            }
+            .store-map-center {
+              background: #f9fafb;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              color: #6b7280;
+              font-size: 12px;
+            }
+            .store-map-badge {
+              font-size: 14px;
+              cursor: default;
+            }
+            .store-map-entrance {
+              font-size: 12px;
+              cursor: default;
             }
           `}</style>
           {/* Header */}
@@ -2277,6 +2353,208 @@ What common sections might be missing?`,
                 </div>,
                 null
               )}
+            </div>,
+            null
+          )}
+
+          {/* Store Layout Visualization */}
+          {ifElse(
+            derive(itemsByPosition, (items) => Object.keys(items).length > 0),
+            <div style={{ marginBottom: "2rem" }}>
+              <h3
+                style={{
+                  margin: "0 0 0.75rem 0",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  textAlign: "center",
+                }}
+              >
+                🏪 Store Layout Overview
+              </h3>
+              <div className="store-map">
+                {/* Corners */}
+                <div className="store-map-corner" style={{ gridColumn: 1, gridRow: 1 }} />
+                <div className="store-map-corner" style={{ gridColumn: 3, gridRow: 1 }} />
+                <div className="store-map-corner" style={{ gridColumn: 1, gridRow: 3 }} />
+                <div className="store-map-corner" style={{ gridColumn: 3, gridRow: 3 }} />
+
+                {/* Front wall (top) */}
+                <div
+                  className="store-map-wall store-map-wall-horizontal store-map-wall-front"
+                  style={{ gridColumn: 2, gridRow: 1 }}
+                >
+                  {computed(() => {
+                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    return (
+                      <>
+                        <div className="store-map-slot">
+                          {(items["front-left"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["front-left"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["front-center"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["front-center"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["front-right"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["front-right"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })}
+                </div>
+
+                {/* Left wall */}
+                <div
+                  className="store-map-wall store-map-wall-vertical store-map-wall-left"
+                  style={{ gridColumn: 1, gridRow: 2 }}
+                >
+                  {computed(() => {
+                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    return (
+                      <>
+                        <div className="store-map-slot">
+                          {(items["left-front"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["left-front"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["left-center"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["left-center"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["left-back"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["left-back"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })}
+                </div>
+
+                {/* Center area */}
+                <div className="store-map-center" style={{ gridColumn: 2, gridRow: 2 }}>
+                  <div style={{ fontWeight: "500" }}>Center</div>
+                  <div>{aisleCount} aisles</div>
+                </div>
+
+                {/* Right wall */}
+                <div
+                  className="store-map-wall store-map-wall-vertical store-map-wall-right"
+                  style={{ gridColumn: 3, gridRow: 2 }}
+                >
+                  {computed(() => {
+                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    return (
+                      <>
+                        <div className="store-map-slot">
+                          {(items["right-front"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["right-front"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["right-center"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["right-center"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["right-back"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["right-back"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })}
+                </div>
+
+                {/* Back wall (bottom) */}
+                <div
+                  className="store-map-wall store-map-wall-horizontal store-map-wall-back"
+                  style={{ gridColumn: 2, gridRow: 3 }}
+                >
+                  {computed(() => {
+                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    return (
+                      <>
+                        <div className="store-map-slot">
+                          {(items["back-left"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["back-left"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["back-center"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["back-center"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                        <div className="store-map-slot">
+                          {(items["back-right"]?.entrances || []).map((e) => (
+                            <span className="store-map-entrance" title={`Entrance: ${e.name}`}>🚪</span>
+                          ))}
+                          {(items["back-right"]?.depts || []).map((d) => (
+                            <span className="store-map-badge" title={d.name}>{d.icon}</span>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div
+                style={{
+                  marginTop: "0.75rem",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "1rem",
+                  justifyContent: "center",
+                  fontSize: "11px",
+                  color: "#6b7280",
+                }}
+              >
+                <span><span style={{ color: "#3b82f6" }}>■</span> Front</span>
+                <span><span style={{ color: "#f97316" }}>■</span> Back</span>
+                <span><span style={{ color: "#10b981" }}>■</span> Left</span>
+                <span><span style={{ color: "#a855f7" }}>■</span> Right</span>
+                <span>🚪 Entrance</span>
+              </div>
             </div>,
             null
           )}
