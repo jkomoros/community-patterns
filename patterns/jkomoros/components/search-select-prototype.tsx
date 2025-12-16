@@ -18,10 +18,8 @@
  */
 import {
   Cell,
-  cell,
   computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -152,10 +150,8 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     });
 
     // Pre-compute items with highlight state for rendering
-    // Using derive() with single explicit dependency
-    // NOTE: Even single-cell derive doesn't auto-unwrap - must call .get()
-    const filteredItemsWithHighlight = derive(highlightedIndex, (idx) => {
-      const idxVal = (idx as any).get ? (idx as any).get() : idx;
+    const filteredItemsWithHighlight = computed(() => {
+      const idxVal = highlightedIndex.get();
       return filteredItems.map((item, i) => ({
         value: item.value,
         label: item.label,

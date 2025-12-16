@@ -14,7 +14,7 @@
  * - Custom values with "Add X" option
  */
 
-import { Cell, Default, derive, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
 
 // Sample items for demo
 const CATEGORY_ITEMS = [
@@ -68,7 +68,7 @@ export default pattern<Input, Result>(
                 allowCustom={true}
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
-                Selected: <strong>{derive(singleValue, v => v || "(none)")}</strong>
+                Selected: <strong>{computed(() => singleValue.get() || "(none)")}</strong>
               </div>
             </ct-vstack>
           </ct-card>
@@ -134,7 +134,7 @@ export default pattern<Input, Result>(
                 allowCustom={true}
               />
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
-                Count: {derive(multiValues, (vals: string[]) => (vals || []).length)} selected
+                Count: {computed(() => (multiValues.get() || []).length)} selected
               </div>
             </ct-vstack>
           </ct-card>
@@ -150,8 +150,8 @@ export default pattern<Input, Result>(
                 fontSize: "0.75rem",
                 whiteSpace: "pre-wrap",
               }}>
-                {derive(singleValue, (single: string) =>
-                  `singleValue: ${JSON.stringify(single)}`
+                {computed(() =>
+                  `singleValue: ${JSON.stringify(singleValue.get())}`
                 )}
               </code>
               <code style={{
@@ -161,8 +161,8 @@ export default pattern<Input, Result>(
                 fontSize: "0.75rem",
                 whiteSpace: "pre-wrap",
               }}>
-                {derive(multiValues, (multi: string[]) =>
-                  `multiValues: ${JSON.stringify(multi || [])}`
+                {computed(() =>
+                  `multiValues: ${JSON.stringify(multiValues.get() || [])}`
                 )}
               </code>
             </ct-vstack>

@@ -9,8 +9,8 @@
  * which eliminates the 3x redundancy of interface + input type + schema.
  */
 import {
+  computed,
   Default,
-  derive,
   NAME,
   pattern,
   UI,
@@ -116,9 +116,9 @@ const FavoriteFoodsExtractor = pattern<FavoriteFoodsInput, FavoriteFoodsOutput>(
     // ========================================================================
     // DYNAMIC AGENT GOAL
     // ========================================================================
-    const agentGoal = derive(
-      [foods, maxSearches],
-      ([found, max]: [FoodPreference[], number]) => {
+    const agentGoal = computed(() => {
+        const found = foods as FoodPreference[];
+        const max = maxSearches as number;
         const categories = [...new Set(found.map((f) => f.category))];
         const isQuickMode = max > 0;
 
@@ -150,8 +150,7 @@ Look for patterns:
 - Restaurant reservations
 
 IMPORTANT: Call reportFood for EACH preference as you find it. Don't wait!`;
-      },
-    );
+    });
 
     // ========================================================================
     // CREATE BASE SEARCHER
@@ -191,9 +190,10 @@ Report each discovery immediately. Focus on patterns - if someone orders from th
     // ========================================================================
     // DERIVED VALUES
     // ========================================================================
-    const totalFoods = derive(foods, (list) => list?.length || 0);
+    const totalFoods = computed(() => (foods as FoodPreference[])?.length || 0);
 
-    const groupedFoods = derive(foods, (list: FoodPreference[]) => {
+    const groupedFoods = computed(() => {
+      const list = foods as FoodPreference[];
       const groups: Record<string, FoodPreference[]> = {};
       if (!list) return groups;
       for (const f of list) {
@@ -245,7 +245,8 @@ Report each discovery immediately. Focus on patterns - if someone orders from th
                 <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
                   Discovered Preferences
                 </h3>
-                {derive(groupedFoods, (groups) => {
+                {computed(() => {
+                  const groups = groupedFoods as Record<string, FoodPreference[]>;
                   const categories = Object.keys(groups).sort();
                   if (categories.length === 0) {
                     return (

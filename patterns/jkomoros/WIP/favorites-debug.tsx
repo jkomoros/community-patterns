@@ -5,7 +5,7 @@
  * Debug pattern to see what's actually in the favorites list
  * Following the same approach as favorites-manager.tsx from labs
  */
-import { Cell, derive, NAME, pattern, UI, wish } from "commontools";
+import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
 
 // Match the labs favorites-manager type (but use 'tag' since that's what the schema says)
 type Favorite = { cell: Cell<{ [NAME]?: string }>; tag: string };
@@ -32,9 +32,9 @@ export default pattern<Record<string, never>>((_) => {
               <div><strong>Entry {i}:</strong></div>
               <div>Cell: <ct-cell-link $cell={item.cell} /></div>
               <div>Tag value: "{item.tag}"</div>
-              <div>Tag length: {derive(item, (it) => it?.tag?.length ?? 0)}</div>
-              <div>Has googleAuth: {derive(item, (it) => String(it?.tag?.toLowerCase().includes("googleauth") ?? false))}</div>
-              <div>Has note: {derive(item, (it) => String(it?.tag?.toLowerCase().includes("note") ?? false))}</div>
+              <div>Tag length: {computed(() => item?.tag?.length ?? 0)}</div>
+              <div>Has googleAuth: {computed(() => String(item?.tag?.toLowerCase().includes("googleauth") ?? false))}</div>
+              <div>Has note: {computed(() => String(item?.tag?.toLowerCase().includes("note") ?? false))}</div>
             </div>
           ))}
         </div>
@@ -57,9 +57,9 @@ export default pattern<Record<string, never>>((_) => {
           fontSize: "12px",
           maxHeight: "300px",
         }}>
-          {derive(wishResult, (wr) => {
+          {computed(() => {
             try {
-              return JSON.stringify(wr, (key, value) => {
+              return JSON.stringify(wishResult, (key, value) => {
                 // Skip $UI to avoid circular refs
                 if (key === "$UI") return "[UI omitted]";
                 return value;
