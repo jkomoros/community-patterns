@@ -91,8 +91,9 @@ export default pattern<ViewerInput, ViewerOutput>(
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
+      const allVotes = votes.get();
 
-      for (const vote of votes as Vote[]) {
+      for (const vote of allVotes) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -104,8 +105,8 @@ export default pattern<ViewerInput, ViewerOutput>(
 
     // Derived: Ranked options (fewest reds, then most greens)
     const rankedOptions = computed(() => {
-      const allVotes = votes as Vote[];
-      const currentOptions = options as Option[];
+      const allVotes = votes.get();
+      const currentOptions = options.get();
       const voteCounts = currentOptions.map(option => {
         const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;

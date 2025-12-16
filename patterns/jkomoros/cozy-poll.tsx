@@ -128,8 +128,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
+      const allVotes = votes.get();
 
-      for (const vote of votes) {
+      for (const vote of allVotes) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -141,9 +142,11 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
     // Derived: Ranked options (fewest reds, then most greens)
     const rankedOptions = computed(() => {
+      const allVotes = votes.get();
+      const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = options.map(option => {
-        const optionVotes = votes.filter(v => v.optionId === option.id);
+      const voteCounts = allOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
         const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
@@ -163,9 +166,11 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
     // Derived: Map option IDs to their rank numbers
     const optionRanks = computed(() => {
+      const allVotes = votes.get();
+      const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = options.map(option => {
-        const optionVotes = votes.filter(v => v.optionId === option.id);
+      const voteCounts = allOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
 
@@ -193,7 +198,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
 
     return {
       [NAME]: ifElse(
-        computed(() => question && question.trim().length > 0),
+        computed(() => question && question.get().trim().length > 0),
         str`Poll - ${question}`,
         str`Poll`
       ),

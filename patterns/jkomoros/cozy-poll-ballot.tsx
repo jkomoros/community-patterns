@@ -57,8 +57,9 @@ export default pattern<VoterInput, VoterOutput>(
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
+      const allVotes = votes.get();
 
-      for (const vote of votes) {
+      for (const vote of allVotes) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -70,9 +71,11 @@ export default pattern<VoterInput, VoterOutput>(
 
     // Derived: Ranked options (fewest reds, then most greens)
     const rankedOptions = computed(() => {
+      const allVotes = votes.get();
+      const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = options.map(option => {
-        const optionVotes = votes.filter(v => v.optionId === option.id);
+      const voteCounts = allOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
         const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
@@ -92,9 +95,11 @@ export default pattern<VoterInput, VoterOutput>(
 
     // Derived: Map option IDs to their rank numbers
     const optionRanks = computed(() => {
+      const allVotes = votes.get();
+      const allOptions = options.get();
       // Count votes for each option
-      const voteCounts = options.map(option => {
-        const optionVotes = votes.filter(v => v.optionId === option.id);
+      const voteCounts = allOptions.map(option => {
+        const optionVotes = allVotes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
 
@@ -122,9 +127,11 @@ export default pattern<VoterInput, VoterOutput>(
     // Derived: Map option IDs to current user's vote
     const myVoteByOption = computed(() => {
       const myVotes: Record<string, "green" | "yellow" | "red"> = {};
+      const allVotes = votes.get();
+      const currentName = myName.get();
 
-      for (const vote of votes) {
-        if (vote.voterName === myName) {
+      for (const vote of allVotes) {
+        if (vote.voterName === currentName) {
           myVotes[vote.optionId] = vote.voteType;
         }
       }
@@ -134,7 +141,7 @@ export default pattern<VoterInput, VoterOutput>(
 
     return {
       [NAME]: ifElse(
-        computed(() => myName && myName.trim().length > 0),
+        computed(() => myName && myName.get().trim().length > 0),
         str`${myName} - ${question} - Voter`,
         str`${question} - Voter`
       ),
@@ -146,7 +153,7 @@ export default pattern<VoterInput, VoterOutput>(
 
           {/* Name Entry/Display */}
           {ifElse(
-            computed(() => !myName || myName.trim().length === 0),
+            computed(() => !myName || myName.get().trim().length === 0),
             // If name is empty: show input
             <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "2px solid #f59e0b" }}>
               <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
