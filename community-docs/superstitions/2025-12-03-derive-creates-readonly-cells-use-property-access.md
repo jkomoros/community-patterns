@@ -9,6 +9,8 @@ status: folk_wisdom
 stars: ⭐⭐
 ---
 
+> **API DEPRECATION (2025-12-15):** `derive()` is deprecated in favor of `computed()`. The guidance in this document still applies - just use `computed()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
+
 # ✅ FOLK WISDOM - CONFIRMED
 
 **This pattern has been confirmed multiple times.**

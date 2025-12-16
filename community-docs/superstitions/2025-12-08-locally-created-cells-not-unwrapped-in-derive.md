@@ -1,5 +1,7 @@
 # Cells Not Unwrapped in derive() - Broader Than Expected
 
+> **API DEPRECATION (2025-12-15):** `derive()` is deprecated in favor of `computed()`, and `cell()` is deprecated in favor of `Cell.of()`. The guidance in this document still applies - just use the new function names. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
+
 **Date:** 2025-12-08
 **Status:** Superstition (two observations, needs broader verification)
 **Symptom:** derive callback receives cell reference object instead of value for non-framework cells

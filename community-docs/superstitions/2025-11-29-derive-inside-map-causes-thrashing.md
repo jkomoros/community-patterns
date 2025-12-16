@@ -1,5 +1,7 @@
 # Derive() Inside Map Callbacks Causes Reactivity Loops
 
+> **API DEPRECATION (2025-12-15):** `derive()` is deprecated in favor of `computed()`. The guidance in this document still applies - just use `computed()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
+
 > **Note (2025-12-10):** This superstition is NOT related to CT-1102. CT-1102 fixed `.filter().map()` chains inside `derive()` callbacks. This superstition is about a different issue: creating `derive()` cells inside `.map()` callbacks creates new cell references on each reactive pass, causing thrashing. This is about object identity/reference tracking. This remains valid.
 
 ## Summary

@@ -1,5 +1,7 @@
 # Pre-bind Handlers Outside derive() Callbacks to Avoid ReadOnlyAddressError
 
+> **API DEPRECATION (2025-12-15):** `derive()` is deprecated in favor of `computed()`. The guidance in this document still applies - just use `computed()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
+
 **SUPERSTITION** - Single observation, unverified. Use with skepticism!
 
 ## Topic

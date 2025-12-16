@@ -26,7 +26,9 @@ stars: ⭐
 
 ---
 
-# Default<> Input Cells May Be Read-Only - Use Local cell() for UI State
+> **API DEPRECATION (2025-12-15):** `cell()` is deprecated in favor of `Cell.of()`. The guidance in this document still applies - just use `Cell.of()` instead. See `2025-12-15-derive-cell-deprecated-use-computed-cell-of.md` for migration details.
+
+# Default<> Input Cells May Be Read-Only - Use Local Cell.of() for UI State
 
 ## Problem
 
