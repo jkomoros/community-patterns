@@ -354,10 +354,10 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
     // 2. We use history.key(date).set() for individual updates (preserves tracking)
     // 3. The operation is idempotent - running N times = same result as once
     computed(() => {
-      const fetched = pizzaList.get();
-      if (!fetched || fetched.length === 0) return;
+      // pizzaList is from lift() - use directly, not .get()
+      if (!pizzaList || pizzaList.length === 0) return;
 
-      for (const pizza of fetched) {
+      for (const pizza of pizzaList) {
         const key = pizza.date;
 
         // CRITICAL: Check if already exists - skip to maintain idempotency
