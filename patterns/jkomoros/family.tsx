@@ -9,9 +9,8 @@
  */
 import {
   Cell,
-  cell,
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -197,18 +196,18 @@ const Family = pattern<FamilyInput, FamilyOutput>(
     connectionOrigin,
   }) => {
     // Compute primary address
-    const primaryAddress = derive(addresses, (addrs) =>
-      addrs.find((a) => a.isPrimary) || addrs[0] || null
+    const primaryAddress = computed(() =>
+      addresses.find((a) => a.isPrimary) || addresses[0] || null
     );
 
     // Compute display name
-    const displayName = derive(familyName, (name) =>
-      name.trim() || "(Untitled Family)"
+    const displayName = computed(() =>
+      familyName.trim() || "(Untitled Family)"
     );
 
     // Count children for display
-    const childCount = derive(members, (m) =>
-      m.filter((mem) => mem.role === "child").length
+    const childCount = computed(() =>
+      members.filter((mem) => mem.role === "child").length
     );
 
     return {
@@ -251,7 +250,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                 </h3>
 
                 {ifElse(
-                  derive(members, (m) => m.length === 0),
+                  computed(() => members.length === 0),
                   <div style="color: #666; font-size: 13px; padding: 8px 0;">
                     No members added yet
                   </div>,
@@ -325,7 +324,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                 </p>
 
                 {ifElse(
-                  derive(addresses, (a) => a.length === 0),
+                  computed(() => addresses.length === 0),
                   <div style="color: #666; font-size: 13px; padding: 8px 0;">
                     No addresses added yet
                   </div>,
@@ -488,25 +487,22 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                 }}
               >
                 <strong>Summary:</strong>{" "}
-                {derive(
-                  { displayName, members, childCount, primaryAddress },
-                  ({ displayName, members, childCount, primaryAddress }) => {
-                    const parts: string[] = [];
-                    parts.push(displayName);
-                    if (members.length > 0) {
-                      parts.push(
-                        `${members.length} member${members.length === 1 ? "" : "s"}`
-                      );
-                      if (childCount > 0) {
-                        parts.push(`(${childCount} ${childCount === 1 ? "child" : "children"})`);
-                      }
+                {computed(() => {
+                  const parts: string[] = [];
+                  parts.push(displayName);
+                  if (members.length > 0) {
+                    parts.push(
+                      `${members.length} member${members.length === 1 ? "" : "s"}`
+                    );
+                    if (childCount > 0) {
+                      parts.push(`(${childCount} ${childCount === 1 ? "child" : "children"})`);
                     }
-                    if (primaryAddress) {
-                      parts.push(`at ${primaryAddress.fullAddress}`);
-                    }
-                    return parts.join(" - ");
                   }
-                )}
+                  if (primaryAddress) {
+                    parts.push(`at ${primaryAddress.fullAddress}`);
+                  }
+                  return parts.join(" - ");
+                })}
               </div>
             </ct-vstack>
           </ct-vscroll>

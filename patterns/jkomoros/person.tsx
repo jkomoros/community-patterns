@@ -1,9 +1,8 @@
 /// <cts-enable />
 import {
   Cell,
-  cell,
+  computed,
   Default,
-  derive,
   generateObject,
   handler,
   ifElse,
@@ -623,60 +622,49 @@ const Person = recipe<Input, Output>(
   }) => {
     // Set up mentionable charms for @ references
     const mentionable = wish<MentionableCharm[]>("#mentionable");
-    const mentioned = cell<MentionableCharm[]>([]);
+    const mentioned = Cell.of<MentionableCharm[]>([]);
 
     // The only way to serialize a pattern, apparently?
-    const pattern = derive(undefined, () => JSON.stringify(Person));
+    const pattern = computed(() => JSON.stringify(Person));
 
     // Derive computed display name from first, nickname, and last name
-    const computedDisplayName = derive(
-      [givenName, familyName, nickname],
-      ([first, last, nick]) => {
-        const parts = [];
-        if (first.trim()) parts.push(first.trim());
-        if (nick.trim()) parts.push(`'${nick.trim()}'`);
-        if (last.trim()) parts.push(last.trim());
-        return parts.join(" ");
-      },
-    );
+    const computedDisplayName = computed(() => {
+      const parts = [];
+      if (givenName.trim()) parts.push(givenName.trim());
+      if (nickname.trim()) parts.push(`'${nickname.trim()}'`);
+      if (familyName.trim()) parts.push(familyName.trim());
+      return parts.join(" ");
+    });
 
     // Effective display name - use explicit displayName if set, otherwise computed
-    const effectiveDisplayName = derive(
-      [displayName, computedDisplayName],
-      ([explicit, computed]) => {
-        const name = explicit.trim() || computed;
-        return name || "(Untitled Person)";
-      },
-    );
+    const effectiveDisplayName = computed(() => {
+      const name = displayName.trim() || computedDisplayName;
+      return name || "(Untitled Person)";
+    });
 
     // Create derived values for accessing array elements reactively
-    const emailValue = derive(emails, (arr) => arr[0]?.value ?? "");
-    const phoneValue = derive(phones, (arr) => arr[0]?.value ?? "");
+    const emailValue = computed(() => emails[0]?.value ?? "");
+    const phoneValue = computed(() => phones[0]?.value ?? "");
 
     // Create derived values for each social platform
-    const twitterHandle = derive(
-      socialLinks,
-      (links) => links.find((l) => l && l.platform === "twitter")?.handle ?? "",
+    const twitterHandle = computed(
+      () => socialLinks.find((l) => l && l.platform === "twitter")?.handle ?? "",
     );
-    const linkedinHandle = derive(
-      socialLinks,
-      (links) => links.find((l) => l && l.platform === "linkedin")?.handle ?? "",
+    const linkedinHandle = computed(
+      () => socialLinks.find((l) => l && l.platform === "linkedin")?.handle ?? "",
     );
-    const githubHandle = derive(
-      socialLinks,
-      (links) => links.find((l) => l && l.platform === "github")?.handle ?? "",
+    const githubHandle = computed(
+      () => socialLinks.find((l) => l && l.platform === "github")?.handle ?? "",
     );
-    const instagramHandle = derive(
-      socialLinks,
-      (links) => links.find((l) => l && l.platform === "instagram")?.handle ?? "",
+    const instagramHandle = computed(
+      () => socialLinks.find((l) => l && l.platform === "instagram")?.handle ?? "",
     );
-    const mastodonHandle = derive(
-      socialLinks,
-      (links) => links.find((l) => l && l.platform === "mastodon")?.handle ?? "",
+    const mastodonHandle = computed(
+      () => socialLinks.find((l) => l && l.platform === "mastodon")?.handle ?? "",
     );
 
     // Trigger for LLM extraction - cell that holds notes snapshot to extract
-    const extractTrigger = cell<string>("");
+    const extractTrigger = Cell.of<string>("");
 
     // LLM extraction for notes - runs when trigger changes
     const { result: extractionResult, pending: extractionPending } =
@@ -724,65 +712,27 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       });
 
     // Derive a summary of changes that will be made
-    const changesPreview = derive(
-      {
-        extractionResult,
-        displayName,
-        givenName,
-        familyName,
-        nickname,
-        pronouns,
-        birthday,
-        emailValue,
-        phoneValue,
-        twitterHandle,
-        linkedinHandle,
-        githubHandle,
-        instagramHandle,
-        mastodonHandle,
-        notes,
-      },
-      ({
-        extractionResult: result,
-        displayName: currentDisplayName,
-        givenName: currentGivenName,
-        familyName: currentFamilyName,
-        nickname: currentNickname,
-        pronouns: currentPronouns,
-        birthday: currentBirthday,
-        emailValue: currentEmail,
-        phoneValue: currentPhone,
-        twitterHandle: currentTwitter,
-        linkedinHandle: currentLinkedin,
-        githubHandle: currentGithub,
-        instagramHandle: currentInstagram,
-        mastodonHandle: currentMastodon,
-        notes: currentNotes,
-      }) => {
-        return compareFields(result, {
-          displayName: { current: currentDisplayName, label: "Display Name" },
-          givenName: { current: currentGivenName, label: "First Name" },
-          familyName: { current: currentFamilyName, label: "Last Name" },
-          nickname: { current: currentNickname, label: "Nickname" },
-          pronouns: { current: currentPronouns, label: "Pronouns" },
-          birthday: { current: currentBirthday, label: "Birthday" },
-          email: { current: currentEmail, label: "Email" },
-          phone: { current: currentPhone, label: "Phone" },
-          twitter: { current: currentTwitter, label: "Twitter" },
-          linkedin: { current: currentLinkedin, label: "LinkedIn" },
-          github: { current: currentGithub, label: "GitHub" },
-          instagram: { current: currentInstagram, label: "Instagram" },
-          mastodon: { current: currentMastodon, label: "Mastodon" },
-          remainingNotes: { current: currentNotes, label: "Notes" },
-        });
-      },
-    );
+    const changesPreview = computed(() => {
+      return compareFields(extractionResult, {
+        displayName: { current: displayName, label: "Display Name" },
+        givenName: { current: givenName, label: "First Name" },
+        familyName: { current: familyName, label: "Last Name" },
+        nickname: { current: nickname, label: "Nickname" },
+        pronouns: { current: pronouns, label: "Pronouns" },
+        birthday: { current: birthday, label: "Birthday" },
+        email: { current: emailValue, label: "Email" },
+        phone: { current: phoneValue, label: "Phone" },
+        twitter: { current: twitterHandle, label: "Twitter" },
+        linkedin: { current: linkedinHandle, label: "LinkedIn" },
+        github: { current: githubHandle, label: "GitHub" },
+        instagram: { current: instagramHandle, label: "Instagram" },
+        mastodon: { current: mastodonHandle, label: "Mastodon" },
+        remainingNotes: { current: notes, label: "Notes" },
+      });
+    });
 
     // Derive a boolean for whether we have results
-    const hasExtractionResults = derive(
-      changesPreview,
-      (changes) => changes.length > 0,
-    );
+    const hasExtractionResults = computed(() => changesPreview.length > 0);
 
     return {
       [NAME]: str`👤 ${effectiveDisplayName}`,
@@ -1191,8 +1141,8 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
                           <ct-button
                             size="sm"
-                            variant={derive(origins, (arr) =>
-                              arr.includes(origin as Origin) ? "primary" : "secondary"
+                            variant={computed(() =>
+                              origins.includes(origin as Origin) ? "primary" : "secondary"
                             )}
                             onClick={toggleOrigin({
                               origins,
@@ -1332,7 +1282,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       // Pattern tools for omnibot
       getContactInfo: patternTool(
         ({ displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }) => {
-          return derive({ displayName, emails, phones }, ({ displayName, emails, phones }) => {
+          return computed(() => {
             const parts = [`Name: ${displayName || "Not provided"}`];
             if (emails && emails.length > 0) {
               parts.push(`Email: ${emails[0].value}`);
@@ -1347,7 +1297,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       ),
       searchNotes: patternTool(
         ({ query, notes }: { query: string; notes: string }) => {
-          return derive({ query, notes }, ({ query, notes }) => {
+          return computed(() => {
             if (!query || !notes) return [];
             return notes.split("\n").filter((line) =>
               line.toLowerCase().includes(query.toLowerCase())
@@ -1358,9 +1308,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
       ),
       getSocialLinks: patternTool(
         ({ socialLinks }: { socialLinks: SocialLink[] }) => {
-          return derive(socialLinks, (links) => {
-            if (!links || links.length === 0) return "No social media links";
-            return links.map((link) => `${link.platform}: ${link.handle}`).join("\n");
+          return computed(() => {
+            if (!socialLinks || socialLinks.length === 0) return "No social media links";
+            return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join("\n");
           });
         },
         { socialLinks }

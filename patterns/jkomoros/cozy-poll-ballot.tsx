@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, derive, handler, ifElse, NAME, navigateTo, pattern, str, UI } from "commontools";
+import { Cell, computed, Default, handler, ifElse, NAME, navigateTo, pattern, str, UI } from "commontools";
 
 /**
  * Cozy Poll Ballot Pattern
@@ -55,10 +55,10 @@ export default pattern<VoterInput, VoterOutput>(
   ({ question, options, votes, voterCharms, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
-    const votesByOption = derive(votes, (allVotes: Vote[]) => {
+    const votesByOption = computed(() => {
       const organized: Record<string, { green: string[], yellow: string[], red: string[] }> = {};
 
-      for (const vote of allVotes) {
+      for (const vote of votes) {
         if (!organized[vote.optionId]) {
           organized[vote.optionId] = { green: [], yellow: [], red: [] };
         }
@@ -69,10 +69,10 @@ export default pattern<VoterInput, VoterOutput>(
     });
 
     // Derived: Ranked options (fewest reds, then most greens)
-    const rankedOptions = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+    const rankedOptions = computed(() => {
       // Count votes for each option
-      const voteCounts = currentOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+      const voteCounts = options.map(option => {
+        const optionVotes = votes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
         const yellows = optionVotes.filter(v => v.voteType === "yellow").length;
@@ -91,10 +91,10 @@ export default pattern<VoterInput, VoterOutput>(
     });
 
     // Derived: Map option IDs to their rank numbers
-    const optionRanks = derive({ votes, options }, ({ votes: allVotes, options: currentOptions }: { votes: Vote[], options: Option[] }) => {
+    const optionRanks = computed(() => {
       // Count votes for each option
-      const voteCounts = currentOptions.map(option => {
-        const optionVotes = allVotes.filter(v => v.optionId === option.id);
+      const voteCounts = options.map(option => {
+        const optionVotes = votes.filter(v => v.optionId === option.id);
         const reds = optionVotes.filter(v => v.voteType === "red").length;
         const greens = optionVotes.filter(v => v.voteType === "green").length;
 
@@ -120,11 +120,11 @@ export default pattern<VoterInput, VoterOutput>(
     });
 
     // Derived: Map option IDs to current user's vote
-    const myVoteByOption = derive({ votes, myName }, ({ votes: allVotes, myName: currentName }: { votes: Vote[], myName: string }) => {
+    const myVoteByOption = computed(() => {
       const myVotes: Record<string, "green" | "yellow" | "red"> = {};
 
-      for (const vote of allVotes) {
-        if (vote.voterName === currentName) {
+      for (const vote of votes) {
+        if (vote.voterName === myName) {
           myVotes[vote.optionId] = vote.voteType;
         }
       }
@@ -134,7 +134,7 @@ export default pattern<VoterInput, VoterOutput>(
 
     return {
       [NAME]: ifElse(
-        derive(myName, (n: string) => n && n.trim().length > 0),
+        computed(() => myName && myName.trim().length > 0),
         str`${myName} - ${question} - Voter`,
         str`${question} - Voter`
       ),
@@ -146,7 +146,7 @@ export default pattern<VoterInput, VoterOutput>(
 
           {/* Name Entry/Display */}
           {ifElse(
-            derive(myName, (n: string) => !n || n.trim().length === 0),
+            computed(() => !myName || myName.trim().length === 0),
             // If name is empty: show input
             <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#fef3c7", borderRadius: "4px", border: "2px solid #f59e0b" }}>
               <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
@@ -171,9 +171,9 @@ export default pattern<VoterInput, VoterOutput>(
           )}
 
           {/* Top Choice Display */}
-          {derive(rankedOptions, (ranked) => {
-            if (!ranked || ranked.length === 0 || ranked[0].totalVotes === 0) return null;
-            const top = ranked[0];
+          {computed(() => {
+            if (!rankedOptions || rankedOptions.length === 0 || rankedOptions[0].totalVotes === 0) return null;
+            const top = rankedOptions[0];
             const parts: string[] = [];
             if (top.greens > 0) parts.push(`${top.greens} love it`);
             if (top.yellows > 0) parts.push(`${top.yellows} okay with it`);
@@ -201,8 +201,8 @@ export default pattern<VoterInput, VoterOutput>(
           })}
 
           {/* Summary View - All Options */}
-          {derive({ rankedOptions, votesByOption }, ({ rankedOptions: ranked, votesByOption: votes }) => {
-            if (!ranked || ranked.length === 0) return null;
+          {computed(() => {
+            if (!rankedOptions || rankedOptions.length === 0) return null;
             return (
               <div style={{
                 marginBottom: "1.5rem",
@@ -214,7 +214,7 @@ export default pattern<VoterInput, VoterOutput>(
                 <div style={{ fontSize: "0.875rem", fontWeight: "600", color: "#6b7280", marginBottom: "0.75rem" }}>
                   ALL OPTIONS
                 </div>
-                {ranked.map((item) => (
+                {rankedOptions.map((item) => (
                   <div style={{
                     display: "flex",
                     alignItems: "center",
@@ -229,7 +229,7 @@ export default pattern<VoterInput, VoterOutput>(
                       {item.option.title}
                     </div>
                     <div style={{ display: "flex", gap: "0.25rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
-                      {votes[item.option.id]?.green?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.green?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -243,7 +243,7 @@ export default pattern<VoterInput, VoterOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.yellow?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.yellow?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{
@@ -257,7 +257,7 @@ export default pattern<VoterInput, VoterOutput>(
                           {getInitials(voterName)}
                         </span>
                       ))}
-                      {votes[item.option.id]?.red?.map((voterName: string) => (
+                      {votesByOption[item.option.id]?.red?.map((voterName: string) => (
                         <span
                           title={voterName}
                           style={{

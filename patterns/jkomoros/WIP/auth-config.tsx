@@ -4,7 +4,7 @@
  * Simulates GitHubAuth - a pattern that itself has fetchData calls
  */
 
-import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, fetchData, handler, NAME, pattern, UI } from "commontools";
 
 interface Input {
   token?: Default<string, "">;
@@ -24,8 +24,8 @@ const setToken = handler<unknown, { token: Cell<string>; value: string }>(
 
 export default pattern<Input, Output>(({ token }) => {
   // Derive URL that's empty when no token
-  const hasToken = derive(token, (t) => !!t && t.length > 0);
-  const userUrl = derive(hasToken, (has) => has ? "https://jsonplaceholder.typicode.com/users/1" : "");
+  const hasToken = computed(() => !!token && token.length > 0);
+  const userUrl = computed(() => hasToken ? "https://jsonplaceholder.typicode.com/users/1" : "");
 
   // THIS IS KEY: fetchData inside the auth pattern itself
   const userResponse = fetchData<{ id: number; name: string; email: string }>({
@@ -33,23 +33,23 @@ export default pattern<Input, Output>(({ token }) => {
     mode: "json",
     options: {
       method: "GET",
-      headers: derive(token, (t) => ({
-        "Authorization": `Bearer ${t}`,
+      headers: computed(() => ({
+        "Authorization": `Bearer ${token}`,
       })),
     },
   });
 
-  const isValid = derive(
-    { token, userResponse },
-    ({ token, userResponse }) => {
-      if (!token) return false;
-      if (!userResponse) return false;
-      return !!userResponse.result?.name;
+  const isValid = computed(() => {
+      const t = token;
+      const resp = userResponse;
+      if (!t) return false;
+      if (!resp) return false;
+      return !!resp.result?.name;
     }
   );
 
-  const userData = derive(userResponse, (resp) =>
-    resp?.result ? { login: resp.result.name } : null
+  const userData = computed(() =>
+    userResponse?.result ? { login: userResponse.result.name } : null
   );
 
   return {
@@ -57,9 +57,9 @@ export default pattern<Input, Output>(({ token }) => {
     [UI]: (
       <div style={{ padding: "16px", backgroundColor: "#f0f0f0", borderRadius: "8px" }}>
         <h3>Auth Config</h3>
-        <div>Token: {derive(token, t => t ? "***" : "(none)")}</div>
-        <div>Valid: {derive(isValid, v => v ? "Yes" : "No")}</div>
-        <div>User: {derive(userData, u => u?.login || "—")}</div>
+        <div>Token: {computed(() => token ? "***" : "(none)")}</div>
+        <div>Valid: {computed(() => isValid ? "Yes" : "No")}</div>
+        <div>User: {computed(() => userData?.login || "—")}</div>
         <button onClick={setToken({ token, value: "test-token" })}>Set Token</button>
       </div>
     ),

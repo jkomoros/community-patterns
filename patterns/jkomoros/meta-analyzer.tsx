@@ -1,9 +1,8 @@
 /// <cts-enable />
 import {
   Cell,
-  cell,
+  computed,
   Default,
-  derive,
   generateObject,
   handler,
   ifElse,
@@ -68,24 +67,22 @@ const MetaAnalyzer = recipe<Input, Output>(
   "Meta Analyzer",
   () => {
     // Get all charms from the space via wish
-    const allCharms = derive(
-      wish<any[]>("#allCharms") as any[],
-      (c) => c ?? [],
-    );
+    const allCharmsWish = wish<any[]>("#allCharms");
+    const allCharms = computed(() => allCharmsWish ?? []);
 
     // Filter for Person charms (those with profile property)
-    const personCharms = derive(allCharms, (charms) =>
-      charms.filter((charm: any) =>
+    const personCharms = computed(() =>
+      allCharms.filter((charm: any) =>
         charm && typeof charm === "object" && "profile" in charm
       )
     );
 
     // Cell to hold the input for analysis
-    const analysisInput = cell<string>("");
-    const hasAnalyzed = cell<boolean>(false);
+    const analysisInput = Cell.of<string>("");
+    const hasAnalyzed = Cell.of<boolean>(false);
 
     // Derive count of person charms
-    const personCount = derive(personCharms, (charms) => charms.length);
+    const personCount = computed(() => personCharms.length);
 
     // LLM analysis for field suggestions
     const { result: analysisResult, pending: analysisPending } = generateObject({
@@ -147,9 +144,8 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
     });
 
     // Derive the suggestions array from the result
-    const suggestions = derive(
-      analysisResult,
-      (result) => result?.suggestions || []
+    const suggestions = computed(
+      () => analysisResult?.suggestions || []
     );
 
     return {
@@ -185,7 +181,7 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
               </ct-hstack>
 
               {ifElse(
-                derive(suggestions, (s) => s.length > 0),
+                computed(() => suggestions.length > 0),
                 <ct-vstack style={{ gap: "12px" }}>
                   <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Suggested Fields</h3>
                   {suggestions.map((suggestion: FieldSuggestion) => (
@@ -234,9 +230,7 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                 ))}
                 </ct-vstack>,
                 ifElse(
-                  derive({ hasAnalyzed, analysisPending }, ({ hasAnalyzed, analysisPending }) =>
-                    hasAnalyzed && !analysisPending
-                  ),
+                  computed(() => hasAnalyzed.get() && !analysisPending),
                   <div style={{ padding: "16px", textAlign: "center", color: "#666", fontSize: "13px" }}>
                     No common patterns found. Try adding more profiles with similar information in the notes.
                   </div>,

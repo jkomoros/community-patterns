@@ -1,8 +1,8 @@
 /// <cts-enable />
 import {
   Cell,
+  computed,
   Default,
-  derive,
   getRecipeEnvironment,
   handler,
   NAME,
@@ -218,9 +218,9 @@ const refreshTokenHandler = handler<
 export default pattern<Input, Output>(
   ({ auth, selectedScopes }) => {
     // Compute active scopes based on selection
-    const scopes = derive(selectedScopes, (selected) => {
+    const scopes = computed(() => {
       const base = ["email", "profile"];
-      for (const [key, enabled] of Object.entries(selected)) {
+      for (const [key, enabled] of Object.entries(selectedScopes)) {
         if (enabled && SCOPE_MAP[key as keyof typeof SCOPE_MAP]) {
           base.push(SCOPE_MAP[key as keyof typeof SCOPE_MAP]);
         }
@@ -229,26 +229,22 @@ export default pattern<Input, Output>(
     });
 
     // Track if any scope is selected (needed to enable auth)
-    const hasSelectedScopes = derive(
-      selectedScopes,
-      (selected) => Object.values(selected).some(Boolean)
+    const hasSelectedScopes = computed(() =>
+      Object.values(selectedScopes).some(Boolean)
     );
 
     // Check if re-auth is needed (selected scopes differ from granted scopes)
-    const needsReauth = derive(
-      { selectedScopes, auth },
-      ({ selectedScopes, auth }) => {
-        if (!auth?.token) return false;
-        const grantedScopes: string[] = auth.scope || [];
-        for (const [key, enabled] of Object.entries(selectedScopes)) {
-          const scopeUrl = SCOPE_MAP[key as keyof typeof SCOPE_MAP];
-          if (enabled && scopeUrl && !grantedScopes.includes(scopeUrl)) {
-            return true;
-          }
+    const needsReauth = computed(() => {
+      if (!auth?.token) return false;
+      const grantedScopes: string[] = auth?.scope || [];
+      for (const [key, enabled] of Object.entries(selectedScopes)) {
+        const scopeUrl = SCOPE_MAP[key as keyof typeof SCOPE_MAP];
+        if (enabled && scopeUrl && !grantedScopes.includes(scopeUrl)) {
+          return true;
         }
-        return false;
       }
-    );
+      return false;
+    });
 
     return {
       [NAME]: "Google Auth",
@@ -328,9 +324,9 @@ export default pattern<Input, Output>(
                 >
                   <input
                     type="checkbox"
-                    checked={derive(selectedScopes, (s) => s[key as keyof SelectedScopes])}
+                    checked={computed(() => selectedScopes[key as keyof SelectedScopes])}
                     onChange={toggleScope({ selectedScopes, scopeKey: key })}
-                    disabled={derive(auth, (a) => !!a?.user?.email)}
+                    disabled={computed(() => !!auth?.user?.email)}
                   />
                   <span>{description}</span>
                 </label>
@@ -339,7 +335,7 @@ export default pattern<Input, Output>(
           </div>
 
           {/* Re-auth warning */}
-          {derive(needsReauth, (needs) => needs) && (
+          {computed(() => needsReauth ? (
             <div
               style={{
                 padding: "12px",
@@ -352,7 +348,7 @@ export default pattern<Input, Output>(
               <strong>Note:</strong> You've selected new permissions.
               Click "Sign in with Google" below to grant access.
             </div>
-          )}
+          ) : null)}
 
           {/* Favorite reminder */}
           {auth?.user?.email && (
@@ -373,11 +369,11 @@ export default pattern<Input, Output>(
           )}
 
           {/* Show selected scopes if no auth yet */}
-          {!auth?.user?.email && derive(hasSelectedScopes, (has) => has) && (
+          {computed(() => !auth?.user?.email && hasSelectedScopes ? (
             <div style={{ fontSize: "14px", color: "#666" }}>
-              Will request: {derive(scopes, (s) => s.join(", "))}
+              Will request: {computed(() => scopes.join(", "))}
             </div>
-          )}
+          ) : null)}
 
           <ct-google-oauth
             $auth={auth}
@@ -396,8 +392,8 @@ export default pattern<Input, Output>(
             >
               <strong>Granted Scopes:</strong>
               <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
-                {derive(auth.scope, (scopes) =>
-                  (scopes || []).map((scope: string) => {
+                {computed(() =>
+                  (auth?.scope || []).map((scope: string) => {
                     // Convert URL to friendly name
                     const friendly = Object.entries(SCOPE_MAP).find(
                       ([, url]) => url === scope

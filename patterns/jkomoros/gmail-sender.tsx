@@ -26,9 +26,8 @@
 
 import {
   Cell,
-  cell,
+  computed,
   Default,
-  derive,
   handler,
   ifElse,
   NAME,
@@ -180,8 +179,8 @@ export default pattern<Input, Output>(({ draft }) => {
   const wishResult = wish<{ auth: Auth }>({ query: "#googleAuth" });
   // Use property access via .result, not derive(), to maintain writable cell for token refresh
   const auth = wishResult.result?.auth;
-  const senderEmail = derive(auth, (a) => a?.user?.email || "");
-  const hasAuth = derive(auth, (a) => !!a?.token);
+  const senderEmail = computed(() => auth?.user?.email || "");
+  const hasAuth = computed(() => !!auth?.token);
 
   // UI state
   const showConfirmation = Cell.of(false);
@@ -189,14 +188,12 @@ export default pattern<Input, Output>(({ draft }) => {
   const result = Cell.of<SendResult | null>(null);
 
   // Validation
-  const canSend = derive(
-    { hasAuth, draft, sending },
-    ({ hasAuth, draft, sending }) =>
-      hasAuth &&
-      draft.to.trim() !== "" &&
-      draft.subject.trim() !== "" &&
-      draft.body.trim() !== "" &&
-      !sending,
+  const canSend = computed(() =>
+    hasAuth &&
+    draft.to.trim() !== "" &&
+    draft.subject.trim() !== "" &&
+    draft.body.trim() !== "" &&
+    !sending.get()
   );
 
   return {
@@ -260,7 +257,7 @@ export default pattern<Input, Output>(({ draft }) => {
 
         {/* Result display */}
         {ifElse(
-          derive(result, (r: SendResult | null) => r?.success === true),
+          computed(() => result.get()?.success === true),
           <div
             style={{
               padding: "16px",
@@ -287,7 +284,7 @@ export default pattern<Input, Output>(({ draft }) => {
                   Email Sent Successfully!
                 </div>
                 <div style={{ fontSize: "12px", color: "#047857" }}>
-                  Message ID: {derive(result, (r: SendResult | null) => r?.messageId)}
+                  Message ID: {computed(() => result.get()?.messageId)}
                 </div>
               </div>
               <button
@@ -308,7 +305,7 @@ export default pattern<Input, Output>(({ draft }) => {
         )}
 
         {ifElse(
-          derive(result, (r: SendResult | null) => r?.success === false),
+          computed(() => result.get()?.success === false),
           <div
             style={{
               padding: "16px",
@@ -335,7 +332,7 @@ export default pattern<Input, Output>(({ draft }) => {
                   Failed to Send Email
                 </div>
                 <div style={{ fontSize: "14px", color: "#b91c1c" }}>
-                  {derive(result, (r: SendResult | null) => r?.error)}
+                  {computed(() => result.get()?.error)}
                 </div>
               </div>
               <button
@@ -464,7 +461,7 @@ export default pattern<Input, Output>(({ draft }) => {
 
           <button
             onClick={prepareToSend({ showConfirmation })}
-            disabled={derive(canSend, (can) => !can)}
+            disabled={computed(() => !canSend)}
             style={{
               padding: "12px 24px",
               background: "#2563eb",
@@ -474,7 +471,7 @@ export default pattern<Input, Output>(({ draft }) => {
               fontSize: "16px",
               fontWeight: "500",
               cursor: "pointer",
-              opacity: derive(canSend, (can) => (can ? 1 : 0.5)),
+              opacity: computed(() => canSend ? 1 : 0.5),
             }}
           >
             Review & Send
@@ -562,7 +559,7 @@ export default pattern<Input, Output>(({ draft }) => {
                     <span style={{ fontWeight: "600" }}>{draft.to}</span>
                   </div>
                   {ifElse(
-                    derive(draft.cc, (cc) => cc && cc.trim() !== ""),
+                    computed(() => draft.cc && draft.cc.trim() !== ""),
                     <div style={{ marginBottom: "12px" }}>
                       <span
                         style={{
@@ -578,7 +575,7 @@ export default pattern<Input, Output>(({ draft }) => {
                     null,
                   )}
                   {ifElse(
-                    derive(draft.bcc, (bcc) => bcc && bcc.trim() !== ""),
+                    computed(() => draft.bcc && draft.bcc.trim() !== ""),
                     <div style={{ marginBottom: "12px" }}>
                       <span
                         style={{
@@ -707,7 +704,7 @@ export default pattern<Input, Output>(({ draft }) => {
                     fontSize: "14px",
                     fontWeight: "500",
                     cursor: "pointer",
-                    opacity: derive(sending, (s) => (s ? 0.7 : 1)),
+                    opacity: computed(() => sending.get() ? 0.7 : 1),
                   }}
                 >
                   {ifElse(sending, "Sending...", "Send Email")}

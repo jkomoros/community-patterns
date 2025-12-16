@@ -1,8 +1,8 @@
 /// <cts-enable />
 import {
   Cell,
+  computed,
   Default,
-  derive,
   handler,
   NAME,
   pattern,
@@ -129,22 +129,21 @@ export default pattern<ViewerInput, ViewerOutput>(
   ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
     // Recipe data is passed in directly as cells from the source recipe
 
-    const displayName = derive(
-      recipeName,
-      (n) => n.trim() || "Untitled Recipe"
+    const displayName = computed(() =>
+      recipeName.trim() || "Untitled Recipe"
     );
 
     // Helper to check if a step is completed
     const isStepCompleted = (groupId: string, stepIndex: number) => {
-      return derive(completedSteps, (steps) =>
-        steps.some((s) => s.groupId === groupId && s.stepIndex === stepIndex)
+      return computed(() =>
+        completedSteps.some((s) => s.groupId === groupId && s.stepIndex === stepIndex)
       );
     };
 
     // Helper to check if a group is completed
     const isGroupCompleted = (groupId: string) => {
-      return derive(completedGroups, (groups) =>
-        groups.some((g) => g.groupId === groupId)
+      return computed(() =>
+        completedGroups.some((g) => g.groupId === groupId)
       );
     };
 
@@ -191,9 +190,9 @@ export default pattern<ViewerInput, ViewerOutput>(
                 Ingredients
               </h3>
               <ct-vstack gap={0}>
-                {derive(recipeIngredients, (ingredients) =>
-                  ingredients.length > 0
-                    ? ingredients.map((ing) => (
+                {computed(() =>
+                  recipeIngredients.length > 0
+                    ? recipeIngredients.map((ing) => (
                         <div
                           style={{
                             padding: "6px 0",
@@ -226,9 +225,9 @@ export default pattern<ViewerInput, ViewerOutput>(
 
           {/* Step Groups Section with Completion Tracking */}
           <ct-vstack gap={2}>
-            {derive(recipeStepGroups, (groups) =>
-              groups.length > 0
-                ? groups.map((group) => {
+            {computed(() =>
+              recipeStepGroups.length > 0
+                ? recipeStepGroups.map((group) => {
                     const groupCompleted = isGroupCompleted(group.id);
 
                     return (
@@ -344,17 +343,13 @@ export default pattern<ViewerInput, ViewerOutput>(
                                       flex: 1,
                                       fontSize: "14px",
                                       lineHeight: "1.5",
-                                      textDecoration: derive(
-                                        stepCompleted,
-                                        (completed) =>
-                                          completed
-                                            ? "line-through"
-                                            : "none"
+                                      textDecoration: computed(() =>
+                                        stepCompleted
+                                          ? "line-through"
+                                          : "none"
                                       ),
-                                      opacity: derive(
-                                        stepCompleted,
-                                        (completed) =>
-                                          completed ? "0.6" : "1"
+                                      opacity: computed(() =>
+                                        stepCompleted ? "0.6" : "1"
                                       ),
                                     }}
                                   >

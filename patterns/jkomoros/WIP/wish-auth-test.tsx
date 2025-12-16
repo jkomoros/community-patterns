@@ -10,7 +10,7 @@
  * 2. Deploy gmail-auth.tsx in any space, authenticate, and favorite it
  * 3. Refresh this pattern - should now find and display the auth
  */
-import { Default, derive, NAME, pattern, UI, wish } from "commontools";
+import { computed, Default, NAME, pattern, UI, wish } from "commontools";
 
 // The Auth type we expect from gmail-auth
 type Auth = {
@@ -36,14 +36,15 @@ export default pattern<Record<string, never>>((_) => {
   // Wish for a charm tagged with #googleAuth
   const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
-  derive(wishResult, (wr) => console.log("wishResult", wr));
+  computed(() => console.log("wishResult", wishResult));
 
-  // Derive all state from wishResult in a single derive to avoid loops
+  // Derive all state from wishResult in a single computed to avoid loops
   // Three states:
   // 1. "not-found" - wishError exists and no result
   // 2. "found-not-authenticated" - result exists but no email
   // 3. "authenticated" - result exists with email
-  const authState = derive(wishResult, (wr) => {
+  const authState = computed(() => {
+    const wr = wishResult;
     const email = wr?.result?.auth?.user?.email || "";
     if (email !== "") return "authenticated";
     if (wr?.result) return "found-not-authenticated";
@@ -52,11 +53,11 @@ export default pattern<Record<string, never>>((_) => {
   });
 
   // For display purposes
-  const userEmail = derive(wishResult, (wr) => wr?.result?.auth?.user?.email || "");
-  const userName = derive(wishResult, (wr) => wr?.result?.auth?.user?.name || "N/A");
-  const hasToken = derive(wishResult, (wr) => wr?.result?.auth?.token ? "Yes" : "No");
-  const wishError = derive(wishResult, (wr) => wr?.error);
-  const wishUI = derive(wishResult, (wr) => wr?.$UI);
+  const userEmail = computed(() => wishResult?.result?.auth?.user?.email || "");
+  const userName = computed(() => wishResult?.result?.auth?.user?.name || "N/A");
+  const hasToken = computed(() => wishResult?.result?.auth?.token ? "Yes" : "No");
+  const wishError = computed(() => wishResult?.error);
+  const wishUI = computed(() => wishResult?.$UI);
 
   return {
     [NAME]: "Wish Auth Test",
@@ -65,7 +66,8 @@ export default pattern<Record<string, never>>((_) => {
         <h2 style={{ marginTop: 0 }}>Wish Auth Test</h2>
 
         {/* State-based UI */}
-        {derive(authState, (state) => {
+        {computed(() => {
+          const state = authState;
           if (state === "loading") {
             return (
               <div style={{
@@ -130,9 +132,9 @@ export default pattern<Record<string, never>>((_) => {
               border: "1px solid #f5c6cb",
             }}>
               <h3 style={{ margin: "0 0 10px 0" }}>Status: No Auth Charm Found</h3>
-              {derive(wishError, (err) => err ? (
+              {computed(() => wishError ? (
                 <p style={{ color: "#721c24", marginBottom: "10px" }}>
-                  <strong>Error:</strong> {err}
+                  <strong>Error:</strong> {wishError}
                 </p>
               ) : null)}
               <div style={{
@@ -163,7 +165,7 @@ export default pattern<Record<string, never>>((_) => {
             overflow: "auto",
             fontSize: "12px",
           }}>
-            {derive(wishResult, (wr) => JSON.stringify(wr, null, 2))}
+            {computed(() => JSON.stringify(wishResult, null, 2))}
           </pre>
         </details>
 

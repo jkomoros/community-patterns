@@ -3,7 +3,6 @@ import {
   Cell,
   computed,
   type Default,
-  derive,
   generateText,
   handler,
   NAME,
@@ -156,7 +155,7 @@ const Note = recipe<Input, Output>(
       backlinks,
       grep: patternTool(
         ({ query, content }: { query: string; content: string }) => {
-          return derive({ query, content }, ({ query, content }) => {
+          return computed(() => {
             return content.split("\n").filter((c) => c.includes(query));
           });
         },
@@ -174,10 +173,10 @@ const Note = recipe<Input, Output>(
             prompt: str`<to_translate>${content}</to_translate>`,
           });
 
-          return derive(result, ({ pending, result }) => {
-            if (pending) return undefined;
-            if (result == null) return "Error occured";
-            return result;
+          return computed(() => {
+            if (result?.pending) return undefined;
+            if (result?.result == null) return "Error occured";
+            return result.result;
           });
         },
         { content },
