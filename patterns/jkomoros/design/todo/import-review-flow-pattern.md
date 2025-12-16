@@ -388,12 +388,38 @@ const processedExtractions = computed(() => {
 - [x] Research existing patterns
 - [x] Study framework constraints
 - [x] Identify common abstractions
+- [x] Agent critiques completed (4 specialized agents)
+- [x] Architecture clarification (Single-Call vs Agent Loop)
 - [ ] Design utility API
 - [ ] Implement import-utils.ts
 - [ ] Refactor person.tsx
 - [ ] Refactor food-recipe.tsx
 - [ ] Refactor store-mapper.tsx
 - [ ] Documentation
+
+## Final Design Decision Summary
+
+**Architecture**: **Cell-Only for Single-Charm Import/Review**
+
+The design research concluded that:
+
+1. **YAGNI applies** - Only 3 patterns use this flow; abstraction cost exceeds benefit
+2. **Gmail agent patterns don't apply** - They solve different problems (multi-step autonomous LLM vs single-shot extraction + user review)
+3. **Cells are sufficient** - No need for Streams or Signal pattern for basic import/review
+4. **Fix bugs first** - Performance issues and UX gaps in existing patterns should be addressed before abstraction
+
+**Recommended Implementation Priority:**
+
+| Priority | Task | Effort |
+|----------|------|--------|
+| HIGH | Fix error handling (infinite spinner on failure) | 1h |
+| HIGH | Fix duplicate computed() in store-mapper.tsx | 30m |
+| HIGH | Move analyzeOverlap() out of render loop | 30m |
+| MEDIUM | Add per-field selection to person.tsx | 2h |
+| MEDIUM | Add `triggerExtraction()` helper to diff-utils.ts | 15m |
+| MEDIUM | Document trigger pattern with JSDoc | 1h |
+| LOW | Add undo capability | 2h |
+| SKIP | Pattern abstractions, component libraries, factory functions |
 
 ## Agent Critiques (2024-12-16)
 
@@ -568,6 +594,83 @@ Based on agent critiques, the recommendation shifts from **Hybrid (B + Utilities
 - 5+ patterns use the flow
 - Bug required fixing in 3+ places
 - Pattern-specific logic converges
+
+---
+
+## Architecture Clarification: Single-Call vs Agent Loop (2024-12-16)
+
+**IMPORTANT DISTINCTION**: The import/review flow is fundamentally different from gmail agent patterns.
+
+### Two Different Architectures
+
+| Aspect | Import/Review Flow | Gmail Agent Pattern |
+|--------|-------------------|---------------------|
+| LLM calls | **Single call** then user reviews | **Continuous loop** driven by agentic LLM |
+| User role | Reviews/approves after extraction | Provides initial query, watches agent work |
+| UI state | User interacts with selection checkboxes | Mostly display-only, agent does actions |
+| Data flow | Trigger → LLM → Review UI → User accepts | Query → Agent loop → Auto-save results |
+| Persistence | User explicitly commits changes | Agent auto-saves via `listTool()` |
+| Example | person.tsx, store-mapper.tsx | hotel-membership-gmail-agent.tsx |
+
+### Why Gmail Agent Research Doesn't Apply
+
+The gmail agent patterns (e.g., `hotel-membership-gmail-agent.tsx`) use:
+- **Agent loop**: LLM continuously runs, calling tools, updating state
+- **Auto-save**: Uses `listTool()` to immediately persist extracted data
+- **Signal pattern**: Coordinates between base pattern and agent sub-pattern
+- **No user review**: Append-only data model doesn't require user approval
+
+These mechanisms solve different problems:
+- Agent patterns: "How do I coordinate multi-step autonomous LLM work?"
+- Import/review patterns: "How do I let users review single-shot LLM extraction?"
+
+### Architecture for Import/Review Flow
+
+**Use Cells Only** (no Streams needed for single-charm import/review):
+
+```
+User Input → Trigger Cell → generateObject() → Result Cell → Review UI → Target Cell
+     ↑                                              ↓
+     └────────────── Selection State Cell ──────────┘
+```
+
+**Key Components:**
+1. **Trigger Cell** (`Cell.of<string>("")`) - Snapshot of input with timestamp
+2. **Result** - Reactive output from `generateObject()` (pending/result/error)
+3. **Selection State Cell** - Tracks user selections during review
+4. **Target Cell** - Final destination for accepted changes
+
+**When to Consider Streams:**
+- Cross-charm communication (user accepts in one charm, affects another)
+- Optional event callbacks (onAccept, onCancel for parent patterns)
+- NOT needed for basic single-charm import/review flow
+
+---
+
+## Hybrid Architecture: Cells AND Streams (When Needed)
+
+For patterns that DO need cross-charm coordination or are composed from sub-patterns:
+
+**Key Principles:**
+1. **Cells hold STATE** - Extraction results, selection state, UI data
+2. **Streams signal EVENTS** - Cross-charm actions, confirmations
+3. **Signal Pattern** - Cell<number> increment for cross-pattern coordination
+
+**Decision Framework:**
+```
+UI displays it?               → Cell
+User edits it?                → Cell
+Persists between sessions?    → Cell
+Cross-charm communication?    → Stream
+One-time event notification?  → Stream
+Coordinate composed patterns? → Signal (Cell<number>)
+```
+
+**Implementation Impact for Import/Review:**
+- Continue using Cells for all state (extraction results, selections, pending state)
+- Add Streams only if splitting across charms (unlikely for this flow)
+- Keep trigger pattern (Cell with timestamp) for LLM calls
+- Signal pattern is overkill for single-charm import/review
 
 ---
 
