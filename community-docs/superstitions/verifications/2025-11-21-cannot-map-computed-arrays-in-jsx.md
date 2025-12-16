@@ -1,9 +1,9 @@
-# Verification: Cannot Map Computed Arrays in JSX
+# Verification: Cannot Map Computed/Derive Arrays in JSX
 
 **Superstition:** `../2025-11-21-cannot-map-computed-arrays-in-jsx.md`
-**Last verified:** 2025-12-02
+**Last verified:** 2025-12-16
 **Status:** awaiting-maintainer-review
-**Evidence level:** medium (confirmed_count=2, pattern cleanup failed)
+**Evidence level:** high (confirmed_count=3, multiple real patterns affected)
 
 ---
 
@@ -13,9 +13,9 @@
 
 ### Context
 
-When mapping over a computed array in JSX, the pattern fails at runtime with `mapWithPattern is not a function`. The framework transforms `.map()` calls to `.mapWithPattern()` for reactive arrays, but computed values don't have this method.
+When mapping over a `computed()` or `derive()` array in JSX, the pattern fails at runtime with `mapWithPattern is not a function`. The framework transforms `.map()` calls to `.mapWithPattern()` for reactive arrays, but computed/derive values don't have this method.
 
-This was discovered in `reward-spinner.tsx` where the workaround is to compute the JSX inside the computed rather than computing data and mapping in JSX.
+This was discovered in `reward-spinner.tsx` and confirmed in `store-mapper.tsx` where the workaround is to compute the JSX inside the computed rather than computing data and mapping in JSX.
 
 ### Minimal Repro
 
@@ -107,7 +107,7 @@ export default recipe(
 
 **CONFIRMED** - The superstition is valid.
 
-You cannot map over a computed array directly in JSX. The framework's JSX transformation expects arrays to have a `.mapWithPattern()` method, which computed values don't have.
+You cannot map over a `computed()` or `derive()` array directly in JSX. The framework's JSX transformation expects arrays to have a `.mapWithPattern()` method, which computed/derive values don't have.
 
 ### Recommendation
 
@@ -115,3 +115,41 @@ This superstition should be:
 1. **Kept as confirmed** folk knowledge
 2. Potentially **promoted to folk_wisdom** if framework authors confirm this is intentional
 3. If unintentional, **filed as a bug** for framework team to address
+
+---
+
+## Additional Confirmation: store-mapper.tsx (2025-12-16)
+
+**Pattern:** `patterns/jkomoros/store-mapper.tsx`
+**Error:** `gaps.mapWithPattern is not a function`
+
+The pattern had two `derive()` results (`detectedGaps` and `llmSuggestions`) that were being mapped in JSX:
+
+```tsx
+// FAILS - derive result mapped in JSX
+{derive(
+  { gaps: detectedGaps, aisles, notInStore },
+  ({ gaps }) =>
+    gaps.map((gapName, index) => (
+      <div>...</div>
+    ))
+)}
+```
+
+**Fix applied:** Pre-compute JSX inside `computed()`:
+
+```tsx
+// WORKS - compute JSX inside computed()
+const detectedGapsButtons = computed(() => {
+  const gaps = detectedGaps as unknown as string[];
+  return gaps.map((gapName, index) => (
+    <div>...</div>
+  ));
+});
+
+// In JSX: {detectedGapsButtons}
+```
+
+**Key insight:** Inside `computed()`, reactive values are auto-unwrapped, so `detectedGaps` is already a plain array - no `.get()` needed.
+
+This confirms the superstition applies to both `computed()` AND `derive()` results.
