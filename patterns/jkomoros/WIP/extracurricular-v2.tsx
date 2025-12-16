@@ -710,6 +710,29 @@ Return all visible text.`
     // PHASE 5: PINNED SETS
     // =========================================================================
 
+    // Helper: display set name (shows "(default)" for empty string)
+    const displaySetName = (name: string) => name === "" ? "(default)" : name;
+
+    // Ensure default set exists and is active on first load
+    computed(() => {
+      const names = pinnedSetNames.get();
+      // Add default set if missing
+      if (!names.includes("")) {
+        pinnedSetNames.push("");
+      }
+      // Set active to default if not set
+      const active = activeSetName.get();
+      if (active === undefined || active === null || (names.length > 0 && !names.includes(active))) {
+        activeSetName.set("");
+      }
+    });
+
+    // Computed: display name for active set (pre-computed to avoid === in derive)
+    const displayActiveSetName = computed(() => {
+      const name = activeSetName.get();
+      return name === "" ? "(default)" : name;
+    });
+
     // Computed: classes pinned to the active set
     const pinnedClasses = computed(() => {
       const setName = activeSetName.get();
@@ -835,11 +858,11 @@ Return all visible text.`
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Active Set:</label>
                 <select
                   style={{ padding: "0.5rem", minWidth: "150px" }}
-                  value={(activeSetName as any) || "Set A"}
+                  value={(activeSetName as any) || ""}
                   onChange={setActiveSet({ activeCell: activeSetName })}
                 >
                   {pinnedSetNames.map((name) => (
-                    <option value={name}>{name}</option>
+                    <option value={name}>{displaySetName(name)}</option>
                   ))}
                 </select>
               </div>
@@ -861,18 +884,18 @@ Return all visible text.`
             </div>
 
             {/* Pinned classes in active set */}
-            {derive({ pinnedClasses, activeSetName }, ({ pinnedClasses: pinned, activeSetName: setName }) => {
+            {derive({ pinnedClasses, displayActiveSetName }, ({ pinnedClasses: pinned, displayActiveSetName: displayName }) => {
               const list = pinned as Class[];
               if (!list || list.length === 0) {
                 return (
                   <p style={{ color: "#666", fontStyle: "italic" }}>
-                    No classes pinned to "{setName}". Use the 📌 button below to pin classes.
+                    No classes pinned to "{displayName}". Use the 📌 button below to pin classes.
                   </p>
                 );
               }
               return (
                 <div>
-                  <h4 style={{ marginBottom: "0.25rem" }}>Classes in "{setName}":</h4>
+                  <h4 style={{ marginBottom: "0.25rem" }}>Classes in "{displayName}":</h4>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                     {list.map((cls: Class) => (
                       <div
