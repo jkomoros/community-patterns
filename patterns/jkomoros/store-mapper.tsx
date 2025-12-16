@@ -901,6 +901,11 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
       return gaps;
     });
 
+    // Pre-compute aisle names for LLM prompt (avoid .map() inside derive)
+    const aisleNamesForLLM = derive(aisles, (aislesList) =>
+      aislesList.map((a) => `Aisle ${a.name}`).join("\n") || "(none)"
+    );
+
     // LLM suggestions for common sections
     const commonSectionsLLM = llm({
       system: `Analyze this grocery store map and suggest common sections that might be missing.
@@ -916,14 +921,14 @@ CRITICAL:
 - If nothing missing, return empty`,
 
       messages: derive(
-        { name: storeName, aislesList: aisles, excluded: notInStore, centerAisleDepts: inCenterAisles },
-        ({ name, aislesList, excluded, centerAisleDepts }) => [
+        { name: storeName, aisleNames: aisleNamesForLLM, excluded: notInStore, centerAisleDepts: inCenterAisles },
+        ({ name, aisleNames, excluded, centerAisleDepts }) => [
           {
             role: "user" as const,
             content: `Store: ${name || "Unknown"}
 
 Aisles:
-${aislesList.map((a) => `Aisle ${a.name}`).join("\n") || "(none)"}
+${aisleNames}
 
 Not in Store: ${excluded.join(", ") || "None"}
 
@@ -942,6 +947,66 @@ What common sections might be missing?`,
         .split("\n")
         .map((s) => s.trim())
         .filter((s) => s && s.length > 0);
+    });
+
+    // Pre-compute JSX for detected gaps (cannot .map() over derive results in JSX)
+    // Inside computed(), reactive values are auto-unwrapped, so detectedGaps is already a plain array
+    const detectedGapsButtons = computed(() => {
+      const gaps = detectedGaps as unknown as string[];
+      return gaps.map((gapName: string, index: number) => (
+        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+          <button
+            className="suggestion-btn suggestion-btn-gap"
+            onClick={addFromSuggestion({
+              aisles,
+              suggestions: detectedGaps,
+              index,
+            })}
+          >
+            + {gapName}
+          </button>
+          <button
+            className="suggestion-dismiss-btn"
+            onClick={dismissSuggestion({
+              notInStore,
+              suggestions: detectedGaps,
+              index,
+            })}
+          >
+            ×
+          </button>
+        </div>
+      ));
+    });
+
+    // Pre-compute JSX for LLM suggestions (cannot .map() over derive results in JSX)
+    // Inside computed(), reactive values are auto-unwrapped, so llmSuggestions is already a plain array
+    const llmSuggestionsButtons = computed(() => {
+      const suggestions = llmSuggestions as unknown as string[];
+      return suggestions.map((suggestion: string, index: number) => (
+        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+          <button
+            className="suggestion-btn"
+            onClick={addFromSuggestion({
+              aisles,
+              suggestions: llmSuggestions,
+              index,
+            })}
+          >
+            + {suggestion}
+          </button>
+          <button
+            className="suggestion-dismiss-btn"
+            onClick={dismissSuggestion({
+              notInStore,
+              suggestions: llmSuggestions,
+              index,
+            })}
+          >
+            ×
+          </button>
+        </div>
+      ));
     });
 
     // Group assigned departments by wall (handles both basic and granular positions)
@@ -1396,7 +1461,7 @@ What common sections might be missing?`,
                         }}
                       >
                         <span style={{ fontWeight: "600" }}>
-                          {entrance.position}
+                          {derive(entrance, e => e.position)}
                         </span>
                         <ct-button
                           size="sm"
@@ -1532,13 +1597,13 @@ What common sections might be missing?`,
                   >
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
-                        {correction.itemName}
+                        {derive(correction, c => c.itemName)}
                       </div>
                       <div style={{ fontSize: "12px", color: "#666" }}>
-                        {derive(correction.incorrectAisle, (incorrectAisle) =>
-                          incorrectAisle
-                            ? `Was in ${incorrectAisle} → Now in ${correction.correctAisle}`
-                            : `Located in ${correction.correctAisle}`
+                        {derive(correction, c =>
+                          c.incorrectAisle
+                            ? `Was in ${c.incorrectAisle} → Now in ${c.correctAisle}`
+                            : `Located in ${c.correctAisle}`
                         )}
                       </div>
                     </div>
@@ -1947,7 +2012,7 @@ What common sections might be missing?`,
                     }}
                   >
                     {specialDepartments
-                      .filter((dept) => dept.location.startsWith("front"))
+                      .filter((dept) => derive(dept, d => d.location.startsWith("front")))
                       .map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-front"
@@ -1963,10 +2028,10 @@ What common sections might be missing?`,
                         >
                           <div>
                             <div style={{ fontWeight: "600" }}>
-                              {dept.icon} {dept.name}
+                              {derive(dept, d => `${d.icon} ${d.name}`)}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
-                              {dept.location}
+                              {derive(dept, d => d.location)}
                             </div>
                           </div>
                           <ct-button
@@ -2018,7 +2083,7 @@ What common sections might be missing?`,
                     }}
                   >
                     {specialDepartments
-                      .filter((dept) => dept.location.startsWith("back"))
+                      .filter((dept) => derive(dept, d => d.location.startsWith("back")))
                       .map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-back"
@@ -2034,10 +2099,10 @@ What common sections might be missing?`,
                         >
                           <div>
                             <div style={{ fontWeight: "600" }}>
-                              {dept.icon} {dept.name}
+                              {derive(dept, d => `${d.icon} ${d.name}`)}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
-                              {dept.location}
+                              {derive(dept, d => d.location)}
                             </div>
                           </div>
                           <ct-button
@@ -2089,7 +2154,7 @@ What common sections might be missing?`,
                     }}
                   >
                     {specialDepartments
-                      .filter((dept) => dept.location.startsWith("left"))
+                      .filter((dept) => derive(dept, d => d.location.startsWith("left")))
                       .map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-left"
@@ -2105,10 +2170,10 @@ What common sections might be missing?`,
                         >
                           <div>
                             <div style={{ fontWeight: "600" }}>
-                              {dept.icon} {dept.name}
+                              {derive(dept, d => `${d.icon} ${d.name}`)}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
-                              {dept.location}
+                              {derive(dept, d => d.location)}
                             </div>
                           </div>
                           <ct-button
@@ -2160,7 +2225,7 @@ What common sections might be missing?`,
                     }}
                   >
                     {specialDepartments
-                      .filter((dept) => dept.location.startsWith("right"))
+                      .filter((dept) => derive(dept, d => d.location.startsWith("right")))
                       .map((dept: OpaqueRef<DepartmentRecord>) => (
                         <div
                           className="wall-display-right"
@@ -2176,10 +2241,10 @@ What common sections might be missing?`,
                         >
                           <div>
                             <div style={{ fontWeight: "600" }}>
-                              {dept.icon} {dept.name}
+                              {derive(dept, d => `${d.icon} ${d.name}`)}
                             </div>
                             <div style={{ fontSize: "11px", color: "#666", marginTop: "2px" }}>
-                              {dept.location}
+                              {derive(dept, d => d.location)}
                             </div>
                           </div>
                           <ct-button
@@ -2741,34 +2806,7 @@ What common sections might be missing?`,
               <div
                 style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
               >
-                {derive(
-                  { gaps: detectedGaps, aisles, notInStore },
-                  ({ gaps, aisles, notInStore }) =>
-                    gaps.map((gapName: string, index: number) => (
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <button
-                          className="suggestion-btn suggestion-btn-gap"
-                          onClick={addFromSuggestion({
-                            aisles,
-                            suggestions: gaps,
-                            index,
-                          })}
-                        >
-                          + {gapName}
-                        </button>
-                        <button
-                          className="suggestion-dismiss-btn"
-                          onClick={dismissSuggestion({
-                            notInStore,
-                            suggestions: gaps,
-                            index,
-                          })}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))
-                )}
+                {detectedGapsButtons}
               </div>
             </div>,
             null
@@ -2829,34 +2867,7 @@ What common sections might be missing?`,
               <div
                 style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
               >
-                {derive(
-                  { suggestions: llmSuggestions, aisles, notInStore },
-                  ({ suggestions, aisles, notInStore }) =>
-                    suggestions.map((suggestion: string, index: number) => (
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <button
-                          className="suggestion-btn"
-                          onClick={addFromSuggestion({
-                            aisles,
-                            suggestions,
-                            index,
-                          })}
-                        >
-                          + {suggestion}
-                        </button>
-                        <button
-                          className="suggestion-dismiss-btn"
-                          onClick={dismissSuggestion({
-                            notInStore,
-                            suggestions,
-                            index,
-                          })}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))
-                )}
+                {llmSuggestionsButtons}
               </div>
             </div>,
             null
