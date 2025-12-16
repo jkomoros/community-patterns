@@ -335,55 +335,60 @@ const GmailSearchRegistry = pattern<
 
                   {/* Queries list */}
                   <div style={{ padding: "8px" }}>
-                    {[...(registry.queries || [])]
-                      .filter((q) => q && q.query) // Filter out null/undefined during hydration
-                      .sort((a, b) => ((b.upvotes || 0) - (b.downvotes || 0)) - ((a.upvotes || 0) - (a.downvotes || 0)))
-                      .map((query) => (
-                        <div
-                          style={{
-                            padding: "10px",
-                            background: "white",
-                            borderRadius: "6px",
-                            border: "1px solid #e2e8f0",
-                            marginBottom: "6px",
-                          }}
-                        >
+                    {computed(() => {
+                      // Safely extract queries array (may be opaque during compilation)
+                      const queriesArray = registry.queries || [];
+                      if (!Array.isArray(queriesArray)) return null;
+                      return queriesArray
+                        .filter((q) => q && q.query) // Filter out null/undefined during hydration
+                        .sort((a, b) => ((b.upvotes || 0) - (b.downvotes || 0)) - ((a.upvotes || 0) - (a.downvotes || 0)))
+                        .map((query) => (
                           <div
                             style={{
-                              fontFamily: "monospace",
-                              fontSize: "12px",
-                              color: "#1e293b",
-                              marginBottom: "4px",
+                              padding: "10px",
+                              background: "white",
+                              borderRadius: "6px",
+                              border: "1px solid #e2e8f0",
+                              marginBottom: "6px",
                             }}
                           >
-                            {query.query}
+                            <div
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: "12px",
+                                color: "#1e293b",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              {query.query}
+                            </div>
+                            {query.description && (
+                              <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
+                                {query.description}
+                              </div>
+                            )}
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                fontSize: "10px",
+                                color: "#94a3b8",
+                              }}
+                            >
+                              <div>
+                                <span style={{ color: "#22c55e" }}>+{query.upvotes || 0}</span>
+                                {" / "}
+                                <span style={{ color: "#ef4444" }}>-{query.downvotes || 0}</span>
+                                {query.submittedBy ? ` · by ${query.submittedBy}` : null}
+                              </div>
+                              <div>
+                                {query.submittedAt ? new Date(query.submittedAt).toLocaleDateString() : ""}
+                              </div>
+                            </div>
                           </div>
-                          {query.description && (
-                            <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
-                              {query.description}
-                            </div>
-                          )}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              fontSize: "10px",
-                              color: "#94a3b8",
-                            }}
-                          >
-                            <div>
-                              <span style={{ color: "#22c55e" }}>+{query.upvotes || 0}</span>
-                              {" / "}
-                              <span style={{ color: "#ef4444" }}>-{query.downvotes || 0}</span>
-                              {query.submittedBy && ` · by ${query.submittedBy}`}
-                            </div>
-                            <div>
-                              {query.submittedAt ? new Date(query.submittedAt).toLocaleDateString() : ""}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        ));
+                    })}
                   </div>
                 </details>
               ))}
@@ -416,7 +421,7 @@ const GmailSearchRegistry = pattern<
 
 // Helper to extract a readable name from the agent type URL
 function extractAgentName(url: string | undefined | null): string {
-  if (!url) return "Unknown Agent";
+  if (!url || typeof url !== "string") return "Unknown Agent";
   // Extract filename from URL like:
   // https://raw.githubusercontent.com/.../patterns/jkomoros/hotel-membership-gmail-agent.tsx
   const match = url.match(/\/([^/]+)\.tsx$/);
