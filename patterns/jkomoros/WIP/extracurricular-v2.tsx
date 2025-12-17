@@ -336,17 +336,6 @@ type ScheduleSlotData = {
 };
 
 // ============================================================================
-// PERFORMANCE INSTRUMENTATION (temporary - remove after optimization)
-// ============================================================================
-const PERF_DEBUG = true;  // Set to false to disable timing logs
-let scheduleRenderCount = 0;
-const logPerf = (label: string, startTime: number) => {
-  if (PERF_DEBUG) {
-    console.log(`[PERF] ${label}: ${(Date.now() - startTime)}ms`);
-  }
-};
-
-// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -777,7 +766,6 @@ Return all visible text.`
 
     // Phase 6: Computed conflicts in active pinned set
     const pinnedSetConflicts = computed(() => {
-      const conflictStart = Date.now();
       if (!pinnedClasses || pinnedClasses.length < 2) return [];
 
       const conflicts: TimeConflict[] = [];
@@ -802,7 +790,6 @@ Return all visible text.`
           }
         }
       }
-      logPerf(`conflictDetection (${pinnedClasses.length} classes, ${conflicts.length} conflicts)`, conflictStart);
       return conflicts;
     });
 
@@ -811,10 +798,8 @@ Return all visible text.`
     // This runs ONCE when pinnedClasses changes, instead of N times per charm instance
     // ============================================================================
     const scheduleData = computed(() => {
-      const scheduleDataStart = Date.now();
       const pinned = pinnedClasses as Class[];
       if (!pinned || pinned.length === 0) {
-        logPerf(`scheduleData (empty)`, scheduleDataStart);
         return null;
       }
 
@@ -851,7 +836,6 @@ Return all visible text.`
         }
       });
 
-      logPerf(`scheduleData (${pinned.length} classes)`, scheduleDataStart);
       return byDay;
     });
 
@@ -1031,8 +1015,6 @@ Return all visible text.`
 
             {/* Weekly Schedule View - uses precomputed scheduleData */}
             {derive(scheduleData, (data: Record<DayOfWeek, ScheduleSlotData[]> | null) => {
-              const scheduleStart = Date.now();
-              scheduleRenderCount++;
               if (!data) return null;
 
               const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
@@ -1042,7 +1024,7 @@ Return all visible text.`
                 hourLabels.push({ hour: h, label });
               }
 
-              const result = (
+              return (
                 <div style={{ marginTop: "1rem" }}>
                   <h4 style={{ marginBottom: "0.5rem" }}>Weekly Schedule</h4>
                   <div style={{ display: "flex", border: "1px solid #e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
@@ -1144,9 +1126,6 @@ Return all visible text.`
                   </div>
                 </div>
               );
-              // Log timing after JSX is constructed
-              logPerf(`scheduleView build #${scheduleRenderCount}`, scheduleStart);
-              return result;
             })}
           </div>
 
