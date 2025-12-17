@@ -209,6 +209,37 @@ One-line description of what this pattern does.
 2. Commit the README update
 3. Continue with creating the PR
 
+## Step 2.7: Verify Pattern Compiles Before PR
+
+**CRITICAL:** Always verify changed patterns compile before creating a PR. This catches missing imports, type mismatches, and other errors that will fail CI.
+
+```bash
+# From community-patterns directory, test that a pattern compiles
+# Note: Command must be on ONE LINE (multi-line breaks argument parsing)
+cd ../labs && deno task ct charm new --identity ../community-patterns/claude.key --api-url http://localhost:8000 --space test-compile ../community-patterns/patterns/$GITHUB_USER/my-pattern.tsx
+```
+
+**If compilation succeeds:** You'll see a charm ID like `baedrei...`
+
+**If compilation fails:** You'll see a `CompilerError` with the exact file and line:
+```
+[ERROR] Cannot find name 'computed'.
+1039 |     const notesDiffChunks = computed(() => {
+     |                             ^
+```
+
+**To fix:**
+1. Read the error message - it shows the exact file and line
+2. Fix the issue (often a missing import like `computed`, `cell`, `derive`)
+3. Commit the fix
+4. Re-run to verify
+5. Continue with creating the PR
+
+**Why this matters:**
+- CI runs typecheck on all PRs - failures will block the merge
+- Catching errors locally is faster than waiting for CI
+- Common issues: missing imports after adding new framework features
+
 ## Step 3: Create PR
 
 ```bash
@@ -301,3 +332,4 @@ git push origin main
 - If the PR needs review, stop after Step 3 and wait for approval
 - For self-merging (when you have write access), all steps can run automatically
 - **Always verify README.md** is current with pattern changes (Step 2.6)
+- **Always run typecheck** before creating PR to catch CI failures early (Step 2.7)
