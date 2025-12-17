@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Wrapper for ct CLI - handles directory changes internally
+# This allows simple allowlisting via Bash(./scripts/ct:*)
+set -e
+
+# Find labs as peer directory to community-patterns repo root
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+LABS_DIR="$REPO_ROOT/../labs"
+
+if [ ! -d "$LABS_DIR" ]; then
+  echo "Error: Cannot find labs directory at $LABS_DIR" >&2
+  echo "Expected labs to be a peer of $(basename "$REPO_ROOT")" >&2
+  exit 1
+fi
+
+# Run ct from labs directory
+cd "$LABS_DIR"
+exec deno task ct "$@"
