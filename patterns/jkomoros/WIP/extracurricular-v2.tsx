@@ -326,6 +326,26 @@ const CLASS_COLORS = [
   { bg: "#e0f7fa", border: "#0097a7" }, // cyan
 ];
 
+// Type for precomputed schedule slot data (used by scheduleData computed)
+type ScheduleSlotData = {
+  cls: Class;
+  slot: TimeSlot;
+  colorIdx: number;
+  top: number;
+  height: number;
+};
+
+// ============================================================================
+// PERFORMANCE INSTRUMENTATION (temporary - remove after optimization)
+// ============================================================================
+const PERF_DEBUG = true;  // Set to false to disable timing logs
+let scheduleRenderCount = 0;
+const logPerf = (label: string, startTime: number) => {
+  if (PERF_DEBUG) {
+    console.log(`[PERF] ${label}: ${(Date.now() - startTime)}ms`);
+  }
+};
+
 // ============================================================================
 // PATTERN
 // ============================================================================
@@ -514,8 +534,8 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     >((_, { staged, idx }) => {
       const current = staged.get();
       if (idx < 0 || idx >= current.length) return;
-      const updated = { ...current[idx], selected: !current[idx].selected };
-      staged.set(current.toSpliced(idx, 1, updated));
+      // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+      staged.key(idx).key("selected").set(!current[idx].selected);
     });
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
@@ -527,14 +547,10 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const current = classList.get();
       const index = current.findIndex((el) => Cell.equals(cls, el));
       if (index >= 0) {
-        const updated = {
-          ...current[index],
-          statuses: {
-            ...current[index].statuses,
-            [statusKey]: !current[index].statuses[statusKey],
-          },
-        };
-        classList.set(current.toSpliced(index, 1, updated));
+        // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+        classList.key(index).key("statuses").key(statusKey).set(
+          !current[index].statuses[statusKey]
+        );
       }
     };
 
@@ -683,32 +699,33 @@ Return all visible text.`
     });
 
     // =========================================================================
-    // STAGED CLASSES DISPLAY VALUES (computed, not derive)
+    // STAGED CLASSES DISPLAY VALUES (single-pass computed for performance)
     // =========================================================================
 
-    // Computed: whether there are staged classes to show
-    const hasStaged = computed(() => {
+    // Consolidated computed: all staged class stats in one pass (instead of 4 filters)
+    const stageCounts = computed(() => {
       const list = stagedClasses.get();
-      return list && list.length > 0;
+      if (!list || list.length === 0) {
+        return { hasStaged: false, selected: 0, kept: 0, needsReview: 0, discarded: 0 };
+      }
+      let selected = 0, kept = 0, needsReview = 0, discarded = 0;
+      for (const s of list) {
+        if (s.selected) selected++;
+        if (s.triageStatus === "auto_kept") kept++;
+        else if (s.triageStatus === "needs_review") needsReview++;
+        else discarded++;
+      }
+      return { hasStaged: true, selected, kept, needsReview, discarded };
     });
 
-    // Computed: count of selected staged classes
-    const selectedCount = computed(() => {
-      const list = stagedClasses.get();
-      if (!list) return 0;
-      return list.filter(s => s.selected).length;
-    });
-
-    // Computed: triage counts for display (uses pre-computed triageStatus on objects)
-    const triageCounts = computed(() => {
-      const list = stagedClasses.get();
-      if (!list || list.length === 0) return { kept: 0, needsReview: 0, discarded: 0 };
-      return {
-        kept: list.filter(s => s.triageStatus === "auto_kept").length,
-        needsReview: list.filter(s => s.triageStatus === "needs_review").length,
-        discarded: list.filter(s => s.triageStatus === "auto_discarded").length,
-      };
-    });
+    // Computed accessors for backwards compatibility with existing UI code
+    const hasStaged = computed(() => stageCounts.hasStaged);
+    const selectedCount = computed(() => stageCounts.selected);
+    const triageCounts = computed(() => ({
+      kept: stageCounts.kept,
+      needsReview: stageCounts.needsReview,
+      discarded: stageCounts.discarded,
+    }));
 
     // =========================================================================
     // PHASE 5: PINNED SETS
@@ -717,18 +734,28 @@ Return all visible text.`
     // Helper: display set name (shows "(default)" for empty string)
     const displaySetName = (name: string) => name === "" ? "(default)" : name;
 
+    // Guard cell to ensure default set initialization only runs once
+    // This prevents reactive thrashing from non-idempotent writes
+    const defaultSetInitialized = cell<boolean>(false);
+
     // Ensure default set exists and is active on first load
     computed(() => {
+      // Skip if already initialized - this makes the computed idempotent
+      if (defaultSetInitialized.get()) return;
+
       const names = pinnedSetNames.get();
-      // Add default set if missing - use .set() not .push() for predictable reactivity
+      // Add default set if missing
       if (!names.includes("")) {
         pinnedSetNames.set([...names, ""]);
       }
       // Set active to default if not set
       const active = activeSetName.get();
-      if (active === undefined || active === null || (names.length > 0 && !names.includes(active))) {
+      if (active === undefined || active === null) {
         activeSetName.set("");
       }
+
+      // Mark as initialized AFTER writes to avoid re-triggering
+      defaultSetInitialized.set(true);
     });
 
     // Computed: display name for active set (pre-computed to avoid === in derive)
@@ -749,8 +776,8 @@ Return all visible text.`
     });
 
     // Phase 6: Computed conflicts in active pinned set
-    // Inside computed, directly access properties/indexes on other computeds (no casts needed)
     const pinnedSetConflicts = computed(() => {
+      const conflictStart = Date.now();
       if (!pinnedClasses || pinnedClasses.length < 2) return [];
 
       const conflicts: TimeConflict[] = [];
@@ -775,7 +802,57 @@ Return all visible text.`
           }
         }
       }
+      logPerf(`conflictDetection (${pinnedClasses.length} classes, ${conflicts.length} conflicts)`, conflictStart);
       return conflicts;
+    });
+
+    // ============================================================================
+    // PRECOMPUTED SCHEDULE DATA (fix for expensive computation inside .map() JSX)
+    // This runs ONCE when pinnedClasses changes, instead of N times per charm instance
+    // ============================================================================
+    const scheduleData = computed(() => {
+      const scheduleDataStart = Date.now();
+      const pinned = pinnedClasses as Class[];
+      if (!pinned || pinned.length === 0) {
+        logPerf(`scheduleData (empty)`, scheduleDataStart);
+        return null;
+      }
+
+      // Precompute all data in a single pass
+      const byDay: Record<DayOfWeek, ScheduleSlotData[]> = {
+        monday: [],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+      };
+
+      // Single loop through all classes - colorIdx is just the array index
+      pinned.forEach((cls, classIdx) => {
+        const colorIdx = classIdx % CLASS_COLORS.length;
+        for (const slot of cls.timeSlots || []) {
+          // Precompute positions (parsing times once per slot, not N times)
+          const startMins = parseTimeToMinutes(slot.startTime);
+          const endMins = parseTimeToMinutes(slot.endTime);
+          const startOffsetMins = startMins - SCHEDULE_START_HOUR * 60;
+          const durationMins = endMins - startMins;
+
+          byDay[slot.day].push({
+            cls,
+            slot,
+            colorIdx,
+            top: startMins >= 0 ? (startOffsetMins / 60) * SCHEDULE_HOUR_HEIGHT : 0,
+            height: startMins >= 0 && endMins >= 0
+              ? (durationMins / 60) * SCHEDULE_HOUR_HEIGHT
+              : SCHEDULE_HOUR_HEIGHT,
+          });
+        }
+      });
+
+      logPerf(`scheduleData (${pinned.length} classes)`, scheduleDataStart);
+      return byDay;
     });
 
     // Handler to switch active set
@@ -801,8 +878,8 @@ Return all visible text.`
       const newPins = isPinned
         ? currentPins.filter((s: string) => s !== setName)
         : [...currentPins, setName];
-      const updated = { ...cls, pinnedInSets: newPins };
-      classList.set(current.toSpliced(idx, 1, updated));
+      // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+      classList.key(idx).key("pinnedInSets").set(newPins);
     });
 
     return {
@@ -952,10 +1029,11 @@ Return all visible text.`
               );
             })}
 
-            {/* Weekly Schedule View */}
-            {derive(pinnedClasses, (pinned: Class[]) => {
-              const list = pinned as Class[];
-              if (!list || list.length === 0) return null;
+            {/* Weekly Schedule View - uses precomputed scheduleData */}
+            {derive(scheduleData, (data: Record<DayOfWeek, ScheduleSlotData[]> | null) => {
+              const scheduleStart = Date.now();
+              scheduleRenderCount++;
+              if (!data) return null;
 
               const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
               const hourLabels: Array<{ hour: number; label: string }> = [];
@@ -964,7 +1042,7 @@ Return all visible text.`
                 hourLabels.push({ hour: h, label });
               }
 
-              return (
+              const result = (
                 <div style={{ marginTop: "1rem" }}>
                   <h4 style={{ marginBottom: "0.5rem" }}>Weekly Schedule</h4>
                   <div style={{ display: "flex", border: "1px solid #e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
@@ -988,12 +1066,10 @@ Return all visible text.`
                       </div>
                     </div>
 
-                    {/* Day columns */}
+                    {/* Day columns - now uses precomputed data, no filtering or indexOf */}
                     {SCHEDULE_DAYS.map((day) => {
-                      // Get classes for this day
-                      const dayClasses = list.filter((cls) =>
-                        (cls.timeSlots || []).some((slot) => slot.day === day)
-                      );
+                      // Get precomputed slots for this day (O(1) lookup)
+                      const daySlots = data[day] || [];
 
                       return (
                         <div style={{ flex: 1, borderRight: "1px solid #e0e0e0", minWidth: "80px" }}>
@@ -1029,45 +1105,37 @@ Return all visible text.`
                               />
                             ))}
 
-                            {/* Classes for this day */}
-                            {dayClasses.map((cls, classIdx) => {
-                              const slots = (cls.timeSlots || []).filter((slot) => slot.day === day);
-                              const colorIdx = list.indexOf(cls) % CLASS_COLORS.length;
+                            {/* Classes for this day - using precomputed positions and colors */}
+                            {daySlots.map(({ cls, slot, colorIdx, top, height }) => {
                               const colors = CLASS_COLORS[colorIdx];
-
-                              return slots.map((slot) => {
-                                const top = timeToTopPosition(slot.startTime);
-                                const height = durationToHeight(slot.startTime, slot.endTime);
-
-                                return (
-                                  <div
-                                    style={{
-                                      position: "absolute",
-                                      top: `${top}px`,
-                                      left: "2px",
-                                      right: "2px",
-                                      height: `${Math.max(height - 2, 20)}px`,
-                                      background: colors.bg,
-                                      border: `1px solid ${colors.border}`,
-                                      borderRadius: "3px",
-                                      padding: "2px 4px",
-                                      fontSize: "0.7em",
-                                      overflow: "hidden",
-                                      cursor: "default",
-                                    }}
-                                    title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location.name}`}
-                                  >
-                                    <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                      {cls.name}
-                                    </div>
-                                    {height > 35 && (
-                                      <div style={{ fontSize: "0.9em", color: "#666" }}>
-                                        {slot.startTime}
-                                      </div>
-                                    )}
+                              return (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: `${top}px`,
+                                    left: "2px",
+                                    right: "2px",
+                                    height: `${Math.max(height - 2, 20)}px`,
+                                    background: colors.bg,
+                                    border: `1px solid ${colors.border}`,
+                                    borderRadius: "3px",
+                                    padding: "2px 4px",
+                                    fontSize: "0.7em",
+                                    overflow: "hidden",
+                                    cursor: "default",
+                                  }}
+                                  title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location.name}`}
+                                >
+                                  <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {cls.name}
                                   </div>
-                                );
-                              });
+                                  {height > 35 && (
+                                    <div style={{ fontSize: "0.9em", color: "#666" }}>
+                                      {slot.startTime}
+                                    </div>
+                                  )}
+                                </div>
+                              );
                             })}
                           </div>
                         </div>
@@ -1076,6 +1144,9 @@ Return all visible text.`
                   </div>
                 </div>
               );
+              // Log timing after JSX is constructed
+              logPerf(`scheduleView build #${scheduleRenderCount}`, scheduleStart);
+              return result;
             })}
           </div>
 
