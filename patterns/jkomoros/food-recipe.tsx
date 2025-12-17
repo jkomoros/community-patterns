@@ -1033,6 +1033,18 @@ Return only the fields you can confidently extract. Be thorough with ingredients
       (changes) => changes.length > 0,
     );
 
+    // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
+    // This prevents N² re-evaluation during recipe discovery when map items change.
+    // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
+    const notesDiffChunks = computed(() => {
+      const notesChange = changesPreview.find((c: { field: string }) => c.field === "Notes");
+      if (!notesChange || !notesChange.from || !notesChange.to ||
+          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+        return [];
+      }
+      return computeWordDiff(notesChange.from, notesChange.to);
+    });
+
     // LLM Timing Suggestion state
     const timingSuggestionTrigger = cell<string>("");
 
@@ -1879,7 +1891,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                 )
                                 : change.from && change.to
                                 ? (
-                                  computeWordDiff(change.from, change.to).map(
+                                  // PERFORMANCE FIX: Use pre-computed notesDiffChunks
+                                  // instead of inline computeWordDiff call
+                                  notesDiffChunks.map(
                                     (part) => {
                                       if (part.type === "removed") {
                                         return (

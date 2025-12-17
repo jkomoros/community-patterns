@@ -1,5 +1,22 @@
 # Expensive Computation Inside .map() JSX Causes N² CPU Spikes
 
+## TL;DR - The Rule
+
+**Lift expensive computation out of `.map()` JSX into `computed()` cells.**
+
+```tsx
+// ❌ BAD - runs N times (once per charm instance)
+{items.map(item => expensiveFunction(item.data))}
+
+// ✅ GOOD - runs once, cached
+const processed = computed(() => items.map(item => expensiveFunction(item.data)));
+{processed.map(result => <div>{result}</div>)}
+```
+
+**This is permanent guidance, not a temporary workaround.** It's how reactive frameworks are designed to work.
+
+---
+
 ## Summary
 
 **Never put expensive computation inline inside `.map()` JSX closures.** When the framework discovers recipe functions, it evaluates parent scope closures for EVERY mapped item. This means expensive operations like `computeWordDiff()` or string processing get called N times during each reactive pass—even when guarded by conditionals. Combined with reactive cascades (N items × N actions), this creates N² complexity that can cause 5-60 second CPU spikes.
@@ -98,6 +115,27 @@ If you see **multiple unique charm IDs** calling the same function, you've hit t
 6. Moved `computeWordDiff` to pre-computed `computed()` cell
 7. CPU spike reduced from ~5 seconds to **~2 milliseconds**
 
+## Why This Is Permanent (Not a Bug)
+
+This behavior is **architectural, not a bug**:
+
+1. **Multiple charm instances per map item is intentional** - Each item needs its own reactive context for fine-grained updates. The alternative (one charm for whole list) would re-render everything on any change.
+
+2. **Recipe discovery must evaluate closures** - The framework needs to understand dependencies to build the reactive graph. This is fundamental to how reactivity works.
+
+3. **`computed()` is designed for this** - It makes dependencies explicit and guarantees single computation. This is the idiomatic pattern.
+
+**Even if the framework adds batching or optimizations in the future, this pattern will still be correct.**
+
+## What Counts as "Expensive"?
+
+Apply this rule when computation involves:
+- **String processing** - diffing, parsing, formatting large text
+- **Array transformations** - sorting, filtering, reducing large arrays
+- **Object traversal** - deep equality checks, serialization
+- **Any async operation** - API calls, file reads
+- **Anything >1ms** - when in doubt, measure
+
 ## Related Superstitions
 
 - `2025-11-29-derive-inside-map-causes-thrashing.md` - Related: cell creation inside map
@@ -105,10 +143,11 @@ If you see **multiple unique charm IDs** calling the same function, you've hit t
 
 The difference: those are about **creating new cells** inside map. This is about **expensive computation** inside map JSX closures—even without creating cells.
 
-## Pattern Fix Location
+## Pattern Fix Locations
 
 This fix was applied to:
 - `patterns/jkomoros/person.tsx` - Moved `computeWordDiff` to `notesDiffChunks` computed cell
+- `patterns/jkomoros/food-recipe.tsx` - Same fix for `computeWordDiff` in extraction preview
 
 See investigation details: `patterns/jkomoros/design/todo/cpu-spike-investigation.md`
 
