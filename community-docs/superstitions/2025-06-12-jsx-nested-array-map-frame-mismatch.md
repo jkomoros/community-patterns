@@ -147,3 +147,9 @@ const flattenedView = computed(() => {
 
 - Full issue with repro code: `patterns/jkomoros/issues/ISSUE-Frame-Mismatch-Nested-Array-JSX-Map.md`
 - Repro patterns: `patterns/jkomoros/WIP/frame-mismatch-repro-*.tsx`
+- `2025-12-17-conditional-and-in-map-leaks-alias.md` - related issue with conditionals inside .map()
+
+## Guestbook
+
+- 2025-06-12 - Initial discovery while building assumption-surfacer pattern
+- 2025-12-17 - Confirmed nested .map() still problematic. In google-docs-comment-orchestrator, nested replies.map() inside comments.map() worked when all data was deep-copied to plain values in pre-computed array. Key: deep-copy ALL nested objects/arrays, not just spread top level. (google-docs-comment-orchestrator / jkomoros)
