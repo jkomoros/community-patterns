@@ -6,14 +6,25 @@ last_confirmed: 2025-12-17
 sessions: [person-cpu-spike-fix]
 related_labs_docs: docs/common/LLM.md
 status: superstition
-stars: ⭐⭐⭐⭐
+stars: ⭐⭐
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# ⚠️ SUPERSTITION - PARTIALLY DISPROVEN
 
-## Problem
+## Update 2025-12-17: Minimal Repro Shows Different Results
 
-When using `generateObject` with a complex schema (14+ fields), clicking the extract button causes:
+**CRITICAL FINDING**: A minimal repro with a simple 14-field schema completes in **~5.7 seconds**, NOT 60 seconds!
+
+This means the CPU spike is NOT caused by:
+- Number of fields (14 fields works fine)
+- `generateObject` itself
+- The `intern()` / `claim()` functions with simple schemas
+
+The problem is **context-specific** to the page-creator → Demo → Person flow.
+
+## Original Problem
+
+When using page-creator.tsx → Demo → Person → "Extract Data from Notes":
 - Chrome CPU pegs to 100% for ~60 seconds
 - Page completely frozen/unresponsive
 - `DERIVE DEBUG SUMMARY` shows `total=0` (NOT the reactive system)
@@ -44,18 +55,35 @@ const { result } = generateObject({
 
 The guardedPrompt pattern is idiomatic (used by codenames-helper, food-recipe, etc.) and prevents spurious triggers, but it does NOT reduce the CPU spike when extraction DOES run.
 
-## Root Cause (Framework-Level)
+## Root Cause (UNKNOWN - Not What We Thought)
 
-The CPU spike happens AFTER the LLM response arrives, during framework processing:
-- `intern()` in `memory/reference.ts` - JSON.stringify on every nested object
-- `claim()` - called excessively during LLM result processing
-- The more fields in the schema, the worse the performance (O(fields) or worse)
+**Original hypothesis was WRONG:**
+- Previously blamed `intern()` and `claim()` in `memory/reference.ts`
+- Claimed "the more fields, the worse the performance"
 
-This is NOT a pattern-level issue that can be worked around.
+**Minimal repro disproves this:**
+- Simple 14-field schema: **5.7 seconds** (fast!)
+- Complex person.tsx in page-creator flow: **~60 seconds** (slow!)
+
+**Actual root cause is likely:**
+1. Multiple charm instances created during page-creator → Demo → Person navigation
+2. Reactive cascade involving many existing cells (not just extraction result)
+3. Something specific to how person.tsx renders the changes preview modal
+4. The `.map()` rendering in JSX causing repeated re-evaluation
+
+The investigation doc at `patterns/jkomoros/design/todo/cpu-spike-investigation.md` has more details on the original hypothesis.
 
 ## Evidence
 
-Console logs during extraction:
+**Minimal repro results (2025-12-17):**
+```
+[PERF] Starting 14-field extraction...
+[PERF] Start time: 1766007124148
+[PERF] 14 fields extraction completed in 5748ms
+```
+**Pattern:** `patterns/jkomoros/WIP/generateobject-perf-repro.tsx`
+
+**Original page-creator flow (still shows problem):**
 ```
 [DERIVE DEBUG SUMMARY] total=0, perRow=0, elapsed=50021ms  # Before click
 [DERIVE DEBUG SUMMARY] total=0, perRow=0, elapsed=109859ms # After ~60s gap
@@ -63,9 +91,9 @@ TypeError: Cannot read properties of undefined (reading 'length')
     at CTAutoLayout.render
 ```
 
-- The ~60 second gap with total=0 proves the blocking is NOT in derive operations
-- LLM network request shows 200 OK (fast response)
-- Freeze happens during result processing, not LLM call
+- Minimal repro with same field count: **5.7 seconds**
+- Complex page-creator flow: **~60 seconds**
+- The problem is context-specific, not field-count-specific
 
 ## Current Workarounds
 
@@ -105,5 +133,7 @@ Framework-level changes needed:
 ---
 
 ## Guestbook
+
+**2025-12-17 (Update)**: Created minimal repro `generateobject-perf-repro.tsx` with 14-field schema. Result: **5.7 seconds** - NOT 60 seconds! This disproves the hypothesis that field count or `intern()`/`claim()` are the root cause. The problem is specific to the page-creator → Demo → Person context, not generateObject itself.
 
 **2025-12-17**: Initial discovery. Confirmed that guardedPrompt pattern does not fix performance, only prevents spurious triggers. Framework-level fix needed.
