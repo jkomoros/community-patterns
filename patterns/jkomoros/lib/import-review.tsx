@@ -8,6 +8,7 @@ import {
   generateObject,
   handler,
   ifElse,
+  lift,
   NAME,
   pattern,
   UI,
@@ -26,17 +27,18 @@ import {
  * - hiddenItemIds pattern for "soft delete" without array mutation bugs
  * - ui.* return pattern for composability (like chatbot.tsx)
  * - Works with any schema (generic over item type)
+ * - Configurable getKey/getLabel for flexible item identification
  *
  * Data flow:
  *   Parent sets trigger → generateObject extracts → User reviews → Parent commits selected
  *
  * Usage:
  *   const extraction = ImportReview({
- *     trigger,           // Cell<string> - set to trigger extraction
- *     schema,            // JSON schema for extraction
- *     systemPrompt,      // LLM system prompt
- *     getKey: (item) => item.name,
- *     getLabel: (item) => item.name,
+ *     trigger,                        // Cell<string> - set to trigger extraction
+ *     schema,                         // JSON schema for extraction
+ *     systemPrompt,                   // LLM system prompt
+ *     getKey: (item) => item.id,      // Optional: derive unique key from item
+ *     getLabel: (item) => item.title, // Optional: derive display label from item
  *   });
  *
  *   // In UI:
@@ -67,9 +69,11 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   systemPrompt?: string;
   model?: string;
 
-  // NOTE: Key/label derivation uses item.name by default
-  // If your items don't have a "name" field, pre-transform them before using this pattern
-  // or use selection-review.tsx which has more flexible item handling
+  // Optional: Key/label derivation functions
+  // These are wrapped with lift() internally for reactivity
+  // Default: uses item.name field if present
+  getKey?: (item: T, index: number) => string;
+  getLabel?: (item: T, index: number) => string;
 
   // Optional: Comparison with existing items
   existingItems?: Cell<Default<T[], []>>;
@@ -275,6 +279,8 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     schema,
     systemPrompt,
     model,
+    getKey,
+    getLabel,
     existingItems,
     hiddenItemIds,
   }) => {
@@ -285,6 +291,35 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Internal cell for tracking selected items (separate from hidden)
     const selectedIds = cell<string[]>([]);
+
+    // Lift function props for use inside computed()
+    // These create reactive functions that work correctly with the CTS transformer
+    // IMPORTANT: lift() requires all arguments as a single object parameter
+    const liftedGetKey = lift(({ item, index, fn }: {
+      item: ExtractedItem;
+      index: number;
+      fn: ((item: ExtractedItem, index: number) => string) | undefined;
+    }): string => {
+      if (fn) return fn(item, index);
+      // Default: use item.name if valid string, otherwise fallback to index
+      const itemName = item?.name as unknown;
+      return (typeof itemName === "string" && (itemName as string).length > 0)
+        ? (itemName as string)
+        : `item-${index}`;
+    });
+
+    const liftedGetLabel = lift(({ item, index, fn }: {
+      item: ExtractedItem;
+      index: number;
+      fn: ((item: ExtractedItem, index: number) => string) | undefined;
+    }): string => {
+      if (fn) return fn(item, index);
+      // Default: use item.name if valid string, otherwise use key
+      const itemName = item?.name as unknown;
+      return (typeof itemName === "string" && (itemName as string).length > 0)
+        ? (itemName as string)
+        : `item-${index}`;
+    });
 
     // ═══════════════════════════════════════════════════════════════════════
     // 1. LLM EXTRACTION (only runs when trigger changes)
@@ -307,7 +342,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Process extraction result into visible items with selection state
     // Combined into single computed to avoid opaque value issues with chained computeds
-    // NOTE: Uses item.name for key/label - ensure your schema produces items with "name" field
+    // Uses lifted getKey/getLabel functions for flexible item identification
     const visibleItems = computed(() => {
       const result = extractionResult;
       const hidden = hiddenItemIds.get() ?? [];
@@ -328,38 +363,32 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         rawItems = [result];
       }
 
-      // Filter valid items and transform into ProcessedItem
+      // Filter valid items
       const validItems = rawItems.filter(
         (item): item is ExtractedItem =>
           item !== null && typeof item === "object"
       );
 
-      // Build existingKeys array once (for performance)
-      const existingKeys = existing.map((e: ExtractedItem) => {
-        const eName = e?.name as unknown;
-        return (typeof eName === "string" && (eName as string).length > 0) ? (eName as string) : "";
-      });
+      // Build existingKeys array using lifted getKey for comparison
+      const existingKeys = existing.map((e: ExtractedItem, i: number) =>
+        liftedGetKey({ item: e, index: i, fn: getKey })
+      );
 
-      // Transform to ProcessedItem, filter hidden
+      // Transform to ProcessedItem using .map() and filter hidden
+      // NOTE: .map() inside computed() works with CTS transformer
+      // The for-loop was only needed because we can't .map() over computed result in JSX
       const processed: ProcessedItem[] = [];
       for (let index = 0; index < validItems.length; index++) {
         const item = validItems[index];
 
-        // Key derivation: use item.name if valid string, otherwise fallback to index
-        const itemName = item?.name as unknown;
-        const key = (typeof itemName === "string" && (itemName as string).length > 0)
-          ? (itemName as string)
-          : `item-${index}`;
+        // Use lifted functions for key/label derivation
+        const key = liftedGetKey({ item, index, fn: getKey });
+        const label = liftedGetLabel({ item, index, fn: getLabel });
 
         // Skip hidden items
         if (hidden.includes(key)) continue;
 
         const isNew = !existingKeys.includes(key);
-
-        // Label: use name or fallback to key
-        const label = (typeof itemName === "string" && (itemName as string).length > 0)
-          ? (itemName as string)
-          : key;
 
         processed.push({
           item,
