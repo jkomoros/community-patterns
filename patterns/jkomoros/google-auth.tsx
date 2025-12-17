@@ -23,7 +23,7 @@ const SCOPE_MAP = {
   gmailModify: "https://www.googleapis.com/auth/gmail.modify",
   calendar: "https://www.googleapis.com/auth/calendar.readonly",
   calendarWrite: "https://www.googleapis.com/auth/calendar.events",
-  drive: "https://www.googleapis.com/auth/drive.readonly",
+  drive: "https://www.googleapis.com/auth/drive",
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
 } as const;
 
@@ -33,7 +33,7 @@ const SCOPE_DESCRIPTIONS = {
   gmailModify: "Gmail (add/remove labels)",
   calendar: "Calendar (read events)",
   calendarWrite: "Calendar (create/edit/delete events)",
-  drive: "Drive (read files)",
+  drive: "Drive (read/write files & comments)",
   contacts: "Contacts (read contacts)",
 } as const;
 

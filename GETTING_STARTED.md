@@ -75,11 +75,16 @@ gh repo clone commontoolsinc/patterns 2>/dev/null || echo "Note: patterns repo n
 3. Save it securely
 4. Needed for `ct-voice-input` component to transcribe voice recordings
 
-**Google OAuth** (for Gmail patterns):
+**Google OAuth** (for Gmail, Calendar, and Drive patterns):
 1. Visit: https://console.cloud.google.com/apis/credentials
 2. Create OAuth 2.0 Client ID
 3. Add redirect URI: `http://localhost:8000/api/integrations/google-oauth/callback`
 4. Save Client ID and Client Secret
+5. **Enable required APIs** in Google Cloud Console:
+   - Gmail API: https://console.cloud.google.com/apis/api/gmail.googleapis.com
+   - Calendar API: https://console.cloud.google.com/apis/api/calendar-json.googleapis.com
+   - **Drive API**: https://console.cloud.google.com/apis/api/drive.googleapis.com (required for Google Docs comments)
+   - Docs API: https://console.cloud.google.com/apis/api/docs.googleapis.com (optional, for reading doc content)
 
 Tell user: "You can skip the optional keys for now and add them later if needed."
 
