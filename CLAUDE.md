@@ -82,10 +82,18 @@ STUCK? → Use `community-docs` skill IMMEDIATELY
         ↓
 Still stuck? → Check official labs docs
         ↓
-Still stuck? → Use `recovery-strategies` skill
+Still stuck after 1-2 attempts? → Use `strategic-investigation` skill
+        ↓                         (enter plan mode, launch parallel subagents)
+Still stuck after investigation? → Use `recovery-strategies` skill (Steps 3-4)
         ↓
 Still stuck? → Ask user for help
 ```
+
+**After 1-2 failed attempts:** Don't keep guessing. Use the `strategic-investigation` skill to:
+- Enter plan mode and step back from implementation
+- Launch parallel Explore agents to find idiomatic solutions
+- Understand WHY the solution is correct before implementing
+- Find the right approach, not just "anything that works"
 
 **The community-docs skill is your FIRST LINE OF DEFENSE when anything goes wrong.**
 
@@ -248,15 +256,22 @@ The pattern-development skill covers:
 
 **When stuck on pattern development:**
 
-**FIRST: Use the `community-docs` skill!** This contains solutions to common problems.
+**FIRST: Use the `community-docs` skill!** Quick answers to common problems.
 
-**THEN: Use the `recovery-strategies` skill** which provides a 4-step escalation path:
+**After 1-2 failed attempts: Use the `strategic-investigation` skill**
+- Enter plan mode - step back and investigate properly
+- Launch parallel Explore agents to find idiomatic solutions
+- Understand WHY the solution is correct before implementing
+- Find the right approach, not just "anything that works"
+
+**THEN: Use the `recovery-strategies` skill** for the full escalation path:
 1. Re-read documentation (pattern-dev skill)
 2. Study similar working patterns
-3. Reset and try again with new approach
-4. Ask user for guidance
+3. **Strategic investigation (plan mode + subagents)**
+4. Reset and try again with new approach
+5. Ask user for guidance
 
-Use these aggressively - don't spin your wheels!
+Don't spin your wheels - investigate properly!
 
 ### Community Docs (Folk Knowledge System)
 

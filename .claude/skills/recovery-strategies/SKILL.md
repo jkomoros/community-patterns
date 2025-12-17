@@ -3,7 +3,8 @@ name: recovery-strategies
 description: >
   Escalation path when stuck on pattern development. Use when encountering
   TypeScript errors, framework confusion, unexpected behavior, or blocked progress.
-  Four-step recovery: check docs, study examples, reset and retry, ask user.
+  Five-step recovery: check docs, study examples, strategic investigation (plan mode
+  + subagents), reset and retry, ask user.
 ---
 
 # Recovery Strategies for Pattern Development
@@ -15,7 +16,7 @@ When encountering any difficulty with pattern development - whether it's TypeScr
 - Guess at solutions without checking documentation
 - Waste time in unproductive loops
 
-**If you find yourself stuck for more than 2-3 attempts, MOVE TO THE NEXT STEP.**
+**If you find yourself stuck for more than 1-2 attempts, MOVE TO THE NEXT STEP.**
 
 Use this escalation path:
 
@@ -105,13 +106,30 @@ ls patterns/examples/
 ls patterns/jkomoros/
 ```
 
-**When to move to Step 3:**
+**When to move to Step 2.5:**
 - Can't find similar patterns for your use case
 - Examples don't solve your specific problem
 - After studying 2-3 similar patterns without clarity
-- Ready to try a fresh approach with new knowledge
+- You don't understand WHY your approach isn't working
 
-## Step 3: Reset and Try Again (Minor Confusion)
+## Step 2.5: Strategic Investigation (Plan Mode + Subagents)
+
+**After 1-2 failed attempts, STOP trying variations. Enter plan mode and investigate properly.**
+
+Use the `strategic-investigation` skill to:
+1. Step back from implementation mode
+2. Launch parallel Explore agents to gather information
+3. Synthesize findings - understand WHY the solution is correct
+4. Execute with confidence
+
+**This step is critical.** Don't skip it thinking "I'll just try one more thing." Systematic investigation often reveals the idiomatic solution faster than trial-and-error.
+
+**When to move to Step 3:**
+- After strategic investigation reveals a clear path forward
+- If investigation shows this is a simple problem after all
+- You now understand the idiomatic approach
+
+## Step 3: Reset and Try Again (After Investigation)
 
 If still stuck after Steps 1-2:
 
