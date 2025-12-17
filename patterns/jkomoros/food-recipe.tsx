@@ -39,6 +39,7 @@
 import {
   cell,
   Cell,
+  computed,
   Default,
   derive,
   generateObject,
@@ -55,7 +56,7 @@ import {
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
-import { compareFields, computeWordDiff } from "./utils/diff-utils.ts";
+import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
 import RecipeAnalyzer from "./recipe-analyzer.tsx";
 import FoodRecipeViewer from "./food-recipe-viewer.tsx";
 
@@ -1894,7 +1895,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                   // PERFORMANCE FIX: Use pre-computed notesDiffChunks
                                   // instead of inline computeWordDiff call
                                   notesDiffChunks.map(
-                                    (part) => {
+                                    (part: DiffChunk) => {
                                       if (part.type === "removed") {
                                         return (
                                           <span style={{
