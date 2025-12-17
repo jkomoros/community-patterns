@@ -588,7 +588,7 @@ export default pattern<Input, Output>(
       }
 
       // Document context (truncated)
-      const content = docContentCell.get();
+      const content = docContentCell.get() ?? "";
       if (content && content.trim()) {
         parts.push(`## Document Context (excerpt)\n${content.slice(0, 1500)}`);
       }
@@ -702,6 +702,7 @@ export default pattern<Input, Output>(
         isExpanded: expandedId === comment.id,
         state: states[comment.id] ?? null,
         formattedDate: formatDate(comment.createdTime),
+        replyCount: (comment.replies ?? []).length,
       }));
     });
 
@@ -930,8 +931,9 @@ export default pattern<Input, Output>(
                           {item.content}
                         </div>
 
-                        {/* Reply count badge */}
-                        {item.replies && item.replies.length > 0 && (
+                        {/* Reply count badge - use ifElse to avoid $alias leakage */}
+                        {ifElse(
+                          item.replyCount > 0,
                           <span
                             style={{
                               display: "inline-block",
@@ -943,8 +945,9 @@ export default pattern<Input, Output>(
                               color: "#666",
                             }}
                           >
-                            {item.replies.length} repl{item.replies.length === 1 ? "y" : "ies"}
-                          </span>
+                            {item.replyCount} {ifElse(item.replyCount === 1, "reply", "replies")}
+                          </span>,
+                          null
                         )}
                       </div>
                     </div>
