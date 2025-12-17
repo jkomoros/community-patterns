@@ -17,7 +17,7 @@ description: >
 3. **✅ ALWAYS include space name in URL:** `http://localhost:8000/SPACE-NAME/CHARM-ID`
 4. **❌ NEVER use:** `http://localhost:8000/CHARM-ID` (missing space name)
 5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`, `--space`
-6. **✅ ALWAYS use `deno task ct`** - Never just `ct` directly
+6. **✅ ALWAYS use `./scripts/ct`** - The wrapper script that handles directory changes
 
 **If you violate these rules, the pattern will not work. No exceptions.**
 
@@ -37,8 +37,7 @@ description: >
 Before deploying, check that your pattern compiles correctly:
 
 ```bash
-cd ~/Code/labs
-deno task ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
+./scripts/ct dev patterns/$GITHUB_USER/pattern.tsx --no-run
 ```
 
 This verifies:
@@ -52,17 +51,16 @@ This verifies:
 Deploy a new pattern instance:
 
 ```bash
-cd ~/Code/labs
-deno task ct charm new \
+./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space claude-my-pattern-1130-1 \
-  ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
+  patterns/$GITHUB_USER/pattern.tsx
 ```
 
 **⚠️ ALL THREE PARAMETERS ARE REQUIRED:**
 - `--api-url http://localhost:8000` - MUST be 8000 (toolshed), NOT 5173 (shell)
-- `--identity ../community-patterns/claude.key` - Path to identity key at repo root
+- `--identity ./claude.key` - Path to identity key at repo root
 - `--space claude-<pattern>-<MMDD>-<N>` - Use descriptive space names (see naming convention below)
 
 **Space Naming Convention:**
@@ -97,15 +95,14 @@ There is a known framework bug that causes conflicts when using `charm setsrc`.
 
 ```bash
 # ❌ DON'T DO THIS - has conflicts due to framework bug
-# deno task ct charm setsrc ...
+# ./scripts/ct charm setsrc ...
 
 # ✅ DO THIS INSTEAD - deploy a new instance
-cd ~/Code/labs
-deno task ct charm new \
+./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space claude-my-pattern-1130-1 \
-  ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
+  patterns/$GITHUB_USER/pattern.tsx
 ```
 
 **This gives you a new charm ID.** Use the new charm ID going forward.
@@ -123,10 +120,9 @@ deno task ct charm new \
 See pattern details:
 
 ```bash
-cd ~/Code/labs
-deno task ct charm inspect \
+./scripts/ct charm inspect \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space claude-my-pattern-1130-1 \
   --charm CHARM-ID
 ```
@@ -137,11 +133,10 @@ You can set these to avoid repeating flags:
 
 ```bash
 export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=/path/to/community-patterns/claude.key
+export CT_IDENTITY=./claude.key
 
 # Then just:
-cd ~/Code/labs
-deno task ct charm new --space claude-counter-1130-1 ../community-patterns/patterns/$GITHUB_USER/pattern.tsx
+./scripts/ct charm new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
 ```
 
 ## Deployment Troubleshooting
@@ -172,9 +167,8 @@ Check these in order:
 lsof -ti:8000  # Toolshed (backend) - REQUIRED
 lsof -ti:5173  # Shell (frontend) - REQUIRED
 
-# Start if needed (or use session-startup skill)
-cd ~/Code/labs/packages/toolshed && deno task dev &
-cd ~/Code/labs/packages/shell && deno task dev-local &
+# Start if needed (use the labs restart script)
+../labs/scripts/restart-local-dev.sh --force
 ```
 
 **Pattern not updating after changes?**
@@ -185,11 +179,10 @@ cd ~/Code/labs/packages/shell && deno task dev-local &
 **Identity key missing?**
 ```bash
 # Check it exists at repo root
-ls ~/Code/community-patterns/claude.key
+ls ./claude.key
 
 # If missing, recreate it
-cd ~/Code/community-patterns
-deno task -c ../labs/deno.json ct id new > claude.key
+./scripts/ct id new > claude.key
 chmod 600 claude.key
 ```
 

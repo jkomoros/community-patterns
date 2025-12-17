@@ -97,6 +97,7 @@
       "Bash(pwd)",
       "Bash(deno task ct dev:*)",
       "Bash(cd:*)",
+      "Bash(./scripts/ct:*)",
       "SlashCommand:/session-startup",
       "SlashCommand:/deployment",
       "SlashCommand:/testing",
