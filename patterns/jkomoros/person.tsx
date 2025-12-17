@@ -18,6 +18,9 @@ import {
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
 
+// Performance measurement - set to true to see timing in console
+const PERF_MEASURE = false;
+
 // Social platform types
 type SocialPlatform =
   | "twitter"
@@ -713,7 +716,8 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
     // Derive a summary of changes that will be made
     const changesPreview = computed(() => {
-      return compareFields(extractionResult, {
+      const result = extractionResult;
+      return compareFields(result, {
         displayName: { current: displayName, label: "Display Name" },
         givenName: { current: givenName, label: "First Name" },
         familyName: { current: familyName, label: "Last Name" },
@@ -732,7 +736,25 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     });
 
     // Derive a boolean for whether we have results
-    const hasExtractionResults = computed(() => changesPreview.length > 0);
+    const hasExtractionResults = computed(() => {
+      return changesPreview.length > 0;
+    });
+
+    // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
+    // This prevents N² re-evaluation during recipe discovery when map items change.
+    // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
+    const notesDiffChunks = computed(() => {
+      const t0 = PERF_MEASURE ? Date.now() : 0;
+      const notesChange = changesPreview.find((c) => c.field === "Notes");
+      if (!notesChange || !notesChange.from || !notesChange.to ||
+          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
+        if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: skipped (no diff needed)`);
+        return [];
+      }
+      const result = computeWordDiff(notesChange.from, notesChange.to);
+      if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: ${Date.now() - t0}ms, ${result.length} chunks`);
+      return result;
+    });
 
     return {
       [NAME]: str`👤 ${effectiveDisplayName}`,
@@ -802,7 +824,10 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                   )
                                   : change.from && change.to
                                   ? (
-                                    computeWordDiff(change.from, change.to).map(
+                                    // PERFORMANCE FIX: Use pre-computed notesDiffChunks
+                                    // instead of inline computeWordDiff call
+                                    // This reduces calls from N (one per charm instance) to 1
+                                    notesDiffChunks.map(
                                       (part) => {
                                         if (part.type === "removed") {
                                           return (
