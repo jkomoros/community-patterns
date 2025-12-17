@@ -115,33 +115,31 @@ myComputed.sink((value) => {
 
 ## Real Example: extracurricular-v2 A/B Test (2025-12-17)
 
-Testing BEFORE vs AFTER optimization with identical workflow (add location, import 4 classes, pin all 4):
+Testing BEFORE vs AFTER optimization with identical workflow (add location, import 4 classes, pin all 4).
 
-**BEFORE version (inline calculations in JSX):**
-```
-scheduleDerive #1-9: called with 0 classes (initial setup)
-scheduleDerive #10-11: called with 1 class
-scheduleDerive #12-13: called with 2 classes
-scheduleDerive #14-15: called with 3 classes
-scheduleDerive #16-17: called with 4 classes
-Total: 17 derive calls
-```
-Each call does: `list.indexOf(cls)` O(n) + `timeToTopPosition()` + `durationToHeight()` per class
+**BEFORE version (inline calculations in JSX) - Final counters:**
+| Counter | Value |
+|---------|-------|
+| scheduleDeriveCalls | 17 |
+| indexOfCalls | 16 |
+| timeToTopCalls | 16 |
+| durationToHeightCalls | 16 |
+| dayFilterCalls | 35 |
 
-**AFTER version (precomputed scheduleData):**
-```
-scheduleDataComputed #1-10: empty, returning null (initial setup)
-scheduleDataComputed #11-12: processing 1 class
-scheduleDataComputed #13-14: processing 2 classes
-scheduleDataComputed #15-16: processing 3 classes
-scheduleDataComputed #17-18: processing 4 classes
-Total: 18 computed calls, 17+ derive calls
-```
-Each computed call precomputes colorIdx/top/height ONCE, derive just reads values
+**AFTER version (precomputed scheduleData) - Final counters:**
+| Counter | Value |
+|---------|-------|
+| scheduleDataComputedCalls | 17 |
+| scheduleViewDeriveCalls | 17 |
+| indexOfCalls | 0 |
+| timeToTopCalls | 0 |
+| durationToHeightCalls | 0 |
 
-**Key Insight:** Both versions have ~17-18 reactive re-runs. The optimization isn't about reducing re-runs - it's about **reducing work PER re-run**:
-- BEFORE: O(n²) operations per derive (indexOf for each class in array)
-- AFTER: O(n) precomputation, then O(1) reads
+**Key Insight:** Both versions have the same number of reactive re-runs (17). The optimization works by **eliminating expensive inline operations**:
+- BEFORE: 16 indexOf calls + 16 time parsing calls + 35 filter calls = **67 expensive operations**
+- AFTER: 0 indexOf calls + 0 time parsing calls = **0 expensive operations** (all precomputed)
+
+The precomputed `scheduleData` does the expensive work once per update, then the view just reads O(1) lookups from the precomputed data structure.
 
 ## Earlier Example: 18x Improvement
 
