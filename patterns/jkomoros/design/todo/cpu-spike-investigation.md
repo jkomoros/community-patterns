@@ -307,7 +307,7 @@ The fix was simple but the investigation revealed deep framework behavior patter
 
 ## Status
 
-**RESOLVED (2025-12-16)** - Pattern-level fix applied. The investigation revealed three compounding framework issues, but the immediate performance problem was solved by moving expensive computation out of inline JSX.
+**PARTIALLY RESOLVED (2025-12-16)** - Pattern-level fix applied (notesDiffChunks). The investigation revealed three compounding framework issues, but only the tertiary issue was fully addressed.
 
 **Community Docs:** Superstition documented at `community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md`
 
@@ -315,3 +315,55 @@ The fix was simple but the investigation revealed deep framework behavior patter
 1. `.map()` parent scope re-evaluation during recipe discovery
 2. Reactive cascade with no batching (N × N actions)
 3. Suggestion: lazy recipe discovery or batched updates
+
+---
+
+## Re-Investigation (2025-12-17)
+
+### Problem Persists
+
+Testing the page-creator → Demo → Person → Extract flow with Playwright revealed:
+
+| Metric | Value |
+|--------|-------|
+| Time from click to modal | ~60-80 seconds |
+| DERIVE DEBUG SUMMARY total | 0 (NOT the cause) |
+| LLM API response | Fast (~5 seconds) |
+| Gap in logs | 50021ms → 109859ms (~60 second gap) |
+
+### Key Finding: Blocking is NOT in Reactive System
+
+The DERIVE DEBUG SUMMARY shows `total=0` throughout, meaning the reactive derive system is NOT blocking. The ~60 second freeze happens:
+- AFTER the LLM response arrives
+- During framework processing (likely `intern()` / `claim()`)
+- This is NOT captured by DERIVE DEBUG instrumentation
+
+### What guardedPrompt Fix Actually Does
+
+Added `guardedPrompt` computed cell that checks for `---EXTRACT-` marker before passing to `generateObject`. This is:
+- ✅ Idiomatic pattern used by other patterns (codenames-helper, food-recipe)
+- ✅ Defensive safeguard against spurious triggers
+- ❌ Does NOT fix the ~60 second CPU spike
+- ❌ Does NOT address the actual bottleneck
+
+### Honest Assessment
+
+The guardedPrompt fix is **good hygiene** but **does not solve the performance problem**. The actual bottleneck is in framework code:
+- `intern()` in `memory/reference.ts` - JSON.stringify on every nested object
+- `claim()` - called excessively during LLM result processing
+- These are framework-level issues requiring labs changes
+
+### CTAutoLayout TypeError
+
+Consistently seeing during extraction:
+```
+TypeError: Cannot read properties of undefined (reading 'length')
+    at CTAutoLayout.render (http://localhost:5173/scripts/index.js:263057:39)
+```
+This may be related to the freeze or may be a separate bug.
+
+### Recommendation
+
+1. **Keep guardedPrompt** - It's idiomatic and doesn't hurt
+2. **File framework issue** - The real fix needs to happen in labs
+3. **Document for pattern authors** - They should expect ~60 second delays when using generateObject with complex schemas
