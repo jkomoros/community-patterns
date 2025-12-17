@@ -667,9 +667,22 @@ const Person = recipe<Input, Output>(
     );
 
     // Trigger for LLM extraction - cell that holds notes snapshot to extract
+    // Uses marker string to ensure empty/initial state doesn't trigger extraction
     const extractTrigger = Cell.of<string>("");
 
-    // LLM extraction for notes - runs when trigger changes
+    // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
+    // The extraction marker (---EXTRACT-*---) indicates a real extraction request
+    // Without this guard, the reactive system may trigger spurious LLM calls during initialization
+    const guardedPrompt = computed(() => {
+      const trigger = extractTrigger.get();
+      // Only return a prompt if it contains the extraction marker
+      if (trigger && trigger.includes("---EXTRACT-")) {
+        return trigger;
+      }
+      return undefined;
+    });
+
+    // LLM extraction for notes - runs when guardedPrompt has content
     const { result: extractionResult, pending: extractionPending } =
       generateObject({
         system:
@@ -691,7 +704,7 @@ Extract the following fields if present:
 - mastodon: Mastodon handle (with @user@instance)
 
 Return only the fields you can confidently extract. Leave remainingNotes with any content that doesn't fit into structured fields.`,
-        prompt: extractTrigger,
+        prompt: guardedPrompt,
         model: "anthropic:claude-sonnet-4-5",
         schema: {
           type: "object",
