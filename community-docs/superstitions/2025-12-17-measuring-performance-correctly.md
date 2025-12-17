@@ -113,9 +113,39 @@ myComputed.sink((value) => {
 | Total blocking time | DevTools Performance | User-perceived lag |
 | Hot function time | CPU Profiler | Identifies bottlenecks |
 
-## Real Example: 18x Improvement
+## Real Example: extracurricular-v2 A/B Test (2025-12-17)
 
-From the cpu-spike-investigation, comparing inline vs pre-computed:
+Testing BEFORE vs AFTER optimization with identical workflow (add location, import 4 classes, pin all 4):
+
+**BEFORE version (inline calculations in JSX):**
+```
+scheduleDerive #1-9: called with 0 classes (initial setup)
+scheduleDerive #10-11: called with 1 class
+scheduleDerive #12-13: called with 2 classes
+scheduleDerive #14-15: called with 3 classes
+scheduleDerive #16-17: called with 4 classes
+Total: 17 derive calls
+```
+Each call does: `list.indexOf(cls)` O(n) + `timeToTopPosition()` + `durationToHeight()` per class
+
+**AFTER version (precomputed scheduleData):**
+```
+scheduleDataComputed #1-10: empty, returning null (initial setup)
+scheduleDataComputed #11-12: processing 1 class
+scheduleDataComputed #13-14: processing 2 classes
+scheduleDataComputed #15-16: processing 3 classes
+scheduleDataComputed #17-18: processing 4 classes
+Total: 18 computed calls, 17+ derive calls
+```
+Each computed call precomputes colorIdx/top/height ONCE, derive just reads values
+
+**Key Insight:** Both versions have ~17-18 reactive re-runs. The optimization isn't about reducing re-runs - it's about **reducing work PER re-run**:
+- BEFORE: O(n²) operations per derive (indexOf for each class in array)
+- AFTER: O(n) precomputation, then O(1) reads
+
+## Earlier Example: 18x Improvement
+
+From cpu-spike-investigation, comparing inline vs pre-computed:
 
 **BEFORE (expensive computation inline in .map() JSX):**
 - 18 function calls from 9 charm instances
