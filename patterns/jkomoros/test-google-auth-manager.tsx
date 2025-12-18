@@ -20,20 +20,8 @@ export default pattern<Input, Output>(() => {
     requiredScopes: ["gmail", "drive", "calendar"],
   });
 
-  // Format token expiry for display
-  // NOTE: Use derive() here because authInfo is a computed() result (OpaqueRef<AuthInfo>).
-  // Property access on OpaqueRef inside computed() returns another OpaqueRef, which fails.
-  // derive() explicitly unwraps the OpaqueRef parameter so info.property returns plain values.
-  const tokenExpiryDisplay = derive(authInfo, (info) => {
-    if (!info.tokenExpiresAt) return "No token";
-    const expiresAt = new Date(info.tokenExpiresAt);
-    const diff = info.tokenExpiresAt - Date.now();
-    const mins = Math.round(diff / 60000);
-    return `${expiresAt.toLocaleTimeString()} (${mins > 0 ? `${mins}min remaining` : "EXPIRED"})`;
-  });
-
   // Format missing scopes for display
-  // NOTE: Use derive() because authInfo is OpaqueRef (see tokenExpiryDisplay comment above).
+  // NOTE: Use derive() because authInfo is OpaqueRef.
   // Also use Array.from() to convert nested array to plain array before .map().
   // Even inside derive(), nested array properties may still be proxied, and .map() on
   // a proxied array can fail. Array.from() breaks the proxy chain.
@@ -112,7 +100,11 @@ export default pattern<Input, Output>(() => {
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Token Expires:</td>
-                <td style={{ padding: "4px 8px" }}>{tokenExpiryDisplay}</td>
+                <td style={{ padding: "4px 8px" }}>{authInfo.tokenExpiryDisplay || "No token"}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Token Warning:</td>
+                <td style={{ padding: "4px 8px" }}>{authInfo.tokenExpiryWarning}</td>
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Status Dot Color:</td>

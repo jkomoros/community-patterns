@@ -83,6 +83,11 @@ export type AuthState =
   | "ready";         // All good - auth is usable
 
 /**
+ * Token expiry warning level
+ */
+export type TokenExpiryWarning = "ok" | "warning" | "expired";
+
+/**
  * Complete auth info bundle.
  * Uses single computed for all derived state to prevent reactive thrashing.
  */
@@ -95,6 +100,11 @@ export interface AuthInfo {
   missingScopes: ScopeKey[];
   tokenExpiresAt: number | null;
   isTokenExpired: boolean;
+  // Token expiry display fields
+  tokenTimeRemaining: number | null;
+  tokenExpiryWarning: TokenExpiryWarning;
+  tokenExpiryDisplay: string;
+  // Status display
   statusDotColor: string;
   statusText: string;
   // For navigation/actions
@@ -141,6 +151,29 @@ const STATUS_MESSAGES: Record<AuthState, string> = {
   "token-expired": "Session expired - please re-authenticate",
   ready: "Connected",
 };
+
+// Token expiry warning threshold (10 minutes)
+const TOKEN_WARNING_THRESHOLD_MS = 10 * 60 * 1000;
+
+/**
+ * Format time remaining in a human-readable way
+ */
+function formatTimeRemaining(ms: number | null): string {
+  if (ms === null) return "";
+  if (ms <= 0) return "Expired";
+
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    const remainingMins = minutes % 60;
+    return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    return `${minutes} min`;
+  }
+  return "< 1 min";
+}
 
 // =============================================================================
 // MAIN UTILITY FUNCTION
@@ -226,7 +259,17 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
     // Check token expiry
     const tokenExpiresAt = authData?.expiresAt || null;
     const now = Date.now();
-    const isTokenExpired = tokenExpiresAt ? tokenExpiresAt < now : false;
+    const tokenTimeRemaining = tokenExpiresAt ? tokenExpiresAt - now : null;
+    const isTokenExpired = tokenTimeRemaining !== null && tokenTimeRemaining < 0;
+
+    // Calculate token expiry warning level
+    const tokenExpiryWarning: TokenExpiryWarning =
+      tokenTimeRemaining === null ? "ok" :
+      tokenTimeRemaining < 0 ? "expired" :
+      tokenTimeRemaining < TOKEN_WARNING_THRESHOLD_MS ? "warning" : "ok";
+
+    // Format time remaining for display
+    const tokenExpiryDisplay = formatTimeRemaining(tokenTimeRemaining);
 
     // Refine state based on token expiry
     if (state === "ready" && isTokenExpired) {
@@ -254,6 +297,9 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
       missingScopes,
       tokenExpiresAt,
       isTokenExpired,
+      tokenTimeRemaining,
+      tokenExpiryWarning,
+      tokenExpiryDisplay,
       statusDotColor,
       statusText,
       // Cast to any to handle OpaqueCell wrapper types from wish()
@@ -316,30 +362,51 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
   // UI COMPONENTS
   // ==========================================================================
 
-  // Minimal status indicator (dot + text)
-  const statusUI = derive(authInfo, (info) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "8px 12px",
-        borderRadius: "6px",
-        backgroundColor: info.state === "ready" ? "#d1fae5" : "#fef3c7",
-        fontSize: "14px",
-      }}
-    >
-      <span
+  // Minimal status indicator (dot + text + token expiry)
+  const statusUI = derive(authInfo, (info) => {
+    // Determine background color based on state and token warning
+    const bgColor =
+      info.state !== "ready" ? "#fef3c7" :
+      info.tokenExpiryWarning === "warning" ? "#fef3c7" :
+      "#d1fae5";
+
+    return (
+      <div
         style={{
-          width: "10px",
-          height: "10px",
-          borderRadius: "50%",
-          backgroundColor: info.statusDotColor,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "8px 12px",
+          borderRadius: "6px",
+          backgroundColor: bgColor,
+          fontSize: "14px",
         }}
-      />
-      <span>{info.statusText}</span>
-    </div>
-  ));
+      >
+        <span
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            backgroundColor: info.statusDotColor,
+          }}
+        />
+        <span>{info.statusText}</span>
+        {/* Show token expiry countdown when ready and has expiry time */}
+        {info.state === "ready" && info.tokenExpiryDisplay && (
+          <span
+            style={{
+              marginLeft: "4px",
+              fontSize: "12px",
+              color: info.tokenExpiryWarning === "warning" ? "#b45309" : "#666",
+              fontWeight: info.tokenExpiryWarning === "warning" ? "500" : "normal",
+            }}
+          >
+            • {info.tokenExpiryDisplay}
+          </span>
+        )}
+      </div>
+    );
+  });
 
   // Picker UI - renders wishResult[UI] when multiple matches
   const pickerUI = derive(wishResult as any, (wr: any) => {
@@ -347,6 +414,10 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
     if (wr[UI]) return wr[UI];
     return null;
   });
+
+  // Helper to format scope list for display
+  const formatScopesList = (scopes: ScopeKey[]) =>
+    scopes.map((k) => SCOPE_DESCRIPTIONS[k]).join(", ");
 
   // Full state-aware management UI
   const fullUI = derive(authInfo, (info) => {
@@ -356,17 +427,19 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
         <div
           style={{
             padding: "16px",
-            backgroundColor: "#fef3c7",
+            backgroundColor: "#f3f4f6",
             borderRadius: "8px",
             textAlign: "center",
+            color: "#6b7280",
           }}
         >
-          Loading Google Auth...
+          <span style={{ marginRight: "8px" }}>⏳</span>
+          Connecting to Google...
         </div>
       );
     }
 
-    // Selecting state (multiple matches) - show picker
+    // Selecting state (multiple matches) - show picker with context
     if (info.state === "selecting") {
       return (
         <div
@@ -376,42 +449,59 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
             borderRadius: "8px",
           }}
         >
-          <h4 style={{ margin: "0 0 12px 0" }}>Select Google Account</h4>
+          <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>
+            Select a Google Account
+          </h4>
+          {requiredScopes.length > 0 && (
+            <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
+              This feature needs access to: {formatScopesList(requiredScopes)}
+            </p>
+          )}
           {pickerUI}
         </div>
       );
     }
 
-    // Not found state
+    // Not found state - clearer copy, list permissions
     if (info.state === "not-found") {
       return (
         <div
           style={{
             padding: "16px",
-            backgroundColor: "#fee2e2",
+            backgroundColor: "#f3f4f6",
             borderRadius: "8px",
-            border: "1px solid #ef4444",
+            border: "1px solid #d1d5db",
           }}
         >
-          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
-            Google Auth Required
+          <h4 style={{ margin: "0 0 8px 0", color: "#374151" }}>
+            Connect Your Google Account
           </h4>
-          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
-            No favorited Google Auth charm found. Create one to continue.
+          <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#4b5563" }}>
+            To use this feature, connect a Google account with these permissions:
           </p>
+          {requiredScopes.length > 0 && (
+            <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", fontSize: "13px", color: "#6b7280" }}>
+              {requiredScopes.map((scope, i) => (
+                <li key={i} style={{ marginBottom: "4px" }}>
+                  {SCOPE_DESCRIPTIONS[scope]}
+                </li>
+              ))}
+            </ul>
+          )}
           <button
             onClick={createAuth({ scopes: requiredScopes })}
             style={{
-              padding: "8px 16px",
+              padding: "10px 20px",
               backgroundColor: "#3b82f6",
               color: "white",
               border: "none",
               borderRadius: "6px",
               cursor: "pointer",
               fontWeight: "500",
+              fontSize: "14px",
             }}
           >
-            Create Google Auth
+            Connect Google Account
           </button>
         </div>
       );
@@ -420,25 +510,41 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
     // States where auth exists but needs user action - render charm UI inline
     // This lets users fix auth issues without navigating away from the current pattern
     if (info.state === "needs-login" || info.state === "missing-scopes" || info.state === "token-expired") {
+      // Build missing scopes message with list format for better readability
+      const missingScopesMessage = info.state === "missing-scopes" ? (
+        <div>
+          <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#4b5563" }}>
+            Connected as <strong>{info.email}</strong>, but this feature needs additional permissions:
+          </p>
+          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+            {info.missingScopes.map((scope, i) => (
+              <li key={i} style={{ color: "#c2410c", marginBottom: "2px" }}>
+                {SCOPE_DESCRIPTIONS[scope as ScopeKey]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null;
+
       // Warning messages and colors per state
       const stateConfig = {
         "needs-login": {
           title: "Sign In Required",
-          message: "Please sign in to continue",
+          message: <span>Please sign in with your Google account to continue.</span>,
           bgColor: "#fee2e2",
           borderColor: "#ef4444",
           titleColor: "#dc2626",
         },
         "missing-scopes": {
           title: "Additional Permissions Needed",
-          message: `Signed in as ${info.email}, but missing: ${info.missingScopes.map((k) => SCOPE_DESCRIPTIONS[k as ScopeKey]).join(", ")}`,
+          message: missingScopesMessage,
           bgColor: "#ffedd5",
           borderColor: "#f97316",
           titleColor: "#c2410c",
         },
         "token-expired": {
           title: "Session Expired",
-          message: "Your Google session has expired. Please re-authenticate below.",
+          message: <span>Your Google session has expired. Please sign in again to continue.</span>,
           bgColor: "#fee2e2",
           borderColor: "#ef4444",
           titleColor: "#dc2626",
@@ -466,9 +572,9 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
             <h4 style={{ margin: "0 0 4px 0", color: config.titleColor, fontSize: "14px" }}>
               {config.title}
             </h4>
-            <p style={{ margin: "0", fontSize: "13px", color: "#666" }}>
+            <div style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
               {config.message}
-            </p>
+            </div>
           </div>
           {/* Inline auth charm UI - framework auto-renders [UI] property */}
           <div style={{ backgroundColor: "white" }}>
@@ -478,30 +584,55 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
       );
     }
 
-    // Ready state - minimal green indicator
+    // Ready state - green indicator with optional expiry warning
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "12px 16px",
-          backgroundColor: "#d1fae5",
-          borderRadius: "8px",
-          border: "1px solid #10b981",
-        }}
-      >
-        <span
+      <div>
+        {/* Main status */}
+        <div
           style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: "#10b981",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "12px 16px",
+            backgroundColor: "#d1fae5",
+            borderRadius: info.tokenExpiryWarning === "warning" ? "8px 8px 0 0" : "8px",
+            border: "1px solid #10b981",
+            borderBottom: info.tokenExpiryWarning === "warning" ? "none" : "1px solid #10b981",
           }}
-        />
-        <span style={{ fontSize: "14px" }}>
-          Signed in as <strong>{info.email}</strong>
-        </span>
+        >
+          <span
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              backgroundColor: "#10b981",
+            }}
+          />
+          <span style={{ fontSize: "14px" }}>
+            Signed in as <strong>{info.email}</strong>
+          </span>
+          {info.tokenExpiryDisplay && (
+            <span style={{ fontSize: "12px", color: "#059669", marginLeft: "auto" }}>
+              {info.tokenExpiryDisplay}
+            </span>
+          )}
+        </div>
+        {/* Proactive expiry warning */}
+        {info.tokenExpiryWarning === "warning" && (
+          <div
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#fef3c7",
+              borderRadius: "0 0 8px 8px",
+              border: "1px solid #f59e0b",
+              borderTop: "none",
+              fontSize: "13px",
+              color: "#b45309",
+            }}
+          >
+            ⚠️ Token expires soon. You may need to re-authenticate shortly.
+          </div>
+        )}
       </div>
     );
   });
