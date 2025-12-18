@@ -160,6 +160,7 @@ interface MergeFieldMapping {
   existingItems: Cell<unknown[]>;           // Current items to match against
   getItemLabel?: (item: unknown) => string; // Get display label from existing item
   mergeFields: MergeField[];                // Fields to show/merge
+  showUnmatchedItems?: boolean;             // Include extracted items that don't match existing (default: false)
 }
 
 // Processed merge diff for a single existing item
@@ -179,6 +180,14 @@ interface ProcessedMergeFieldDiff {
   hasChanged: boolean;                      // Current != extracted
   selected: boolean;                        // Selection state
   selectionKey: string;                     // Pre-computed: `${itemId}:${fieldKey}`
+}
+
+// Unmatched item from extraction (when showUnmatchedItems=true)
+interface ProcessedUnmatchedItem<T = unknown> {
+  item: T;                                  // Full extracted item
+  key: string;                              // Unique key (from idField)
+  label: string;                            // Display label (from getItemLabel)
+  selected: boolean;                        // For checkbox selection state
 }
 
 interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
@@ -227,6 +236,18 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   selectNoMergeFields: () => void;
   toggleMergeFieldSelection: (itemId: string, fieldKey: string) => void;
 
+  // Unmatched items outputs (when showUnmatchedItems=true in merge mode)
+  hasUnmatchedItems: boolean;                              // Has unmatched items to show
+  unmatchedItems: ProcessedUnmatchedItem[];                // All unmatched items with selection state
+  unmatchedItemCount: number;                              // Number of unmatched items
+  selectedUnmatchedItems: unknown[];                       // Reactive: items user selected for addition
+  selectedUnmatchedCount: number;                          // Number of selected unmatched items
+
+  // Unmatched items handlers
+  selectAllUnmatched: () => void;
+  selectNoUnmatched: () => void;
+  toggleUnmatchedSelection: (itemKey: string) => void;
+
   // Pre-composed UI components
   ui: {
     complete: JSX.Element; // Full drop-in component
@@ -238,6 +259,7 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
     reviewPanel: JSX.Element;
     fieldDiffPanel: JSX.Element;  // Per-field diff UI
     mergeDiffPanel: JSX.Element;  // ID-matching merge diff UI
+    unmatchedItemsPanel: JSX.Element;  // Unmatched items UI (for showUnmatchedItems=true)
   };
 }
 
@@ -496,6 +518,52 @@ const selectNoMergeFieldsHandler = handler<
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// UNMATCHED ITEMS HANDLERS (for showUnmatchedItems=true)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Toggle selection for a single unmatched item
+const toggleUnmatchedSelectionHandler = handler<
+  unknown,
+  { selectedUnmatchedKeys: Cell<string[]>; itemKey: string }
+>((_, { selectedUnmatchedKeys, itemKey }) => {
+  // Defensive guards
+  if (!itemKey || typeof itemKey !== "string") return;
+  if (!selectedUnmatchedKeys) return;
+
+  const current = selectedUnmatchedKeys.get() ?? [];
+  if (current.includes(itemKey)) {
+    // Deselect - remove from selectedUnmatchedKeys
+    selectedUnmatchedKeys.set(current.filter((k) => k !== itemKey));
+  } else {
+    // Select - use .push() to avoid StorageTransactionInconsistent
+    selectedUnmatchedKeys.push(itemKey);
+  }
+});
+
+// Select all unmatched items
+const selectAllUnmatchedHandler = handler<
+  unknown,
+  { selectedUnmatchedKeys: Cell<string[]>; allUnmatchedKeys: string[] }
+>((_, { selectedUnmatchedKeys, allUnmatchedKeys }) => {
+  // Defensive guards
+  if (!selectedUnmatchedKeys) return;
+  if (!Array.isArray(allUnmatchedKeys)) return;
+
+  selectedUnmatchedKeys.set([...allUnmatchedKeys]);
+});
+
+// Deselect all unmatched items
+const selectNoUnmatchedHandler = handler<
+  unknown,
+  { selectedUnmatchedKeys: Cell<string[]> }
+>((_, { selectedUnmatchedKeys }) => {
+  // Defensive guard
+  if (!selectedUnmatchedKeys) return;
+
+  selectedUnmatchedKeys.set([]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PATTERN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -527,6 +595,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Internal cell for tracking selected merge fields (merge mode)
     // Format: ["itemId:fieldKey", "itemId:fieldKey", ...]
     const selectedMergeKeys = cell<string[]>([]);
+
+    // Internal cell for tracking selected unmatched items (when showUnmatchedItems=true)
+    // Format: ["itemKey1", "itemKey2", ...]
+    const selectedUnmatchedKeys = cell<string[]>([]);
 
     // Demo: Raw input text (before formatting as trigger)
     const demoInputText = cell<string>("");
@@ -932,6 +1004,100 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
       const hasMergeFieldMappingsCheck = mfmArray && mfmArray.length > 0;
       return hasMergeFieldMappingsCheck && triggered && !pending && !hasMerge && !hasError;
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 2b. UNMATCHED ITEMS (merge mode with showUnmatchedItems=true)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Compute unmatched items from extraction that don't match any existing item
+    const unmatchedItemsComputed = computed((): ProcessedUnmatchedItem[] => {
+      // Only compute if mergeFieldMappings is provided with showUnmatchedItems=true
+      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
+      if (!mfmArray || mfmArray.length === 0) return [];
+
+      // Check if any mapping has showUnmatchedItems=true
+      const mappingWithUnmatched = mfmArray.find(m => m.showUnmatchedItems === true);
+      if (!mappingWithUnmatched) return [];
+
+      const result = extractionResult;
+      const selectedKeys = selectedUnmatchedKeys.get() ?? [];
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return [];
+
+      const extractedData = result as Record<string, unknown>;
+      const processed: ProcessedUnmatchedItem[] = [];
+
+      // Process the mapping with showUnmatchedItems
+      const mapping = mappingWithUnmatched;
+      const arrayKey = mapping.key;
+      const idField = mapping.idField;
+      const getItemLabel = mapping.getItemLabel ?? ((item: unknown) => {
+        const obj = item as Record<string, unknown>;
+        return String(obj?.name ?? obj?.id ?? "Unknown");
+      });
+
+      // Get extracted array from result
+      const extractedArray = extractedData[arrayKey];
+      if (!extractedArray || !Array.isArray(extractedArray)) return [];
+
+      // Get existing items to match against
+      const existingItemsValue = mapping.existingItems?.get() ?? [];
+
+      // Helper to unwrap Cell-wrapped items
+      const unwrapItem = (item: unknown): Record<string, unknown> => {
+        const unwrapped = (item as any)?.get ? (item as any).get() : item;
+        return unwrapped as Record<string, unknown>;
+      };
+
+      // Build a set of existing IDs for quick lookup
+      const existingIds = new Set<string>();
+      for (const existing of existingItemsValue) {
+        const existingObj = unwrapItem(existing);
+        const id = String(existingObj[idField] ?? "");
+        if (id) existingIds.add(id);
+      }
+
+      // Find extracted items that don't match any existing item
+      for (const extractedItem of extractedArray) {
+        const extractedObj = extractedItem as Record<string, unknown>;
+        const itemKey = String(extractedObj[idField] ?? "");
+        if (!itemKey) continue;
+
+        // Skip if this item matches an existing one
+        if (existingIds.has(itemKey)) continue;
+
+        // This is an unmatched item
+        const label = getItemLabel(extractedItem);
+        processed.push({
+          item: extractedItem,
+          key: itemKey,
+          label,
+          selected: selectedKeys.includes(itemKey),
+        });
+      }
+
+      return processed;
+    });
+
+    // Unmatched items counts
+    const hasUnmatchedItems = computed(() => unmatchedItemsComputed.length > 0);
+    const unmatchedItemCount = computed(() => unmatchedItemsComputed.length);
+    const selectedUnmatchedCount = computed(() => {
+      return unmatchedItemsComputed.filter(item => item.selected).length;
+    });
+
+    // Get all unmatched item keys (for select all/none)
+    const allUnmatchedKeys = computed(() => {
+      return unmatchedItemsComputed.map(item => item.key);
+    });
+
+    // Reactive selected unmatched items (full item objects)
+    const selectedUnmatchedItemsComputed = computed(() => {
+      return unmatchedItemsComputed
+        .filter(item => item.selected)
+        .map(item => item.item);
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1655,6 +1821,114 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       </div>
     );
 
+    // Unmatched items panel (for showUnmatchedItems=true)
+    const unmatchedItemsPanel = (
+      <div>
+        {ifElse(
+          hasUnmatchedItems,
+          <div
+            style={{
+              marginTop: "16px",
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: "8px",
+              padding: "12px",
+            }}
+          >
+            <h4
+              style={{
+                color: "#166534",
+                margin: "0 0 8px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>+</span>
+              New Items ({unmatchedItemCount})
+            </h4>
+            <p style={{ fontSize: "12px", color: "#166534", margin: "0 0 12px 0" }}>
+              These items were extracted but don't match any existing item. Select to add them.
+            </p>
+
+            {/* Unmatched items list */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {unmatchedItemsComputed.map((item: ProcessedUnmatchedItem) => (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px",
+                    background: "white",
+                    borderRadius: "4px",
+                    border: "1px solid #bbf7d0",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.selected}
+                    onChange={toggleUnmatchedSelectionHandler({
+                      selectedUnmatchedKeys,
+                      itemKey: item.key,
+                    })}
+                  />
+                  <span style={{ flex: 1, fontSize: "14px" }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Selection buttons */}
+            <div
+              style={{
+                marginTop: "12px",
+                display: "flex",
+                gap: "8px",
+                borderTop: "1px solid #bbf7d0",
+                paddingTop: "12px",
+              }}
+            >
+              <button
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  background: "#22c55e",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+                onClick={selectAllUnmatchedHandler({
+                  selectedUnmatchedKeys,
+                  allUnmatchedKeys,
+                })}
+              >
+                Select All
+              </button>
+              <button
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  background: "white",
+                  color: "#166534",
+                  border: "1px solid #22c55e",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                }}
+                onClick={selectNoUnmatchedHandler({ selectedUnmatchedKeys })}
+              >
+                Select None
+              </button>
+              <span style={{ marginLeft: "auto", fontSize: "12px", color: "#166534" }}>
+                {selectedUnmatchedCount} of {unmatchedItemCount} selected
+              </span>
+            </div>
+          </div>,
+          null
+        )}
+      </div>
+    );
+
     const complete = (
       <div>
         {ifElse(hasTriggered, reviewPanel, null)}
@@ -1774,6 +2048,22 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       toggleMergeFieldSelection: (itemId: string, fieldKey: string) =>
         toggleMergeFieldSelectionHandler({ selectedMergeKeys, selectionKey: `${itemId}:${fieldKey}` }),
 
+      // Unmatched items outputs (when showUnmatchedItems=true)
+      hasUnmatchedItems,
+      unmatchedItems: unmatchedItemsComputed,
+      unmatchedItemCount,
+      selectedUnmatchedItems: selectedUnmatchedItemsComputed,
+      selectedUnmatchedCount,
+
+      // Unmatched items handlers
+      selectAllUnmatched: selectAllUnmatchedHandler({
+        selectedUnmatchedKeys,
+        allUnmatchedKeys,
+      }),
+      selectNoUnmatched: selectNoUnmatchedHandler({ selectedUnmatchedKeys }),
+      toggleUnmatchedSelection: (itemKey: string) =>
+        toggleUnmatchedSelectionHandler({ selectedUnmatchedKeys, itemKey }),
+
       // UI components for composition
       ui: {
         complete,
@@ -1785,6 +2075,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         reviewPanel,
         fieldDiffPanel,
         mergeDiffPanel,
+        unmatchedItemsPanel,
       },
     };
   }
