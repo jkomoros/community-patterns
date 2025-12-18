@@ -35,6 +35,7 @@ const SCOPE_MAP = {
   calendar: "https://www.googleapis.com/auth/calendar.readonly",
   calendarWrite: "https://www.googleapis.com/auth/calendar.events",
   drive: "https://www.googleapis.com/auth/drive.readonly",
+  docs: "https://www.googleapis.com/auth/documents.readonly",
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
 } as const;
 
@@ -45,6 +46,7 @@ const SCOPE_DESCRIPTIONS = {
   calendar: "Calendar (read events)",
   calendarWrite: "Calendar (create/edit/delete events)",
   drive: "Drive (read files)",
+  docs: "Docs (read documents)",
   contacts: "Contacts (read contacts)",
 } as const;
 
@@ -72,6 +74,7 @@ type SelectedScopes = {
   calendar: Default<boolean, false>;
   calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
+  docs: Default<boolean, false>;
   contacts: Default<boolean, false>;
 };
 
@@ -83,6 +86,7 @@ interface Input {
     calendar: false;
     calendarWrite: false;
     drive: false;
+    docs: false;
     contacts: false;
   }>;
   auth: Default<Auth, {

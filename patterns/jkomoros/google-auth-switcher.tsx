@@ -31,6 +31,7 @@ type SelectedScopes = {
   calendar: Default<boolean, false>;
   calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
+  docs: Default<boolean, false>;
   contacts: Default<boolean, false>;
 };
 
@@ -44,6 +45,7 @@ interface Input {
       calendar: true;
       calendarWrite: false;
       drive: false;
+      docs: false;
       contacts: false;
     }
   >;

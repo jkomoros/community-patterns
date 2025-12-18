@@ -426,6 +426,7 @@ const createGoogleAuth = handler<unknown, Record<string, never>>(
         calendar: true,  // Pre-select Calendar scope
         calendarWrite: false,
         drive: false,
+        docs: false,
         contacts: false,
       },
       auth: {

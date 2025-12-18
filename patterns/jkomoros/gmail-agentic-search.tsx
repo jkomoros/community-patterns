@@ -556,6 +556,7 @@ const GmailAgenticSearch = pattern<
           calendar: false,
           calendarWrite: false,
           drive: false,
+          docs: false,
           contacts: false,
         },
         auth: {
