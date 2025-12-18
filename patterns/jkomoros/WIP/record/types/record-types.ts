@@ -6,7 +6,12 @@ export type SubCharmType =
   | "birthday"
   | "rating"
   | "tags"
-  | "contact";
+  | "contact"
+  | "status"
+  | "address"
+  | "timeline"
+  | "social"
+  | "link";
 
 export interface SubCharmMetadata {
   type: SubCharmType;
@@ -42,6 +47,40 @@ export interface ContactData {
   website: Default<string, "">;
 }
 
+// Status module (project/task tracking)
+export interface StatusData {
+  status: Default<string, "">; // "planned" | "active" | "blocked" | "done" | "archived"
+}
+
+// Address module
+export interface AddressData {
+  street: Default<string, "">;
+  city: Default<string, "">;
+  state: Default<string, "">;
+  zip: Default<string, "">;
+}
+
+// Timeline module (project dates)
+export interface TimelineData {
+  startDate: Default<string, "">; // ISO date
+  targetDate: Default<string, "">; // ISO date
+  completedDate: Default<string, "">; // ISO date
+}
+
+// Social module (social media links)
+export interface SocialData {
+  platform: Default<string, "">; // "twitter" | "linkedin" | "github" | etc.
+  handle: Default<string, "">;
+  url: Default<string, "">;
+}
+
+// Link module (web links/resources)
+export interface LinkData {
+  url: Default<string, "">;
+  linkTitle: Default<string, "">; // renamed to avoid conflict with Record title
+  description: Default<string, "">;
+}
+
 export interface RecordInput {
   title: Default<string, "">;
   notes: Default<string, "">; // Built-in notes content
@@ -51,5 +90,11 @@ export interface RecordInput {
   ratingData: Default<RatingData, { rating: null }>;
   tagsData: Default<TagsData, { tags: [] }>;
   contactData: Default<ContactData, { email: ""; phone: ""; website: "" }>;
+  // Wave 2 modules
+  statusData: Default<StatusData, { status: "" }>;
+  addressData: Default<AddressData, { street: ""; city: ""; state: ""; zip: "" }>;
+  timelineData: Default<TimelineData, { startDate: ""; targetDate: ""; completedDate: "" }>;
+  socialData: Default<SocialData, { platform: ""; handle: ""; url: "" }>;
+  linkData: Default<LinkData, { url: ""; linkTitle: ""; description: "" }>;
   layout: Default<LayoutConfig, { type: "tabbed" }>;
 }
