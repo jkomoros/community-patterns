@@ -262,10 +262,6 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
     };
   });
 
-  // Convenience computed for state
-  const state = computed(() => authInfo.state);
-  const isReady = computed(() => authInfo.state === "ready");
-
   // ==========================================================================
   // HANDLERS
   // ==========================================================================
@@ -514,20 +510,19 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
   // RETURN
   // ==========================================================================
 
+  // Pre-create charm cell for goToAuth binding (avoids recreating computed on each call)
+  const charmCell = computed(() => authInfo.charm);
+
   return {
     // Core auth cell - WRITABLE for token refresh (when it works)
     auth,
 
-    // Single computed with all state
+    // Single computed with all state - use authInfo.state for state checks
     authInfo,
-
-    // Convenience
-    state,
-    isReady,
 
     // Actions
     createAuth: createAuth({ scopes: requiredScopes }),
-    goToAuth: goToAuth({ charm: computed(() => authInfo.charm) }),
+    goToAuth: goToAuth({ charm: charmCell }),
 
     // UI Components
     pickerUI,
