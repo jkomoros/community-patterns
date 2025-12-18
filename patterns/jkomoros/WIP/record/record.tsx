@@ -305,9 +305,40 @@ const Record = recipe<RecordInput, RecordOutput>(
                         <span style={{ fontSize: "14px", fontWeight: "500" }}>
                           {displayInfo.icon} {displayInfo.label}
                         </span>
-                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>
-                          {entry.pinned ? "📌" : ""}
-                        </span>
+                        <ct-hstack style={{ gap: "4px" }}>
+                          {/* Pin button */}
+                          <button
+                            onClick={togglePin({ subCharms, index })}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              padding: "4px",
+                              fontSize: "14px",
+                              opacity: entry.pinned ? "1" : "0.4",
+                            }}
+                            title={entry.pinned ? "Unpin" : "Pin to top"}
+                          >
+                            📌
+                          </button>
+                          {/* Remove button (not for notes) */}
+                          {entry.type !== "notes" && (
+                            <button
+                              onClick={removeSubCharm({ subCharms, index })}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "4px",
+                                fontSize: "14px",
+                                color: "#9ca3af",
+                              }}
+                              title="Remove module"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </ct-hstack>
                       </div>
                       {/* Card body - render the sub-charm's UI */}
                       <div style={{ padding: "12px" }}>
