@@ -833,6 +833,23 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
       tags,
     });
 
+    // Extract arrays from sub-pattern output BEFORE mapping.
+    // WORKAROUND: Sub-pattern output properties are not registered in TypeRegistry,
+    // so .map() gets incorrectly transformed to .mapWithPattern() which fails at runtime.
+    // Creating intermediate computed() values breaks the type chain - the computed
+    // result IS registered in TypeRegistry with correct (non-Cell) array type.
+    // See: community-docs/superstitions/2025-12-18-derive-subpattern-map-footgun.md
+    const compatibleTags = computed(
+      () => analyzer.dietaryCompatibility?.compatible || []
+    );
+    const warningsList = computed(
+      () => analyzer.dietaryCompatibility?.warnings || []
+    );
+    const primaryIngredientsList = computed(
+      () => analyzer.dietaryCompatibility?.primaryIngredients || []
+    );
+    const analysisPending = computed(() => analyzer.analysisPending);
+
     // Image Upload Extraction state
     const uploadedImage = cell<ImageData | null>(null);
 
@@ -1603,70 +1620,81 @@ Return suggestions for ALL groups with their IDs preserved.`),
           <ct-card>
             <div>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
-              {derive(
-                { pending: analyzer.analysisPending, dc: analyzer.dietaryCompatibility },
-                ({ pending, dc }) => {
-                  if (pending) {
-                    return <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <ct-loader size="sm"></ct-loader>
-                      Analyzing dietary compatibility...
-                    </div>;
-                  }
+              {/* Using intermediate computed values to extract arrays BEFORE mapping.
+                  See workaround comment at line ~836 and superstition doc for details. */}
+              {ifElse(
+                analysisPending,
+                <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <ct-loader size="sm"></ct-loader>
+                  Analyzing dietary compatibility...
+                </div>,
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {/* Compatible tags */}
+                  {ifElse(
+                    derive(compatibleTags, (tags) => tags.length > 0),
+                    <div>
+                      <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
+                        Compatible:
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        {compatibleTags.map((tag: string) => (
+                          <span style={{
+                            padding: "2px 8px",
+                            background: "#d1fae5",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                          }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>,
+                    null
+                  )}
 
-                  if (!dc || (dc.compatible.length === 0 && dc.incompatible.length === 0)) {
-                    return <div style={{ fontStyle: "italic", color: "#666" }}>
+                  {/* Warnings */}
+                  {ifElse(
+                    derive(warningsList, (warnings) => warnings.length > 0),
+                    <div>
+                      <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
+                        Warnings:
+                      </div>
+                      <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+                        {warningsList.map((warning: string) => (
+                          <li>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>,
+                    null
+                  )}
+
+                  {/* Primary ingredients */}
+                  {ifElse(
+                    derive(primaryIngredientsList, (ingredients) => ingredients.length > 0),
+                    <div>
+                      <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                        Main Ingredients:
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#666" }}>
+                        {derive(primaryIngredientsList, (ingredients) => ingredients.join(", "))}
+                      </div>
+                    </div>,
+                    null
+                  )}
+
+                  {/* Show placeholder if no analysis yet */}
+                  {ifElse(
+                    derive(
+                      { compatible: compatibleTags, warnings: warningsList, ingredients: primaryIngredientsList },
+                      ({ compatible, warnings, ingredients }) =>
+                        compatible.length === 0 && warnings.length === 0 && ingredients.length === 0
+                    ),
+                    <div style={{ fontStyle: "italic", color: "#666" }}>
                       Add ingredients to see dietary analysis
-                    </div>;
-                  }
-
-                  return (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {dc.compatible.length > 0 && (
-                        <div>
-                          <div style={{ fontWeight: "600", color: "#059669", marginBottom: "4px" }}>
-                            ✓ Compatible:
-                          </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                            {dc.compatible.map((tag: string) => (
-                              <span style={{
-                                padding: "2px 8px",
-                                background: "#d1fae5",
-                                borderRadius: "12px",
-                                fontSize: "12px",
-                              }}>
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {dc.warnings.length > 0 && (
-                        <div>
-                          <div style={{ fontWeight: "600", color: "#dc2626", marginBottom: "4px" }}>
-                            ⚠️ Warnings:
-                          </div>
-                          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
-                            {dc.warnings.map((warning: string) => (
-                              <li>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {dc.primaryIngredients.length > 0 && (
-                        <div>
-                          <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                            Main Ingredients:
-                          </div>
-                          <div style={{ fontSize: "13px", color: "#666" }}>
-                            {dc.primaryIngredients.join(", ")}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
+                    </div>,
+                    null
+                  )}
+                </div>
               )}
             </div>
           </ct-card>
