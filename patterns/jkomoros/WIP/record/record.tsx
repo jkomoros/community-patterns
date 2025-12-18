@@ -49,6 +49,15 @@ const getCharmName = lift(({ charm }: { charm: unknown }) => {
   return (charm as any)?.[NAME] || "Unknown";
 });
 
+// Helper to get module display info (icon + label) from type
+const getModuleDisplay = lift(({ type }: { type: string }) => {
+  const def = getDefinition(type);
+  return {
+    icon: def?.icon || "📋",
+    label: def?.label || type,
+  };
+});
+
 // ===== The Record Pattern =====
 const Record = recipe<RecordInput, RecordOutput>(
   "Record",
@@ -63,7 +72,7 @@ const Record = recipe<RecordInput, RecordOutput>(
       unknown,
       { subCharms: Cell<SubCharmEntry[]>; index: number }
     >((_event, { subCharms: sc, index }) => {
-      const current = sc.get();
+      const current = sc.get() || [];
       const entry = current[index];
       if (!entry) return;
 
@@ -82,8 +91,8 @@ const Record = recipe<RecordInput, RecordOutput>(
       if (!type) return;
 
       // Check if type already exists (singleton modules)
-      const current = sc.get();
-      if (current.some((e) => e.type === type)) {
+      const current = sc.get() || [];
+      if (current.some((e) => e?.type === type)) {
         sat.set("");
         return;
       }
@@ -99,7 +108,7 @@ const Record = recipe<RecordInput, RecordOutput>(
       unknown,
       { subCharms: Cell<SubCharmEntry[]>; index: number }
     >((_event, { subCharms: sc, index }) => {
-      const current = sc.get();
+      const current = sc.get() || [];
       // Don't remove notes
       if (current[index]?.type === "notes") return;
       sc.set(current.toSpliced(index, 1));
@@ -118,53 +127,57 @@ const Record = recipe<RecordInput, RecordOutput>(
     type IndexedEntry = { entry: SubCharmEntry; originalIndex: number };
 
     const pinnedWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      sc
+      (sc || [])
         .map((entry, index) => ({ entry, originalIndex: index }))
-        .filter(({ entry }) => entry.pinned)
+        .filter(({ entry }) => entry?.pinned)
     )({ sc: subCharms });
 
     const unpinnedWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      sc
+      (sc || [])
         .map((entry, index) => ({ entry, originalIndex: index }))
-        .filter(({ entry }) => !entry.pinned)
+        .filter(({ entry }) => !entry?.pinned)
     )({ sc: subCharms });
 
     // All subcharms indexed (for grid layout when no split needed)
     const allWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      sc.map((entry, index) => ({ entry, originalIndex: index }))
+      (sc || []).map((entry, index) => ({ entry, originalIndex: index }))
     )({ sc: subCharms });
 
     // Check layout mode based on pinned count
-    const pinnedCount = computed(() => pinnedWithIndex.length);
-    const hasUnpinned = computed(() => unpinnedWithIndex.length > 0);
+    const pinnedCount = computed(() => (pinnedWithIndex || []).length);
+    const hasUnpinned = computed(() => (unpinnedWithIndex || []).length > 0);
 
     // Check if record is empty (no sub-charms at all)
-    const isEmpty = computed(() => subCharms.length === 0);
+    const isEmpty = computed(() => (subCharms || []).length === 0);
 
-    // Available types for add dropdown (exclude already-added)
-    // When empty, show all types including notes; otherwise exclude notes if already added
-    const availableToAdd = computed(() => {
-      const currentTypes = subCharms.map((e: SubCharmEntry) => e.type);
-      // Get all addable types, filtered by what's already added
-      return getAddableTypes().filter(
-        (def) => !currentTypes.some((t: string) => t === def.type)
+    // Compute hasTypesToAdd directly from subCharms (no intermediate computed)
+    const hasTypesToAdd = lift(({ sc }: { sc: SubCharmEntry[] }) => {
+      const currentTypes = (sc || []).filter((e) => e?.type).map((e) => e.type);
+      const available = getAddableTypes().filter(
+        (def) => !currentTypes.some((t) => t === def.type)
       );
-    });
-    const hasTypesToAdd = computed(() => availableToAdd.length > 0);
-    const addSelectItems = computed(() =>
-      availableToAdd.map((def: { type: string; icon: string; label: string }) => ({
+      return available.length > 0;
+    })({ sc: subCharms });
+
+    // Compute addSelectItems directly from subCharms (no intermediate computed)
+    const addSelectItems = lift(({ sc }: { sc: SubCharmEntry[] }) => {
+      const currentTypes = (sc || []).filter((e) => e?.type).map((e) => e.type);
+      const available = getAddableTypes().filter(
+        (def) => !currentTypes.some((t) => t === def.type)
+      );
+      return available.map((def) => ({
         value: def.type,
         label: `${def.icon} ${def.label}`,
-      }))
-    );
+      }));
+    })({ sc: subCharms });
 
     // Handler to quickly add notes
     const addNotes = handler<
       unknown,
       { subCharms: Cell<SubCharmEntry[]> }
     >((_event, { subCharms: sc }) => {
-      const current = sc.get();
-      if (current.some((e) => e.type === "notes")) return;
+      const current = sc.get() || [];
+      if (current.some((e) => e?.type === "notes")) return;
       const notesCharm = createSubCharm("notes");
       sc.set([{ type: "notes", pinned: true, charm: notesCharm }, ...current]);
     });
@@ -258,7 +271,8 @@ const Record = recipe<RecordInput, RecordOutput>(
                 }}
               >
                 {subCharms.map((entry: SubCharmEntry, index: number) => {
-                  const def = getDefinition(entry.type);
+                  // Use lift helper to get display info from type
+                  const displayInfo = getModuleDisplay({ type: entry.type });
                   return (
                     <div
                       key={index}
@@ -281,7 +295,7 @@ const Record = recipe<RecordInput, RecordOutput>(
                         }}
                       >
                         <span style={{ fontSize: "14px", fontWeight: "500" }}>
-                          {def?.icon || "📋"} {def?.label || entry.type}
+                          {displayInfo.icon} {displayInfo.label}
                         </span>
                         <span style={{ fontSize: "12px", color: "#9ca3af" }}>
                           {entry.pinned ? "📌" : ""}

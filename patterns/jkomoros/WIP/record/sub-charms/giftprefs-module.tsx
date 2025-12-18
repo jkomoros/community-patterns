@@ -25,7 +25,7 @@ const addFavorite = handler<
 >((_event, { favorites, favoriteInput }) => {
   const newItem = favoriteInput.get().trim();
   if (!newItem) return;
-  const current = favorites.get();
+  const current = favorites.get() || [];
   if (!current.includes(newItem)) {
     favorites.set([...current, newItem]);
   }
@@ -37,7 +37,7 @@ const removeFavorite = handler<
   unknown,
   { favorites: Cell<string[]>; index: number }
 >((_event, { favorites, index }) => {
-  favorites.set(favorites.get().toSpliced(index, 1));
+  favorites.set((favorites.get() || []).toSpliced(index, 1));
 });
 
 // Handler to add an avoid item
@@ -47,7 +47,7 @@ const addAvoid = handler<
 >((_event, { avoid, avoidInput }) => {
   const newItem = avoidInput.get().trim();
   if (!newItem) return;
-  const current = avoid.get();
+  const current = avoid.get() || [];
   if (!current.includes(newItem)) {
     avoid.set([...current, newItem]);
   }
@@ -59,7 +59,7 @@ const removeAvoid = handler<
   unknown,
   { avoid: Cell<string[]>; index: number }
 >((_event, { avoid, index }) => {
-  avoid.set(avoid.get().toSpliced(index, 1));
+  avoid.set((avoid.get() || []).toSpliced(index, 1));
 });
 
 export const GiftPrefsModule = recipe<GiftPrefsModuleInput, GiftPrefsModuleInput>(

@@ -34,7 +34,7 @@ const toggleRelationType = handler<
   unknown,
   { relationTypes: Cell<string[]>; type: string }
 >((_event, { relationTypes, type }) => {
-  const current = relationTypes.get();
+  const current = relationTypes.get() || [];
   if (current.includes(type)) {
     relationTypes.set(current.filter((t) => t !== type));
   } else {
@@ -54,8 +54,9 @@ export const RelationshipModule = recipe<RelationshipModuleInput, RelationshipMo
   "RelationshipModule",
   ({ relationTypes, closeness, howWeMet, innerCircle }) => {
     const displayText = computed(() => {
-      const count = relationTypes.length || 0;
-      if (count > 0) return relationTypes.join(", ");
+      const types = relationTypes || [];
+      const count = types.length || 0;
+      if (count > 0) return types.join(", ");
       const opt = CLOSENESS_OPTIONS.find((o) => o.value === closeness);
       return opt?.label || "Not set";
     });
@@ -71,7 +72,7 @@ export const RelationshipModule = recipe<RelationshipModuleInput, RelationshipMo
             </label>
             <ct-hstack style={{ gap: "8px", flexWrap: "wrap" }}>
               {RELATION_TYPE_OPTIONS.map((type, index) => {
-                const isSelected = computed(() => relationTypes.some((t: string) => t === type));
+                const isSelected = computed(() => (relationTypes || []).some((t: string) => t === type));
                 return (
                   <button
                     key={index}

@@ -16,7 +16,7 @@ const addTag = handler<
   const newTag = tagInput.get().trim();
   if (!newTag) return;
 
-  const current = tags.get();
+  const current = tags.get() || [];
   if (!current.includes(newTag)) {
     tags.set([...current, newTag]);
   }
@@ -28,7 +28,7 @@ const removeTag = handler<
   unknown,
   { tags: Cell<string[]>; index: number }
 >((_event, { tags, index }) => {
-  const current = tags.get();
+  const current = tags.get() || [];
   tags.set(current.toSpliced(index, 1));
 });
 
@@ -37,7 +37,7 @@ export const TagsModule = recipe<TagsModuleInput, TagsModuleInput>(
   ({ tags }) => {
     const tagInput = Cell.of<string>("");
     const displayText = computed(() => {
-      const count = tags.length || 0;
+      const count = (tags || []).length || 0;
       return count > 0 ? `${count} tag${count !== 1 ? "s" : ""}` : "No tags";
     });
 
