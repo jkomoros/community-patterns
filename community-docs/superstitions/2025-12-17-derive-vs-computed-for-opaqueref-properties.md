@@ -82,6 +82,18 @@ function preRegisterCaptureTypes(...) {
 
 This means when you pass an OpaqueRef to `derive()`, the callback parameter receives the **unwrapped type**.
 
+## Important: JSX vs computed() Context
+
+**Property access on OpaqueRef works differently depending on context:**
+
+| Context | Code | Works? | Why |
+|---------|------|--------|-----|
+| **JSX** | `{authInfo.hasRequiredScopes ? "Yes" : "No"}` | ✅ Yes | Runtime proxy handles reactivity automatically |
+| **computed()** | `computed(() => authInfo.property)` | ❌ No | Transformer can't unwrap property chains at compile time |
+| **derive()** | `derive(authInfo, info => info.property)` | ✅ Yes | Explicit parameter unwrapping |
+
+This means you can always access OpaqueRef properties directly in JSX. The limitation only applies when you need the result inside another `computed()`.
+
 ## Rules
 
 | Scenario | Correct Approach |
@@ -90,6 +102,7 @@ This means when you pass an OpaqueRef to `derive()`, the callback parameter rece
 | Accessing properties of another `computed()` result | `derive(computedResult, (val) => val.property)` |
 | Mapping over nested array properties | `Array.from(val.array).map(...)` |
 | Direct cell property access | `cell.property` (property access, not derive) |
+| Property access in JSX | Direct access works: `{computedResult.property}` |
 
 ## Array.from() for Nested Arrays
 
@@ -113,8 +126,31 @@ The difference is about **what you're accessing properties on**:
 - `cell.property` - Direct cell reference, works in `computed()`
 - `computedResult.property` - OpaqueRef, needs `derive()` to unwrap
 
+## Git History Investigation
+
+**This behavior is intentional but explicitly marked as deferred:**
+
+- **Author:** Gideon Wald (gideon@common.tools)
+- **Commit:** `f188573e0` from December 11, 2025
+- **PR:** #2233 "Fix/filter map inside derive"
+
+The code in `derive-strategy.ts` (lines 250-254) says:
+```typescript
+} else if (ts.isPropertyAccessExpression(expr)) {
+  // For property access like `state.items`, we want to register `items`
+  // but the capture tree uses the full path
+  // For now, skip these - they get handled separately
+  continue;
+}
+```
+
+**Key insight:** The phrase "For now" indicates this was a deliberate deferral, not an oversight. Property access IS handled via `captureTree`, but type registry pre-registration was deferred. This creates an edge case where nested transformations (like `.map()` → `.mapWithPattern()`) don't see the correct unwrapped types.
+
+**Note:** This edge case was discovered within 6 days of the code being written. A framework issue has been filed as feedback.
+
 ## Related
 
 - `labs/packages/ts-transformers/src/closures/strategies/derive-strategy.ts` - Type unwrapping logic
 - `labs/packages/runner/src/cell.ts` - OpaqueRef proxy implementation
 - Community doc: `2025-12-03-derive-creates-readonly-cells-use-property-access.md` - Related derive() guidance
+- Framework issue: `patterns/jkomoros/issues/ISSUE-Property-Access-Type-Registry.md`
