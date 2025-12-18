@@ -139,6 +139,19 @@ deno task ct charm new --api-url http://localhost:8000 --identity ../community-p
 **Test:** Start empty, button click creates 9 × 60 = 540 nested items dynamically
 **Result:** **INSTANT** - No delay
 
+### Attempt 4: ct-autolayout + ifElse + Dynamic Maps (540 items)
+**File:** `WIP/dynamic-cell-autolayout-repro.tsx`
+**Hypothesis:** ct-autolayout component causes the freeze (CTAutoLayout.render error during freeze)
+**Test:** ct-autolayout with ifElse switching between Form view and Results view with 540 dynamic items
+**Result:** **INSTANT** - No delay
+
+### Attempt 5: Properly Instrumented Repro (call counts, not handler timing)
+**File:** `WIP/perf-instrumented-repro.tsx`
+**Hypothesis:** We were measuring the wrong thing - handler timing only measures graph setup, not reactive execution
+**Test:** Added global counters inside .map() closures to count actual render calls
+**Result:** **INSTANT** - No delay, items.set() took ~481ms but reactive render was fast
+**Learning:** The superstition about measuring correctly is valid, but our simplified repros genuinely ARE fast - the bug isn't a measurement artifact
+
 ### Key Finding: Our Repros Don't Reproduce the Bug
 
 | Repro Pattern | Items | Dynamic? | Result |
@@ -146,6 +159,8 @@ deno task ct charm new --api-url http://localhost:8000 --identity ../community-p
 | nested-map-perf-repro.tsx | 45 | Yes (button) | FAST |
 | generateobject-map-perf-repro.tsx | 45 | Yes (generateObject) | FAST |
 | dynamic-cell-creation-repro.tsx | 540 | Yes (button) | FAST |
+| dynamic-cell-autolayout-repro.tsx | 540 | Yes (button + ct-autolayout) | FAST |
+| perf-instrumented-repro.tsx | 540 | Yes (button + call counting) | FAST |
 | **person.tsx (real)** | ~70 | Yes (generateObject) | **~35s FREEZE** |
 
 ### What We've Ruled Out
@@ -158,6 +173,8 @@ These do NOT cause the bug (confirmed by fast repros):
 - ❌ `pattern()` wrapper
 - ❌ Dynamic cell creation in general
 - ❌ O(n²) in scheduler (at least not at this scale)
+- ❌ `ct-autolayout` component alone
+- ❌ `ct-autolayout` + `ifElse` + dynamic maps combination
 
 ### What's Different About person.tsx?
 
@@ -184,10 +201,26 @@ This error appears repeatedly during the ~35s freeze. Could `ct-autolayout` be c
 
 ## Next Steps
 
+### Ruled Out (Tested):
+- ~~Test with `ct-autolayout`~~ - TESTED: ct-autolayout + ifElse + 540 items = FAST
+
+### Remaining Hypotheses:
+
 1. **Test with `recipe()` wrapper** - Does switching from `pattern()` to `recipe()` trigger the bug?
-2. **Test with `ct-autolayout`** - Add ct-autolayout to repro and see if it triggers
-3. **Test with many field Cells** - Add 14+ individual Cells like person.tsx
-4. **Profile person.tsx directly** - Add performance.now() instrumentation
+2. **Test with many field Cells (14+)** - person.tsx has 14+ individual Cells that `changesPreview` depends on via `compareFields()`
+3. **Test with deep reactive graph** - person.tsx has many interdependent computed cells
+4. **Profile person.tsx directly** - Add instrumentation (call counters, not timing) to person.tsx itself
+5. **Test the exact `compareFields()` + `notesDiffChunks` combination** - These may have expensive operations
+
+### Key Insight (2025-12-17)
+
+The bug is NOT caused by any single factor we've tested in isolation. It must be a **combination** of factors unique to person.tsx, or there's something we haven't identified yet.
+
+Possible unexplored factors:
+- The `recipe()` wrapper creating additional reactive overhead
+- The `compareFields()` function doing expensive operations on every recompute
+- The `computeWordDiff()` function (even though it was moved to pre-computed)
+- Some interaction between navigateTo() and the charm's initialization state
 
 ---
 
@@ -198,7 +231,9 @@ patterns/jkomoros/WIP/
 ├── nested-map-perf-repro.tsx           # Test nested maps - FAST
 ├── generateobject-map-perf-repro.tsx   # Test generateObject + ifElse + maps - FAST
 ├── generateobject-map-launcher.tsx     # Launcher for above
-└── dynamic-cell-creation-repro.tsx     # Test 540 dynamic items - FAST
+├── dynamic-cell-creation-repro.tsx     # Test 540 dynamic items - FAST
+├── dynamic-cell-autolayout-repro.tsx   # Test ct-autolayout + ifElse + 540 items - FAST
+└── perf-instrumented-repro.tsx         # Test with call counters (correct measurement) - FAST
 ```
 
 ## Related Documentation
