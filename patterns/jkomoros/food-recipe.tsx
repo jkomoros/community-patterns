@@ -724,48 +724,6 @@ const triggerTimingSuggestion = handler<
   },
 );
 
-const applyTimingSuggestions = handler<
-  Record<string, never>,
-  {
-    timingSuggestions: Cell<any>;
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
-  }
->(
-  (_, { timingSuggestions, stepGroups }) => {
-    const suggestions = timingSuggestions.get();
-    if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
-
-    const currentGroups = stepGroups.get();
-
-    // Match suggestions to existing groups by ID
-    suggestions.stepGroups.forEach((suggestion: any) => {
-      const groupIndex = currentGroups.findIndex(g => {
-        const groupData = (g.get ? g.get() : g) as StepGroup;
-        return groupData.id === suggestion.id;
-      });
-
-      if (groupIndex >= 0) {
-        const group = currentGroups[groupIndex];
-        const groupData = (group.get ? group.get() : group) as StepGroup;
-
-        // Apply timing suggestions
-        if ((group as any).set) {
-          (group as any).set({
-            ...groupData,
-            nightsBeforeServing: suggestion.nightsBeforeServing,
-            minutesBeforeServing: suggestion.minutesBeforeServing,
-            duration: suggestion.duration ?? groupData.duration,
-            requiresOven: suggestion.requiresOven ?? groupData.requiresOven,
-          });
-        }
-      }
-    });
-
-    // Clear suggestions
-    timingSuggestions.set(null);
-  },
-);
-
 // LLM Wait Time Suggestion Handlers
 const triggerWaitTimeSuggestion = handler<
   Record<string, never>,
@@ -800,45 +758,6 @@ const createCookingView = handler<
   });
   return navigateTo(viewer);
 });
-
-const applyWaitTimeSuggestions = handler<
-  Record<string, never>,
-  {
-    waitTimeSuggestions: Cell<any>;
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
-  }
->(
-  (_, { waitTimeSuggestions, stepGroups }) => {
-    const suggestions = waitTimeSuggestions.get();
-    if (!suggestions || !Array.isArray(suggestions.stepGroups)) return;
-
-    const currentGroups = stepGroups.get();
-
-    // Match suggestions to existing groups by ID
-    suggestions.stepGroups.forEach((suggestion: any) => {
-      const groupIndex = currentGroups.findIndex(g => {
-        const groupData = (g.get ? g.get() : g) as StepGroup;
-        return groupData.id === suggestion.id;
-      });
-
-      if (groupIndex >= 0) {
-        const group = currentGroups[groupIndex];
-        const groupData = (group.get ? group.get() : group) as StepGroup;
-
-        // Apply wait time suggestion
-        if ((group as any).set && suggestion.maxWaitMinutes !== undefined) {
-          (group as any).set({
-            ...groupData,
-            maxWaitMinutes: suggestion.maxWaitMinutes,
-          });
-        }
-      }
-    });
-
-    // Clear suggestions
-    waitTimeSuggestions.set(null);
-  },
-);
 
 const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
   ({
@@ -984,6 +903,7 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
     // LLM Extraction state
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
     const extractTrigger = cell<string>("");
+
 
     // ═══════════════════════════════════════════════════════════════════════
     // MAIN EXTRACTION via ImportReview sub-pattern
@@ -1132,13 +1052,62 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
       },
     );
 
-    // LLM Timing Suggestion state
+    // ═══════════════════════════════════════════════════════════════════════
+    // TIMING SUGGESTIONS via ImportReview sub-pattern (merge mode)
+    // Uses mergeFieldMappings for ID-matching merge on step groups
+    // ═══════════════════════════════════════════════════════════════════════
+
     const timingSuggestionTrigger = cell<string>("");
 
-    const { result: timingSuggestions, pending: timingSuggestionPending } =
-      generateObject({
-        system:
-          `You are a recipe timing assistant. Analyze recipe step groups and suggest optimal timing organization.
+    // Helper to format oven requirements for display
+    const formatOvenRequirements = (v: unknown): string => {
+      if (!v || typeof v !== "object") return "(none)";
+      const oven = v as { temperature?: number; duration?: number; racksNeeded?: { heightSlots?: number; width?: string } };
+      const parts: string[] = [];
+      if (oven.temperature) parts.push(`${oven.temperature}°F`);
+      if (oven.duration) parts.push(`${oven.duration}min`);
+      if (oven.racksNeeded) {
+        const r = oven.racksNeeded;
+        parts.push(`${r.heightSlots ?? 1}h ${r.width ?? "full"}`);
+      }
+      return parts.length > 0 ? parts.join(", ") : "(none)";
+    };
+
+    const timingReview = ImportReview({
+      trigger: timingSuggestionTrigger,
+      schema: Cell.of({
+        type: "object",
+        properties: {
+          stepGroups: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                nightsBeforeServing: { type: "number" },
+                minutesBeforeServing: { type: "number" },
+                duration: { type: "number" },
+                requiresOven: {
+                  type: "object",
+                  properties: {
+                    temperature: { type: "number" },
+                    duration: { type: "number" },
+                    racksNeeded: {
+                      type: "object",
+                      properties: {
+                        heightSlots: { type: "number" },
+                        width: { type: "string", enum: ["full", "half"] },
+                      },
+                    },
+                  },
+                },
+              },
+              required: ["id"],
+            },
+          },
+        },
+      }),
+      systemPrompt: Cell.of(`You are a recipe timing assistant. Analyze recipe step groups and suggest optimal timing organization.
 
 For each step group, analyze the steps and suggest:
 - nightsBeforeServing: For tasks that need to happen days before (1, 2, etc.) - use this for overnight marinades, dough rising, etc.
@@ -1157,50 +1126,101 @@ Guidelines:
 - Duration should reflect active + passive time for that group
 - Suggest logical reordering if current order doesn't make sense
 
-Return suggestions for ALL groups with their IDs preserved.`,
-        prompt: timingSuggestionTrigger,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: {
-          type: "object",
-          properties: {
-            stepGroups: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  nightsBeforeServing: { type: "number" },
-                  minutesBeforeServing: { type: "number" },
-                  duration: { type: "number" },
-                  requiresOven: {
-                    type: "object",
-                    properties: {
-                      temperature: { type: "number" },
-                      duration: { type: "number" },
-                      racksNeeded: {
-                        type: "object",
-                        properties: {
-                          heightSlots: { type: "number" },
-                          width: { type: "string", enum: ["full", "half"] },
-                        },
-                      },
-                    },
-                  },
-                },
-                required: ["id"],
+Return suggestions for ALL groups with their IDs preserved.`),
+      mergeFieldMappings: [{
+        key: "stepGroups",
+        label: "Step Groups",
+        idField: "id",
+        // Pass stepGroups directly - ImportReview will unwrap Cell items in its computed()
+        existingItems: stepGroups as any,
+        getItemLabel: (item: unknown) => {
+          // Handle both Cell-wrapped and plain StepGroup items
+          const group = (item as any)?.get ? (item as any).get() : item;
+          return (group as StepGroup)?.name || "Step Group";
+        },
+        mergeFields: [
+          { key: "nightsBeforeServing", label: "Nights Before" },
+          { key: "minutesBeforeServing", label: "Minutes Before" },
+          { key: "duration", label: "Duration", format: (v: unknown) => v != null ? `${v} min` : "(none)" },
+          { key: "requiresOven", label: "Oven", format: formatOvenRequirements },
+        ],
+      }],
+    });
+
+    // Aliases for backward compatibility with existing button disabled logic
+    const timingSuggestionPending = timingReview.pending;
+
+    // Handler to apply selected timing suggestions
+    const applySelectedTimingSuggestions = handler<
+      Record<string, never>,
+      {
+        selectedMergeValues: Cell<Record<string, unknown>[]>;
+        stepGroups: Cell<Array<Cell<StepGroup>>>;
+        timingSuggestionTrigger: Cell<string>;
+      }
+    >(
+      (_, { selectedMergeValues, stepGroups, timingSuggestionTrigger }) => {
+        const suggestions = selectedMergeValues.get();
+        if (!suggestions || suggestions.length === 0) return;
+
+        const currentGroups = stepGroups.get();
+
+        // Match suggestions to existing groups by ID and apply selected fields
+        suggestions.forEach((suggestion: Record<string, unknown>) => {
+          const suggestionId = suggestion.id as string;
+          const groupIndex = currentGroups.findIndex(g => {
+            const groupData = (g.get ? g.get() : g) as StepGroup;
+            return groupData.id === suggestionId;
+          });
+
+          if (groupIndex >= 0) {
+            const group = currentGroups[groupIndex];
+            const groupData = (group.get ? group.get() : group) as StepGroup;
+
+            if ((group as any).set) {
+              (group as any).set({
+                ...groupData,
+                // Only apply fields that were selected (present in suggestion)
+                ...("nightsBeforeServing" in suggestion && { nightsBeforeServing: suggestion.nightsBeforeServing as number }),
+                ...("minutesBeforeServing" in suggestion && { minutesBeforeServing: suggestion.minutesBeforeServing as number }),
+                ...("duration" in suggestion && { duration: suggestion.duration as number }),
+                ...("requiresOven" in suggestion && { requiresOven: suggestion.requiresOven }),
+              });
+            }
+          }
+        });
+
+        // Clear trigger to hide modal
+        timingSuggestionTrigger.set("");
+      },
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // WAIT TIME SUGGESTIONS via ImportReview sub-pattern (merge mode)
+    // Uses mergeFieldMappings for ID-matching merge on step groups
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const waitTimeSuggestionTrigger = cell<string>("");
+
+    const waitTimeReview = ImportReview({
+      trigger: waitTimeSuggestionTrigger,
+      schema: Cell.of({
+        type: "object",
+        properties: {
+          stepGroups: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                maxWaitMinutes: { type: "number" },
               },
+              required: ["id", "maxWaitMinutes"],
             },
           },
         },
-      });
-
-    // LLM Wait Time Suggestion state
-    const waitTimeSuggestionTrigger = cell<string>("");
-
-    const { result: waitTimeSuggestions, pending: waitTimeSuggestionPending } =
-      generateObject({
-        system:
-          `You are a recipe timing assistant. Analyze recipe step groups and suggest maximum wait times.
+      }),
+      systemPrompt: Cell.of(`You are a recipe timing assistant. Analyze recipe step groups and suggest maximum wait times.
 
 For each step group, analyze the steps and suggest maxWaitMinutes - how long the output of this step group can wait before the next step without losing quality.
 
@@ -1220,30 +1240,68 @@ Consider:
 - Food safety (dairy, meat, seafood have shorter wait times)
 - Chemical processes (oxidation, enzymatic browning)
 
-Return suggestions for ALL groups with their IDs preserved.`,
-        prompt: waitTimeSuggestionTrigger,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: {
-          type: "object",
-          properties: {
-            stepGroups: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  maxWaitMinutes: { type: "number" },
-                },
-                required: ["id", "maxWaitMinutes"],
-              },
-            },
-          },
+Return suggestions for ALL groups with their IDs preserved.`),
+      mergeFieldMappings: [{
+        key: "stepGroups",
+        label: "Step Groups",
+        idField: "id",
+        // Pass stepGroups directly - ImportReview will unwrap Cell items in its computed()
+        existingItems: stepGroups as any,
+        getItemLabel: (item: unknown) => {
+          // Handle both Cell-wrapped and plain StepGroup items
+          const group = (item as any)?.get ? (item as any).get() : item;
+          return (group as StepGroup)?.name || "Step Group";
         },
-      });
+        mergeFields: [
+          { key: "maxWaitMinutes", label: "Max Wait Time", format: (v: unknown) => v != null ? `${v} min` : "(none)" },
+        ],
+      }],
+    });
 
-    // NOTE: Auto-apply derives were removed because derives cannot mutate cells (no .set() method available).
-    // Use the "Apply" buttons with the applyTimingSuggestions and applyWaitTimeSuggestions handlers instead.
-    // These handlers work correctly because handlers CAN call .set() on cells.
+    // Aliases for backward compatibility with existing button disabled logic
+    const waitTimeSuggestionPending = waitTimeReview.pending;
+
+    // Handler to apply selected wait time suggestions
+    const applySelectedWaitTimeSuggestions = handler<
+      Record<string, never>,
+      {
+        selectedMergeValues: Cell<Record<string, unknown>[]>;
+        stepGroups: Cell<Array<Cell<StepGroup>>>;
+        waitTimeSuggestionTrigger: Cell<string>;
+      }
+    >(
+      (_, { selectedMergeValues, stepGroups, waitTimeSuggestionTrigger }) => {
+        const suggestions = selectedMergeValues.get();
+        if (!suggestions || suggestions.length === 0) return;
+
+        const currentGroups = stepGroups.get();
+
+        // Match suggestions to existing groups by ID and apply
+        suggestions.forEach((suggestion: Record<string, unknown>) => {
+          const suggestionId = suggestion.id as string;
+          const groupIndex = currentGroups.findIndex(g => {
+            const groupData = (g.get ? g.get() : g) as StepGroup;
+            return groupData.id === suggestionId;
+          });
+
+          if (groupIndex >= 0) {
+            const group = currentGroups[groupIndex];
+            const groupData = (group.get ? group.get() : group) as StepGroup;
+
+            // Apply wait time suggestion
+            if ((group as any).set && "maxWaitMinutes" in suggestion) {
+              (group as any).set({
+                ...groupData,
+                maxWaitMinutes: suggestion.maxWaitMinutes as number,
+              });
+            }
+          }
+        });
+
+        // Clear trigger to hide modal
+        waitTimeSuggestionTrigger.set("");
+      },
+    );
 
     return {
       [NAME]: str`🍳 ${displayName}`,
@@ -1986,9 +2044,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
             <div />
           )}
 
-          {/* Timing Suggestions Modal */}
+          {/* Timing Suggestions Modal - Using ImportReview merge mode */}
           {ifElse(
-            derive(timingSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            timingReview.hasMergeResults,
             <ct-card style={{
               position: "fixed",
               top: "50%",
@@ -2003,85 +2061,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
             }}>
               <ct-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Timing Suggestions</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following timing changes will be applied to your step groups:
-                </p>
 
-                <ct-vstack gap={2}>
-                  {derive({ timingSuggestions, stepGroups }, ({ timingSuggestions: result, stepGroups: groups }) =>
-                    result?.stepGroups?.map((suggestion: any) => {
-                      const currentGroupCell = groups.find((g: any) => {
-                        const groupData = (g.get ? g.get() : g) as StepGroup;
-                        return groupData.id === suggestion.id;
-                      });
-                      const currentData: StepGroup | null = currentGroupCell
-                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
-                        : null;
-
-                      return (
-                        <div style={{
-                          padding: "8px 10px",
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                        }}>
-                          <ct-vstack gap={1}>
-                            <strong style={{ fontSize: "13px" }}>
-                              {currentData?.name || suggestion.id}
-                            </strong>
-                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
-                              {suggestion.nightsBeforeServing !== undefined && (
-                                <div>
-                                  <span style={{ color: "#666" }}>Nights before:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
-                                    {currentData?.nightsBeforeServing ?? "(none)"}
-                                  </span>
-                                  <span style={{ color: "#16a34a" }}>
-                                    {suggestion.nightsBeforeServing}
-                                  </span>
-                                </div>
-                              )}
-                              {suggestion.minutesBeforeServing !== undefined && (
-                                <div>
-                                  <span style={{ color: "#666" }}>Minutes before:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
-                                    {currentData?.minutesBeforeServing ?? "(none)"}
-                                  </span>
-                                  <span style={{ color: "#16a34a" }}>
-                                    {suggestion.minutesBeforeServing}
-                                  </span>
-                                </div>
-                              )}
-                              {suggestion.duration !== undefined && (
-                                <div>
-                                  <span style={{ color: "#666" }}>Duration:</span>{" "}
-                                  <span style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}>
-                                    {currentData?.duration ?? "(none)"}
-                                  </span>
-                                  <span style={{ color: "#16a34a" }}>
-                                    {suggestion.duration} min
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </ct-vstack>
-                        </div>
-                      );
-                    })
-                  )}
-                </ct-vstack>
+                {/* ImportReview provides the merge diff UI with selection checkboxes */}
+                {timingReview.ui.mergeDiffPanel}
 
                 <div style={{
                   display: "flex",
@@ -2089,18 +2071,18 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   justifyContent: "flex-end",
                   marginTop: "1rem",
                 }}>
-                  <ct-button
-                    onClick={handler<Record<string, never>, { timingSuggestions: Cell<any> }>(
-                      (_, { timingSuggestions }) => timingSuggestions.set(null)
-                    )({ timingSuggestions })}
-                  >
+                  <ct-button onClick={timingReview.clearTrigger}>
                     Cancel
                   </ct-button>
                   <ct-button
-                    onClick={applyTimingSuggestions({ timingSuggestions, stepGroups })}
+                    onClick={applySelectedTimingSuggestions({
+                      selectedMergeValues: timingReview.selectedMergeValues,
+                      stepGroups,
+                      timingSuggestionTrigger,
+                    })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
-                    Apply
+                    Apply {timingReview.selectedMergeFieldCount} Field(s)
                   </ct-button>
                 </div>
               </ct-vstack>
@@ -2108,9 +2090,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
             <div />
           )}
 
-          {/* Wait Time Suggestions Modal */}
+          {/* Wait Time Suggestions Modal - Using ImportReview merge mode */}
           {ifElse(
-            derive(waitTimeSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            waitTimeReview.hasMergeResults,
             <ct-card style={{
               position: "fixed",
               top: "50%",
@@ -2125,51 +2107,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
             }}>
               <ct-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Wait Time Suggestions</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following wait time changes will be applied to your step groups:
-                </p>
 
-                <ct-vstack gap={2}>
-                  {derive({ waitTimeSuggestions, stepGroups }, ({ waitTimeSuggestions: result, stepGroups: groups }) =>
-                    result?.stepGroups?.map((suggestion: any) => {
-                      const currentGroupCell = groups.find((g: any) => {
-                        const groupData = (g.get ? g.get() : g) as StepGroup;
-                        return groupData.id === suggestion.id;
-                      });
-                      const currentData: StepGroup | null = currentGroupCell
-                        ? ((currentGroupCell as any).get ? (currentGroupCell as any).get() : currentGroupCell) as StepGroup
-                        : null;
-
-                      return (
-                        <div style={{
-                          padding: "8px 10px",
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                        }}>
-                          <ct-vstack gap={1}>
-                            <strong style={{ fontSize: "13px" }}>
-                              {currentData?.name || suggestion.id}
-                            </strong>
-                            <div style={{ fontSize: "12px", lineHeight: "1.5" }}>
-                              <span style={{ color: "#666" }}>Max wait time:</span>{" "}
-                              <span style={{
-                                color: "#dc2626",
-                                textDecoration: "line-through",
-                                marginRight: "6px",
-                              }}>
-                                {currentData?.maxWaitMinutes ?? "(none)"}
-                              </span>
-                              <span style={{ color: "#16a34a" }}>
-                                {suggestion.maxWaitMinutes} min
-                              </span>
-                            </div>
-                          </ct-vstack>
-                        </div>
-                      );
-                    })
-                  )}
-                </ct-vstack>
+                {/* ImportReview provides the merge diff UI with selection checkboxes */}
+                {waitTimeReview.ui.mergeDiffPanel}
 
                 <div style={{
                   display: "flex",
@@ -2177,18 +2117,18 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   justifyContent: "flex-end",
                   marginTop: "1rem",
                 }}>
-                  <ct-button
-                    onClick={handler<Record<string, never>, { waitTimeSuggestions: Cell<any> }>(
-                      (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
-                    )({ waitTimeSuggestions })}
-                  >
+                  <ct-button onClick={waitTimeReview.clearTrigger}>
                     Cancel
                   </ct-button>
                   <ct-button
-                    onClick={applyWaitTimeSuggestions({ waitTimeSuggestions, stepGroups })}
+                    onClick={applySelectedWaitTimeSuggestions({
+                      selectedMergeValues: waitTimeReview.selectedMergeValues,
+                      stepGroups,
+                      waitTimeSuggestionTrigger,
+                    })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
-                    Apply
+                    Apply {waitTimeReview.selectedMergeFieldCount} Field(s)
                   </ct-button>
                 </div>
               </ct-vstack>

@@ -826,21 +826,28 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         // Get existing items to match against
         const existingItemsValue = mapping.existingItems?.get() ?? [];
 
+        // Helper to unwrap Cell-wrapped items (food-recipe uses Cell<Array<Cell<StepGroup>>>)
+        const unwrapItem = (item: unknown): Record<string, unknown> => {
+          const unwrapped = (item as any)?.get ? (item as any).get() : item;
+          return unwrapped as Record<string, unknown>;
+        };
+
         // Process each extracted item
         for (const extractedItem of extractedArray) {
           const extractedObj = extractedItem as Record<string, unknown>;
           const itemId = String(extractedObj[idField] ?? "");
           if (!itemId) continue;
 
-          // Find matching existing item
+          // Find matching existing item (may be Cell-wrapped)
           const existingItem = existingItemsValue.find((existing: unknown) => {
-            const existingObj = existing as Record<string, unknown>;
+            const existingObj = unwrapItem(existing);
             return String(existingObj[idField] ?? "") === itemId;
           });
 
           if (!existingItem) continue; // Skip if no matching existing item
 
-          const existingObj = existingItem as Record<string, unknown>;
+          // Unwrap Cell-wrapped item if needed
+          const existingObj = unwrapItem(existingItem);
           const itemLabel = getItemLabel(existingItem);
 
           // Build field diffs for this item
