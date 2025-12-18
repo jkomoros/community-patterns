@@ -19,12 +19,40 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "birthday",
     label: "Birthday",
     icon: "\u{1F382}", // 🎂
-    // Phase 2: extraction fields
     schema: {
       birthDate: { type: "string", description: "Birthday YYYY-MM-DD" },
       birthYear: { type: "number", description: "Birth year" },
     },
     fieldMapping: ["birthDate", "birthYear"],
+  },
+  rating: {
+    type: "rating",
+    label: "Rating",
+    icon: "\u{2B50}", // ⭐
+    schema: {
+      rating: { type: "number", minimum: 1, maximum: 5, description: "Rating 1-5" },
+    },
+    fieldMapping: ["rating"],
+  },
+  tags: {
+    type: "tags",
+    label: "Tags",
+    icon: "\u{1F3F7}", // 🏷️
+    schema: {
+      tags: { type: "array", items: { type: "string" }, description: "Tags" },
+    },
+    fieldMapping: ["tags"],
+  },
+  contact: {
+    type: "contact",
+    label: "Contact",
+    icon: "\u{1F4E7}", // 📧
+    schema: {
+      email: { type: "string", description: "Email address" },
+      phone: { type: "string", description: "Phone number" },
+      website: { type: "string", description: "Website URL" },
+    },
+    fieldMapping: ["email", "phone", "website"],
   },
 };
 
