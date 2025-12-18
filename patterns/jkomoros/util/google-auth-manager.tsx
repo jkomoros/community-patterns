@@ -152,6 +152,8 @@ export interface GoogleAuthCharm {
   auth: Cell<Auth>;
   scopes?: string[];
   selectedScopes?: Record<ScopeKey, boolean>;
+  /** Compact user display with avatar, name, and email */
+  userChip?: unknown;
   refreshToken?: {
     send: (event: Record<string, never>, onCommit?: (tx: unknown) => void) => void;
   };
@@ -256,11 +258,12 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
 
     if (!wr) {
       state = "loading";
+    } else if (wr.error) {
+      // Wish returned error - no matches found
+      state = "not-found";
     } else if (hasPickerUI) {
       // Wish returned [UI] which means multiple matches - show picker
       state = "selecting";
-    } else if (wr.error) {
-      state = "not-found";
     } else if (wr.result) {
       const email = authData?.user?.email;
       if (email && email !== "") {
@@ -505,6 +508,22 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
             </p>
           )}
           {pickerUI}
+          {/* Always show option to create new auth */}
+          <button
+            onClick={createAuth({ scopes: requiredScopes })}
+            style={{
+              marginTop: "12px",
+              padding: "8px 16px",
+              backgroundColor: "transparent",
+              color: "#1e40af",
+              border: "1px solid #3b82f6",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "13px",
+            }}
+          >
+            + Add new account
+          </button>
         </div>
       );
     }
@@ -620,7 +639,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
               {config.title}
             </h4>
             <div style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
-              {config.message}
+              {config.message || ""}
             </div>
           </div>
           {/* Inline auth charm UI - framework auto-renders [UI] property */}
@@ -631,9 +650,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
       );
     }
 
-    // Ready state - green indicator with avatar, switch account, optional expiry warning
-    const avatarUrl = info.auth?.user?.picture;
-
+    // Ready state - green indicator with userChip, switch account, optional expiry warning
     return (
       <div>
         {/* Main status */}
@@ -649,30 +666,8 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
             borderBottom: info.tokenExpiryWarning === "warning" ? "none" : "1px solid #10b981",
           }}
         >
-          {/* Avatar or status dot */}
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt=""
-              style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-              }}
-            />
-          ) : (
-            <span
-              style={{
-                width: "10px",
-                height: "10px",
-                borderRadius: "50%",
-                backgroundColor: "#10b981",
-              }}
-            />
-          )}
-          <span style={{ fontSize: "14px" }}>
-            Signed in as <strong>{info.email}</strong>
-          </span>
+          {/* User chip from google-auth - shows avatar + name + email */}
+          {wishResult.result?.userChip}
           {/* Token expiry and switch account */}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
             {info.tokenExpiryDisplay && (
@@ -693,6 +688,20 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
               }}
             >
               Switch
+            </button>
+            <button
+              onClick={createAuth({ scopes: requiredScopes })}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#047857",
+                cursor: "pointer",
+                fontSize: "12px",
+                padding: "2px 6px",
+                borderRadius: "4px",
+              }}
+            >
+              + Add
             </button>
           </div>
         </div>

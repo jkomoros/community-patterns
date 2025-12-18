@@ -117,6 +117,8 @@ interface Output {
   auth: Auth;
   scopes: string[];
   selectedScopes: SelectedScopes;
+  /** Compact user display with avatar, name, and email */
+  userChip: unknown;
   /**
    * Refresh the OAuth token. Call this from other charms when the token expires.
    *
@@ -272,8 +274,64 @@ export default pattern<Input, Output>(
       });
     });
 
+    // Compact user chip for display in other patterns
+    const userChip = computed(() => {
+      if (!auth?.user?.email) {
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                backgroundColor: "#e5e7eb",
+                display: "inline-block",
+              }}
+            />
+            <span style={{ color: "#6b7280" }}>Not signed in</span>
+          </div>
+        );
+      }
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {auth.user.picture ? (
+            <img
+              src={auth.user.picture}
+              alt=""
+              style={{ width: "24px", height: "24px", borderRadius: "50%" }}
+            />
+          ) : (
+            <span
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+                backgroundColor: "#10b981",
+                display: "inline-block",
+              }}
+            />
+          )}
+          <div>
+            <div style={{ fontWeight: 500, fontSize: "14px" }}>
+              {auth.user.name || auth.user.email}
+            </div>
+            {auth.user.name && (
+              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                {auth.user.email}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    });
+
     return {
-      [NAME]: "Google Auth",
+      [NAME]: computed(() => {
+        if (auth?.user?.email) {
+          return `Google Auth (${auth.user.email})`;
+        }
+        return "Google Auth";
+      }),
       [UI]: (
         <div
           style={{
@@ -443,6 +501,7 @@ export default pattern<Input, Output>(
       auth,
       scopes,
       selectedScopes,
+      userChip,
       // Export the refresh handler for cross-charm calling
       refreshToken: refreshTokenHandler({ auth }),
     };

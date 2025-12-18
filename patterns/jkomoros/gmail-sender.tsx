@@ -174,12 +174,15 @@ const dismissResult = handler<unknown, { result: Cell<SendResult | null> }>(
 // ============================================================================
 
 export default pattern<Input, Output>(({ draft }) => {
-  // Auth via wish - discovers favorited Google Auth charm
-  const wishResult = wish<{ auth: Auth }>({ query: "#googleAuth" });
-  // Use property access via .result, not derive(), to maintain writable cell for token refresh
-  const auth = wishResult.result?.auth;
-  const senderEmail = computed(() => auth?.user?.email || "");
-  const hasAuth = computed(() => !!auth?.token);
+  // Auth via createGoogleAuth - discovers favorited Google Auth charm with gmailSend scope
+  const {
+    auth,
+    fullUI: authUI,
+    isReady: hasAuth,
+    currentEmail: senderEmail,
+  } = createGoogleAuth({
+    requiredScopes: ["gmailSend"],
+  });
 
   // UI state
   const showConfirmation = Cell.of(false);
@@ -211,48 +214,8 @@ export default pattern<Input, Output>(({ draft }) => {
           Send Email
         </h2>
 
-        {/* Auth status */}
-        {ifElse(
-          hasAuth,
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "12px",
-              background: "#d1fae5",
-              borderRadius: "8px",
-              fontSize: "14px",
-            }}
-          >
-            <span style={{ fontSize: "18px" }}>✓</span>
-            <span>
-              Sending as: <strong>{senderEmail}</strong>
-            </span>
-          </div>,
-          <div
-            style={{
-              padding: "16px",
-              background: "#fef3c7",
-              borderRadius: "8px",
-              border: "1px solid #f59e0b",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                marginBottom: "8px",
-                color: "#92400e",
-              }}
-            >
-              Not Authenticated
-            </div>
-            <div style={{ fontSize: "14px", color: "#78350f" }}>
-              Please create and favorite a Google Auth charm with "Gmail (send
-              emails)" permission enabled.
-            </div>
-          </div>,
-        )}
+        {/* Auth status - using createGoogleAuth UI with avatar and switch button */}
+        {authUI}
 
         {/* Result display */}
         {ifElse(
