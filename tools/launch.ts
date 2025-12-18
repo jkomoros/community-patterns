@@ -1755,9 +1755,16 @@ function getTodayDateSpace(lastSpace: string): string | null {
 async function selectPattern(config: Config): Promise<string | null> {
   const options: SelectOption[] = [];
 
-  // Add recent patterns
+  // Add browse action FIRST
+  options.push({
+    label: "Find another charm...",
+    value: "__browse__",
+    icon: "🔍 ",
+  });
+
+  // Add ALL recent patterns (filter handles narrowing down)
   if (config.patterns.length > 0) {
-    config.patterns.slice(0, 10).forEach((p) => {
+    config.patterns.forEach((p) => {
       const shortPath = getShortPath(p.path);
       options.push({
         label: shortPath,
@@ -1766,13 +1773,6 @@ async function selectPattern(config: Config): Promise<string | null> {
       });
     });
   }
-
-  // Add browse action
-  options.push({
-    label: "Browse for a new pattern...",
-    value: "__browse__",
-    icon: "📁 ",
-  });
 
   const selection = await interactiveSelect(
     options,
