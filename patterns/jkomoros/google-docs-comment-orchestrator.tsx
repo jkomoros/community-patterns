@@ -12,7 +12,6 @@ import {
   navigateTo,
   pattern,
   UI,
-  wish,
 } from "commontools";
 
 // Import trusted handlers from confirmation file (TRUST BOUNDARY)
@@ -22,8 +21,8 @@ import {
   type PendingCommentAction,
 } from "./google-docs-comment-confirm.tsx";
 
-// Import GoogleAuth pattern for creating new auth charms
-import GoogleAuth from "./google-auth.tsx";
+// Import Google Auth utility
+import { createGoogleAuth, type ScopeKey } from "./util/google-auth-manager.tsx";
 
 const env = getRecipeEnvironment();
 
@@ -110,10 +109,6 @@ type Auth = {
   }, { email: ""; name: ""; picture: "" }>;
 };
 
-interface GoogleAuthCharm {
-  auth: Auth;
-  refreshToken: { send: (event: Record<string, never>, callback?: (tx: any) => void) => void };
-}
 
 // =============================================================================
 // Types - Per-Comment State
@@ -526,51 +521,6 @@ const skipComment = handler<
   expandedCommentId.set(null);
 });
 
-// =============================================================================
-// Auth Management Handlers
-// =============================================================================
-
-/**
- * Create a new Google Auth charm with Drive and Docs scopes pre-selected.
- * Navigates to it so user can authenticate.
- */
-const createGoogleAuth = handler<unknown, Record<string, never>>(() => {
-  const authCharm = GoogleAuth({
-    selectedScopes: {
-      gmail: false,
-      gmailSend: false,
-      gmailModify: false,
-      calendar: false,
-      calendarWrite: false,
-      drive: true,  // Pre-select Drive for comments
-      docs: true,   // Pre-select Docs for content
-      contacts: false,
-    },
-    auth: {
-      token: "",
-      tokenType: "",
-      scope: [],
-      expiresIn: 0,
-      expiresAt: 0,
-      refreshToken: "",
-      user: { email: "", name: "", picture: "" },
-    },
-  });
-  return navigateTo(authCharm);
-});
-
-/**
- * Navigate to an existing auth charm (from wish result).
- */
-const goToAuthCharm = handler<
-  unknown,
-  // deno-lint-ignore no-explicit-any
-  { authCharm: any }
->((_, { authCharm }) => {
-  if (authCharm) {
-    return navigateTo(authCharm);
-  }
-});
 
 // =============================================================================
 // Pattern
@@ -603,79 +553,22 @@ export default pattern<Input, Output>(
     const pendingActionCell = pendingAction;
     const isExecutingCell = isExecuting;
 
-    // Auth via wish
-    const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
-
-    // PERFORMANCE FIX: Single computed for ALL auth-related derived state
-    // This avoids multiple computed() cells each subscribing to wishResult
-    // which causes reactive cascades when auth updates
-    const authInfo = computed(() => {
-      const wr = wishResult;
-
-      // Determine state
-      let state: "loading" | "not-found" | "found-not-authenticated" | "authenticated" = "loading";
-      if (!wr) {
-        state = "loading";
-      } else if (wr.error) {
-        state = "not-found";
-      } else {
-        const email = wr.result?.auth?.user?.email;
-        if (email && email !== "") {
-          state = "authenticated";
-        } else if (wr.result) {
-          state = "found-not-authenticated";
-        }
-      }
-
-      // Check scopes
-      const scopes: string[] = wr?.result?.auth?.scope ?? [];
-      const hasDrive = scopes.some((s: string) =>
-        s.includes("drive") || s.includes("https://www.googleapis.com/auth/drive")
-      );
-      const hasDocs = scopes.some((s: string) =>
-        s.includes("documents") || s.includes("https://www.googleapis.com/auth/documents")
-      );
-      const hasRequiredScopes = hasDrive && hasDocs;
-
-      // Status display
-      const email = wr?.result?.auth?.user?.email ?? "";
-      let statusDotColor = "var(--ct-color-yellow-500, #eab308)";
-      let statusText = "Loading auth...";
-
-      if (state === "authenticated") {
-        statusDotColor = "var(--ct-color-green-500, #22c55e)";
-        statusText = `Signed in as ${email}`;
-      } else if (state === "not-found") {
-        statusDotColor = "var(--ct-color-red-500, #ef4444)";
-        statusText = "No Google Auth charm found - please favorite one";
-      } else if (state === "found-not-authenticated") {
-        statusDotColor = "var(--ct-color-red-500, #ef4444)";
-        statusText = "Please sign in to your Google Auth charm";
-      }
-
-      return {
-        state,
-        hasRequiredScopes,
-        statusDotColor,
-        statusText,
-        charm: wr?.result ?? null,
-      };
+    // Auth via createGoogleAuth utility (requires Drive and Docs scopes)
+    const {
+      auth,
+      authInfo,
+      fullUI: authFullUI,
+      isReady: isAuthenticated,
+      currentEmail,
+    } = createGoogleAuth({
+      requiredScopes: ["drive", "docs"] as ScopeKey[],
     });
 
-    // PERFORMANCE FIX: Pre-derive UI conditions to avoid nested computed() in ifElse
-    // See: community-docs/superstitions/2025-12-03-avoid-composed-pattern-cells-in-derives.md
-    // Using single derive() that returns JSX instead of multiple nested computed() conditions
-    const fetchButtonDisabled = computed(() =>
-      authInfo.state !== "authenticated" || isFetchingCell.get() === true
+    // Fetch button disabled when not authenticated or fetching
+    const fetchButtonDisabled = derive(
+      [isAuthenticated, isFetchingCell],
+      ([authenticated, fetching]: [boolean, boolean]) => !authenticated || fetching
     );
-
-    const showScopeWarning = derive(authInfo, (info) =>
-      info.state === "authenticated" && !info.hasRequiredScopes
-    );
-
-    // Get auth from wish result (property access, not derived - maintains Cell reference)
-    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
-    const auth = wishResult?.result?.auth;
 
     // Open comment count
     const openCommentCount = computed(() => {
@@ -862,78 +755,8 @@ export default pattern<Input, Output>(
 
           {/* Main content */}
           <ct-vstack gap="1" style="padding: 16px;">
-            {/* Auth Setup Card - shown when auth isn't working */}
-            {/* PERFORMANCE FIX: Single derive() returning JSX instead of nested ifElse(computed()) */}
-            {/* See: community-docs/superstitions/2025-12-03-avoid-composed-pattern-cells-in-derives.md */}
-            {derive(authInfo, (info) => {
-              if (info.state === "not-found") {
-                return (
-                  <ct-card style="margin-bottom: 16px;">
-                    <ct-vstack gap={2}>
-                      <ct-hstack align="center" gap={1}>
-                        <span style={{ fontSize: "20px" }}>🔐</span>
-                        <ct-heading level={5}>Google Authentication Required</ct-heading>
-                      </ct-hstack>
-                      <ct-vstack gap={1}>
-                        <p style={{ fontSize: "13px", color: "#666", margin: 0 }}>
-                          No Google Auth charm found. Create one to connect to Google Docs.
-                        </p>
-                        <ct-button
-                          variant="primary"
-                          onClick={createGoogleAuth({})}
-                        >
-                          Create Google Auth
-                        </ct-button>
-                        <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
-                          After signing in, favorite the charm (star icon) to use it across patterns.
-                        </p>
-                      </ct-vstack>
-                      <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
-                        Favorited auth charms are automatically discovered via wish("#googleAuth").
-                      </p>
-                    </ct-vstack>
-                  </ct-card>
-                );
-              }
-
-              if (info.state === "found-not-authenticated") {
-                return (
-                  <ct-card style="margin-bottom: 16px;">
-                    <ct-vstack gap={2}>
-                      <ct-hstack align="center" gap={1}>
-                        <span style={{ fontSize: "20px" }}>🔐</span>
-                        <ct-heading level={5}>Google Authentication Required</ct-heading>
-                      </ct-hstack>
-                      <ct-vstack gap={1}>
-                        <p style={{ fontSize: "13px", color: "#666", margin: 0 }}>
-                          Found a Google Auth charm but you're not signed in.
-                        </p>
-                        <ct-hstack gap={1}>
-                          <ct-button
-                            variant="primary"
-                            onClick={goToAuthCharm({ authCharm: info.charm })}
-                          >
-                            Go to Auth Charm
-                          </ct-button>
-                          <ct-button
-                            variant="secondary"
-                            onClick={createGoogleAuth({})}
-                          >
-                            Create New Auth
-                          </ct-button>
-                        </ct-hstack>
-                      </ct-vstack>
-                      <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
-                        Favorited auth charms are automatically discovered via wish("#googleAuth").
-                      </p>
-                    </ct-vstack>
-                  </ct-card>
-                );
-              }
-
-              // "authenticated" or "loading" - don't show auth setup card
-              return null;
-            })}
+            {/* Auth UI from utility - handles all states including scope warnings */}
+            {authFullUI}
 
             {/* Doc URL input */}
             <ct-card>
@@ -970,41 +793,6 @@ export default pattern<Input, Output>(
                     )}
                   </ct-button>
                 </ct-hstack>
-
-                {/* Scope warning */}
-                {ifElse(
-                  showScopeWarning,
-                  <ct-vstack
-                    gap={1}
-                    style={{
-                      marginTop: "8px",
-                      padding: "8px 12px",
-                      backgroundColor: "var(--ct-color-yellow-50, #fefce8)",
-                      border: "1px solid var(--ct-color-yellow-200, #fef08a)",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                    }}
-                  >
-                    <span>Your Google Auth needs both Drive and Docs scopes enabled.</span>
-                    <ct-hstack gap={1}>
-                      <ct-button
-                        variant="secondary"
-                        size="sm"
-                        onClick={goToAuthCharm({ authCharm: authInfo.charm })}
-                      >
-                        Go to Auth Charm
-                      </ct-button>
-                      <ct-button
-                        variant="secondary"
-                        size="sm"
-                        onClick={createGoogleAuth({})}
-                      >
-                        Create New Auth
-                      </ct-button>
-                    </ct-hstack>
-                  </ct-vstack>,
-                  null
-                )}
 
                 {/* Error display */}
                 {ifElse(
