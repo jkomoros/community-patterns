@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Verify branch state for landing - checks we're not on main and have no uncommitted changes
+# This allows simple allowlisting via Bash(./scripts/verify-branch)
+set -e
+
+CURRENT_BRANCH=$(git branch --show-current)
+if [ "$CURRENT_BRANCH" = "main" ]; then
+  echo "ERROR: You're on main. Switch to a feature branch first."
+  echo ""
+  echo "If you accidentally committed to main, see 'Recovering from Commits on Main' in land-branch skill."
+  exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "ERROR: Uncommitted changes. Commit or stash them first."
+  git status --short
+  exit 1
+fi
+
+echo "Ready to land branch: $CURRENT_BRANCH"

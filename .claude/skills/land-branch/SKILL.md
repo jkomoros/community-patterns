@@ -10,6 +10,9 @@ description: >
 
 **Use this skill to land a feature branch in one smooth flow.**
 
+> **Note:** Steps 1-2 use scripts in `./scripts/` that are pre-allowlisted in settings.json,
+> so they won't require permission prompts.
+
 ## Prerequisites
 
 - You're on a feature branch (not `main`)
@@ -19,24 +22,13 @@ description: >
 ## Step 1: Verify Branch State
 
 ```bash
-# Confirm we're on a feature branch
-CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" = "main" ]; then
-  echo "ERROR: You're on main. Switch to a feature branch first."
-  echo ""
-  echo "If you accidentally committed to main, see 'Recovering from Commits on Main' below."
-  exit 1
-fi
-
-# Verify clean working directory
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: Uncommitted changes. Commit or stash them first."
-  git status --short
-  exit 1
-fi
-
-echo "Ready to land branch: $CURRENT_BRANCH"
+# Use the allowlisted script to verify we're ready to land
+./scripts/verify-branch
 ```
+
+This script checks:
+- You're not on `main` (need to be on a feature branch)
+- No uncommitted changes (commit or stash first)
 
 ### Recovering from Commits on Main
 
@@ -69,31 +61,17 @@ Now continue with the land-branch workflow from Step 2.
 ## Step 2: Pull and Rebase onto Main
 
 ```bash
-# Determine which remote has main (fork vs direct)
-IS_FORK=$(grep "^is_fork=" .claude-workspace 2>/dev/null | cut -d= -f2)
-if [ "$IS_FORK" = "true" ]; then
-  MAIN_REMOTE="upstream"
-else
-  MAIN_REMOTE="origin"
-fi
-
-# Fetch latest main
-git fetch $MAIN_REMOTE
-
-# Rebase current branch onto main
-git rebase $MAIN_REMOTE/main
-
-# If rebase fails, stop and help resolve conflicts
-if [ $? -ne 0 ]; then
-  echo "Rebase has conflicts. Resolve them, then run:"
-  echo "  git rebase --continue"
-  echo "  # Then re-run this skill"
-  exit 1
-fi
-
-# Push rebased branch (force needed after rebase)
-git push origin $CURRENT_BRANCH --force-with-lease
+# Use the allowlisted script to fetch, rebase, and push
+./scripts/rebase-main
 ```
+
+This script:
+- Detects fork vs direct repo (reads `.claude-workspace`)
+- Fetches latest main from correct remote
+- Rebases current branch onto main
+- Pushes with `--force-with-lease` (safe force push)
+
+If rebase has conflicts, resolve them manually, run `git rebase --continue`, then re-run the script.
 
 ## Step 2.5: Check for Downstream Dependencies
 
@@ -308,20 +286,18 @@ fi
 echo "Branch $CURRENT_BRANCH landed successfully!"
 ```
 
-## Complete One-Liner (For Reference)
+## Complete Flow Using Scripts
 
-If all steps succeed without conflicts, the full flow is:
+The first two steps use allowlisted scripts that don't require permission prompts:
 
 ```bash
-BRANCH=$(git branch --show-current) && \
-git fetch upstream && \
-git rebase upstream/main && \
-git push origin $BRANCH --force-with-lease && \
-gh pr create --repo jkomoros/community-patterns --title "$(git log -1 --format=%s)" --body "Landing $BRANCH" && \
-gh pr merge --rebase --delete-branch && \
-git checkout main && \
-git pull upstream main && \
-git push origin main
+# Step 1: Verify we're ready
+./scripts/verify-branch
+
+# Step 2: Rebase and push
+./scripts/rebase-main
+
+# Steps 3-4: PR and merge (use gh commands as shown above)
 ```
 
 ## Important Notes

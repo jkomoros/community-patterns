@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Fetch and rebase current branch onto main
+# Determines correct remote (upstream for forks, origin for direct repos)
+# This allows simple allowlisting via Bash(./scripts/rebase-main)
+set -e
+
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Determine which remote has main (fork vs direct)
+IS_FORK=$(grep "^is_fork=" .claude-workspace 2>/dev/null | cut -d= -f2)
+if [ "$IS_FORK" = "true" ]; then
+  MAIN_REMOTE="upstream"
+else
+  MAIN_REMOTE="origin"
+fi
+
+echo "Using remote: $MAIN_REMOTE (is_fork=$IS_FORK)"
+
+# Fetch latest main
+git fetch $MAIN_REMOTE
+
+# Rebase current branch onto main
+if ! git rebase $MAIN_REMOTE/main; then
+  echo "Rebase has conflicts. Resolve them, then run:"
+  echo "  git rebase --continue"
+  echo "  # Then re-run this skill"
+  exit 1
+fi
+
+# Push rebased branch (force needed after rebase)
+git push origin $CURRENT_BRANCH --force-with-lease
+
+echo "Branch $CURRENT_BRANCH rebased and pushed successfully"

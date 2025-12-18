@@ -98,6 +98,8 @@
       "Bash(deno task ct dev:*)",
       "Bash(cd:*)",
       "Bash(./scripts/ct:*)",
+      "Bash(./scripts/verify-branch)",
+      "Bash(./scripts/rebase-main)",
       "Bash(/Users/alex/Code/community-patterns/scripts/ct:*)",
       "SlashCommand:/session-startup",
       "SlashCommand:/deployment",
