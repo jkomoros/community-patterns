@@ -39,7 +39,7 @@ import {
   UI,
   wish,
 } from "commontools";
-import GoogleAuth from "./google-auth.tsx";
+import { createGoogleAuth as createGoogleAuthUtil, type ScopeKey, type AccountType } from "./util/google-auth-manager.tsx";
 import { GmailClient, validateAndRefreshTokenCrossCharm } from "./util/gmail-client.ts";
 import GmailSearchRegistry from "./gmail-search-registry.tsx";
 import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-registry.tsx";
@@ -48,7 +48,6 @@ import type { GmailSearchRegistryOutput, SharedQuery } from "./gmail-search-regi
 export type { Auth } from "./gmail-importer.tsx";
 import type { Auth } from "./gmail-importer.tsx";
 
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const env = getRecipeEnvironment();
 
 // ============================================================================
@@ -85,14 +84,6 @@ export interface DebugLogEntry {
 // Type for the refresh token stream from google-auth
 // NOTE: Stream.send() only takes 1 argument (the event), no onCommit callback
 type RefreshStreamType = Stream<Record<string, never>>;
-
-// What we expect from the google-auth charm via wish
-type GoogleAuthCharm = {
-  auth: Auth;
-  scopes?: string[];
-  /** Stream to trigger token refresh in the auth charm's transaction context */
-  refreshToken?: RefreshStreamType;
-};
 
 // Tool definition for additional tools
 export interface ToolDefinition {
@@ -449,46 +440,33 @@ const GmailAgenticSearch = pattern<
       }
     );
 
-    // Build reactive wish tag based on local selectedAccountType (writable)
-    // "default" -> #googleAuth, "personal" -> #googleAuthPersonal, "work" -> #googleAuthWork
-    const wishTag = derive(selectedAccountType, (type: "default" | "personal" | "work") => {
-      switch (type) {
-        case "personal": return "#googleAuthPersonal";
-        case "work": return "#googleAuthWork";
-        default: return "#googleAuth";
-      }
+    // Use createGoogleAuth utility for wish-based auth (when not using direct auth)
+    // Passes reactive selectedAccountType for dynamic account switching
+    const {
+      auth: wishedAuth,
+      fullUI: authFullUI,
+      isReady: wishedAuthReady,
+      currentEmail: wishedEmail,
+      wishResult,
+      createAuth: createGoogleAuthAction,
+    } = createGoogleAuthUtil({
+      requiredScopes: ["gmail"] as ScopeKey[],
+      accountType: selectedAccountType,
     });
 
-    // Wish for auth charm as fallback (reactive - re-evaluates when accountType changes)
-    const wishResult = wish<GoogleAuthCharm>({ query: wishTag });
-
-    // 3-state logic for wished auth
-    const wishedAuthState = derive(wishResult, (wr) => {
-      const email = wr?.result?.auth?.user?.email || "";
-      if (email !== "") return "authenticated";
-      if (wr?.result) return "found-not-authenticated";
-      if (wr?.error) return "not-found";
-      return "loading";
-    });
-
-    // Get the wished auth charm (not just the auth data)
-    const wishedAuthCharm = derive(wishResult, (wr) => wr?.result || null);
-    const hasWishedAuth = derive(wishedAuthCharm, (charm) => !!(charm?.auth?.token));
+    // For compatibility with existing code
+    const wishedAuthCharm = derive(wishResult, (wr: any) => wr?.result || null);
+    const hasWishedAuth = wishedAuthReady;
 
     // Access auth via property path to maintain writability
-    // CRITICAL: Do NOT derive the auth data itself - that creates a read-only projection
-    // Instead, access .auth as a property path from the source
-    //
     // When hasDirectAuth is true, we use inputAuth directly (it's already an Auth cell)
-    // When hasDirectAuth is false, we use wishedAuthCharm.auth (property access maintains writability)
-    //
+    // When hasDirectAuth is false, we use wishedAuth from the utility
     // NOTE: This means inputAuth must be passed as a live cell reference, not derived.
-    // If the parent pattern derives inputAuth, token refresh will still fail silently.
     // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
     const auth = ifElse(
       hasDirectAuth,
       inputAuth,
-      wishedAuthCharm.auth
+      wishedAuth
     );
 
     // ========================================================================
@@ -513,7 +491,7 @@ const GmailAgenticSearch = pattern<
     // Extract refresh stream from wished charm (will be opaque at derive time)
     const authRefreshStream = derive(
       wishedAuthCharm,
-      (charm: GoogleAuthCharm | null) => charm?.refreshToken || null
+      (charm: any) => charm?.refreshToken || null
     );
 
     // Track where auth came from
@@ -536,6 +514,9 @@ const GmailAgenticSearch = pattern<
       return Date.now() > (a.expiresAt - bufferMs);
     });
 
+    // Gmail scope URL for checking
+    const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+
     const hasGmailScope = derive(auth, (a) => {
       const scopes = a?.scope || [];
       return scopes.includes(GMAIL_SCOPE);
@@ -546,31 +527,8 @@ const GmailAgenticSearch = pattern<
       ([authed, hasScope]: [boolean, boolean]) => authed && !hasScope,
     );
 
-    // Handler to create a new GoogleAuth charm
-    const createGoogleAuth = handler<unknown, Record<string, never>>(() => {
-      const googleAuthCharm = GoogleAuth({
-        selectedScopes: {
-          gmail: true,
-          gmailSend: false,
-          gmailModify: false,
-          calendar: false,
-          calendarWrite: false,
-          drive: false,
-          docs: false,
-          contacts: false,
-        },
-        auth: {
-          token: "",
-          tokenType: "",
-          scope: [],
-          expiresIn: 0,
-          expiresAt: 0,
-          refreshToken: "",
-          user: { email: "", name: "", picture: "" },
-        },
-      });
-      return navigateTo(googleAuthCharm);
-    });
+    // Handler to create a new GoogleAuth charm (uses utility's createAuth action)
+    const createGoogleAuth = createGoogleAuthAction;
 
     // Handler to create a new GmailSearchRegistry charm
     // TODO: Currently creates in the current space. Ideally would create in a
@@ -1272,7 +1230,7 @@ When you're done searching, STOP calling tools and produce your final structured
         {/* Auth Status */}
         {derive(
           [isAuthenticated, hasAuthError, tokenMayBeExpired],
-          ([authenticated, authError, mayBeExpired]: [boolean, boolean, boolean]) => {
+          ([authenticated, authError, mayBeExpired]) => {
             if (authenticated) {
               if (authError) {
                 return (
@@ -1305,7 +1263,7 @@ When you're done searching, STOP calling tools and produce your final structured
                         </ct-button>
                       ) : (
                         <ct-button
-                          onClick={createGoogleAuth({})}
+                          onClick={createGoogleAuth}
                           size="sm"
                           variant="secondary"
                         >
@@ -1372,82 +1330,8 @@ When you're done searching, STOP calling tools and produce your final structured
               );
             }
 
-            // Show auth UI based on wish state
-            return derive(wishedAuthState, (state) => {
-              if (state === "found-not-authenticated") {
-                return (
-                  <div
-                    style={{
-                      padding: "16px",
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "#475569",
-                        marginBottom: "12px",
-                        textAlign: "center",
-                      }}
-                    >
-                      Sign in to your Google account
-                    </div>
-                    <div
-                      style={{
-                        padding: "12px",
-                        background: "white",
-                        borderRadius: "6px",
-                        border: "1px solid #e2e8f0",
-                      }}
-                    >
-                      {wishResult.result}
-                    </div>
-                  </div>
-                );
-              }
-
-              // No auth charm found
-              return (
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#475569",
-                      marginBottom: "12px",
-                      textAlign: "center",
-                    }}
-                  >
-                    Connect your Gmail to start searching
-                  </div>
-                  <ct-button
-                    onClick={createGoogleAuth({})}
-                    size="lg"
-                    style="width: 100%;"
-                  >
-                    Connect Gmail
-                  </ct-button>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#94a3b8",
-                      marginTop: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    After connecting, favorite the auth charm to share it
-                  </div>
-                </div>
-              );
-            });
+            // Show auth UI from utility (handles all states: picker, needs-login, etc.)
+            return authFullUI;
           },
         )}
 
