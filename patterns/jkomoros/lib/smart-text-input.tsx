@@ -6,6 +6,7 @@ import {
   Default,
   derive,
   generateObject,
+  handler,
   ifElse,
   ImageData,
 } from "commontools";
@@ -42,7 +43,9 @@ import {
 
 interface SmartTextInputInput {
   // Required: Target text cell (bound bidirectionally)
-  $value: Cell<Default<string, "">>;
+  // Accepts both Cell<string> and pattern input types (OpaqueCell)
+  // deno-lint-ignore no-explicit-any
+  $value: any; // Cell<string> | OpaqueCell - framework handles type coercion
 
   // Optional configuration
   placeholder?: string; // Default: "Type, paste, or upload images..."
@@ -64,12 +67,18 @@ interface ImageResult {
 
 interface SmartTextInputOutput {
   // State (reactive)
-  value: Cell<Default<string, "">>; // Same as input $value
+  // deno-lint-ignore no-explicit-any
+  value: any; // Same as input $value
   pendingCount: number; // Number of images being processed
   anyPending: boolean; // True if any OCR in progress
+  hasUncommitted: boolean; // True if there are completed OCR results to commit
 
   // Image tracking
   imageResults: ImageResult[]; // Per-image status and results
+
+  // Handler to commit OCR results to textarea
+  // deno-lint-ignore no-explicit-any
+  commitResults: any; // Pre-bound handler
 
   // Pre-composed UI components (chatbot.tsx pattern)
   ui: {
@@ -77,6 +86,7 @@ interface SmartTextInputOutput {
     textArea: JSX.Element; // Just the textarea
     uploadArea: JSX.Element; // Just the image upload button
     imageList: JSX.Element; // Thumbnails with status
+    commitButton: JSX.Element; // Button to add OCR results to textarea
   };
 }
 
@@ -99,6 +109,62 @@ const OCR_SCHEMA = {
   },
   required: ["text"],
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HANDLER (defined outside function per blessed docs)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Handler to commit OCR results to textarea
+// Per blessed docs: define handlers OUTSIDE the pattern function
+// Per superstition: pass Cells as handler parameters, not closure captures
+const commitResultsHandler = handler<unknown, {
+  $value: Cell<string>;
+  committedImageIds: Cell<string[]>;
+  hiddenImageIds: Cell<string[]>;
+  separator: string;
+  // We pass the extraction data as a JSON string to avoid Cell unwrapping issues
+  extractionDataJson: string;
+}>(
+  (
+    _event,
+    {
+      $value,
+      committedImageIds,
+      hiddenImageIds,
+      separator,
+      extractionDataJson,
+    }
+  ) => {
+    // Parse the extraction data (passed as JSON to avoid Cell unwrapping)
+    let textsToAdd: Array<{ id: string; text: string }> = [];
+    try {
+      textsToAdd = JSON.parse(extractionDataJson || "[]");
+    } catch {
+      return; // Invalid JSON, nothing to do
+    }
+
+    if (textsToAdd.length === 0) return;
+
+    const committed = committedImageIds.get() ?? [];
+    const hidden = hiddenImageIds.get() ?? [];
+    let currentValue = $value.get() ?? "";
+
+    const newCommitted: string[] = [...committed];
+    const newHidden: string[] = [...hidden];
+
+    for (const item of textsToAdd) {
+      currentValue = currentValue
+        ? `${currentValue}${separator}${item.text}`
+        : item.text;
+      newCommitted.push(item.id);
+      newHidden.push(item.id);
+    }
+
+    $value.set(currentValue);
+    committedImageIds.set(newCommitted);
+    hiddenImageIds.set(newHidden);
+  }
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SMART TEXT INPUT SUB-PATTERN
@@ -160,67 +226,64 @@ export function SmartTextInput(
   });
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 3. AUTO-COMMIT EFFECT (concatenate mode)
-  // Using computed instead of effect for framework-safe reactivity
+  // 3. COMMIT HANDLER (concatenate mode)
+  // Called when user clicks "Add Text" button to commit completed extractions
   // ═══════════════════════════════════════════════════════════════════════
 
-  // Track which images need to be committed (completed extraction, not yet committed)
-  const _autoCommitTracker = computed(() => {
+  // Compute uncommitted extraction data as JSON string
+  // NOTE: JSON string workaround is necessary because:
+  // - When computed values containing objects/arrays pass through handler binding,
+  //   they get incorrectly unwrapped at the OpaqueRef boundary
+  // - String primitives are safe to pass through
+  // - JSON serialization preserves structure through the opaque boundary
+  // See: community-docs/superstitions/2025-01-24-pass-cells-as-handler-params-not-closure.md
+  const uncommittedDataJson = computed(() => {
     const committed = committedImageIds.get() ?? [];
-    const hidden = hiddenImageIds.get() ?? [];
-    const currentValue = $value.get() ?? "";
+    const textsToAdd: Array<{ id: string; text: string }> = [];
 
-    let newValue = currentValue;
-    const newCommitted: string[] = [...committed];
-    const newHidden: string[] = [...hidden];
-
-    for (const extraction of imageExtractions) {
-      const id = extraction.id;
-      const pending = extraction.pending;
-      const error = extraction.error;
-      const extractedText = extraction.extractedText;
-
-      // Skip if: pending, errored, already committed, or already hidden
-      if (pending || error || committed.includes(id) || hidden.includes(id)) {
+    for (const e of imageExtractions) {
+      // Skip if pending, error, or already committed
+      if (e.pending || e.error || committed.includes(e.id)) {
         continue;
       }
-
-      // Skip if no text extracted
-      const text =
-        typeof extractedText === "string"
-          ? extractedText
-          : (extractedText as { get?: () => string | null })?.get?.() ?? null;
-      if (!text || text.trim() === "") {
-        continue;
+      // Framework auto-unwraps OpaqueRefs in computed() context
+      const text = e.extractedText;
+      if (text && typeof text === "string" && text.trim() !== "") {
+        textsToAdd.push({ id: e.id, text });
       }
-
-      // Append text to value
-      newValue = newValue ? `${newValue}${separator}${text}` : text;
-
-      // Mark as committed and auto-hide
-      newCommitted.push(id);
-      newHidden.push(id);
     }
 
-    // Update state if changes occurred
-    if (newCommitted.length > committed.length) {
-      $value.set(newValue);
-      committedImageIds.set(newCommitted);
-      hiddenImageIds.set(newHidden);
-    }
+    return JSON.stringify(textsToAdd);
+  });
 
-    return null; // This computed is just for side effects
+  // Check if there are uncommitted results
+  const hasUncommitted = derive(uncommittedDataJson, (json) => {
+    if (!json) return false;
+    try {
+      const arr = JSON.parse(json);
+      return Array.isArray(arr) && arr.length > 0;
+    } catch {
+      return false;
+    }
   });
 
   // ═══════════════════════════════════════════════════════════════════════
   // 4. COMPUTED STATE
   // ═══════════════════════════════════════════════════════════════════════
 
-  const pendingCount = computed(() =>
-    imageExtractions.filter((e) => e.pending).length
-  );
+  // Count pending extractions
+  // Use computed() with direct property access - framework auto-unwraps OpaqueRefs
+  const pendingCount = computed(() => {
+    let count = 0;
+    for (const extraction of imageExtractions) {
+      if (extraction.pending) {
+        count++;
+      }
+    }
+    return count;
+  });
 
-  const anyPending = computed(() => pendingCount > 0);
+  const anyPending = derive(pendingCount, (count) => count > 0);
 
   const imageResults = computed<ImageResult[]>(() => {
     const committed = committedImageIds.get() ?? [];
@@ -231,10 +294,8 @@ export function SmartTextInput(
       thumbnail: e.thumbnail,
       pending: e.pending,
       error: e.error,
-      extractedText:
-        typeof e.extractedText === "string"
-          ? e.extractedText
-          : (e.extractedText as { get?: () => string | null })?.get?.() ?? null,
+      // Framework auto-unwraps OpaqueRefs in computed() context
+      extractedText: e.extractedText as string | null,
       committed: committed.includes(e.id),
       hidden: hidden.includes(e.id),
     }));
@@ -344,6 +405,28 @@ export function SmartTextInput(
     </div>
   );
 
+  // Pre-bind the commit handler with all needed dependencies
+  // Use external handler defined at module level to avoid closure issues
+  // Pass JSON string for extraction data to avoid Cell unwrapping issues
+  const boundCommitResults = commitResultsHandler({
+    $value,
+    committedImageIds,
+    hiddenImageIds,
+    separator,
+    extractionDataJson: uncommittedDataJson,
+  });
+
+  const commitButton = (
+    <ct-button
+      variant="primary"
+      size="sm"
+      onClick={boundCommitResults}
+      disabled={derive(hasUncommitted, (has: boolean) => !has)}
+    >
+      Add OCR Text
+    </ct-button>
+  );
+
   const complete = (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       {textArea}
@@ -356,6 +439,7 @@ export function SmartTextInput(
           </span>,
           null
         )}
+        {ifElse(hasUncommitted, commitButton, null)}
       </div>
       {ifElse(
         derive(visibleImages, (imgs: ImageData[]) => imgs.length > 0),
@@ -373,12 +457,15 @@ export function SmartTextInput(
     value: $value,
     pendingCount,
     anyPending,
+    hasUncommitted,
     imageResults,
+    commitResults: boundCommitResults,
     ui: {
       complete,
       textArea,
       uploadArea,
       imageList,
+      commitButton,
     },
   };
 }
