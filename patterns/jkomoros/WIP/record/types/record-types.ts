@@ -18,6 +18,9 @@ export type SubCharmType =
   | "giftprefs"
   | "timing";
 
+// Module type includes notes (built-in) + all sub-charms
+export type ModuleType = SubCharmType | "notes";
+
 export interface SubCharmMetadata {
   type: SubCharmType;
   label: string;
@@ -121,6 +124,7 @@ export interface RecordInput {
   title: Default<string, "">;
   notes: Default<string, "">; // Built-in notes content
   enabledSubCharms: Default<EnabledSubCharms, []>; // Which sub-charms are enabled
+  pinnedModules: Default<ModuleType[], ["notes"]>; // Pinned modules for layout (notes pinned by default)
   // Sub-charm data stored directly (avoids ct-render issues)
   birthdayData: Default<BirthdayData, { birthDate: ""; birthYear: null }>;
   ratingData: Default<RatingData, { rating: null }>;

@@ -34,6 +34,7 @@ import type {
   GiftPrefsData,
   LinkData,
   LocationData,
+  ModuleType,
   RatingData,
   RecordContext,
   RecordInput,
@@ -50,6 +51,7 @@ interface RecordOutput {
   title: Default<string, "">;
   notes: Default<string, "">;
   enabledSubCharms: Default<EnabledSubCharms, []>;
+  pinnedModules: Default<ModuleType[], ["notes"]>; // Pinned modules for adaptive layout
   birthdayData: Default<BirthdayData, { birthDate: ""; birthYear: null }>;
   ratingData: Default<RatingData, { rating: null }>;
   tagsData: Default<TagsData, { tags: [] }>;
@@ -69,7 +71,7 @@ interface RecordOutput {
 
 const Record = recipe<RecordInput, RecordOutput>(
   "Record",
-  ({ title, notes, enabledSubCharms, birthdayData, ratingData, tagsData, contactData, statusData, addressData, timelineData, socialData, linkData, locationData, relationshipData, giftPrefsData, timingData }) => {
+  ({ title, notes, enabledSubCharms, pinnedModules, birthdayData, ratingData, tagsData, contactData, statusData, addressData, timelineData, socialData, linkData, locationData, relationshipData, giftPrefsData, timingData }) => {
     // Active tab - "notes" is always first, then sub-charm types
     const activeTab = Cell.of<string>("notes");
 
@@ -452,6 +454,60 @@ const Record = recipe<RecordInput, RecordOutput>(
       timingData.set({ ...current, restTime: val ? parseInt(val, 10) : null });
     });
 
+    // ===== Pin/Layout handlers =====
+    // Pre-bound handlers for each module type (avoids cell serialization in ifElse)
+    const createTogglePinHandler = (moduleType: ModuleType) =>
+      handler<Record<string, never>, { pinnedModules: Cell<ModuleType[]> }>(
+        (_event, { pinnedModules: pm }) => {
+          const current = pm.get();
+          if (current.includes(moduleType)) {
+            pm.set(current.filter((t) => t !== moduleType));
+          } else {
+            pm.set([...current, moduleType]);
+          }
+        }
+      );
+
+    // Create all handlers at top level, binding pinnedModules once
+    const toggleNotesPin = createTogglePinHandler("notes")({ pinnedModules });
+    const toggleBirthdayPin = createTogglePinHandler("birthday")({ pinnedModules });
+    const toggleRatingPin = createTogglePinHandler("rating")({ pinnedModules });
+    const toggleTagsPin = createTogglePinHandler("tags")({ pinnedModules });
+    const toggleContactPin = createTogglePinHandler("contact")({ pinnedModules });
+    const toggleStatusPin = createTogglePinHandler("status")({ pinnedModules });
+    const toggleAddressPin = createTogglePinHandler("address")({ pinnedModules });
+    const toggleTimelinePin = createTogglePinHandler("timeline")({ pinnedModules });
+    const toggleSocialPin = createTogglePinHandler("social")({ pinnedModules });
+    const toggleLinkPin = createTogglePinHandler("link")({ pinnedModules });
+    const toggleLocationPin = createTogglePinHandler("location")({ pinnedModules });
+    const toggleRelationshipPin = createTogglePinHandler("relationship")({ pinnedModules });
+    const toggleGiftPrefsPin = createTogglePinHandler("giftprefs")({ pinnedModules });
+    const toggleTimingPin = createTogglePinHandler("timing")({ pinnedModules });
+
+    // Derived pin state
+    const pinnedList = derive(pinnedModules, (p) => p ?? ["notes"]);
+    const pinnedCount = derive(pinnedList, (p) => p.length);
+
+    // Pre-computed pinned state for each module (avoids closure issues)
+    const isNotesPinned = derive(pinnedList, (p) => p.includes("notes"));
+    const isBirthdayPinned = derive(pinnedList, (p) => p.includes("birthday"));
+    const isRatingPinned = derive(pinnedList, (p) => p.includes("rating"));
+    const isTagsPinned = derive(pinnedList, (p) => p.includes("tags"));
+    const isContactPinned = derive(pinnedList, (p) => p.includes("contact"));
+    const isStatusPinned = derive(pinnedList, (p) => p.includes("status"));
+    const isAddressPinned = derive(pinnedList, (p) => p.includes("address"));
+    const isTimelinePinned = derive(pinnedList, (p) => p.includes("timeline"));
+    const isSocialPinned = derive(pinnedList, (p) => p.includes("social"));
+    const isLinkPinned = derive(pinnedList, (p) => p.includes("link"));
+    const isLocationPinned = derive(pinnedList, (p) => p.includes("location"));
+    const isRelationshipPinned = derive(pinnedList, (p) => p.includes("relationship"));
+    const isGiftPrefsPinned = derive(pinnedList, (p) => p.includes("giftprefs"));
+    const isTimingPinned = derive(pinnedList, (p) => p.includes("timing"));
+
+    // Helper function for dynamic lookup (use pre-computed values in JSX)
+    const isModulePinned = (moduleType: ModuleType) =>
+      derive(pinnedList, (p) => p.includes(moduleType));
+
     // Display name - derive() gives proper types without casts
     const displayName = derive(title, (t) => t.trim() || "(Untitled Record)");
 
@@ -555,6 +611,40 @@ const Record = recipe<RecordInput, RecordOutput>(
       }))
     );
 
+    // ===== Layout helpers =====
+    // All available modules (notes is always available)
+    const allModules = derive(enabledSubCharms, (enabled): ModuleType[] => [
+      "notes" as ModuleType,
+      ...enabled,
+    ]);
+
+    // Modules split by pin status
+    const pinnedModulesList = derive(
+      [allModules, pinnedList] as const,
+      ([all, pinned]) => all.filter((m) => pinned.includes(m))
+    );
+    const unpinnedModulesList = derive(
+      [allModules, pinnedList] as const,
+      ([all, pinned]) => all.filter((m) => !pinned.includes(m))
+    );
+
+    // Helper to render pin button - accepts pre-computed isPinned value and pre-bound handler
+    const renderPinButton = (isPinned: typeof isNotesPinned, toggleHandler: typeof toggleNotesPin) => (
+      <button
+        onClick={toggleHandler}
+        style={{
+          padding: "4px 8px",
+          border: "1px solid #d1d5db",
+          borderRadius: "4px",
+          background: "transparent",
+          cursor: "pointer",
+          fontSize: "14px",
+        }}
+      >
+        {ifElse(isPinned, "📌 Pinned", "📍 Pin")}
+      </button>
+    );
+
     // Create unified record context for cross-panel data access
     const recordContext = computed((): RecordContext => ({
       title,
@@ -611,11 +701,472 @@ const Record = recipe<RecordInput, RecordOutput>(
             )}
           </ct-hstack>
 
-          {/* Tabbed Layout using ct-tabs */}
-          <ct-tabs $value={activeTab} style={{ flex: "1" }}>
-            <ct-tab-list>
-              {/* Notes tab is always first (built-in) */}
-              <ct-tab value="notes">{"\u{1F4DD}"} Notes</ct-tab>
+          {/* Adaptive Layout based on pinned modules */}
+          {ifElse(
+            derive(pinnedCount, (c) => c > 0),
+            /* Primary + Rail layout when modules are pinned */
+            <ct-hstack style={{ flex: "1", gap: "0", overflow: "hidden" }}>
+              {/* Primary area - pinned modules stacked */}
+              <ct-vstack style={{ flex: "2", borderRight: "1px solid #e5e7eb", overflow: "auto" }}>
+                {/* Pinned Notes */}
+                {ifElse(
+                  isNotesPinned,
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{"\u{1F4DD}"} Notes</span>
+                      <button
+                        onClick={toggleNotesPin}
+                        style={{
+                          padding: "4px 8px",
+                          border: "1px solid #d1d5db",
+                          borderRadius: "4px",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        {ifElse(isNotesPinned, "📌 Pinned", "📍 Pin")}
+                      </button>
+                    </ct-hstack>
+                    <ct-code-editor
+                      $value={notes}
+                      language="text/markdown"
+                      theme="light"
+                      wordWrap
+                      placeholder="Add notes here..."
+                      style={{ minHeight: "200px" }}
+                    />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Tags */}
+                {ifElse(
+                  derive([hasTags, isTagsPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("tags")?.icon} Tags</span>
+                      {renderPinButton(isTagsPinned, toggleTagsPin)}
+                    </ct-hstack>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {tagsValue.map((tag: string) => (
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: "0.25rem",
+                          padding: "0.25rem 0.5rem", backgroundColor: "#e0e7ff",
+                          color: "#3730a3", borderRadius: "9999px", fontSize: "0.875rem",
+                        }}>
+                          {tag}
+                          <button onClick={removeTag({ tagsData, tag })} style={{
+                            border: "none", background: "transparent", color: "#6366f1",
+                            cursor: "pointer", padding: "0", fontSize: "1rem",
+                          }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <ct-autocomplete onct-select={addTag({ tagsData })} placeholder="Add tags..." allowCustom={true} items={[]} />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Rating */}
+                {ifElse(
+                  derive([hasRating, isRatingPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("rating")?.icon} Rating</span>
+                      {renderPinButton(isRatingPinned, toggleRatingPin)}
+                    </ct-hstack>
+                    <ct-select
+                      $value={derive(ratingValue, (r) => r?.toString() ?? "")}
+                      onct-change={updateRating({ ratingData })}
+                      placeholder="Select rating..."
+                      items={[
+                        { value: "1", label: "⭐ 1" }, { value: "2", label: "⭐⭐ 2" },
+                        { value: "3", label: "⭐⭐⭐ 3" }, { value: "4", label: "⭐⭐⭐⭐ 4" },
+                        { value: "5", label: "⭐⭐⭐⭐⭐ 5" },
+                      ]}
+                      style={{ maxWidth: "200px" }}
+                    />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Status */}
+                {ifElse(
+                  derive([hasStatus, isStatusPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("status")?.icon} Status</span>
+                      {renderPinButton(isStatusPinned, toggleStatusPin)}
+                    </ct-hstack>
+                    <ct-select
+                      $value={statusValue}
+                      onct-change={updateStatus({ statusData })}
+                      placeholder="Select status..."
+                      items={[
+                        { value: "planned", label: "📋 Planned" }, { value: "active", label: "🚀 Active" },
+                        { value: "blocked", label: "🚧 Blocked" }, { value: "done", label: "✅ Done" },
+                        { value: "archived", label: "📦 Archived" },
+                      ]}
+                      style={{ maxWidth: "200px" }}
+                    />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Birthday */}
+                {ifElse(
+                  derive([hasBirthday, isBirthdayPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("birthday")?.icon} Birthday</span>
+                      {renderPinButton(isBirthdayPinned, toggleBirthdayPin)}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "12px" }}>
+                      <ct-input value={birthDateValue} onct-input={updateBirthDate({ birthdayData })} placeholder="YYYY-MM-DD" style={{ flex: "1" }} />
+                      <ct-input type="number" value={birthYearValue ?? ""} onct-input={updateBirthYear({ birthdayData })} placeholder="Year" style={{ width: "80px" }} />
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Contact */}
+                {ifElse(
+                  derive([hasContact, isContactPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("contact")?.icon} Contact</span>
+                      {renderPinButton(isContactPinned, toggleContactPin)}
+                    </ct-hstack>
+                    <ct-input value={emailValue} onct-input={updateEmail({ contactData })} placeholder="Email" />
+                    <ct-input value={phoneValue} onct-input={updatePhone({ contactData })} placeholder="Phone" />
+                    <ct-input value={websiteValue} onct-input={updateWebsite({ contactData })} placeholder="Website" />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Address */}
+                {ifElse(
+                  derive([hasAddress, isAddressPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("address")?.icon} Address</span>
+                      {renderPinButton(isAddressPinned, toggleAddressPin)}
+                    </ct-hstack>
+                    <ct-input value={streetValue} onct-input={updateStreet({ addressData })} placeholder="Street" />
+                    <ct-hstack style={{ gap: "8px" }}>
+                      <ct-input value={cityValue} onct-input={updateCity({ addressData })} placeholder="City" style={{ flex: "2" }} />
+                      <ct-input value={stateValue} onct-input={updateState({ addressData })} placeholder="State" style={{ flex: "1" }} />
+                      <ct-input value={zipValue} onct-input={updateZip({ addressData })} placeholder="ZIP" style={{ flex: "1" }} />
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Timeline */}
+                {ifElse(
+                  derive([hasTimeline, isTimelinePinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("timeline")?.icon} Timeline</span>
+                      {renderPinButton(isTimelinePinned, toggleTimelinePin)}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "12px" }}>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Start</span>
+                        <ct-input value={startDateValue} onct-input={updateStartDate({ timelineData })} placeholder="YYYY-MM-DD" />
+                      </ct-vstack>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Target</span>
+                        <ct-input value={targetDateValue} onct-input={updateTargetDate({ timelineData })} placeholder="YYYY-MM-DD" />
+                      </ct-vstack>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Done</span>
+                        <ct-input value={completedDateValue} onct-input={updateCompletedDate({ timelineData })} placeholder="YYYY-MM-DD" />
+                      </ct-vstack>
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Social */}
+                {ifElse(
+                  derive([hasSocial, isSocialPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("social")?.icon} Social</span>
+                      {renderPinButton(isSocialPinned, toggleSocialPin)}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "8px" }}>
+                      <ct-select $value={platformValue} onct-change={updatePlatform({ socialData })} placeholder="Platform" items={[
+                        { value: "twitter", label: "𝕏 Twitter" }, { value: "linkedin", label: "💼 LinkedIn" },
+                        { value: "github", label: "🐙 GitHub" }, { value: "instagram", label: "📷 Instagram" },
+                      ]} style={{ flex: "1" }} />
+                      <ct-input value={handleValue} onct-input={updateHandle({ socialData })} placeholder="@handle" style={{ flex: "1" }} />
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Link */}
+                {ifElse(
+                  derive([hasLink, isLinkPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("link")?.icon} Link</span>
+                      {renderPinButton(isLinkPinned, toggleLinkPin)}
+                    </ct-hstack>
+                    <ct-input value={linkUrlValue} onct-input={updateLinkUrl({ linkData })} placeholder="https://..." />
+                    <ct-hstack style={{ gap: "8px" }}>
+                      <ct-input value={linkTitleValue} onct-input={updateLinkTitle({ linkData })} placeholder="Title" style={{ flex: "1" }} />
+                      <ct-input value={linkDescriptionValue} onct-input={updateLinkDescription({ linkData })} placeholder="Description" style={{ flex: "2" }} />
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Location */}
+                {ifElse(
+                  derive([hasLocation, isLocationPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("location")?.icon} Location</span>
+                      {renderPinButton(isLocationPinned, toggleLocationPin)}
+                    </ct-hstack>
+                    <ct-input value={locationNameValue} onct-input={updateLocationName({ locationData })} placeholder="Location name" />
+                    <ct-input value={locationAddressValue} onct-input={updateLocationAddress({ locationData })} placeholder="Full address" />
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Relationship */}
+                {ifElse(
+                  derive([hasRelationship, isRelationshipPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("relationship")?.icon} Relationship</span>
+                      {renderPinButton(isRelationshipPinned, toggleRelationshipPin)}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "8px", flexWrap: "wrap" }}>
+                      {relationTypesValue.map((relType: string) => (
+                        <span style={{ padding: "2px 8px", backgroundColor: "#fce7f3", color: "#9d174d", borderRadius: "9999px", fontSize: "13px" }}>
+                          {relType} <button onClick={removeRelationType({ relationshipData, relType })} style={{ border: "none", background: "transparent", cursor: "pointer" }}>×</button>
+                        </span>
+                      ))}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "8px" }}>
+                      <ct-select $value={closenessValue} onct-change={updateCloseness({ relationshipData })} placeholder="Closeness" items={[
+                        { value: "intimate", label: "💜 Intimate" }, { value: "close", label: "💙 Close" },
+                        { value: "casual", label: "💚 Casual" }, { value: "distant", label: "🤍 Distant" },
+                      ]} style={{ flex: "1" }} />
+                      <ct-autocomplete onct-select={addRelationType({ relationshipData })} placeholder="Add type..." allowCustom={true} items={[
+                        { value: "friend", label: "Friend" }, { value: "colleague", label: "Colleague" },
+                        { value: "family", label: "Family" },
+                      ]} style={{ flex: "1" }} />
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned GiftPrefs */}
+                {ifElse(
+                  derive([hasGiftPrefs, isGiftPrefsPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("giftprefs")?.icon} Gift Preferences</span>
+                      {renderPinButton(isGiftPrefsPinned, toggleGiftPrefsPin)}
+                    </ct-hstack>
+                    <ct-select $value={giftTierValue} onct-change={updateGiftTier({ giftPrefsData })} placeholder="Gift tier" items={[
+                      { value: "always", label: "🎁 Always" }, { value: "occasions", label: "🎂 Occasions" },
+                      { value: "reciprocal", label: "🔄 Reciprocal" }, { value: "none", label: "❌ None" },
+                    ]} style={{ maxWidth: "200px" }} />
+                    <ct-hstack style={{ gap: "8px" }}>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#065f46" }}>Favorites</span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          {favoritesValue.map((fav: string) => (
+                            <span style={{ padding: "2px 6px", backgroundColor: "#d1fae5", borderRadius: "9999px", fontSize: "12px" }}>
+                              {fav} <button onClick={removeFavorite({ giftPrefsData, fav })} style={{ border: "none", background: "transparent", cursor: "pointer" }}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                        <ct-autocomplete onct-select={addFavorite({ giftPrefsData })} placeholder="Add..." allowCustom={true} items={[]} />
+                      </ct-vstack>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#991b1b" }}>Avoid</span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          {avoidValue.map((item: string) => (
+                            <span style={{ padding: "2px 6px", backgroundColor: "#fee2e2", borderRadius: "9999px", fontSize: "12px" }}>
+                              {item} <button onClick={removeAvoid({ giftPrefsData, item })} style={{ border: "none", background: "transparent", cursor: "pointer" }}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                        <ct-autocomplete onct-select={addAvoid({ giftPrefsData })} placeholder="Add..." allowCustom={true} items={[]} />
+                      </ct-vstack>
+                    </ct-hstack>
+                  </ct-vstack>,
+                  null
+                )}
+                {/* Pinned Timing */}
+                {ifElse(
+                  derive([hasTiming, isTimingPinned] as const, ([has, pinned]) => has && pinned),
+                  <ct-vstack style={{ padding: "16px", gap: "8px", borderBottom: "1px solid #e5e7eb" }}>
+                    <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "600", fontSize: "14px" }}>{getDefinition("timing")?.icon} Timing</span>
+                      {renderPinButton(isTimingPinned, toggleTimingPin)}
+                    </ct-hstack>
+                    <ct-hstack style={{ gap: "12px" }}>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Prep</span>
+                        <ct-input type="number" value={prepTimeValue ?? ""} onct-input={updatePrepTime({ timingData })} placeholder="mins" />
+                      </ct-vstack>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Cook</span>
+                        <ct-input type="number" value={cookTimeValue ?? ""} onct-input={updateCookTime({ timingData })} placeholder="mins" />
+                      </ct-vstack>
+                      <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                        <span style={{ fontSize: "12px", color: "#6b7280" }}>Rest</span>
+                        <ct-input type="number" value={restTimeValue ?? ""} onct-input={updateRestTime({ timingData })} placeholder="mins" />
+                      </ct-vstack>
+                    </ct-hstack>
+                    {ifElse(
+                      derive(totalTimeValue, (t) => t !== null),
+                      <div style={{ padding: "8px 12px", background: "#f3f4f6", borderRadius: "6px", fontSize: "13px" }}>
+                        Total: {totalTimeValue} minutes
+                      </div>,
+                      null
+                    )}
+                  </ct-vstack>,
+                  null
+                )}
+              </ct-vstack>
+              {/* Rail - tabs for all modules (navigate/edit) */}
+              <ct-vstack style={{ flex: "1", overflow: "auto" }}>
+                <div style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontSize: "12px", color: "#6b7280" }}>
+                  All Modules
+                </div>
+                <ct-tabs $value={activeTab} style={{ flex: "1" }}>
+                  <ct-tab-list>
+                    <ct-tab value="notes">{"\u{1F4DD}"}</ct-tab>
+                    {ifElse(hasBirthday, <ct-tab value="birthday">{getDefinition("birthday")?.icon}</ct-tab>, null)}
+                    {ifElse(hasRating, <ct-tab value="rating">{getDefinition("rating")?.icon}</ct-tab>, null)}
+                    {ifElse(hasTags, <ct-tab value="tags">{getDefinition("tags")?.icon}</ct-tab>, null)}
+                    {ifElse(hasContact, <ct-tab value="contact">{getDefinition("contact")?.icon}</ct-tab>, null)}
+                    {ifElse(hasStatus, <ct-tab value="status">{getDefinition("status")?.icon}</ct-tab>, null)}
+                    {ifElse(hasAddress, <ct-tab value="address">{getDefinition("address")?.icon}</ct-tab>, null)}
+                    {ifElse(hasTimeline, <ct-tab value="timeline">{getDefinition("timeline")?.icon}</ct-tab>, null)}
+                    {ifElse(hasSocial, <ct-tab value="social">{getDefinition("social")?.icon}</ct-tab>, null)}
+                    {ifElse(hasLink, <ct-tab value="link">{getDefinition("link")?.icon}</ct-tab>, null)}
+                    {ifElse(hasLocation, <ct-tab value="location">{getDefinition("location")?.icon}</ct-tab>, null)}
+                    {ifElse(hasRelationship, <ct-tab value="relationship">{getDefinition("relationship")?.icon}</ct-tab>, null)}
+                    {ifElse(hasGiftPrefs, <ct-tab value="giftprefs">{getDefinition("giftprefs")?.icon}</ct-tab>, null)}
+                    {ifElse(hasTiming, <ct-tab value="timing">{getDefinition("timing")?.icon}</ct-tab>, null)}
+                  </ct-tab-list>
+                  {/* Mini tab panels for rail editing - reuse existing panels */}
+                  <ct-tab-panel value="notes">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isNotesPinned, toggleNotesPin)}
+                      <ct-code-editor $value={notes} language="text/markdown" theme="light" wordWrap style={{ minHeight: "150px" }} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="birthday">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isBirthdayPinned, toggleBirthdayPin)}
+                      <ct-input value={birthDateValue} onct-input={updateBirthDate({ birthdayData })} placeholder="YYYY-MM-DD" />
+                      <ct-input type="number" value={birthYearValue ?? ""} onct-input={updateBirthYear({ birthdayData })} placeholder="Year" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="rating">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isRatingPinned, toggleRatingPin)}
+                      <ct-select $value={derive(ratingValue, (r) => r?.toString() ?? "")} onct-change={updateRating({ ratingData })} items={[
+                        { value: "1", label: "⭐ 1" }, { value: "2", label: "⭐⭐ 2" }, { value: "3", label: "⭐⭐⭐ 3" },
+                        { value: "4", label: "⭐⭐⭐⭐ 4" }, { value: "5", label: "⭐⭐⭐⭐⭐ 5" },
+                      ]} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="tags">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isTagsPinned, toggleTagsPin)}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {tagsValue.map((tag: string) => (
+                          <span style={{ padding: "2px 6px", backgroundColor: "#e0e7ff", borderRadius: "9999px", fontSize: "12px" }}>
+                            {tag} <button onClick={removeTag({ tagsData, tag })} style={{ border: "none", background: "transparent", cursor: "pointer" }}>×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <ct-autocomplete onct-select={addTag({ tagsData })} placeholder="Add..." allowCustom={true} items={[]} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="contact">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isContactPinned, toggleContactPin)}
+                      <ct-input value={emailValue} onct-input={updateEmail({ contactData })} placeholder="Email" />
+                      <ct-input value={phoneValue} onct-input={updatePhone({ contactData })} placeholder="Phone" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="status">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isStatusPinned, toggleStatusPin)}
+                      <ct-select $value={statusValue} onct-change={updateStatus({ statusData })} items={[
+                        { value: "planned", label: "📋 Planned" }, { value: "active", label: "🚀 Active" },
+                        { value: "blocked", label: "🚧 Blocked" }, { value: "done", label: "✅ Done" },
+                      ]} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="address">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isAddressPinned, toggleAddressPin)}
+                      <ct-input value={streetValue} onct-input={updateStreet({ addressData })} placeholder="Street" />
+                      <ct-input value={cityValue} onct-input={updateCity({ addressData })} placeholder="City" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="timeline">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isTimelinePinned, toggleTimelinePin)}
+                      <ct-input value={startDateValue} onct-input={updateStartDate({ timelineData })} placeholder="Start" />
+                      <ct-input value={targetDateValue} onct-input={updateTargetDate({ timelineData })} placeholder="Target" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="social">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isSocialPinned, toggleSocialPin)}
+                      <ct-input value={handleValue} onct-input={updateHandle({ socialData })} placeholder="@handle" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="link">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isLinkPinned, toggleLinkPin)}
+                      <ct-input value={linkUrlValue} onct-input={updateLinkUrl({ linkData })} placeholder="URL" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="location">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isLocationPinned, toggleLocationPin)}
+                      <ct-input value={locationNameValue} onct-input={updateLocationName({ locationData })} placeholder="Name" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="relationship">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isRelationshipPinned, toggleRelationshipPin)}
+                      <ct-select $value={closenessValue} onct-change={updateCloseness({ relationshipData })} items={[
+                        { value: "intimate", label: "💜 Intimate" }, { value: "close", label: "💙 Close" },
+                        { value: "casual", label: "💚 Casual" }, { value: "distant", label: "🤍 Distant" },
+                      ]} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="giftprefs">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isGiftPrefsPinned, toggleGiftPrefsPin)}
+                      <ct-select $value={giftTierValue} onct-change={updateGiftTier({ giftPrefsData })} items={[
+                        { value: "always", label: "🎁 Always" }, { value: "occasions", label: "🎂 Occasions" },
+                        { value: "reciprocal", label: "🔄 Reciprocal" }, { value: "none", label: "❌ None" },
+                      ]} />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                  <ct-tab-panel value="timing">
+                    <ct-vstack style={{ padding: "12px", gap: "8px" }}>
+                      {renderPinButton(isTimingPinned, toggleTimingPin)}
+                      <ct-input type="number" value={prepTimeValue ?? ""} onct-input={updatePrepTime({ timingData })} placeholder="Prep mins" />
+                      <ct-input type="number" value={cookTimeValue ?? ""} onct-input={updateCookTime({ timingData })} placeholder="Cook mins" />
+                    </ct-vstack>
+                  </ct-tab-panel>
+                </ct-tabs>
+              </ct-vstack>
+            </ct-hstack>,
+            /* Original tabs layout when nothing is pinned */
+            <ct-tabs $value={activeTab} style={{ flex: "1" }}>
+              <ct-tab-list>
+                {/* Notes tab is always first (built-in) */}
+                <ct-tab value="notes">{"\u{1F4DD}"} Notes</ct-tab>
               {/* Birthday tab (shown if enabled) - uses registry metadata */}
               {ifElse(
                 hasBirthday,
@@ -727,6 +1278,21 @@ const Record = recipe<RecordInput, RecordOutput>(
               <ct-vstack
                 style={{ height: "100%", gap: "8px", padding: "12px" }}
               >
+                <ct-hstack style={{ justifyContent: "flex-end", marginBottom: "4px" }}>
+                  <button
+                    onClick={toggleNotesPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isNotesPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-code-editor
                   $value={notes}
                   language="text/markdown"
@@ -741,6 +1307,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Birthday panel (always rendered, tab visibility controlled above) */}
             <ct-tab-panel value="birthday">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleBirthdayPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isBirthdayPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Birth Date
@@ -775,6 +1356,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Rating panel */}
             <ct-tab-panel value="rating">
               <ct-vstack style={{ padding: "16px", gap: "8px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleRatingPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isRatingPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <label style={{ fontWeight: "600", fontSize: "14px" }}>
                   Rating
                 </label>
@@ -800,6 +1396,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Tags panel */}
             <ct-tab-panel value="tags">
               <ct-vstack style={{ padding: "16px", gap: "12px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleTagsPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isTagsPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <label style={{ fontWeight: "600", fontSize: "14px" }}>
                   Tags
                 </label>
@@ -863,6 +1474,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Contact panel */}
             <ct-tab-panel value="contact">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleContactPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isContactPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Email
@@ -899,6 +1525,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Status panel */}
             <ct-tab-panel value="status">
               <ct-vstack style={{ padding: "16px", gap: "8px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleStatusPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isStatusPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <label style={{ fontWeight: "600", fontSize: "14px" }}>
                   Status
                 </label>
@@ -924,6 +1565,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Address panel */}
             <ct-tab-panel value="address">
               <ct-vstack style={{ padding: "16px", gap: "12px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleAddressPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isAddressPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Street
@@ -972,6 +1628,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Timeline panel */}
             <ct-tab-panel value="timeline">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleTimelinePin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isTimelinePinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Start Date
@@ -1008,6 +1679,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Social panel */}
             <ct-tab-panel value="social">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleSocialPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isSocialPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Platform
@@ -1056,6 +1742,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Link panel */}
             <ct-tab-panel value="link">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleLinkPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isLinkPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     URL
@@ -1092,6 +1793,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Location panel */}
             <ct-tab-panel value="location">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleLocationPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isLocationPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Location Name
@@ -1131,9 +1847,24 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Relationship panel */}
             <ct-tab-panel value="relationship">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
-                <p style={{ color: "#666", fontSize: "13px", margin: "0" }}>
-                  Your relationship with {recordContext.displayName}
-                </p>
+                <ct-hstack style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <p style={{ color: "#666", fontSize: "13px", margin: "0" }}>
+                    Your relationship with {recordContext.displayName}
+                  </p>
+                  <button
+                    onClick={toggleRelationshipPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isRelationshipPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Relationship Types
@@ -1236,6 +1967,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Gift Prefs panel */}
             <ct-tab-panel value="giftprefs">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleGiftPrefsPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isGiftPrefsPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-vstack style={{ gap: "4px" }}>
                   <label style={{ fontWeight: "600", fontSize: "14px" }}>
                     Gift Giving Tier
@@ -1375,6 +2121,21 @@ const Record = recipe<RecordInput, RecordOutput>(
             {/* Timing panel */}
             <ct-tab-panel value="timing">
               <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ justifyContent: "flex-end" }}>
+                  <button
+                    onClick={toggleTimingPin}
+                    style={{
+                      padding: "4px 8px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "4px",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {ifElse(isTimingPinned, "📌 Pinned", "📍 Pin")}
+                  </button>
+                </ct-hstack>
                 <ct-hstack style={{ gap: "16px" }}>
                   <ct-vstack style={{ gap: "4px", flex: "1" }}>
                     <label style={{ fontWeight: "600", fontSize: "14px" }}>
@@ -1421,11 +2182,13 @@ const Record = recipe<RecordInput, RecordOutput>(
               </ct-vstack>
             </ct-tab-panel>
           </ct-tabs>
+          )}
         </ct-vstack>
       ),
       title,
       notes,
       enabledSubCharms,
+      pinnedModules,
       birthdayData,
       ratingData,
       tagsData,
