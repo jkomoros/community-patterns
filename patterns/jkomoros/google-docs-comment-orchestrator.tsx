@@ -560,6 +560,7 @@ export default pattern<Input, Output>(
       fullUI: authFullUI,
       isReady: isAuthenticated,
       currentEmail,
+      protectedContent,
     } = createGoogleAuth({
       requiredScopes: ["drive", "docs"] as ScopeKey[],
     });
@@ -770,28 +771,30 @@ export default pattern<Input, Output>(
                     placeholder="https://docs.google.com/document/d/..."
                     style="flex: 1;"
                   />
-                  <ct-button
-                    variant="primary"
-                    type="button"
-                    disabled={fetchButtonDisabled}
-                    onClick={fetchComments({
-                      docUrl: docUrlCell,
-                      auth,
-                      comments: commentsCell,
-                      docContent: docContentCell,
-                      isFetching: isFetchingCell,
-                      lastError: lastErrorCell,
-                    })}
-                  >
-                    {ifElse(
-                      computed(() => isFetchingCell.get() === true),
-                      <ct-hstack align="center" gap={1}>
-                        <ct-loader />
-                        <span>Fetching...</span>
-                      </ct-hstack>,
-                      "Fetch Comments"
-                    )}
-                  </ct-button>
+                  {protectedContent(
+                    <ct-button
+                      variant="primary"
+                      type="button"
+                      disabled={isFetchingCell}
+                      onClick={fetchComments({
+                        docUrl: docUrlCell,
+                        auth,
+                        comments: commentsCell,
+                        docContent: docContentCell,
+                        isFetching: isFetchingCell,
+                        lastError: lastErrorCell,
+                      })}
+                    >
+                      {ifElse(
+                        computed(() => isFetchingCell.get() === true),
+                        <ct-hstack align="center" gap={1}>
+                          <ct-loader />
+                          <span>Fetching...</span>
+                        </ct-hstack>,
+                        "Fetch Comments"
+                      )}
+                    </ct-button>
+                  )}
                 </ct-hstack>
 
                 {/* Error display */}

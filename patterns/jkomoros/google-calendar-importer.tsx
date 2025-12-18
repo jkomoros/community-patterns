@@ -444,7 +444,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
     const PAGE_SIZE = 10;
 
     // Use createGoogleAuth utility for auth management
-    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+    const { auth, fullUI, isReady, currentEmail, protectedContent } = createGoogleAuth({
       requiredScopes: ["calendar"] as ScopeKey[],
     });
 
@@ -537,26 +537,28 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
                     Debug Mode (verbose console logging)
                   </label>
                 </div>
-                <ct-button
-                  type="button"
-                  onClick={calendarUpdater({
-                    events,
-                    calendars,
-                    auth,
-                    settings,
-                    fetching,
-                  })}
-                  disabled={fetching}
-                >
-                  {ifElse(
-                    fetching,
-                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <ct-loader size="sm" show-elapsed></ct-loader>
-                      Fetching...
-                    </span>,
-                    "Fetch Calendar Events"
-                  )}
-                </ct-button>
+                {protectedContent(
+                  <ct-button
+                    type="button"
+                    onClick={calendarUpdater({
+                      events,
+                      calendars,
+                      auth,
+                      settings,
+                      fetching,
+                    })}
+                    disabled={fetching}
+                  >
+                    {ifElse(
+                      fetching,
+                      <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        Fetching...
+                      </span>,
+                      "Fetch Calendar Events"
+                    )}
+                  </ct-button>
+                )}
               </ct-vstack>
 
               {/* Calendar list */}

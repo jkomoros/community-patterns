@@ -700,7 +700,7 @@ export default pattern<{
     });
 
     // Use createGoogleAuth utility with reactive accountType
-    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+    const { auth, fullUI, isReady, currentEmail, protectedContent } = createGoogleAuth({
       requiredScopes: ["gmail"] as ScopeKey[],
       accountType: selectedAccountType,
     });
@@ -788,25 +788,27 @@ export default pattern<{
                 Debug Mode (verbose console logging)
               </label>
             </div>
-            <ct-button
-              type="button"
-              onClick={googleUpdater({
-                emails,
-                auth,
-                settings,
-                fetching,
-              })}
-              disabled={fetching}
-            >
-              {ifElse(
-                fetching,
-                <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <ct-loader size="sm" show-elapsed></ct-loader>
-                  Fetching...
-                </span>,
-                "Fetch Emails"
-              )}
-            </ct-button>
+            {protectedContent(
+              <ct-button
+                type="button"
+                onClick={googleUpdater({
+                  emails,
+                  auth,
+                  settings,
+                  fetching,
+                })}
+                disabled={fetching}
+              >
+                {ifElse(
+                  fetching,
+                  <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <ct-loader size="sm" show-elapsed></ct-loader>
+                    Fetching...
+                  </span>,
+                  "Fetch Emails"
+                )}
+              </ct-button>
+            )}
           </ct-vstack>
 
           <div>

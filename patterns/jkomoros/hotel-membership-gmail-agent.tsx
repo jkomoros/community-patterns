@@ -466,49 +466,53 @@ Report memberships as you find them. Don't wait until the end.`,
               {/* Auth UI from base pattern */}
               {searcher.ui.auth}
 
-              {/* Scan Mode Selection - Custom buttons with mode support */}
-              <div style={{
-                padding: "16px",
-                background: "#f8fafc",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-              }}>
+              {/* Scan Mode Selection - Only show when authenticated */}
+              {ifElse(
+                searcher.isAuthenticated,
                 <div style={{
-                  fontSize: "14px",
-                  fontWeight: "600",
-                  marginBottom: "12px",
-                  color: "#475569",
+                  padding: "16px",
+                  background: "#f8fafc",
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0",
                 }}>
-                  Scan Mode
-                </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <ct-button
-                    onClick={startFullScan}
-                    size="lg"
-                    style="flex: 1;"
-                    disabled={buttonsDisabled}
-                  >
-                    {fullScanLabel}
-                  </ct-button>
-                  <ct-button
-                    onClick={startRecentScan}
-                    variant="secondary"
-                    size="lg"
-                    style="flex: 1;"
-                    disabled={buttonsDisabled}
-                  >
-                    📅 Check Recent
-                  </ct-button>
-                </div>
-                <div style={{
-                  fontSize: "11px",
-                  color: "#94a3b8",
-                  marginTop: "8px",
-                  textAlign: "center",
-                }}>
-                  Full = all emails • Recent = last 7 days only
-                </div>
-              </div>
+                  <div style={{
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    marginBottom: "12px",
+                    color: "#475569",
+                  }}>
+                    Scan Mode
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <ct-button
+                      onClick={startFullScan}
+                      size="lg"
+                      style="flex: 1;"
+                      disabled={buttonsDisabled}
+                    >
+                      {fullScanLabel}
+                    </ct-button>
+                    <ct-button
+                      onClick={startRecentScan}
+                      variant="secondary"
+                      size="lg"
+                      style="flex: 1;"
+                      disabled={buttonsDisabled}
+                    >
+                      📅 Check Recent
+                    </ct-button>
+                  </div>
+                  <div style={{
+                    fontSize: "11px",
+                    color: "#94a3b8",
+                    marginTop: "8px",
+                    textAlign: "center",
+                  }}>
+                    Full = all emails • Recent = last 7 days only
+                  </div>
+                </div>,
+                null
+              )}
 
               {/* Stop button when scanning */}
               {ifElse(

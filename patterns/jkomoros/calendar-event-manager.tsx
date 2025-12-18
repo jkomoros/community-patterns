@@ -419,7 +419,7 @@ const dismissResult = handler<unknown, { result: Cell<OperationResult> }>(
 
 export default pattern<Input, Output>(({ draft, existingEvent }) => {
   // Auth via createGoogleAuth utility - handles discovery, validation, and UI
-  const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+  const { auth, fullUI, isReady, protectedContent } = createGoogleAuth({
     requiredScopes: ["calendar", "calendarWrite"] as ScopeKey[],
   });
   const hasAuth = isReady;

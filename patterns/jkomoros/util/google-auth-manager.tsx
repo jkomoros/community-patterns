@@ -10,7 +10,7 @@
  *
  * Usage:
  * ```typescript
- * const { auth, fullUI, isReady } = createGoogleAuth({
+ * const { auth, fullUI, isReady, protectedContent } = createGoogleAuth({
  *   requiredScopes: ["gmail", "drive"],
  * });
  *
@@ -21,7 +21,11 @@
  * });
  *
  * // In UI: {fullUI} handles all auth states
- * return { [UI]: <div>{fullUI}</div> };
+ * // Use protectedContent() to show action buttons only when authenticated
+ * return { [UI]: <div>
+ *   {fullUI}
+ *   {protectedContent(<button onClick={doSomething}>Do Something</button>)}
+ * </div> };
  * ```
  *
  * IMPORTANT: Token refresh is currently broken in the framework!
@@ -54,6 +58,7 @@ import {
   computed,
   derive,
   handler,
+  ifElse,
   navigateTo,
   UI,
   wish,
@@ -763,6 +768,10 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     pickerUI,
     statusUI,
     fullUI,
+
+    // Protected content wrapper - renders children only when auth is ready
+    // Usage: {protectedContent(<button>Action</button>)}
+    protectedContent: (children: JSX.Element) => ifElse(isReady, children, null),
 
     // Raw wish result for advanced use cases
     wishResult,
