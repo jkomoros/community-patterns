@@ -9,14 +9,12 @@ import {
   handler,
   ifElse,
   NAME,
-  navigateTo,
   patternTool,
   pattern,
   str,
   UI,
-  wish,
 } from "commontools";
-import GoogleAuth from "./google-auth.tsx";
+import { createGoogleAuth, type ScopeKey } from "./util/google-auth-manager.tsx";
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
@@ -381,15 +379,6 @@ const calendarUpdater = handler<unknown, {
   },
 );
 
-const toggleAuthView = handler<
-  unknown,
-  { showAuth: Cell<boolean> }
->(
-  (_, { showAuth }) => {
-    showAuth.set(!showAuth.get());
-  },
-);
-
 const toggleDebugMode = handler<
   { target: { checked: boolean } },
   { settings: Cell<Settings> }
@@ -415,42 +404,6 @@ const prevPage = handler<unknown, { currentPage: Cell<number> }>(
   },
 );
 
-// Handler to create a new GoogleAuth charm and navigate to it
-const createGoogleAuth = handler<unknown, Record<string, never>>(
-  () => {
-    const googleAuthCharm = GoogleAuth({
-      selectedScopes: {
-        gmail: false,
-        gmailSend: false,
-        gmailModify: false,
-        calendar: true,  // Pre-select Calendar scope
-        calendarWrite: false,
-        drive: false,
-        docs: false,
-        contacts: false,
-      },
-      auth: {
-        token: "",
-        tokenType: "",
-        scope: [],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      },
-    });
-    return navigateTo(googleAuthCharm);
-  },
-);
-
-// What we expect from the google-auth charm
-type GoogleAuthCharm = {
-  auth: Auth;
-  scopes?: string[];
-};
-
-// Calendar scope URL for checking
-const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 
 // Format date for display
 function formatEventDate(startDateTime: string, endDateTime: string, isAllDay: boolean): string {
@@ -472,8 +425,6 @@ interface GoogleCalendarImporterInput {
     maxResults: 100;
     debugMode: false;
   }>;
-  // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
-  authCharm?: Default<any, null>;
 }
 
 /** Google Calendar event importer. #calendarEvents */
@@ -485,70 +436,17 @@ interface Output {
 }
 
 const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
-  ({ settings, authCharm }) => {
+  ({ settings }) => {
     const events = Cell.of<Confidential<CalendarEvent[]>>([]);
     const calendars = Cell.of<Calendar[]>([]);
-    const showAuth = Cell.of(false);
     const fetching = Cell.of(false);
     const currentPage = Cell.of(0);
     const PAGE_SIZE = 10;
 
-    // Wish for a favorited auth charm (unified Google auth)
-    const wishedAuthCharm = wish<GoogleAuthCharm>("#googleAuth");
-
-    // Determine if we have an explicit auth charm provided
-    const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
-
-    // Get the effective auth charm: explicit one if provided, otherwise wished one
-    const effectiveAuthCharm = derive(
-      { authCharm, wishedAuthCharm, hasExplicitAuth },
-      ({ authCharm, wishedAuthCharm, hasExplicitAuth }) => {
-        if (hasExplicitAuth) {
-          return authCharm;
-        }
-        return wishedAuthCharm || null;
-      }
-    );
-
-    // Extract auth data from the effective auth charm
-    const auth = derive(effectiveAuthCharm, (charm) => {
-      logDeriveCall("auth");
-      return charm?.auth || {
-        token: "",
-        tokenType: "",
-        scope: [],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      };
+    // Use createGoogleAuth utility for auth management
+    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+      requiredScopes: ["calendar"] as ScopeKey[],
     });
-
-    const isAuthenticated = derive(auth, (a) => a?.user?.email ? true : false);
-
-    // Track if we're using wished auth vs explicit
-    const usingWishedAuth = derive(
-      { hasExplicitAuth, wishedAuthCharm },
-      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !!wishedAuthCharm
-    );
-
-    // Note: Legacy syntax doesn't provide error info, so we just check if auth is missing
-    const wishError = derive(
-      { hasExplicitAuth, wishedAuthCharm },
-      ({ hasExplicitAuth, wishedAuthCharm }) => !hasExplicitAuth && !wishedAuthCharm ? "No #googleAuth favorite found" : null
-    );
-
-    // Check if Calendar scope is granted
-    const hasCalendarScope = derive(auth, (a) => {
-      const scopes = a?.scope || [];
-      return scopes.includes(CALENDAR_SCOPE);
-    });
-
-    // Authenticated but missing Calendar scope
-    const missingCalendarScope = derive(
-      { isAuthenticated, hasCalendarScope },
-      ({ isAuthenticated, hasCalendarScope }) => isAuthenticated && !hasCalendarScope
-    );
 
     computed(() => {
       if (settings.debugMode) {
@@ -585,127 +483,19 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
     });
 
     return {
-      [NAME]: str`Calendar Importer ${
-        derive(auth, (auth) => auth?.user?.email || "unauthorized")
-      }`,
+      [NAME]: str`Calendar Importer ${currentEmail}`,
       [UI]: (
         <ct-screen>
           <div slot="header">
             <ct-hstack align="center" gap="2">
               <ct-heading level={3}>Google Calendar Importer</ct-heading>
-
-              {/* Red/Green status dot */}
-              <button
-                onClick={toggleAuthView({ showAuth })}
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  border: "2px solid #333",
-                  backgroundColor: ifElse(
-                    isAuthenticated,
-                    "#22c55e", // green
-                    "#ef4444", // red
-                  ),
-                  cursor: "pointer",
-                  padding: "0",
-                }}
-                title={ifElse(
-                  isAuthenticated,
-                  "Authenticated - Click to view auth",
-                  "Not authenticated - Click to login",
-                )}
-              />
             </ct-hstack>
           </div>
 
           <ct-vscroll flex showScrollbar>
             <ct-vstack padding="6" gap="4">
-              {/* Conditionally show auth UI inline */}
-              {ifElse(
-                derive(showAuth, (show) => show),
-                <div
-                  style={{
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    padding: "15px",
-                    backgroundColor: "#f9fafb",
-                  }}
-                >
-                  <h3 style={{ fontSize: "16px", marginTop: "0" }}>
-                    Authentication
-                  </h3>
-
-                  {/* Show source of auth */}
-                  {ifElse(
-                    hasExplicitAuth,
-                    <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
-                      Using explicitly linked auth charm
-                    </div>,
-                    ifElse(
-                      usingWishedAuth,
-                      <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
-                        ✓ Using shared auth from favorited Google Auth charm
-                      </div>,
-                      <div style={{
-                        marginBottom: "15px",
-                        padding: "12px",
-                        backgroundColor: "#fff3cd",
-                        borderRadius: "6px",
-                        border: "1px solid #ffeeba",
-                      }}>
-                        <strong>No Google Auth Found</strong>
-                        <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                          Create a Google Auth charm to authenticate:
-                        </p>
-                        <ct-button
-                          onClick={createGoogleAuth({})}
-                          style={{ marginTop: "12px" }}
-                        >
-                          Create Google Auth
-                        </ct-button>
-                        <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
-                          After authenticating, click the star to favorite it, then come back here.
-                        </p>
-                        {ifElse(
-                          derive(wishError, (err: string | null) => !!err),
-                          <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#856404" }}>
-                            Debug: {wishError}
-                          </p>,
-                          <div />
-                        )}
-                      </div>
-                    )
-                  )}
-
-                  {/* Scope warning */}
-                  {ifElse(
-                    missingCalendarScope,
-                    <div style={{
-                      marginBottom: "15px",
-                      padding: "12px",
-                      backgroundColor: "#f8d7da",
-                      borderRadius: "6px",
-                      border: "1px solid #f5c6cb",
-                    }}>
-                      <strong>Calendar Permission Missing</strong>
-                      <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                        Your Google Auth charm doesn't have Calendar permission enabled.
-                        Please enable the Calendar checkbox in your Google Auth charm and re-authenticate.
-                      </p>
-                    </div>,
-                    <div />
-                  )}
-
-                  {/* Render the auth charm if available */}
-                  {ifElse(
-                    derive(effectiveAuthCharm, (charm) => !!charm),
-                    <ct-render $cell={effectiveAuthCharm} />,
-                    <div />
-                  )}
-                </div>,
-                <div />,
-              )}
+              {/* Auth status - handled by createGoogleAuth utility */}
+              {fullUI}
 
               <h3 style={{ fontSize: "18px", fontWeight: "bold" }}>
                 Imported event count: {computed(() => events.get().length)}
