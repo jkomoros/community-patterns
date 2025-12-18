@@ -168,12 +168,24 @@ Same charm object lives in both — framework object identity handles equality.
 
 Each sub-charm exposes:
 - **Identity**: `subCharmType`, `subCharmLabel`, `subCharmIcon`
-- **LLM Integration** (optional): `extractionSchema`, `extractionHints`
-- **Write handlers**: Stream handlers for parent to communicate (framework enforces write isolation)
+- **LLM Integration** (optional): field mappings for extraction routing
+- **Data access**: Depends on how sub-charm is created:
+
+**Composed sub-charms** (created inline with record):
+- Share Cell inputs directly with parent — no Stream handlers needed
+- Parent writes to shared cells; sub-charm reads reactively
+- This is the idiomatic pattern for tightly-coupled components
+
+**Wished sub-charms** (discovered via wish()):
+- Require Stream handlers due to write isolation
+- Parent calls `stream.send()` inside handler with `Stream<T>` type signature
+- Use when sub-charm might exist independently
 
 ---
 
 ## Open Questions for Framework Author
+
+### Original Questions
 
 1. **Charm references in arrays**: What's the idiomatic way to store charm references in an array with wrapper metadata (like `PositionedCharm`)? Is it just `{ charm: SomePattern({}), layoutPosition: 0 }` and the framework handles the reference?
 
@@ -181,9 +193,17 @@ Each sub-charm exposes:
 
 3. **Direct pointers**: Can we store `notesCharm` as a direct reference to a charm that also lives in `subCharms[0].charm`? Or does duplicating references cause issues?
 
-4. **Write isolation**: The research suggests parent can't write to sub-charm fields directly — sub-charms must expose Stream handlers. Is this still the recommended pattern for cross-charm communication?
+4. **Object identity**: For finding a specific sub-charm in the array, is `Cell.equals()` the right approach, or is there a better pattern for "find the charm I have a reference to"?
 
-5. **Object identity**: For finding a specific sub-charm in the array, is `Cell.equals()` the right approach, or is there a better pattern for "find the charm I have a reference to"?
+### New Questions (from implementation critique)
+
+5. **Composed vs wished sub-charms**: For sub-charms created inline with the record (not via wish()), can the parent share Cell inputs directly without Stream handlers? Community docs suggest this is idiomatic ("share cells between composed patterns"), but want to confirm.
+
+6. **Single combined schema**: Given generateObject requires static schemas, is a single combined schema (covering all sub-charm fields) the right approach? Or is there a pattern for triggering separate generateObject calls sequentially/in parallel?
+
+7. **Inactive tab rendering**: In tabbed layout, do sub-charms on inactive tabs still execute their reactive flows? The critique noted `ct-render` is needed to force charm execution — does this apply to composed sub-charms too?
+
+8. **Entity reconciliation timing**: For Phase 2+ (array-type entities), what's the recommended pattern for stable entity IDs across extractions? Generate UUID on first extraction and store it? Use content-hash via `refer()`?
 
 ---
 
@@ -210,19 +230,41 @@ When user adds more notes and clicks "Re-extract":
 ```
 User adds notes → clicks "Re-extract"
                        ↓
-         Record reads notes content
+         Record snapshots notes into trigger cell
                        ↓
-         generateObject() per sub-charm type
+         Single generateObject() with combined static schema
                        ↓
          Compare extracted vs current sub-charm data
                        ↓
-         Show per-field diff UI
+         Show per-field diff UI (grouped by sub-charm)
                        ↓
          User selects which fields to accept
                        ↓
-         Record sends accepted fields via Stream.send()
+         Record routes accepted fields to sub-charms
                        ↓
-         Sub-charm handler applies changes
+         Sub-charms update via shared cells or Stream handlers
+```
+
+**Key implementation detail**: Due to framework constraint (generateObject schemas must be static), we use a **single combined schema** covering all extractable fields, then route results to appropriate sub-charms:
+
+```typescript
+const { result, pending } = generateObject({
+  prompt: extractTrigger,  // Snapshot, not raw notes
+  schema: {
+    type: "object",
+    properties: {
+      // Birthday fields
+      birthDate: { type: "string" },
+      birthYear: { type: "number" },
+      // Contact fields
+      email: { type: "string" },
+      phone: { type: "string" },
+      // Dietary fields
+      allergies: { type: "array", items: { type: "string" } },
+      // ... all fields statically defined upfront
+    }
+  }
+});
 ```
 
 ### Per-Field Selective Accept UI
@@ -317,20 +359,117 @@ The selective accept UI helps with entity reconciliation too:
 - **Missing entities**: "No longer in notes - Keep anyway? Remove?"
 - **Ambiguous splits**: Requires Phase 3 UX work, but framework is ready
 
-### Sub-Charm Contract for Extraction
+### Sub-Charm Data Access Patterns
 
+**For composed sub-charms** (recommended for record.tsx):
+```typescript
+// Sub-charm receives shared cell from parent
+interface BirthdayModuleInput {
+  data: Default<{ birthDate?: string; birthYear?: number }, {}>;
+}
+
+// Parent writes directly to shared cell
+birthdayData.set({ birthDate: "1990-03-15", birthYear: 1990 });
+```
+
+**For wished sub-charms** (if sub-charm exists independently):
 ```typescript
 interface ExtractionCapableSubCharm<T> {
-  // Static schema for generateObject (framework requirement)
-  extractionSchema: JSONSchema;
-
-  // Current data for comparison
-  getCurrentData: () => T;
+  // Current data for comparison (read via derive())
+  currentData: T;
 
   // Stream handler for receiving approved extractions
   applyExtraction: Stream<{ fields: Partial<T> }>;
 }
+
+// Parent must use handler with Stream<T> signature
+const sendToSubCharm = handler<
+  { data: Partial<T> },
+  { stream: Stream<{ fields: Partial<T> }> }
+>(({ data }, { stream }) => {
+  stream.send({ fields: data });
+});
 ```
+
+---
+
+## Implementation Notes
+
+*Critical implementation details discovered through framework analysis and pattern critique.*
+
+### Per-Field Selection State
+
+The per-field accept UI requires tracking user selections:
+
+```typescript
+// Track which fields user has selected to accept
+const fieldSelections = Cell.of<Record<string, boolean>>({});
+
+// When extraction completes, initialize selections (default: accept all)
+const initializeSelections = handler<...>((_event, { changesPreview }) => {
+  const changes = changesPreview.get();
+  const initial: Record<string, boolean> = {};
+  for (const change of changes) {
+    initial[change.field] = true;  // Default: accept
+  }
+  fieldSelections.set(initial);
+});
+
+// Apply only user-selected fields
+const applySelectedFields = handler<...>((_event, state) => {
+  const selections = fieldSelections.get();
+  const extracted = extractionResult.get();
+
+  for (const [field, selected] of Object.entries(selections)) {
+    if (selected && extracted[field] !== undefined) {
+      routeFieldToSubCharm(field, extracted[field]);
+    }
+  }
+
+  // Clear extraction state
+  fieldSelections.set({});
+});
+```
+
+### Edge Case Handling
+
+**Must implement in MVP:**
+
+```typescript
+// Disable extract button when pending or notes too short
+const canExtract = computed(() =>
+  !extractionPending && notes.length > 10
+);
+
+// Handle extraction states
+const extractionStatus = computed(() => {
+  if (extractionPending) return "loading";
+  if (!extractionResult) return "idle";
+  if (changesPreview.length === 0) return "no-changes";
+  return "has-changes";
+});
+
+// Use trigger cell pattern (snapshot notes at extraction time)
+// This prevents stale extraction if notes change during extraction
+const extractTrigger = Cell.of<string>("");
+
+const startExtraction = handler<...>((_event, { notes, extractTrigger }) => {
+  extractTrigger.set(`${notes.get()}\n---EXTRACT-${Date.now()}---`);
+});
+```
+
+**UI states to handle:**
+- `loading`: Show spinner, disable extract button
+- `idle`: Show "Extract" button
+- `no-changes`: Show "No new information found" message
+- `has-changes`: Show per-field diff UI
+
+### Reusable Utilities
+
+Copy from person.tsx:
+- `compareFields()` from `utils/diff-utils.ts` — compares extracted vs current
+- `computeWordDiff()` — highlights word-level changes for notes
+- `extractTrigger` pattern — prevents extraction on every keystroke
 
 ---
 
