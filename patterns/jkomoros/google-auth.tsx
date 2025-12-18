@@ -260,19 +260,15 @@ export default pattern<Input, Output>(
     // Pre-compute the scopes string for display
     const scopesDisplay = computed(() => scopes.join(", "));
 
-    // Pre-compute granted scopes display list as JSX
-    const grantedScopesDisplay = computed(() => {
-      const scopeList: string[] = auth?.scope || [];
-      return scopeList.map((scope: string) => {
-        const friendly = Object.entries(SCOPE_MAP).find(
-          ([, url]) => url === scope
-        );
-        const displayName = friendly
-          ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
-          : scope;
-        return <li>{displayName}</li>;
-      });
-    });
+    // Helper function to get friendly scope name (avoids computed inside map)
+    const getScopeFriendlyName = (scope: string): string => {
+      const friendly = Object.entries(SCOPE_MAP).find(
+        ([, url]) => url === scope
+      );
+      return friendly
+        ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
+        : scope;
+    };
 
     // Compact user chip for display in other patterns
     const userChip = computed(() => {
@@ -477,8 +473,9 @@ export default pattern<Input, Output>(
             >
               <strong>Granted Scopes:</strong>
               <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
-                {/* PERFORMANCE FIX: Use pre-computed display list */}
-                {grantedScopesDisplay}
+                {(auth?.scope || []).map((scope: string, i: number) => (
+                  <li key={i}>{getScopeFriendlyName(scope)}</li>
+                ))}
               </ul>
             </div>
           )}
