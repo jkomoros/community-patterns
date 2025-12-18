@@ -54,7 +54,7 @@ cd ~/Code/community-patterns
 ### Development Cycle
 
 1. **Create/Edit Pattern** in `patterns/YOUR-USERNAME/`
-2. **Test Syntax**: `deno task ct dev pattern.tsx --no-run`
+2. **Test Syntax**: `./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
 3. **Deploy**: Use launcher tool or ask Claude (see [Deploying Patterns](#deploying-patterns))
 4. **Test in Browser**: Open `http://localhost:8000/space/charm-id`
 5. **Iterate**: Update with `charm setsrc` or re-deploy
@@ -122,8 +122,7 @@ export default pattern<MyPatternInput, MyPatternOutput>(
 Before deploying, check that your pattern compiles correctly:
 
 ```bash
-cd ~/Code/labs
-deno task ct dev ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx --no-run
+./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 ```
 
 This verifies:
@@ -227,17 +226,16 @@ Select space (↑/↓ to move, Enter to select):
 
 ### Method 3: Manual Commands (Full Control)
 
-Use raw `deno task ct` commands when you need precise control:
+Use `./scripts/ct` commands when you need precise control:
 
 #### Deploy New Pattern
 
 ```bash
-cd ~/Code/labs
-deno task ct charm new \
+./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space test-space-1 \
-  ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+  patterns/YOUR-USERNAME/pattern.tsx
 ```
 
 This outputs a charm ID like `baedreicqpqie6td...`
@@ -254,13 +252,12 @@ http://localhost:8000/test-space-1/CHARM-ID
 After making changes to your pattern:
 
 ```bash
-cd ~/Code/labs
-deno task ct charm setsrc \
+./scripts/ct charm setsrc \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space test-space-1 \
   --charm CHARM-ID \
-  ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+  patterns/YOUR-USERNAME/pattern.tsx
 ```
 
 Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows).
@@ -270,10 +267,9 @@ Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on 
 See pattern details:
 
 ```bash
-cd ~/Code/labs
-deno task ct charm inspect \
+./scripts/ct charm inspect \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ./claude.key \
   --space test-space-1 \
   --charm CHARM-ID
 ```
@@ -284,11 +280,10 @@ You can set these to avoid repeating flags:
 
 ```bash
 export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=/path/to/community-patterns/claude.key
+export CT_IDENTITY=./claude.key
 
 # Then just:
-cd ~/Code/labs
-deno task ct charm new --space test-space-1 ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct charm new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
 ```
 
 **Pros:**
@@ -906,17 +901,16 @@ cd ~/Code/community-patterns
 **Manual (full control):**
 ```bash
 # Test syntax
-cd ~/Code/labs
-deno task ct dev ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx --no-run
+./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 
 # Deploy
-deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space my-space ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct charm new --api-url http://localhost:8000 --identity ./claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
 
 # Update
-deno task ct charm setsrc --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space my-space --charm CHARM-ID ../community-patterns/patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct charm setsrc --api-url http://localhost:8000 --identity ./claude.key --space my-space --charm CHARM-ID patterns/YOUR-USERNAME/pattern.tsx
 
 # Inspect
-deno task ct charm inspect --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space my-space --charm CHARM-ID
+./scripts/ct charm inspect --api-url http://localhost:8000 --identity ./claude.key --space my-space --charm CHARM-ID
 ```
 
 ### Git Commands

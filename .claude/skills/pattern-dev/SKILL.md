@@ -8,30 +8,26 @@ description: >
 
 # Pattern Development Best Practices
 
-## CT Commands: Use the Labs ct Skill
+## CT Commands: Use `./scripts/ct` Wrapper
 
-**For all ct commands** (deploying, linking, inspecting charms), refer to the **ct skill in labs**:
-- Located at `../labs/.claude/skills/ct/skill.md`
-- Covers: deployment, charm management, linking, local dev servers
-- Always use `deno task ct` from the labs directory
-
-## Always Use `deno task ct`, Never `ct` Directly
-
-**CRITICAL: Always use `deno task ct` for all ct commands:**
+**CRITICAL: Always use `./scripts/ct` for all ct commands:**
 
 ```bash
-# ✅ CORRECT
+# ✅ CORRECT - Use the wrapper from community-patterns
+./scripts/ct dev patterns/$GITHUB_USER/pattern.tsx --no-run
+
+# ❌ WRONG - Don't cd to labs and use deno task ct
 cd ~/Code/labs
 deno task ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
-
-# ❌ WRONG - Don't use ct directly
-ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
 ```
 
-**Why this matters:**
-- Ensures consistent version across environments
-- Avoids path resolution issues
-- Matches framework expectations
+**Why the wrapper exists:**
+- Automatically handles directory changes to labs
+- Uses `$INIT_CWD` to preserve path resolution from community-patterns
+- Matches the permission rule `Bash(./scripts/ct:*)` - no prompts!
+- Pattern paths stay simple: `patterns/$GITHUB_USER/foo.tsx`
+
+**For detailed deployment commands**, see the **deployment skill**.
 
 ## Framework Documentation
 
