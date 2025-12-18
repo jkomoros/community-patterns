@@ -28,11 +28,19 @@ import {
  * - ui.* return pattern for composability (like chatbot.tsx)
  * - Works with any schema (generic over item type)
  * - Configurable getKey/getLabel for flexible item identification
+ * - selectedItems computed for reactive selection state
+ *
+ * Architecture (following chatbot.tsx pattern):
+ * - State values are reactive primitives (not Cells)
+ * - Handlers are flattened at top level (not nested in handlers object)
+ * - Internal Cells (trigger, hiddenItemIds) NOT exposed in output
+ *   (parent already has them as inputs)
  *
  * Data flow:
  *   Parent sets trigger → generateObject extracts → User reviews → Parent commits selected
  *
  * Usage:
+ *   const trigger = cell<string>("");
  *   const extraction = ImportReview({
  *     trigger,                        // Cell<string> - set to trigger extraction
  *     schema,                         // JSON schema for extraction
@@ -41,11 +49,16 @@ import {
  *     getLabel: (item) => item.title, // Optional: derive display label from item
  *   });
  *
- *   // In UI:
+ *   // In UI - use reactive selectedItems:
  *   {extraction.ui.reviewPanel}
+ *   <span>Selected: {extraction.selectedCount}</span>
  *
- *   // In commit handler:
+ *   // Handlers are flattened (not extraction.handlers.*):
+ *   <ct-button onClick={extraction.selectAll}>Select All</ct-button>
+ *
+ *   // In commit handler - use getSelectedItems() or selectedItems:
  *   const selected = extraction.getSelectedItems();
+ *   // Or for reactive usage: extraction.selectedItems
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -91,27 +104,25 @@ interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
 }
 
 interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
-  // State (reactive)
+  // State (reactive primitives)
   pending: boolean;
   error: unknown;
   hasResults: boolean;
   itemCount: number;
   selectedCount: number;
 
-  // Cells for persistence
-  trigger: Cell<Default<string, "">>;
-  hiddenItemIds: Cell<Default<string[], []>>;
+  // Reactive selection array - use in JSX/computed for live updates
+  selectedItems: T[];
 
-  // Selection helpers (call from parent's commit handler)
+  // Selection helper function (backward compatibility - use in handlers)
   getSelectedItems: () => T[];
 
-  // Pre-bound handlers for parent customization
-  handlers: {
-    selectAll: () => void;
-    selectNone: () => void;
-    dismissAll: () => void;
-    clearTrigger: () => void;
-  };
+  // Handlers (flattened - following chatbot.tsx pattern)
+  // NOTE: trigger/hiddenItemIds are NOT exposed here - parent already has them as inputs
+  selectAll: () => void;
+  selectNone: () => void;
+  dismissAll: () => void;
+  clearTrigger: () => void;
 
   // Pre-composed UI components
   ui: {
@@ -421,10 +432,18 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     });
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 3. SELECTION HELPER
+    // 3. SELECTION HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
-    // Called from parent's commit handler
+    // Reactive computed of selected items - can be used in JSX/computed
+    const selectedItems = computed(() => {
+      const selected = selectedIds.get() ?? [];
+      return visibleItems
+        .filter((item) => selected.includes(item.key))
+        .map((item) => item.item);
+    });
+
+    // Called from parent's commit handler (backward compatibility)
     const getSelectedItems = () => {
       const selected = selectedIds.get() ?? [];
       return visibleItems
@@ -711,26 +730,25 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         </ct-screen>
       ),
 
-      // State outputs
+      // State outputs (reactive primitives)
       pending: extractionPending,
       error: extractionError,
       hasResults,
       itemCount,
       selectedCount,
-      trigger,
-      hiddenItemIds,
 
-      // Selection helper
+      // Reactive selection array - use in JSX/computed
+      selectedItems,
+
+      // Selection helper function (backward compat - use in handlers)
       getSelectedItems,
 
-      // Pre-bound handlers for parent customization
-      // Use these when building custom layouts
-      handlers: {
-        selectAll: selectAllItems({ selectedIds, allVisibleKeys }),
-        selectNone: selectNoneItems({ selectedIds }),
-        dismissAll: boundDismissAll,
-        clearTrigger: clearTrigger({ trigger }),
-      },
+      // Flattened handlers (following chatbot.tsx pattern)
+      // NOTE: trigger/hiddenItemIds NOT exposed - parent already has them as inputs
+      selectAll: selectAllItems({ selectedIds, allVisibleKeys }),
+      selectNone: selectNoneItems({ selectedIds }),
+      dismissAll: boundDismissAll,
+      clearTrigger: clearTrigger({ trigger }),
 
       // UI components for composition
       ui: {
