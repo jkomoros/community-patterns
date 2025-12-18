@@ -15,6 +15,7 @@
 
 import {
   Cell,
+  computed,
   type Default,
   derive,
   handler,
@@ -30,14 +31,19 @@ import type {
   BirthdayData,
   ContactData,
   EnabledSubCharms,
+  GiftPrefsData,
   LinkData,
+  LocationData,
   RatingData,
+  RecordContext,
   RecordInput,
+  RelationshipData,
   SocialData,
   StatusData,
   SubCharmType,
   TagsData,
   TimelineData,
+  TimingData,
 } from "./types/record-types.ts";
 
 interface RecordOutput {
@@ -54,11 +60,16 @@ interface RecordOutput {
   timelineData: Default<TimelineData, { startDate: ""; targetDate: ""; completedDate: "" }>;
   socialData: Default<SocialData, { platform: ""; handle: ""; url: "" }>;
   linkData: Default<LinkData, { url: ""; linkTitle: ""; description: "" }>;
+  // Wave 3 modules
+  locationData: Default<LocationData, { locationName: ""; locationAddress: ""; coordinates: "" }>;
+  relationshipData: Default<RelationshipData, { relationTypes: []; closeness: ""; howWeMet: ""; innerCircle: false }>;
+  giftPrefsData: Default<GiftPrefsData, { giftTier: ""; favorites: []; avoid: [] }>;
+  timingData: Default<TimingData, { prepTime: null; cookTime: null; restTime: null }>;
 }
 
 const Record = recipe<RecordInput, RecordOutput>(
   "Record",
-  ({ title, notes, enabledSubCharms, birthdayData, ratingData, tagsData, contactData, statusData, addressData, timelineData, socialData, linkData }) => {
+  ({ title, notes, enabledSubCharms, birthdayData, ratingData, tagsData, contactData, statusData, addressData, timelineData, socialData, linkData, locationData, relationshipData, giftPrefsData, timingData }) => {
     // Active tab - "notes" is always first, then sub-charm types
     const activeTab = Cell.of<string>("notes");
 
@@ -134,15 +145,23 @@ const Record = recipe<RecordInput, RecordOutput>(
     const tagInput = Cell.of<string>("");
 
     const addTag = handler<
-      { detail: { text: string } },
+      { detail: { value: string } },
       { tagsData: Cell<TagsData> }
     >(({ detail }, { tagsData }) => {
-      const newTag = detail?.text?.trim();
+      const newTag = detail?.value?.trim();
       if (!newTag) return;
       const current = tagsData.get();
       if (!current.tags.includes(newTag)) {
         tagsData.set({ ...current, tags: [...current.tags, newTag] });
       }
+    });
+
+    const removeTag = handler<
+      Record<string, never>,
+      { tagsData: Cell<TagsData>; tag: string }
+    >((_event, { tagsData, tag }) => {
+      const current = tagsData.get();
+      tagsData.set({ ...current, tags: current.tags.filter((t: string) => t !== tag) });
     });
 
     // ===== Contact handlers =====
@@ -286,6 +305,153 @@ const Record = recipe<RecordInput, RecordOutput>(
       linkData.set({ ...current, description: detail?.value ?? "" });
     });
 
+    // ===== Location handlers =====
+    const updateLocationName = handler<
+      { detail: { value: string } },
+      { locationData: Cell<LocationData> }
+    >(({ detail }, { locationData }) => {
+      const current = locationData.get();
+      locationData.set({ ...current, locationName: detail?.value ?? "" });
+    });
+
+    const updateLocationAddress = handler<
+      { detail: { value: string } },
+      { locationData: Cell<LocationData> }
+    >(({ detail }, { locationData }) => {
+      const current = locationData.get();
+      locationData.set({ ...current, locationAddress: detail?.value ?? "" });
+    });
+
+    const updateCoordinates = handler<
+      { detail: { value: string } },
+      { locationData: Cell<LocationData> }
+    >(({ detail }, { locationData }) => {
+      const current = locationData.get();
+      locationData.set({ ...current, coordinates: detail?.value ?? "" });
+    });
+
+    // ===== Relationship handlers =====
+    const updateCloseness = handler<
+      { detail: { value: string } },
+      { relationshipData: Cell<RelationshipData> }
+    >(({ detail }, { relationshipData }) => {
+      const current = relationshipData.get();
+      relationshipData.set({ ...current, closeness: detail?.value ?? "" });
+    });
+
+    const updateHowWeMet = handler<
+      { detail: { value: string } },
+      { relationshipData: Cell<RelationshipData> }
+    >(({ detail }, { relationshipData }) => {
+      const current = relationshipData.get();
+      relationshipData.set({ ...current, howWeMet: detail?.value ?? "" });
+    });
+
+    const toggleInnerCircle = handler<
+      unknown,
+      { relationshipData: Cell<RelationshipData> }
+    >((_event, { relationshipData }) => {
+      const current = relationshipData.get();
+      relationshipData.set({ ...current, innerCircle: !current.innerCircle });
+    });
+
+    const addRelationType = handler<
+      { detail: { value: string } },
+      { relationshipData: Cell<RelationshipData> }
+    >(({ detail }, { relationshipData }) => {
+      const newType = detail?.value?.trim();
+      if (!newType) return;
+      const current = relationshipData.get();
+      if (!current.relationTypes.includes(newType)) {
+        relationshipData.set({ ...current, relationTypes: [...current.relationTypes, newType] });
+      }
+    });
+
+    const removeRelationType = handler<
+      Record<string, never>,
+      { relationshipData: Cell<RelationshipData>; relType: string }
+    >((_event, { relationshipData, relType }) => {
+      const current = relationshipData.get();
+      relationshipData.set({ ...current, relationTypes: current.relationTypes.filter((t: string) => t !== relType) });
+    });
+
+    // ===== GiftPrefs handlers =====
+    const updateGiftTier = handler<
+      { detail: { value: string } },
+      { giftPrefsData: Cell<GiftPrefsData> }
+    >(({ detail }, { giftPrefsData }) => {
+      const current = giftPrefsData.get();
+      giftPrefsData.set({ ...current, giftTier: detail?.value ?? "" });
+    });
+
+    const addFavorite = handler<
+      { detail: { value: string } },
+      { giftPrefsData: Cell<GiftPrefsData> }
+    >(({ detail }, { giftPrefsData }) => {
+      const newFav = detail?.value?.trim();
+      if (!newFav) return;
+      const current = giftPrefsData.get();
+      if (!current.favorites.includes(newFav)) {
+        giftPrefsData.set({ ...current, favorites: [...current.favorites, newFav] });
+      }
+    });
+
+    const removeFavorite = handler<
+      Record<string, never>,
+      { giftPrefsData: Cell<GiftPrefsData>; fav: string }
+    >((_event, { giftPrefsData, fav }) => {
+      const current = giftPrefsData.get();
+      giftPrefsData.set({ ...current, favorites: current.favorites.filter((f: string) => f !== fav) });
+    });
+
+    const addAvoid = handler<
+      { detail: { value: string } },
+      { giftPrefsData: Cell<GiftPrefsData> }
+    >(({ detail }, { giftPrefsData }) => {
+      const newAvoid = detail?.value?.trim();
+      if (!newAvoid) return;
+      const current = giftPrefsData.get();
+      if (!current.avoid.includes(newAvoid)) {
+        giftPrefsData.set({ ...current, avoid: [...current.avoid, newAvoid] });
+      }
+    });
+
+    const removeAvoid = handler<
+      Record<string, never>,
+      { giftPrefsData: Cell<GiftPrefsData>; item: string }
+    >((_event, { giftPrefsData, item }) => {
+      const current = giftPrefsData.get();
+      giftPrefsData.set({ ...current, avoid: current.avoid.filter((a: string) => a !== item) });
+    });
+
+    // ===== Timing handlers =====
+    const updatePrepTime = handler<
+      { detail: { value: string } },
+      { timingData: Cell<TimingData> }
+    >(({ detail }, { timingData }) => {
+      const val = detail?.value;
+      const current = timingData.get();
+      timingData.set({ ...current, prepTime: val ? parseInt(val, 10) : null });
+    });
+
+    const updateCookTime = handler<
+      { detail: { value: string } },
+      { timingData: Cell<TimingData> }
+    >(({ detail }, { timingData }) => {
+      const val = detail?.value;
+      const current = timingData.get();
+      timingData.set({ ...current, cookTime: val ? parseInt(val, 10) : null });
+    });
+
+    const updateRestTime = handler<
+      { detail: { value: string } },
+      { timingData: Cell<TimingData> }
+    >(({ detail }, { timingData }) => {
+      const val = detail?.value;
+      const current = timingData.get();
+      timingData.set({ ...current, restTime: val ? parseInt(val, 10) : null });
+    });
+
     // Display name - derive() gives proper types without casts
     const displayName = derive(title, (t) => t.trim() || "(Untitled Record)");
 
@@ -300,6 +466,11 @@ const Record = recipe<RecordInput, RecordOutput>(
     const hasTimeline = derive(enabledSubCharms, (e) => e.includes("timeline"));
     const hasSocial = derive(enabledSubCharms, (e) => e.includes("social"));
     const hasLink = derive(enabledSubCharms, (e) => e.includes("link"));
+    // Wave 3
+    const hasLocation = derive(enabledSubCharms, (e) => e.includes("location"));
+    const hasRelationship = derive(enabledSubCharms, (e) => e.includes("relationship"));
+    const hasGiftPrefs = derive(enabledSubCharms, (e) => e.includes("giftprefs"));
+    const hasTiming = derive(enabledSubCharms, (e) => e.includes("timing"));
 
     // Get birthday display values
     const birthDateValue = derive(birthdayData, (b) => b.birthDate);
@@ -340,6 +511,34 @@ const Record = recipe<RecordInput, RecordOutput>(
     const linkTitleValue = derive(linkData, (l) => l.linkTitle);
     const linkDescriptionValue = derive(linkData, (l) => l.description);
 
+    // Get location display values
+    const locationNameValue = derive(locationData, (l) => l.locationName);
+    const locationAddressValue = derive(locationData, (l) => l.locationAddress);
+    const coordinatesValue = derive(locationData, (l) => l.coordinates);
+
+    // Get relationship display values
+    const relationTypesValue = derive(relationshipData, (r) => r.relationTypes);
+    const closenessValue = derive(relationshipData, (r) => r.closeness);
+    const howWeMetValue = derive(relationshipData, (r) => r.howWeMet);
+    const innerCircleValue = derive(relationshipData, (r) => r.innerCircle);
+
+    // Get giftprefs display values
+    const giftTierValue = derive(giftPrefsData, (g) => g.giftTier);
+    const favoritesValue = derive(giftPrefsData, (g) => g.favorites);
+    const avoidValue = derive(giftPrefsData, (g) => g.avoid);
+
+    // Get timing display values
+    const prepTimeValue = derive(timingData, (t) => t.prepTime);
+    const cookTimeValue = derive(timingData, (t) => t.cookTime);
+    const restTimeValue = derive(timingData, (t) => t.restTime);
+    const totalTimeValue = derive(timingData, (t) => {
+      const prep = t.prepTime ?? 0;
+      const cook = t.cookTime ?? 0;
+      const rest = t.restTime ?? 0;
+      const total = prep + cook + rest;
+      return total > 0 ? total : null;
+    });
+
     // Available types for [+] dropdown (exclude already-added types)
     const availableToAdd = derive(enabledSubCharms, (current) =>
       getAvailableTypes().filter((def) => !current.includes(def.type))
@@ -355,6 +554,27 @@ const Record = recipe<RecordInput, RecordOutput>(
         label: `${def.icon} ${def.label}`,
       }))
     );
+
+    // Create unified record context for cross-panel data access
+    const recordContext = computed((): RecordContext => ({
+      title,
+      displayName: title.trim() || "(Untitled Record)",
+      notes,
+      enabledSubCharms,
+      birthdayData,
+      ratingData,
+      tagsData,
+      contactData,
+      statusData,
+      addressData,
+      timelineData,
+      socialData,
+      linkData,
+      locationData,
+      relationshipData,
+      giftPrefsData,
+      timingData,
+    }));
 
     return {
       [NAME]: str`\u{1F4CB} ${displayName}`,
@@ -468,6 +688,38 @@ const Record = recipe<RecordInput, RecordOutput>(
                 </ct-tab>,
                 null
               )}
+              {/* Location tab */}
+              {ifElse(
+                hasLocation,
+                <ct-tab value="location">
+                  {getDefinition("location")?.icon} {getDefinition("location")?.label}
+                </ct-tab>,
+                null
+              )}
+              {/* Relationship tab */}
+              {ifElse(
+                hasRelationship,
+                <ct-tab value="relationship">
+                  {getDefinition("relationship")?.icon} {getDefinition("relationship")?.label}
+                </ct-tab>,
+                null
+              )}
+              {/* Gift Prefs tab */}
+              {ifElse(
+                hasGiftPrefs,
+                <ct-tab value="giftprefs">
+                  {getDefinition("giftprefs")?.icon} {getDefinition("giftprefs")?.label}
+                </ct-tab>,
+                null
+              )}
+              {/* Timing tab */}
+              {ifElse(
+                hasTiming,
+                <ct-tab value="timing">
+                  {getDefinition("timing")?.icon} {getDefinition("timing")?.label}
+                </ct-tab>,
+                null
+              )}
             </ct-tab-list>
 
             {/* Notes panel (built-in) */}
@@ -551,11 +803,55 @@ const Record = recipe<RecordInput, RecordOutput>(
                 <label style={{ fontWeight: "600", fontSize: "14px" }}>
                   Tags
                 </label>
+                {/* Display existing tags as chips */}
+                <div style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  minHeight: "2rem",
+                }}>
+                  {tagsValue.map((tag: string) => (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "0.25rem 0.5rem",
+                        backgroundColor: "#e0e7ff",
+                        color: "#3730a3",
+                        borderRadius: "9999px",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      {tag}
+                      <button
+                        onClick={removeTag({ tagsData, tag })}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "1rem",
+                          height: "1rem",
+                          padding: "0",
+                          border: "none",
+                          background: "transparent",
+                          color: "#6366f1",
+                          cursor: "pointer",
+                          borderRadius: "50%",
+                          fontSize: "1rem",
+                          lineHeight: "1",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {/* Autocomplete for adding new tags */}
                 <ct-autocomplete
-                  $value={tagsValue}
+                  onct-select={addTag({ tagsData })}
                   placeholder="Add tags..."
-                  multiple
-                  allowCustom
+                  allowCustom={true}
                   items={[]}
                 />
                 <span style={{ fontSize: "12px", color: "#6b7280" }}>
@@ -792,6 +1088,338 @@ const Record = recipe<RecordInput, RecordOutput>(
                 </ct-vstack>
               </ct-vstack>
             </ct-tab-panel>
+
+            {/* Location panel */}
+            <ct-tab-panel value="location">
+              <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Location Name
+                  </label>
+                  <ct-input
+                    value={locationNameValue}
+                    onct-input={updateLocationName({ locationData })}
+                    placeholder="e.g., Central Park, Home Office"
+                  />
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Address
+                  </label>
+                  <ct-input
+                    value={locationAddressValue}
+                    onct-input={updateLocationAddress({ locationData })}
+                    placeholder="Full address..."
+                  />
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Coordinates
+                  </label>
+                  <ct-input
+                    value={coordinatesValue}
+                    onct-input={updateCoordinates({ locationData })}
+                    placeholder="lat,lng (optional)"
+                  />
+                  <span style={{ fontSize: "12px", color: "#6b7280" }}>
+                    Optional GPS coordinates
+                  </span>
+                </ct-vstack>
+              </ct-vstack>
+            </ct-tab-panel>
+
+            {/* Relationship panel */}
+            <ct-tab-panel value="relationship">
+              <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <p style={{ color: "#666", fontSize: "13px", margin: "0" }}>
+                  Your relationship with {recordContext.displayName}
+                </p>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Relationship Types
+                  </label>
+                  {/* Display existing relationship types as chips */}
+                  <div style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    minHeight: "2rem",
+                  }}>
+                    {relationTypesValue.map((relType: string) => (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          padding: "0.25rem 0.5rem",
+                          backgroundColor: "#fce7f3",
+                          color: "#9d174d",
+                          borderRadius: "9999px",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        {relType}
+                        <button
+                          onClick={removeRelationType({ relationshipData, relType })}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "1rem",
+                            height: "1rem",
+                            padding: "0",
+                            border: "none",
+                            background: "transparent",
+                            color: "#ec4899",
+                            cursor: "pointer",
+                            borderRadius: "50%",
+                            fontSize: "1rem",
+                            lineHeight: "1",
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <ct-autocomplete
+                    onct-select={addRelationType({ relationshipData })}
+                    placeholder="friend, colleague, family..."
+                    allowCustom={true}
+                    items={[
+                      { value: "friend", label: "Friend" },
+                      { value: "colleague", label: "Colleague" },
+                      { value: "family", label: "Family" },
+                      { value: "neighbor", label: "Neighbor" },
+                      { value: "mentor", label: "Mentor" },
+                      { value: "mentee", label: "Mentee" },
+                    ]}
+                  />
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Closeness
+                  </label>
+                  <ct-select
+                    $value={closenessValue}
+                    onct-change={updateCloseness({ relationshipData })}
+                    placeholder="Select closeness..."
+                    items={[
+                      { value: "intimate", label: "💜 Intimate" },
+                      { value: "close", label: "💙 Close" },
+                      { value: "casual", label: "💚 Casual" },
+                      { value: "distant", label: "🤍 Distant" },
+                    ]}
+                    style={{ maxWidth: "200px" }}
+                  />
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    How We Met
+                  </label>
+                  <ct-input
+                    value={howWeMetValue}
+                    onct-input={updateHowWeMet({ relationshipData })}
+                    placeholder="e.g., College roommate, Work conference..."
+                  />
+                </ct-vstack>
+                <ct-hstack style={{ gap: "8px", alignItems: "center" }}>
+                  <ct-checkbox
+                    checked={innerCircleValue}
+                    onct-change={toggleInnerCircle({ relationshipData })}
+                  />
+                  <label style={{ fontSize: "14px" }}>Inner Circle</label>
+                </ct-hstack>
+              </ct-vstack>
+            </ct-tab-panel>
+
+            {/* Gift Prefs panel */}
+            <ct-tab-panel value="giftprefs">
+              <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Gift Giving Tier
+                  </label>
+                  <ct-select
+                    $value={giftTierValue}
+                    onct-change={updateGiftTier({ giftPrefsData })}
+                    placeholder="Select tier..."
+                    items={[
+                      { value: "always", label: "🎁 Always (close family/friends)" },
+                      { value: "occasions", label: "🎂 Occasions (birthdays, holidays)" },
+                      { value: "reciprocal", label: "🔄 Reciprocal (if they give)" },
+                      { value: "none", label: "❌ None" },
+                    ]}
+                    style={{ maxWidth: "280px" }}
+                  />
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Favorites
+                  </label>
+                  {/* Display favorites as chips */}
+                  <div style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    minHeight: "2rem",
+                  }}>
+                    {favoritesValue.map((fav: string) => (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          padding: "0.25rem 0.5rem",
+                          backgroundColor: "#d1fae5",
+                          color: "#065f46",
+                          borderRadius: "9999px",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        {fav}
+                        <button
+                          onClick={removeFavorite({ giftPrefsData, fav })}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "1rem",
+                            height: "1rem",
+                            padding: "0",
+                            border: "none",
+                            background: "transparent",
+                            color: "#10b981",
+                            cursor: "pointer",
+                            borderRadius: "50%",
+                            fontSize: "1rem",
+                            lineHeight: "1",
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <ct-autocomplete
+                    onct-select={addFavorite({ giftPrefsData })}
+                    placeholder="Things they love..."
+                    allowCustom={true}
+                    items={[]}
+                  />
+                  <span style={{ fontSize: "12px", color: "#6b7280" }}>
+                    Items, experiences, or categories they enjoy
+                  </span>
+                </ct-vstack>
+                <ct-vstack style={{ gap: "4px" }}>
+                  <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                    Avoid
+                  </label>
+                  {/* Display avoid items as chips */}
+                  <div style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    minHeight: "2rem",
+                  }}>
+                    {avoidValue.map((item: string) => (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          padding: "0.25rem 0.5rem",
+                          backgroundColor: "#fee2e2",
+                          color: "#991b1b",
+                          borderRadius: "9999px",
+                          fontSize: "0.875rem",
+                        }}
+                      >
+                        {item}
+                        <button
+                          onClick={removeAvoid({ giftPrefsData, item })}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "1rem",
+                            height: "1rem",
+                            padding: "0",
+                            border: "none",
+                            background: "transparent",
+                            color: "#ef4444",
+                            cursor: "pointer",
+                            borderRadius: "50%",
+                            fontSize: "1rem",
+                            lineHeight: "1",
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <ct-autocomplete
+                    onct-select={addAvoid({ giftPrefsData })}
+                    placeholder="Things to avoid..."
+                    allowCustom={true}
+                    items={[]}
+                  />
+                  <span style={{ fontSize: "12px", color: "#6b7280" }}>
+                    Allergies, dislikes, or items they already have
+                  </span>
+                </ct-vstack>
+              </ct-vstack>
+            </ct-tab-panel>
+
+            {/* Timing panel */}
+            <ct-tab-panel value="timing">
+              <ct-vstack style={{ padding: "16px", gap: "16px" }}>
+                <ct-hstack style={{ gap: "16px" }}>
+                  <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                    <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                      Prep Time
+                    </label>
+                    <ct-input
+                      type="number"
+                      value={prepTimeValue ?? ""}
+                      onct-input={updatePrepTime({ timingData })}
+                      placeholder="mins"
+                    />
+                  </ct-vstack>
+                  <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                    <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                      Cook Time
+                    </label>
+                    <ct-input
+                      type="number"
+                      value={cookTimeValue ?? ""}
+                      onct-input={updateCookTime({ timingData })}
+                      placeholder="mins"
+                    />
+                  </ct-vstack>
+                  <ct-vstack style={{ gap: "4px", flex: "1" }}>
+                    <label style={{ fontWeight: "600", fontSize: "14px" }}>
+                      Rest Time
+                    </label>
+                    <ct-input
+                      type="number"
+                      value={restTimeValue ?? ""}
+                      onct-input={updateRestTime({ timingData })}
+                      placeholder="mins"
+                    />
+                  </ct-vstack>
+                </ct-hstack>
+                {ifElse(
+                  computed(() => totalTimeValue !== null),
+                  <ct-hstack style={{ gap: "8px", padding: "12px", background: "#f3f4f6", borderRadius: "8px" }}>
+                    <span style={{ fontWeight: "600" }}>Total Time:</span>
+                    <span>{totalTimeValue} minutes</span>
+                  </ct-hstack>,
+                  null
+                )}
+              </ct-vstack>
+            </ct-tab-panel>
           </ct-tabs>
         </ct-vstack>
       ),
@@ -808,6 +1436,13 @@ const Record = recipe<RecordInput, RecordOutput>(
       timelineData,
       socialData,
       linkData,
+      // Wave 3
+      locationData,
+      relationshipData,
+      giftPrefsData,
+      timingData,
+      // Export context for charm linking (future extraction)
+      recordContext,
       "#record": true, // Discoverable via wish({ query: "#record" })
     };
   }

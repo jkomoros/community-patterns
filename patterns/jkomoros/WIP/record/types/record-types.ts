@@ -11,7 +11,12 @@ export type SubCharmType =
   | "address"
   | "timeline"
   | "social"
-  | "link";
+  | "link"
+  // Wave 3
+  | "location"
+  | "relationship"
+  | "giftprefs"
+  | "timing";
 
 export interface SubCharmMetadata {
   type: SubCharmType;
@@ -81,6 +86,37 @@ export interface LinkData {
   description: Default<string, "">;
 }
 
+// Wave 3 modules
+
+// Location module (places/venues)
+export interface LocationData {
+  locationName: Default<string, "">; // renamed to avoid conflict
+  locationAddress: Default<string, "">; // full address as text
+  coordinates: Default<string, "">; // "lat,lng" or empty
+}
+
+// Relationship module (people connections)
+export interface RelationshipData {
+  relationTypes: Default<string[], []>; // ["friend", "colleague", "family"]
+  closeness: Default<string, "">; // "intimate" | "close" | "casual" | "distant"
+  howWeMet: Default<string, "">;
+  innerCircle: Default<boolean, false>;
+}
+
+// Gift preferences module
+export interface GiftPrefsData {
+  giftTier: Default<string, "">; // "always" | "occasions" | "reciprocal" | "none"
+  favorites: Default<string[], []>;
+  avoid: Default<string[], []>;
+}
+
+// Timing module (cooking/prep times)
+export interface TimingData {
+  prepTime: Default<number | null, null>; // minutes
+  cookTime: Default<number | null, null>;
+  restTime: Default<number | null, null>;
+}
+
 export interface RecordInput {
   title: Default<string, "">;
   notes: Default<string, "">; // Built-in notes content
@@ -96,5 +132,40 @@ export interface RecordInput {
   timelineData: Default<TimelineData, { startDate: ""; targetDate: ""; completedDate: "" }>;
   socialData: Default<SocialData, { platform: ""; handle: ""; url: "" }>;
   linkData: Default<LinkData, { url: ""; linkTitle: ""; description: "" }>;
+  // Wave 3 modules
+  locationData: Default<LocationData, { locationName: ""; locationAddress: ""; coordinates: "" }>;
+  relationshipData: Default<RelationshipData, { relationTypes: []; closeness: ""; howWeMet: ""; innerCircle: false }>;
+  giftPrefsData: Default<GiftPrefsData, { giftTier: ""; favorites: []; avoid: [] }>;
+  timingData: Default<TimingData, { prepTime: null; cookTime: null; restTime: null }>;
   layout: Default<LayoutConfig, { type: "tabbed" }>;
+}
+
+/**
+ * RecordContext - Unified read-only view of all Record data.
+ *
+ * Used by sub-panels for cross-module data access.
+ * - Current: Passed via computed() within record.tsx
+ * - Future: Exported for charm linking when panels are extracted
+ */
+export interface RecordContext {
+  // Identity
+  title: string;
+  displayName: string; // title with fallback
+  notes: string;
+  enabledSubCharms: EnabledSubCharms;
+
+  // All module data (read-only snapshots)
+  birthdayData: BirthdayData;
+  ratingData: RatingData;
+  tagsData: TagsData;
+  contactData: ContactData;
+  statusData: StatusData;
+  addressData: AddressData;
+  timelineData: TimelineData;
+  socialData: SocialData;
+  linkData: LinkData;
+  locationData: LocationData;
+  relationshipData: RelationshipData;
+  giftPrefsData: GiftPrefsData;
+  timingData: TimingData;
 }

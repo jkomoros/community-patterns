@@ -109,6 +109,52 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     },
     fieldMapping: ["url", "linkTitle", "description"],
   },
+  // Wave 3 modules
+  location: {
+    type: "location",
+    label: "Location",
+    icon: "\u{1F5FA}", // 🗺️
+    schema: {
+      locationName: { type: "string", description: "Location name" },
+      locationAddress: { type: "string", description: "Full address" },
+      coordinates: { type: "string", description: "Coordinates (lat,lng)" },
+    },
+    fieldMapping: ["locationName", "locationAddress", "coordinates"],
+  },
+  relationship: {
+    type: "relationship",
+    label: "Relationship",
+    icon: "\u{1F465}", // 👥
+    schema: {
+      relationTypes: { type: "array", items: { type: "string" }, description: "Relationship types" },
+      closeness: { type: "string", enum: ["intimate", "close", "casual", "distant"], description: "Closeness level" },
+      howWeMet: { type: "string", description: "How we met" },
+      innerCircle: { type: "boolean", description: "Inner circle member" },
+    },
+    fieldMapping: ["relationTypes", "closeness", "howWeMet", "innerCircle"],
+  },
+  giftprefs: {
+    type: "giftprefs",
+    label: "Gift Prefs",
+    icon: "\u{1F381}", // 🎁
+    schema: {
+      giftTier: { type: "string", enum: ["always", "occasions", "reciprocal", "none"], description: "Gift giving tier" },
+      favorites: { type: "array", items: { type: "string" }, description: "Favorite things" },
+      avoid: { type: "array", items: { type: "string" }, description: "Things to avoid" },
+    },
+    fieldMapping: ["giftTier", "favorites", "avoid"],
+  },
+  timing: {
+    type: "timing",
+    label: "Timing",
+    icon: "\u{23F1}", // ⏱️
+    schema: {
+      prepTime: { type: "number", description: "Prep time in minutes" },
+      cookTime: { type: "number", description: "Cook time in minutes" },
+      restTime: { type: "number", description: "Rest time in minutes" },
+    },
+    fieldMapping: ["prepTime", "cookTime", "restTime"],
+  },
 };
 
 // Helper functions
