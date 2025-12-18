@@ -61,6 +61,24 @@ Import emails from Gmail using authenticated queries.
 - Email content extraction (subject, body, attachments)
 - Incremental sync support
 
+#### `google-docs-comment-orchestrator.tsx`
+AI-powered assistant for managing Google Docs comments. Fetches unresolved comments and generates contextual reply suggestions.
+
+![google-docs-comment-orchestrator](screenshots/google-docs-comment-orchestrator.png)
+
+**Interesting features:**
+- Fetches unresolved comments from any Google Doc via Drive API
+- AI-generated reply suggestions using document context
+- Expand/collapse comment threads with reply preview
+- Post replies with optional resolve action
+- Customizable response guidelines for AI tone
+- Trust boundary architecture: side effects isolated in `google-docs-comment-confirm.tsx`
+- Uses `wish("#googleAuth")` for shared Google authentication
+
+**Requirements:**
+- Google Auth charm with Drive and Docs scopes enabled
+- Google Docs API enabled in Google Cloud Console
+
 #### `google-auth.tsx`
 OAuth2 authentication flow for Google APIs. Provides auth tokens for other patterns.
 
