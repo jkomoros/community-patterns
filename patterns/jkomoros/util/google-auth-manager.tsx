@@ -139,12 +139,18 @@ export interface AuthInfo {
   hasPickerUI: boolean;
 }
 
+/** Account type for multi-account support */
+export type AccountType = "default" | "personal" | "work";
+
 /** Options for createGoogleAuth */
 export interface CreateGoogleAuthOptions {
   /** Required scopes by friendly name (e.g., ["gmail", "drive"]) */
   requiredScopes?: ScopeKey[];
-  /** Account type preference for wish tag */
-  accountType?: "default" | "personal" | "work";
+  /**
+   * Account type preference for wish tag.
+   * Can be a static string or a reactive Cell for dynamic account switching.
+   */
+  accountType?: AccountType | Cell<AccountType>;
 }
 
 /** Type for the Google Auth charm returned by wish */
@@ -224,13 +230,16 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   const requiredScopes = options.requiredScopes || [];
   const accountType = options.accountType || "default";
 
-  // Determine wish tag based on account type
-  const tag =
-    accountType === "personal" ? "#googleAuthPersonal" :
-    accountType === "work" ? "#googleAuthWork" :
-    "#googleAuth";
+  // Derive wish tag reactively - handles both static strings and Cell<AccountType>
+  // derive() treats static values as constants, Cells as reactive
+  const tag = derive(accountType, (type: AccountType) =>
+    type === "personal" ? "#googleAuthPersonal" :
+    type === "work" ? "#googleAuthWork" :
+    "#googleAuth"
+  );
 
   // CRITICAL: wish() at pattern body level, NOT inside derive
+  // Tag can now be reactive for dynamic account switching
   const wishResult = wish<GoogleAuthCharm>({ query: tag });
 
   // CRITICAL: Property access to maintain cell writability for token refresh

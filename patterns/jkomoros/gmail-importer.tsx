@@ -9,14 +9,12 @@ import {
   handler,
   ifElse,
   NAME,
-  navigateTo,
   patternTool,
   pattern,
   str,
   UI,
-  wish,
 } from "commontools";
-import GoogleAuth from "./google-auth.tsx";
+import { createGoogleAuth, type ScopeKey, type AccountType } from "./util/google-auth-manager.tsx";
 import TurndownService from "turndown";
 import { GmailClient } from "./util/gmail-client.ts";
 
@@ -664,14 +662,6 @@ const updateGmailFilterQuery = handler<
   },
 );
 
-const toggleAuthView = handler<
-  unknown,
-  { showAuth: Cell<boolean> }
->(
-  (_, { showAuth }) => {
-    showAuth.set(!showAuth.get());
-  },
-);
 
 const toggleDebugMode = handler<
   { target: { checked: boolean } },
@@ -683,45 +673,6 @@ const toggleDebugMode = handler<
   },
 );
 
-// Handler to create a new GoogleAuth charm and navigate to it
-const createGoogleAuth = handler<unknown, Record<string, never>>(
-  () => {
-    const googleAuthCharm = GoogleAuth({
-      selectedScopes: {
-        gmail: true,  // Pre-select Gmail scope
-        gmailSend: false,
-        gmailModify: false,
-        calendar: false,
-        calendarWrite: false,
-        drive: false,
-        docs: false,
-        contacts: false,
-      },
-      auth: {
-        token: "",
-        tokenType: "",
-        scope: [],
-        expiresIn: 0,
-        expiresAt: 0,
-        refreshToken: "",
-        user: { email: "", name: "", picture: "" },
-      },
-    });
-    return navigateTo(googleAuthCharm);
-  },
-);
-
-// What we expect from the google-auth charm
-type GoogleAuthCharm = {
-  auth: Auth;
-  scopes?: string[];
-};
-
-// Gmail scope URL for checking
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
-
-// Account type for multi-account support
-type AccountType = "default" | "personal" | "work";
 
 export default pattern<{
   settings: Default<Settings, {
@@ -730,23 +681,15 @@ export default pattern<{
     historyId: "";
     debugMode: false;
   }>;
-  // Optional: explicitly provide an auth charm. If not provided, uses wish to discover one.
-  authCharm: Default<any, null>;
-  // Account type for multi-account Gmail support
-  accountType: Default<AccountType, "default">;
 }, Output>(
-  ({ settings, authCharm, accountType }) => {
+  ({ settings }) => {
     const emails = Cell.of<Confidential<Email[]>>([]);
-    const showAuth = Cell.of(false);
     const fetching = Cell.of(false);
 
     // Local writable cell for account type selection
-    // Input `accountType` may be read-only (Default cells are read-only when using default value)
-    // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
-    // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
     const selectedAccountType = Cell.of<AccountType>("default");
 
-    // Handler to change account type (writes to local writable cell)
+    // Handler to change account type
     const setAccountType = handler<
       { target: { value: string } },
       { selectedType: Cell<AccountType> }
@@ -756,84 +699,11 @@ export default pattern<{
       state.selectedType.set(newType);
     });
 
-    // Dynamic wish tag based on selectedAccountType (writable local cell)
-    const wishTag = derive(selectedAccountType, (type: AccountType) => {
-      switch (type) {
-        case "personal":
-          return "#googleAuthPersonal";
-        case "work":
-          return "#googleAuthWork";
-        default:
-          return "#googleAuth";
-      }
+    // Use createGoogleAuth utility with reactive accountType
+    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+      requiredScopes: ["gmail"] as ScopeKey[],
+      accountType: selectedAccountType,
     });
-
-    // Wish for a favorited auth charm (used when no explicit authCharm provided)
-    // CT-1084 (object syntax bug) is fixed, so we use the object syntax now
-    // Now uses reactive wishTag for multi-account support
-    const wishResult = wish<GoogleAuthCharm>({ query: wishTag });
-
-    // Determine if we have an explicit auth charm provided
-    const hasExplicitAuth = derive(authCharm, (charm) => charm !== null && charm !== undefined);
-
-    // 3-state logic for wished auth:
-    // State 1: "not-found" - wishError exists and no result
-    // State 2: "found-not-authenticated" - result exists but no email
-    // State 3: "authenticated" - result exists with email
-    const wishedAuthState = derive(wishResult, (wr) => {
-      const email = wr?.result?.auth?.user?.email || "";
-      if (email !== "") return "authenticated";
-      if (wr?.result) return "found-not-authenticated";
-      if (wr?.error) return "not-found";
-      return "loading";
-    });
-
-    // Get the wished charm from the result
-    const wishedAuthCharm = derive(wishResult, (wr) => wr?.result || null);
-
-    // Get UI for inline auth rendering (State 2)
-    const wishedAuthUI = derive(wishResult, (wr) => wr?.$UI);
-
-    // Get the effective auth charm: explicit one if provided, otherwise wished one
-    const effectiveAuthCharm = derive(
-      { authCharm, wishedAuthCharm, hasExplicitAuth },
-      ({ authCharm, wishedAuthCharm, hasExplicitAuth }) => {
-        if (hasExplicitAuth) {
-          return authCharm;
-        }
-        return wishedAuthCharm || null;
-      }
-    );
-
-    // Access auth directly from the effective charm (NOT derived!)
-    // By accessing .auth as a property path rather than deriving it,
-    // the framework maintains the live Cell reference that can be written to.
-    // This is critical for token refresh to persist back to the source charm.
-    // See: community-docs/superstitions/2025-01-24-pass-cells-as-handler-params-not-closure.md
-    const auth = effectiveAuthCharm.auth;
-
-    const isAuthenticated = derive(auth, (a) => a?.user?.email ? true : false);
-
-    // Track if we're using wished auth vs explicit
-    const usingWishedAuth = derive(
-      { hasExplicitAuth, wishedAuthState },
-      ({ hasExplicitAuth, wishedAuthState }) => !hasExplicitAuth && wishedAuthState === "authenticated"
-    );
-
-    // Error from wish (for "not-found" state)
-    const wishError = derive(wishResult, (wr: { error?: string | null } | undefined) => wr?.error || null);
-
-    // Check if Gmail scope is granted
-    const hasGmailScope = derive(auth, (a) => {
-      const scopes = a?.scope || [];
-      return scopes.includes(GMAIL_SCOPE);
-    });
-
-    // Authenticated but missing Gmail scope
-    const missingGmailScope = derive(
-      { isAuthenticated, hasGmailScope },
-      ({ isAuthenticated, hasGmailScope }) => isAuthenticated && !hasGmailScope
-    );
 
     computed(() => {
       if (settings.debugMode) {
@@ -842,9 +712,7 @@ export default pattern<{
     });
 
     return {
-      [NAME]: str`GMail Importer ${
-        derive(auth, (auth) => auth?.user?.email || "unauthorized")
-      }`,
+      [NAME]: str`GMail Importer ${currentEmail}`,
       [UI]: (
         <ct-screen>
           <div slot="header">
@@ -875,161 +743,13 @@ export default pattern<{
                 <option value="personal" selected={derive(selectedAccountType, (t: string) => t === "personal")}>Personal</option>
                 <option value="work" selected={derive(selectedAccountType, (t: string) => t === "work")}>Work</option>
               </select>
-
-              {/* Red/Green status dot */}
-              <button
-                onClick={toggleAuthView({ showAuth })}
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  border: "2px solid #333",
-                  backgroundColor: ifElse(
-                    isAuthenticated,
-                    "#22c55e", // green
-                    "#ef4444", // red
-                  ),
-                  cursor: "pointer",
-                  padding: "0",
-                }}
-                title={ifElse(
-                  isAuthenticated,
-                  "Authenticated - Click to view auth",
-                  "Not authenticated - Click to login",
-                )}
-              />
             </ct-hstack>
           </div>
 
           <ct-vscroll flex showScrollbar>
             <ct-vstack padding="6" gap="4">
-              {/* Conditionally show auth UI inline */}
-              {ifElse(
-                derive(showAuth, (show) => show),
-                <div
-                  style={{
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "8px",
-                    padding: "15px",
-                    backgroundColor: "#f9fafb",
-                  }}
-                >
-                  <h3 style={{ fontSize: "16px", marginTop: "0" }}>
-                    Authentication
-                  </h3>
-
-                  {/* Show source of auth - 3 states for wished auth */}
-                  {ifElse(
-                    hasExplicitAuth,
-                    <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
-                      Using explicitly linked auth charm
-                    </div>,
-                    // Not using explicit auth - show wish-based auth state
-                    derive(wishedAuthState, (state) => {
-                      if (state === "authenticated") {
-                        // State 3: Using wished auth successfully
-                        return (
-                          <div style={{ marginBottom: "10px", fontSize: "14px", color: "#22c55e" }}>
-                            ✓ Using shared auth from favorited Google Auth charm
-                          </div>
-                        );
-                      }
-
-                      if (state === "found-not-authenticated") {
-                        // State 2: Auth charm found but not logged in - show inline auth
-                        return (
-                          <div style={{
-                            marginBottom: "15px",
-                            padding: "12px",
-                            backgroundColor: "#fff3cd",
-                            borderRadius: "6px",
-                            border: "1px solid #ffeeba",
-                          }}>
-                            <strong>Auth Charm Found - Login Required</strong>
-                            <p style={{ margin: "8px 0 12px 0", fontSize: "14px" }}>
-                              Found your Google Auth charm, but you need to log in:
-                            </p>
-                            <div style={{
-                              padding: "10px",
-                              backgroundColor: "#fff",
-                              borderRadius: "6px",
-                              border: "1px solid #ddd",
-                            }}>
-                              {wishedAuthUI}
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (state === "not-found") {
-                        // State 1: No auth charm found
-                        return (
-                          <div style={{
-                            marginBottom: "15px",
-                            padding: "12px",
-                            backgroundColor: "#f8d7da",
-                            borderRadius: "6px",
-                            border: "1px solid #f5c6cb",
-                          }}>
-                            <strong>No Google Auth Found</strong>
-                            <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                              Create a Google Auth charm to authenticate:
-                            </p>
-                            <ct-button
-                              onClick={createGoogleAuth({})}
-                              style={{ marginTop: "12px" }}
-                            >
-                              Create Google Auth
-                            </ct-button>
-                            <p style={{ margin: "12px 0 0 0", fontSize: "13px", color: "#666" }}>
-                              After authenticating, click the star to favorite it, then come back here.
-                            </p>
-                            {derive(wishError, (err) => err ? (
-                              <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#721c24" }}>
-                                {err}
-                              </p>
-                            ) : null)}
-                          </div>
-                        );
-                      }
-
-                      // Loading state
-                      return (
-                        <div style={{ marginBottom: "10px", fontSize: "14px", color: "#666" }}>
-                          Checking for Google Auth...
-                        </div>
-                      );
-                    })
-                  )}
-
-                  {/* Scope warning */}
-                  {ifElse(
-                    missingGmailScope,
-                    <div style={{
-                      marginBottom: "15px",
-                      padding: "12px",
-                      backgroundColor: "#f8d7da",
-                      borderRadius: "6px",
-                      border: "1px solid #f5c6cb",
-                    }}>
-                      <strong>Gmail Permission Missing</strong>
-                      <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                        Your Google Auth charm doesn't have Gmail permission enabled.
-                        Please enable the Gmail checkbox in your Google Auth charm and re-authenticate.
-                      </p>
-                    </div>,
-                    <div />
-                  )}
-
-                  {/* Render the auth charm if available */}
-                  {ifElse(
-                    derive(effectiveAuthCharm, (charm) => !!charm),
-                    <ct-render $cell={effectiveAuthCharm} />,
-                    <div />
-                  )}
-                </div>,
-                <div />,
-              )}
+              {/* Auth management UI */}
+              {fullUI}
 
           <h3 style={{ fontSize: "18px", fontWeight: "bold" }}>
             Imported email count: {computed(() => emails.get().length)}
