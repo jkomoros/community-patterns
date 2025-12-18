@@ -146,7 +146,7 @@ The code in `derive-strategy.ts` (lines 250-254) says:
 
 **Key insight:** The phrase "For now" indicates this was a deliberate deferral, not an oversight. Property access IS handled via `captureTree`, but type registry pre-registration was deferred. This creates an edge case where nested transformations (like `.map()` → `.mapWithPattern()`) don't see the correct unwrapped types.
 
-**Note:** This edge case was discovered within 6 days of the code being written. A framework issue has been filed as feedback.
+**Note:** This edge case was discovered within 6 days of the code being written. Filed as [CT-1124](https://linear.app/common-tools/issue/CT-1124/property-access-type-registry-pre-registration-edge-case-pr-2233).
 
 ## Related
 

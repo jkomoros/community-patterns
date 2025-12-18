@@ -2,6 +2,7 @@
 
 **Date:** 2025-12-17
 **Status:** Feedback / Enhancement Request
+**Linear:** [CT-1124](https://linear.app/common-tools/issue/CT-1124/property-access-type-registry-pre-registration-edge-case-pr-2233)
 **Related PR:** #2233 "Fix/filter map inside derive"
 **Discovered:** Within 6 days of PR #2233 being merged
 
