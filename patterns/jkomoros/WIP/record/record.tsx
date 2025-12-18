@@ -15,8 +15,8 @@
 
 import {
   Cell,
-  computed,
   type Default,
+  derive,
   handler,
   ifElse,
   NAME,
@@ -24,11 +24,7 @@ import {
   str,
   UI,
 } from "commontools";
-import {
-  getAvailableTypes,
-  getDefinition,
-  type SubCharmDefinition,
-} from "./sub-charms/registry.ts";
+import { getAvailableTypes, getDefinition } from "./sub-charms/registry.ts";
 import type {
   BirthdayData,
   EnabledSubCharms,
@@ -106,38 +102,27 @@ const Record = recipe<RecordInput, RecordOutput>(
       });
     });
 
-    // Display name
-    const displayName = computed(() =>
-      (title as unknown as string).trim() || "(Untitled Record)"
-    );
+    // Display name - derive() gives proper types without casts
+    const displayName = derive(title, (t) => t.trim() || "(Untitled Record)");
 
     // Check if birthday sub-charm is enabled
-    const hasBirthday = computed(() =>
-      (enabledSubCharms as unknown as EnabledSubCharms).includes("birthday")
-    );
+    const hasBirthday = derive(enabledSubCharms, (e) => e.includes("birthday"));
 
     // Get birthday display values
-    const birthDateValue = computed(
-      () => (birthdayData as unknown as BirthdayData).birthDate
-    );
-    const birthYearValue = computed(
-      () => (birthdayData as unknown as BirthdayData).birthYear
-    );
+    const birthDateValue = derive(birthdayData, (b) => b.birthDate);
+    const birthYearValue = derive(birthdayData, (b) => b.birthYear);
 
     // Available types for [+] dropdown (exclude already-added types)
-    const availableToAdd = computed(() => {
-      const current = enabledSubCharms as unknown as EnabledSubCharms;
-      return getAvailableTypes().filter((def) => !current.includes(def.type));
-    });
-
-    // Check if we have types available to add
-    const hasTypesToAdd = computed(
-      () => (availableToAdd as unknown as SubCharmDefinition[]).length > 0
+    const availableToAdd = derive(enabledSubCharms, (current) =>
+      getAvailableTypes().filter((def) => !current.includes(def.type))
     );
 
+    // Check if we have types available to add
+    const hasTypesToAdd = derive(availableToAdd, (types) => types.length > 0);
+
     // Get items for the select dropdown
-    const addSelectItems = computed(() =>
-      (availableToAdd as unknown as SubCharmDefinition[]).map((def) => ({
+    const addSelectItems = derive(availableToAdd, (types) =>
+      types.map((def) => ({
         value: def.type,
         label: `${def.icon} ${def.label}`,
       }))
@@ -183,10 +168,12 @@ const Record = recipe<RecordInput, RecordOutput>(
             <ct-tab-list>
               {/* Notes tab is always first (built-in) */}
               <ct-tab value="notes">{"\u{1F4DD}"} Notes</ct-tab>
-              {/* Birthday tab (shown if enabled) */}
+              {/* Birthday tab (shown if enabled) - uses registry metadata */}
               {ifElse(
                 hasBirthday,
-                <ct-tab value="birthday">{"\u{1F382}"} Birthday</ct-tab>,
+                <ct-tab value="birthday">
+                  {getDefinition("birthday")?.icon} {getDefinition("birthday")?.label}
+                </ct-tab>,
                 null
               )}
             </ct-tab-list>

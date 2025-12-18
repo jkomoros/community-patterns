@@ -1,6 +1,6 @@
 // registry.ts - Sub-charm registry with type definitions
-// Simplified: Just defines available sub-charm types and their metadata
-// Note: Notes is built-in to Record, not a sub-charm
+// Defines available sub-charm types and their metadata
+// Note: Rendering stays in record.tsx (JSX requires recipe context)
 
 import type { SubCharmType } from "../types/record-types.ts";
 
@@ -9,12 +9,11 @@ export interface SubCharmDefinition {
   label: string;
   icon: string;
   // For Phase 2 extraction:
-  schema?: Record<string, unknown>; // JSON Schema fields
-  fieldMapping?: string[]; // Which extracted fields this owns
+  schema?: Record<string, unknown>;
+  fieldMapping?: string[];
 }
 
 // Static registry - defines available sub-charm types
-// Notes is built-in to Record, so not in this registry
 export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
   birthday: {
     type: "birthday",
