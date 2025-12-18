@@ -3,17 +3,55 @@ import {
   Cell,
   computed,
   Default,
+  derive,
   generateObject,
   getRecipeEnvironment,
   handler,
   ifElse,
   NAME,
+  navigateTo,
   pattern,
   UI,
   wish,
 } from "commontools";
 
+// Import trusted handlers from confirmation file (TRUST BOUNDARY)
+import {
+  executeAction,
+  cancelAction,
+  type PendingCommentAction,
+} from "./google-docs-comment-confirm.tsx";
+
+// Import GoogleAuth pattern for creating new auth charms
+import GoogleAuth from "./google-auth.tsx";
+
 const env = getRecipeEnvironment();
+
+// =============================================================================
+// SETUP REQUIREMENTS
+// =============================================================================
+//
+// This pattern requires Google OAuth with specific scopes and APIs enabled:
+//
+// 1. GOOGLE AUTH CHARM
+//    - Create and favorite a Google Auth charm with these scopes enabled:
+//      - Drive (read/write files & comments) - for fetching and posting comments
+//      - Docs (read document content) - for fetching document text for AI context
+//
+// 2. GOOGLE CLOUD CONSOLE
+//    The OAuth project must have these APIs enabled:
+//    - Google Drive API (usually enabled by default)
+//    - Google Docs API (must be explicitly enabled)
+//
+//    To enable Google Docs API:
+//    1. Go to https://console.developers.google.com/apis/library/docs.googleapis.com
+//    2. Select your project
+//    3. Click "Enable"
+//
+//    Without this, fetching document content will fail with a 403 error.
+//    Comments will still work, but AI responses won't have document context.
+//
+// =============================================================================
 
 // =============================================================================
 // Types - Google API
@@ -117,6 +155,10 @@ interface Input {
   isFetching?: Cell<Default<boolean, false>>;
   showGlobalPrompt?: Cell<Default<boolean, false>>;
   lastError?: Cell<Default<string | null, null>>;
+
+  // Pending action for trusted confirmation
+  pendingAction?: Cell<Default<PendingCommentAction | null, null>>;
+  isExecuting?: Cell<Default<boolean, false>>;
 }
 
 /** Google Docs Comment Orchestrator. AI-powered comment responses. #googleDocsComments */
@@ -417,70 +459,51 @@ const regenerateResponse = handler<
   });
 });
 
-// Reply to a comment
-const replyToComment = handler<
+// Prepare a reply action - sets pendingAction for trusted confirmation
+const prepareReply = handler<
   unknown,
   {
-    auth: Cell<Auth>;
     docUrl: Cell<string>;
+    comments: Cell<GoogleComment[]>;
     commentId: string;
     responseText: string;
     resolve: boolean;
-    comments: Cell<GoogleComment[]>;
-    commentStates: Cell<Record<string, CommentState>>;
-    expandedCommentId: Cell<string | null>;
-    lastError: Cell<string | null>;
+    pendingAction: Cell<PendingCommentAction | null>;
   }
->(async (_, {
-  auth,
+>((_, {
   docUrl,
+  comments,
   commentId,
   responseText,
   resolve,
-  comments,
-  commentStates,
-  expandedCommentId,
-  lastError,
+  pendingAction,
 }) => {
   const url = docUrl.get();
   const fileId = extractFileId(url);
   if (!fileId) {
-    lastError.set("Invalid document URL");
+    console.error("[prepareReply] Invalid document URL");
     return;
   }
 
-  const token = auth.get()?.token;
-  if (!token) {
-    lastError.set("Please authenticate with Google first");
+  // Find the comment to get context for the confirmation UI
+  const commentsList = comments.get() ?? [];
+  const comment = commentsList.find((c: GoogleComment) => c.id === commentId);
+  if (!comment) {
+    console.error("[prepareReply] Comment not found");
     return;
   }
 
-  try {
-    const client = new GoogleDocsClient(token);
-    await client.createReply(fileId, commentId, responseText, resolve);
-
-    // Update local state
-    const current = commentStates.get() ?? {};
-    commentStates.set({
-      ...current,
-      [commentId]: {
-        ...(current[commentId] ?? { regenerateNonce: 0 }),
-        status: "accepted",
-      },
-    });
-
-    // If resolved, remove from comments list
-    if (resolve) {
-      const currentComments = comments.get();
-      comments.set(currentComments.filter((c) => c.id !== commentId));
-    }
-
-    // Collapse the comment
-    expandedCommentId.set(null);
-  } catch (e: any) {
-    console.error("[replyToComment] Error:", e);
-    lastError.set(e.message || "Failed to reply to comment");
-  }
+  // Set pending action - this will trigger the confirmation UI
+  pendingAction.set({
+    type: resolve ? "reply-resolve" : "reply",
+    docUrl: url,
+    fileId,
+    commentId,
+    commentAuthor: comment.author.displayName,
+    commentContent: comment.content,
+    quotedText: comment.quotedFileContent?.value,
+    responseText,
+  });
 });
 
 // Skip a comment (mark as skipped, collapse)
@@ -504,6 +527,52 @@ const skipComment = handler<
 });
 
 // =============================================================================
+// Auth Management Handlers
+// =============================================================================
+
+/**
+ * Create a new Google Auth charm with Drive and Docs scopes pre-selected.
+ * Navigates to it so user can authenticate.
+ */
+const createGoogleAuth = handler<unknown, Record<string, never>>(() => {
+  const authCharm = GoogleAuth({
+    selectedScopes: {
+      gmail: false,
+      gmailSend: false,
+      gmailModify: false,
+      calendar: false,
+      calendarWrite: false,
+      drive: true,  // Pre-select Drive for comments
+      docs: true,   // Pre-select Docs for content
+      contacts: false,
+    },
+    auth: {
+      token: "",
+      tokenType: "",
+      scope: [],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    },
+  });
+  return navigateTo(authCharm);
+});
+
+/**
+ * Navigate to an existing auth charm (from wish result).
+ */
+const goToAuthCharm = handler<
+  unknown,
+  // deno-lint-ignore no-explicit-any
+  { authCharm: any }
+>((_, { authCharm }) => {
+  if (authCharm) {
+    return navigateTo(authCharm);
+  }
+});
+
+// =============================================================================
 // Pattern
 // =============================================================================
 
@@ -518,6 +587,8 @@ export default pattern<Input, Output>(
     isFetching,
     showGlobalPrompt,
     lastError,
+    pendingAction,
+    isExecuting,
   }) => {
     // Save cell references before entering reactive contexts
     const docUrlCell = docUrl;
@@ -529,35 +600,82 @@ export default pattern<Input, Output>(
     const isFetchingCell = isFetching;
     const showGlobalPromptCell = showGlobalPrompt;
     const lastErrorCell = lastError;
+    const pendingActionCell = pendingAction;
+    const isExecutingCell = isExecuting;
 
     // Auth via wish
     const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
-    // Derive auth state
-    const authState = computed(() => {
+    // PERFORMANCE FIX: Single computed for ALL auth-related derived state
+    // This avoids multiple computed() cells each subscribing to wishResult
+    // which causes reactive cascades when auth updates
+    const authInfo = computed(() => {
       const wr = wishResult;
-      if (!wr) return "loading";
-      if (wr.error) return "not-found";
-      const email = wr.result?.auth?.user?.email;
-      if (email && email !== "") return "authenticated";
-      if (wr.result) return "found-not-authenticated";
-      return "loading";
+
+      // Determine state
+      let state: "loading" | "not-found" | "found-not-authenticated" | "authenticated" = "loading";
+      if (!wr) {
+        state = "loading";
+      } else if (wr.error) {
+        state = "not-found";
+      } else {
+        const email = wr.result?.auth?.user?.email;
+        if (email && email !== "") {
+          state = "authenticated";
+        } else if (wr.result) {
+          state = "found-not-authenticated";
+        }
+      }
+
+      // Check scopes
+      const scopes: string[] = wr?.result?.auth?.scope ?? [];
+      const hasDrive = scopes.some((s: string) =>
+        s.includes("drive") || s.includes("https://www.googleapis.com/auth/drive")
+      );
+      const hasDocs = scopes.some((s: string) =>
+        s.includes("documents") || s.includes("https://www.googleapis.com/auth/documents")
+      );
+      const hasRequiredScopes = hasDrive && hasDocs;
+
+      // Status display
+      const email = wr?.result?.auth?.user?.email ?? "";
+      let statusDotColor = "var(--ct-color-yellow-500, #eab308)";
+      let statusText = "Loading auth...";
+
+      if (state === "authenticated") {
+        statusDotColor = "var(--ct-color-green-500, #22c55e)";
+        statusText = `Signed in as ${email}`;
+      } else if (state === "not-found") {
+        statusDotColor = "var(--ct-color-red-500, #ef4444)";
+        statusText = "No Google Auth charm found - please favorite one";
+      } else if (state === "found-not-authenticated") {
+        statusDotColor = "var(--ct-color-red-500, #ef4444)";
+        statusText = "Please sign in to your Google Auth charm";
+      }
+
+      return {
+        state,
+        hasRequiredScopes,
+        statusDotColor,
+        statusText,
+        charm: wr?.result ?? null,
+      };
     });
+
+    // PERFORMANCE FIX: Pre-derive UI conditions to avoid nested computed() in ifElse
+    // See: community-docs/superstitions/2025-12-03-avoid-composed-pattern-cells-in-derives.md
+    // Using single derive() that returns JSX instead of multiple nested computed() conditions
+    const fetchButtonDisabled = computed(() =>
+      authInfo.state !== "authenticated" || isFetchingCell.get() === true
+    );
+
+    const showScopeWarning = derive(authInfo, (info) =>
+      info.state === "authenticated" && !info.hasRequiredScopes
+    );
 
     // Get auth from wish result (property access, not derived - maintains Cell reference)
     // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
-    // Use computed() not derive() per CELLS_AND_REACTIVITY.md - derive creates read-only projections
-    const wishedAuthCharm = computed(() => wishResult?.result ?? null);
-    const auth = wishedAuthCharm?.auth;
-
-    // Check for required scopes (drive)
-    const hasRequiredScopes = computed(() => {
-      const authVal = wishResult?.result?.auth;
-      const scopes: string[] = authVal?.scope ?? [];
-      return scopes.some((s: string) =>
-        s.includes("drive") || s.includes("https://www.googleapis.com/auth/drive")
-      );
-    });
+    const auth = wishResult?.result?.auth;
 
     // Open comment count
     const openCommentCount = computed(() => {
@@ -631,24 +749,7 @@ export default pattern<Input, Output>(
     // UI
     // ==========================================================================
 
-    // Auth status indicator
-    const authStatusDot = computed(() => {
-      const state = authState;
-      if (state === "authenticated") return "var(--ct-color-green-500, #22c55e)";
-      if (state === "not-found" || state === "found-not-authenticated") return "var(--ct-color-red-500, #ef4444)";
-      return "var(--ct-color-yellow-500, #eab308)";
-    });
-
-    const authStatusText = computed(() => {
-      const state = authState;
-      if (state === "authenticated") {
-        const email = auth?.user?.email ?? "";
-        return `Signed in as ${email}`;
-      }
-      if (state === "not-found") return "No Google Auth charm found - please favorite one";
-      if (state === "found-not-authenticated") return "Please sign in to your Google Auth charm";
-      return "Loading auth...";
-    });
+    // Auth status values come from authInfo computed (single source of truth)
 
     // Format date helper (pure function, no reactive deps)
     const formatDate = (dateStr: string) => {
@@ -706,6 +807,35 @@ export default pattern<Input, Output>(
       }));
     });
 
+    // ==========================================================================
+    // Pre-computed values for Confirmation UI
+    // Single computed returning object - idiomatic pattern per CELLS_AND_REACTIVITY.md
+    // ==========================================================================
+
+    // Boolean computed for ifElse condition
+    const hasAction = computed(() => pendingActionCell.get() !== null);
+    const hasLastError = computed(() => !!lastErrorCell.get());
+
+    // Single computed for all action display values
+    const actionDetails = computed(() => {
+      const a = pendingActionCell.get();
+      if (!a) return null;
+
+      const docUrlShort = a.docUrl
+        ? a.docUrl.replace(/https?:\/\/docs\.google\.com\/document\/d\//, "").slice(0, 30) + "..."
+        : "Unknown document";
+
+      return {
+        typeLabel: a.type === "reply-resolve" ? "Reply and Resolve" : "Reply",
+        docUrlShort,
+        commentAuthor: a.commentAuthor ?? "",
+        quotedText: a.quotedText ?? "",
+        hasQuotedText: !!a.quotedText,
+        commentContent: a.commentContent ?? "",
+        responseText: a.responseText ?? "",
+      };
+    });
+
     return {
       [NAME]: "Google Docs Comment Orchestrator",
       [UI]: (
@@ -720,11 +850,11 @@ export default pattern<Input, Output>(
                     width: "8px",
                     height: "8px",
                     borderRadius: "50%",
-                    backgroundColor: authStatusDot,
+                    backgroundColor: authInfo.statusDotColor,
                   }}
                 />
                 <span style={{ fontSize: "12px", color: "#666" }}>
-                  {authStatusText}
+                  {authInfo.statusText}
                 </span>
               </ct-hstack>
             </ct-hstack>
@@ -732,6 +862,79 @@ export default pattern<Input, Output>(
 
           {/* Main content */}
           <ct-vstack gap="1" style="padding: 16px;">
+            {/* Auth Setup Card - shown when auth isn't working */}
+            {/* PERFORMANCE FIX: Single derive() returning JSX instead of nested ifElse(computed()) */}
+            {/* See: community-docs/superstitions/2025-12-03-avoid-composed-pattern-cells-in-derives.md */}
+            {derive(authInfo, (info) => {
+              if (info.state === "not-found") {
+                return (
+                  <ct-card style="margin-bottom: 16px;">
+                    <ct-vstack gap={2}>
+                      <ct-hstack align="center" gap={1}>
+                        <span style={{ fontSize: "20px" }}>🔐</span>
+                        <ct-heading level={5}>Google Authentication Required</ct-heading>
+                      </ct-hstack>
+                      <ct-vstack gap={1}>
+                        <p style={{ fontSize: "13px", color: "#666", margin: 0 }}>
+                          No Google Auth charm found. Create one to connect to Google Docs.
+                        </p>
+                        <ct-button
+                          variant="primary"
+                          onClick={createGoogleAuth({})}
+                        >
+                          Create Google Auth
+                        </ct-button>
+                        <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
+                          After signing in, favorite the charm (star icon) to use it across patterns.
+                        </p>
+                      </ct-vstack>
+                      <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
+                        Favorited auth charms are automatically discovered via wish("#googleAuth").
+                      </p>
+                    </ct-vstack>
+                  </ct-card>
+                );
+              }
+
+              if (info.state === "found-not-authenticated") {
+                return (
+                  <ct-card style="margin-bottom: 16px;">
+                    <ct-vstack gap={2}>
+                      <ct-hstack align="center" gap={1}>
+                        <span style={{ fontSize: "20px" }}>🔐</span>
+                        <ct-heading level={5}>Google Authentication Required</ct-heading>
+                      </ct-hstack>
+                      <ct-vstack gap={1}>
+                        <p style={{ fontSize: "13px", color: "#666", margin: 0 }}>
+                          Found a Google Auth charm but you're not signed in.
+                        </p>
+                        <ct-hstack gap={1}>
+                          <ct-button
+                            variant="primary"
+                            onClick={goToAuthCharm({ authCharm: info.charm })}
+                          >
+                            Go to Auth Charm
+                          </ct-button>
+                          <ct-button
+                            variant="secondary"
+                            onClick={createGoogleAuth({})}
+                          >
+                            Create New Auth
+                          </ct-button>
+                        </ct-hstack>
+                      </ct-vstack>
+                      <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>
+                        Favorited auth charms are automatically discovered via wish("#googleAuth").
+                      </p>
+                    </ct-vstack>
+                  </ct-card>
+                );
+              }
+
+              // "authenticated" or "loading" - don't show auth setup card
+              return null;
+            })}
+
             {/* Doc URL input */}
             <ct-card>
               <ct-vstack gap={1}>
@@ -747,7 +950,7 @@ export default pattern<Input, Output>(
                   <ct-button
                     variant="primary"
                     type="button"
-                    disabled={computed(() => authState !== "authenticated" || isFetchingCell.get() === true)}
+                    disabled={fetchButtonDisabled}
                     onClick={fetchComments({
                       docUrl: docUrlCell,
                       auth,
@@ -770,8 +973,9 @@ export default pattern<Input, Output>(
 
                 {/* Scope warning */}
                 {ifElse(
-                  computed(() => authState === "authenticated" && !hasRequiredScopes),
-                  <div
+                  showScopeWarning,
+                  <ct-vstack
+                    gap={1}
                     style={{
                       marginTop: "8px",
                       padding: "8px 12px",
@@ -781,8 +985,24 @@ export default pattern<Input, Output>(
                       fontSize: "12px",
                     }}
                   >
-                    Your Google Auth may not have Drive scope enabled. Please check your Google Auth charm settings.
-                  </div>,
+                    <span>Your Google Auth needs both Drive and Docs scopes enabled.</span>
+                    <ct-hstack gap={1}>
+                      <ct-button
+                        variant="secondary"
+                        size="sm"
+                        onClick={goToAuthCharm({ authCharm: authInfo.charm })}
+                      >
+                        Go to Auth Charm
+                      </ct-button>
+                      <ct-button
+                        variant="secondary"
+                        size="sm"
+                        onClick={createGoogleAuth({})}
+                      >
+                        Create New Auth
+                      </ct-button>
+                    </ct-hstack>
+                  </ct-vstack>,
                   null
                 )}
 
@@ -1071,16 +1291,13 @@ export default pattern<Input, Output>(
                       variant="primary"
                       type="button"
                       disabled={computed(() => aiResponse.pending || !aiResponse.result?.suggestedResponse)}
-                      onClick={replyToComment({
-                        auth,
+                      onClick={prepareReply({
                         docUrl: docUrlCell,
+                        comments: commentsCell,
                         commentId: computed(() => expandedCommentIdCell.get() ?? ""),
                         responseText: computed(() => aiResponse.result?.suggestedResponse ?? ""),
                         resolve: false,
-                        comments: commentsCell,
-                        commentStates: commentStatesCell,
-                        expandedCommentId: expandedCommentIdCell,
-                        lastError: lastErrorCell,
+                        pendingAction: pendingActionCell,
                       })}
                     >
                       Reply
@@ -1089,16 +1306,13 @@ export default pattern<Input, Output>(
                       variant="secondary"
                       type="button"
                       disabled={computed(() => aiResponse.pending || !aiResponse.result?.suggestedResponse)}
-                      onClick={replyToComment({
-                        auth,
+                      onClick={prepareReply({
                         docUrl: docUrlCell,
+                        comments: commentsCell,
                         commentId: computed(() => expandedCommentIdCell.get() ?? ""),
                         responseText: computed(() => aiResponse.result?.suggestedResponse ?? ""),
                         resolve: true,
-                        comments: commentsCell,
-                        commentStates: commentStatesCell,
-                        expandedCommentId: expandedCommentIdCell,
-                        lastError: lastErrorCell,
+                        pendingAction: pendingActionCell,
                       })}
                     >
                       Reply + Resolve
@@ -1129,6 +1343,147 @@ export default pattern<Input, Output>(
                 </div>
               )}
             </ct-card>
+
+            {/* Trusted Confirmation Component - renders inline when pendingAction is set */}
+            {/* TRUST BOUNDARY: executeAction lives in google-docs-comment-confirm.tsx */}
+            {ifElse(
+              hasAction,
+              <ct-card
+                style={{
+                  padding: "20px",
+                  marginTop: "16px",
+                  border: "2px solid #f59e0b",
+                  backgroundColor: "#fffbeb",
+                  borderRadius: "8px",
+                }}
+              >
+                {/* Header */}
+                <ct-hstack align="center" gap={2} style={{ marginBottom: "16px" }}>
+                  <span style={{ fontSize: "24px" }}>⚠️</span>
+                  <ct-heading level={4}>Confirm Action on Google Docs</ct-heading>
+                </ct-hstack>
+
+                {/* Action type badge */}
+                <div
+                  style={{
+                    display: "inline-block",
+                    padding: "4px 12px",
+                    backgroundColor: "#fef3c7",
+                    border: "1px solid #f59e0b",
+                    borderRadius: "4px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {actionDetails?.typeLabel}
+                </div>
+
+                {/* Context info */}
+                <ct-vstack gap={2} style={{ marginBottom: "16px" }}>
+                  <div style={{ fontSize: "14px", color: "#666" }}>
+                    <strong>Document:</strong> {actionDetails?.docUrlShort}
+                  </div>
+                  <div style={{ fontSize: "14px", color: "#666" }}>
+                    <strong>Comment by:</strong> {actionDetails?.commentAuthor}
+                  </div>
+                  {ifElse(
+                    computed(() => !!actionDetails?.hasQuotedText),
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#666",
+                        padding: "8px",
+                        backgroundColor: "#fff",
+                        borderLeft: "3px solid #ddd",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      "{actionDetails?.quotedText}"
+                    </div>,
+                    null
+                  )}
+                  <div style={{ fontSize: "14px", color: "#333" }}>
+                    <strong>Original comment:</strong> {actionDetails?.commentContent}
+                  </div>
+                </ct-vstack>
+
+                {/* Your response */}
+                <div
+                  style={{
+                    padding: "12px",
+                    backgroundColor: "#fff",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#666",
+                      marginBottom: "4px",
+                      fontWeight: "600",
+                    }}
+                  >
+                    Your response:
+                  </div>
+                  <div style={{ fontSize: "14px" }}>{actionDetails?.responseText}</div>
+                </div>
+
+                {/* Error display */}
+                {ifElse(
+                  hasLastError,
+                  <div
+                    style={{
+                      padding: "12px",
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #ef4444",
+                      borderRadius: "4px",
+                      marginBottom: "16px",
+                      color: "#dc2626",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {lastErrorCell}
+                  </div>,
+                  null
+                )}
+
+                {/* Action buttons */}
+                <ct-hstack gap={2} justify="end">
+                  <ct-button
+                    variant="secondary"
+                    type="button"
+                    disabled={isExecutingCell}
+                    onClick={cancelAction({ action: pendingActionCell })}
+                  >
+                    Cancel
+                  </ct-button>
+                  <ct-button
+                    variant="primary"
+                    type="button"
+                    disabled={isExecutingCell}
+                    onClick={executeAction({
+                      action: pendingActionCell,
+                      auth,
+                      comments: commentsCell,
+                      commentStates: commentStatesCell,
+                      expandedCommentId: expandedCommentIdCell,
+                      lastError: lastErrorCell,
+                      isExecuting: isExecutingCell,
+                    })}
+                  >
+                    {ifElse(
+                      isExecutingCell,
+                      "Posting...",
+                      <span>✓ Post {actionDetails?.typeLabel}</span>
+                    )}
+                  </ct-button>
+                </ct-hstack>
+              </ct-card>,
+              null
+            )}
           </ct-vstack>
         </ct-screen>
       ),
