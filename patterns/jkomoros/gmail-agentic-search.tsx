@@ -522,10 +522,7 @@ const GmailAgenticSearch = pattern<
       return scopes.includes(GMAIL_SCOPE);
     });
 
-    const missingGmailScope = derive(
-      [isAuthenticated, hasGmailScope],
-      ([authed, hasScope]: [boolean, boolean]) => authed && !hasScope,
-    );
+    // Note: Scope warnings are handled by authFullUI via createGoogleAuth utility
 
     // Handler to create a new GoogleAuth charm (uses utility's createAuth action)
     const createGoogleAuth = createGoogleAuthAction;
@@ -1334,26 +1331,7 @@ When you're done searching, STOP calling tools and produce your final structured
             return authFullUI;
           },
         )}
-
-        {/* Scope warning */}
-        {derive(missingGmailScope, (missing: boolean) =>
-          missing ? (
-            <div
-              style={{
-                padding: "12px",
-                background: "#f8d7da",
-                border: "1px solid #f5c6cb",
-                borderRadius: "6px",
-                marginTop: "8px",
-              }}
-            >
-              <strong>Gmail Permission Missing</strong>
-              <p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>
-                Enable Gmail in your Google Auth charm and re-authenticate.
-              </p>
-            </div>
-          ) : null,
-        )}
+        {/* Note: Scope warnings are handled by authFullUI (line 1334) */}
       </div>
     );
 

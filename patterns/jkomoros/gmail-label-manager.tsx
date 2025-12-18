@@ -19,18 +19,13 @@
  * This pattern works well linked to a Gmail Importer - select emails there,
  * then manage their labels here.
  *
- * TODO: Multi-account auth support (#googleAuthPersonal, #googleAuthWork)
- * Currently this wishes for #googleAuth which finds any Google auth.
- * To support choosing personal vs work accounts, we need:
- * - Dynamic tags based on granted scopes (e.g., #googleAuthGmailModify)
- * - AND queries in wish() to match multiple tags
- * - Or a scope-aware account picker UI
- * See: google-auth-personal.tsx, google-auth-work.tsx for the wrapper patterns.
+ * Multi-account support: Use createGoogleAuth() with accountType parameter
+ * to wish for #googleAuthPersonal or #googleAuthWork accounts.
+ * See: gmail-importer.tsx for an example with account switching dropdown.
  */
 
 import {
   Cell,
-  cell,
   Default,
   derive,
   handler,

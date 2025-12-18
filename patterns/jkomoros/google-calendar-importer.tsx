@@ -448,12 +448,6 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
       requiredScopes: ["calendar"] as ScopeKey[],
     });
 
-    computed(() => {
-      if (settings.debugMode) {
-        console.log("events", events.get().length);
-      }
-    });
-
     // Computed values for pagination
     const upcomingEvents = derive(events, (evts: CalendarEvent[]) => {
       const now = new Date();

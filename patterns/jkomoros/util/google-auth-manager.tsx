@@ -651,9 +651,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
               {config.message || ""}
             </div>
           </div>
-          {/* Inline auth charm UI - framework auto-renders [UI] property */}
+          {/* Inline auth charm UI - access [UI] property for proper rendering */}
           <div style={{ backgroundColor: "white" }}>
-            {wishResult.result}
+            {(wishResult.result as any)?.[UI]}
           </div>
         </div>
       );
