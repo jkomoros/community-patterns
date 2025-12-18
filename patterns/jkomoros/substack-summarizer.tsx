@@ -93,14 +93,15 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
                 }
 
                 return newsletters.map((newsletter) => {
-                  const emailsForNewsletter = groups[newsletter];
+                  // Convert to plain array to avoid reactive proxy issues with nested .map()
+                  const emailsForNewsletter = [...(groups[newsletter] || [])];
                   return (
                     <details open style={{ borderBottom: "1px solid #ddd", marginBottom: "0.5rem" }}>
                       <summary style={{ cursor: "pointer", padding: "0.5rem", fontWeight: "600", fontSize: "14px" }}>
                         {newsletter} <span style={{ color: "#666", fontWeight: "normal" }}>({emailsForNewsletter.length})</span>
                       </summary>
                       <div style={{ paddingLeft: "1.5rem", paddingBottom: "0.5rem" }}>
-                        {emailsForNewsletter.map((email) => (
+                        {emailsForNewsletter.map((email: any) => (
                           <div style={{ fontSize: "13px", padding: "4px 0", color: "#333" }}>
                             • {email.subject}
                           </div>
