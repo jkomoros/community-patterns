@@ -1,0 +1,593 @@
+/// <cts-enable />
+/**
+ * Google Auth Manager - Unified auth management utility
+ *
+ * This utility encapsulates all Google Auth best practices:
+ * - Uses wish() with framework's built-in picker for multi-account selection
+ * - Detects missing scopes and navigates to auth charm
+ * - Detects expired tokens and provides recovery UI
+ * - Pre-composed UI components for consistent UX
+ *
+ * Usage:
+ * ```typescript
+ * const { auth, authInfo, fullUI } = useGoogleAuth({
+ *   requiredScopes: ["gmail", "drive"],
+ * });
+ *
+ * // In UI: {fullUI} handles all auth states
+ * // For API calls: check authInfo.state === "ready" first
+ * ```
+ *
+ * IMPORTANT: Token refresh is currently broken in the framework!
+ * This utility detects expired tokens but relies on manual re-authentication.
+ */
+
+import {
+  Cell,
+  computed,
+  derive,
+  handler,
+  navigateTo,
+  UI,
+  wish,
+} from "commontools";
+
+// Import GoogleAuth pattern for creating new auth charms
+// Note: Path is relative from util/ directory (go up to jkomoros/, then find google-auth.tsx)
+import GoogleAuth, { type Auth } from "../google-auth.tsx";
+
+// Re-export Auth type for consumers
+export type { Auth };
+
+// =============================================================================
+// TYPES & CONSTANTS
+// =============================================================================
+
+/** Scope mapping for Google APIs - friendly names to URLs */
+export const SCOPE_MAP = {
+  gmail: "https://www.googleapis.com/auth/gmail.readonly",
+  gmailSend: "https://www.googleapis.com/auth/gmail.send",
+  gmailModify: "https://www.googleapis.com/auth/gmail.modify",
+  calendar: "https://www.googleapis.com/auth/calendar.readonly",
+  calendarWrite: "https://www.googleapis.com/auth/calendar.events",
+  drive: "https://www.googleapis.com/auth/drive",
+  docs: "https://www.googleapis.com/auth/documents.readonly",
+  contacts: "https://www.googleapis.com/auth/contacts.readonly",
+} as const;
+
+/** Human-readable scope descriptions */
+export const SCOPE_DESCRIPTIONS = {
+  gmail: "Gmail (read emails)",
+  gmailSend: "Gmail (send emails)",
+  gmailModify: "Gmail (add/remove labels)",
+  calendar: "Calendar (read events)",
+  calendarWrite: "Calendar (create/edit/delete events)",
+  drive: "Drive (read/write files & comments)",
+  docs: "Docs (read document content)",
+  contacts: "Contacts (read contacts)",
+} as const;
+
+export type ScopeKey = keyof typeof SCOPE_MAP;
+
+/**
+ * Auth state enumeration.
+ * Each state maps to specific UI and behavior.
+ */
+export type AuthState =
+  | "loading"        // Wish in progress
+  | "selecting"      // Multiple matches, showing picker (wishResult has [UI])
+  | "not-found"      // No matching auth favorited
+  | "needs-login"    // Auth charm found but user not signed in
+  | "missing-scopes" // Authenticated but missing required scopes
+  | "token-expired"  // Token has expired (expiresAt < now)
+  | "ready";         // All good - auth is usable
+
+/**
+ * Complete auth info bundle.
+ * Uses single computed for all derived state to prevent reactive thrashing.
+ */
+export interface AuthInfo {
+  state: AuthState;
+  auth: Auth | null;
+  email: string;
+  hasRequiredScopes: boolean;
+  grantedScopes: string[];
+  missingScopes: ScopeKey[];
+  tokenExpiresAt: number | null;
+  isTokenExpired: boolean;
+  statusDotColor: string;
+  statusText: string;
+  // For navigation/actions
+  charm: GoogleAuthCharm | null;
+  hasPickerUI: boolean;
+}
+
+/** Options for useGoogleAuth */
+export interface UseGoogleAuthOptions {
+  /** Required scopes by friendly name (e.g., ["gmail", "drive"]) */
+  requiredScopes?: ScopeKey[];
+  /** Account type preference for wish tag */
+  accountType?: "default" | "personal" | "work";
+}
+
+/** Type for the Google Auth charm returned by wish */
+export interface GoogleAuthCharm {
+  auth: Cell<Auth>;
+  scopes?: string[];
+  selectedScopes?: Record<ScopeKey, boolean>;
+  refreshToken?: {
+    send: (event: Record<string, never>, onCommit?: (tx: unknown) => void) => void;
+  };
+}
+
+// Status colors
+const STATUS_COLORS = {
+  loading: "var(--ct-color-yellow-500, #eab308)",
+  selecting: "var(--ct-color-blue-500, #3b82f6)",
+  "not-found": "var(--ct-color-red-500, #ef4444)",
+  "needs-login": "var(--ct-color-red-500, #ef4444)",
+  "missing-scopes": "var(--ct-color-orange-500, #f97316)",
+  "token-expired": "var(--ct-color-red-500, #ef4444)",
+  ready: "var(--ct-color-green-500, #22c55e)",
+} as const;
+
+// Status messages
+const STATUS_MESSAGES: Record<AuthState, string> = {
+  loading: "Loading auth...",
+  selecting: "Select an account",
+  "not-found": "No Google Auth found - please create one",
+  "needs-login": "Please sign in to your Google Auth",
+  "missing-scopes": "Additional permissions needed",
+  "token-expired": "Session expired - please re-authenticate",
+  ready: "Connected",
+};
+
+// =============================================================================
+// MAIN UTILITY FUNCTION
+// =============================================================================
+
+/**
+ * Google Auth management utility.
+ *
+ * Encapsulates all auth discovery, validation, and UI in one place.
+ *
+ * CRITICAL IMPLEMENTATION NOTES:
+ * 1. wish() is called at pattern body level, NOT inside derive()
+ * 2. Property access (wishResult?.result?.auth) NOT derive() for auth cell
+ *    - derive() creates read-only projection, breaks token refresh
+ * 3. Single computed() for all derived state to prevent thrashing
+ * 4. Token refresh is currently broken - we detect but don't auto-refresh
+ */
+export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
+  const requiredScopes = options.requiredScopes || [];
+  const accountType = options.accountType || "default";
+
+  // Determine wish tag based on account type
+  const tag =
+    accountType === "personal" ? "#googleAuthPersonal" :
+    accountType === "work" ? "#googleAuthWork" :
+    "#googleAuth";
+
+  // CRITICAL: wish() at pattern body level, NOT inside derive
+  const wishResult = wish<GoogleAuthCharm>({ query: tag });
+
+  // CRITICAL: Property access to maintain cell writability for token refresh
+  // DO NOT use derive() here - it creates read-only projection
+  const auth = wishResult?.result?.auth;
+
+  // Convert required scope keys to URLs for comparison
+  const requiredScopeUrls = requiredScopes
+    .map((key) => SCOPE_MAP[key])
+    .filter(Boolean);
+
+  // PERFORMANCE FIX: Single computed for ALL auth-related derived state
+  // This avoids multiple computed() cells each subscribing to wishResult
+  // which causes reactive cascades when auth updates
+  // See: google-docs-comment-orchestrator.tsx lines 606-663
+  const authInfo = computed((): AuthInfo => {
+    const wr = wishResult;
+    const authData = auth?.get?.() ?? null;
+
+    // Check if wish result has picker UI (multiple matches)
+    const hasPickerUI = !!(wr as any)?.[UI];
+
+    // Determine base state from wish result
+    let state: AuthState = "loading";
+
+    if (!wr) {
+      state = "loading";
+    } else if (hasPickerUI) {
+      // Wish returned [UI] which means multiple matches - show picker
+      state = "selecting";
+    } else if (wr.error) {
+      state = "not-found";
+    } else if (wr.result) {
+      const email = authData?.user?.email;
+      if (email && email !== "") {
+        state = "ready"; // Will be refined below
+      } else {
+        state = "needs-login";
+      }
+    }
+
+    // Check granted scopes
+    const grantedScopes: string[] = authData?.scope ?? [];
+    const missingScopes = requiredScopes.filter((key) => {
+      const scopeUrl = SCOPE_MAP[key];
+      return scopeUrl && !grantedScopes.includes(scopeUrl);
+    });
+    const hasRequiredScopes = missingScopes.length === 0;
+
+    // Refine state based on scopes
+    if (state === "ready" && !hasRequiredScopes) {
+      state = "missing-scopes";
+    }
+
+    // Check token expiry
+    const tokenExpiresAt = authData?.expiresAt || null;
+    const now = Date.now();
+    const isTokenExpired = tokenExpiresAt ? tokenExpiresAt < now : false;
+
+    // Refine state based on token expiry
+    if (state === "ready" && isTokenExpired) {
+      state = "token-expired";
+    }
+
+    // Generate status display
+    const email = authData?.user?.email ?? "";
+    const statusDotColor = STATUS_COLORS[state];
+    let statusText = STATUS_MESSAGES[state];
+
+    if (state === "ready") {
+      statusText = `Signed in as ${email}`;
+    } else if (state === "missing-scopes") {
+      const missingNames = missingScopes.map((k) => SCOPE_DESCRIPTIONS[k]).join(", ");
+      statusText = `Missing: ${missingNames}`;
+    }
+
+    return {
+      state,
+      auth: authData,
+      email,
+      hasRequiredScopes,
+      grantedScopes,
+      missingScopes,
+      tokenExpiresAt,
+      isTokenExpired,
+      statusDotColor,
+      statusText,
+      // Cast to any to handle OpaqueCell wrapper types from wish()
+      charm: (wr?.result ?? null) as GoogleAuthCharm | null,
+      hasPickerUI,
+    };
+  });
+
+  // Convenience computed for state
+  const state = computed(() => authInfo.state);
+  const isReady = computed(() => authInfo.state === "ready");
+
+  // ==========================================================================
+  // HANDLERS
+  // ==========================================================================
+
+  // Handler to create new Google Auth charm with pre-selected scopes
+  const createAuth = handler<unknown, { scopes: ScopeKey[] }>(
+    (_event, { scopes }) => {
+      // Build selectedScopes object with required scopes enabled
+      const selectedScopes: Record<ScopeKey, boolean> = {
+        gmail: false,
+        gmailSend: false,
+        gmailModify: false,
+        calendar: false,
+        calendarWrite: false,
+        drive: false,
+        docs: false,
+        contacts: false,
+      };
+
+      for (const scope of scopes) {
+        if (scope in selectedScopes) {
+          selectedScopes[scope] = true;
+        }
+      }
+
+      const authCharm = GoogleAuth({
+        selectedScopes,
+        auth: {
+          token: "",
+          tokenType: "",
+          scope: [],
+          expiresIn: 0,
+          expiresAt: 0,
+          refreshToken: "",
+          user: { email: "", name: "", picture: "" },
+        },
+      });
+
+      return navigateTo(authCharm);
+    },
+  );
+
+  // Handler to navigate to existing auth charm
+  const goToAuth = handler<unknown, { charm: Cell<GoogleAuthCharm | null> }>(
+    (_event, { charm }) => {
+      const c = charm.get();
+      if (c) return navigateTo(c);
+    },
+  );
+
+  // ==========================================================================
+  // UI COMPONENTS
+  // ==========================================================================
+
+  // Minimal status indicator (dot + text)
+  const statusUI = derive(authInfo, (info) => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "8px 12px",
+        borderRadius: "6px",
+        backgroundColor: info.state === "ready" ? "#d1fae5" : "#fef3c7",
+        fontSize: "14px",
+      }}
+    >
+      <span
+        style={{
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          backgroundColor: info.statusDotColor,
+        }}
+      />
+      <span>{info.statusText}</span>
+    </div>
+  ));
+
+  // Picker UI - renders wishResult[UI] when multiple matches
+  const pickerUI = derive(wishResult as any, (wr: any) => {
+    if (!wr) return null;
+    if (wr[UI]) return wr[UI];
+    return null;
+  });
+
+  // Full state-aware management UI
+  const fullUI = derive(authInfo, (info) => {
+    // Loading state
+    if (info.state === "loading") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#fef3c7",
+            borderRadius: "8px",
+            textAlign: "center",
+          }}
+        >
+          Loading Google Auth...
+        </div>
+      );
+    }
+
+    // Selecting state (multiple matches) - show picker
+    if (info.state === "selecting") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#dbeafe",
+            borderRadius: "8px",
+          }}
+        >
+          <h4 style={{ margin: "0 0 12px 0" }}>Select Google Account</h4>
+          {pickerUI}
+        </div>
+      );
+    }
+
+    // Not found state
+    if (info.state === "not-found") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#fee2e2",
+            borderRadius: "8px",
+            border: "1px solid #ef4444",
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
+            Google Auth Required
+          </h4>
+          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
+            No favorited Google Auth charm found. Create one to continue.
+          </p>
+          <button
+            onClick={createAuth({ scopes: requiredScopes })}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#3b82f6",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "500",
+            }}
+          >
+            Create Google Auth
+          </button>
+        </div>
+      );
+    }
+
+    // Needs login state
+    if (info.state === "needs-login") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#fee2e2",
+            borderRadius: "8px",
+            border: "1px solid #ef4444",
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
+            Sign In Required
+          </h4>
+          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
+            Please sign in to your Google Auth charm.
+          </p>
+          <button
+            onClick={goToAuth({ charm: computed(() => info.charm) })}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#3b82f6",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "500",
+            }}
+          >
+            Go to Google Auth
+          </button>
+        </div>
+      );
+    }
+
+    // Missing scopes state
+    if (info.state === "missing-scopes") {
+      const missingNames = info.missingScopes
+        .map((k) => SCOPE_DESCRIPTIONS[k as ScopeKey])
+        .join(", ");
+
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#ffedd5",
+            borderRadius: "8px",
+            border: "1px solid #f97316",
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", color: "#c2410c" }}>
+            Additional Permissions Needed
+          </h4>
+          <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}>
+            Signed in as <strong>{info.email}</strong>, but missing:
+          </p>
+          <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px", fontSize: "14px" }}>
+            {info.missingScopes.map((scope) => (
+              <li key={scope}>{SCOPE_DESCRIPTIONS[scope as ScopeKey]}</li>
+            ))}
+          </ul>
+          <button
+            onClick={goToAuth({ charm: computed(() => info.charm) })}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#f97316",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "500",
+            }}
+          >
+            Update Permissions
+          </button>
+        </div>
+      );
+    }
+
+    // Token expired state
+    if (info.state === "token-expired") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#fee2e2",
+            borderRadius: "8px",
+            border: "1px solid #ef4444",
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
+            Session Expired
+          </h4>
+          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
+            Your Google session has expired. Please re-authenticate.
+          </p>
+          <button
+            onClick={goToAuth({ charm: computed(() => info.charm) })}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#ef4444",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontWeight: "500",
+            }}
+          >
+            Re-authenticate
+          </button>
+        </div>
+      );
+    }
+
+    // Ready state - minimal green indicator
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "12px 16px",
+          backgroundColor: "#d1fae5",
+          borderRadius: "8px",
+          border: "1px solid #10b981",
+        }}
+      >
+        <span
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            backgroundColor: "#10b981",
+          }}
+        />
+        <span style={{ fontSize: "14px" }}>
+          Signed in as <strong>{info.email}</strong>
+        </span>
+      </div>
+    );
+  });
+
+  // ==========================================================================
+  // RETURN
+  // ==========================================================================
+
+  return {
+    // Core auth cell - WRITABLE for token refresh (when it works)
+    auth,
+
+    // Single computed with all state
+    authInfo,
+
+    // Convenience
+    state,
+    isReady,
+
+    // Actions
+    createAuth: createAuth({ scopes: requiredScopes }),
+    goToAuth: goToAuth({ charm: computed(() => authInfo.charm) }),
+
+    // UI Components
+    pickerUI,
+    statusUI,
+    fullUI,
+
+    // Raw wish result for advanced use cases
+    wishResult,
+  };
+}
