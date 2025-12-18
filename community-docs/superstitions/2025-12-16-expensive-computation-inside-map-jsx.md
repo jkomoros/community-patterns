@@ -148,6 +148,7 @@ The difference: those are about **creating new cells** inside map. This is about
 This fix was applied to:
 - `patterns/jkomoros/person.tsx` - Moved `computeWordDiff` to `notesDiffChunks` computed cell
 - `patterns/jkomoros/food-recipe.tsx` - Same fix for `computeWordDiff` in extraction preview
+- `patterns/jkomoros/google-auth.tsx` - Removed `computed()` inside `.map()` for checkbox disabled state; pre-computed `checkboxesDisabled`, `scopesDisplay`, `grantedScopesDisplay`
 
 See investigation details: `patterns/jkomoros/design/todo/cpu-spike-investigation.md`
 
@@ -156,10 +157,10 @@ See investigation details: `patterns/jkomoros/design/todo/cpu-spike-investigatio
 ```yaml
 topic: performance, map, jsx, closure, computed, cpu-spike
 discovered: 2025-12-16
-confirmed_count: 1
-last_confirmed: 2025-12-16
+confirmed_count: 2
+last_confirmed: 2025-12-17
 confidence: high
-sessions: [cpu-spike-llm-extraction-investigation]
+sessions: [cpu-spike-llm-extraction-investigation, google-auth-cpu-spike-fix]
 related_functions: map, computed, generateObject
 related_files:
   - labs/packages/runner/src/runner.ts
