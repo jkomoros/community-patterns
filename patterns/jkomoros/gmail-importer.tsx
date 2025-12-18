@@ -694,6 +694,7 @@ const createGoogleAuth = handler<unknown, Record<string, never>>(
         calendar: false,
         calendarWrite: false,
         drive: false,
+        docs: false,
         contacts: false,
       },
       auth: {
