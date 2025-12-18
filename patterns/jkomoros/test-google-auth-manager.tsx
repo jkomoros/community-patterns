@@ -9,14 +9,14 @@
  * - State display
  */
 import { derive, NAME, pattern, UI } from "commontools";
-import { useGoogleAuth, SCOPE_DESCRIPTIONS, type ScopeKey } from "./util/google-auth-manager.tsx";
+import { createGoogleAuth, SCOPE_DESCRIPTIONS, type ScopeKey } from "./util/google-auth-manager.tsx";
 
 interface Input {}
 interface Output {}
 
 export default pattern<Input, Output>(() => {
   // Request multiple scopes to test missing scopes detection
-  const { authInfo, fullUI, statusUI } = useGoogleAuth({
+  const { authInfo, fullUI, statusUI, isReady, currentEmail, currentState } = createGoogleAuth({
     requiredScopes: ["gmail", "drive", "calendar"],
   });
 
@@ -125,6 +125,27 @@ export default pattern<Input, Output>(() => {
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Status Text:</td>
                 <td style={{ padding: "4px 8px" }}>{authInfo.statusText}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* New helper getters demo */}
+          <h4 style={{ margin: "16px 0 8px 0", fontSize: "13px", color: "#666" }}>
+            Helper Getters (avoid OpaqueRef):
+          </h4>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: "4px 8px", fontWeight: "bold" }}>isReady:</td>
+                <td style={{ padding: "4px 8px" }}>{isReady}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "4px 8px", fontWeight: "bold" }}>currentEmail:</td>
+                <td style={{ padding: "4px 8px" }}>{currentEmail || "(none)"}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "4px 8px", fontWeight: "bold" }}>currentState:</td>
+                <td style={{ padding: "4px 8px" }}>{currentState}</td>
               </tr>
             </tbody>
           </table>

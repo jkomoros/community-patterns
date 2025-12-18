@@ -10,16 +10,43 @@
  *
  * Usage:
  * ```typescript
- * const { auth, authInfo, fullUI } = useGoogleAuth({
+ * const { auth, fullUI, isReady } = createGoogleAuth({
  *   requiredScopes: ["gmail", "drive"],
  * });
  *
+ * // Guard API calls with isReady
+ * const doSomething = handler(() => {
+ *   if (!isReady.get()) return;
+ *   // Use auth.get().token for API calls
+ * });
+ *
  * // In UI: {fullUI} handles all auth states
- * // For API calls: check authInfo.state === "ready" first
+ * return { [UI]: <div>{fullUI}</div> };
  * ```
  *
  * IMPORTANT: Token refresh is currently broken in the framework!
  * This utility detects expired tokens but relies on manual re-authentication.
+ *
+ * IMPORTANT: Accessing authInfo properties in computed()
+ *
+ * The `authInfo` return value is an OpaqueRef. If you need to derive
+ * values from its properties, use derive() not computed():
+ *
+ * ```typescript
+ * // WRONG - will fail with "opaque value" error:
+ * const x = computed(() => authInfo.hasRequiredScopes ? "Yes" : "No");
+ *
+ * // CORRECT:
+ * const x = derive(authInfo, (info) => info.hasRequiredScopes ? "Yes" : "No");
+ *
+ * // For arrays, use Array.from() to break proxy chain:
+ * derive(authInfo, (info) => Array.from(info.missingScopes).map(...));
+ * ```
+ *
+ * For simple checks, use the pre-unwrapped helpers instead:
+ * - isReady - boolean for `state === "ready"`
+ * - currentEmail - string of signed-in email
+ * - currentState - current AuthState value
  */
 
 import {
@@ -112,8 +139,8 @@ export interface AuthInfo {
   hasPickerUI: boolean;
 }
 
-/** Options for useGoogleAuth */
-export interface UseGoogleAuthOptions {
+/** Options for createGoogleAuth */
+export interface CreateGoogleAuthOptions {
   /** Required scopes by friendly name (e.g., ["gmail", "drive"]) */
   requiredScopes?: ScopeKey[];
   /** Account type preference for wish tag */
@@ -191,7 +218,7 @@ function formatTimeRemaining(ms: number | null): string {
  * 3. Single computed() for all derived state to prevent thrashing
  * 4. Token refresh is currently broken - we detect but don't auto-refresh
  */
-export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
+export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   const requiredScopes = options.requiredScopes || [];
   const accountType = options.accountType || "default";
 
@@ -358,17 +385,22 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
     },
   );
 
+  // Pre-create charm cell for goToAuth binding (needed by UI components)
+  const charmCell = computed(() => authInfo.charm);
+
   // ==========================================================================
   // UI COMPONENTS
   // ==========================================================================
 
-  // Minimal status indicator (dot + text + token expiry)
+  // Minimal status indicator (avatar + dot + text + token expiry)
   const statusUI = derive(authInfo, (info) => {
     // Determine background color based on state and token warning
     const bgColor =
       info.state !== "ready" ? "#fef3c7" :
       info.tokenExpiryWarning === "warning" ? "#fef3c7" :
       "#d1fae5";
+
+    const avatarUrl = info.auth?.user?.picture;
 
     return (
       <div
@@ -382,14 +414,29 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
           fontSize: "14px",
         }}
       >
-        <span
-          style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: info.statusDotColor,
-          }}
-        />
+        {/* Avatar when ready and available */}
+        {info.state === "ready" && avatarUrl && (
+          <img
+            src={avatarUrl}
+            alt=""
+            style={{
+              width: "20px",
+              height: "20px",
+              borderRadius: "50%",
+            }}
+          />
+        )}
+        {/* Status dot when no avatar or not ready */}
+        {(!avatarUrl || info.state !== "ready") && (
+          <span
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              backgroundColor: info.statusDotColor,
+            }}
+          />
+        )}
         <span>{info.statusText}</span>
         {/* Show token expiry countdown when ready and has expiry time */}
         {info.state === "ready" && info.tokenExpiryDisplay && (
@@ -584,7 +631,9 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
       );
     }
 
-    // Ready state - green indicator with optional expiry warning
+    // Ready state - green indicator with avatar, switch account, optional expiry warning
+    const avatarUrl = info.auth?.user?.picture;
+
     return (
       <div>
         {/* Main status */}
@@ -600,22 +649,52 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
             borderBottom: info.tokenExpiryWarning === "warning" ? "none" : "1px solid #10b981",
           }}
         >
-          <span
-            style={{
-              width: "10px",
-              height: "10px",
-              borderRadius: "50%",
-              backgroundColor: "#10b981",
-            }}
-          />
+          {/* Avatar or status dot */}
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              style={{
+                width: "24px",
+                height: "24px",
+                borderRadius: "50%",
+              }}
+            />
+          ) : (
+            <span
+              style={{
+                width: "10px",
+                height: "10px",
+                borderRadius: "50%",
+                backgroundColor: "#10b981",
+              }}
+            />
+          )}
           <span style={{ fontSize: "14px" }}>
             Signed in as <strong>{info.email}</strong>
           </span>
-          {info.tokenExpiryDisplay && (
-            <span style={{ fontSize: "12px", color: "#059669", marginLeft: "auto" }}>
-              {info.tokenExpiryDisplay}
-            </span>
-          )}
+          {/* Token expiry and switch account */}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
+            {info.tokenExpiryDisplay && (
+              <span style={{ fontSize: "12px", color: "#059669" }}>
+                {info.tokenExpiryDisplay}
+              </span>
+            )}
+            <button
+              onClick={goToAuth({ charm: charmCell })}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#047857",
+                cursor: "pointer",
+                fontSize: "12px",
+                padding: "2px 6px",
+                borderRadius: "4px",
+              }}
+            >
+              Switch
+            </button>
+          </div>
         </div>
         {/* Proactive expiry warning */}
         {info.tokenExpiryWarning === "warning" && (
@@ -641,8 +720,10 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
   // RETURN
   // ==========================================================================
 
-  // Pre-create charm cell for goToAuth binding (avoids recreating computed on each call)
-  const charmCell = computed(() => authInfo.charm);
+  // Helper getters - pre-unwrapped for convenience (avoids OpaqueRef footgun)
+  const isReady = computed(() => authInfo.state === "ready");
+  const currentEmail = computed(() => authInfo.email);
+  const currentState = computed(() => authInfo.state);
 
   return {
     // Core auth cell - WRITABLE for token refresh (when it works)
@@ -650,6 +731,11 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
 
     // Single computed with all state - use authInfo.state for state checks
     authInfo,
+
+    // Helper getters (pre-unwrapped to avoid OpaqueRef issues)
+    isReady,
+    currentEmail,
+    currentState,
 
     // Actions
     createAuth: createAuth({ scopes: requiredScopes }),

@@ -33,10 +33,9 @@ import {
   NAME,
   pattern,
   UI,
-  wish,
 } from "commontools";
 import { GmailSendClient } from "./util/gmail-send-client.ts";
-import type { Auth } from "./google-auth.tsx";
+import { createGoogleAuth, type Auth } from "./util/google-auth-manager.tsx";
 
 // ============================================================================
 // TYPES

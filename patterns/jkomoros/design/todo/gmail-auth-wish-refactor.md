@@ -50,10 +50,10 @@ Refactor all Gmail-consuming patterns to use the new `wish()` + favorites system
 
 ---
 
-## Phase 3: Create useGoogleAuth helper
+## Phase 3: Create createGoogleAuth helper ✅ DONE
 
-### 3.1 Create shared auth hook/pattern
-- [ ] Create `utils/use-google-auth.tsx` (or similar) that encapsulates:
+### 3.1 Create shared auth utility
+- [x] Created `util/google-auth-manager.tsx` that encapsulates:
   - Wish for `#googleAuth`
   - If not found AND no explicit auth provided, create GmailAuth inline
   - Return { auth, authCharm, needsFavoriting } or similar
