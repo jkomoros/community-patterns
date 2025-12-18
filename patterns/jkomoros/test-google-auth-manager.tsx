@@ -30,10 +30,13 @@ export default pattern<Input, Output>(() => {
   });
 
   // Format missing scopes for display - use derive() for reactive property access
+  // CRITICAL: Use Array.from() to convert opaque array to plain array before mapping
+  // Otherwise the compiler transforms .map() to .mapWithPattern() which fails on opaque values
   const missingScopesDisplay = derive(authInfo, (info) => {
-    if (info.missingScopes.length === 0) return "None";
-    return info.missingScopes
-      .map((k: ScopeKey) => SCOPE_DESCRIPTIONS[k])
+    const scopes = Array.from(info.missingScopes);
+    if (scopes.length === 0) return "None";
+    return scopes
+      .map((k) => SCOPE_DESCRIPTIONS[k as ScopeKey])
       .join(", ");
   });
 
