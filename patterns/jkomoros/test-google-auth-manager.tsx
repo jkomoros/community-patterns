@@ -8,7 +8,7 @@
  * - Missing scopes detection
  * - State display
  */
-import { computed, NAME, pattern, UI } from "commontools";
+import { derive, NAME, pattern, UI } from "commontools";
 import { useGoogleAuth, SCOPE_DESCRIPTIONS, type ScopeKey } from "./util/google-auth-manager.tsx";
 
 interface Input {}
@@ -20,25 +20,30 @@ export default pattern<Input, Output>(() => {
     requiredScopes: ["gmail", "drive", "calendar"],
   });
 
-  // Format token expiry for display
-  const tokenExpiryDisplay = computed(() => {
-    const info = authInfo;
+  // Format token expiry for display - use derive() for reactive property access
+  const tokenExpiryDisplay = derive(authInfo, (info) => {
     if (!info.tokenExpiresAt) return "No token";
     const expiresAt = new Date(info.tokenExpiresAt);
-    const now = new Date();
     const diff = info.tokenExpiresAt - Date.now();
     const mins = Math.round(diff / 60000);
     return `${expiresAt.toLocaleTimeString()} (${mins > 0 ? `${mins}min remaining` : "EXPIRED"})`;
   });
 
-  // Format missing scopes for display
-  const missingScopesDisplay = computed(() => {
-    const info = authInfo;
+  // Format missing scopes for display - use derive() for reactive property access
+  const missingScopesDisplay = derive(authInfo, (info) => {
     if (info.missingScopes.length === 0) return "None";
     return info.missingScopes
       .map((k: ScopeKey) => SCOPE_DESCRIPTIONS[k])
       .join(", ");
   });
+
+  // Boolean displays - use derive() for reactive property access
+  const hasRequiredScopesDisplay = derive(authInfo, (info) =>
+    info.hasRequiredScopes ? "✅ Yes" : "❌ No"
+  );
+  const isTokenExpiredDisplay = derive(authInfo, (info) =>
+    info.isTokenExpired ? "⚠️ Yes" : "✅ No"
+  );
 
   return {
     [NAME]: "Test Google Auth Manager",
@@ -87,9 +92,7 @@ export default pattern<Input, Output>(() => {
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Has Required Scopes:</td>
-                <td style={{ padding: "4px 8px" }}>
-                  {computed(() => authInfo.hasRequiredScopes ? "✅ Yes" : "❌ No")}
-                </td>
+                <td style={{ padding: "4px 8px" }}>{hasRequiredScopesDisplay}</td>
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Missing Scopes:</td>
@@ -97,9 +100,7 @@ export default pattern<Input, Output>(() => {
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Token Expired:</td>
-                <td style={{ padding: "4px 8px" }}>
-                  {computed(() => authInfo.isTokenExpired ? "⚠️ Yes" : "✅ No")}
-                </td>
+                <td style={{ padding: "4px 8px" }}>{isTokenExpiredDisplay}</td>
               </tr>
               <tr>
                 <td style={{ padding: "4px 8px", fontWeight: "bold" }}>Token Expires:</td>

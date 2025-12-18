@@ -13,6 +13,8 @@ if [ ! -d "$LABS_DIR" ]; then
   exit 1
 fi
 
-# Run ct from labs directory
+# Run ct from labs directory, preserving original working directory
+# INIT_CWD tells the ct task where to resolve relative paths from
+export INIT_CWD="$REPO_ROOT"
 cd "$LABS_DIR"
 exec deno task ct "$@"
