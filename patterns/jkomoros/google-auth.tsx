@@ -24,6 +24,7 @@ const SCOPE_MAP = {
   calendar: "https://www.googleapis.com/auth/calendar.readonly",
   calendarWrite: "https://www.googleapis.com/auth/calendar.events",
   drive: "https://www.googleapis.com/auth/drive",
+  docs: "https://www.googleapis.com/auth/documents.readonly",
   contacts: "https://www.googleapis.com/auth/contacts.readonly",
 } as const;
 
@@ -34,6 +35,7 @@ const SCOPE_DESCRIPTIONS = {
   calendar: "Calendar (read events)",
   calendarWrite: "Calendar (create/edit/delete events)",
   drive: "Drive (read/write files & comments)",
+  docs: "Docs (read document content)",
   contacts: "Contacts (read contacts)",
 } as const;
 
@@ -84,6 +86,7 @@ type SelectedScopes = {
   calendar: Default<boolean, false>;
   calendarWrite: Default<boolean, false>;
   drive: Default<boolean, false>;
+  docs: Default<boolean, false>;
   contacts: Default<boolean, false>;
 };
 
@@ -95,6 +98,7 @@ interface Input {
     calendar: true;
     calendarWrite: false;
     drive: false;
+    docs: false;
     contacts: false;
   }>;
   auth: Default<Auth, {
@@ -246,6 +250,28 @@ export default pattern<Input, Output>(
       return false;
     });
 
+    // PERFORMANCE FIX: Pre-compute disabled state (same for all checkboxes)
+    // Avoids creating computed() inside .map() loop
+    // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
+    const checkboxesDisabled = computed(() => !!auth?.user?.email);
+
+    // Pre-compute the scopes string for display
+    const scopesDisplay = computed(() => scopes.join(", "));
+
+    // Pre-compute granted scopes display list as JSX
+    const grantedScopesDisplay = computed(() => {
+      const scopeList: string[] = auth?.scope || [];
+      return scopeList.map((scope: string) => {
+        const friendly = Object.entries(SCOPE_MAP).find(
+          ([, url]) => url === scope
+        );
+        const displayName = friendly
+          ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
+          : scope;
+        return <li>{displayName}</li>;
+      });
+    });
+
     return {
       [NAME]: "Google Auth",
       [UI]: (
@@ -312,6 +338,7 @@ export default pattern<Input, Output>(
               )}
             </h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {/* PERFORMANCE FIX: Reference pre-computed cells, no computed() inside .map() */}
               {Object.entries(SCOPE_DESCRIPTIONS).map(([key, description]) => (
                 <label
                   style={{
@@ -324,9 +351,9 @@ export default pattern<Input, Output>(
                 >
                   <input
                     type="checkbox"
-                    checked={computed(() => selectedScopes[key as keyof SelectedScopes])}
+                    checked={selectedScopes[key as keyof SelectedScopes]}
                     onChange={toggleScope({ selectedScopes, scopeKey: key })}
-                    disabled={computed(() => !!auth?.user?.email)}
+                    disabled={checkboxesDisabled}
                   />
                   <span>{description}</span>
                 </label>
@@ -371,7 +398,7 @@ export default pattern<Input, Output>(
           {/* Show selected scopes if no auth yet */}
           {computed(() => !auth?.user?.email && hasSelectedScopes ? (
             <div style={{ fontSize: "14px", color: "#666" }}>
-              Will request: {computed(() => scopes.join(", "))}
+              Will request: {scopesDisplay}
             </div>
           ) : null)}
 
@@ -392,18 +419,8 @@ export default pattern<Input, Output>(
             >
               <strong>Granted Scopes:</strong>
               <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
-                {computed(() =>
-                  (auth?.scope || []).map((scope: string) => {
-                    // Convert URL to friendly name
-                    const friendly = Object.entries(SCOPE_MAP).find(
-                      ([, url]) => url === scope
-                    );
-                    const displayName = friendly
-                      ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
-                      : scope;
-                    return <li>{displayName}</li>;
-                  })
-                )}
+                {/* PERFORMANCE FIX: Use pre-computed display list */}
+                {grantedScopesDisplay}
               </ul>
             </div>
           )}
