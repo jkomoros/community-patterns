@@ -577,14 +577,12 @@ For remainingNotes, include any text that doesn't fit the other fields.`);
       ],
     });
 
-    // Get selected field values function (wrapped for CTS transformer)
-    const getSelectedFieldValues = extraction.getSelectedFieldValues as unknown as () => Record<string, unknown>;
-
     // Handler to apply selected extracted data to profile fields
-    // Uses closure to capture extraction reference
+    // Uses selectedFieldValues Cell passed as handler param (not closure capture)
     const applySelectedExtractedData = handler<
       unknown,
       {
+        selectedFieldValues: Cell<Record<string, unknown>>;
         displayName: Cell<string>;
         givenName: Cell<string>;
         familyName: Cell<string>;
@@ -601,6 +599,7 @@ For remainingNotes, include any text that doesn't fit the other fields.`);
       (
         _,
         {
+          selectedFieldValues,
           displayName,
           givenName,
           familyName,
@@ -614,7 +613,7 @@ For remainingNotes, include any text that doesn't fit the other fields.`);
           extractTrigger,
         },
       ) => {
-        const data = getSelectedFieldValues();
+        const data = selectedFieldValues.get();
         if (!data || Object.keys(data).length === 0) return;
 
         // Apply simple string fields if selected
@@ -754,6 +753,7 @@ For remainingNotes, include any text that doesn't fit the other fields.`);
                       </ct-button>
                       <ct-button
                         onClick={applySelectedExtractedData({
+                          selectedFieldValues: extraction.selectedFieldValues,
                           displayName,
                           givenName,
                           familyName,

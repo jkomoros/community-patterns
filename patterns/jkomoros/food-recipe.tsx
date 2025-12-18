@@ -56,9 +56,10 @@ import {
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
-import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
+// Note: diff-utils.ts no longer needed for main extraction (ImportReview handles it)
 import RecipeAnalyzer from "./recipe-analyzer.tsx";
 import FoodRecipeViewer from "./food-recipe-viewer.tsx";
+import ImportReview from "./lib/import-review.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
@@ -155,6 +156,111 @@ interface RecipeOutput extends RecipeInput {
     primaryIngredients: string[];
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECIPE EXTRACTION SCHEMA AND SYSTEM PROMPT
+// Used by ImportReview sub-pattern for main extraction flow
+// ═══════════════════════════════════════════════════════════════════════════
+
+const RECIPE_EXTRACTION_SYSTEM_PROMPT = `You are a recipe extraction assistant. Extract structured recipe information from unstructured text.
+
+Extract the following fields if present:
+- name: Recipe title
+- cuisine: Type of cuisine (e.g., "Italian", "Thai", "Mexican")
+- servings: Number of servings (as a number)
+- difficulty: One of "easy", "medium", or "hard"
+- prepTime: Preparation time in minutes (as a number)
+- cookTime: Cooking time in minutes (as a number)
+- restTime: Time to rest after cooking before serving in minutes (as a number)
+- holdTime: Time dish can wait while maintaining quality in minutes (as a number)
+- category: Type of dish - one of "appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", or "other"
+- source: Where the recipe came from (URL, book, person)
+- ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
+- stepGroups: Organize steps into logical groups based on timing:
+  * Group similar prep/cooking phases together
+  * Assign timing: use nightsBeforeServing (1, 2) for overnight tasks, minutesBeforeServing (e.g. 240, 60, 30, 0) for day-of timing
+  * Each group should have ONE of nightsBeforeServing OR minutesBeforeServing, not both
+  * Estimate duration for each group
+  * Identify oven requirements (temperature, duration, and racksNeeded):
+    - temperature: oven temp in Fahrenheit
+    - duration: time in oven in minutes
+    - racksNeeded.heightSlots: 1 for thin items (cookie sheet), 2 for medium (casserole), 5 for tall items (turkey)
+    - racksNeeded.width: "full" for full rack width, "half" for half rack
+  * Common group names: "Night Before", "Prep", "Cooking", "Finishing Touches"
+  * Most recipes will have 2-5 groups
+- tags: Array of relevant tags (e.g., ["vegetarian", "quick", "dessert"])
+- remainingNotes: Any text from the notes that was NOT extracted into structured fields (e.g., personal comments, modifications, tips). If everything was extracted, return an empty string.
+
+Return only the fields you can confidently extract. Be thorough with ingredients and step groups. For remainingNotes, preserve any content that doesn't fit into the structured fields.`;
+
+const RECIPE_EXTRACTION_SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: "string" },
+    cuisine: { type: "string" },
+    servings: { type: "number" },
+    difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+    prepTime: { type: "number" },
+    cookTime: { type: "number" },
+    restTime: { type: "number" },
+    holdTime: { type: "number" },
+    category: { type: "string", enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"] },
+    source: { type: "string" },
+    ingredients: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          item: { type: "string" },
+          amount: { type: "string" },
+          unit: { type: "string" },
+        },
+      },
+    },
+    stepGroups: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          nightsBeforeServing: { type: "number" },
+          minutesBeforeServing: { type: "number" },
+          duration: { type: "number" },
+          maxWaitMinutes: { type: "number" },
+          requiresOven: {
+            type: "object",
+            properties: {
+              temperature: { type: "number" },
+              duration: { type: "number" },
+              racksNeeded: {
+                type: "object",
+                properties: {
+                  heightSlots: { type: "number" },
+                  width: { type: "string", enum: ["full", "half"] },
+                },
+              },
+            },
+          },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                description: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    tags: {
+      type: "array",
+      items: { type: "string" },
+    },
+    remainingNotes: { type: "string" },
+  },
+} as const;
 
 // Handler for charm link clicks
 const handleCharmLinkClick = handler<
@@ -879,185 +985,152 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
     const extractTrigger = cell<string>("");
 
-    // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
-    // The extraction marker (---EXTRACT-*---) indicates a real extraction request
-    // Without this guard, the reactive system may trigger spurious LLM calls during initialization
-    const guardedPrompt = computed(() => {
-      const trigger = extractTrigger.get();
-      // Only return a prompt if it contains the extraction marker
-      if (trigger && trigger.includes("---EXTRACT-")) {
-        return trigger;
-      }
-      return undefined;
+    // ═══════════════════════════════════════════════════════════════════════
+    // MAIN EXTRACTION via ImportReview sub-pattern
+    // Uses field-diff mode with array append support for ingredients/stepGroups/tags
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const mainExtraction = ImportReview({
+      trigger: extractTrigger,
+      schema: Cell.of(RECIPE_EXTRACTION_SCHEMA),
+      systemPrompt: Cell.of(RECIPE_EXTRACTION_SYSTEM_PROMPT),
+      fieldMappings: [
+        // Scalar fields (replacement semantics - show diff)
+        { key: "name", label: "Recipe Name", currentValue: name },
+        { key: "cuisine", label: "Cuisine", currentValue: cuisine },
+        { key: "servings", label: "Servings", currentValue: str`${servings}` },
+        { key: "difficulty", label: "Difficulty", currentValue: difficulty },
+        { key: "prepTime", label: "Prep Time (min)", currentValue: str`${prepTime}` },
+        { key: "cookTime", label: "Cook Time (min)", currentValue: str`${cookTime}` },
+        { key: "restTime", label: "Rest Time (min)", currentValue: str`${restTime}` },
+        { key: "holdTime", label: "Hold Time (min)", currentValue: str`${holdTime}` },
+        { key: "category", label: "Category", currentValue: category },
+        { key: "source", label: "Source", currentValue: source },
+        { key: "remainingNotes", label: "Notes", currentValue: notes },
+        // Array fields (append semantics - show count)
+        { key: "ingredients", label: "Ingredients", isArray: true, arrayCountLabel: "ingredient(s)" },
+        { key: "stepGroups", label: "Step Groups", isArray: true, arrayCountLabel: "step group(s)" },
+        { key: "tags", label: "Tags", isArray: true, arrayCountLabel: "tag(s)" },
+      ],
     });
 
-    const { result: extractionResult, pending: extractionPending } =
-      generateObject({
-        system:
-          `You are a recipe extraction assistant. Extract structured recipe information from unstructured text.
+    // Alias for backward compatibility with existing code
+    const extractionPending = mainExtraction.pending;
+    const hasExtractionResult = mainExtraction.hasFieldResults;
 
-Extract the following fields if present:
-- name: Recipe title
-- cuisine: Type of cuisine (e.g., "Italian", "Thai", "Mexican")
-- servings: Number of servings (as a number)
-- difficulty: One of "easy", "medium", or "hard"
-- prepTime: Preparation time in minutes (as a number)
-- cookTime: Cooking time in minutes (as a number)
-- restTime: Time to rest after cooking before serving in minutes (as a number)
-- holdTime: Time dish can wait while maintaining quality in minutes (as a number)
-- category: Type of dish - one of "appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", or "other"
-- source: Where the recipe came from (URL, book, person)
-- ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
-- stepGroups: Organize steps into logical groups based on timing:
-  * Group similar prep/cooking phases together
-  * Assign timing: use nightsBeforeServing (1, 2) for overnight tasks, minutesBeforeServing (e.g. 240, 60, 30, 0) for day-of timing
-  * Each group should have ONE of nightsBeforeServing OR minutesBeforeServing, not both
-  * Estimate duration for each group
-  * Identify oven requirements (temperature, duration, and racksNeeded):
-    - temperature: oven temp in Fahrenheit
-    - duration: time in oven in minutes
-    - racksNeeded.heightSlots: 1 for thin items (cookie sheet), 2 for medium (casserole), 5 for tall items (turkey)
-    - racksNeeded.width: "full" for full rack width, "half" for half rack
-  * Common group names: "Night Before", "Prep", "Cooking", "Finishing Touches"
-  * Most recipes will have 2-5 groups
-- tags: Array of relevant tags (e.g., ["vegetarian", "quick", "dessert"])
-- remainingNotes: Any text from the notes that was NOT extracted into structured fields (e.g., personal comments, modifications, tips). If everything was extracted, return an empty string.
-
-Return only the fields you can confidently extract. Be thorough with ingredients and step groups. For remainingNotes, preserve any content that doesn't fit into the structured fields.`,
-        prompt: guardedPrompt,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            cuisine: { type: "string" },
-            servings: { type: "number" },
-            difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
-            prepTime: { type: "number" },
-            cookTime: { type: "number" },
-            restTime: { type: "number" },
-            holdTime: { type: "number" },
-            category: { type: "string", enum: ["appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", "other"] },
-            source: { type: "string" },
-            ingredients: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  item: { type: "string" },
-                  amount: { type: "string" },
-                  unit: { type: "string" },
-                },
-              },
-            },
-            stepGroups: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  name: { type: "string" },
-                  nightsBeforeServing: { type: "number" },
-                  minutesBeforeServing: { type: "number" },
-                  duration: { type: "number" },
-                  maxWaitMinutes: { type: "number" },
-                  requiresOven: {
-                    type: "object",
-                    properties: {
-                      temperature: { type: "number" },
-                      duration: { type: "number" },
-                      racksNeeded: {
-                        type: "object",
-                        properties: {
-                          heightSlots: { type: "number" },
-                          width: { type: "string", enum: ["full", "half"] },
-                        },
-                      },
-                    },
-                  },
-                  steps: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        description: { type: "string" },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-            },
-            remainingNotes: { type: "string" },
-          },
-        },
-      });
-
-    // Derive changes preview comparing extracted data to current values
-    const changesPreview = derive(
+    // Handler to apply selected extracted data
+    // Uses selectedFieldValues Cell passed as handler param (not closure capture)
+    const applySelectedExtraction = handler<
+      Record<string, never>,
       {
-        extractionResult,
-        name,
-        cuisine,
-        servings,
-        difficulty,
-        prepTime,
-        cookTime,
-        restTime,
-        holdTime,
-        category,
-        source,
-        notes,
-      },
-      ({
-        extractionResult: result,
-        name: currentName,
-        cuisine: currentCuisine,
-        servings: currentServings,
-        difficulty: currentDifficulty,
-        prepTime: currentPrepTime,
-        cookTime: currentCookTime,
-        restTime: currentRestTime,
-        holdTime: currentHoldTime,
-        category: currentCategory,
-        source: currentSource,
-        notes: currentNotes,
-      }) => {
-        return compareFields(result, {
-          name: { current: currentName, label: "Recipe Name" },
-          cuisine: { current: currentCuisine, label: "Cuisine" },
-          servings: { current: String(currentServings), label: "Servings" },
-          difficulty: { current: currentDifficulty, label: "Difficulty" },
-          prepTime: { current: String(currentPrepTime), label: "Prep Time (min)" },
-          cookTime: { current: String(currentCookTime), label: "Cook Time (min)" },
-          restTime: { current: String(currentRestTime), label: "Rest Time (min)" },
-          holdTime: { current: String(currentHoldTime), label: "Hold Time (min)" },
-          category: { current: currentCategory, label: "Category" },
-          source: { current: currentSource, label: "Source" },
-          remainingNotes: { current: currentNotes, label: "Notes" },
-        });
-      },
-    );
-
-    const hasExtractionResult = derive(
-      changesPreview,
-      (changes) => changes.length > 0,
-    );
-
-    // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during recipe discovery when map items change.
-    // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
-    const notesDiffChunks = computed(() => {
-      const notesChange = changesPreview.find((c: { field: string }) => c.field === "Notes");
-      if (!notesChange || !notesChange.from || !notesChange.to ||
-          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
-        return [];
+        selectedFieldValues: Cell<Record<string, unknown>>;
+        name: Cell<string>;
+        cuisine: Cell<string>;
+        servings: Cell<number>;
+        difficulty: Cell<"easy" | "medium" | "hard">;
+        prepTime: Cell<number>;
+        cookTime: Cell<number>;
+        restTime: Cell<number>;
+        holdTime: Cell<number>;
+        category: Cell<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other">;
+        ingredients: Cell<Ingredient[]>;
+        stepGroups: Cell<StepGroup[]>;
+        tags: Cell<string[]>;
+        source: Cell<string>;
+        notes: Cell<string>;
+        extractTrigger: Cell<string>;
       }
-      return computeWordDiff(notesChange.from, notesChange.to);
-    });
+    >(
+      (
+        _,
+        {
+          selectedFieldValues,
+          name,
+          cuisine,
+          servings,
+          difficulty,
+          prepTime,
+          cookTime,
+          restTime,
+          holdTime,
+          category,
+          ingredients,
+          stepGroups,
+          tags,
+          source,
+          notes,
+          extractTrigger,
+        },
+      ) => {
+        const data = selectedFieldValues.get();
+        if (!data || Object.keys(data).length === 0) return;
+
+        // Apply scalar fields (replacement semantics)
+        if ("name" in data && data.name) name.set(data.name as string);
+        if ("cuisine" in data && data.cuisine) cuisine.set(data.cuisine as string);
+        if ("servings" in data && data.servings) servings.set(data.servings as number);
+        if ("difficulty" in data && data.difficulty) difficulty.set(data.difficulty as "easy" | "medium" | "hard");
+        if ("prepTime" in data && data.prepTime) prepTime.set(data.prepTime as number);
+        if ("cookTime" in data && data.cookTime) cookTime.set(data.cookTime as number);
+        if ("restTime" in data && data.restTime) restTime.set(data.restTime as number);
+        if ("holdTime" in data && data.holdTime) holdTime.set(data.holdTime as number);
+        if ("category" in data && data.category) category.set(data.category as any);
+        if ("source" in data && data.source) source.set(data.source as string);
+
+        // Apply array fields (append semantics)
+        if ("ingredients" in data && Array.isArray(data.ingredients)) {
+          (data.ingredients as any[]).forEach((ing: any) => {
+            ingredients.push({
+              item: ing.item || "",
+              amount: ing.amount || "",
+              unit: ing.unit || "cup",
+            });
+          });
+        }
+
+        if ("stepGroups" in data && Array.isArray(data.stepGroups)) {
+          (data.stepGroups as any[]).forEach((group: any) => {
+            stepGroups.push({
+              id: group.id || `group-${Date.now()}-${Math.random()}`,
+              name: group.name || "Step Group",
+              nightsBeforeServing: group.nightsBeforeServing,
+              minutesBeforeServing: group.minutesBeforeServing,
+              duration: group.duration,
+              maxWaitMinutes: group.maxWaitMinutes,
+              requiresOven: group.requiresOven,
+              steps: group.steps || [],
+            });
+          });
+        }
+
+        if ("tags" in data && Array.isArray(data.tags)) {
+          const currentTags = tags.get();
+          (data.tags as string[]).forEach((tag: string) => {
+            if (!currentTags.includes(tag)) {
+              tags.push(tag);
+            }
+          });
+        }
+
+        // Apply remainingNotes (replaces notes field)
+        if ("remainingNotes" in data && data.remainingNotes !== undefined) {
+          notes.set(data.remainingNotes as string);
+        }
+
+        // Clear the trigger to close the modal
+        extractTrigger.set("");
+      },
+    );
+
+    // Cancel extraction handler (defined in pattern to access extractTrigger)
+    const cancelMainExtraction = handler<
+      Record<string, never>,
+      { extractTrigger: Cell<string> }
+    >(
+      (_, { extractTrigger }) => {
+        extractTrigger.set("");
+      },
+    );
 
     // LLM Timing Suggestion state
     const timingSuggestionTrigger = cell<string>("");
@@ -1852,7 +1925,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
             </ct-vstack>
           </ct-card>
 
-          {/* Extraction Results Modal */}
+          {/* Extraction Results Modal - Using ImportReview sub-pattern */}
           {ifElse(
             hasExtractionResult,
             <ct-card style={{
@@ -1869,175 +1942,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
             }}>
               <ct-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
-                <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following changes will be applied to your recipe:
-                </p>
 
-                <ct-vstack gap={2}>
-                  {changesPreview.map((change) => (
-                    <div style={{
-                      padding: "6px 10px",
-                      background: "#f9fafb",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "4px",
-                    }}>
-                      <ct-vstack gap={0}>
-                        <strong style={{ fontSize: "12px" }}>
-                          {change.field}
-                        </strong>
-                        <div style={{ fontSize: "11px", lineHeight: "1.4" }}>
-                          {change.field === "Notes"
-                            ? (
-                              change.to === "(empty)"
-                                ? (
-                                  <div style={{
-                                    color: "#dc2626",
-                                    fontStyle: "italic",
-                                  }}>
-                                    Notes will be cleared
-                                  </div>
-                                )
-                                : change.from === "(empty)"
-                                ? (
-                                  <div style={{ color: "#16a34a" }}>
-                                    {change.to}
-                                  </div>
-                                )
-                                : change.from && change.to
-                                ? (
-                                  // PERFORMANCE FIX: Use pre-computed notesDiffChunks
-                                  // instead of inline computeWordDiff call
-                                  notesDiffChunks.map(
-                                    (part: DiffChunk) => {
-                                      if (part.type === "removed") {
-                                        return (
-                                          <span style={{
-                                            color: "#dc2626",
-                                            textDecoration: "line-through",
-                                            backgroundColor: "#fee",
-                                          }}>
-                                            {part.word}
-                                          </span>
-                                        );
-                                      } else if (part.type === "added") {
-                                        return (
-                                          <span style={{
-                                            color: "#16a34a",
-                                            backgroundColor: "#efe",
-                                          }}>
-                                            {part.word}
-                                          </span>
-                                        );
-                                      } else {
-                                        return <span>{part.word}</span>;
-                                      }
-                                    },
-                                  )
-                                )
-                                : (
-                                  <div style={{
-                                    color: "#666",
-                                    fontStyle: "italic",
-                                  }}>
-                                    (no diff available)
-                                  </div>
-                                )
-                            )
-                            : (
-                              <div>
-                                <span style={{
-                                  color: "#dc2626",
-                                  textDecoration: "line-through",
-                                  marginRight: "6px",
-                                }}>
-                                  {change.from}
-                                </span>
-                                <span style={{ color: "#16a34a" }}>
-                                  {change.to}
-                                </span>
-                              </div>
-                            )}
-                        </div>
-                      </ct-vstack>
-                    </div>
-                  ))}
-
-                  {/* Show detailed info about complex fields if extracted */}
-                  {derive(extractionResult, (result) => {
-                    if (!result) return null;
-
-                    return (
-                      <ct-vstack gap={2}>
-                        {/* Ingredients */}
-                        {result?.ingredients && result.ingredients.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#1e40af",
-                          }}>
-                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                              ✓ {result.ingredients.length} ingredient(s) will be added
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Step Groups - Show Full Details */}
-                        {result?.stepGroups && result.stepGroups.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#f0fdf4",
-                            border: "1px solid #86efac",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                          }}>
-                            <div style={{ fontWeight: "600", color: "#166534", marginBottom: "6px" }}>
-                              ✓ {result.stepGroups.length} step group(s) will be added:
-                            </div>
-                            {result.stepGroups.map((group: any, index: number) => (
-                              <div style={{
-                                marginBottom: index < result.stepGroups.length - 1 ? "8px" : "0",
-                                paddingLeft: "8px",
-                                borderLeft: "2px solid #86efac",
-                              }}>
-                                <div style={{ fontWeight: "600", color: "#166534", marginBottom: "2px" }}>
-                                  {group.name || `Group ${index + 1}`}
-                                </div>
-                                {group.steps && group.steps.length > 0 && (
-                                  <ul style={{ margin: "4px 0 0 0", paddingLeft: "20px", color: "#166534" }}>
-                                    {group.steps.map((step: any, stepIndex: number) => (
-                                      <li style={{ marginBottom: "2px" }}>
-                                        {step.description}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Tags */}
-                        {result?.tags && result.tags.length > 0 && (
-                          <div style={{
-                            padding: "6px 10px",
-                            background: "#eff6ff",
-                            border: "1px solid #bfdbfe",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#1e40af",
-                          }}>
-                            <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                              ✓ {result.tags.length} tag(s) will be added
-                            </div>
-                          </div>
-                        )}
-                      </ct-vstack>
-                    );
-                  })}
-                </ct-vstack>
+                {/* ImportReview provides the field diff UI */}
+                {mainExtraction.ui.fieldDiffPanel}
 
                 <div style={{
                   display: "flex",
@@ -2046,13 +1953,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   marginTop: "1rem",
                 }}>
                   <ct-button
-                    onClick={cancelExtraction({ extractedData: extractionResult })}
+                    onClick={cancelMainExtraction({ extractTrigger })}
                   >
                     Cancel
                   </ct-button>
                   <ct-button
-                    onClick={applyExtractedData({
-                      extractedData: extractionResult,
+                    onClick={applySelectedExtraction({
+                      selectedFieldValues: mainExtraction.selectedFieldValues,
                       name,
                       cuisine,
                       servings,
@@ -2067,10 +1974,11 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       tags,
                       source,
                       notes,
+                      extractTrigger,
                     })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
-                    Apply
+                    Apply {mainExtraction.selectedFieldCount} Field(s)
                   </ct-button>
                 </div>
               </ct-vstack>

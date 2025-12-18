@@ -75,6 +75,11 @@ interface FieldMapping {
   key: string;                              // Field key in extraction result
   label: string;                            // Display label
   currentValue?: Cell<string> | string;     // Current value for diff comparison
+
+  // Array append mode (food-recipe.tsx use case)
+  // When true, shows count preview instead of diff, and apply uses .push()
+  isArray?: boolean;
+  arrayCountLabel?: string;                 // e.g., "ingredient(s)", "tag(s)"
 }
 
 interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
@@ -110,6 +115,11 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   // Used ONLY for UI rendering inside computed(), not for schema building.
   // NOTE: Due to OpaqueRef wrapping, you cannot iterate this array outside computed().
   fieldMappings?: FieldMapping[];
+
+  // ID-matching merge mode (food-recipe.tsx timing/wait-time use case)
+  // When provided, enables merge-diff UI (mergeDiffPanel).
+  // Used for updating existing items by ID (e.g., update timing fields on step groups)
+  mergeFieldMappings?: MergeFieldMapping[];
 }
 
 interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
@@ -125,9 +135,50 @@ interface ProcessedFieldDiff {
   key: string;                    // Field key
   label: string;                  // Display label
   currentValue: string;           // Current value (resolved from Cell or string)
-  extractedValue: string;         // Value from LLM extraction
+  extractedValue: string;         // Value from LLM extraction (or count message for arrays)
   hasChanged: boolean;            // currentValue !== extractedValue
   selected: boolean;              // Current selection state
+  _rawValue?: unknown[];          // For array fields: the raw array for getSelectedFieldValues()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MERGE MODE INTERFACES (for timing/wait-time suggestions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Field config for merge mode
+interface MergeField {
+  key: string;                              // Field to update (e.g., "nightsBeforeServing")
+  label: string;                            // Display label
+  format?: (value: unknown) => string;      // Optional formatter for display
+}
+
+// Merge mapping for ID-matching merge mode (food-recipe.tsx timing/wait-time use case)
+interface MergeFieldMapping {
+  key: string;                              // Field in extraction result (e.g., "stepGroups")
+  label: string;                            // Section label
+  idField: string;                          // Field to match by (e.g., "id")
+  existingItems: Cell<unknown[]>;           // Current items to match against
+  getItemLabel?: (item: unknown) => string; // Get display label from existing item
+  mergeFields: MergeField[];                // Fields to show/merge
+}
+
+// Processed merge diff for a single existing item
+interface ProcessedMergeItem {
+  id: string;                               // ID value for matching
+  label: string;                            // Display label from existing item
+  fieldDiffs: ProcessedMergeFieldDiff[];    // Field-by-field diffs for this item
+}
+
+// Per-field diff within a merge item
+interface ProcessedMergeFieldDiff {
+  itemId: string;                           // Parent item ID
+  fieldKey: string;                         // Field key
+  fieldLabel: string;                       // Display label
+  currentValue: string;                     // Current value (formatted)
+  extractedValue: string;                   // Suggested value (formatted)
+  hasChanged: boolean;                      // Current != extracted
+  selected: boolean;                        // Selection state
+  selectionKey: string;                     // Pre-computed: `${itemId}:${fieldKey}`
 }
 
 interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
@@ -150,6 +201,7 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   selectedFieldCount: number;                       // Number of selected fields
   selectedFieldKeys: string[];                      // Keys of selected fields (reactive)
   getSelectedFieldValues: () => Record<string, unknown>;  // Returns selected field values
+  selectedFieldValues: Record<string, unknown>;     // Reactive Cell version - pass to handler params
 
   // Handlers (flattened - following chatbot.tsx pattern)
   // NOTE: trigger/hiddenItemIds are NOT exposed here - parent already has them as inputs
@@ -163,6 +215,18 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   selectNoFields: () => void;
   toggleFieldSelection: (key: string) => void;
 
+  // Merge mode outputs (ID-matching merge for timing/wait-time)
+  hasMergeResults: boolean;                              // Has merge items to show
+  mergeItemCount: number;                                // Number of items with changes
+  selectedMergeFieldCount: number;                       // Number of selected merge fields
+  selectedMergeValues: Record<string, unknown>[];        // Reactive: selected values per item
+  getSelectedMergeValues: () => Record<string, unknown>[]; // Returns selected merge values
+
+  // Merge mode handlers
+  selectAllMergeFields: () => void;
+  selectNoMergeFields: () => void;
+  toggleMergeFieldSelection: (itemId: string, fieldKey: string) => void;
+
   // Pre-composed UI components
   ui: {
     complete: JSX.Element; // Full drop-in component
@@ -173,6 +237,7 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
     selectionBar: JSX.Element;
     reviewPanel: JSX.Element;
     fieldDiffPanel: JSX.Element;  // Per-field diff UI
+    mergeDiffPanel: JSX.Element;  // ID-matching merge diff UI
   };
 }
 
@@ -384,6 +449,53 @@ const selectNoFieldsHandler = handler<
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MERGE MODE HANDLERS (for timing/wait-time suggestions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Toggle selection for a single merge field
+// Key format: "itemId:fieldKey"
+const toggleMergeFieldSelectionHandler = handler<
+  unknown,
+  { selectedMergeKeys: Cell<string[]>; selectionKey: string }
+>((_, { selectedMergeKeys, selectionKey }) => {
+  // Defensive guards
+  if (!selectionKey || typeof selectionKey !== "string") return;
+  if (!selectedMergeKeys) return;
+
+  const current = selectedMergeKeys.get() ?? [];
+  if (current.includes(selectionKey)) {
+    // Deselect - remove from selectedMergeKeys
+    selectedMergeKeys.set(current.filter((k) => k !== selectionKey));
+  } else {
+    // Select - use .push() to avoid StorageTransactionInconsistent
+    selectedMergeKeys.push(selectionKey);
+  }
+});
+
+// Select all merge fields
+const selectAllMergeFieldsHandler = handler<
+  unknown,
+  { selectedMergeKeys: Cell<string[]>; allMergeFieldKeys: string[] }
+>((_, { selectedMergeKeys, allMergeFieldKeys }) => {
+  // Defensive guards
+  if (!selectedMergeKeys) return;
+  if (!Array.isArray(allMergeFieldKeys)) return;
+
+  selectedMergeKeys.set([...allMergeFieldKeys]);
+});
+
+// Deselect all merge fields
+const selectNoMergeFieldsHandler = handler<
+  unknown,
+  { selectedMergeKeys: Cell<string[]> }
+>((_, { selectedMergeKeys }) => {
+  // Defensive guard
+  if (!selectedMergeKeys) return;
+
+  selectedMergeKeys.set([]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PATTERN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -397,6 +509,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     existingItems,
     hiddenItemIds,
     fieldMappings,
+    mergeFieldMappings,
   }) => {
     // Use constants directly - NOT from props (that breaks generateObject)
     // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
@@ -410,6 +523,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Internal cell for tracking selected fields (per-field diff mode)
     const selectedFieldKeys = cell<string[]>([]);
+
+    // Internal cell for tracking selected merge fields (merge mode)
+    // Format: ["itemId:fieldKey", "itemId:fieldKey", ...]
+    const selectedMergeKeys = cell<string[]>([]);
 
     // Demo: Raw input text (before formatting as trigger)
     const demoInputText = cell<string>("");
@@ -569,6 +686,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Compute field-by-field diffs when fieldMappings is provided
     // This enables person.tsx use case: extract flat fields and compare to current values
+    // Also supports array append mode (food-recipe.tsx): show count for array fields
     const fieldDiffs = computed((): ProcessedFieldDiff[] => {
       // Only compute if fieldMappings is provided
       // NOTE: CTS transformer wraps arrays in OpaqueRef, so Array.isArray() returns false
@@ -591,7 +709,35 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         const fieldKey = mapping.key;
         const fieldLabel = mapping.label;
         const fieldCurrentInput = mapping.currentValue;
+        const isArrayField = mapping.isArray ?? false;
+        const arrayCountLabel = mapping.arrayCountLabel ?? "item(s)";
 
+        // Get extracted value from result
+        const extractedRaw = extractedData[fieldKey];
+
+        // Handle array fields differently (food-recipe.tsx use case)
+        if (isArrayField) {
+          // For array fields, check if the extracted value is an array with items
+          const extractedArray = Array.isArray(extractedRaw) ? extractedRaw : [];
+          const arrayCount = extractedArray.length;
+
+          // Only show if there are items to add
+          if (arrayCount === 0) continue;
+
+          processed.push({
+            key: fieldKey,
+            label: fieldLabel,
+            currentValue: "",  // No current value comparison for append mode
+            extractedValue: `${arrayCount} ${arrayCountLabel} will be added`,
+            hasChanged: true,  // Always "changed" if there are items
+            selected: selected.includes(fieldKey),
+            // Store the raw array for getSelectedFieldValues()
+            _rawValue: extractedArray,
+          } as ProcessedFieldDiff);
+          continue;
+        }
+
+        // Scalar field handling (original behavior)
         // Resolve currentValue - could be Cell or string
         let resolvedCurrentValue: string;
         if (fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput) {
@@ -601,8 +747,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           resolvedCurrentValue = (fieldCurrentInput as string) ?? "";
         }
 
-        // Get extracted value from result
-        const extractedRaw = extractedData[fieldKey];
         const extractedValue = extractedRaw != null ? String(extractedRaw) : "";
 
         // Compare - only show if there's a change
@@ -642,6 +786,145 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
       const hasFieldMappingsCheck = fmArray && fmArray.length > 0;
       return hasFieldMappingsCheck && triggered && !pending && !hasFields && !hasError;
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 2.6. MERGE MODE (for timing/wait-time suggestions)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Compute merge diffs when mergeFieldMappings is provided
+    // This enables ID-matching merge: find existing items by ID, show field-by-field diffs
+    const mergeDiffs = computed((): ProcessedMergeItem[] => {
+      // Only compute if mergeFieldMappings is provided
+      // NOTE: CTS transformer wraps arrays in OpaqueRef, so use .length check
+      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
+      if (!mfmArray || mfmArray.length === 0) return [];
+
+      const result = extractionResult;
+      const selectedKeys = selectedMergeKeys.get() ?? [];
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return [];
+
+      const extractedData = result as Record<string, unknown>;
+      const processed: ProcessedMergeItem[] = [];
+
+      // Process each merge field mapping
+      for (const mapping of mfmArray) {
+        const arrayKey = mapping.key;
+        const idField = mapping.idField;
+        const mergeFields = mapping.mergeFields;
+        const getItemLabel = mapping.getItemLabel ?? ((item: unknown) => {
+          const obj = item as Record<string, unknown>;
+          return String(obj?.name ?? obj?.id ?? "Unknown");
+        });
+
+        // Get extracted array from result
+        const extractedArray = extractedData[arrayKey];
+        if (!extractedArray || !Array.isArray(extractedArray)) continue;
+
+        // Get existing items to match against
+        const existingItemsValue = mapping.existingItems?.get() ?? [];
+
+        // Process each extracted item
+        for (const extractedItem of extractedArray) {
+          const extractedObj = extractedItem as Record<string, unknown>;
+          const itemId = String(extractedObj[idField] ?? "");
+          if (!itemId) continue;
+
+          // Find matching existing item
+          const existingItem = existingItemsValue.find((existing: unknown) => {
+            const existingObj = existing as Record<string, unknown>;
+            return String(existingObj[idField] ?? "") === itemId;
+          });
+
+          if (!existingItem) continue; // Skip if no matching existing item
+
+          const existingObj = existingItem as Record<string, unknown>;
+          const itemLabel = getItemLabel(existingItem);
+
+          // Build field diffs for this item
+          const fieldDiffs: ProcessedMergeFieldDiff[] = [];
+
+          for (const field of mergeFields) {
+            const fieldKey = field.key;
+            const fieldLabel = field.label;
+            const formatter = field.format ?? ((v: unknown) => {
+              if (v === undefined || v === null) return "(none)";
+              if (typeof v === "object") return JSON.stringify(v);
+              return String(v);
+            });
+
+            const currentRaw = existingObj[fieldKey];
+            const extractedRaw = extractedObj[fieldKey];
+
+            // Skip if extracted value is undefined (not suggested)
+            if (extractedRaw === undefined) continue;
+
+            const currentValue = formatter(currentRaw);
+            const extractedValue = formatter(extractedRaw);
+            const hasChanged = currentValue !== extractedValue;
+
+            // Only show fields that have changed
+            if (!hasChanged) continue;
+
+            const selectionKey = `${itemId}:${fieldKey}`;
+            fieldDiffs.push({
+              itemId,
+              fieldKey,
+              fieldLabel,
+              currentValue,
+              extractedValue,
+              hasChanged,
+              selected: selectedKeys.includes(selectionKey),
+              selectionKey,
+            });
+          }
+
+          // Only add item if it has changed fields
+          if (fieldDiffs.length > 0) {
+            processed.push({
+              id: itemId,
+              label: itemLabel,
+              fieldDiffs,
+            });
+          }
+        }
+      }
+
+      return processed;
+    });
+
+    // Merge mode counts
+    const mergeItemCount = computed(() => mergeDiffs.length);
+    const selectedMergeFieldCount = computed(() => {
+      let count = 0;
+      for (const item of mergeDiffs) {
+        count += item.fieldDiffs.filter((f) => f.selected).length;
+      }
+      return count;
+    });
+    const hasMergeResults = computed(() => mergeDiffs.length > 0);
+    const allMergeFieldKeys = computed(() => {
+      const keys: string[] = [];
+      for (const item of mergeDiffs) {
+        for (const field of item.fieldDiffs) {
+          keys.push(`${item.id}:${field.fieldKey}`);
+        }
+      }
+      return keys;
+    });
+
+    // Show merge empty state when triggered, not pending, no merge results, no error
+    const showMergeEmptyState = computed(() => {
+      const triggered = (trigger.get()?.trim() ?? "").length > 0;
+      const pending = extractionPending;
+      const hasMerge = mergeDiffs.length > 0;
+      const hasError = !!extractionError;
+      // Only show if mergeFieldMappings is provided
+      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
+      const hasMergeFieldMappingsCheck = mfmArray && mfmArray.length > 0;
+      return hasMergeFieldMappingsCheck && triggered && !pending && !hasMerge && !hasError;
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -685,9 +968,138 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       return selectedValues;
     };
 
+    // Computed Cell version of selected field values
+    // This is needed because handlers can't call functions captured via closure
+    // due to OpaqueRef wrapping. Cells can be passed as handler params and read with .get()
+    const selectedFieldValuesCell = computed(() => {
+      const selected = selectedFieldKeys.get() ?? [];
+      const result = extractionResult;
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return {};
+
+      const extractedData = result as Record<string, unknown>;
+      const selectedValues: Record<string, unknown> = {};
+
+      for (const key of selected) {
+        if (key in extractedData) {
+          selectedValues[key] = extractedData[key];
+        }
+      }
+
+      return selectedValues;
+    });
+
     // Reactive computed of selected field keys (for parent's reactive use)
     const selectedFieldKeysComputed = computed(() => {
       return selectedFieldKeys.get() ?? [];
+    });
+
+    // Get selected merge values (for merge mode)
+    // Returns an array of objects, each containing ID + selected field values
+    // Example: [{ id: "prep-123", nightsBeforeServing: undefined, minutesBeforeServing: 120 }, ...]
+    const getSelectedMergeValues = (): Record<string, unknown>[] => {
+      const selectedKeys = selectedMergeKeys.get() ?? [];
+      const result = extractionResult;
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return [];
+
+      // Get merge field mappings
+      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
+      if (!mfmArray || mfmArray.length === 0) return [];
+
+      const extractedData = result as Record<string, unknown>;
+      const mergeValues: Record<string, unknown>[] = [];
+
+      // Process each merge field mapping
+      for (const mapping of mfmArray) {
+        const arrayKey = mapping.key;
+        const idField = mapping.idField;
+
+        // Get extracted array from result
+        const extractedArray = extractedData[arrayKey];
+        if (!extractedArray || !Array.isArray(extractedArray)) continue;
+
+        // Process each extracted item
+        for (const extractedItem of extractedArray) {
+          const extractedObj = extractedItem as Record<string, unknown>;
+          const itemId = String(extractedObj[idField] ?? "");
+          if (!itemId) continue;
+
+          // Build object with ID + selected fields only
+          const itemValues: Record<string, unknown> = { [idField]: itemId };
+          let hasSelectedFields = false;
+
+          for (const field of mapping.mergeFields) {
+            const selectionKey = `${itemId}:${field.key}`;
+            if (selectedKeys.includes(selectionKey)) {
+              itemValues[field.key] = extractedObj[field.key];
+              hasSelectedFields = true;
+            }
+          }
+
+          // Only include item if it has selected fields
+          if (hasSelectedFields) {
+            mergeValues.push(itemValues);
+          }
+        }
+      }
+
+      return mergeValues;
+    };
+
+    // Computed Cell version of selected merge values
+    // This is needed because handlers can't call functions captured via closure
+    const selectedMergeValuesCell = computed(() => {
+      const selectedKeys = selectedMergeKeys.get() ?? [];
+      const result = extractionResult;
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return [];
+
+      // Get merge field mappings
+      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
+      if (!mfmArray || mfmArray.length === 0) return [];
+
+      const extractedData = result as Record<string, unknown>;
+      const mergeValues: Record<string, unknown>[] = [];
+
+      // Process each merge field mapping
+      for (const mapping of mfmArray) {
+        const arrayKey = mapping.key;
+        const idField = mapping.idField;
+
+        // Get extracted array from result
+        const extractedArray = extractedData[arrayKey];
+        if (!extractedArray || !Array.isArray(extractedArray)) continue;
+
+        // Process each extracted item
+        for (const extractedItem of extractedArray) {
+          const extractedObj = extractedItem as Record<string, unknown>;
+          const itemId = String(extractedObj[idField] ?? "");
+          if (!itemId) continue;
+
+          // Build object with ID + selected fields only
+          const itemValues: Record<string, unknown> = { [idField]: itemId };
+          let hasSelectedFields = false;
+
+          for (const field of mapping.mergeFields) {
+            const selectionKey = `${itemId}:${field.key}`;
+            if (selectedKeys.includes(selectionKey)) {
+              itemValues[field.key] = extractedObj[field.key];
+              hasSelectedFields = true;
+            }
+          }
+
+          // Only include item if it has selected fields
+          if (hasSelectedFields) {
+            mergeValues.push(itemValues);
+          }
+        }
+      }
+
+      return mergeValues;
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -974,7 +1386,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
                 {fieldDiff.label}
               </div>
               <div style={{ fontSize: "14px" }}>
-                {/* Current value with strikethrough red */}
+                {/* Current value with strikethrough red (only for scalar fields) */}
                 {fieldDiff.currentValue && (
                   <span
                     style={{
@@ -986,8 +1398,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
                     {fieldDiff.currentValue}
                   </span>
                 )}
-                {/* Arrow separator */}
-                <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+                {/* Arrow separator (only for scalar fields with current value) */}
+                {fieldDiff.currentValue && (
+                  <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+                )}
                 {/* Extracted value with green highlight */}
                 <span
                   style={{
@@ -1057,6 +1471,177 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           <div>
             {fieldSelectionBar}
             {fieldDiffList}
+          </div>,
+          null
+        )}
+      </div>
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Merge diff panel (for timing/wait-time suggestions)
+    // Shows per-item, per-field changes with individual selection
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Pre-bind merge selection handlers OUTSIDE JSX
+    const boundSelectAllMergeFields = selectAllMergeFieldsHandler({ selectedMergeKeys, allMergeFieldKeys });
+    const boundSelectNoMergeFields = selectNoMergeFieldsHandler({ selectedMergeKeys });
+
+    const mergeSelectionBar = (
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "center",
+          marginBottom: "12px",
+        }}
+      >
+        <ct-button
+          variant="secondary"
+          size="sm"
+          onClick={boundSelectAllMergeFields}
+        >
+          Select All
+        </ct-button>
+        <ct-button
+          variant="secondary"
+          size="sm"
+          onClick={boundSelectNoMergeFields}
+        >
+          Select None
+        </ct-button>
+        <span style={{ marginLeft: "auto", color: "#666", fontSize: "14px" }}>
+          {selectedMergeFieldCount} field(s) selected
+        </span>
+      </div>
+    );
+
+    const mergeDiffList = (
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "8px",
+          overflow: "hidden",
+        }}
+      >
+        {mergeDiffs.map((mergeItem) => (
+          <div
+            key={mergeItem.id}
+            style={{
+              padding: "12px",
+              borderBottom: "1px solid #e5e7eb",
+              background: "#f9fafb",
+            }}
+          >
+            {/* Item header */}
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: "14px",
+                marginBottom: "8px",
+                color: "#374151",
+              }}
+            >
+              {mergeItem.label}
+            </div>
+
+            {/* Field diffs for this item */}
+            <div style={{ paddingLeft: "8px" }}>
+              {mergeItem.fieldDiffs.map((fieldDiff, fieldIndex) => (
+                <div
+                  key={fieldIndex}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    padding: "6px 0",
+                    borderBottom: "1px solid #eee",
+                  }}
+                >
+                  <ct-checkbox
+                    checked={fieldDiff.selected}
+                    onClick={toggleMergeFieldSelectionHandler({
+                      selectedMergeKeys,
+                      selectionKey: fieldDiff.selectionKey,
+                    })}
+                    style={{ marginRight: "10px", marginTop: "2px" }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "13px" }}>
+                      <span style={{ color: "#666", marginRight: "8px" }}>
+                        {fieldDiff.fieldLabel}:
+                      </span>
+                      <span
+                        style={{
+                          textDecoration: "line-through",
+                          color: "#dc2626",
+                          marginRight: "6px",
+                        }}
+                      >
+                        {fieldDiff.currentValue}
+                      </span>
+                      <span style={{ color: "#16a34a" }}>
+                        {fieldDiff.extractedValue}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
+    const mergeDiffPanel = (
+      <div
+        style={{
+          padding: "16px",
+          background: "#f9fafb",
+          borderRadius: "8px",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: "16px" }}>Review Suggested Changes</h3>
+        </div>
+
+        {ifElse(extractionPending, loadingState, null)}
+
+        {ifElse(
+          derive(extractionError, (err) => !!err && !extractionPending),
+          errorState,
+          null
+        )}
+
+        {ifElse(
+          showMergeEmptyState,
+          <div
+            style={{
+              padding: "24px",
+              textAlign: "center",
+              background: "#fef3c7",
+              borderRadius: "8px",
+              border: "1px solid #f59e0b",
+            }}
+          >
+            <p style={{ margin: 0, color: "#92400e" }}>
+              No changes to suggest.
+            </p>
+          </div>,
+          null
+        )}
+
+        {ifElse(
+          derive(hasMergeResults, (has) => has && !extractionPending),
+          <div>
+            {mergeSelectionBar}
+            {mergeDiffList}
           </div>,
           null
         )}
@@ -1155,6 +1740,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       selectedFieldCount,
       selectedFieldKeys: selectedFieldKeysComputed,
       getSelectedFieldValues,
+      selectedFieldValues: selectedFieldValuesCell, // Reactive Cell version for handler params
 
       // Flattened handlers (following chatbot.tsx pattern)
       // NOTE: trigger/hiddenItemIds NOT exposed - parent already has them as inputs
@@ -1168,6 +1754,19 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       selectNoFields: boundSelectNoFields,
       toggleFieldSelection: (key: string) => toggleFieldSelectionHandler({ selectedFieldKeys, fieldKey: key }),
 
+      // Merge mode outputs (ID-matching merge for timing/wait-time)
+      hasMergeResults,
+      mergeItemCount,
+      selectedMergeFieldCount,
+      selectedMergeValues: selectedMergeValuesCell,
+      getSelectedMergeValues,
+
+      // Merge mode handlers
+      selectAllMergeFields: boundSelectAllMergeFields,
+      selectNoMergeFields: boundSelectNoMergeFields,
+      toggleMergeFieldSelection: (itemId: string, fieldKey: string) =>
+        toggleMergeFieldSelectionHandler({ selectedMergeKeys, selectionKey: `${itemId}:${fieldKey}` }),
+
       // UI components for composition
       ui: {
         complete,
@@ -1178,6 +1777,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         selectionBar,
         reviewPanel,
         fieldDiffPanel,
+        mergeDiffPanel,
       },
     };
   }
