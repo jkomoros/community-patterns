@@ -70,6 +70,13 @@ interface ExtractedItem {
   [key: string]: unknown;
 }
 
+// Field mapping for per-field diff mode (person.tsx use case)
+interface FieldMapping {
+  key: string;                              // Field key in extraction result
+  label: string;                            // Display label
+  currentValue?: Cell<string> | string;     // Current value for diff comparison
+}
+
 interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   // Required: Trigger Cell for controlled extraction
   // Pattern: trigger.set(`${text}\n---EXTRACT-${Date.now()}---`)
@@ -91,6 +98,12 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
 
   // Internal state (persisted)
   hiddenItemIds?: Cell<Default<string[], []>>; // Track "dismissed" items
+
+  // Per-field diff mode (person.tsx use case)
+  // When provided, switches from item-list mode to field-diff mode
+  // NOTE: This is safe to include despite CT-1122 - only used for UI rendering in computed(),
+  // not passed to generateObject.
+  fieldMappings?: FieldMapping[];
 }
 
 interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
@@ -101,11 +114,22 @@ interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
   selected: boolean; // Current selection state
 }
 
+// Per-field diff for field-diff mode
+interface ProcessedFieldDiff {
+  key: string;                    // Field key
+  label: string;                  // Display label
+  currentValue: string;           // Current value (resolved from Cell or string)
+  extractedValue: string;         // Value from LLM extraction
+  hasChanged: boolean;            // currentValue !== extractedValue
+  selected: boolean;              // Current selection state
+}
+
 interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   // State (reactive primitives)
   pending: boolean;
   error: unknown;
   hasResults: boolean;
+  hasFieldResults: boolean;  // For field-diff mode
   itemCount: number;
   selectedCount: number;
 
@@ -115,12 +139,23 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   // Selection helper function (backward compatibility - use in handlers)
   getSelectedItems: () => T[];
 
+  // Per-field diff mode outputs
+  fieldDiffCount: number;                           // Number of changed fields
+  selectedFieldCount: number;                       // Number of selected fields
+  selectedFieldKeys: string[];                      // Keys of selected fields (reactive)
+  getSelectedFieldValues: () => Record<string, unknown>;  // Returns selected field values
+
   // Handlers (flattened - following chatbot.tsx pattern)
   // NOTE: trigger/hiddenItemIds are NOT exposed here - parent already has them as inputs
   selectAll: () => void;
   selectNone: () => void;
   dismissAll: () => void;
   clearTrigger: () => void;
+
+  // Per-field diff mode handlers
+  selectAllFields: () => void;
+  selectNoFields: () => void;
+  toggleFieldSelection: (key: string) => void;
 
   // Pre-composed UI components
   ui: {
@@ -131,6 +166,7 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
     itemList: JSX.Element;
     selectionBar: JSX.Element;
     reviewPanel: JSX.Element;
+    fieldDiffPanel: JSX.Element;  // Per-field diff UI
   };
 }
 
@@ -296,6 +332,52 @@ const demoExtract = handler<
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PER-FIELD DIFF MODE HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Toggle selection for a single field
+const toggleFieldSelectionHandler = handler<
+  unknown,
+  { selectedFieldKeys: Cell<string[]>; fieldKey: string }
+>((_, { selectedFieldKeys, fieldKey }) => {
+  // Defensive guards
+  if (!fieldKey || typeof fieldKey !== "string") return;
+  if (!selectedFieldKeys) return;
+
+  const current = selectedFieldKeys.get() ?? [];
+  if (current.includes(fieldKey)) {
+    // Deselect - remove from selectedFieldKeys
+    selectedFieldKeys.set(current.filter((k) => k !== fieldKey));
+  } else {
+    // Select - use .push() to avoid StorageTransactionInconsistent
+    selectedFieldKeys.push(fieldKey);
+  }
+});
+
+// Select all changed fields
+const selectAllFieldsHandler = handler<
+  unknown,
+  { selectedFieldKeys: Cell<string[]>; allChangedFieldKeys: string[] }
+>((_, { selectedFieldKeys, allChangedFieldKeys }) => {
+  // Defensive guards
+  if (!selectedFieldKeys) return;
+  if (!Array.isArray(allChangedFieldKeys)) return;
+
+  selectedFieldKeys.set([...allChangedFieldKeys]);
+});
+
+// Deselect all fields
+const selectNoFieldsHandler = handler<
+  unknown,
+  { selectedFieldKeys: Cell<string[]> }
+>((_, { selectedFieldKeys }) => {
+  // Defensive guard
+  if (!selectedFieldKeys) return;
+
+  selectedFieldKeys.set([]);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PATTERN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -308,6 +390,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     getLabel,
     existingItems,
     hiddenItemIds,
+    fieldMappings,
   }) => {
     // Use constants directly - NOT from props (that breaks generateObject)
     // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
@@ -318,6 +401,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Internal cell for tracking selected items (separate from hidden)
     const selectedIds = cell<string[]>([]);
+
+    // Internal cell for tracking selected fields (per-field diff mode)
+    const selectedFieldKeys = cell<string[]>([]);
 
     // Demo: Raw input text (before formatting as trigger)
     const demoInputText = cell<string>("");
@@ -355,6 +441,49 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // 1. LLM EXTRACTION (only runs when trigger changes)
     // ═══════════════════════════════════════════════════════════════════════
 
+    // Build schema dynamically based on mode:
+    // - If fieldMappings provided: extract flat object with those field keys
+    // - Otherwise: use DEFAULT_SCHEMA for items array
+    // NOTE: This is built inside pattern body, not passed as a prop
+    // (passing schema as optional prop would break generateObject per CT-1122)
+    // IMPORTANT: fieldMappings might be wrapped in OpaqueRef by CTS transformer,
+    // so we use Array.isArray() which returns false for OpaqueRef values
+    let effectiveSchema: object;
+    let effectiveSystemPrompt: string;
+
+    // Safe check: Array.isArray returns false for OpaqueRef/OpaqueCell values
+    const hasFieldMappings = Array.isArray(fieldMappings) && fieldMappings.length > 0;
+
+    if (hasFieldMappings) {
+      // Field mode: Build schema from fieldMappings
+      const fieldProperties: Record<string, { type: string; description: string }> = {};
+      const fieldNames: string[] = [];
+
+      // fieldMappings is known to be a real array here
+      for (const mapping of fieldMappings as FieldMapping[]) {
+        fieldProperties[mapping.key] = {
+          type: "string",
+          description: mapping.label,
+        };
+        fieldNames.push(mapping.key);
+      }
+
+      effectiveSchema = {
+        type: "object",
+        properties: fieldProperties,
+        required: fieldNames,
+      };
+
+      effectiveSystemPrompt = `Extract structured data from text.
+Extract ONLY these specific fields: ${fieldNames.join(", ")}.
+Return the fields as a flat JSON object with string values.
+If a field is not found or unclear, return an empty string for it.`;
+    } else {
+      // Item list mode: Use default schema
+      effectiveSchema = DEFAULT_SCHEMA;
+      effectiveSystemPrompt = DEFAULT_SYSTEM_PROMPT;
+    }
+
     // Call generateObject at TOP LEVEL (not inside computed/derive)
     // Pass trigger directly - framework should handle reactivity
     // NOTE: When trigger is empty, generateObject returns early without LLM call
@@ -365,10 +494,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       pending: extractionPending,
       error: extractionError,
     } = generateObject({
-      system: DEFAULT_SYSTEM_PROMPT,  // Use constant directly
-      prompt: trigger,                 // Pass trigger Cell directly
-      schema: DEFAULT_SCHEMA,          // Use constant directly
-      model: "anthropic:claude-sonnet-4-5",  // Use constant directly
+      system: effectiveSystemPrompt,     // Use mode-specific prompt
+      prompt: trigger,                    // Pass trigger Cell directly
+      schema: effectiveSchema,            // Use mode-specific schema
+      model: "anthropic:claude-sonnet-4-5",
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -456,6 +585,81 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     });
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 2.5. PER-FIELD DIFF MODE (when fieldMappings provided)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Compute field-by-field diffs when fieldMappings is provided
+    // This enables person.tsx use case: extract flat fields and compare to current values
+    const fieldDiffs = computed((): ProcessedFieldDiff[] => {
+      // Only compute if fieldMappings is provided (use Array.isArray for safe OpaqueRef check)
+      if (!Array.isArray(fieldMappings) || fieldMappings.length === 0) return [];
+
+      const result = extractionResult;
+      const selected = selectedFieldKeys.get() ?? [];
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return [];
+
+      // Extract result as a flat object (for field access)
+      const extractedData = result as Record<string, unknown>;
+
+      const processed: ProcessedFieldDiff[] = [];
+      for (const mapping of fieldMappings as FieldMapping[]) {
+        // Extract mapping properties without renaming (CTS transformer quirks)
+        const fieldKey = mapping.key;
+        const fieldLabel = mapping.label;
+        const fieldCurrentInput = mapping.currentValue;
+
+        // Resolve currentValue - could be Cell or string
+        let resolvedCurrentValue: string;
+        if (fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput) {
+          // It's a Cell - get the value
+          resolvedCurrentValue = (fieldCurrentInput as Cell<string>).get() ?? "";
+        } else {
+          resolvedCurrentValue = (fieldCurrentInput as string) ?? "";
+        }
+
+        // Get extracted value from result
+        const extractedRaw = extractedData[fieldKey];
+        const extractedValue = extractedRaw != null ? String(extractedRaw) : "";
+
+        // Compare - only show if there's a change
+        const hasChanged = resolvedCurrentValue !== extractedValue;
+        if (!hasChanged) continue;
+
+        processed.push({
+          key: fieldKey,
+          label: fieldLabel,
+          currentValue: resolvedCurrentValue,
+          extractedValue,
+          hasChanged,
+          selected: selected.includes(fieldKey),
+        });
+      }
+
+      return processed;
+    });
+
+    // Field diff mode counts
+    const fieldDiffCount = computed(() => fieldDiffs.length);
+    const selectedFieldCount = computed(() =>
+      fieldDiffs.filter((f) => f.selected).length
+    );
+    const hasFieldResults = computed(() => fieldDiffs.length > 0);
+    const allChangedFieldKeys = computed(() => fieldDiffs.map((f) => f.key));
+
+    // Show field empty state when triggered, not pending, no field results, no error
+    const showFieldEmptyState = computed(() => {
+      const triggered = (trigger.get()?.trim() ?? "").length > 0;
+      const pending = extractionPending;
+      const hasFields = fieldDiffs.length > 0;
+      const hasError = !!extractionError;
+      // Only show if fieldMappings is provided (safe check for OpaqueRef)
+      const hasFieldMappings = Array.isArray(fieldMappings) && fieldMappings.length > 0;
+      return hasFieldMappings && triggered && !pending && !hasFields && !hasError;
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 3. SELECTION HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -474,6 +678,32 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         .filter((item) => selected.includes(item.key))
         .map((item) => item.item);
     };
+
+    // Get selected field values (for field-diff mode)
+    // Returns an object with only the selected fields' extracted values
+    const getSelectedFieldValues = (): Record<string, unknown> => {
+      const selected = selectedFieldKeys.get() ?? [];
+      const result = extractionResult;
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return {};
+
+      const extractedData = result as Record<string, unknown>;
+      const selectedValues: Record<string, unknown> = {};
+
+      for (const key of selected) {
+        if (key in extractedData) {
+          selectedValues[key] = extractedData[key];
+        }
+      }
+
+      return selectedValues;
+    };
+
+    // Reactive computed of selected field keys (for parent's reactive use)
+    const selectedFieldKeysComputed = computed(() => {
+      return selectedFieldKeys.get() ?? [];
+    });
 
     // ═══════════════════════════════════════════════════════════════════════
     // 4. UI COMPONENTS
@@ -636,6 +866,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Pre-bind dismissAll handler OUTSIDE JSX to avoid ReadOnlyAddressError
     const boundDismissAll = dismissAllItems({ hiddenItemIds, allVisibleKeys });
 
+    // Pre-bind field selection handlers OUTSIDE JSX
+    const boundSelectAllFields = selectAllFieldsHandler({ selectedFieldKeys, allChangedFieldKeys });
+    const boundSelectNoFields = selectNoFieldsHandler({ selectedFieldKeys });
+
     const reviewPanel = (
       <div
         style={{
@@ -683,6 +917,161 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           <div>
             {selectionBar}
             {itemList}
+          </div>,
+          null
+        )}
+      </div>
+    );
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Per-field diff panel (for person.tsx use case)
+    // Shows field-by-field changes with individual selection
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const fieldSelectionBar = (
+      <div
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "center",
+          marginBottom: "12px",
+        }}
+      >
+        <ct-button
+          variant="secondary"
+          size="sm"
+          onClick={boundSelectAllFields}
+        >
+          Select All
+        </ct-button>
+        <ct-button
+          variant="secondary"
+          size="sm"
+          onClick={boundSelectNoFields}
+        >
+          Select None
+        </ct-button>
+        <span style={{ marginLeft: "auto", color: "#666", fontSize: "14px" }}>
+          {selectedFieldCount} of {fieldDiffCount} fields selected
+        </span>
+      </div>
+    );
+
+    const fieldDiffList = (
+      <div
+        style={{
+          border: "1px solid #e5e7eb",
+          borderRadius: "8px",
+          overflow: "hidden",
+        }}
+      >
+        {fieldDiffs.map((fieldDiff) => (
+          <div
+            key={fieldDiff.key}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              padding: "12px",
+              borderBottom: "1px solid #eee",
+              backgroundColor: "transparent",
+            }}
+          >
+            <ct-checkbox
+              checked={fieldDiff.selected}
+              onClick={toggleFieldSelectionHandler({
+                selectedFieldKeys,
+                fieldKey: fieldDiff.key,
+              })}
+              style={{ marginRight: "12px", marginTop: "2px" }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, marginBottom: "4px" }}>
+                {fieldDiff.label}
+              </div>
+              <div style={{ fontSize: "14px" }}>
+                {/* Current value with strikethrough red */}
+                {fieldDiff.currentValue && (
+                  <span
+                    style={{
+                      textDecoration: "line-through",
+                      color: "#dc2626",
+                      marginRight: "8px",
+                    }}
+                  >
+                    {fieldDiff.currentValue}
+                  </span>
+                )}
+                {/* Arrow separator */}
+                <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+                {/* Extracted value with green highlight */}
+                <span
+                  style={{
+                    backgroundColor: "#dcfce7",
+                    color: "#166534",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  {fieldDiff.extractedValue || "(empty)"}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+
+    const fieldDiffPanel = (
+      <div
+        style={{
+          padding: "16px",
+          background: "#f9fafb",
+          borderRadius: "8px",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "12px",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: "16px" }}>Review Field Changes</h3>
+        </div>
+
+        {ifElse(extractionPending, loadingState, null)}
+
+        {ifElse(
+          derive(extractionError, (err) => !!err && !extractionPending),
+          errorState,
+          null
+        )}
+
+        {ifElse(
+          showFieldEmptyState,
+          <div
+            style={{
+              padding: "24px",
+              textAlign: "center",
+              background: "#fef3c7",
+              borderRadius: "8px",
+              border: "1px solid #f59e0b",
+            }}
+          >
+            <p style={{ margin: 0, color: "#92400e" }}>
+              No field changes detected.
+            </p>
+          </div>,
+          null
+        )}
+
+        {ifElse(
+          derive(hasFieldResults, (has) => has && !extractionPending),
+          <div>
+            {fieldSelectionBar}
+            {fieldDiffList}
           </div>,
           null
         )}
@@ -766,6 +1155,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       pending: extractionPending,
       error: extractionError,
       hasResults,
+      hasFieldResults,
       itemCount,
       selectedCount,
 
@@ -775,12 +1165,23 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Selection helper function (backward compat - use in handlers)
       getSelectedItems,
 
+      // Per-field diff mode outputs
+      fieldDiffCount,
+      selectedFieldCount,
+      selectedFieldKeys: selectedFieldKeysComputed,
+      getSelectedFieldValues,
+
       // Flattened handlers (following chatbot.tsx pattern)
       // NOTE: trigger/hiddenItemIds NOT exposed - parent already has them as inputs
       selectAll: selectAllItems({ selectedIds, allVisibleKeys }),
       selectNone: selectNoneItems({ selectedIds }),
       dismissAll: boundDismissAll,
       clearTrigger: clearTrigger({ trigger }),
+
+      // Per-field diff mode handlers
+      selectAllFields: boundSelectAllFields,
+      selectNoFields: boundSelectNoFields,
+      toggleFieldSelection: (key: string) => toggleFieldSelectionHandler({ selectedFieldKeys, fieldKey: key }),
 
       // UI components for composition
       ui: {
@@ -791,6 +1192,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         itemList,
         selectionBar,
         reviewPanel,
+        fieldDiffPanel,
       },
     };
   }
