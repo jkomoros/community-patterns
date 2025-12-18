@@ -1,8 +1,21 @@
 // record-types.ts - Shared types for the record pattern system
 import type { Default } from "commontools";
 
-// Sub-charm types (excluding notes which is built-in)
+// ===== Sub-Charm Architecture Types =====
+
+/**
+ * SubCharmEntry - An entry in the Record's sub-charms array.
+ * Each entry holds a reference to an actual sub-charm pattern instance.
+ */
+export interface SubCharmEntry {
+  type: string;        // Module type identifier (e.g., "birthday", "contact")
+  pinned: boolean;     // Pin state owned by Record (not the sub-charm)
+  charm: unknown;      // Reference to the actual sub-charm pattern instance
+}
+
+// Sub-charm types (all available module types)
 export type SubCharmType =
+  | "notes"      // Built-in, always present
   | "birthday"
   | "rating"
   | "tags"
@@ -18,8 +31,8 @@ export type SubCharmType =
   | "giftprefs"
   | "timing";
 
-// Module type includes notes (built-in) + all sub-charms
-export type ModuleType = SubCharmType | "notes";
+// Module type is the same as SubCharmType (notes is now included)
+export type ModuleType = SubCharmType;
 
 export interface SubCharmMetadata {
   type: SubCharmType;

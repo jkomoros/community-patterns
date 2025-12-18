@@ -1,24 +1,59 @@
-// registry.ts - Sub-charm registry with type definitions
+// registry.ts - Sub-charm registry with type definitions and pattern constructors
 // Defines available sub-charm types and their metadata
-// Note: Rendering stays in record.tsx (JSX requires recipe context)
+// Includes pattern constructors for true sub-charm architecture
 
 import type { SubCharmType } from "../types/record-types.ts";
+
+// Import all sub-charm patterns
+import { BirthdayModule } from "./birthday-module.tsx";
+import { RatingModule } from "./rating-module.tsx";
+import { TagsModule } from "./tags-module.tsx";
+import { ContactModule } from "./contact-module.tsx";
+import { StatusModule } from "./status-module.tsx";
+import { AddressModule } from "./address-module.tsx";
+import { TimelineModule } from "./timeline-module.tsx";
+import { SocialModule } from "./social-module.tsx";
+import { LinkModule } from "./link-module.tsx";
+import { LocationModule } from "./location-module.tsx";
+import { RelationshipModule } from "./relationship-module.tsx";
+import { GiftPrefsModule } from "./giftprefs-module.tsx";
+import { TimingModule } from "./timing-module.tsx";
+import { NotesModule } from "./notes-module.tsx";
+
+// Type for pattern constructors - uses any to bypass Opaque type requirements
+// deno-lint-ignore no-explicit-any
+type PatternConstructor = () => any;
 
 export interface SubCharmDefinition {
   type: SubCharmType;
   label: string;
   icon: string;
+  // Pattern constructor for creating instances
+  createInstance: PatternConstructor;
   // For Phase 2 extraction:
   schema?: Record<string, unknown>;
   fieldMapping?: string[];
 }
 
 // Static registry - defines available sub-charm types
+// Note: createInstance uses {} as any to bypass Opaque type requirements
+// The framework will provide defaults for all fields
 export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
+  notes: {
+    type: "notes",
+    label: "Notes",
+    icon: "\u{1F4DD}", // 📝
+    createInstance: () => NotesModule({} as any),
+    schema: {
+      notes: { type: "string", description: "Free-form notes" },
+    },
+    fieldMapping: ["notes"],
+  },
   birthday: {
     type: "birthday",
     label: "Birthday",
     icon: "\u{1F382}", // 🎂
+    createInstance: () => BirthdayModule({} as any),
     schema: {
       birthDate: { type: "string", description: "Birthday YYYY-MM-DD" },
       birthYear: { type: "number", description: "Birth year" },
@@ -29,6 +64,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "rating",
     label: "Rating",
     icon: "\u{2B50}", // ⭐
+    createInstance: () => RatingModule({} as any),
     schema: {
       rating: { type: "number", minimum: 1, maximum: 5, description: "Rating 1-5" },
     },
@@ -38,6 +74,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "tags",
     label: "Tags",
     icon: "\u{1F3F7}", // 🏷️
+    createInstance: () => TagsModule({} as any),
     schema: {
       tags: { type: "array", items: { type: "string" }, description: "Tags" },
     },
@@ -47,6 +84,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "contact",
     label: "Contact",
     icon: "\u{1F4E7}", // 📧
+    createInstance: () => ContactModule({} as any),
     schema: {
       email: { type: "string", description: "Email address" },
       phone: { type: "string", description: "Phone number" },
@@ -59,6 +97,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "status",
     label: "Status",
     icon: "\u{1F4CA}", // 📊
+    createInstance: () => StatusModule({} as any),
     schema: {
       status: { type: "string", enum: ["planned", "active", "blocked", "done", "archived"], description: "Project status" },
     },
@@ -68,6 +107,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "address",
     label: "Address",
     icon: "\u{1F4CD}", // 📍
+    createInstance: () => AddressModule({} as any),
     schema: {
       street: { type: "string", description: "Street address" },
       city: { type: "string", description: "City" },
@@ -80,6 +120,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "timeline",
     label: "Timeline",
     icon: "\u{1F4C5}", // 📅
+    createInstance: () => TimelineModule({} as any),
     schema: {
       startDate: { type: "string", format: "date", description: "Start date" },
       targetDate: { type: "string", format: "date", description: "Target completion date" },
@@ -91,6 +132,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "social",
     label: "Social",
     icon: "\u{1F517}", // 🔗
+    createInstance: () => SocialModule({} as any),
     schema: {
       platform: { type: "string", enum: ["twitter", "linkedin", "github", "instagram", "facebook", "youtube", "tiktok", "mastodon", "bluesky"], description: "Social platform" },
       handle: { type: "string", description: "Username/handle" },
@@ -102,6 +144,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "link",
     label: "Link",
     icon: "\u{1F310}", // 🌐
+    createInstance: () => LinkModule({} as any),
     schema: {
       url: { type: "string", format: "uri", description: "URL" },
       linkTitle: { type: "string", description: "Link title" },
@@ -114,6 +157,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "location",
     label: "Location",
     icon: "\u{1F5FA}", // 🗺️
+    createInstance: () => LocationModule({} as any),
     schema: {
       locationName: { type: "string", description: "Location name" },
       locationAddress: { type: "string", description: "Full address" },
@@ -125,6 +169,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "relationship",
     label: "Relationship",
     icon: "\u{1F465}", // 👥
+    createInstance: () => RelationshipModule({} as any),
     schema: {
       relationTypes: { type: "array", items: { type: "string" }, description: "Relationship types" },
       closeness: { type: "string", enum: ["intimate", "close", "casual", "distant"], description: "Closeness level" },
@@ -137,6 +182,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "giftprefs",
     label: "Gift Prefs",
     icon: "\u{1F381}", // 🎁
+    createInstance: () => GiftPrefsModule({} as any),
     schema: {
       giftTier: { type: "string", enum: ["always", "occasions", "reciprocal", "none"], description: "Gift giving tier" },
       favorites: { type: "array", items: { type: "string" }, description: "Favorite things" },
@@ -148,6 +194,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     type: "timing",
     label: "Timing",
     icon: "\u{23F1}", // ⏱️
+    createInstance: () => TimingModule({} as any),
     schema: {
       prepTime: { type: "number", description: "Prep time in minutes" },
       cookTime: { type: "number", description: "Cook time in minutes" },
@@ -162,10 +209,24 @@ export function getAvailableTypes(): SubCharmDefinition[] {
   return Object.values(SUB_CHARM_REGISTRY);
 }
 
+// Get types available for "Add" dropdown (excludes notes which is always present)
+export function getAddableTypes(): SubCharmDefinition[] {
+  return Object.values(SUB_CHARM_REGISTRY).filter((def) => def.type !== "notes");
+}
+
 export function getDefinition(
-  type: SubCharmType
+  type: SubCharmType | string
 ): SubCharmDefinition | undefined {
   return SUB_CHARM_REGISTRY[type];
+}
+
+// Create a new sub-charm instance by type
+export function createSubCharm(type: string): unknown {
+  const def = SUB_CHARM_REGISTRY[type];
+  if (!def) {
+    throw new Error(`Unknown sub-charm type: ${type}`);
+  }
+  return def.createInstance();
 }
 
 // Phase 2: Build combined extraction schema
