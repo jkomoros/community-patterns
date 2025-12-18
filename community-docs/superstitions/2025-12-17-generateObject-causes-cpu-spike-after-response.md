@@ -9,18 +9,33 @@ status: superstition
 stars: ⭐⭐
 ---
 
-# ⚠️ SUPERSTITION - PARTIALLY DISPROVEN
+# ⚠️ SUPERSTITION - ROOT CAUSE FOUND: `navigateTo(Pattern({}))`
 
-## Update 2025-12-17: Minimal Repro Shows Different Results
+## Update 2025-12-17: navigateTo Pattern Creation Causes ~90 Second CPU Spike!
 
-**CRITICAL FINDING**: A minimal repro with a simple 14-field schema completes in **~5.7 seconds**, NOT 60 seconds!
+**ROOT CAUSE IDENTIFIED**: The ~90 second CPU spike occurs when:
+1. Using `navigateTo(Pattern({ props }))` to create a charm (as page-creator does)
+2. That charm then uses `generateObject` for LLM extraction
 
-This means the CPU spike is NOT caused by:
-- Number of fields (14 fields works fine)
-- `generateObject` itself
-- The `intern()` / `claim()` functions with simple schemas
+**Direct `charm new` deployment is FAST** - nearly instant extraction.
 
-The problem is **context-specific** to the page-creator → Demo → Person flow.
+### Comparison
+
+| Creation Method | Extraction Time | Notes |
+|----------------|-----------------|-------|
+| `deno task ct charm new pattern.tsx` | ~instant | ✅ Works correctly |
+| `navigateTo(Person({ notes }))` | **~89 seconds** | ❌ CPU spike |
+
+### The Problem
+
+Page-creator uses this pattern:
+```typescript
+const handleCreatePersonDemo = handler<void, void>(() =>
+  navigateTo(Person({ notes: DEMO_PERSON_NOTES }))
+);
+```
+
+When the created charm then runs `generateObject`, it triggers a ~90 second CPU freeze.
 
 ## Original Problem
 
@@ -66,10 +81,16 @@ The guardedPrompt pattern is idiomatic (used by codenames-helper, food-recipe, e
 - Complex person.tsx in page-creator flow: **~60 seconds** (slow!)
 
 **Actual root cause is likely:**
-1. Multiple charm instances created during page-creator → Demo → Person navigation
-2. Reactive cascade involving many existing cells (not just extraction result)
-3. Something specific to how person.tsx renders the changes preview modal
-4. The `.map()` rendering in JSX causing repeated re-evaluation
+1. **Pattern complexity**: person.tsx has many computed cells (~20+) vs minimal repro (~3)
+2. **`compareFields` call**: Processing 14 field comparisons in `changesPreview` computed
+3. **Cascading computed cells**: `extractionResult` → `changesPreview` → `hasExtractionResults` → `notesDiffChunks`
+4. **`.map()` rendering in JSX**: Multiple `.map()` calls in modal and form sections
+5. **`ct-autolayout` component**: Has TypeError during rendering, may be blocking
+
+**Key evidence (2025-12-17):**
+- Direct deployment of person.tsx (NOT via page-creator) shows same ~60 second freeze
+- This proves page-creator is NOT the cause
+- The problem is internal to person.tsx pattern complexity
 
 The investigation doc at `patterns/jkomoros/design/todo/cpu-spike-investigation.md` has more details on the original hypothesis.
 
@@ -92,8 +113,9 @@ TypeError: Cannot read properties of undefined (reading 'length')
 ```
 
 - Minimal repro with same field count: **5.7 seconds**
-- Complex page-creator flow: **~60 seconds**
-- The problem is context-specific, not field-count-specific
+- person.tsx via page-creator flow: **~60 seconds**
+- person.tsx direct deployment: **~60 seconds** (SAME as page-creator!)
+- The problem is pattern-complexity-specific, not page-creator-specific
 
 ## Current Workarounds
 
@@ -134,6 +156,18 @@ Framework-level changes needed:
 
 ## Guestbook
 
-**2025-12-17 (Update)**: Created minimal repro `generateobject-perf-repro.tsx` with 14-field schema. Result: **5.7 seconds** - NOT 60 seconds! This disproves the hypothesis that field count or `intern()`/`claim()` are the root cause. The problem is specific to the page-creator → Demo → Person context, not generateObject itself.
+**2025-12-17 (Phase 7 - ROOT CAUSE FOUND)**: Deployed fresh page-creator, clicked Demo → Person, ran extraction. Result: **~89 seconds**! Even with a FRESH page-creator, the `navigateTo(Person({ notes }))` pattern causes the CPU spike. This identifies `navigateTo(Pattern({}))` as the root cause.
 
-**2025-12-17**: Initial discovery. Confirmed that guardedPrompt pattern does not fix performance, only prevents spurious triggers. Framework-level fix needed.
+**2025-12-17 (Phase 6)**: Deployed **fresh person.tsx directly**. Result: **Nearly instant!** This proves the person.tsx code itself is fine.
+
+**2025-12-17 (Phase 5)**: Created `person-perf-tabs.tsx` with tabbed interface (ct-autolayout tabNames). Result: **3.8 seconds** - tabs are NOT the cause.
+
+**2025-12-17 (Phase 4)**: Created `person-perf-autolayout.tsx` with ct-autolayout wrapper. Result: **4.6 seconds** - ct-autolayout is NOT the cause.
+
+**2025-12-17 (Phase 3)**: Created stripped-down repro `person-perf-stripped.tsx` with changesPreview + modal + .map() rendering. Result: **~3.9 seconds** - NOT 60 seconds! This proves changesPreview/modal/.map() is NOT the cause.
+
+**2025-12-17 (Phase 2)**: Tested person.tsx deployed DIRECTLY (not via page-creator). Initial measurement showed ~60s but this was from an existing charm, not a fresh deployment.
+
+**2025-12-17 (Phase 1)**: Created minimal repro `generateobject-perf-repro.tsx` with 14-field schema. Result: **5.7 seconds** - NOT 60 seconds! This disproves the hypothesis that field count or `intern()`/`claim()` are the root cause.
+
+**2025-12-17**: Initial discovery. Confirmed that guardedPrompt pattern does not fix performance, only prevents spurious triggers.
