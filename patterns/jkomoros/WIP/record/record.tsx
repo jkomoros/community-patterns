@@ -144,11 +144,19 @@ const Record = recipe<RecordInput, RecordOutput>(
     )({ sc: subCharms });
 
     // Check layout mode based on pinned count
-    const pinnedCount = computed(() => (pinnedWithIndex || []).length);
-    const hasUnpinned = computed(() => (unpinnedWithIndex || []).length > 0);
+    // Use lift instead of computed for safer access to lift results
+    const pinnedCount = lift(({ arr }: { arr: typeof pinnedWithIndex }) =>
+      (arr || []).length
+    )({ arr: pinnedWithIndex });
+
+    const hasUnpinned = lift(({ arr }: { arr: typeof unpinnedWithIndex }) =>
+      (arr || []).length > 0
+    )({ arr: unpinnedWithIndex });
 
     // Check if record is empty (no sub-charms at all)
-    const isEmpty = computed(() => (subCharms || []).length === 0);
+    const isEmpty = lift(({ sc }: { sc: SubCharmEntry[] }) =>
+      (sc || []).length === 0
+    )({ sc: subCharms });
 
     // Compute hasTypesToAdd directly from subCharms (no intermediate computed)
     const hasTypesToAdd = lift(({ sc }: { sc: SubCharmEntry[] }) => {
