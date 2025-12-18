@@ -187,6 +187,153 @@ Each sub-charm exposes:
 
 ---
 
+## Data Flow and Re-Extraction
+
+*This section addresses framework author questions about editing data in sub-charms and entity reconciliation.*
+
+### Architecture Decision: One-Way Extraction with Selective Accept
+
+**Data flows one direction:** Notes → Extraction → Sub-charm (with user approval per field)
+
+This design was chosen because:
+
+1. **Framework alignment**: WriteIsolation enforces one-way cross-charm writes. Sub-charms must expose Stream handlers for the parent to send data — there's no automatic "sync back" mechanism.
+
+2. **Conceptual clarity**: The record IS the source of truth. There's no external CRM or database to sync with. The notes sub-charm holds the unstructured data; structured sub-charms hold the extracted/curated version.
+
+3. **Proven pattern**: Matches person.tsx extraction flow and gmail-importer.tsx sync patterns — both are strictly one-way.
+
+### Re-Extraction Flow
+
+When user adds more notes and clicks "Re-extract":
+
+```
+User adds notes → clicks "Re-extract"
+                       ↓
+         Record reads notes content
+                       ↓
+         generateObject() per sub-charm type
+                       ↓
+         Compare extracted vs current sub-charm data
+                       ↓
+         Show per-field diff UI
+                       ↓
+         User selects which fields to accept
+                       ↓
+         Record sends accepted fields via Stream.send()
+                       ↓
+         Sub-charm handler applies changes
+```
+
+### Per-Field Selective Accept UI
+
+Instead of "replace all or nothing", users can cherry-pick changes:
+
+```
+Re-extraction found changes:
+┌────────────────────────────────────────────┐
+│ Birthday                                    │
+│ Current: March 15, 1990                    │
+│ Extracted: March 14, 1990                  │
+│ [✓ Accept] [Keep Mine]                     │
+├────────────────────────────────────────────┤
+│ Email                                       │
+│ Current: john@personal.com  (user changed) │
+│ Extracted: john@work.com                   │
+│ [Accept] [✓ Keep Mine]                     │
+├────────────────────────────────────────────┤
+│ NEW: Phone                                  │
+│ Extracted: 555-1234                         │
+│ [✓ Accept] [Ignore]                        │
+└────────────────────────────────────────────┘
+         [Apply Selected] [Cancel]
+```
+
+**Why this matters**: User corrected the email. Without per-field selection, they'd have to choose between:
+- Accepting all changes (losing their email correction)
+- Rejecting all changes (losing the birthday fix + new phone)
+
+Per-field selection lets them keep corrections while accepting new data.
+
+### Why NOT Bidirectional Sync
+
+Bidirectional sync (edits in sub-charm update notes) was rejected:
+
+- **Framework friction**: Would require sub-charm → parent Stream handlers for every field, plus conflict detection
+- **Conceptual mismatch**: How would you write `phone: 555-1234` back into prose like "met John at conference, his email is..."?
+- **No existing patterns**: Neither gmail-importer nor person.tsx attempt bidirectional sync
+
+### Why NOT Overlay/Delta Model
+
+Overlay model (store base + user deltas separately) was rejected:
+
+- **Complexity**: Every field needs base/override tracking
+- **Per-field accept achieves same goal**: Users preserve corrections by declining specific changes, without complex delta storage
+- **Conceptual mismatch**: record.tsx IS the source; there's no external system to overlay against
+
+---
+
+## Entity Reconciliation
+
+*Addressing the N:M problem raised by framework author: "when a person splits into N projects and that mapping is a bit fuzzy then redoing the extraction later might end up another number of projects, any data attached to earlier ones gets detached"*
+
+### The Challenge
+
+When re-extracting entities that can multiply (Projects, Tasks, etc.):
+- 1 project might become 2 (split)
+- 3 projects might become 2 (merge)
+- "Phoenix Project" might become "Phoenix Web" (rename)
+
+How do we preserve user data attached to old entities?
+
+### Phased Approach
+
+**Phase 1 (MVP): Type-based matching (1:1)**
+- Each sub-charm type appears once: one Birthday module, one Contacts module
+- Re-extraction updates the existing sub-charm of that type
+- No N:M problem because mapping is inherently 1:1
+
+**Phase 2: Semantic key matching for arrays**
+- For entity arrays (Projects, Tasks), use semantic keys:
+  - Entity name + approximate context from extraction
+  - Fuzzy string matching (Levenshtein distance threshold)
+- Show user when entities change:
+  ```
+  Project changes detected:
+  - "Phoenix" → matched existing
+  - "Infrastructure" → NEW (add?)
+  - "Old Website" → not in new extraction (keep? remove?)
+  ```
+
+**Phase 3 (Future): LLM-assisted reconciliation**
+- For ambiguous cases: "Did 'Phoenix Project' split into 'Phoenix Web' and 'Phoenix Mobile'?"
+- Tombstones for removed entities (mark hidden vs actually delete)
+- User can restore hidden entities if extraction was wrong
+
+### Key Insight
+
+The selective accept UI helps with entity reconciliation too:
+- **New entities**: Shown as "NEW", user can accept or ignore
+- **Missing entities**: "No longer in notes - Keep anyway? Remove?"
+- **Ambiguous splits**: Requires Phase 3 UX work, but framework is ready
+
+### Sub-Charm Contract for Extraction
+
+```typescript
+interface ExtractionCapableSubCharm<T> {
+  // Static schema for generateObject (framework requirement)
+  extractionSchema: JSONSchema;
+
+  // Current data for comparison
+  getCurrentData: () => T;
+
+  // Stream handler for receiving approved extractions
+  applyExtraction: Stream<{ fields: Partial<T> }>;
+}
+```
+
+---
+
 ## Implementation Sketch
 
 ### File Structure
