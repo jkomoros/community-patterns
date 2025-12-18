@@ -20,7 +20,10 @@ export default pattern<Input, Output>(() => {
     requiredScopes: ["gmail", "drive", "calendar"],
   });
 
-  // Format token expiry for display - use derive() for reactive property access
+  // Format token expiry for display
+  // NOTE: Use derive() here because authInfo is a computed() result (OpaqueRef<AuthInfo>).
+  // Property access on OpaqueRef inside computed() returns another OpaqueRef, which fails.
+  // derive() explicitly unwraps the OpaqueRef parameter so info.property returns plain values.
   const tokenExpiryDisplay = derive(authInfo, (info) => {
     if (!info.tokenExpiresAt) return "No token";
     const expiresAt = new Date(info.tokenExpiresAt);
@@ -29,9 +32,11 @@ export default pattern<Input, Output>(() => {
     return `${expiresAt.toLocaleTimeString()} (${mins > 0 ? `${mins}min remaining` : "EXPIRED"})`;
   });
 
-  // Format missing scopes for display - use derive() for reactive property access
-  // CRITICAL: Use Array.from() to convert opaque array to plain array before mapping
-  // Otherwise the compiler transforms .map() to .mapWithPattern() which fails on opaque values
+  // Format missing scopes for display
+  // NOTE: Use derive() because authInfo is OpaqueRef (see tokenExpiryDisplay comment above).
+  // Also use Array.from() to convert nested array to plain array before .map().
+  // Even inside derive(), nested array properties may still be proxied, and .map() on
+  // a proxied array can fail. Array.from() breaks the proxy chain.
   const missingScopesDisplay = derive(authInfo, (info) => {
     const scopes = Array.from(info.missingScopes);
     if (scopes.length === 0) return "None";
@@ -40,7 +45,7 @@ export default pattern<Input, Output>(() => {
       .join(", ");
   });
 
-  // Boolean displays - use derive() for reactive property access
+  // Boolean displays - use derive() because authInfo is OpaqueRef (see comment above)
   const hasRequiredScopesDisplay = derive(authInfo, (info) =>
     info.hasRequiredScopes ? "✅ Yes" : "❌ No"
   );
