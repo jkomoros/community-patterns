@@ -82,10 +82,16 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   // Pattern: trigger.set(`${text}\n---EXTRACT-${Date.now()}---`)
   trigger?: Cell<Default<string, "">>;
 
-  // NOTE: schema/systemPrompt/model are NOT in the interface!
-  // Having optional non-Cell inputs breaks generateObject reactivity.
-  // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
-  // These are configured as constants below instead.
+  // Optional: Schema Cell for field extraction mode
+  // When provided, generateObject uses this schema directly.
+  // Parent builds schema based on their field definitions.
+  // This solves the OpaqueRef issue - Cells don't get wrapped in OpaqueRef.
+  // See: community-docs/superstitions/2025-12-17-array-isarray-fails-for-subpattern-props.md
+  schema?: Cell<object>;
+
+  // Optional: System prompt Cell for customization
+  // Only used when schema is provided (otherwise uses DEFAULT_SYSTEM_PROMPT)
+  systemPrompt?: Cell<string>;
 
   // Optional: Key/label derivation functions
   // These are wrapped with lift() internally for reactivity
@@ -100,9 +106,9 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   hiddenItemIds?: Cell<Default<string[], []>>; // Track "dismissed" items
 
   // Per-field diff mode (person.tsx use case)
-  // When provided, switches from item-list mode to field-diff mode
-  // NOTE: This is safe to include despite CT-1122 - only used for UI rendering in computed(),
-  // not passed to generateObject.
+  // When provided, enables field-diff UI (fieldDiffPanel).
+  // Used ONLY for UI rendering inside computed(), not for schema building.
+  // NOTE: Due to OpaqueRef wrapping, you cannot iterate this array outside computed().
   fieldMappings?: FieldMapping[];
 }
 
@@ -384,8 +390,8 @@ const selectNoFieldsHandler = handler<
 const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
   ({
     trigger: triggerInput,
-    // NOTE: schema/systemPrompt/model removed from destructuring
-    // Having optional non-Cell inputs breaks generateObject reactivity
+    schema: schemaInput,
+    systemPrompt: systemPromptInput,
     getKey,
     getLabel,
     existingItems,
@@ -441,62 +447,35 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // 1. LLM EXTRACTION (only runs when trigger changes)
     // ═══════════════════════════════════════════════════════════════════════
 
-    // Build schema dynamically based on mode:
-    // - If fieldMappings provided: extract flat object with those field keys
-    // - Otherwise: use DEFAULT_SCHEMA for items array
-    // NOTE: This is built inside pattern body, not passed as a prop
-    // (passing schema as optional prop would break generateObject per CT-1122)
-    // IMPORTANT: fieldMappings might be wrapped in OpaqueRef by CTS transformer,
-    // so we use Array.isArray() which returns false for OpaqueRef values
-    let effectiveSchema: object;
-    let effectiveSystemPrompt: string;
+    // Schema selection:
+    // - If schema Cell provided: parent built the schema (field-diff mode)
+    // - Otherwise: use DEFAULT_SCHEMA constant (item-list mode)
+    //
+    // Why schema is a Cell prop:
+    // OpaqueRef wrapping prevents building schemas from array props at init time.
+    // Items iterated from `for...of` are ALSO OpaqueRef, so `mapping.key` throws.
+    // Solution: Parent builds schema as a Cell, Cells don't get OpaqueRef wrapped.
+    // See: community-docs/superstitions/2025-12-17-array-isarray-fails-for-subpattern-props.md
+    const effectiveSchema = schemaInput ?? Cell.of(DEFAULT_SCHEMA);
+    const effectiveSystemPrompt = systemPromptInput ?? Cell.of(DEFAULT_SYSTEM_PROMPT);
 
-    // Safe check: Array.isArray returns false for OpaqueRef/OpaqueCell values
-    const hasFieldMappings = Array.isArray(fieldMappings) && fieldMappings.length > 0;
-
-    if (hasFieldMappings) {
-      // Field mode: Build schema from fieldMappings
-      const fieldProperties: Record<string, { type: string; description: string }> = {};
-      const fieldNames: string[] = [];
-
-      // fieldMappings is known to be a real array here
-      for (const mapping of fieldMappings as FieldMapping[]) {
-        fieldProperties[mapping.key] = {
-          type: "string",
-          description: mapping.label,
-        };
-        fieldNames.push(mapping.key);
-      }
-
-      effectiveSchema = {
-        type: "object",
-        properties: fieldProperties,
-        required: fieldNames,
-      };
-
-      effectiveSystemPrompt = `Extract structured data from text.
-Extract ONLY these specific fields: ${fieldNames.join(", ")}.
-Return the fields as a flat JSON object with string values.
-If a field is not found or unclear, return an empty string for it.`;
-    } else {
-      // Item list mode: Use default schema
-      effectiveSchema = DEFAULT_SCHEMA;
-      effectiveSystemPrompt = DEFAULT_SYSTEM_PROMPT;
-    }
+    // Check if fieldMappings was provided (for UI purposes only)
+    // NOTE: Cannot iterate fieldMappings here - OpaqueRef wrapping.
+    // It's only used inside computed() for field-diff UI rendering.
+    const hasFieldMappings = !!fieldMappings;
 
     // Call generateObject at TOP LEVEL (not inside computed/derive)
     // Pass trigger directly - framework should handle reactivity
     // NOTE: When trigger is empty, generateObject returns early without LLM call
     // (see llm.ts:715 - empty prompt check)
-    // IMPORTANT: Use constants directly, NOT from props (optional non-Cell inputs break reactivity)
     const {
       result: extractionResult,
       pending: extractionPending,
       error: extractionError,
     } = generateObject({
-      system: effectiveSystemPrompt,     // Use mode-specific prompt
-      prompt: trigger,                    // Pass trigger Cell directly
-      schema: effectiveSchema,            // Use mode-specific schema
+      system: effectiveSystemPrompt,     // Cell<string> - mode-specific prompt
+      prompt: trigger,                    // Cell<string> - triggers extraction
+      schema: effectiveSchema,            // Cell<object> - mode-specific schema
       model: "anthropic:claude-sonnet-4-5",
     });
 
@@ -591,8 +570,11 @@ If a field is not found or unclear, return an empty string for it.`;
     // Compute field-by-field diffs when fieldMappings is provided
     // This enables person.tsx use case: extract flat fields and compare to current values
     const fieldDiffs = computed((): ProcessedFieldDiff[] => {
-      // Only compute if fieldMappings is provided (use Array.isArray for safe OpaqueRef check)
-      if (!Array.isArray(fieldMappings) || fieldMappings.length === 0) return [];
+      // Only compute if fieldMappings is provided
+      // NOTE: CTS transformer wraps arrays in OpaqueRef, so Array.isArray() returns false
+      // Use .length check instead (OpaqueRef proxies array-like behavior)
+      const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
+      if (!fmArray || fmArray.length === 0) return [];
 
       const result = extractionResult;
       const selected = selectedFieldKeys.get() ?? [];
@@ -604,7 +586,7 @@ If a field is not found or unclear, return an empty string for it.`;
       const extractedData = result as Record<string, unknown>;
 
       const processed: ProcessedFieldDiff[] = [];
-      for (const mapping of fieldMappings as FieldMapping[]) {
+      for (const mapping of fmArray) {
         // Extract mapping properties without renaming (CTS transformer quirks)
         const fieldKey = mapping.key;
         const fieldLabel = mapping.label;
@@ -654,9 +636,12 @@ If a field is not found or unclear, return an empty string for it.`;
       const pending = extractionPending;
       const hasFields = fieldDiffs.length > 0;
       const hasError = !!extractionError;
-      // Only show if fieldMappings is provided (safe check for OpaqueRef)
-      const hasFieldMappings = Array.isArray(fieldMappings) && fieldMappings.length > 0;
-      return hasFieldMappings && triggered && !pending && !hasFields && !hasError;
+      // Only show if fieldMappings is provided
+      // NOTE: CTS transformer wraps arrays in OpaqueRef, so Array.isArray() returns false
+      // Use .length check instead (OpaqueRef proxies array-like behavior)
+      const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
+      const hasFieldMappingsCheck = fmArray && fmArray.length > 0;
+      return hasFieldMappingsCheck && triggered && !pending && !hasFields && !hasError;
     });
 
     // ═══════════════════════════════════════════════════════════════════════

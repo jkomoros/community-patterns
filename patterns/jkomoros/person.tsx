@@ -3,7 +3,7 @@ import {
   Cell,
   computed,
   Default,
-  generateObject,
+  derive,
   handler,
   ifElse,
   NAME,
@@ -16,10 +16,7 @@ import {
   wish,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
-import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
-
-// Performance measurement - set to true to see timing in console
-const PERF_MEASURE = false;
+import ImportReview from "./lib/import-review.tsx";
 
 // Social platform types
 type SocialPlatform =
@@ -439,7 +436,7 @@ const toggleFlag = handler<
   },
 );
 
-// Handler to trigger LLM extraction
+// Handler to trigger LLM extraction - formats notes with timestamp
 const triggerExtraction = handler<
   Record<string, never>,
   { notes: string; extractTrigger: Cell<string> }
@@ -450,155 +447,6 @@ const triggerExtraction = handler<
   },
 );
 
-// Handler to cancel extraction (clear the result)
-const cancelExtraction = handler<
-  Record<string, never>,
-  { extractedData: Cell<any> }
->(
-  (_, { extractedData }) => {
-    extractedData.set(null);
-  },
-);
-
-// Handler to apply extracted data to profile fields
-const applyExtractedData = handler<
-  Record<string, never>,
-  {
-    extractedData: Cell<any>;
-    displayName: Cell<string>;
-    givenName: Cell<string>;
-    familyName: Cell<string>;
-    nickname: Cell<string>;
-    pronouns: Cell<string>;
-    emails: Cell<EmailEntry[]>;
-    phones: Cell<PhoneEntry[]>;
-    socialLinks: Cell<SocialLink[]>;
-    birthday: Cell<string>;
-    notes: Cell<string>;
-  }
->(
-  (
-    _,
-    {
-      extractedData,
-      displayName,
-      givenName,
-      familyName,
-      nickname,
-      pronouns,
-      emails,
-      phones,
-      socialLinks,
-      birthday,
-      notes,
-    },
-  ) => {
-    const data = extractedData.get();
-    if (!data) return;
-
-    // Apply extracted data to fields if provided
-    if (data.displayName) displayName.set(data.displayName);
-    if (data.givenName) givenName.set(data.givenName);
-    if (data.familyName) familyName.set(data.familyName);
-    if (data.nickname) nickname.set(data.nickname);
-    if (data.pronouns) pronouns.set(data.pronouns);
-    if (data.birthday) birthday.set(data.birthday);
-
-    // Handle email
-    if (data.email) {
-      const currentEmails = emails.get();
-      if (currentEmails.length === 0) {
-        emails.set([{ type: "work", value: data.email }]);
-      } else {
-        const updated = [...currentEmails];
-        updated[0] = { ...updated[0], value: data.email };
-        emails.set(updated);
-      }
-    }
-
-    // Handle phone
-    if (data.phone) {
-      const currentPhones = phones.get();
-      if (currentPhones.length === 0) {
-        phones.set([{ type: "mobile", value: data.phone }]);
-      } else {
-        const updated = [...currentPhones];
-        updated[0] = { ...updated[0], value: data.phone };
-        phones.set(updated);
-      }
-    }
-
-    // Handle social links - only update if we have social data
-    if (
-      data.twitter || data.linkedin || data.github || data.instagram ||
-      data.mastodon
-    ) {
-      const currentSocials = socialLinks.get();
-      const updatedSocials = [...currentSocials];
-
-      if (data.twitter) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "twitter");
-        if (idx >= 0) {
-          updatedSocials[idx] = { platform: "twitter", handle: data.twitter };
-        } else {
-          updatedSocials.push({ platform: "twitter", handle: data.twitter });
-        }
-      }
-
-      if (data.linkedin) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "linkedin");
-        if (idx >= 0) {
-          updatedSocials[idx] = { platform: "linkedin", handle: data.linkedin };
-        } else {
-          updatedSocials.push({ platform: "linkedin", handle: data.linkedin });
-        }
-      }
-
-      if (data.github) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "github");
-        if (idx >= 0) {
-          updatedSocials[idx] = { platform: "github", handle: data.github };
-        } else {
-          updatedSocials.push({ platform: "github", handle: data.github });
-        }
-      }
-
-      if (data.instagram) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "instagram");
-        if (idx >= 0) {
-          updatedSocials[idx] = {
-            platform: "instagram",
-            handle: data.instagram,
-          };
-        } else {
-          updatedSocials.push({
-            platform: "instagram",
-            handle: data.instagram,
-          });
-        }
-      }
-
-      if (data.mastodon) {
-        const idx = updatedSocials.findIndex((l) => l && l.platform === "mastodon");
-        if (idx >= 0) {
-          updatedSocials[idx] = { platform: "mastodon", handle: data.mastodon };
-        } else {
-          updatedSocials.push({ platform: "mastodon", handle: data.mastodon });
-        }
-      }
-
-      socialLinks.set(updatedSocials);
-    }
-
-    // Update notes to remaining content
-    if (data.remainingNotes !== undefined) {
-      notes.set(data.remainingNotes);
-    }
-
-    // Clear the extraction result to hide the preview
-    extractedData.set(null);
-  },
-);
 
 const Person = recipe<Input, Output>(
   "Person",
@@ -667,106 +515,203 @@ const Person = recipe<Input, Output>(
     );
 
     // Trigger for LLM extraction - cell that holds notes snapshot to extract
-    // Uses marker string to ensure empty/initial state doesn't trigger extraction
     const extractTrigger = Cell.of<string>("");
 
-    // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
-    // The extraction marker (---EXTRACT-*---) indicates a real extraction request
-    // Without this guard, the reactive system may trigger spurious LLM calls during initialization
-    const guardedPrompt = computed(() => {
-      const trigger = extractTrigger.get();
-      // Only return a prompt if it contains the extraction marker
-      if (trigger && trigger.includes("---EXTRACT-")) {
-        return trigger;
-      }
-      return undefined;
+    // Build schema as a Cell for ImportReview
+    // Parent builds schema - Cells don't get wrapped in OpaqueRef (arrays do)
+    // See: community-docs/superstitions/2025-12-17-array-isarray-fails-for-subpattern-props.md
+    const personExtractionSchema = Cell.of({
+      type: "object",
+      properties: {
+        displayName: { type: "string", description: "Display Name - how the person prefers to be called" },
+        givenName: { type: "string", description: "First Name" },
+        familyName: { type: "string", description: "Last Name / Family Name" },
+        nickname: { type: "string", description: "Nickname or informal name" },
+        pronouns: { type: "string", description: "Pronouns (e.g., they/them, she/her, he/him)" },
+        birthday: { type: "string", description: "Birthday in YYYY-MM-DD format or as written" },
+        email: { type: "string", description: "Email address" },
+        phone: { type: "string", description: "Phone number" },
+        twitter: { type: "string", description: "Twitter/X handle (e.g., @username)" },
+        linkedin: { type: "string", description: "LinkedIn username or profile URL" },
+        github: { type: "string", description: "GitHub username" },
+        instagram: { type: "string", description: "Instagram handle" },
+        mastodon: { type: "string", description: "Mastodon handle (e.g., @user@instance.social)" },
+        remainingNotes: { type: "string", description: "Any remaining text that doesn't fit the above fields" },
+      },
+      required: [
+        "displayName", "givenName", "familyName", "nickname", "pronouns",
+        "birthday", "email", "phone", "twitter", "linkedin", "github",
+        "instagram", "mastodon", "remainingNotes",
+      ],
     });
 
-    // LLM extraction for notes - runs when guardedPrompt has content
-    const { result: extractionResult, pending: extractionPending } =
-      generateObject({
-        system:
-          `You are a profile data extraction assistant. Extract structured information from unstructured notes.
+    // System prompt for person field extraction
+    const personExtractionPrompt = Cell.of(`Extract structured data from text about a person.
+Extract ONLY these specific fields: displayName, givenName, familyName, nickname, pronouns, birthday, email, phone, twitter, linkedin, github, instagram, mastodon, remainingNotes.
+Return the fields as a flat JSON object with string values.
+If a field is not found or unclear, return an empty string for it.
+For remainingNotes, include any text that doesn't fit the other fields.`);
 
-Extract the following fields if present:
-- displayName: ONLY extract if there's a specific preferred name or nickname that differs from "First Last" format. If the person just goes by their first and last name, omit this field.
-- givenName: First name
-- familyName: Last name
-- nickname: A nickname or shortened name the person goes by (e.g., "Bob" for Robert, "Alex" for Alexandra)
-- pronouns: Pronouns (e.g., they/them, she/her, he/him)
-- email: Email address
-- phone: Phone number
-- birthday: Birthday in YYYY-MM-DD format
-- twitter: Twitter/X handle (without @)
-- linkedin: LinkedIn URL or username
-- github: GitHub username
-- instagram: Instagram handle (without @)
-- mastodon: Mastodon handle (with @user@instance)
+    // Use ImportReview with schema Cell and fieldMappings for per-field diff mode
+    // schema: Cell<object> - parent-built schema (avoids OpaqueRef issue)
+    // fieldMappings: used ONLY for UI diff display inside computed()
+    const extraction = ImportReview({
+      trigger: extractTrigger,
+      schema: personExtractionSchema,
+      systemPrompt: personExtractionPrompt,
+      fieldMappings: [
+        { key: "displayName", label: "Display Name", currentValue: displayName },
+        { key: "givenName", label: "First Name", currentValue: givenName },
+        { key: "familyName", label: "Last Name", currentValue: familyName },
+        { key: "nickname", label: "Nickname", currentValue: nickname },
+        { key: "pronouns", label: "Pronouns", currentValue: pronouns },
+        { key: "birthday", label: "Birthday", currentValue: birthday },
+        { key: "email", label: "Email", currentValue: emailValue },
+        { key: "phone", label: "Phone", currentValue: phoneValue },
+        { key: "twitter", label: "Twitter", currentValue: twitterHandle },
+        { key: "linkedin", label: "LinkedIn", currentValue: linkedinHandle },
+        { key: "github", label: "GitHub", currentValue: githubHandle },
+        { key: "instagram", label: "Instagram", currentValue: instagramHandle },
+        { key: "mastodon", label: "Mastodon", currentValue: mastodonHandle },
+        { key: "remainingNotes", label: "Notes", currentValue: notes },
+      ],
+    });
 
-Return only the fields you can confidently extract. Leave remainingNotes with any content that doesn't fit into structured fields.`,
-        prompt: guardedPrompt,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: {
-          type: "object",
-          properties: {
-            displayName: { type: "string" },
-            givenName: { type: "string" },
-            familyName: { type: "string" },
-            nickname: { type: "string" },
-            pronouns: { type: "string" },
-            email: { type: "string" },
-            phone: { type: "string" },
-            birthday: { type: "string" },
-            twitter: { type: "string" },
-            linkedin: { type: "string" },
-            github: { type: "string" },
-            instagram: { type: "string" },
-            mastodon: { type: "string" },
-            remainingNotes: { type: "string" },
-          },
+    // Get selected field values function (wrapped for CTS transformer)
+    const getSelectedFieldValues = extraction.getSelectedFieldValues as unknown as () => Record<string, unknown>;
+
+    // Handler to apply selected extracted data to profile fields
+    // Uses closure to capture extraction reference
+    const applySelectedExtractedData = handler<
+      unknown,
+      {
+        displayName: Cell<string>;
+        givenName: Cell<string>;
+        familyName: Cell<string>;
+        nickname: Cell<string>;
+        pronouns: Cell<string>;
+        emails: Cell<EmailEntry[]>;
+        phones: Cell<PhoneEntry[]>;
+        socialLinks: Cell<SocialLink[]>;
+        birthday: Cell<string>;
+        notes: Cell<string>;
+        extractTrigger: Cell<string>;
+      }
+    >(
+      (
+        _,
+        {
+          displayName,
+          givenName,
+          familyName,
+          nickname,
+          pronouns,
+          emails,
+          phones,
+          socialLinks,
+          birthday,
+          notes,
+          extractTrigger,
         },
-      });
+      ) => {
+        const data = getSelectedFieldValues();
+        if (!data || Object.keys(data).length === 0) return;
 
-    // Derive a summary of changes that will be made
-    const changesPreview = computed(() => {
-      const result = extractionResult;
-      return compareFields(result, {
-        displayName: { current: displayName, label: "Display Name" },
-        givenName: { current: givenName, label: "First Name" },
-        familyName: { current: familyName, label: "Last Name" },
-        nickname: { current: nickname, label: "Nickname" },
-        pronouns: { current: pronouns, label: "Pronouns" },
-        birthday: { current: birthday, label: "Birthday" },
-        email: { current: emailValue, label: "Email" },
-        phone: { current: phoneValue, label: "Phone" },
-        twitter: { current: twitterHandle, label: "Twitter" },
-        linkedin: { current: linkedinHandle, label: "LinkedIn" },
-        github: { current: githubHandle, label: "GitHub" },
-        instagram: { current: instagramHandle, label: "Instagram" },
-        mastodon: { current: mastodonHandle, label: "Mastodon" },
-        remainingNotes: { current: notes, label: "Notes" },
-      });
-    });
+        // Apply simple string fields if selected
+        if ("displayName" in data && typeof data.displayName === "string") {
+          displayName.set(data.displayName);
+        }
+        if ("givenName" in data && typeof data.givenName === "string") {
+          givenName.set(data.givenName);
+        }
+        if ("familyName" in data && typeof data.familyName === "string") {
+          familyName.set(data.familyName);
+        }
+        if ("nickname" in data && typeof data.nickname === "string") {
+          nickname.set(data.nickname);
+        }
+        if ("pronouns" in data && typeof data.pronouns === "string") {
+          pronouns.set(data.pronouns);
+        }
+        if ("birthday" in data && typeof data.birthday === "string") {
+          birthday.set(data.birthday);
+        }
 
-    // Derive a boolean for whether we have results
-    const hasExtractionResults = computed(() => {
-      return changesPreview.length > 0;
-    });
+        // Handle email (array with first entry)
+        if ("email" in data && typeof data.email === "string") {
+          const currentEmails = emails.get();
+          if (currentEmails.length === 0) {
+            emails.set([{ type: "work", value: data.email as string }]);
+          } else {
+            const updated = [...currentEmails];
+            updated[0] = { ...updated[0], value: data.email as string };
+            emails.set(updated);
+          }
+        }
 
-    // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during recipe discovery when map items change.
-    // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
-    const notesDiffChunks = computed(() => {
-      const t0 = PERF_MEASURE ? Date.now() : 0;
-      const notesChange = changesPreview.find((c) => c.field === "Notes");
-      if (!notesChange || !notesChange.from || !notesChange.to ||
-          notesChange.from === "(empty)" || notesChange.to === "(empty)") {
-        if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: skipped (no diff needed)`);
-        return [];
-      }
-      const result = computeWordDiff(notesChange.from, notesChange.to);
-      if (PERF_MEASURE) console.log(`[PERF] notesDiffChunks: ${Date.now() - t0}ms, ${result.length} chunks`);
-      return result;
+        // Handle phone (array with first entry)
+        if ("phone" in data && typeof data.phone === "string") {
+          const currentPhones = phones.get();
+          if (currentPhones.length === 0) {
+            phones.set([{ type: "mobile", value: data.phone as string }]);
+          } else {
+            const updated = [...currentPhones];
+            updated[0] = { ...updated[0], value: data.phone as string };
+            phones.set(updated);
+          }
+        }
+
+        // Handle social links - lookup by platform and update/add
+        const currentSocials = socialLinks.get();
+        const updatedSocials = [...currentSocials];
+        let socialsChanged = false;
+
+        const updateSocialLink = (platform: SocialPlatform, handle: string) => {
+          const idx = updatedSocials.findIndex((l) => l && l.platform === platform);
+          if (idx >= 0) {
+            updatedSocials[idx] = { platform, handle };
+          } else {
+            updatedSocials.push({ platform, handle });
+          }
+          socialsChanged = true;
+        };
+
+        if ("twitter" in data && typeof data.twitter === "string") {
+          updateSocialLink("twitter", data.twitter);
+        }
+        if ("linkedin" in data && typeof data.linkedin === "string") {
+          updateSocialLink("linkedin", data.linkedin);
+        }
+        if ("github" in data && typeof data.github === "string") {
+          updateSocialLink("github", data.github);
+        }
+        if ("instagram" in data && typeof data.instagram === "string") {
+          updateSocialLink("instagram", data.instagram);
+        }
+        if ("mastodon" in data && typeof data.mastodon === "string") {
+          updateSocialLink("mastodon", data.mastodon);
+        }
+
+        if (socialsChanged) {
+          socialLinks.set(updatedSocials);
+        }
+
+        // Handle remainingNotes -> notes
+        if ("remainingNotes" in data && typeof data.remainingNotes === "string") {
+          notes.set(data.remainingNotes);
+        }
+
+        // Clear the extraction trigger to hide the review panel
+        extractTrigger.set("");
+      },
+    );
+
+    // Handler to cancel extraction (clear trigger)
+    const cancelExtraction = handler<
+      unknown,
+      { extractTrigger: Cell<string> }
+    >((_, { extractTrigger }) => {
+      extractTrigger.set("");
     });
 
     return {
@@ -778,9 +723,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
           </div>
 
           {ifElse(
-            hasExtractionResults,
+            derive(extraction.hasFieldResults, (has) => has || extraction.pending),
             (
-              // Show changes review modal
+              // Show per-field diff review panel from ImportReview
               <ct-vscroll flex showScrollbar>
                 <ct-vstack
                   style={{
@@ -790,154 +735,55 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     margin: "0 auto",
                   }}
                 >
-                  <h3 style={{ margin: 0, fontSize: "16px" }}>Review Extracted Changes</h3>
-                  <p style={{ margin: 0, color: "#666", fontSize: "13px" }}>
-                    The following changes will be applied to your profile:
-                  </p>
+                  {extraction.ui.fieldDiffPanel}
 
-                  <ct-vstack style={{ gap: "6px" }}>
-                    {changesPreview.map((change) => (
-                      <div
-                        style={{
-                          padding: "6px 10px",
-                          background: "#f9fafb",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "4px",
-                        }}
+                  {/* Action buttons */}
+                  {ifElse(
+                    derive(extraction.selectedFieldCount, (count) => count > 0),
+                    <ct-hstack
+                      style={{
+                        gap: "8px",
+                        justifyContent: "flex-end",
+                        marginTop: "12px",
+                      }}
+                    >
+                      <ct-button
+                        onClick={cancelExtraction({ extractTrigger })}
                       >
-                        <ct-vstack style={{ gap: "2px" }}>
-                          <strong style={{ fontSize: "12px" }}>
-                            {change.field}
-                          </strong>
-                          {change.field === "Notes"
-                            ? (
-                              <div
-                                style={{
-                                  fontSize: "11px",
-                                  lineHeight: "1.4",
-                                  wordWrap: "break-word",
-                                }}
-                              >
-                                {change.to === "(empty)"
-                                  ? (
-                                    <div
-                                      style={{
-                                        color: "#dc2626",
-                                        fontStyle: "italic",
-                                      }}
-                                    >
-                                      Notes will be cleared
-                                    </div>
-                                  )
-                                  : change.from === "(empty)"
-                                  ? (
-                                    <div style={{ color: "#16a34a" }}>
-                                      {change.to}
-                                    </div>
-                                  )
-                                  : change.from && change.to
-                                  ? (
-                                    // PERFORMANCE FIX: Use pre-computed notesDiffChunks
-                                    // instead of inline computeWordDiff call
-                                    // This reduces calls from N (one per charm instance) to 1
-                                    notesDiffChunks.map(
-                                      (part) => {
-                                        if (part.type === "removed") {
-                                          return (
-                                            <span
-                                              style={{
-                                                color: "#dc2626",
-                                                textDecoration: "line-through",
-                                                backgroundColor: "#fee",
-                                              }}
-                                            >
-                                              {part.word}
-                                            </span>
-                                          );
-                                        } else if (part.type === "added") {
-                                          return (
-                                            <span
-                                              style={{
-                                                color: "#16a34a",
-                                                backgroundColor: "#efe",
-                                              }}
-                                            >
-                                              {part.word}
-                                            </span>
-                                          );
-                                        } else {
-                                          return <span>{part.word}</span>;
-                                        }
-                                      },
-                                    )
-                                  )
-                                  : (
-                                    <div
-                                      style={{
-                                        color: "#666",
-                                        fontStyle: "italic",
-                                      }}
-                                    >
-                                      (no diff available)
-                                    </div>
-                                  )}
-                              </div>
-                            )
-                            : (
-                              <div
-                                style={{ fontSize: "11px", lineHeight: "1.4" }}
-                              >
-                                <span
-                                  style={{
-                                    color: "#dc2626",
-                                    textDecoration: "line-through",
-                                    marginRight: "6px",
-                                  }}
-                                >
-                                  {change.from}
-                                </span>
-                                <span style={{ color: "#16a34a" }}>
-                                  {change.to}
-                                </span>
-                              </div>
-                            )}
-                        </ct-vstack>
-                      </div>
-                    ))}
-                  </ct-vstack>
-
-                  <ct-hstack
-                    style={{
-                      gap: "8px",
-                      justifyContent: "flex-end",
-                      marginTop: "12px",
-                    }}
-                  >
-                    <ct-button
-                      onClick={cancelExtraction({
-                        extractedData: extractionResult,
-                      })}
+                        Cancel
+                      </ct-button>
+                      <ct-button
+                        onClick={applySelectedExtractedData({
+                          displayName,
+                          givenName,
+                          familyName,
+                          nickname,
+                          pronouns,
+                          emails,
+                          phones,
+                          socialLinks,
+                          birthday,
+                          notes,
+                          extractTrigger,
+                        })}
+                      >
+                        Apply {extraction.selectedFieldCount} Selected Field(s)
+                      </ct-button>
+                    </ct-hstack>,
+                    <ct-hstack
+                      style={{
+                        gap: "8px",
+                        justifyContent: "flex-end",
+                        marginTop: "12px",
+                      }}
                     >
-                      Cancel
-                    </ct-button>
-                    <ct-button
-                      onClick={applyExtractedData({
-                        extractedData: extractionResult,
-                        displayName,
-                        givenName,
-                        familyName,
-                        nickname,
-                        pronouns,
-                        emails,
-                        phones,
-                        socialLinks,
-                        birthday,
-                        notes,
-                      })}
-                    >
-                      Accept Changes
-                    </ct-button>
-                  </ct-hstack>
+                      <ct-button
+                        onClick={cancelExtraction({ extractTrigger })}
+                      >
+                        Cancel
+                      </ct-button>
+                    </ct-hstack>
+                  )}
                 </ct-vstack>
               </ct-vscroll>
             ),
@@ -1260,11 +1106,13 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                   />
                   <ct-button
                     onClick={triggerExtraction({ notes, extractTrigger })}
-                    disabled={extractionPending}
+                    disabled={extraction.pending}
                   >
-                    {extractionPending
-                      ? "Extracting..."
-                      : "Extract Data from Notes"}
+                    {ifElse(
+                      extraction.pending,
+                      "Extracting...",
+                      "Extract Data from Notes"
+                    )}
                   </ct-button>
                 </ct-vstack>
               </ct-autolayout>
