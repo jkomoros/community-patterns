@@ -75,12 +75,10 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   // Pattern: trigger.set(`${text}\n---EXTRACT-${Date.now()}---`)
   trigger?: Cell<Default<string, "">>;
 
-  // Required: JSON schema for extraction
-  schema?: object;
-
-  // Optional: LLM configuration
-  systemPrompt?: string;
-  model?: string;
+  // NOTE: schema/systemPrompt/model are NOT in the interface!
+  // Having optional non-Cell inputs breaks generateObject reactivity.
+  // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
+  // These are configured as constants below instead.
 
   // Optional: Key/label derivation functions
   // These are wrapped with lift() internally for reactivity
@@ -280,28 +278,49 @@ const dismissError = handler<
   trigger.set("");
 });
 
+// Demo: Extract button handler
+// Formats input text with timestamp suffix to trigger LLM extraction
+// Pattern: trigger.set(`${text}\n---EXTRACT-${Date.now()}---`)
+const demoExtract = handler<
+  unknown,
+  { trigger: Cell<string>; inputText: Cell<string> }
+>((_, { trigger, inputText }) => {
+  // Defensive guards
+  if (!trigger || !inputText) return;
+
+  const text = inputText.get() ?? "";
+  if (!text.trim()) return; // Don't trigger on empty text
+
+  // Format with timestamp to bust cache and force new LLM call
+  trigger.set(`${text}\n---EXTRACT-${Date.now()}---`);
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // PATTERN
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
   ({
-    trigger,
-    schema,
-    systemPrompt,
-    model,
+    trigger: triggerInput,
+    // NOTE: schema/systemPrompt/model removed from destructuring
+    // Having optional non-Cell inputs breaks generateObject reactivity
     getKey,
     getLabel,
     existingItems,
     hiddenItemIds,
   }) => {
-    // Defaults
-    const schemaVal = schema ?? DEFAULT_SCHEMA;
-    const systemPromptVal = systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-    const modelVal = model ?? "anthropic:claude-sonnet-4-5";
+    // Use constants directly - NOT from props (that breaks generateObject)
+    // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
+
+    // Use triggerInput directly - framework provides default from schema (Default<string, "">)
+    // Don't create a fallback cell - that breaks reactivity tracking
+    const trigger = triggerInput;
 
     // Internal cell for tracking selected items (separate from hidden)
     const selectedIds = cell<string[]>([]);
+
+    // Demo: Raw input text (before formatting as trigger)
+    const demoInputText = cell<string>("");
 
     // Lift function props for use inside computed()
     // These create reactive functions that work correctly with the CTS transformer
@@ -336,15 +355,20 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // 1. LLM EXTRACTION (only runs when trigger changes)
     // ═══════════════════════════════════════════════════════════════════════
 
+    // Call generateObject at TOP LEVEL (not inside computed/derive)
+    // Pass trigger directly - framework should handle reactivity
+    // NOTE: When trigger is empty, generateObject returns early without LLM call
+    // (see llm.ts:715 - empty prompt check)
+    // IMPORTANT: Use constants directly, NOT from props (optional non-Cell inputs break reactivity)
     const {
       result: extractionResult,
       pending: extractionPending,
       error: extractionError,
     } = generateObject({
-      system: systemPromptVal,
-      prompt: trigger,
-      schema: schemaVal,
-      model: modelVal,
+      system: DEFAULT_SYSTEM_PROMPT,  // Use constant directly
+      prompt: trigger,                 // Pass trigger Cell directly
+      schema: DEFAULT_SCHEMA,          // Use constant directly
+      model: "anthropic:claude-sonnet-4-5",  // Use constant directly
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -688,14 +712,20 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
             {/* Demo: Manual trigger input */}
             <div style={{ marginBottom: "16px" }}>
               <p style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>
-                Enter text and set trigger to test extraction:
+                Enter text and click Extract to test extraction:
               </p>
               <ct-textarea
-                $value={trigger}
-                placeholder="Paste text here then click Extract..."
+                $value={demoInputText}
+                placeholder="Paste text here (e.g., 'Shopping list: apples, bananas, milk')"
                 rows={4}
                 style={{ width: "100%", marginBottom: "8px" }}
               />
+              <ct-button
+                variant="primary"
+                onClick={demoExtract({ trigger, inputText: demoInputText })}
+              >
+                Extract Items
+              </ct-button>
             </div>
 
             {reviewPanel}
@@ -724,6 +754,8 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
                 <div>Selected: {selectedCount}</div>
                 <div>Error: {derive(extractionError, (e) => e ? "Yes" : "No")}</div>
                 <div>Triggered: {derive(hasTriggered, (t) => String(t))}</div>
+                <div>Trigger Length: {derive(trigger, (t: string) => String(t?.length ?? 0))}</div>
+                <div>Trigger Val: {derive(trigger, (t: string) => t ? t.substring(0, 30) + "..." : "(empty)")}</div>
               </div>
             </div>
           </div>
