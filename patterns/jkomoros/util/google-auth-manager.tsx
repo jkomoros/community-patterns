@@ -421,116 +421,63 @@ export function useGoogleAuth(options: UseGoogleAuthOptions = {}) {
       );
     }
 
-    // Needs login state
-    if (info.state === "needs-login") {
-      return (
-        <div
-          style={{
-            padding: "16px",
-            backgroundColor: "#fee2e2",
-            borderRadius: "8px",
-            border: "1px solid #ef4444",
-          }}
-        >
-          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
-            Sign In Required
-          </h4>
-          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
-            Please sign in to your Google Auth charm.
-          </p>
-          <button
-            onClick={goToAuth({ charm: computed(() => info.charm) })}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "500",
-            }}
-          >
-            Go to Google Auth
-          </button>
-        </div>
-      );
-    }
+    // States where auth exists but needs user action - render charm UI inline
+    // This lets users fix auth issues without navigating away from the current pattern
+    if (info.state === "needs-login" || info.state === "missing-scopes" || info.state === "token-expired") {
+      // Warning messages and colors per state
+      const stateConfig = {
+        "needs-login": {
+          title: "Sign In Required",
+          message: "Please sign in to continue",
+          bgColor: "#fee2e2",
+          borderColor: "#ef4444",
+          titleColor: "#dc2626",
+        },
+        "missing-scopes": {
+          title: "Additional Permissions Needed",
+          message: `Signed in as ${info.email}, but missing: ${info.missingScopes.map((k) => SCOPE_DESCRIPTIONS[k as ScopeKey]).join(", ")}`,
+          bgColor: "#ffedd5",
+          borderColor: "#f97316",
+          titleColor: "#c2410c",
+        },
+        "token-expired": {
+          title: "Session Expired",
+          message: "Your Google session has expired. Please re-authenticate below.",
+          bgColor: "#fee2e2",
+          borderColor: "#ef4444",
+          titleColor: "#dc2626",
+        },
+      };
 
-    // Missing scopes state
-    if (info.state === "missing-scopes") {
-      const missingNames = info.missingScopes
-        .map((k) => SCOPE_DESCRIPTIONS[k as ScopeKey])
-        .join(", ");
+      const config = stateConfig[info.state as "needs-login" | "missing-scopes" | "token-expired"];
 
       return (
         <div
           style={{
-            padding: "16px",
-            backgroundColor: "#ffedd5",
             borderRadius: "8px",
-            border: "1px solid #f97316",
+            border: `1px solid ${config.borderColor}`,
+            overflow: "hidden",
           }}
         >
-          <h4 style={{ margin: "0 0 8px 0", color: "#c2410c" }}>
-            Additional Permissions Needed
-          </h4>
-          <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}>
-            Signed in as <strong>{info.email}</strong>, but missing:
-          </p>
-          <ul style={{ margin: "0 0 12px 0", paddingLeft: "20px", fontSize: "14px" }}>
-            {info.missingScopes.map((scope) => (
-              <li key={scope}>{SCOPE_DESCRIPTIONS[scope as ScopeKey]}</li>
-            ))}
-          </ul>
-          <button
-            onClick={goToAuth({ charm: computed(() => info.charm) })}
+          {/* Warning banner */}
+          <div
             style={{
-              padding: "8px 16px",
-              backgroundColor: "#f97316",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "500",
+              padding: "12px 16px",
+              backgroundColor: config.bgColor,
+              borderBottom: `1px solid ${config.borderColor}`,
             }}
           >
-            Update Permissions
-          </button>
-        </div>
-      );
-    }
-
-    // Token expired state
-    if (info.state === "token-expired") {
-      return (
-        <div
-          style={{
-            padding: "16px",
-            backgroundColor: "#fee2e2",
-            borderRadius: "8px",
-            border: "1px solid #ef4444",
-          }}
-        >
-          <h4 style={{ margin: "0 0 8px 0", color: "#dc2626" }}>
-            Session Expired
-          </h4>
-          <p style={{ margin: "0 0 12px 0", fontSize: "14px" }}>
-            Your Google session has expired. Please re-authenticate.
-          </p>
-          <button
-            onClick={goToAuth({ charm: computed(() => info.charm) })}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#ef4444",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "500",
-            }}
-          >
-            Re-authenticate
-          </button>
+            <h4 style={{ margin: "0 0 4px 0", color: config.titleColor, fontSize: "14px" }}>
+              {config.title}
+            </h4>
+            <p style={{ margin: "0", fontSize: "13px", color: "#666" }}>
+              {config.message}
+            </p>
+          </div>
+          {/* Inline auth charm UI - framework auto-renders [UI] property */}
+          <div style={{ backgroundColor: "white" }}>
+            {wishResult.result}
+          </div>
         </div>
       );
     }
