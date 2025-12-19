@@ -65,6 +65,7 @@ const storeNotesCharm = lift(
     if (!isInitialized.get()) {
       subCharms.set([{ type: "notes", pinned: true, charm: notesCharm }]);
       isInitialized.set(true);
+      return notesCharm; // Return charm to match reference pattern
     }
   }
 );
