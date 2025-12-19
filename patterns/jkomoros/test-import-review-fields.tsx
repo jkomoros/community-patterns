@@ -16,7 +16,7 @@ import {
   pattern,
   UI,
 } from "commontools";
-import ImportReview from "./lib/import-review.tsx";
+import ImportReview, { buildFieldMappingSchema } from "./lib/import-review.tsx";
 
 interface TestInput {
   trigger?: Cell<Default<string, "">>;
@@ -34,20 +34,36 @@ const triggerExtract = handler<
 });
 
 export default pattern<TestInput, {}>((props) => {
-  const { trigger } = props;
+  // Create internal trigger cell (don't rely on props for this test pattern)
+  const trigger = cell<string>("");
 
   // Current values (simulating existing person data)
-  const displayName = cell<string>("John Doe");
-  const email = cell<string>("john@example.com");
-  const phone = cell<string>("555-1234");
-  const notes = cell<string>("");
+  const displayName = cell<string>("Sarah Chen");
+  const email = cell<string>("sarah.chen@acme.io");
+  const phone = cell<string>("(415) 555-0142");
+  const notes = cell<string>("Product manager at Acme Corp. Met at TechCrunch Disrupt 2024. Interested in AI integrations.");
 
   // Input text for extraction
   const inputText = cell<string>("");
 
+  // Build schema from fieldMappings using helper
+  const fieldsSchema = Cell.of(buildFieldMappingSchema([
+    { key: "displayName", label: "Display Name" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "notes", label: "Notes" },
+  ]));
+
+  const fieldsSystemPrompt = Cell.of(
+    "Extract person contact information from the text. " +
+    "Return displayName (full name), email, phone, and notes (any other relevant info)."
+  );
+
   // Create ImportReview with fieldMappings
   const extraction = ImportReview({
     trigger,
+    schema: fieldsSchema,
+    systemPrompt: fieldsSystemPrompt,
     fieldMappings: [
       { key: "displayName", label: "Display Name", currentValue: displayName },
       { key: "email", label: "Email", currentValue: email },
@@ -56,13 +72,9 @@ export default pattern<TestInput, {}>((props) => {
     ],
   });
 
-  // Store reference to getSelectedFieldValues function
-  // NOTE: CTS transformer wraps functions returned from sub-patterns,
-  // so we need to cast to bypass TypeScript checking
-  const getSelectedFieldValues = extraction.getSelectedFieldValues as unknown as () => Record<string, unknown>;
-
-  // Create apply handler inside pattern to capture extraction closure
-  // (handler closures work, but passing functions through handler args doesn't)
+  // Create apply handler that uses the reactive Cell version of selected values
+  // NOTE: Functions from sub-patterns don't work due to OpaqueRef wrapping,
+  // but computed() values can be passed as handler params and read directly
   const applySelectedFields = handler<
     unknown,
     {
@@ -70,10 +82,12 @@ export default pattern<TestInput, {}>((props) => {
       email: Cell<string>;
       phone: Cell<string>;
       notes: Cell<string>;
+      selectedValues: Record<string, unknown>;  // computed() returns value, not Cell
+      trigger: Cell<string>;
     }
   >((_, ctx) => {
-    // Call getSelectedFieldValues from closure
-    const selected = getSelectedFieldValues();
+    // Read directly - computed() values are already unwrapped
+    const selected = ctx.selectedValues ?? {};
     console.log("Applying selected fields:", selected);
 
     // Apply each selected field
@@ -89,6 +103,9 @@ export default pattern<TestInput, {}>((props) => {
     if ("notes" in selected && typeof selected.notes === "string") {
       ctx.notes.set(selected.notes);
     }
+
+    // Clear trigger to reset extraction state and hide the panel
+    ctx.trigger.set("");
   });
 
   return {
@@ -96,9 +113,9 @@ export default pattern<TestInput, {}>((props) => {
     [UI]: (
       <ct-screen style={{ backgroundColor: "white", fontFamily: "system-ui, sans-serif" }}>
         <div style={{ padding: "16px", maxWidth: "600px", margin: "0 auto" }}>
-          <h1 style={{ margin: "0 0 8px 0" }}>ImportReview Field Mode Test</h1>
+          <h1 style={{ margin: "0 0 8px 0" }}>Contact Update Review</h1>
           <p style={{ color: "#666", margin: "0 0 16px 0" }}>
-            Test per-field diff mode with fieldMappings.
+            Paste updated contact info below to extract and review changes before applying.
           </p>
 
           {/* Current values display */}
@@ -122,11 +139,11 @@ export default pattern<TestInput, {}>((props) => {
           {/* Input area */}
           <div style={{ marginBottom: "16px" }}>
             <p style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>
-              Enter text with updated info (e.g., "Updated: Jane Smith, jane@company.com, 555-9999, Prefers morning calls"):
+              Paste updated info from email, LinkedIn, business card, etc:
             </p>
             <ct-textarea
               $value={inputText}
-              placeholder="Paste text with person info to extract..."
+              placeholder="e.g. Sarah just got promoted! Her new title is VP of Product and her new email is sarah.chen@acme.com. She's now based in NYC at (212) 555-8900."
               rows={4}
               style={{ width: "100%", marginBottom: "8px" }}
             />
@@ -140,7 +157,10 @@ export default pattern<TestInput, {}>((props) => {
 
           {/* Field diff panel from ImportReview */}
           {ifElse(
-            derive(extraction.hasFieldResults, (has) => has || extraction.pending),
+            derive(
+              extraction.hasFieldResults,
+              (has) => has || extraction.pending || extraction.showFieldEmptyState
+            ),
             extraction.ui.fieldDiffPanel,
             null
           )}
@@ -156,6 +176,8 @@ export default pattern<TestInput, {}>((props) => {
                   email,
                   phone,
                   notes,
+                  selectedValues: extraction.selectedFieldValues,
+                  trigger,
                 })}
               >
                 Apply {extraction.selectedFieldCount} Selected Field(s)

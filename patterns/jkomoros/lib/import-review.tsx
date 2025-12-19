@@ -56,9 +56,8 @@ import {
  *   // Handlers are flattened (not extraction.handlers.*):
  *   <ct-button onClick={extraction.selectAll}>Select All</ct-button>
  *
- *   // In commit handler - use getSelectedItems() or selectedItems:
- *   const selected = extraction.getSelectedItems();
- *   // Or for reactive usage: extraction.selectedItems
+ *   // In commit handler - pass selectedItems as Cell param and call .get()
+ *   // See person.tsx applySelectedExtractedData for the correct pattern
  */
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -110,15 +109,34 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
   // Internal state (persisted)
   hiddenItemIds?: Cell<Default<string[], []>>; // Track "dismissed" items
 
-  // Per-field diff mode (person.tsx use case)
-  // When provided, enables field-diff UI (fieldDiffPanel).
-  // Used ONLY for UI rendering inside computed(), not for schema building.
-  // NOTE: Due to OpaqueRef wrapping, you cannot iterate this array outside computed().
+  /**
+   * Per-field diff mode (person.tsx use case).
+   * When provided, enables field-diff UI (fieldDiffPanel).
+   *
+   * REQUIRED: When using fieldMappings, you MUST also provide:
+   * - `schema`: Cell<object> - JSON schema with properties matching fieldMappings keys
+   * - `systemPrompt`: Cell<string> - LLM instructions for extraction
+   *
+   * Or use `buildFieldMappingSchema(fieldMappings)` helper to auto-generate schema.
+   *
+   * NOTE: Due to OpaqueRef wrapping, you cannot iterate this array outside computed().
+   *
+   * @see person.tsx for correct usage example
+   * @see buildFieldMappingSchema for convenience helper
+   */
   fieldMappings?: FieldMapping[];
 
-  // ID-matching merge mode (food-recipe.tsx timing/wait-time use case)
-  // When provided, enables merge-diff UI (mergeDiffPanel).
-  // Used for updating existing items by ID (e.g., update timing fields on step groups)
+  /**
+   * ID-matching merge mode (food-recipe.tsx timing/wait-time use case).
+   * When provided, enables merge-diff UI (mergeDiffPanel).
+   * Used for updating existing items by ID (e.g., update timing fields on step groups).
+   *
+   * REQUIRED: When using mergeFieldMappings, you MUST also provide:
+   * - `schema`: Cell<object> - JSON schema for extraction
+   * - `systemPrompt`: Cell<string> - LLM instructions for extraction
+   *
+   * @see food-recipe.tsx timingReview for correct usage example
+   */
   mergeFieldMappings?: MergeFieldMapping[];
 }
 
@@ -138,7 +156,7 @@ interface ProcessedFieldDiff {
   extractedValue: string;         // Value from LLM extraction (or count message for arrays)
   hasChanged: boolean;            // currentValue !== extractedValue
   selected: boolean;              // Current selection state
-  _rawValue?: unknown[];          // For array fields: the raw array for getSelectedFieldValues()
+  _rawValue?: unknown[];          // For array fields: the raw array for selectedFieldValues Cell
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -196,21 +214,29 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   error: unknown;
   hasResults: boolean;
   hasFieldResults: boolean;  // For field-diff mode
+  showFieldEmptyState: boolean;  // True when extraction completed with no changes
   itemCount: number;
   selectedCount: number;
 
-  // Reactive selection array - use in JSX/computed for live updates
+  /**
+   * Reactive selection array - use in JSX/computed for live updates.
+   *
+   * In handlers, pass as a Cell param and call .get().
+   * See person.tsx applySelectedExtractedData for correct pattern.
+   */
   selectedItems: T[];
-
-  // Selection helper function (backward compatibility - use in handlers)
-  getSelectedItems: () => T[];
 
   // Per-field diff mode outputs
   fieldDiffCount: number;                           // Number of changed fields
   selectedFieldCount: number;                       // Number of selected fields
   selectedFieldKeys: string[];                      // Keys of selected fields (reactive)
-  getSelectedFieldValues: () => Record<string, unknown>;  // Returns selected field values
-  selectedFieldValues: Record<string, unknown>;     // Reactive Cell version - pass to handler params
+  /**
+   * Reactive Cell of selected field values - use in JSX/computed.
+   *
+   * In handlers, pass as a Cell param and call .get().
+   * See person.tsx applySelectedExtractedData for correct pattern.
+   */
+  selectedFieldValues: Record<string, unknown>;
 
   // Handlers (flattened - following chatbot.tsx pattern)
   // NOTE: trigger/hiddenItemIds are NOT exposed here - parent already has them as inputs
@@ -228,8 +254,13 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   hasMergeResults: boolean;                              // Has merge items to show
   mergeItemCount: number;                                // Number of items with changes
   selectedMergeFieldCount: number;                       // Number of selected merge fields
-  selectedMergeValues: Record<string, unknown>[];        // Reactive: selected values per item
-  getSelectedMergeValues: () => Record<string, unknown>[]; // Returns selected merge values
+  /**
+   * Reactive Cell of selected merge values - use in JSX/computed.
+   *
+   * In handlers, pass as a Cell param and call .get().
+   * See food-recipe.tsx applyTimingExtraction for correct pattern.
+   */
+  selectedMergeValues: Record<string, unknown>[];
 
   // Merge mode handlers
   selectAllMergeFields: () => void;
@@ -288,6 +319,57 @@ const DEFAULT_SCHEMA = {
   },
   required: ["items"],
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORTED HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Build a JSON schema from FieldMapping array.
+ * Convenience helper for field-diff mode when you don't need custom descriptions.
+ *
+ * @example
+ * const schema = Cell.of(buildFieldMappingSchema([
+ *   { key: "name", label: "Name" },
+ *   { key: "email", label: "Email" },
+ *   { key: "tags", label: "Tags", isArray: true },
+ * ]));
+ *
+ * const extraction = ImportReview({
+ *   trigger,
+ *   schema,
+ *   systemPrompt: Cell.of("Extract contact info..."),
+ *   fieldMappings: [...]
+ * });
+ */
+export function buildFieldMappingSchema(
+  mappings: Array<{ key: string; label: string; isArray?: boolean }>
+): object {
+  const properties: Record<string, object> = {};
+  const required: string[] = [];
+
+  for (const mapping of mappings) {
+    if (mapping.isArray) {
+      properties[mapping.key] = {
+        type: "array",
+        items: { type: "string" },
+        description: mapping.label,
+      };
+    } else {
+      properties[mapping.key] = {
+        type: "string",
+        description: mapping.label,
+      };
+    }
+    required.push(mapping.key);
+  }
+
+  return {
+    type: "object",
+    properties,
+    required,
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
@@ -582,6 +664,26 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Use constants directly - NOT from props (that breaks generateObject)
     // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DEFENSIVE VALIDATION: Warn about common misconfigurations
+    // ═══════════════════════════════════════════════════════════════════════
+    if (fieldMappings && !schemaInput) {
+      console.warn(
+        "[ImportReview] fieldMappings provided without schema. " +
+        "This will use DEFAULT_SCHEMA which expects { items: [...] }, " +
+        "but your fieldMappings expect a flat object { field1, field2, ... }. " +
+        "Either provide schema: Cell.of({...}) or use buildFieldMappingSchema(fieldMappings). " +
+        "See person.tsx for correct usage."
+      );
+    }
+    if (mergeFieldMappings && !schemaInput) {
+      console.warn(
+        "[ImportReview] mergeFieldMappings provided without schema. " +
+        "Provide schema: Cell.of({...}) for correct extraction. " +
+        "See food-recipe.tsx timingReview for correct usage."
+      );
+    }
+
     // Use triggerInput directly - framework provides default from schema (Default<string, "">)
     // Don't create a fallback cell - that breaks reactivity tracking
     const trigger = triggerInput;
@@ -803,7 +905,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
             extractedValue: `${arrayCount} ${arrayCountLabel} will be added`,
             hasChanged: true,  // Always "changed" if there are items
             selected: selected.includes(fieldKey),
-            // Store the raw array for getSelectedFieldValues()
+            // Store the raw array for selectedFieldValues Cell
             _rawValue: extractedArray,
           } as ProcessedFieldDiff);
           continue;
@@ -1112,35 +1214,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         .map((item) => item.item);
     });
 
-    // Called from parent's commit handler (backward compatibility)
-    const getSelectedItems = () => {
-      const selected = selectedIds.get() ?? [];
-      return visibleItems
-        .filter((item) => selected.includes(item.key))
-        .map((item) => item.item);
-    };
-
-    // Get selected field values (for field-diff mode)
-    // Returns an object with only the selected fields' extracted values
-    const getSelectedFieldValues = (): Record<string, unknown> => {
-      const selected = selectedFieldKeys.get() ?? [];
-      const result = extractionResult;
-
-      // Guard: no result or not an object
-      if (!result || typeof result !== "object") return {};
-
-      const extractedData = result as Record<string, unknown>;
-      const selectedValues: Record<string, unknown> = {};
-
-      for (const key of selected) {
-        if (key in extractedData) {
-          selectedValues[key] = extractedData[key];
-        }
-      }
-
-      return selectedValues;
-    };
-
     // Computed Cell version of selected field values
     // This is needed because handlers can't call functions captured via closure
     // due to OpaqueRef wrapping. Cells can be passed as handler params and read with .get()
@@ -1168,62 +1241,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       return selectedFieldKeys.get() ?? [];
     });
 
-    // Get selected merge values (for merge mode)
-    // Returns an array of objects, each containing ID + selected field values
-    // Example: [{ id: "prep-123", nightsBeforeServing: undefined, minutesBeforeServing: 120 }, ...]
-    const getSelectedMergeValues = (): Record<string, unknown>[] => {
-      const selectedKeys = selectedMergeKeys.get() ?? [];
-      const result = extractionResult;
-
-      // Guard: no result or not an object
-      if (!result || typeof result !== "object") return [];
-
-      // Get merge field mappings
-      const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
-      if (!mfmArray || mfmArray.length === 0) return [];
-
-      const extractedData = result as Record<string, unknown>;
-      const mergeValues: Record<string, unknown>[] = [];
-
-      // Process each merge field mapping
-      for (const mapping of mfmArray) {
-        const arrayKey = mapping.key;
-        const idField = mapping.idField;
-
-        // Get extracted array from result
-        const extractedArray = extractedData[arrayKey];
-        if (!extractedArray || !Array.isArray(extractedArray)) continue;
-
-        // Process each extracted item
-        for (const extractedItem of extractedArray) {
-          const extractedObj = extractedItem as Record<string, unknown>;
-          const itemId = String(extractedObj[idField] ?? "");
-          if (!itemId) continue;
-
-          // Build object with ID + selected fields only
-          const itemValues: Record<string, unknown> = { [idField]: itemId };
-          let hasSelectedFields = false;
-
-          for (const field of mapping.mergeFields) {
-            const selectionKey = `${itemId}:${field.key}`;
-            if (selectedKeys.includes(selectionKey)) {
-              itemValues[field.key] = extractedObj[field.key];
-              hasSelectedFields = true;
-            }
-          }
-
-          // Only include item if it has selected fields
-          if (hasSelectedFields) {
-            mergeValues.push(itemValues);
-          }
-        }
-      }
-
-      return mergeValues;
-    };
-
     // Computed Cell version of selected merge values
-    // This is needed because handlers can't call functions captured via closure
     const selectedMergeValuesCell = computed(() => {
       const selectedKeys = selectedMergeKeys.get() ?? [];
       const result = extractionResult;
@@ -1288,7 +1306,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           borderRadius: "8px",
         }}
       >
-        <div style={{ fontSize: "24px", marginBottom: "8px" }}>⏳</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "8px" }}>
+          <ct-loader size="md" show-elapsed></ct-loader>
+        </div>
         <p style={{ margin: 0, color: "#0369a1" }}>Extracting data...</p>
       </div>
     );
@@ -1439,6 +1459,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Pre-bind field selection handlers OUTSIDE JSX
     const boundSelectAllFields = selectAllFieldsHandler({ selectedFieldKeys, allChangedFieldKeys });
     const boundSelectNoFields = selectNoFieldsHandler({ selectedFieldKeys });
+    const boundClearTrigger = clearTrigger({ trigger });
 
     const reviewPanel = (
       <div
@@ -1527,6 +1548,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       </div>
     );
 
+    // Use derive() to wrap .map() directly in JSX - this works because:
+    // 1. derive() creates proper reactive frame context for Cell access
+    // 2. .map() happens in JSX, not inside computed() returning JSX (which doesn't render)
+    // Per folk_wisdom 2025-12-14-checkbox-toggle-in-computed-map.md
     const fieldDiffList = (
       <div
         style={{
@@ -1535,61 +1560,66 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           overflow: "hidden",
         }}
       >
-        {fieldDiffs.map((fieldDiff) => (
-          <div
-            key={fieldDiff.key}
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              padding: "12px",
-              borderBottom: "1px solid #eee",
-              backgroundColor: "transparent",
-            }}
-          >
-            <ct-checkbox
-              checked={fieldDiff.selected}
-              onClick={toggleFieldSelectionHandler({
-                selectedFieldKeys,
-                fieldKey: fieldDiff.key,
-              })}
-              style={{ marginRight: "12px", marginTop: "2px" }}
-            />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, marginBottom: "4px" }}>
-                {fieldDiff.label}
-              </div>
-              <div style={{ fontSize: "14px" }}>
-                {/* Current value with strikethrough red (only for scalar fields) */}
-                {fieldDiff.currentValue && (
-                  <span
-                    style={{
-                      textDecoration: "line-through",
-                      color: "#dc2626",
-                      marginRight: "8px",
-                    }}
-                  >
-                    {fieldDiff.currentValue}
-                  </span>
-                )}
-                {/* Arrow separator (only for scalar fields with current value) */}
-                {fieldDiff.currentValue && (
-                  <span style={{ color: "#666", marginRight: "8px" }}>→</span>
-                )}
-                {/* Extracted value with green highlight */}
-                <span
+        {derive(
+          { fieldDiffs, selectedFieldKeys },
+          ({ fieldDiffs: diffs, selectedFieldKeys: sel }) =>
+            (diffs as ProcessedFieldDiff[]).map(
+              (fieldDiff: ProcessedFieldDiff, idx: number) => (
+                <div
+                  key={idx}
                   style={{
-                    backgroundColor: "#dcfce7",
-                    color: "#166534",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    padding: "12px",
+                    borderBottom: "1px solid #eee",
+                    backgroundColor: "transparent",
                   }}
                 >
-                  {fieldDiff.extractedValue || "(empty)"}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
+                  <ct-checkbox
+                    checked={fieldDiff.selected}
+                    onct-change={toggleFieldSelectionHandler({
+                      selectedFieldKeys: sel,
+                      fieldKey: fieldDiff.key,
+                    })}
+                    style={{ marginRight: "12px", marginTop: "2px" }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, marginBottom: "4px" }}>
+                      {fieldDiff.label}
+                    </div>
+                    <div style={{ fontSize: "14px" }}>
+                      {fieldDiff.currentValue && (
+                        <span
+                          style={{
+                            textDecoration: "line-through",
+                            color: "#dc2626",
+                            marginRight: "8px",
+                          }}
+                        >
+                          {fieldDiff.currentValue}
+                        </span>
+                      )}
+                      {fieldDiff.currentValue && (
+                        <span style={{ color: "#666", marginRight: "8px" }}>
+                          →
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          backgroundColor: "#dcfce7",
+                          color: "#166534",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        {fieldDiff.extractedValue || "(empty)"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )
+            )
+        )}
       </div>
     );
 
@@ -1611,6 +1641,13 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           }}
         >
           <h3 style={{ margin: 0, fontSize: "16px" }}>Review Field Changes</h3>
+          <ct-button
+            variant="secondary"
+            size="sm"
+            onClick={boundClearTrigger}
+          >
+            Dismiss
+          </ct-button>
         </div>
 
         {ifElse(extractionPending, loadingState, null)}
@@ -2007,21 +2044,18 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       error: extractionError,
       hasResults,
       hasFieldResults,
+      showFieldEmptyState,
       itemCount,
       selectedCount,
 
       // Reactive selection array - use in JSX/computed
       selectedItems,
 
-      // Selection helper function (backward compat - use in handlers)
-      getSelectedItems,
-
       // Per-field diff mode outputs
       fieldDiffCount,
       selectedFieldCount,
       selectedFieldKeys: selectedFieldKeysComputed,
-      getSelectedFieldValues,
-      selectedFieldValues: selectedFieldValuesCell, // Reactive Cell version for handler params
+      selectedFieldValues: selectedFieldValuesCell,
 
       // Flattened handlers (following chatbot.tsx pattern)
       // NOTE: trigger/hiddenItemIds NOT exposed - parent already has them as inputs
@@ -2040,7 +2074,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       mergeItemCount,
       selectedMergeFieldCount,
       selectedMergeValues: selectedMergeValuesCell,
-      getSelectedMergeValues,
 
       // Merge mode handlers
       selectAllMergeFields: boundSelectAllMergeFields,
