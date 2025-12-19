@@ -807,15 +807,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // This inverted logic provides "default all selected" behavior
     const deselectedFieldKeys = cell<string[]>([]);
 
-    // Internal cell for tracking field value SNAPSHOTS at extraction time
-    // Maps fieldKey -> value at time of extraction
-    // This is separate from fieldDiffs computed() to avoid re-snapshotting on recompute
-    const fieldValueSnapshots = cell<Record<string, string>>({});
-
-    // Track the extraction result that we've snapshotted for
-    // This lets us detect when a NEW extraction has occurred
-    const lastSnapshotResultId = cell<string>("");
-
     // Internal cell for tracking selected merge fields (merge mode)
     // Format: ["itemId:fieldKey", "itemId:fieldKey", ...]
     const selectedMergeKeys = cell<string[]>([]);
@@ -983,10 +974,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const pending = extractionPending;
       const hasItems = visibleItems.length > 0;
       const hasError = !!extractionError;
-      // Guard: Don't show empty state if result hasn't arrived yet
-      // This prevents flash when pending=false but derived values are stale
-      const result = extractionResult;
-      if (!result || typeof result !== "object") return false;
       return triggered && !pending && !hasItems && !hasError;
     });
 
@@ -1011,37 +998,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
       // Guard: no result or not an object
       if (!result || typeof result !== "object") return [];
-
-      // Detect NEW extractions using trigger value as stable ID
-      // The trigger includes a unique timestamp from Date.now(), making it stable and deterministic
-      // This is idiomatic: check-before-write pattern with a stable key
-      const triggerId = trigger.get() ?? "";
-      const lastId = lastSnapshotResultId.get();
-      const isNewExtraction = triggerId !== "" && triggerId !== lastId;
-
-      // If this is a NEW extraction, capture field value snapshots
-      // This is an idempotent side effect: same triggerId = same snapshots = no re-set
-      if (isNewExtraction) {
-        const snapshots: Record<string, string> = {};
-        for (const mapping of fmArray) {
-          const fieldKey = mapping.key;
-          const fieldCurrentInput = mapping.currentValue;
-          // Resolve currentValue - could be Cell or string
-          let resolvedValue: string;
-          if (fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput) {
-            resolvedValue = (fieldCurrentInput as Cell<string>).get() ?? "";
-          } else {
-            resolvedValue = (fieldCurrentInput as string) ?? "";
-          }
-          snapshots[fieldKey] = resolvedValue;
-        }
-        // Store snapshots and trigger ID (idempotent - only runs once per unique triggerId)
-        fieldValueSnapshots.set(snapshots);
-        lastSnapshotResultId.set(triggerId);
-      }
-
-      // Get the stored snapshots (either just set above, or from previous extraction)
-      const snapshots = fieldValueSnapshots.get() ?? {};
 
       // Extract result as a flat object (for field access)
       const extractedData = result as Record<string, unknown>;
@@ -1134,10 +1090,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         // Check if fieldCurrentInput is a Cell for staleness tracking
         const isCell = fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput;
 
-        // Get the snapshot value from when extraction first happened
-        // This is stored in fieldValueSnapshots cell, NOT re-read from the Cell
-        const snapshotValue = snapshots[fieldKey] ?? "";
-
         processed.push({
           key: fieldKey,
           label: fieldLabel,
@@ -1153,7 +1105,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           _combinedValue: combinedValue,
           // Staleness tracking - store Cell ref and snapshot for later comparison
           _currentValueCell: isCell ? (fieldCurrentInput as Cell<string>) : undefined,
-          _snapshotValue: snapshotValue,
+          _snapshotValue: resolvedCurrentValue,
         });
       }
 
@@ -1196,10 +1148,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Use .length check instead (OpaqueRef proxies array-like behavior)
       const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
       const hasFieldMappingsCheck = fmArray && fmArray.length > 0;
-      // Guard: Don't show empty state if result hasn't arrived yet
-      // This prevents flash when pending=false but fieldDiffs is stale
-      const result = extractionResult;
-      if (!result || typeof result !== "object") return false;
       return hasFieldMappingsCheck && triggered && !pending && !hasFields && !hasError;
     });
 
@@ -1373,10 +1321,6 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Only show if mergeFieldMappings is provided
       const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
       const hasMergeFieldMappingsCheck = mfmArray && mfmArray.length > 0;
-      // Guard: Don't show empty state if result hasn't arrived yet
-      // This prevents flash when pending=false but mergeDiffs is stale
-      const result = extractionResult;
-      if (!result || typeof result !== "object") return false;
       return hasMergeFieldMappingsCheck && triggered && !pending && !hasMerge && !hasError;
     });
 
