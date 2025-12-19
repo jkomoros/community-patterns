@@ -61,23 +61,21 @@ interface RecordOutput {
 // so it can modify the parent's subCharms list when a template is selected.
 
 // Inner lift: stores the initial charms (receives charms as input)
-// Only runs if subCharms is truly empty (not just on reload)
 const storeInitialCharms = lift(
   toSchema<{
     notesCharm: unknown;
     typePickerCharm: unknown;
     subCharms: Cell<SubCharmEntry[]>;
+    isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ notesCharm, typePickerCharm, subCharms }) => {
-    // Double-check subCharms is empty before setting
-    // This prevents re-initialization on reload
-    const current = subCharms.get() || [];
-    if (current.length === 0) {
+  ({ notesCharm, typePickerCharm, subCharms, isInitialized }) => {
+    if (!isInitialized.get()) {
       subCharms.set([
         { type: "notes", pinned: true, charm: notesCharm },
         { type: "type-picker", pinned: false, charm: typePickerCharm },
       ]);
+      isInitialized.set(true);
       return notesCharm; // Return notes charm as primary reference
     }
   }
@@ -85,16 +83,15 @@ const storeInitialCharms = lift(
 
 // Outer lift: checks if empty, creates charms, calls inner lift
 // TypePicker receives parent Cells so it can modify subCharms when template selected
-// Note: We check currentCharms (unwrapped value) to determine if we should initialize
 const initializeRecord = lift(
   toSchema<{
     currentCharms: SubCharmEntry[];  // Unwrapped value, not Cell
     subCharms: Cell<SubCharmEntry[]>;
     trashedSubCharms: Cell<TrashedSubCharmEntry[]>;
+    isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ currentCharms, subCharms, trashedSubCharms }) => {
-    // Only initialize if truly empty (no existing modules)
+  ({ currentCharms, subCharms, trashedSubCharms, isInitialized }) => {
     if ((currentCharms || []).length === 0) {
       const notesCharm = createSubCharm("notes");
       // TypePicker receives parent Cells as input (survives serialization)
@@ -103,7 +100,7 @@ const initializeRecord = lift(
         parentSubCharms: subCharms,
         parentTrashedSubCharms: trashedSubCharms,
       } as any);
-      return storeInitialCharms({ notesCharm, typePickerCharm, subCharms });
+      return storeInitialCharms({ notesCharm, typePickerCharm, subCharms, isInitialized });
     }
   }
 );
@@ -121,77 +118,6 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
     icon: def?.icon || "📋",
     label: def?.label || type,
   };
-});
-
-// Inner lift for charm repair: stores the repaired entries
-const storeRepairedCharms = lift(
-  toSchema<{
-    repairedEntries: SubCharmEntry[];
-    subCharms: Cell<SubCharmEntry[]>;
-  }>(),
-  undefined,
-  ({ repairedEntries, subCharms }) => {
-    // Only update if we actually have repaired entries
-    if (repairedEntries && repairedEntries.length > 0) {
-      subCharms.set(repairedEntries);
-    }
-  }
-);
-
-// Lift to repair charm instances after server restart (two-lift pattern)
-// This runs once at startup and recreates any missing charm instances
-const repairCharmInstances = lift(
-  toSchema<{
-    currentCharms: SubCharmEntry[];
-    subCharms: Cell<SubCharmEntry[]>;
-    trashedSubCharms: Cell<TrashedSubCharmEntry[]>;
-  }>(),
-  undefined,
-  ({ currentCharms, subCharms, trashedSubCharms }) => {
-    if (!currentCharms || currentCharms.length === 0) return;
-
-    // Check if any charms need repair (missing UI symbol)
-    // deno-lint-ignore no-explicit-any
-    const needsRepair = currentCharms.some((e: SubCharmEntry) => e?.type && !(e?.charm as any)?.[UI]);
-    if (!needsRepair) return;
-
-    // Repair each entry
-    const repairedEntries = currentCharms.map((entry: SubCharmEntry) => {
-      // Skip if charm already has UI
-      // deno-lint-ignore no-explicit-any
-      if (entry?.charm && (entry.charm as any)?.[UI]) {
-        return entry;
-      }
-      if (!entry?.type) return entry;
-
-      // Type-picker needs parent Cells
-      if (entry.type === "type-picker") {
-        // deno-lint-ignore no-explicit-any
-        const newCharm = TypePickerModule({
-          parentSubCharms: subCharms,
-          parentTrashedSubCharms: trashedSubCharms,
-        } as any);
-        return { ...entry, charm: newCharm };
-      }
-
-      // Regular modules - recreate from registry
-      try {
-        const newCharm = createSubCharm(entry.type);
-        return { ...entry, charm: newCharm };
-      } catch {
-        return entry;
-      }
-    });
-
-    // Store repaired entries using inner lift (two-lift pattern)
-    return storeRepairedCharms({ repairedEntries, subCharms });
-  }
-);
-
-// Lift to get a charm's UI (simplified - assumes charm is already repaired)
-const getCharmUI = lift(({ entry }: { entry: SubCharmEntry }) => {
-  // deno-lint-ignore no-explicit-any
-  return (entry?.charm as any)?.[UI] || null;
 });
 
 // ===== Module-Scope Handlers (avoid closures, use references not indices) =====
@@ -272,48 +198,6 @@ const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
   (_event, { expanded }) => expanded.set(!expanded.get())
 );
 
-// Insert module at a specific position via drag-and-drop
-// Each drop zone knows exactly where to insert (after which entry)
-const insertAtPosition = handler<
-  { detail: { sourceCell: Cell<SubCharmEntry> } },
-  {
-    subCharms: Cell<SubCharmEntry[]>;
-    insertAfterEntry: SubCharmEntry | null; // null = insert at start
-    targetPinned: boolean;
-  }
->((event, { subCharms, insertAfterEntry, targetPinned }) => {
-  const draggedEntry = event.detail?.sourceCell?.get() as SubCharmEntry;
-  if (!draggedEntry) return;
-
-  const current = subCharms.get() || [];
-
-  // Remove from current position
-  const withoutDragged = current.filter((e) => e?.charm !== draggedEntry?.charm);
-
-  // Update pinned state
-  const updatedEntry = { ...draggedEntry, pinned: targetPinned };
-
-  // Find insertion index
-  let insertIndex: number;
-  if (insertAfterEntry === null) {
-    insertIndex = 0;
-  } else {
-    const afterIndex = withoutDragged.findIndex(
-      (e) => e?.charm === insertAfterEntry?.charm
-    );
-    insertIndex = afterIndex >= 0 ? afterIndex + 1 : withoutDragged.length;
-  }
-
-  // Insert at position
-  const newList = [
-    ...withoutDragged.slice(0, insertIndex),
-    updatedEntry,
-    ...withoutDragged.slice(insertIndex),
-  ];
-
-  subCharms.set(newList);
-});
-
 // ===== The Record Pattern =====
 const Record = pattern<RecordInput, RecordOutput>(
   ({ title, subCharms, trashedSubCharms }) => {
@@ -323,12 +207,8 @@ const Record = pattern<RecordInput, RecordOutput>(
     const trashExpanded = Cell.of(false);
 
     // ===== Auto-initialize Notes + TypePicker =====
-    // Only initializes if subCharms is empty (won't re-init on reload)
-    initializeRecord({ currentCharms: subCharms, subCharms, trashedSubCharms });
-
-    // ===== Repair charm instances after server restart =====
-    // Charm instances don't survive JSON serialization, so we recreate them from their types
-    repairCharmInstances({ currentCharms: subCharms, subCharms, trashedSubCharms });
+    const isInitialized = Cell.of(false);
+    initializeRecord({ currentCharms: subCharms, subCharms, trashedSubCharms, isInitialized });
 
     // ===== Computed Values =====
 
@@ -337,7 +217,6 @@ const Record = pattern<RecordInput, RecordOutput>(
 
     // Split sub-charms by pin status
     // No longer need indices - we use entry references directly
-    // NOTE: Don't transform entries here - keep original Cell references for drag-and-drop
     const pinnedEntries = lift(({ sc }: { sc: SubCharmEntry[] }) =>
       (sc || []).filter((entry) => entry?.pinned)
     )({ sc: subCharms });
@@ -460,209 +339,78 @@ const Record = pattern<RecordInput, RecordOutput>(
                 // Primary + Rail layout (when items are pinned)
                 <div style={{ display: "flex", gap: "16px" }}>
                   {/* Left: Pinned items (2/3 width) */}
-                  <div style={{ flex: 2, display: "flex", flexDirection: "column" }}>
-                    {/* Drop zone before first item */}
-                    <ct-drop-zone
-                      accept="module"
-                      onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: true })}
-                    >
-                      <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
-                    </ct-drop-zone>
-                    {pinnedEntries.map((entry, index) => {
+                  <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {pinnedEntries.map((entry: SubCharmEntry) => {
                       const displayInfo = getModuleDisplay({ type: entry.type });
-                      const isLast = index === pinnedEntries.length - 1;
                       return (
-                        <>
+                        <div
+                          style={{
+                            background: "white",
+                            borderRadius: "8px",
+                            border: "1px solid #e5e7eb",
+                            overflow: "hidden",
+                          }}
+                        >
                           <div
                             style={{
-                              background: "white",
-                              borderRadius: "8px",
-                              border: "1px solid #e5e7eb",
-                              overflow: "hidden",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "8px 12px",
+                              borderBottom: "1px solid #f3f4f6",
+                              background: "#fafafa",
                             }}
                           >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                padding: "8px 12px",
-                                borderBottom: "1px solid #f3f4f6",
-                                background: "#fafafa",
-                              }}
-                            >
-                              <ct-drag-source $cell={entry} type="module">
-                                <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
-                              </ct-drag-source>
-                              <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                {displayInfo.icon} {displayInfo.label}
-                              </span>
-                              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                <button
-                                  onClick={togglePin({ subCharms, entry })}
-                                  style={{
-                                    background: "#e0f2fe",
-                                    border: "1px solid #7dd3fc",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    padding: "4px 8px",
-                                    fontSize: "12px",
-                                    color: "#0369a1",
-                                  }}
-                                  title="Unpin"
-                                >
-                                  📌
-                                </button>
-                                <button
-                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                  style={{
-                                    background: "transparent",
-                                    border: "1px solid #e5e7eb",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    padding: "4px 8px",
-                                    fontSize: "12px",
-                                    color: "#6b7280",
-                                  }}
-                                  title="Remove"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                            <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                              {getCharmUI({ entry })}
+                            <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                              {displayInfo.icon} {displayInfo.label}
+                            </span>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                              <button
+                                onClick={togglePin({ subCharms, entry })}
+                                style={{
+                                  background: "#e0f2fe",
+                                  border: "1px solid #7dd3fc",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  color: "#0369a1",
+                                }}
+                                title="Unpin"
+                              >
+                                📌
+                              </button>
+                              <button
+                                onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  color: "#6b7280",
+                                }}
+                                title="Remove"
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
-                          {/* Drop zone after this item - final one is larger */}
-                          <ct-drop-zone
-                            accept="module"
-                            onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: true })}
-                          >
-                            <div style={{ height: "8px" }} />
-                          </ct-drop-zone>
-                        </>
+                          <div style={{ padding: "12px" }}>
+                            {(entry.charm as any)?.[UI]}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
                   {/* Right: Unpinned items in rail (1/3 width) */}
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                    {ifElse(
-                      hasUnpinned,
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                        {/* Drop zone before first item */}
-                        <ct-drop-zone
-                          accept="module"
-                          onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
-                        >
-                          <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
-                        </ct-drop-zone>
-                        {unpinnedEntries.map((entry, index) => {
-                          const displayInfo = getModuleDisplay({ type: entry.type });
-                          const isLast = index === unpinnedEntries.length - 1;
-                          return (
-                            <>
-                              <div
-                                style={{
-                                  background: "white",
-                                  borderRadius: "8px",
-                                  border: "1px solid #e5e7eb",
-                                  overflow: "hidden",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "8px 12px",
-                                    borderBottom: "1px solid #f3f4f6",
-                                    background: "#fafafa",
-                                  }}
-                                >
-                                  <ct-drag-source $cell={entry} type="module">
-                                    <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
-                                  </ct-drag-source>
-                                  <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                    {displayInfo.icon} {displayInfo.label}
-                                  </span>
-                                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                    <button
-                                      onClick={togglePin({ subCharms, entry })}
-                                      style={{
-                                        background: "transparent",
-                                        border: "1px solid #e5e7eb",
-                                        borderRadius: "4px",
-                                        cursor: "pointer",
-                                        padding: "4px 8px",
-                                        fontSize: "12px",
-                                        color: "#6b7280",
-                                      }}
-                                      title="Pin"
-                                    >
-                                      📌
-                                    </button>
-                                    <button
-                                      onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                      style={{
-                                        background: "transparent",
-                                        border: "1px solid #e5e7eb",
-                                        borderRadius: "4px",
-                                        cursor: "pointer",
-                                        padding: "4px 8px",
-                                        fontSize: "12px",
-                                        color: "#6b7280",
-                                      }}
-                                      title="Remove"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                </div>
-                                <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                                  {getCharmUI({ entry })}
-                                </div>
-                              </div>
-                              {/* Drop zone after this item */}
-                              <ct-drop-zone
-                                accept="module"
-                                onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
-                              >
-                                <div style={{ height: "8px" }} />
-                              </ct-drop-zone>
-                            </>
-                          );
-                        })}
-                      </div>,
-                      <ct-drop-zone
-                        accept="module"
-                        onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
-                      >
-                        <div style={{ height: "8px" }} />
-                      </ct-drop-zone>
-                    )}
-                  </div>
-                </div>,
-                // Grid layout (no pinned items) - use flex column with drop zones between
-                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                  {/* Drop zone before first item */}
-                  <ct-drop-zone
-                    accept="module"
-                    onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
-                  >
-                    <div style={{ height: "8px" }} />
-                  </ct-drop-zone>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 500px))",
-                      gap: "12px",
-                    }}
-                  >
-                    {allEntries.map((entry) => {
-                      const displayInfo = getModuleDisplay({ type: entry.type });
-                      return (
-                        <div style={{ display: "flex", flexDirection: "column" }}>
+                  {ifElse(
+                    hasUnpinned,
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {unpinnedEntries.map((entry: SubCharmEntry) => {
+                        const displayInfo = getModuleDisplay({ type: entry.type });
+                        return (
                           <div
                             style={{
                               background: "white",
@@ -681,9 +429,6 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 background: "#fafafa",
                               }}
                             >
-                              <ct-drag-source $cell={entry} type="module">
-                                <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
-                              </ct-drag-source>
                               <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
                                 {displayInfo.icon} {displayInfo.label}
                               </span>
@@ -720,28 +465,87 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 </button>
                               </div>
                             </div>
-                            <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                              {getCharmUI({ entry })}
+                            <div style={{ padding: "12px" }}>
+                              {(entry.charm as any)?.[UI]}
                             </div>
                           </div>
-                          {/* Drop zone after this item */}
-                          <ct-drop-zone
-                            accept="module"
-                            onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
-                          >
-                            <div style={{ height: "8px" }} />
-                          </ct-drop-zone>
+                        );
+                      })}
+                    </div>,
+                    null
+                  )}
+                </div>,
+                // Grid layout (no pinned items)
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 500px))",
+                    gap: "12px",
+                  }}
+                >
+                  {allEntries.map((entry: SubCharmEntry) => {
+                    const displayInfo = getModuleDisplay({ type: entry.type });
+                    return (
+                      <div
+                        style={{
+                          background: "white",
+                          borderRadius: "8px",
+                          border: "1px solid #e5e7eb",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            borderBottom: "1px solid #f3f4f6",
+                            background: "#fafafa",
+                          }}
+                        >
+                          <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                            {displayInfo.icon} {displayInfo.label}
+                          </span>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                            <button
+                              onClick={togglePin({ subCharms, entry })}
+                              style={{
+                                background: "transparent",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                                color: "#6b7280",
+                              }}
+                              title="Pin"
+                            >
+                              📌
+                            </button>
+                            <button
+                              onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                              style={{
+                                background: "transparent",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                                color: "#6b7280",
+                              }}
+                              title="Remove"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  {/* Final drop zone after grid */}
-                  <ct-drop-zone
-                    accept="module"
-                    onct-drop={insertAtPosition({ subCharms, insertAfterEntry: allEntries[allEntries.length - 1], targetPinned: false })}
-                  >
-                    <div style={{ height: "8px" }} />
-                  </ct-drop-zone>
+                        <div style={{ padding: "12px" }}>
+                          {(entry.charm as any)?.[UI]}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )
             }
