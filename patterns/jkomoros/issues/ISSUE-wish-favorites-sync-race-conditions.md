@@ -1,5 +1,6 @@
 # Race Conditions in Favorites System Cause wish() to Fail
 
+**Linear**: [CT-1126](https://linear.app/common-tools/issue/CT-1126/race-conditions-in-favorites-system-cause-wish-to-fail)
 **Status**: Open
 **Severity**: High
 **Affects**: All patterns using `wish({ query: "#tag" })` for charm discovery
