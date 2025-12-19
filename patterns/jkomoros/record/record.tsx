@@ -33,8 +33,6 @@ import {
 import {
   inferTypeFromModules,
 } from "./templates/template-registry.ts";
-// Import TypePickerModule directly to avoid circular dependency
-// (registry → type-picker → template-registry → registry)
 import { TypePickerModule } from "./sub-charms/type-picker-module.tsx";
 import { setRecordPattern } from "./sub-charms/record-pattern-store.ts";
 import type { SubCharmEntry, TrashedSubCharmEntry } from "./types/record-types.ts";
