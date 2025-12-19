@@ -198,6 +198,52 @@ const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
   (_event, { expanded }) => expanded.set(!expanded.get())
 );
 
+// Reorder modules via drag-and-drop
+// Uses pointer Y position to calculate target index within the section
+const reorderModule = handler<
+  { detail: { sourceCell: Cell<SubCharmEntry>; pointerY: number; dropZoneRect: { top: number; height: number } } },
+  { subCharms: Cell<SubCharmEntry[]>; sectionEntries: SubCharmEntry[]; targetPinned: boolean }
+>((event, { subCharms, sectionEntries, targetPinned }) => {
+  const draggedEntry = event.detail?.sourceCell?.get() as SubCharmEntry;
+  if (!draggedEntry) return;
+
+  const current = subCharms.get() || [];
+  const draggedIndex = current.findIndex((e) => e?.charm === draggedEntry?.charm);
+  if (draggedIndex < 0) return;
+
+  // Handle empty section - just add at the beginning
+  if (sectionEntries.length === 0) {
+    const newList = current.filter((e) => e?.charm !== draggedEntry?.charm);
+    const updatedEntry = { ...draggedEntry, pinned: targetPinned };
+    newList.unshift(updatedEntry);
+    subCharms.set(newList);
+    return;
+  }
+
+  // Calculate target position from pointer Y relative to drop zone
+  const { top, height } = event.detail.dropZoneRect;
+  const relativeY = Math.max(0, event.detail.pointerY - top);
+  const itemHeight = height / sectionEntries.length;
+  const targetIndex = Math.min(
+    sectionEntries.length - 1,
+    Math.floor(relativeY / itemHeight)
+  );
+
+  // Find global index of target entry in the main array
+  const targetEntry = sectionEntries[targetIndex];
+  const globalTargetIndex = current.findIndex((e) => e?.charm === targetEntry?.charm);
+
+  // Build new array: remove dragged entry, then insert at target position
+  const newList = current.filter((e) => e?.charm !== draggedEntry?.charm);
+  const updatedEntry = { ...draggedEntry, pinned: targetPinned };
+
+  // Adjust insertion index since we removed the dragged item
+  const insertAt = globalTargetIndex > draggedIndex ? globalTargetIndex - 1 : globalTargetIndex;
+  newList.splice(Math.max(0, insertAt), 0, updatedEntry);
+
+  subCharms.set(newList);
+});
+
 // ===== The Record Pattern =====
 const Record = pattern<RecordInput, RecordOutput>(
   ({ title, subCharms, trashedSubCharms }) => {
@@ -339,84 +385,183 @@ const Record = pattern<RecordInput, RecordOutput>(
                 // Primary + Rail layout (when items are pinned)
                 <div style={{ display: "flex", gap: "16px" }}>
                   {/* Left: Pinned items (2/3 width) */}
-                  <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {pinnedEntries.map((entry: SubCharmEntry) => {
-                      const displayInfo = getModuleDisplay({ type: entry.type });
-                      return (
-                        <div
-                          style={{
-                            background: "white",
-                            borderRadius: "8px",
-                            border: "1px solid #e5e7eb",
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "8px 12px",
-                              borderBottom: "1px solid #f3f4f6",
-                              background: "#fafafa",
-                            }}
-                          >
-                            <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                              {displayInfo.icon} {displayInfo.label}
-                            </span>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                              <button
-                                onClick={togglePin({ subCharms, entry })}
-                                style={{
-                                  background: "#e0f2fe",
-                                  border: "1px solid #7dd3fc",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  padding: "4px 8px",
-                                  fontSize: "12px",
-                                  color: "#0369a1",
-                                }}
-                                title="Unpin"
-                              >
-                                📌
-                              </button>
-                              <button
-                                onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                style={{
-                                  background: "transparent",
-                                  border: "1px solid #e5e7eb",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  padding: "4px 8px",
-                                  fontSize: "12px",
-                                  color: "#6b7280",
-                                }}
-                                title="Remove"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-                          <div style={{ padding: "12px" }}>
-                            {(entry.charm as any)?.[UI]}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Right: Unpinned items in rail (1/3 width) */}
-                  {ifElse(
-                    hasUnpinned,
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
-                      {unpinnedEntries.map((entry: SubCharmEntry) => {
+                  <ct-drop-zone
+                    accept="module"
+                    onct-drop={reorderModule({ subCharms, sectionEntries: pinnedEntries, targetPinned: true })}
+                  >
+                    <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {pinnedEntries.map((entry: SubCharmEntry) => {
                         const displayInfo = getModuleDisplay({ type: entry.type });
                         return (
+                          <ct-drag-source $cell={entry} type="module">
+                            <div
+                              style={{
+                                background: "white",
+                                borderRadius: "8px",
+                                border: "1px solid #e5e7eb",
+                                overflow: "hidden",
+                                cursor: "grab",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  padding: "8px 12px",
+                                  borderBottom: "1px solid #f3f4f6",
+                                  background: "#fafafa",
+                                }}
+                              >
+                                <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                  ⋮⋮ {displayInfo.icon} {displayInfo.label}
+                                </span>
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                  <button
+                                    onClick={togglePin({ subCharms, entry })}
+                                    style={{
+                                      background: "#e0f2fe",
+                                      border: "1px solid #7dd3fc",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      padding: "4px 8px",
+                                      fontSize: "12px",
+                                      color: "#0369a1",
+                                    }}
+                                    title="Unpin"
+                                  >
+                                    📌
+                                  </button>
+                                  <button
+                                    onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                    style={{
+                                      background: "transparent",
+                                      border: "1px solid #e5e7eb",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      padding: "4px 8px",
+                                      fontSize: "12px",
+                                      color: "#6b7280",
+                                    }}
+                                    title="Remove"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={{ padding: "12px" }}>
+                                {(entry.charm as any)?.[UI]}
+                              </div>
+                            </div>
+                          </ct-drag-source>
+                        );
+                      })}
+                    </div>
+                  </ct-drop-zone>
+                  {/* Right: Unpinned items in rail (1/3 width) */}
+                  <ct-drop-zone
+                    accept="module"
+                    onct-drop={reorderModule({ subCharms, sectionEntries: unpinnedEntries, targetPinned: false })}
+                  >
+                    {ifElse(
+                      hasUnpinned,
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                        {unpinnedEntries.map((entry: SubCharmEntry) => {
+                          const displayInfo = getModuleDisplay({ type: entry.type });
+                          return (
+                            <ct-drag-source $cell={entry} type="module">
+                              <div
+                                style={{
+                                  background: "white",
+                                  borderRadius: "8px",
+                                  border: "1px solid #e5e7eb",
+                                  overflow: "hidden",
+                                  cursor: "grab",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "8px 12px",
+                                    borderBottom: "1px solid #f3f4f6",
+                                    background: "#fafafa",
+                                  }}
+                                >
+                                  <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                    ⋮⋮ {displayInfo.icon} {displayInfo.label}
+                                  </span>
+                                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                    <button
+                                      onClick={togglePin({ subCharms, entry })}
+                                      style={{
+                                        background: "transparent",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        padding: "4px 8px",
+                                        fontSize: "12px",
+                                        color: "#6b7280",
+                                      }}
+                                      title="Pin"
+                                    >
+                                      📌
+                                    </button>
+                                    <button
+                                      onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                      style={{
+                                        background: "transparent",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        padding: "4px 8px",
+                                        fontSize: "12px",
+                                        color: "#6b7280",
+                                      }}
+                                      title="Remove"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                                <div style={{ padding: "12px" }}>
+                                  {(entry.charm as any)?.[UI]}
+                                </div>
+                              </div>
+                            </ct-drag-source>
+                          );
+                        })}
+                      </div>,
+                      <div style={{ flex: 1, minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px" }}>
+                        Drop here to unpin
+                      </div>
+                    )}
+                  </ct-drop-zone>
+                </div>,
+                // Grid layout (no pinned items)
+                <ct-drop-zone
+                  accept="module"
+                  onct-drop={reorderModule({ subCharms, sectionEntries: allEntries, targetPinned: false })}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 500px))",
+                      gap: "12px",
+                    }}
+                  >
+                    {allEntries.map((entry: SubCharmEntry) => {
+                      const displayInfo = getModuleDisplay({ type: entry.type });
+                      return (
+                        <ct-drag-source $cell={entry} type="module">
                           <div
                             style={{
                               background: "white",
                               borderRadius: "8px",
                               border: "1px solid #e5e7eb",
                               overflow: "hidden",
+                              cursor: "grab",
                             }}
                           >
                             <div
@@ -430,7 +575,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               }}
                             >
                               <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                {displayInfo.icon} {displayInfo.label}
+                                ⋮⋮ {displayInfo.icon} {displayInfo.label}
                               </span>
                               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                                 <button
@@ -469,84 +614,11 @@ const Record = pattern<RecordInput, RecordOutput>(
                               {(entry.charm as any)?.[UI]}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>,
-                    null
-                  )}
-                </div>,
-                // Grid layout (no pinned items)
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 500px))",
-                    gap: "12px",
-                  }}
-                >
-                  {allEntries.map((entry: SubCharmEntry) => {
-                    const displayInfo = getModuleDisplay({ type: entry.type });
-                    return (
-                      <div
-                        style={{
-                          background: "white",
-                          borderRadius: "8px",
-                          border: "1px solid #e5e7eb",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            padding: "8px 12px",
-                            borderBottom: "1px solid #f3f4f6",
-                            background: "#fafafa",
-                          }}
-                        >
-                          <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                            {displayInfo.icon} {displayInfo.label}
-                          </span>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                            <button
-                              onClick={togglePin({ subCharms, entry })}
-                              style={{
-                                background: "transparent",
-                                border: "1px solid #e5e7eb",
-                                borderRadius: "4px",
-                                cursor: "pointer",
-                                padding: "4px 8px",
-                                fontSize: "12px",
-                                color: "#6b7280",
-                              }}
-                              title="Pin"
-                            >
-                              📌
-                            </button>
-                            <button
-                              onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                              style={{
-                                background: "transparent",
-                                border: "1px solid #e5e7eb",
-                                borderRadius: "4px",
-                                cursor: "pointer",
-                                padding: "4px 8px",
-                                fontSize: "12px",
-                                color: "#6b7280",
-                              }}
-                              title="Remove"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        <div style={{ padding: "12px" }}>
-                          {(entry.charm as any)?.[UI]}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        </ct-drag-source>
+                      );
+                    })}
+                  </div>
+                </ct-drop-zone>
               )
             }
 
