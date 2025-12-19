@@ -13,6 +13,15 @@ export interface SubCharmEntry {
   charm: unknown;      // Reference to the actual sub-charm pattern instance
 }
 
+/**
+ * TrashedSubCharmEntry - A sub-charm that has been soft-deleted.
+ * Extends SubCharmEntry with a timestamp for when it was trashed.
+ * Users can restore from trash or permanently delete.
+ */
+export interface TrashedSubCharmEntry extends SubCharmEntry {
+  trashedAt: string;   // ISO timestamp when moved to trash
+}
+
 // Sub-charm types (all available module types)
 export type SubCharmType =
   | "notes"      // Built-in, always present

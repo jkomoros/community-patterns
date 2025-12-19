@@ -29,18 +29,20 @@ import {
   getAddableTypes,
   getDefinition,
 } from "./sub-charms/registry.ts";
-import type { SubCharmEntry } from "./types/record-types.ts";
+import type { SubCharmEntry, TrashedSubCharmEntry } from "./types/record-types.ts";
 
 // ===== Types =====
 
 interface RecordInput {
   title: Default<string, "">;
   subCharms: Default<SubCharmEntry[], []>;
+  trashedSubCharms: Default<TrashedSubCharmEntry[], []>;
 }
 
 interface RecordOutput {
   title: Default<string, "">;
   subCharms: Default<SubCharmEntry[], []>;
+  trashedSubCharms: Default<TrashedSubCharmEntry[], []>;
 }
 
 // ===== Helper: Get charm name =====
@@ -61,7 +63,7 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
 // ===== The Record Pattern =====
 const Record = recipe<RecordInput, RecordOutput>(
   "Record",
-  ({ title, subCharms }) => {
+  ({ title, subCharms, trashedSubCharms }) => {
     // Note: Initialization is handled by showing an "Add Notes" prompt when empty
     // We can't auto-initialize inside computed() since subCharms isn't a Cell there
 
@@ -103,15 +105,57 @@ const Record = recipe<RecordInput, RecordOutput>(
       sat.set("");
     });
 
-    // Remove a sub-charm
-    const removeSubCharm = handler<
+    // Move sub-charm to trash (soft delete)
+    const trashSubCharm = handler<
       unknown,
-      { subCharms: Cell<SubCharmEntry[]>; index: number }
-    >((_event, { subCharms: sc, index }) => {
+      { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
+    >((_event, { subCharms: sc, trashedSubCharms: trash, index }) => {
       const current = sc.get() || [];
-      // Don't remove notes
-      if (current[index]?.type === "notes") return;
+      const entry = current[index];
+      // Don't trash notes
+      if (!entry || entry.type === "notes") return;
+
+      // Move to trash with timestamp
+      const trashed = trash.get() || [];
+      trash.set([...trashed, { ...entry, trashedAt: new Date().toISOString() }]);
+
+      // Remove from active
       sc.set(current.toSpliced(index, 1));
+    });
+
+    // Restore sub-charm from trash
+    const restoreSubCharm = handler<
+      unknown,
+      { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
+    >((_event, { subCharms: sc, trashedSubCharms: trash, index }) => {
+      const current = trash.get() || [];
+      const entry = current[index];
+      if (!entry) return;
+
+      // Restore to active (without trashedAt)
+      const { trashedAt: _trashedAt, ...restored } = entry;
+      const active = sc.get() || [];
+      sc.set([...active, restored]);
+
+      // Remove from trash
+      trash.set(current.toSpliced(index, 1));
+    });
+
+    // Permanently delete from trash
+    const permanentlyDelete = handler<
+      unknown,
+      { trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
+    >((_event, { trashedSubCharms: trash, index }) => {
+      const current = trash.get() || [];
+      trash.set(current.toSpliced(index, 1));
+    });
+
+    // Empty all trash
+    const emptyTrash = handler<
+      unknown,
+      { trashedSubCharms: Cell<TrashedSubCharmEntry[]> }
+    >((_event, { trashedSubCharms: trash }) => {
+      trash.set([]);
     });
 
     // ===== Computed Values =====
@@ -189,6 +233,24 @@ const Record = recipe<RecordInput, RecordOutput>(
       const notesCharm = createSubCharm("notes");
       sc.set([{ type: "notes", pinned: true, charm: notesCharm }, ...current]);
     });
+
+    // ===== Trash Section Computed Values =====
+
+    // Compute trash count directly
+    const trashCount = lift(({ t }: { t: TrashedSubCharmEntry[] }) =>
+      (t || []).length
+    )({ t: trashedSubCharms });
+
+    // Check if there are any trashed items
+    const hasTrash = lift(({ t }: { t: TrashedSubCharmEntry[] }) =>
+      (t || []).length > 0
+    )({ t: trashedSubCharms });
+
+    // Local state for trash section collapsed/expanded
+    const trashExpanded = Cell.of(false);
+    const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
+      (_event, { expanded }) => expanded.set(!expanded.get())
+    );
 
     // Note: We avoid .map() with callbacks that reference subCharms
     // Instead, we render sub-charms directly inline where needed
@@ -305,37 +367,45 @@ const Record = recipe<RecordInput, RecordOutput>(
                         <span style={{ fontSize: "14px", fontWeight: "500" }}>
                           {displayInfo.icon} {displayInfo.label}
                         </span>
-                        <ct-hstack style={{ gap: "4px" }}>
-                          {/* Pin button */}
+                        <ct-hstack style={{ gap: "8px", alignItems: "center" }}>
+                          {/* Pin button - always visible, styled based on state */}
                           <button
                             onClick={togglePin({ subCharms, index })}
                             style={{
-                              background: "none",
-                              border: "none",
+                              background: entry.pinned ? "#e0f2fe" : "transparent",
+                              border: entry.pinned ? "1px solid #7dd3fc" : "1px solid #e5e7eb",
+                              borderRadius: "4px",
                               cursor: "pointer",
-                              padding: "4px",
-                              fontSize: "14px",
-                              opacity: entry.pinned ? "1" : "0.4",
+                              padding: "4px 8px",
+                              fontSize: "12px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              color: entry.pinned ? "#0369a1" : "#6b7280",
                             }}
                             title={entry.pinned ? "Unpin" : "Pin to top"}
                           >
-                            📌
+                            📌 {entry.pinned ? "Pinned" : "Pin"}
                           </button>
-                          {/* Remove button (not for notes) */}
+                          {/* Trash button (not for notes) */}
                           {entry.type !== "notes" && (
                             <button
-                              onClick={removeSubCharm({ subCharms, index })}
+                              onClick={trashSubCharm({ subCharms, trashedSubCharms, index })}
                               style={{
-                                background: "none",
-                                border: "none",
+                                background: "transparent",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "4px",
                                 cursor: "pointer",
-                                padding: "4px",
-                                fontSize: "14px",
-                                color: "#9ca3af",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                                color: "#6b7280",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
                               }}
-                              title="Remove module"
+                              title="Move to trash"
                             >
-                              ✕
+                              ✕ Remove
                             </button>
                           )}
                         </ct-hstack>
@@ -349,11 +419,143 @@ const Record = recipe<RecordInput, RecordOutput>(
                 })}
               </div>
             )}
+
+            {/* Collapsible Trash Section */}
+            {ifElse(
+              hasTrash,
+              <div
+                style={{
+                  marginTop: "16px",
+                  borderTop: "1px solid #e5e7eb",
+                  paddingTop: "12px",
+                }}
+              >
+                <button
+                  onClick={toggleTrashExpanded({ expanded: trashExpanded })}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    color: "#6b7280",
+                    fontSize: "13px",
+                    width: "100%",
+                    padding: "8px",
+                  }}
+                >
+                  <span
+                    style={{
+                      transform: trashExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s",
+                    }}
+                  >
+                    ▶
+                  </span>
+                  🗑️ Trash ({trashCount})
+                </button>
+
+                {ifElse(
+                  trashExpanded,
+                  <div style={{ paddingLeft: "16px", marginTop: "8px" }}>
+                    {trashedSubCharms.map(
+                      (entry: TrashedSubCharmEntry, index: number) => {
+                        const displayInfo = getModuleDisplay({ type: entry.type });
+                        return (
+                          <div
+                            key={index}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              padding: "8px 12px",
+                              background: "#f9fafb",
+                              borderRadius: "6px",
+                              marginBottom: "4px",
+                              opacity: "0.7",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "13px",
+                                color: "#6b7280",
+                              }}
+                            >
+                              {displayInfo.icon} {displayInfo.label}
+                            </span>
+                            <ct-hstack style={{ gap: "8px" }}>
+                              <button
+                                onClick={restoreSubCharm({
+                                  subCharms,
+                                  trashedSubCharms,
+                                  index,
+                                })}
+                                style={{
+                                  background: "#e0f2fe",
+                                  border: "1px solid #7dd3fc",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  color: "#0369a1",
+                                }}
+                                title="Restore module"
+                              >
+                                ↩️ Restore
+                              </button>
+                              <button
+                                onClick={permanentlyDelete({
+                                  trashedSubCharms,
+                                  index,
+                                })}
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid #fecaca",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  color: "#dc2626",
+                                }}
+                                title="Delete permanently"
+                              >
+                                🗑️
+                              </button>
+                            </ct-hstack>
+                          </div>
+                        );
+                      }
+                    )}
+
+                    <button
+                      onClick={emptyTrash({ trashedSubCharms })}
+                      style={{
+                        marginTop: "8px",
+                        background: "transparent",
+                        border: "1px solid #fecaca",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        color: "#dc2626",
+                        width: "100%",
+                      }}
+                    >
+                      Empty Trash
+                    </button>
+                  </div>,
+                  null
+                )}
+              </div>,
+              null
+            )}
           </div>
         </ct-vstack>
       ),
       title,
       subCharms,
+      trashedSubCharms,
       "#record": true,
     };
   }
