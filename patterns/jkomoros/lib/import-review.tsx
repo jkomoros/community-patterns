@@ -1697,6 +1697,37 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       </div>
     );
 
+    // Remaining text preview - shows what input will contain after apply
+    // Only visible when captureRemainingText is enabled
+    const remainingTextPreview = captureRemainingText ? (
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "12px",
+          background: "#fef9e7",
+          border: "1px solid #fcd34d",
+          borderRadius: "6px",
+        }}
+      >
+        <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "6px", color: "#92400e" }}>
+          After apply, input will contain:
+        </div>
+        {ifElse(
+          derive(remainingTextComputed, (t) => !!t?.trim()),
+          <div style={{ fontSize: "13px", color: "#78350f", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {derive(remainingTextComputed, (t) => {
+              const text = t ?? "";
+              if (text.length <= 150) return `"${text}"`;
+              return `"${text.slice(0, 150)}..."`;
+            })}
+          </div>,
+          <div style={{ fontSize: "13px", color: "#92400e", fontStyle: "italic" }}>
+            (Input will be cleared - no remaining text)
+          </div>
+        )}
+      </div>
+    ) : null;
+
     const fieldDiffPanel = (
       <div
         style={{
@@ -1755,6 +1786,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           <div>
             {fieldSelectionBar}
             {fieldDiffList}
+            {remainingTextPreview}
           </div>,
           null
         )}
