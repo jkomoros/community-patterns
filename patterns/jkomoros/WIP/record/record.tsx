@@ -160,11 +160,10 @@ const Record = recipe<RecordInput, RecordOutput>(
 
     // ===== Computed Values =====
 
-    // Display name with fallback
-    const displayName = computed(() => {
-      const t = title as unknown as string;
-      return t?.trim() || "(Untitled Record)";
-    });
+    // Display name with fallback - use lift for proper reactive access
+    const displayName = lift(({ t }: { t: string }) =>
+      t?.trim() || "(Untitled Record)"
+    )({ t: title });
 
     // Split sub-charms by pin status, preserving original indices
     // Using lift to avoid closure issues with opaque refs
