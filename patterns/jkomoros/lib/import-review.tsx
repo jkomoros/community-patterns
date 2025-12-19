@@ -284,9 +284,9 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   selectedFieldCount: number;                       // Number of selected fields
   selectedFieldKeys: string[];                      // Keys of selected fields (reactive)
   /**
-   * Reactive Cell of selected field values - use in JSX/computed.
+   * Reactive computed of selected field values - use in JSX/computed.
    *
-   * In handlers, pass as a Cell param and call .get().
+   * In handlers, pass as handler param (framework will wrap appropriately).
    * See person.tsx applySelectedExtractedData for correct pattern.
    */
   selectedFieldValues: Record<string, unknown>;
@@ -308,9 +308,9 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   mergeItemCount: number;                                // Number of items with changes
   selectedMergeFieldCount: number;                       // Number of selected merge fields
   /**
-   * Reactive Cell of selected merge values - use in JSX/computed.
+   * Reactive computed of selected merge values - use in JSX/computed.
    *
-   * In handlers, pass as a Cell param and call .get().
+   * In handlers, pass as handler param (framework will wrap appropriately).
    * See food-recipe.tsx applyTimingExtraction for correct pattern.
    */
   selectedMergeValues: Record<string, unknown>[];
@@ -1176,6 +1176,8 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         const existingItemsValue = mapping.existingItems?.get() ?? [];
 
         // Helper to unwrap Cell-wrapped items (food-recipe uses Cell<Array<Cell<StepGroup>>>)
+        // NOTE: `as any` is required here because TypeScript cannot check for .get() method
+        // on unknown types. This is a necessary pattern when items may or may not be Cell-wrapped.
         const unwrapItem = (item: unknown): Record<string, unknown> => {
           const unwrapped = (item as any)?.get ? (item as any).get() : item;
           return unwrapped as Record<string, unknown>;
@@ -1323,6 +1325,8 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const existingItemsValue = mapping.existingItems?.get() ?? [];
 
       // Helper to unwrap Cell-wrapped items
+      // NOTE: `as any` is required here because TypeScript cannot check for .get() method
+      // on unknown types. This is a necessary pattern when items may or may not be Cell-wrapped.
       const unwrapItem = (item: unknown): Record<string, unknown> => {
         const unwrapped = (item as any)?.get ? (item as any).get() : item;
         return unwrapped as Record<string, unknown>;
@@ -2361,6 +2365,12 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
       // Flattened handlers (following chatbot.tsx pattern)
       // NOTE: trigger/hiddenItemIds NOT exposed - parent already has them as inputs
+      //
+      // PATTERN: Handler factories are pre-bound here with their Cell dependencies.
+      // Parameterized handlers (toggleFieldSelection, toggleMergeFieldSelection,
+      // toggleUnmatchedSelection) use inline arrow functions that call the handler
+      // factory with runtime args. This is the idiomatic pattern for handlers that
+      // need both Cell bindings AND runtime parameters - same as per-item handlers in JSX.
       selectAll: selectAllItems({ selectedIds, allVisibleKeys }),
       selectNone: selectNoneItems({ selectedIds }),
       dismissAll: boundDismissAll,
