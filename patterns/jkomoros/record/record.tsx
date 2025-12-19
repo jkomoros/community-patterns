@@ -20,7 +20,7 @@ import {
   ifElse,
   lift,
   NAME,
-  recipe,
+  pattern,
   str,
   UI,
 } from "commontools";
@@ -35,15 +35,15 @@ import type { SubCharmEntry, TrashedSubCharmEntry } from "./types/record-types.t
 // ===== Types =====
 
 interface RecordInput {
-  title: Default<string, "">;
-  subCharms: Default<SubCharmEntry[], []>;
-  trashedSubCharms: Default<TrashedSubCharmEntry[], []>;
+  title?: Default<string, "">;
+  subCharms?: Default<SubCharmEntry[], []>;
+  trashedSubCharms?: Default<TrashedSubCharmEntry[], []>;
 }
 
 interface RecordOutput {
-  title: Default<string, "">;
-  subCharms: Default<SubCharmEntry[], []>;
-  trashedSubCharms: Default<TrashedSubCharmEntry[], []>;
+  title?: Default<string, "">;
+  subCharms?: Default<SubCharmEntry[], []>;
+  trashedSubCharms?: Default<TrashedSubCharmEntry[], []>;
 }
 
 // ===== Helper: Get charm name =====
@@ -62,11 +62,8 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
 });
 
 // ===== The Record Pattern =====
-const Record = recipe<RecordInput, RecordOutput>(
-  "Record",
+const Record = pattern<RecordInput, RecordOutput>(
   ({ title, subCharms, trashedSubCharms }) => {
-    // Note: Auto-init not possible - can't call .get() in recipe body
-    // Users click "Add Notes" button in empty state instead
 
     // ===== Handlers =====
 
