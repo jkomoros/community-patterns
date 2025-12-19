@@ -473,81 +473,73 @@ const Record = pattern<RecordInput, RecordOutput>(
                       const isLast = index === pinnedEntries.length - 1;
                       return (
                         <>
-                          <ct-drag-source $cell={entry} type="module">
+                          <div
+                            style={{
+                              background: "white",
+                              borderRadius: "8px",
+                              border: "1px solid #e5e7eb",
+                              overflow: "hidden",
+                            }}
+                          >
                             <div
                               style={{
-                                background: "white",
-                                borderRadius: "8px",
-                                border: "1px solid #e5e7eb",
-                                overflow: "hidden",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #f3f4f6",
+                                background: "#fafafa",
                               }}
                             >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  padding: "8px 12px",
-                                  borderBottom: "1px solid #f3f4f6",
-                                  background: "#fafafa",
-                                  cursor: "grab",
-                                }}
-                              >
-                                <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                  ⋮⋮ {displayInfo.icon} {displayInfo.label}
-                                </span>
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                  <button
-                                    onClick={togglePin({ subCharms, entry })}
-                                    style={{
-                                      background: "#e0f2fe",
-                                      border: "1px solid #7dd3fc",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      padding: "4px 8px",
-                                      fontSize: "12px",
-                                      color: "#0369a1",
-                                    }}
-                                    title="Unpin"
-                                  >
-                                    📌
-                                  </button>
-                                  <button
-                                    onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid #e5e7eb",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      padding: "4px 8px",
-                                      fontSize: "12px",
-                                      color: "#6b7280",
-                                    }}
-                                    title="Remove"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                              <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                                {getCharmUI({ entry })}
+                              <ct-drag-source $cell={entry} type="module">
+                                <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
+                              </ct-drag-source>
+                              <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                {displayInfo.icon} {displayInfo.label}
+                              </span>
+                              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                <button
+                                  onClick={togglePin({ subCharms, entry })}
+                                  style={{
+                                    background: "#e0f2fe",
+                                    border: "1px solid #7dd3fc",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    color: "#0369a1",
+                                  }}
+                                  title="Unpin"
+                                >
+                                  📌
+                                </button>
+                                <button
+                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                  style={{
+                                    background: "transparent",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    color: "#6b7280",
+                                  }}
+                                  title="Remove"
+                                >
+                                  ✕
+                                </button>
                               </div>
                             </div>
-                          </ct-drag-source>
+                            <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                              {getCharmUI({ entry })}
+                            </div>
+                          </div>
                           {/* Drop zone after this item - final one is larger */}
                           <ct-drop-zone
                             accept="module"
                             onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: true })}
-                            style={isLast ? { flex: 1, display: "flex" } : {}}
                           >
-                            <div style={isLast ? {
-                              flex: 1,
-                              minHeight: "60px",
-                              margin: "4px 0",
-                              borderRadius: "8px",
-                              border: "2px dashed #e5e7eb",
-                              background: "#fafafa",
-                            } : { height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                            <div style={{ height: "8px" }} />
                           </ct-drop-zone>
                         </>
                       );
@@ -570,81 +562,73 @@ const Record = pattern<RecordInput, RecordOutput>(
                           const isLast = index === unpinnedEntries.length - 1;
                           return (
                             <>
-                              <ct-drag-source $cell={entry} type="module">
+                              <div
+                                style={{
+                                  background: "white",
+                                  borderRadius: "8px",
+                                  border: "1px solid #e5e7eb",
+                                  overflow: "hidden",
+                                }}
+                              >
                                 <div
                                   style={{
-                                    background: "white",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e5e7eb",
-                                    overflow: "hidden",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    padding: "8px 12px",
+                                    borderBottom: "1px solid #f3f4f6",
+                                    background: "#fafafa",
                                   }}
                                 >
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "space-between",
-                                      padding: "8px 12px",
-                                      borderBottom: "1px solid #f3f4f6",
-                                      background: "#fafafa",
-                                      cursor: "grab",
-                                    }}
-                                  >
-                                    <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                      ⋮⋮ {displayInfo.icon} {displayInfo.label}
-                                    </span>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                      <button
-                                        onClick={togglePin({ subCharms, entry })}
-                                        style={{
-                                          background: "transparent",
-                                          border: "1px solid #e5e7eb",
-                                          borderRadius: "4px",
-                                          cursor: "pointer",
-                                          padding: "4px 8px",
-                                          fontSize: "12px",
-                                          color: "#6b7280",
-                                        }}
-                                        title="Pin"
-                                      >
-                                        📌
-                                      </button>
-                                      <button
-                                        onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                        style={{
-                                          background: "transparent",
-                                          border: "1px solid #e5e7eb",
-                                          borderRadius: "4px",
-                                          cursor: "pointer",
-                                          padding: "4px 8px",
-                                          fontSize: "12px",
-                                          color: "#6b7280",
-                                        }}
-                                        title="Remove"
-                                      >
-                                        ✕
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                                    {getCharmUI({ entry })}
+                                  <ct-drag-source $cell={entry} type="module">
+                                    <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
+                                  </ct-drag-source>
+                                  <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                    {displayInfo.icon} {displayInfo.label}
+                                  </span>
+                                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                    <button
+                                      onClick={togglePin({ subCharms, entry })}
+                                      style={{
+                                        background: "transparent",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        padding: "4px 8px",
+                                        fontSize: "12px",
+                                        color: "#6b7280",
+                                      }}
+                                      title="Pin"
+                                    >
+                                      📌
+                                    </button>
+                                    <button
+                                      onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                      style={{
+                                        background: "transparent",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        padding: "4px 8px",
+                                        fontSize: "12px",
+                                        color: "#6b7280",
+                                      }}
+                                      title="Remove"
+                                    >
+                                      ✕
+                                    </button>
                                   </div>
                                 </div>
-                              </ct-drag-source>
-                              {/* Drop zone after this item - final one is larger */}
+                                <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                                  {getCharmUI({ entry })}
+                                </div>
+                              </div>
+                              {/* Drop zone after this item */}
                               <ct-drop-zone
                                 accept="module"
                                 onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
-                                style={isLast ? { flex: 1, display: "flex" } : {}}
                               >
-                                <div style={isLast ? {
-                                  flex: 1,
-                                  minHeight: "60px",
-                                  margin: "4px 0",
-                                  borderRadius: "8px",
-                                  border: "2px dashed #e5e7eb",
-                                  background: "#fafafa",
-                                } : { height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                                <div style={{ height: "8px" }} />
                               </ct-drop-zone>
                             </>
                           );
@@ -653,11 +637,8 @@ const Record = pattern<RecordInput, RecordOutput>(
                       <ct-drop-zone
                         accept="module"
                         onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
-                        style={{ flex: 1, display: "flex" }}
                       >
-                        <div style={{ flex: 1, minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px", border: "2px dashed #e5e7eb", borderRadius: "8px", background: "#fafafa" }}>
-                          Drop here to unpin
-                        </div>
+                        <div style={{ height: "8px" }} />
                       </ct-drop-zone>
                     )}
                   </div>
@@ -669,7 +650,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                     accept="module"
                     onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
                   >
-                    <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                    <div style={{ height: "8px" }} />
                   </ct-drop-zone>
                   <div
                     style={{
@@ -682,92 +663,84 @@ const Record = pattern<RecordInput, RecordOutput>(
                       const displayInfo = getModuleDisplay({ type: entry.type });
                       return (
                         <div style={{ display: "flex", flexDirection: "column" }}>
-                          <ct-drag-source $cell={entry} type="module">
+                          <div
+                            style={{
+                              background: "white",
+                              borderRadius: "8px",
+                              border: "1px solid #e5e7eb",
+                              overflow: "hidden",
+                            }}
+                          >
                             <div
                               style={{
-                                background: "white",
-                                borderRadius: "8px",
-                                border: "1px solid #e5e7eb",
-                                overflow: "hidden",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #f3f4f6",
+                                background: "#fafafa",
                               }}
                             >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
-                                  padding: "8px 12px",
-                                  borderBottom: "1px solid #f3f4f6",
-                                  background: "#fafafa",
-                                  cursor: "grab",
-                                }}
-                              >
-                                <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                  ⋮⋮ {displayInfo.icon} {displayInfo.label}
-                                </span>
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                  <button
-                                    onClick={togglePin({ subCharms, entry })}
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid #e5e7eb",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      padding: "4px 8px",
-                                      fontSize: "12px",
-                                      color: "#6b7280",
-                                    }}
-                                    title="Pin"
-                                  >
-                                    📌
-                                  </button>
-                                  <button
-                                    onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                    style={{
-                                      background: "transparent",
-                                      border: "1px solid #e5e7eb",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                      padding: "4px 8px",
-                                      fontSize: "12px",
-                                      color: "#6b7280",
-                                    }}
-                                    title="Remove"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                              <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
-                                {getCharmUI({ entry })}
+                              <ct-drag-source $cell={entry} type="module">
+                                <span style={{ cursor: "grab", padding: "4px", marginRight: "4px", color: "#9ca3af" }}>⋮⋮</span>
+                              </ct-drag-source>
+                              <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                {displayInfo.icon} {displayInfo.label}
+                              </span>
+                              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                <button
+                                  onClick={togglePin({ subCharms, entry })}
+                                  style={{
+                                    background: "transparent",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    color: "#6b7280",
+                                  }}
+                                  title="Pin"
+                                >
+                                  📌
+                                </button>
+                                <button
+                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                  style={{
+                                    background: "transparent",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    color: "#6b7280",
+                                  }}
+                                  title="Remove"
+                                >
+                                  ✕
+                                </button>
                               </div>
                             </div>
-                          </ct-drag-source>
-                          {/* Drop zone after this item (small) */}
+                            <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                              {getCharmUI({ entry })}
+                            </div>
+                          </div>
+                          {/* Drop zone after this item */}
                           <ct-drop-zone
                             accept="module"
                             onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
                           >
-                            <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                            <div style={{ height: "8px" }} />
                           </ct-drop-zone>
                         </div>
                       );
                     })}
                   </div>
-                  {/* Final drop zone after grid - fills remaining space */}
+                  {/* Final drop zone after grid */}
                   <ct-drop-zone
                     accept="module"
                     onct-drop={insertAtPosition({ subCharms, insertAfterEntry: allEntries[allEntries.length - 1], targetPinned: false })}
-                    style={{ flex: 1, display: "flex" }}
                   >
-                    <div style={{
-                      flex: 1,
-                      minHeight: "60px",
-                      margin: "4px 0",
-                      borderRadius: "8px",
-                      border: "2px dashed #e5e7eb",
-                      background: "#fafafa",
-                    }} />
+                    <div style={{ height: "8px" }} />
                   </ct-drop-zone>
                 </div>
               )
