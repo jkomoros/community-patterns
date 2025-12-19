@@ -112,8 +112,7 @@ const Record = recipe<RecordInput, RecordOutput>(
     >((_event, { subCharms: sc, trashedSubCharms: trash, index }) => {
       const current = sc.get() || [];
       const entry = current[index];
-      // Don't trash notes
-      if (!entry || entry.type === "notes") return;
+      if (!entry) return;
 
       // Move to trash with timestamp
       const trashed = trash.get() || [];
@@ -331,66 +330,216 @@ const Record = recipe<RecordInput, RecordOutput>(
                   📝 Add Notes
                 </button>
               </div>,
-              // Has sub-charms - display them in a simple list
-              // Using subCharms.map() with a simple callback that doesn't reference subCharms
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
-                }}
-              >
-                {subCharms.map((entry: SubCharmEntry, index: number) => {
-                  // Use lift helper to get display info from type
-                  const displayInfo = getModuleDisplay({ type: entry.type });
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        background: "white",
-                        borderRadius: "8px",
-                        border: "1px solid #e5e7eb",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {/* Card header */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          borderBottom: "1px solid #f3f4f6",
-                          background: "#fafafa",
-                        }}
-                      >
-                        <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                          {displayInfo.icon} {displayInfo.label}
-                        </span>
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                          {/* Pin button - always visible, styled based on state */}
-                          <button
-                            onClick={togglePin({ subCharms, index })}
+              // Adaptive layout based on pinned count
+              ifElse(
+                pinnedCount > 0,
+                // Primary + Rail layout (when items are pinned)
+                <div style={{ display: "flex", gap: "16px" }}>
+                  {/* Left: Pinned items (2/3 width) */}
+                  <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {pinnedWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
+                      const displayInfo = getModuleDisplay({ type: item.entry.type });
+                      return (
+                        <div
+                          key={item.originalIndex}
+                          style={{
+                            background: "white",
+                            borderRadius: "8px",
+                            border: "1px solid #e5e7eb",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div
                             style={{
-                              background: entry.pinned ? "#e0f2fe" : "transparent",
-                              border: entry.pinned ? "1px solid #7dd3fc" : "1px solid #e5e7eb",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              padding: "4px 8px",
-                              fontSize: "12px",
                               display: "flex",
                               alignItems: "center",
-                              gap: "4px",
-                              color: entry.pinned ? "#0369a1" : "#6b7280",
+                              justifyContent: "space-between",
+                              padding: "8px 12px",
+                              borderBottom: "1px solid #f3f4f6",
+                              background: "#fafafa",
                             }}
-                            title={entry.pinned ? "Unpin" : "Pin to top"}
                           >
-                            📌 {entry.pinned ? "Pinned" : "Pin"}
-                          </button>
-                          {/* Trash button (not for notes) */}
-                          {entry.type !== "notes" && (
+                            <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                              {displayInfo.icon} {displayInfo.label}
+                            </span>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                              <button
+                                onClick={togglePin({ subCharms, index: item.originalIndex })}
+                                style={{
+                                  background: "#e0f2fe",
+                                  border: "1px solid #7dd3fc",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  color: "#0369a1",
+                                }}
+                                title="Unpin"
+                              >
+                                📌 Pinned
+                              </button>
+                              <button
+                                onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
+                                style={{
+                                  background: "transparent",
+                                  border: "1px solid #e5e7eb",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  padding: "4px 8px",
+                                  fontSize: "12px",
+                                  color: "#6b7280",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                }}
+                                title="Move to trash"
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{ padding: "12px" }}>
+                            {(item.entry.charm as any)?.[UI]}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Right: Unpinned items in rail (1/3 width) */}
+                  {ifElse(
+                    hasUnpinned,
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
+                      {unpinnedWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
+                        const displayInfo = getModuleDisplay({ type: item.entry.type });
+                        return (
+                          <div
+                            key={item.originalIndex}
+                            style={{
+                              background: "white",
+                              borderRadius: "8px",
+                              border: "1px solid #e5e7eb",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #f3f4f6",
+                                background: "#fafafa",
+                              }}
+                            >
+                              <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                {displayInfo.icon} {displayInfo.label}
+                              </span>
+                              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                <button
+                                  onClick={togglePin({ subCharms, index: item.originalIndex })}
+                                  style={{
+                                    background: "transparent",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    color: "#6b7280",
+                                  }}
+                                  title="Pin to top"
+                                >
+                                  📌 Pin
+                                </button>
+                                <button
+                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
+                                  style={{
+                                    background: "transparent",
+                                    border: "1px solid #e5e7eb",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    padding: "4px 8px",
+                                    fontSize: "12px",
+                                    color: "#6b7280",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                  }}
+                                  title="Move to trash"
+                                >
+                                  ✕ Remove
+                                </button>
+                              </div>
+                            </div>
+                            <div style={{ padding: "12px" }}>
+                              {(item.entry.charm as any)?.[UI]}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>,
+                    null
+                  )}
+                </div>,
+                // Grid layout (no pinned items)
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 500px))",
+                    gap: "12px",
+                  }}
+                >
+                  {allWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
+                    const displayInfo = getModuleDisplay({ type: item.entry.type });
+                    return (
+                      <div
+                        key={item.originalIndex}
+                        style={{
+                          background: "white",
+                          borderRadius: "8px",
+                          border: "1px solid #e5e7eb",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "8px 12px",
+                            borderBottom: "1px solid #f3f4f6",
+                            background: "#fafafa",
+                          }}
+                        >
+                          <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                            {displayInfo.icon} {displayInfo.label}
+                          </span>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                             <button
-                              onClick={trashSubCharm({ subCharms, trashedSubCharms, index })}
+                              onClick={togglePin({ subCharms, index: item.originalIndex })}
+                              style={{
+                                background: "transparent",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                color: "#6b7280",
+                              }}
+                              title="Pin to top"
+                            >
+                              📌 Pin
+                            </button>
+                            <button
+                              onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
                               style={{
                                 background: "transparent",
                                 border: "1px solid #e5e7eb",
@@ -407,17 +556,16 @@ const Record = recipe<RecordInput, RecordOutput>(
                             >
                               ✕ Remove
                             </button>
-                          )}
+                          </div>
+                        </div>
+                        <div style={{ padding: "12px" }}>
+                          {(item.entry.charm as any)?.[UI]}
                         </div>
                       </div>
-                      {/* Card body - render the sub-charm's UI */}
-                      <div style={{ padding: "12px" }}>
-                        {(entry.charm as any)?.[UI]}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )
             )}
 
             {/* Collapsible Trash Section */}
@@ -480,11 +628,12 @@ const Record = recipe<RecordInput, RecordOutput>(
                               style={{
                                 fontSize: "13px",
                                 color: "#6b7280",
+                                flex: "1",
                               }}
                             >
                               {displayInfo.icon} {displayInfo.label}
                             </span>
-                            <ct-hstack style={{ gap: "8px" }}>
+                            <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
                               <button
                                 onClick={restoreSubCharm({
                                   subCharms,
@@ -522,7 +671,7 @@ const Record = recipe<RecordInput, RecordOutput>(
                               >
                                 🗑️
                               </button>
-                            </ct-hstack>
+                            </div>
                           </div>
                         );
                       }
