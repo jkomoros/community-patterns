@@ -1556,7 +1556,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         <ct-button
           variant="secondary"
           size="sm"
-          onClick={dismissError({ trigger })}
+          onClick={boundDismissError}
         >
           Dismiss
         </ct-button>
@@ -1674,6 +1674,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     const boundSelectAllFields = selectAllFieldsHandler({ deselectedFieldKeys });
     const boundSelectNoFields = selectNoFieldsHandler({ deselectedFieldKeys, allChangedFieldKeys });
     const boundClearTrigger = clearTrigger({ trigger });
+    const boundDismissError = dismissError({ trigger });
 
     const reviewPanel = (
       <div

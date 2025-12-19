@@ -30,7 +30,7 @@ import {
   UI,
 } from "commontools";
 import ImportReview, { buildFieldMappingSchema } from "./lib/import-review.tsx";
-import SmartTextInput from "./lib/smart-text-input.tsx";
+import { SmartTextInput } from "./lib/smart-text-input.tsx";
 
 interface TestInput {
   trigger?: Cell<Default<string, "">>;
