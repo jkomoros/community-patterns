@@ -352,14 +352,11 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   cursor: "pointer",
                                   padding: "4px 8px",
                                   fontSize: "12px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
                                   color: "#0369a1",
                                 }}
                                 title="Unpin"
                               >
-                                📌 Pinned
+                                📌
                               </button>
                               <button
                                 onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
@@ -371,13 +368,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   padding: "4px 8px",
                                   fontSize: "12px",
                                   color: "#6b7280",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "4px",
                                 }}
-                                title="Move to trash"
+                                title="Remove"
                               >
-                                ✕ Remove
+                                ✕
                               </button>
                             </div>
                           </div>
@@ -426,14 +420,11 @@ const Record = pattern<RecordInput, RecordOutput>(
                                     cursor: "pointer",
                                     padding: "4px 8px",
                                     fontSize: "12px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px",
                                     color: "#6b7280",
                                   }}
-                                  title="Pin to top"
+                                  title="Pin"
                                 >
-                                  📌 Pin
+                                  📌
                                 </button>
                                 <button
                                   onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
@@ -445,13 +436,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                                     padding: "4px 8px",
                                     fontSize: "12px",
                                     color: "#6b7280",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "4px",
                                   }}
-                                  title="Move to trash"
+                                  title="Remove"
                                 >
-                                  ✕ Remove
+                                  ✕
                                 </button>
                               </div>
                             </div>
@@ -507,14 +495,11 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 cursor: "pointer",
                                 padding: "4px 8px",
                                 fontSize: "12px",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px",
                                 color: "#6b7280",
                               }}
-                              title="Pin to top"
+                              title="Pin"
                             >
-                              📌 Pin
+                              📌
                             </button>
                             <button
                               onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
@@ -526,13 +511,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 padding: "4px 8px",
                                 fontSize: "12px",
                                 color: "#6b7280",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "4px",
                               }}
-                              title="Move to trash"
+                              title="Remove"
                             >
-                              ✕ Remove
+                              ✕
                             </button>
                           </div>
                         </div>
@@ -626,9 +608,9 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   fontSize: "12px",
                                   color: "#0369a1",
                                 }}
-                                title="Restore module"
+                                title="Restore"
                               >
-                                ↩️ Restore
+                                ↩️
                               </button>
                               <button
                                 onClick={permanentlyDelete({
