@@ -269,12 +269,22 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     // Determine state from wish result
     let state: AuthState = "loading";
 
+    // Detect picker mode: when wish() finds multiple matches, it returns a picker UI
+    // (ct-card with ct-picker) instead of cellLinkUI (which has $cell prop).
+    // This check MUST come before wr.result check, because wish() sets result
+    // even when multiple matches exist (to the first candidate).
+    const hasPickerUI = (wr as any)?.[UI] && !(wr as any)?.[UI]?.props?.$cell;
+
     if (!wr) {
       state = "loading";
     } else if (wr.error) {
       // Wish returned error - no matches found
       state = "not-found";
+    } else if (hasPickerUI) {
+      // Multiple matches - show picker for user to choose
+      state = "selecting";
     } else if (wr.result) {
+      // Single match - evaluate auth state
       const email = authData?.user?.email;
       if (email && email !== "") {
         state = "ready"; // Will be refined below
@@ -640,6 +650,47 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
           {/* Inline auth charm UI - use info.charmUI (unwrapped in authInfo derive) */}
           <div style={{ backgroundColor: "white" }}>
             {info.charmUI}
+          </div>
+          {/* Option to use a different account */}
+          <div
+            style={{
+              padding: "12px 16px",
+              backgroundColor: "#f9fafb",
+              borderTop: `1px solid ${config.borderColor}`,
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#6b7280" }}>Or:</span>
+            <button
+              onClick={goToAuth({ charm: charmCell })}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "transparent",
+                color: "#4b5563",
+                border: "1px solid #d1d5db",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "13px",
+              }}
+            >
+              Manage this account
+            </button>
+            <button
+              onClick={createAuth({ scopes: requiredScopes })}
+              style={{
+                padding: "6px 12px",
+                backgroundColor: "transparent",
+                color: "#3b82f6",
+                border: "1px solid #3b82f6",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "13px",
+              }}
+            >
+              + Use different account
+            </button>
           </div>
         </div>
       );
