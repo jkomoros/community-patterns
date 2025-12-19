@@ -99,53 +99,37 @@ const addSubCharm = handler<
   sat.set("");
 });
 
-// Move sub-charm to trash (soft delete) - uses entry reference, not index
+// Move sub-charm to trash (soft delete) - uses Cell.push() and Cell.remove()
 const trashSubCharm = handler<
   unknown,
   { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: SubCharmEntry }
 >((_event, { subCharms: sc, trashedSubCharms: trash, entry }) => {
-  const current = sc.get() || [];
-  // Find by reference using charm identity
-  const index = current.findIndex((e) => e?.charm === entry?.charm);
-  if (index < 0) return;
-
   // Move to trash with timestamp
-  const trashed = trash.get() || [];
-  trash.set([...trashed, { ...entry, trashedAt: new Date().toISOString() }]);
+  trash.push({ ...entry, trashedAt: new Date().toISOString() });
 
   // Remove from active
-  sc.set(current.toSpliced(index, 1));
+  sc.remove(entry);
 });
 
-// Restore sub-charm from trash - uses entry reference, not index
+// Restore sub-charm from trash - uses Cell.push() and Cell.remove()
 const restoreSubCharm = handler<
   unknown,
   { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: TrashedSubCharmEntry }
 >((_event, { subCharms: sc, trashedSubCharms: trash, entry }) => {
-  const current = trash.get() || [];
-  // Find by reference using charm identity
-  const index = current.findIndex((e) => e?.charm === entry?.charm);
-  if (index < 0) return;
-
   // Restore to active (without trashedAt)
   const { trashedAt: _trashedAt, ...restored } = entry;
-  const active = sc.get() || [];
-  sc.set([...active, restored]);
+  sc.push(restored);
 
   // Remove from trash
-  trash.set(current.toSpliced(index, 1));
+  trash.remove(entry);
 });
 
-// Permanently delete from trash - uses entry reference, not index
+// Permanently delete from trash - uses Cell.remove() with entry reference
 const permanentlyDelete = handler<
   unknown,
   { trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: TrashedSubCharmEntry }
 >((_event, { trashedSubCharms: trash, entry }) => {
-  const current = trash.get() || [];
-  // Find by reference using charm identity
-  const index = current.findIndex((e) => e?.charm === entry?.charm);
-  if (index < 0) return;
-  trash.set(current.toSpliced(index, 1));
+  trash.remove(entry);
 });
 
 // Empty all trash
@@ -182,10 +166,8 @@ const Record = pattern<RecordInput, RecordOutput>(
 
     // ===== Computed Values =====
 
-    // Display name with fallback - use lift for proper reactive access
-    const displayName = lift(({ t }: { t: string }) =>
-      t?.trim() || "(Untitled Record)"
-    )({ t: title });
+    // Display name with fallback
+    const displayName = computed(() => title?.trim() || "(Untitled Record)");
 
     // Split sub-charms by pin status
     // No longer need indices - we use entry references directly
