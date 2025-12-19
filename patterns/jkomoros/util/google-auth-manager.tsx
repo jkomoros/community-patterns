@@ -126,6 +126,8 @@ export type TokenExpiryWarning = "ok" | "warning" | "expired";
 export interface AuthInfo {
   state: AuthState;
   auth: Auth | null;
+  /** The writable auth cell for token refresh - use this, not auth data */
+  authCell: Cell<Auth> | null;
   email: string;
   hasRequiredScopes: boolean;
   grantedScopes: string[];
@@ -141,6 +143,9 @@ export interface AuthInfo {
   statusText: string;
   // For navigation/actions
   charm: GoogleAuthCharm | null;
+  // UI components from wished charm (to avoid accessing wishResult in fullUI)
+  userChip: unknown;
+  charmUI: unknown;
 }
 
 /** Account type for multi-account support */
@@ -234,38 +239,34 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   const requiredScopes = options.requiredScopes || [];
   const accountType = options.accountType || "default";
 
-  // Derive wish tag reactively - handles both static strings and Cell<AccountType>
-  // derive() treats static values as constants, Cells as reactive
-  const tag = derive(accountType, (type: AccountType) =>
-    type === "personal" ? "#googleAuthPersonal" :
-    type === "work" ? "#googleAuthWork" :
-    "#googleAuth"
-  );
+  // Compute the wish tag
+  // IMPORTANT: wish() requires a string value, NOT a Cell. Passing a Cell
+  // causes wish() to never resolve, leaving the pattern stuck in "loading" state.
+  // For static accountType (the common case), compute the string directly.
+  // TODO: For reactive account switching (Cell<AccountType>), we need a different
+  // approach since wish() doesn't support Cell query values.
+  const tag =
+    accountType === "personal" ? "#googleAuthPersonal" :
+    accountType === "work" ? "#googleAuthWork" :
+    "#googleAuth";
 
   // CRITICAL: wish() at pattern body level, NOT inside derive
-  // Tag can now be reactive for dynamic account switching
   const wishResult = wish<GoogleAuthCharm>({ query: tag });
-
-  // CRITICAL: Property access to maintain cell writability for token refresh
-  // DO NOT use derive() here - it creates read-only projection
-  const auth = wishResult?.result?.auth;
 
   // Convert required scope keys to URLs for comparison
   const requiredScopeUrls = requiredScopes
     .map((key) => SCOPE_MAP[key])
     .filter(Boolean);
 
-  // PERFORMANCE FIX: Single computed for ALL auth-related derived state
-  // This avoids multiple computed() cells each subscribing to wishResult
-  // which causes reactive cascades when auth updates
-  // See: google-docs-comment-orchestrator.tsx lines 606-663
-  const authInfo = computed((): AuthInfo => {
-    const wr = wishResult;
-    const authData = auth?.get?.() ?? null;
+  // Use derive() instead of computed() - derive() properly unwraps OpaqueRef
+  // Inside derive callback, we can do normal JS operations (truthiness, comparisons)
+  // Note: We derive from wishResult, and access auth via wr.result?.auth
+  const authInfo = derive(wishResult, (wr): AuthInfo => {
+    // Inside derive(), wr is unwrapped - can do normal JS operations
+    const authCell = wr?.result?.auth;
+    const authData = authCell?.get?.() ?? null;
 
-    // Determine base state from wish result
-    // NOTE: wish() always returns [UI] for switching - don't use it to determine state
-    // Base state on whether wishResult.result exists with valid auth data
+    // Determine state from wish result
     let state: AuthState = "loading";
 
     if (!wr) {
@@ -330,6 +331,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     return {
       state,
       auth: authData,
+      authCell: authCell,  // Writable cell for token refresh
       email,
       hasRequiredScopes,
       grantedScopes,
@@ -341,8 +343,10 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
       tokenExpiryDisplay,
       statusDotColor,
       statusText,
-      // Cast to any to handle OpaqueCell wrapper types from wish()
       charm: (wr?.result ?? null) as GoogleAuthCharm | null,
+      // Include UI components from wished charm so fullUI doesn't need to access wishResult directly
+      userChip: wr?.result?.userChip ?? null,
+      charmUI: (wr?.result as any)?.[UI] ?? null,
     };
   });
 
@@ -397,7 +401,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   );
 
   // Pre-create charm cell for goToAuth binding (needed by UI components)
-  const charmCell = computed(() => authInfo.charm);
+  const charmCell = derive(authInfo, (info) => info.charm);
 
   // ==========================================================================
   // UI COMPONENTS
@@ -479,65 +483,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
 
   // Full state-aware management UI
   const fullUI = derive(authInfo, (info) => {
-    // Loading state
-    if (info.state === "loading") {
-      return (
-        <div
-          style={{
-            padding: "16px",
-            backgroundColor: "#f3f4f6",
-            borderRadius: "8px",
-            textAlign: "center",
-            color: "#6b7280",
-          }}
-        >
-          <span style={{ marginRight: "8px" }}>⏳</span>
-          Connecting to Google...
-        </div>
-      );
-    }
-
-    // Selecting state (multiple matches) - show picker with context
-    if (info.state === "selecting") {
-      return (
-        <div
-          style={{
-            padding: "16px",
-            backgroundColor: "#dbeafe",
-            borderRadius: "8px",
-          }}
-        >
-          <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>
-            Select a Google Account
-          </h4>
-          {requiredScopes.length > 0 && (
-            <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
-              This feature needs access to: {formatScopesList(requiredScopes)}
-            </p>
-          )}
-          {pickerUI}
-          {/* Always show option to create new auth */}
-          <button
-            onClick={createAuth({ scopes: requiredScopes })}
-            style={{
-              marginTop: "12px",
-              padding: "8px 16px",
-              backgroundColor: "transparent",
-              color: "#1e40af",
-              border: "1px solid #3b82f6",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-            }}
-          >
-            + Add new account
-          </button>
-        </div>
-      );
-    }
-
-    // Not found state - clearer copy, list permissions
-    if (info.state === "not-found") {
+    // Loading or not-found - show "Connect" UI immediately (optimistic approach)
+    // If auth IS found, will transition to ready state
+    if (info.state === "loading" || info.state === "not-found") {
       return (
         <div
           style={{
@@ -576,6 +524,45 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
             }}
           >
             Connect Google Account
+          </button>
+        </div>
+      );
+    }
+
+    // Selecting state (multiple matches) - show picker with context
+    if (info.state === "selecting") {
+      return (
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: "#dbeafe",
+            borderRadius: "8px",
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>
+            Select a Google Account
+          </h4>
+          {requiredScopes.length > 0 && (
+            <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
+              This feature needs access to: {formatScopesList(requiredScopes)}
+            </p>
+          )}
+          {pickerUI}
+          {/* Always show option to create new auth */}
+          <button
+            onClick={createAuth({ scopes: requiredScopes })}
+            style={{
+              marginTop: "12px",
+              padding: "8px 16px",
+              backgroundColor: "transparent",
+              color: "#1e40af",
+              border: "1px solid #3b82f6",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "13px",
+            }}
+          >
+            + Add new account
           </button>
         </div>
       );
@@ -650,9 +637,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
               {config.message || ""}
             </div>
           </div>
-          {/* Inline auth charm UI - access [UI] property for proper rendering */}
+          {/* Inline auth charm UI - use info.charmUI (unwrapped in authInfo derive) */}
           <div style={{ backgroundColor: "white" }}>
-            {(wishResult.result as any)?.[UI]}
+            {info.charmUI}
           </div>
         </div>
       );
@@ -675,7 +662,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
           }}
         >
           {/* User chip from google-auth - shows avatar + name + email */}
-          {wishResult.result?.userChip}
+          {info.userChip}
           {/* Token expiry and switch account */}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
             {info.tokenExpiryDisplay && (
@@ -738,12 +725,17 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   // ==========================================================================
 
   // Helper getters - pre-unwrapped for convenience (avoids OpaqueRef footgun)
-  const isReady = computed(() => authInfo.state === "ready");
-  const currentEmail = computed(() => authInfo.email);
-  const currentState = computed(() => authInfo.state);
+  const isReady = derive(authInfo, (info) => info.state === "ready");
+  const currentEmail = derive(authInfo, (info) => info.email);
+  const currentState = derive(authInfo, (info) => info.state);
+
+  // Extract the writable auth cell from authInfo
+  // IMPORTANT: This is the CELL reference, not derived data - supports writes for token refresh
+  const auth = derive(authInfo, (info) => info.authCell);
 
   return {
-    // Core auth cell - WRITABLE for token refresh (when it works)
+    // Core auth cell - WRITABLE for token refresh
+    // Note: This is extracted from authInfo.authCell which preserves the original cell reference
     auth,
 
     // Single computed with all state - use authInfo.state for state checks
