@@ -61,99 +61,124 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
   };
 });
 
+// ===== Module-Scope Handlers (avoid closures, use references not indices) =====
+
+// Toggle pin state for a sub-charm - uses entry reference, not index
+const togglePin = handler<
+  unknown,
+  { subCharms: Cell<SubCharmEntry[]>; entry: SubCharmEntry }
+>((_event, { subCharms: sc, entry }) => {
+  const current = sc.get() || [];
+  // Find by reference using charm identity
+  const index = current.findIndex((e) => e?.charm === entry?.charm);
+  if (index < 0) return;
+
+  const updated = [...current];
+  updated[index] = { ...entry, pinned: !entry.pinned };
+  sc.set(updated);
+});
+
+// Add a new sub-charm
+const addSubCharm = handler<
+  { detail: { value: string } },
+  { subCharms: Cell<SubCharmEntry[]>; selectedAddType: Cell<string> }
+>(({ detail }, { subCharms: sc, selectedAddType: sat }) => {
+  const type = detail?.value;
+  if (!type) return;
+
+  // Check if type already exists (singleton modules)
+  const current = sc.get() || [];
+  if (current.some((e) => e?.type === type)) {
+    sat.set("");
+    return;
+  }
+
+  // Create the sub-charm and add it
+  const charm = createSubCharm(type);
+  sc.set([...current, { type, pinned: false, charm }]);
+  sat.set("");
+});
+
+// Move sub-charm to trash (soft delete) - uses entry reference, not index
+const trashSubCharm = handler<
+  unknown,
+  { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: SubCharmEntry }
+>((_event, { subCharms: sc, trashedSubCharms: trash, entry }) => {
+  const current = sc.get() || [];
+  // Find by reference using charm identity
+  const index = current.findIndex((e) => e?.charm === entry?.charm);
+  if (index < 0) return;
+
+  // Move to trash with timestamp
+  const trashed = trash.get() || [];
+  trash.set([...trashed, { ...entry, trashedAt: new Date().toISOString() }]);
+
+  // Remove from active
+  sc.set(current.toSpliced(index, 1));
+});
+
+// Restore sub-charm from trash - uses entry reference, not index
+const restoreSubCharm = handler<
+  unknown,
+  { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: TrashedSubCharmEntry }
+>((_event, { subCharms: sc, trashedSubCharms: trash, entry }) => {
+  const current = trash.get() || [];
+  // Find by reference using charm identity
+  const index = current.findIndex((e) => e?.charm === entry?.charm);
+  if (index < 0) return;
+
+  // Restore to active (without trashedAt)
+  const { trashedAt: _trashedAt, ...restored } = entry;
+  const active = sc.get() || [];
+  sc.set([...active, restored]);
+
+  // Remove from trash
+  trash.set(current.toSpliced(index, 1));
+});
+
+// Permanently delete from trash - uses entry reference, not index
+const permanentlyDelete = handler<
+  unknown,
+  { trashedSubCharms: Cell<TrashedSubCharmEntry[]>; entry: TrashedSubCharmEntry }
+>((_event, { trashedSubCharms: trash, entry }) => {
+  const current = trash.get() || [];
+  // Find by reference using charm identity
+  const index = current.findIndex((e) => e?.charm === entry?.charm);
+  if (index < 0) return;
+  trash.set(current.toSpliced(index, 1));
+});
+
+// Empty all trash
+const emptyTrash = handler<
+  unknown,
+  { trashedSubCharms: Cell<TrashedSubCharmEntry[]> }
+>((_event, { trashedSubCharms: trash }) => {
+  trash.set([]);
+});
+
+// Handler to quickly add notes
+const addNotes = handler<
+  unknown,
+  { subCharms: Cell<SubCharmEntry[]> }
+>((_event, { subCharms: sc }) => {
+  const current = sc.get() || [];
+  if (current.some((e) => e?.type === "notes")) return;
+  const notesCharm = createSubCharm("notes");
+  sc.set([{ type: "notes", pinned: true, charm: notesCharm }, ...current]);
+});
+
+// Toggle trash section expanded/collapsed
+const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
+  (_event, { expanded }) => expanded.set(!expanded.get())
+);
+
 // ===== The Record Pattern =====
 const Record = pattern<RecordInput, RecordOutput>(
   ({ title, subCharms, trashedSubCharms }) => {
 
-    // ===== Handlers =====
-
-    // Toggle pin state for a sub-charm
-    const togglePin = handler<
-      unknown,
-      { subCharms: Cell<SubCharmEntry[]>; index: number }
-    >((_event, { subCharms: sc, index }) => {
-      const current = sc.get() || [];
-      const entry = current[index];
-      if (!entry) return;
-
-      const updated = [...current];
-      updated[index] = { ...entry, pinned: !entry.pinned };
-      sc.set(updated);
-    });
-
-    // Add a new sub-charm
+    // Local state
     const selectedAddType = Cell.of<string>("");
-    const addSubCharm = handler<
-      { detail: { value: string } },
-      { subCharms: Cell<SubCharmEntry[]>; selectedAddType: Cell<string> }
-    >(({ detail }, { subCharms: sc, selectedAddType: sat }) => {
-      const type = detail?.value;
-      if (!type) return;
-
-      // Check if type already exists (singleton modules)
-      const current = sc.get() || [];
-      if (current.some((e) => e?.type === type)) {
-        sat.set("");
-        return;
-      }
-
-      // Create the sub-charm and add it
-      const charm = createSubCharm(type);
-      sc.set([...current, { type, pinned: false, charm }]);
-      sat.set("");
-    });
-
-    // Move sub-charm to trash (soft delete)
-    const trashSubCharm = handler<
-      unknown,
-      { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
-    >((_event, { subCharms: sc, trashedSubCharms: trash, index }) => {
-      const current = sc.get() || [];
-      const entry = current[index];
-      if (!entry) return;
-
-      // Move to trash with timestamp
-      const trashed = trash.get() || [];
-      trash.set([...trashed, { ...entry, trashedAt: new Date().toISOString() }]);
-
-      // Remove from active
-      sc.set(current.toSpliced(index, 1));
-    });
-
-    // Restore sub-charm from trash
-    const restoreSubCharm = handler<
-      unknown,
-      { subCharms: Cell<SubCharmEntry[]>; trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
-    >((_event, { subCharms: sc, trashedSubCharms: trash, index }) => {
-      const current = trash.get() || [];
-      const entry = current[index];
-      if (!entry) return;
-
-      // Restore to active (without trashedAt)
-      const { trashedAt: _trashedAt, ...restored } = entry;
-      const active = sc.get() || [];
-      sc.set([...active, restored]);
-
-      // Remove from trash
-      trash.set(current.toSpliced(index, 1));
-    });
-
-    // Permanently delete from trash
-    const permanentlyDelete = handler<
-      unknown,
-      { trashedSubCharms: Cell<TrashedSubCharmEntry[]>; index: number }
-    >((_event, { trashedSubCharms: trash, index }) => {
-      const current = trash.get() || [];
-      trash.set(current.toSpliced(index, 1));
-    });
-
-    // Empty all trash
-    const emptyTrash = handler<
-      unknown,
-      { trashedSubCharms: Cell<TrashedSubCharmEntry[]> }
-    >((_event, { trashedSubCharms: trash }) => {
-      trash.set([]);
-    });
+    const trashExpanded = Cell.of(false);
 
     // ===== Computed Values =====
 
@@ -162,36 +187,29 @@ const Record = pattern<RecordInput, RecordOutput>(
       t?.trim() || "(Untitled Record)"
     )({ t: title });
 
-    // Split sub-charms by pin status, preserving original indices
-    // Using lift to avoid closure issues with opaque refs
-    type IndexedEntry = { entry: SubCharmEntry; originalIndex: number };
-
-    const pinnedWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      (sc || [])
-        .map((entry, index) => ({ entry, originalIndex: index }))
-        .filter(({ entry }) => entry?.pinned)
+    // Split sub-charms by pin status
+    // No longer need indices - we use entry references directly
+    const pinnedEntries = lift(({ sc }: { sc: SubCharmEntry[] }) =>
+      (sc || []).filter((entry) => entry?.pinned)
     )({ sc: subCharms });
 
-    const unpinnedWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      (sc || [])
-        .map((entry, index) => ({ entry, originalIndex: index }))
-        .filter(({ entry }) => !entry?.pinned)
+    const unpinnedEntries = lift(({ sc }: { sc: SubCharmEntry[] }) =>
+      (sc || []).filter((entry) => !entry?.pinned)
     )({ sc: subCharms });
 
-    // All subcharms indexed (for grid layout when no split needed)
-    const allWithIndex = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      (sc || []).map((entry, index) => ({ entry, originalIndex: index }))
+    // All subcharms (for grid layout when no split needed)
+    const allEntries = lift(({ sc }: { sc: SubCharmEntry[] }) =>
+      (sc || [])
     )({ sc: subCharms });
 
     // Check layout mode based on pinned count
-    // Use lift instead of computed for safer access to lift results
-    const pinnedCount = lift(({ arr }: { arr: typeof pinnedWithIndex }) =>
+    const pinnedCount = lift(({ arr }: { arr: SubCharmEntry[] }) =>
       (arr || []).length
-    )({ arr: pinnedWithIndex });
+    )({ arr: pinnedEntries });
 
-    const hasUnpinned = lift(({ arr }: { arr: typeof unpinnedWithIndex }) =>
+    const hasUnpinned = lift(({ arr }: { arr: SubCharmEntry[] }) =>
       (arr || []).length > 0
-    )({ arr: unpinnedWithIndex });
+    )({ arr: unpinnedEntries });
 
     // Check if record is empty (no sub-charms at all)
     const isEmpty = lift(({ sc }: { sc: SubCharmEntry[] }) =>
@@ -224,17 +242,6 @@ const Record = pattern<RecordInput, RecordOutput>(
       }));
     })({ sc: subCharms });
 
-    // Handler to quickly add notes
-    const addNotes = handler<
-      unknown,
-      { subCharms: Cell<SubCharmEntry[]> }
-    >((_event, { subCharms: sc }) => {
-      const current = sc.get() || [];
-      if (current.some((e) => e?.type === "notes")) return;
-      const notesCharm = createSubCharm("notes");
-      sc.set([{ type: "notes", pinned: true, charm: notesCharm }, ...current]);
-    });
-
     // ===== Trash Section Computed Values =====
 
     // Compute trash count directly
@@ -246,15 +253,6 @@ const Record = pattern<RecordInput, RecordOutput>(
     const hasTrash = lift(({ t }: { t: TrashedSubCharmEntry[] }) =>
       (t || []).length > 0
     )({ t: trashedSubCharms });
-
-    // Local state for trash section collapsed/expanded
-    const trashExpanded = Cell.of(false);
-    const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
-      (_event, { expanded }) => expanded.set(!expanded.get())
-    );
-
-    // Note: We avoid .map() with callbacks that reference subCharms
-    // Instead, we render sub-charms directly inline where needed
 
     // ===== Main UI =====
     return {
@@ -337,11 +335,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                 <div style={{ display: "flex", gap: "16px" }}>
                   {/* Left: Pinned items (2/3 width) */}
                   <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {pinnedWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
-                      const displayInfo = getModuleDisplay({ type: item.entry.type });
+                    {pinnedEntries.map((entry: SubCharmEntry) => {
+                      const displayInfo = getModuleDisplay({ type: entry.type });
                       return (
                         <div
-                          key={item.originalIndex}
                           style={{
                             background: "white",
                             borderRadius: "8px",
@@ -364,7 +361,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                             </span>
                             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                               <button
-                                onClick={togglePin({ subCharms, index: item.originalIndex })}
+                                onClick={togglePin({ subCharms, entry })}
                                 style={{
                                   background: "#e0f2fe",
                                   border: "1px solid #7dd3fc",
@@ -382,7 +379,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 📌 Pinned
                               </button>
                               <button
-                                onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
+                                onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
                                 style={{
                                   background: "transparent",
                                   border: "1px solid #e5e7eb",
@@ -402,7 +399,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                             </div>
                           </div>
                           <div style={{ padding: "12px" }}>
-                            {(item.entry.charm as any)?.[UI]}
+                            {(entry.charm as any)?.[UI]}
                           </div>
                         </div>
                       );
@@ -412,11 +409,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                   {ifElse(
                     hasUnpinned,
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
-                      {unpinnedWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
-                        const displayInfo = getModuleDisplay({ type: item.entry.type });
+                      {unpinnedEntries.map((entry: SubCharmEntry) => {
+                        const displayInfo = getModuleDisplay({ type: entry.type });
                         return (
                           <div
-                            key={item.originalIndex}
                             style={{
                               background: "white",
                               borderRadius: "8px",
@@ -439,7 +435,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               </span>
                               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                                 <button
-                                  onClick={togglePin({ subCharms, index: item.originalIndex })}
+                                  onClick={togglePin({ subCharms, entry })}
                                   style={{
                                     background: "transparent",
                                     border: "1px solid #e5e7eb",
@@ -457,7 +453,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   📌 Pin
                                 </button>
                                 <button
-                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
+                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
                                   style={{
                                     background: "transparent",
                                     border: "1px solid #e5e7eb",
@@ -477,7 +473,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               </div>
                             </div>
                             <div style={{ padding: "12px" }}>
-                              {(item.entry.charm as any)?.[UI]}
+                              {(entry.charm as any)?.[UI]}
                             </div>
                           </div>
                         );
@@ -494,11 +490,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                     gap: "12px",
                   }}
                 >
-                  {allWithIndex.map((item: { entry: SubCharmEntry; originalIndex: number }) => {
-                    const displayInfo = getModuleDisplay({ type: item.entry.type });
+                  {allEntries.map((entry: SubCharmEntry) => {
+                    const displayInfo = getModuleDisplay({ type: entry.type });
                     return (
                       <div
-                        key={item.originalIndex}
                         style={{
                           background: "white",
                           borderRadius: "8px",
@@ -521,7 +516,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                           </span>
                           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                             <button
-                              onClick={togglePin({ subCharms, index: item.originalIndex })}
+                              onClick={togglePin({ subCharms, entry })}
                               style={{
                                 background: "transparent",
                                 border: "1px solid #e5e7eb",
@@ -539,7 +534,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               📌 Pin
                             </button>
                             <button
-                              onClick={trashSubCharm({ subCharms, trashedSubCharms, index: item.originalIndex })}
+                              onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
                               style={{
                                 background: "transparent",
                                 border: "1px solid #e5e7eb",
@@ -559,7 +554,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                           </div>
                         </div>
                         <div style={{ padding: "12px" }}>
-                          {(item.entry.charm as any)?.[UI]}
+                          {(entry.charm as any)?.[UI]}
                         </div>
                       </div>
                     );
@@ -608,11 +603,10 @@ const Record = pattern<RecordInput, RecordOutput>(
                   trashExpanded,
                   <div style={{ paddingLeft: "16px", marginTop: "8px" }}>
                     {trashedSubCharms.map(
-                      (entry: TrashedSubCharmEntry, index: number) => {
+                      (entry: TrashedSubCharmEntry) => {
                         const displayInfo = getModuleDisplay({ type: entry.type });
                         return (
                           <div
-                            key={index}
                             style={{
                               display: "flex",
                               alignItems: "center",
@@ -638,7 +632,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 onClick={restoreSubCharm({
                                   subCharms,
                                   trashedSubCharms,
-                                  index,
+                                  entry,
                                 })}
                                 style={{
                                   background: "#e0f2fe",
@@ -656,7 +650,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               <button
                                 onClick={permanentlyDelete({
                                   trashedSubCharms,
-                                  index,
+                                  entry,
                                 })}
                                 style={{
                                   background: "transparent",

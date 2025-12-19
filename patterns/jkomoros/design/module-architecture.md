@@ -989,106 +989,147 @@ const entities = entityLinker.findEntities(email);
 
 **Graph building**: Entity linking creates the relationship graph automatically.
 
-### 3. Extraction Coordinator
+### 3. Extraction UX: Classify, Preview, Select
 
-**Purpose**: Coordinate LLM extraction across multiple modules efficiently.
+**Purpose**: Help users structure unstructured content through guided extraction.
 
-Instead of each extraction module calling the LLM separately, the coordinator batches requests into a **single LLM call** that extracts data for all enabled modules at once.
+> **Framework Author Guidance**: "Don't do a combined schema. Instead use generateObject to figure out WHICH schema you want—add 'explain why this type' and maybe a score field, then render a list sorted by score with the explanation for the user with the already-instantiated sub-charms. Let the user pick which ones to keep."
 
-**Key insight: Dynamic schema composition IS supported!**
+**Key insight**: Extraction is **curation, not automation**. The LLM proposes, the user disposes.
 
-The Common Fabric framework's `generateObject` accepts any JSONSchema object at runtime. The implementation uses `JSON.parse(JSON.stringify(schema))` to work with plain JavaScript objects, so schemas can be composed dynamically. The only trade-off is that TypeScript result types become `any` instead of fully typed—but this is acceptable for dynamic module systems where the structure isn't known at compile time.
+#### The Classify → Preview → Select Flow
 
-```typescript
-interface ExtractionCoordinatorModule {
-  // Run multiple extractions in one LLM call
-  coordinateExtraction(
-    text: string,
-    extractors: string[]
-  ): Promise<Map<string, any>>;
-}
-
-// Usage
-const recipeText = "Paella recipe: 2 cups rice, 1 lb chicken...";
-
-// Without coordinator: 3 separate LLM calls
-const ingredients = await extractIngredients(recipeText); // LLM call 1
-const steps = await extractSteps(recipeText);             // LLM call 2
-const dietary = await extractDietary(recipeText);         // LLM call 3
-
-// With coordinator: 1 LLM call for ALL modules
-const extracted = await extractionCoordinator.coordinateExtraction(recipeText, [
-  "ingredients",
-  "steps",
-  "dietary"
-]);
-// → {
-//     ingredients: { items: [...], servings: 4 },
-//     steps: { steps: [...] },
-//     dietary: { glutenFree: true, vegetarian: false }
-//   }
+```
+User provides content (text, URL, paste)
+           ↓
+CLASSIFY: Which module types are relevant?
+  - For each type: WHY does it apply?
+  - For each type: confidence SCORE (0-1)
+           ↓
+PREVIEW: Instantiate sub-charms with extracted data
+  - User sees exactly what they'll get
+  - Sorted by confidence score
+           ↓
+SELECT: User picks which to keep
+  - High-confidence items likely kept
+  - Low-confidence items easily discarded
+  - User always in control
 ```
 
-**Implementation**: Dynamic schema composition at runtime:
+#### Implementation
 
 ```typescript
-async coordinateExtraction(text: string, extractors: string[]) {
-  // Build combined schema from all extractors DYNAMICALLY
-  // This works because generateObject accepts any JSONSchema object
-  const combinedSchema = z.object(
-    Object.fromEntries(
-      extractors.map(e => [e, EXTRACTOR_SCHEMAS[e]])
-    )
-  );
+interface ExtractionCandidate {
+  moduleType: string;
+  explanation: string;      // "Why this type was detected"
+  score: number;            // 0-1 confidence
+  data: any;                // Extracted data
+  previewCharm?: CharmRef;  // Already instantiated for preview
+}
 
-  // generateObject handles dynamic schemas - result type is 'any'
+// Step 1: Classification pass
+async function classifyContent(text: string): Promise<ExtractionCandidate[]> {
   const result = await generateObject({
-    model: "claude-sonnet-4",
-    prompt: `Extract structured data from this text:
+    prompt: `Analyze this content and identify all structured data types present.
 
-    ${text}
+    For each type detected:
+    - Explain WHY this type applies (1 sentence)
+    - Score your confidence (0-1)
+    - Extract the relevant data
 
-    Extract: ${extractors.join(", ")}`,
-    schema: combinedSchema  // Schema composed at runtime!
+    Available types: ${AVAILABLE_MODULES.map(m => m.moduleType).join(", ")}
+
+    Content: ${text}`,
+    schema: z.object({
+      candidates: z.array(z.object({
+        moduleType: z.string(),
+        explanation: z.string(),
+        score: z.number(),
+        data: z.any()
+      }))
+    })
   });
 
-  // Result is correctly typed at runtime, even though TypeScript sees 'any'
-  return result;
+  // Sort by score descending (highest confidence first)
+  return result.candidates.sort((a, b) => b.score - a.score);
 }
 
-// Real-world example: Extract data for ALL enabled modules in one call
-async function extractFromAllModules(record: RecordCharm, text: string) {
-  // Get enabled extraction modules from record state
-  const extractionModules = record.modules.filter(m =>
-    m.moduleCategory === "extraction" && m.enabled
-  );
-
-  // Build schema for only the enabled modules
-  const extractorNames = extractionModules.map(m => m.moduleType);
-
-  // Single LLM call extracts data for all enabled modules
-  const extracted = await extractionCoordinator.coordinateExtraction(
-    text,
-    extractorNames
-  );
-
-  // Populate modules with extracted data
-  for (const [moduleName, data] of Object.entries(extracted)) {
-    const module = record.getModule(moduleName);
-    if (module) {
-      module.data = data;
-    }
+// Step 2: Instantiate previews for user review
+async function createPreviews(candidates: ExtractionCandidate[]) {
+  for (const c of candidates) {
+    // Create real sub-charm with extracted data
+    c.previewCharm = createSubCharm(c.moduleType, c.data);
   }
+}
+
+// Step 3: User selection UI
+function ExtractionPicker({ candidates, onSelect }) {
+  return html`
+    <div class="extraction-picker">
+      <h3>Extracted from your content:</h3>
+      ${candidates.map(c => html`
+        <div class="candidate">
+          <div class="header">
+            ${getModuleIcon(c.moduleType)} ${getModuleLabel(c.moduleType)}
+            <span class="score">${Math.round(c.score * 100)}% confident</span>
+          </div>
+          <div class="explanation">${c.explanation}</div>
+          <div class="preview">
+            <ct-render $cell=${c.previewCharm} />
+          </div>
+          <div class="actions">
+            <button onClick=${() => onSelect(c, true)}>✓ Keep</button>
+            <button onClick=${() => onSelect(c, false)}>✗ Discard</button>
+          </div>
+        </div>
+      `)}
+    </div>
+  `;
 }
 ```
 
-**Efficiency gains:**
+#### Example UX
 
-- **3 extraction modules**: 3 LLM calls → 1 LLM call (3x faster, 3x cheaper)
-- **10 extraction modules**: 10 LLM calls → 1 LLM call (10x faster, 10x cheaper)
-- **Dynamic module sets**: Schema adapts to which modules are enabled
+```
+┌─────────────────────────────────────────────────┐
+│ Extracted from your content:                    │
+├─────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────┐ │
+│ │ 🍳 Ingredients (95% confident)              │ │
+│ │ "Contains ingredient list with amounts"     │ │
+│ │ ┌─────────────────────────────────────┐     │ │
+│ │ │ • 2 cups rice                       │     │ │
+│ │ │ • 1 lb chicken                      │     │ │
+│ │ │ • 1 tsp saffron                     │     │ │
+│ │ └─────────────────────────────────────┘     │ │
+│ │ [✓ Keep]  [✗ Discard]                       │ │
+│ └─────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ 🥗 Dietary Info (72% confident)             │ │
+│ │ "Ingredients suggest dietary properties"    │ │
+│ │ ┌─────────────────────────────────────┐     │ │
+│ │ │ Gluten-free: Yes                    │     │ │
+│ │ │ Dairy-free: Yes                     │     │ │
+│ │ └─────────────────────────────────────┘     │ │
+│ │ [✓ Keep]  [✗ Discard]                       │ │
+│ └─────────────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ 👤 Person Mention (45% confident)           │ │
+│ │ "Author name detected in source"            │ │
+│ │ [✓ Keep]  [✗ Discard]                       │ │
+│ └─────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────┘
+```
 
-The coordinator is essential for making extraction modules practical at scale.
+**Properties of this UX pattern:**
+
+1. **Transparency**: User sees WHY each type was detected
+2. **Confidence**: Sorted by score, user can trust high-score items
+3. **Preview**: Already instantiated, user sees EXACTLY what they'll get
+4. **Choice**: User actively selects, doesn't passively receive
+5. **Forgiveness**: Easy to discard wrong extractions before committing
+
+**This is NOT a separate meta-module**—it's a UX capability built into records. When users paste content, the record offers to structure it through this guided flow.
 
 ### 4. Module Registry
 
@@ -1757,17 +1798,22 @@ Templates provide pre-assembled bundles of modules for common use cases (Person,
 
 ---
 
-### 2. Extraction Efficiency (Technical Concern)
+### 2. Extraction UX (Framework Author Guidance)
 
-**Critique**: "If each extraction module makes a separate LLM call, extracting data for 10 modules means 10 API calls. That's slow and expensive."
+**Critique**: "If extraction is fully automatic, users don't understand what's happening. They lose control over their data structure."
 
-**Resolution**: **Dynamic Schema Composition (Part 6, Section 3)**
+**Resolution**: **Classify, Preview, Select (Part 6, Section 3)**
 
-The framework's `generateObject` accepts runtime-composed JSONSchema objects, so the Extraction Coordinator can build a combined schema for all enabled modules and extract data in a **single LLM call**.
+The framework author provided explicit guidance: don't combine schemas for batch extraction. Instead, use generateObject to **classify** which types are relevant, provide **explanations and confidence scores**, and let the **user select** which extracted modules to keep.
 
-**Key technical insight**: While TypeScript can't infer the result type of dynamic schemas (result becomes `any`), the runtime behavior is correct—the LLM extracts all fields in one call, and modules get populated with the right data.
+**Key insight**: Extraction is curation, not automation. The LLM proposes structure; the user decides what to keep.
 
-**Impact**: Extraction scales efficiently. 10 modules = 1 LLM call, not 10 calls (10x faster, 10x cheaper).
+**Trade-off acknowledged**: This approach uses more LLM calls than a combined-schema batch approach. However:
+- User understanding and control are more important than raw efficiency
+- Preview before commit prevents bad extractions from polluting data
+- Confidence scores help users make informed decisions quickly
+
+**Impact**: Users stay in control of their data structure while still getting LLM-powered extraction assistance.
 
 ---
 
@@ -1824,14 +1870,212 @@ const gmailSyncManager = {
 
 ---
 
+### 5. Sandboxing Concern (Architecture Concern)
+
+**Critique**: "Global module-level stores (like `record-pattern-store.ts`) will break once proper sandboxing is implemented."
+
+**Context**: The current implementation uses a module-level variable to share the Record pattern across files:
+
+```typescript
+// record-pattern-store.ts - PROBLEMATIC
+let _recordPattern: any = null;
+
+export function setRecordPattern(pattern: any): void {
+  _recordPattern = pattern;
+}
+
+export function getRecordPatternJson(): string | null {
+  return _recordPattern ? JSON.stringify(_recordPattern) : null;
+}
+```
+
+This works today but relies on shared module state, which sandboxing will prevent.
+
+**Resolution**: Avoid global stores. Instead:
+
+1. **Pass references at construction**: Sub-charms receive parent references when created
+2. **Use `wish()` for discovery**: Modules discover capabilities via the wish system
+3. **Static imports only**: Registry can import module definitions statically, but shouldn't hold runtime state
+
+**Impact**: Architecture must be designed for isolation from the start. No shared mutable state between patterns.
+
+---
+
 ### Summary
 
-Each critique identified a real limitation in the initial design. The solutions—templates, dynamic schema composition, reactive coordination, and shared sync managers—make the architecture practical for real-world use while preserving the core "data-up" philosophy.
+Each critique identified a real limitation in the initial design. The solutions—templates, classify/preview/select extraction, reactive coordination, and shared sync managers—make the architecture practical for real-world use while preserving the core "data-up" philosophy.
 
 The module system is now:
 - **User-friendly**: Templates provide quick starts
-- **Efficient**: Single LLM calls for extraction, batched API requests for sources
+- **User-controlled**: Extraction shows previews and lets users choose
 - **Simple**: Reactive coordination eliminates lifecycle complexity
 - **Scalable**: Shared infrastructure handles rate limiting and resource management
+- **Sandbox-ready**: No global mutable state between patterns
 
 These refinements make the vision **implementable**, not just aspirational.
+
+---
+
+## Appendix B: Framework-Idiomatic Patterns
+
+The framework author provided specific guidance on idiomatic patterns. These should be followed in all module implementations.
+
+### 1. Initialization Pattern (isInitialized + computed)
+
+**For auto-creating sub-charms when a record is first created:**
+
+```typescript
+const isInitialized = Cell.of(false);
+
+computed(() => {
+  if (!isInitialized.get() && subCharms.get().length === 0) {
+    isInitialized.set(true);
+    subCharms.push({
+      charm: NotesModule({}),
+      type: "notes",
+      pinned: false
+    });
+  }
+});
+```
+
+**Why this pattern?**
+- Idempotent: Only runs once even if computed re-evaluates
+- Reactive: Integrates with framework's reactivity system
+- No lifecycle hooks: Doesn't require attach/detach
+
+### 2. Stable Entity IDs with Cell.for(cause)
+
+**DON'T use manual ID generation:**
+
+```typescript
+// ❌ WRONG
+const newItem = {
+  id: crypto.randomUUID(),  // Don't do this
+  name: "New Item"
+};
+```
+
+**DO use Cell.for(cause) for stable references:**
+
+```typescript
+// ✅ CORRECT
+const itemCell = Cell.for({ type: "item", name: itemName });
+itemCell.set({ name: itemName, ... });
+```
+
+**Why?**
+- `Cell.for(cause)` creates stable cells keyed by the cause object
+- Same cause = same cell (enables deduplication)
+- Framework manages identity, not pattern code
+
+### 3. References Not Indices in Handlers
+
+**DON'T pass indices to handlers:**
+
+```typescript
+// ❌ WRONG - index can shift in multi-user scenarios
+const removeItem = handler<unknown, { items: Cell<Item[]>; index: number }>(
+  (_event, { items, index }) => {
+    items.set(items.get().toSpliced(index, 1));
+  }
+);
+```
+
+**DO pass direct references:**
+
+```typescript
+// ✅ CORRECT - reference is stable
+const removeItem = handler<unknown, { items: Cell<Item[]>; item: Item }>(
+  (_event, { items, item }) => {
+    const current = items.get();
+    const index = current.findIndex(i => Cell.equals(i, item));
+    if (index >= 0) {
+      items.set(current.toSpliced(index, 1));
+    }
+  }
+);
+```
+
+**Why?**
+- Indices shift when other users add/remove items concurrently
+- References are stable identities
+- Lower "taint" (less coupling to array structure)
+
+### 4. Finding Charms with .equals()
+
+**Use `Cell.equals()` or `charm.equals()` for identity comparison:**
+
+```typescript
+// Find a charm in an array
+const found = subCharms.get().find(entry =>
+  Cell.equals(entry.charm, targetCharm)
+);
+
+// Check if array contains a specific charm
+const hasCharm = subCharms.get().some(entry =>
+  entry.charm.equals(targetCharm)
+);
+```
+
+### 5. No key= Attributes Needed
+
+**The framework uses cell IDs automatically for list rendering:**
+
+```typescript
+// ❌ UNNECESSARY
+${items.map((item, index) => html`
+  <div key=${index}>...</div>
+`)}
+
+// ✅ CORRECT - framework handles keys
+${items.map(item => html`
+  <div>...</div>
+`)}
+```
+
+### 6. Co-Ownership via Construction
+
+**Sub-charms passed at construction are co-owned (parent can write):**
+
+```typescript
+// Parent creates sub-charm = co-ownership
+const notesCharm = NotesModule({ content: "" });
+subCharms.push({ charm: notesCharm, ... });
+
+// Parent can write directly to co-owned charm
+notesCharm.content.set("Updated by parent");
+```
+
+**No need for Stream handlers** when parent creates the sub-charm.
+
+### 7. Move Handlers to Module Scope
+
+**DON'T close over pattern variables in handlers:**
+
+```typescript
+// ❌ PROBLEMATIC - closes over `current`
+const removeItem = handler((_event, { items, index }) => {
+  const current = items.get();  // This might work but is fragile
+  ...
+});
+```
+
+**DO define handlers at module scope with explicit parameters:**
+
+```typescript
+// ✅ CORRECT - explicit about what's needed
+const removeItem = handler<
+  unknown,
+  { items: Cell<Item[]>; item: Item }
+>((_event, { items, item }) => {
+  // All data comes from parameters, not closures
+  const current = items.get();
+  ...
+});
+```
+
+**Why?**
+- Avoids accidental closure over stale values
+- Makes dependencies explicit
+- Easier to reason about behavior
