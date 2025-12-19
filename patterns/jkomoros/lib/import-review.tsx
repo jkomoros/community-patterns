@@ -156,6 +156,7 @@ interface ProcessedFieldDiff {
   extractedValue: string;         // Value from LLM extraction (or count message for arrays)
   hasChanged: boolean;            // currentValue !== extractedValue
   selected: boolean;              // Current selection state
+  selectionKey: string;           // Pre-computed key for handler (survives closure frame issues)
   _rawValue?: unknown[];          // For array fields: the raw array for selectedFieldValues Cell
 }
 
@@ -346,7 +347,8 @@ export function buildFieldMappingSchema(
   mappings: Array<{ key: string; label: string; isArray?: boolean }>
 ): object {
   const properties: Record<string, object> = {};
-  const required: string[] = [];
+  // NOTE: No `required` array - let LLM omit fields it can't extract from input
+  // This prevents <UNKNOWN> or placeholder values for missing fields
 
   for (const mapping of mappings) {
     if (mapping.isArray) {
@@ -361,13 +363,12 @@ export function buildFieldMappingSchema(
         description: mapping.label,
       };
     }
-    required.push(mapping.key);
   }
 
   return {
     type: "object",
     properties,
-    required,
+    additionalProperties: false,
   };
 }
 
@@ -898,13 +899,16 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           // Only show if there are items to add
           if (arrayCount === 0) continue;
 
+          // Pre-compute selectionKey with template literal to survive closure frame issues
+          const selectionKey = `${fieldKey}`;
           processed.push({
             key: fieldKey,
             label: fieldLabel,
             currentValue: "",  // No current value comparison for append mode
             extractedValue: `${arrayCount} ${arrayCountLabel} will be added`,
             hasChanged: true,  // Always "changed" if there are items
-            selected: selected.includes(fieldKey),
+            selected: selected.includes(selectionKey),
+            selectionKey,
             // Store the raw array for selectedFieldValues Cell
             _rawValue: extractedArray,
           } as ProcessedFieldDiff);
@@ -923,17 +927,24 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
         const extractedValue = extractedRaw != null ? String(extractedRaw) : "";
 
+        // Skip fields where LLM couldn't extract a value (returned null/empty)
+        // This happens when the input text doesn't contain relevant info for this field
+        if (!extractedValue || extractedValue.trim() === "") continue;
+
         // Compare - only show if there's a change
         const hasChanged = resolvedCurrentValue !== extractedValue;
         if (!hasChanged) continue;
 
+        // Pre-compute selectionKey with template literal to survive closure frame issues
+        const selectionKey = `${fieldKey}`;
         processed.push({
           key: fieldKey,
           label: fieldLabel,
           currentValue: resolvedCurrentValue,
           extractedValue,
           hasChanged,
-          selected: selected.includes(fieldKey),
+          selected: selected.includes(selectionKey),
+          selectionKey,
         });
       }
 
@@ -946,7 +957,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       fieldDiffs.filter((f) => f.selected).length
     );
     const hasFieldResults = computed(() => fieldDiffs.length > 0);
-    const allChangedFieldKeys = computed(() => fieldDiffs.map((f) => f.key));
+    const allChangedFieldKeys = computed(() => fieldDiffs.map((f) => f.selectionKey));
 
     // Show field empty state when triggered, not pending, no field results, no error
     const showFieldEmptyState = computed(() => {
@@ -1548,10 +1559,11 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       </div>
     );
 
-    // Use derive() to wrap .map() directly in JSX - this works because:
-    // 1. derive() creates proper reactive frame context for Cell access
-    // 2. .map() happens in JSX, not inside computed() returning JSX (which doesn't render)
-    // Per folk_wisdom 2025-12-14-checkbox-toggle-in-computed-map.md
+    // Map directly in JSX - following mergeDiffList pattern that works.
+    // Key points:
+    // 1. No derive() wrapper - derive() returns OpaqueRef-wrapped JSX that doesn't render on updates
+    // 2. Pass selectedFieldKeys Cell directly to handler (not unpacked)
+    // 3. fieldDiff.key comes from map parameter, avoiding closure frame issues
     const fieldDiffList = (
       <div
         style={{
@@ -1560,66 +1572,58 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           overflow: "hidden",
         }}
       >
-        {derive(
-          { fieldDiffs, selectedFieldKeys },
-          ({ fieldDiffs: diffs, selectedFieldKeys: sel }) =>
-            (diffs as ProcessedFieldDiff[]).map(
-              (fieldDiff: ProcessedFieldDiff, idx: number) => (
-                <div
-                  key={idx}
+        {fieldDiffs.map((fieldDiff) => (
+          <div
+            key={fieldDiff.key}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              padding: "12px",
+              borderBottom: "1px solid #eee",
+              backgroundColor: "transparent",
+            }}
+          >
+            <ct-checkbox
+              checked={fieldDiff.selected}
+              onClick={toggleFieldSelectionHandler({
+                selectedFieldKeys,
+                fieldKey: fieldDiff.selectionKey,  // Use pre-computed selectionKey (not key) to survive closure frame
+              })}
+              style={{ marginRight: "12px", marginTop: "2px" }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, marginBottom: "4px" }}>
+                {fieldDiff.label}
+              </div>
+              <div style={{ fontSize: "14px" }}>
+                {fieldDiff.currentValue && (
+                  <span
+                    style={{
+                      textDecoration: "line-through",
+                      color: "#dc2626",
+                      marginRight: "8px",
+                    }}
+                  >
+                    {fieldDiff.currentValue}
+                  </span>
+                )}
+                {fieldDiff.currentValue && (
+                  <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+                )}
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    padding: "12px",
-                    borderBottom: "1px solid #eee",
-                    backgroundColor: "transparent",
+                    backgroundColor: "#dcfce7",
+                    color: "#166534",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
                   }}
                 >
-                  <ct-checkbox
-                    checked={fieldDiff.selected}
-                    onct-change={toggleFieldSelectionHandler({
-                      selectedFieldKeys: sel,
-                      fieldKey: fieldDiff.key,
-                    })}
-                    style={{ marginRight: "12px", marginTop: "2px" }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, marginBottom: "4px" }}>
-                      {fieldDiff.label}
-                    </div>
-                    <div style={{ fontSize: "14px" }}>
-                      {fieldDiff.currentValue && (
-                        <span
-                          style={{
-                            textDecoration: "line-through",
-                            color: "#dc2626",
-                            marginRight: "8px",
-                          }}
-                        >
-                          {fieldDiff.currentValue}
-                        </span>
-                      )}
-                      {fieldDiff.currentValue && (
-                        <span style={{ color: "#666", marginRight: "8px" }}>
-                          →
-                        </span>
-                      )}
-                      <span
-                        style={{
-                          backgroundColor: "#dcfce7",
-                          color: "#166534",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                        }}
-                      >
-                        {fieldDiff.extractedValue || "(empty)"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )
-            )
-        )}
+                  {fieldDiff.extractedValue || "(empty)"}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     );
 

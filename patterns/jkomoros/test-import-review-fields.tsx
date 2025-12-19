@@ -56,7 +56,8 @@ export default pattern<TestInput, {}>((props) => {
 
   const fieldsSystemPrompt = Cell.of(
     "Extract person contact information from the text. " +
-    "Return displayName (full name), email, phone, and notes (any other relevant info)."
+    "Only include fields that are explicitly mentioned or can be clearly inferred. " +
+    "Omit any fields not found in the input - do NOT use placeholders like 'unknown' or 'N/A'."
   );
 
   // Create ImportReview with fieldMappings
