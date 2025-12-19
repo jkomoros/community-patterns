@@ -553,45 +553,49 @@ const demoExtract = handler<
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Toggle selection for a single field
+// NOTE: Uses inverted logic - tracks DESELECTED keys, not selected
+// Empty array = all selected, add to array = deselect
 const toggleFieldSelectionHandler = handler<
   unknown,
-  { selectedFieldKeys: Cell<string[]>; fieldKey: string }
->((_, { selectedFieldKeys, fieldKey }) => {
+  { deselectedFieldKeys: Cell<string[]>; fieldKey: string }
+>((_, { deselectedFieldKeys, fieldKey }) => {
   // Defensive guards
   if (!fieldKey || typeof fieldKey !== "string") return;
-  if (!selectedFieldKeys) return;
+  if (!deselectedFieldKeys) return;
 
-  const current = selectedFieldKeys.get() ?? [];
+  const current = deselectedFieldKeys.get() ?? [];
   if (current.includes(fieldKey)) {
-    // Deselect - remove from selectedFieldKeys
-    selectedFieldKeys.set(current.filter((k) => k !== fieldKey));
+    // Currently deselected → remove from list → now selected
+    deselectedFieldKeys.set(current.filter((k) => k !== fieldKey));
   } else {
-    // Select - use .push() to avoid StorageTransactionInconsistent
-    selectedFieldKeys.push(fieldKey);
+    // Currently selected → add to list → now deselected
+    deselectedFieldKeys.push(fieldKey);
   }
 });
 
 // Select all changed fields
+// With inverted logic: "select all" means "deselect none" → clear the array
 const selectAllFieldsHandler = handler<
   unknown,
-  { selectedFieldKeys: Cell<string[]>; allChangedFieldKeys: string[] }
->((_, { selectedFieldKeys, allChangedFieldKeys }) => {
-  // Defensive guards
-  if (!selectedFieldKeys) return;
-  if (!Array.isArray(allChangedFieldKeys)) return;
+  { deselectedFieldKeys: Cell<string[]> }
+>((_, { deselectedFieldKeys }) => {
+  // Defensive guard
+  if (!deselectedFieldKeys) return;
 
-  selectedFieldKeys.set([...allChangedFieldKeys]);
+  deselectedFieldKeys.set([]);
 });
 
 // Deselect all fields
+// With inverted logic: "select none" means "deselect all" → populate with all keys
 const selectNoFieldsHandler = handler<
   unknown,
-  { selectedFieldKeys: Cell<string[]> }
->((_, { selectedFieldKeys }) => {
-  // Defensive guard
-  if (!selectedFieldKeys) return;
+  { deselectedFieldKeys: Cell<string[]>; allChangedFieldKeys: string[] }
+>((_, { deselectedFieldKeys, allChangedFieldKeys }) => {
+  // Defensive guards
+  if (!deselectedFieldKeys) return;
+  if (!Array.isArray(allChangedFieldKeys)) return;
 
-  selectedFieldKeys.set([]);
+  deselectedFieldKeys.set([...allChangedFieldKeys]);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -734,8 +738,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Internal cell for tracking selected items (separate from hidden)
     const selectedIds = cell<string[]>([]);
 
-    // Internal cell for tracking selected fields (per-field diff mode)
-    const selectedFieldKeys = cell<string[]>([]);
+    // Internal cell for tracking DESELECTED fields (per-field diff mode)
+    // Empty array = all fields selected (nothing deselected yet)
+    // This inverted logic provides "default all selected" behavior
+    const deselectedFieldKeys = cell<string[]>([]);
 
     // Internal cell for tracking selected merge fields (merge mode)
     // Format: ["itemId:fieldKey", "itemId:fieldKey", ...]
@@ -919,7 +925,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       if (!fmArray || fmArray.length === 0) return [];
 
       const result = extractionResult;
-      const selected = selectedFieldKeys.get() ?? [];
+      // Use inverted logic: track deselected keys, not selected
+      // Empty array = all selected (nothing deselected yet)
+      const deselected = deselectedFieldKeys.get() ?? [];
 
       // Guard: no result or not an object
       if (!result || typeof result !== "object") return [];
@@ -956,7 +964,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
             currentValue: "",  // No current value comparison for append mode
             extractedValue: `${arrayCount} ${arrayCountLabel} will be added`,
             hasChanged: true,  // Always "changed" if there are items
-            selected: selected.includes(selectionKey),
+            selected: !deselected.includes(selectionKey),
             selectionKey,
             // Store the raw array for selectedFieldValues Cell
             _rawValue: extractedArray,
@@ -992,7 +1000,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           currentValue: resolvedCurrentValue,
           extractedValue,
           hasChanged,
-          selected: selected.includes(selectionKey),
+          selected: !deselected.includes(selectionKey),
           selectionKey,
         });
       }
@@ -1298,8 +1306,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Computed Cell version of selected field values
     // This is needed because handlers can't call functions captured via closure
     // due to OpaqueRef wrapping. Cells can be passed as handler params and read with .get()
+    // NOTE: Uses inverted logic - returns values for keys NOT in deselectedFieldKeys
     const selectedFieldValuesCell = computed(() => {
-      const selected = selectedFieldKeys.get() ?? [];
+      const deselected = deselectedFieldKeys.get() ?? [];
       const result = extractionResult;
 
       // Guard: no result or not an object
@@ -1308,8 +1317,12 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const extractedData = result as Record<string, unknown>;
       const selectedValues: Record<string, unknown> = {};
 
-      for (const key of selected) {
-        if (key in extractedData) {
+      // Get all changed field keys (those that have diffs)
+      const allKeys = fieldDiffs.map((f) => f.key);
+
+      // Include values for keys that are NOT deselected
+      for (const key of allKeys) {
+        if (!deselected.includes(key) && key in extractedData) {
           selectedValues[key] = extractedData[key];
         }
       }
@@ -1318,8 +1331,11 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     });
 
     // Reactive computed of selected field keys (for parent's reactive use)
+    // NOTE: Uses inverted logic - returns keys NOT in deselectedFieldKeys
     const selectedFieldKeysComputed = computed(() => {
-      return selectedFieldKeys.get() ?? [];
+      const deselected = deselectedFieldKeys.get() ?? [];
+      const allKeys = fieldDiffs.map((f) => f.key);
+      return allKeys.filter((k) => !deselected.includes(k));
     });
 
     // Computed Cell version of selected merge values
@@ -1538,8 +1554,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     const boundDismissAll = dismissAllItems({ hiddenItemIds, allVisibleKeys });
 
     // Pre-bind field selection handlers OUTSIDE JSX
-    const boundSelectAllFields = selectAllFieldsHandler({ selectedFieldKeys, allChangedFieldKeys });
-    const boundSelectNoFields = selectNoFieldsHandler({ selectedFieldKeys });
+    // Note: Using inverted logic - handlers take deselectedFieldKeys
+    const boundSelectAllFields = selectAllFieldsHandler({ deselectedFieldKeys });
+    const boundSelectNoFields = selectNoFieldsHandler({ deselectedFieldKeys, allChangedFieldKeys });
     const boundClearTrigger = clearTrigger({ trigger });
 
     const reviewPanel = (
@@ -1632,7 +1649,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Map directly in JSX - following mergeDiffList pattern that works.
     // Key points:
     // 1. No derive() wrapper - derive() returns OpaqueRef-wrapped JSX that doesn't render on updates
-    // 2. Pass selectedFieldKeys Cell directly to handler (not unpacked)
+    // 2. Pass deselectedFieldKeys Cell directly to handler (not unpacked)
     // 3. fieldDiff.key comes from map parameter, avoiding closure frame issues
     const fieldDiffList = (
       <div
@@ -1656,7 +1673,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
             <ct-checkbox
               checked={fieldDiff.selected}
               onClick={toggleFieldSelectionHandler({
-                selectedFieldKeys,
+                deselectedFieldKeys,
                 fieldKey: fieldDiff.selectionKey,  // Use pre-computed selectionKey (not key) to survive closure frame
               })}
               style={{ marginRight: "12px", marginTop: "2px" }}
@@ -1699,30 +1716,29 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Remaining text preview - shows what input will contain after apply
     // Only visible when captureRemainingText is enabled
+    // Styled as subtle footnote text, not a prominent box
     const remainingTextPreview = captureRemainingText ? (
       <div
         style={{
-          marginTop: "12px",
-          padding: "12px",
-          background: "#fef9e7",
-          border: "1px solid #fcd34d",
-          borderRadius: "6px",
+          marginTop: "8px",
+          paddingTop: "8px",
+          borderTop: "1px solid #e5e7eb",
         }}
       >
-        <div style={{ fontSize: "13px", fontWeight: 500, marginBottom: "6px", color: "#92400e" }}>
+        <div style={{ fontSize: "12px", marginBottom: "2px", color: "#9ca3af" }}>
           After apply, input will contain:
         </div>
         {ifElse(
           derive(remainingTextComputed, (t) => !!t?.trim()),
-          <div style={{ fontSize: "13px", color: "#78350f", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <div style={{ fontSize: "12px", color: "#6b7280", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {derive(remainingTextComputed, (t) => {
               const text = t ?? "";
               if (text.length <= 150) return `"${text}"`;
               return `"${text.slice(0, 150)}..."`;
             })}
           </div>,
-          <div style={{ fontSize: "13px", color: "#92400e", fontStyle: "italic" }}>
-            (Input will be cleared - no remaining text)
+          <div style={{ fontSize: "12px", color: "#9ca3af", fontStyle: "italic" }}>
+            (Input will be cleared)
           </div>
         )}
       </div>
@@ -2173,7 +2189,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Per-field diff mode handlers
       selectAllFields: boundSelectAllFields,
       selectNoFields: boundSelectNoFields,
-      toggleFieldSelection: (key: string) => toggleFieldSelectionHandler({ selectedFieldKeys, fieldKey: key }),
+      toggleFieldSelection: (key: string) => toggleFieldSelectionHandler({ deselectedFieldKeys, fieldKey: key }),
 
       // Merge mode outputs (ID-matching merge for timing/wait-time)
       hasMergeResults,
