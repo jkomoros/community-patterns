@@ -19,10 +19,13 @@ import { RelationshipModule } from "./relationship-module.tsx";
 import { GiftPrefsModule } from "./giftprefs-module.tsx";
 import { TimingModule } from "./timing-module.tsx";
 import { NotesModule } from "./notes-module.tsx";
+// NOTE: TypePickerModule is NOT imported here to avoid circular dependency
+// (registry → type-picker → template-registry → registry)
+// Instead, record.tsx imports it directly.
 
 // Type for pattern constructors - uses any to bypass Opaque type requirements
 // deno-lint-ignore no-explicit-any
-type PatternConstructor = () => any;
+type PatternConstructor = (...args: any[]) => any;
 
 export interface SubCharmDefinition {
   type: SubCharmType;
@@ -30,6 +33,8 @@ export interface SubCharmDefinition {
   icon: string;
   // Pattern constructor for creating instances
   createInstance: PatternConstructor;
+  // Internal modules don't appear in "Add" dropdown (e.g., type-picker)
+  internal?: boolean;
   // For Phase 2 extraction:
   schema?: Record<string, unknown>;
   fieldMapping?: string[];
@@ -202,6 +207,18 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
     },
     fieldMapping: ["prepTime", "cookTime", "restTime"],
   },
+  // Controller modules - metadata only (no createInstance to avoid circular deps)
+  // TypePickerModule is imported directly in record.tsx
+  "type-picker": {
+    type: "type-picker" as SubCharmType,
+    label: "Type Picker",
+    icon: "\u{1F3AF}", // 🎯
+    // createInstance is a no-op - record.tsx imports TypePickerModule directly
+    createInstance: () => {
+      throw new Error("Use TypePickerModule directly, not through registry");
+    },
+    internal: true, // Don't show in Add dropdown
+  },
 };
 
 // Helper functions
@@ -209,9 +226,9 @@ export function getAvailableTypes(): SubCharmDefinition[] {
   return Object.values(SUB_CHARM_REGISTRY);
 }
 
-// Get types available for "Add" dropdown (all types, including notes)
+// Get types available for "Add" dropdown (excludes internal modules like type-picker)
 export function getAddableTypes(): SubCharmDefinition[] {
-  return Object.values(SUB_CHARM_REGISTRY);
+  return Object.values(SUB_CHARM_REGISTRY).filter((def) => !def.internal);
 }
 
 export function getDefinition(

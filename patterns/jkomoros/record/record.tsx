@@ -30,6 +30,12 @@ import {
   getAddableTypes,
   getDefinition,
 } from "./sub-charms/registry.ts";
+import {
+  inferTypeFromModules,
+} from "./templates/template-registry.ts";
+// Import TypePickerModule directly to avoid circular dependency
+// (registry → type-picker → template-registry → registry)
+import { TypePickerModule } from "./sub-charms/type-picker-module.tsx";
 import { setRecordPattern } from "./sub-charms/record-pattern-store.ts";
 import type { SubCharmEntry, TrashedSubCharmEntry } from "./types/record-types.ts";
 
@@ -47,41 +53,56 @@ interface RecordOutput {
   trashedSubCharms?: Default<TrashedSubCharmEntry[], []>;
 }
 
-// ===== Auto-Initialize Notes Module (Two-Lift Pattern) =====
+// ===== Auto-Initialize Notes + TypePicker (Two-Lift Pattern) =====
 // Based on chatbot-list-view.tsx pattern:
-// - Outer lift creates the charm and calls inner lift
-// - Inner lift receives charm as input and stores it
+// - Outer lift creates the charms and calls inner lift
+// - Inner lift receives charms as input and stores them
 // This works because the inner lift provides proper cause context
+//
+// TypePicker is a "controller module" - it receives parent Cells as input
+// so it can modify the parent's subCharms list when a template is selected.
 
-// Inner lift: stores the notes charm (receives charm as input)
-const storeNotesCharm = lift(
+// Inner lift: stores the initial charms (receives charms as input)
+const storeInitialCharms = lift(
   toSchema<{
     notesCharm: unknown;
+    typePickerCharm: unknown;
     subCharms: Cell<SubCharmEntry[]>;
     isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ notesCharm, subCharms, isInitialized }) => {
+  ({ notesCharm, typePickerCharm, subCharms, isInitialized }) => {
     if (!isInitialized.get()) {
-      subCharms.set([{ type: "notes", pinned: true, charm: notesCharm }]);
+      subCharms.set([
+        { type: "notes", pinned: true, charm: notesCharm },
+        { type: "type-picker", pinned: false, charm: typePickerCharm },
+      ]);
       isInitialized.set(true);
-      return notesCharm; // Return charm to match reference pattern
+      return notesCharm; // Return notes charm as primary reference
     }
   }
 );
 
-// Outer lift: checks if empty and creates charm, then calls inner lift
-const initializeNotes = lift(
+// Outer lift: checks if empty, creates charms, calls inner lift
+// TypePicker receives parent Cells so it can modify subCharms when template selected
+const initializeRecord = lift(
   toSchema<{
     currentCharms: SubCharmEntry[];  // Unwrapped value, not Cell
     subCharms: Cell<SubCharmEntry[]>;
+    trashedSubCharms: Cell<TrashedSubCharmEntry[]>;
     isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ currentCharms, subCharms, isInitialized }) => {
+  ({ currentCharms, subCharms, trashedSubCharms, isInitialized }) => {
     if ((currentCharms || []).length === 0) {
       const notesCharm = createSubCharm("notes");
-      return storeNotesCharm({ notesCharm, subCharms, isInitialized });
+      // TypePicker receives parent Cells as input (survives serialization)
+      // deno-lint-ignore no-explicit-any
+      const typePickerCharm = TypePickerModule({
+        parentSubCharms: subCharms,
+        parentTrashedSubCharms: trashedSubCharms,
+      } as any);
+      return storeInitialCharms({ notesCharm, typePickerCharm, subCharms, isInitialized });
     }
   }
 );
@@ -187,9 +208,9 @@ const Record = pattern<RecordInput, RecordOutput>(
     const selectedAddType = Cell.of<string>("");
     const trashExpanded = Cell.of(false);
 
-    // ===== Auto-initialize Notes Module =====
+    // ===== Auto-initialize Notes + TypePicker =====
     const isInitialized = Cell.of(false);
-    initializeNotes({ currentCharms: subCharms, subCharms, isInitialized });
+    initializeRecord({ currentCharms: subCharms, subCharms, trashedSubCharms, isInitialized });
 
     // ===== Computed Values =====
 
@@ -230,6 +251,17 @@ const Record = pattern<RecordInput, RecordOutput>(
       label: `${def.icon} ${def.label}`,
     }));
 
+    // Infer record type from modules (data-up philosophy)
+    const inferredType = lift(({ sc }: { sc: SubCharmEntry[] }) => {
+      const moduleTypes = (sc || []).map((e) => e?.type).filter(Boolean);
+      return inferTypeFromModules(moduleTypes as string[]);
+    })({ sc: subCharms });
+
+    // Extract icon from inferred type for NAME display
+    const recordIcon = lift(({ inferred }: { inferred: { icon: string } }) =>
+      inferred?.icon || "\u{1F4CB}"
+    )({ inferred: inferredType });
+
     // ===== Trash Section Computed Values =====
 
     // Compute trash count directly
@@ -244,7 +276,7 @@ const Record = pattern<RecordInput, RecordOutput>(
 
     // ===== Main UI =====
     return {
-      [NAME]: str`\u{1F4CB} ${displayName}`,
+      [NAME]: str`${recordIcon} ${displayName}`,
       [UI]: (
         <ct-vstack style={{ height: "100%", gap: "0" }}>
           {/* Header toolbar */}
