@@ -61,21 +61,23 @@ interface RecordOutput {
 // so it can modify the parent's subCharms list when a template is selected.
 
 // Inner lift: stores the initial charms (receives charms as input)
+// Only runs if subCharms is truly empty (not just on reload)
 const storeInitialCharms = lift(
   toSchema<{
     notesCharm: unknown;
     typePickerCharm: unknown;
     subCharms: Cell<SubCharmEntry[]>;
-    isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ notesCharm, typePickerCharm, subCharms, isInitialized }) => {
-    if (!isInitialized.get()) {
+  ({ notesCharm, typePickerCharm, subCharms }) => {
+    // Double-check subCharms is empty before setting
+    // This prevents re-initialization on reload
+    const current = subCharms.get() || [];
+    if (current.length === 0) {
       subCharms.set([
         { type: "notes", pinned: true, charm: notesCharm },
         { type: "type-picker", pinned: false, charm: typePickerCharm },
       ]);
-      isInitialized.set(true);
       return notesCharm; // Return notes charm as primary reference
     }
   }
@@ -83,15 +85,16 @@ const storeInitialCharms = lift(
 
 // Outer lift: checks if empty, creates charms, calls inner lift
 // TypePicker receives parent Cells so it can modify subCharms when template selected
+// Note: We check currentCharms (unwrapped value) to determine if we should initialize
 const initializeRecord = lift(
   toSchema<{
     currentCharms: SubCharmEntry[];  // Unwrapped value, not Cell
     subCharms: Cell<SubCharmEntry[]>;
     trashedSubCharms: Cell<TrashedSubCharmEntry[]>;
-    isInitialized: Cell<boolean>;
   }>(),
   undefined,
-  ({ currentCharms, subCharms, trashedSubCharms, isInitialized }) => {
+  ({ currentCharms, subCharms, trashedSubCharms }) => {
+    // Only initialize if truly empty (no existing modules)
     if ((currentCharms || []).length === 0) {
       const notesCharm = createSubCharm("notes");
       // TypePicker receives parent Cells as input (survives serialization)
@@ -100,7 +103,7 @@ const initializeRecord = lift(
         parentSubCharms: subCharms,
         parentTrashedSubCharms: trashedSubCharms,
       } as any);
-      return storeInitialCharms({ notesCharm, typePickerCharm, subCharms, isInitialized });
+      return storeInitialCharms({ notesCharm, typePickerCharm, subCharms });
     }
   }
 );
@@ -118,6 +121,77 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
     icon: def?.icon || "📋",
     label: def?.label || type,
   };
+});
+
+// Inner lift for charm repair: stores the repaired entries
+const storeRepairedCharms = lift(
+  toSchema<{
+    repairedEntries: SubCharmEntry[];
+    subCharms: Cell<SubCharmEntry[]>;
+  }>(),
+  undefined,
+  ({ repairedEntries, subCharms }) => {
+    // Only update if we actually have repaired entries
+    if (repairedEntries && repairedEntries.length > 0) {
+      subCharms.set(repairedEntries);
+    }
+  }
+);
+
+// Lift to repair charm instances after server restart (two-lift pattern)
+// This runs once at startup and recreates any missing charm instances
+const repairCharmInstances = lift(
+  toSchema<{
+    currentCharms: SubCharmEntry[];
+    subCharms: Cell<SubCharmEntry[]>;
+    trashedSubCharms: Cell<TrashedSubCharmEntry[]>;
+  }>(),
+  undefined,
+  ({ currentCharms, subCharms, trashedSubCharms }) => {
+    if (!currentCharms || currentCharms.length === 0) return;
+
+    // Check if any charms need repair (missing UI symbol)
+    // deno-lint-ignore no-explicit-any
+    const needsRepair = currentCharms.some((e: SubCharmEntry) => e?.type && !(e?.charm as any)?.[UI]);
+    if (!needsRepair) return;
+
+    // Repair each entry
+    const repairedEntries = currentCharms.map((entry: SubCharmEntry) => {
+      // Skip if charm already has UI
+      // deno-lint-ignore no-explicit-any
+      if (entry?.charm && (entry.charm as any)?.[UI]) {
+        return entry;
+      }
+      if (!entry?.type) return entry;
+
+      // Type-picker needs parent Cells
+      if (entry.type === "type-picker") {
+        // deno-lint-ignore no-explicit-any
+        const newCharm = TypePickerModule({
+          parentSubCharms: subCharms,
+          parentTrashedSubCharms: trashedSubCharms,
+        } as any);
+        return { ...entry, charm: newCharm };
+      }
+
+      // Regular modules - recreate from registry
+      try {
+        const newCharm = createSubCharm(entry.type);
+        return { ...entry, charm: newCharm };
+      } catch {
+        return entry;
+      }
+    });
+
+    // Store repaired entries using inner lift (two-lift pattern)
+    return storeRepairedCharms({ repairedEntries, subCharms });
+  }
+);
+
+// Lift to get a charm's UI (simplified - assumes charm is already repaired)
+const getCharmUI = lift(({ entry }: { entry: SubCharmEntry }) => {
+  // deno-lint-ignore no-explicit-any
+  return (entry?.charm as any)?.[UI] || null;
 });
 
 // ===== Module-Scope Handlers (avoid closures, use references not indices) =====
@@ -249,8 +323,12 @@ const Record = pattern<RecordInput, RecordOutput>(
     const trashExpanded = Cell.of(false);
 
     // ===== Auto-initialize Notes + TypePicker =====
-    const isInitialized = Cell.of(false);
-    initializeRecord({ currentCharms: subCharms, subCharms, trashedSubCharms, isInitialized });
+    // Only initializes if subCharms is empty (won't re-init on reload)
+    initializeRecord({ currentCharms: subCharms, subCharms, trashedSubCharms });
+
+    // ===== Repair charm instances after server restart =====
+    // Charm instances don't survive JSON serialization, so we recreate them from their types
+    repairCharmInstances({ currentCharms: subCharms, subCharms, trashedSubCharms });
 
     // ===== Computed Values =====
 
@@ -259,6 +337,7 @@ const Record = pattern<RecordInput, RecordOutput>(
 
     // Split sub-charms by pin status
     // No longer need indices - we use entry references directly
+    // NOTE: Don't transform entries here - keep original Cell references for drag-and-drop
     const pinnedEntries = lift(({ sc }: { sc: SubCharmEntry[] }) =>
       (sc || []).filter((entry) => entry?.pinned)
     )({ sc: subCharms });
@@ -450,8 +529,8 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   </button>
                                 </div>
                               </div>
-                              <div style={{ padding: "12px" }}>
-                                {(entry.charm as any)?.[UI]}
+                              <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                                {getCharmUI({ entry })}
                               </div>
                             </div>
                           </ct-drag-source>
@@ -547,8 +626,8 @@ const Record = pattern<RecordInput, RecordOutput>(
                                       </button>
                                     </div>
                                   </div>
-                                  <div style={{ padding: "12px" }}>
-                                    {(entry.charm as any)?.[UI]}
+                                  <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                                    {getCharmUI({ entry })}
                                   </div>
                                 </div>
                               </ct-drag-source>
@@ -659,8 +738,8 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   </button>
                                 </div>
                               </div>
-                              <div style={{ padding: "12px" }}>
-                                {(entry.charm as any)?.[UI]}
+                              <div style={{ padding: "12px", overflow: "hidden", minHeight: 0 }}>
+                                {getCharmUI({ entry })}
                               </div>
                             </div>
                           </ct-drag-source>
