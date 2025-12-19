@@ -47,12 +47,13 @@ export default pattern<TestInput, {}>((props) => {
   const inputText = cell<string>("");
 
   // Build schema from fieldMappings using helper
+  // Enable captureRemainingText to get unextracted text back
   const fieldsSchema = Cell.of(buildFieldMappingSchema([
     { key: "displayName", label: "Display Name" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
     { key: "notes", label: "Notes" },
-  ]));
+  ], { captureRemainingText: true }));
 
   const fieldsSystemPrompt = Cell.of(
     "Extract person contact information from the text. " +
@@ -60,7 +61,7 @@ export default pattern<TestInput, {}>((props) => {
     "Omit any fields not found in the input - do NOT use placeholders like 'unknown' or 'N/A'."
   );
 
-  // Create ImportReview with fieldMappings
+  // Create ImportReview with fieldMappings and captureRemainingText
   const extraction = ImportReview({
     trigger,
     schema: fieldsSchema,
@@ -71,6 +72,7 @@ export default pattern<TestInput, {}>((props) => {
       { key: "phone", label: "Phone", currentValue: phone },
       { key: "notes", label: "Notes", currentValue: notes },
     ],
+    captureRemainingText: true,  // Enable remaining text capture
   });
 
   // Create apply handler that uses the reactive Cell version of selected values
@@ -83,13 +85,16 @@ export default pattern<TestInput, {}>((props) => {
       email: Cell<string>;
       phone: Cell<string>;
       notes: Cell<string>;
+      inputText: Cell<string>;  // For clearing after apply
       selectedValues: Record<string, unknown>;  // computed() returns value, not Cell
+      remainingText: string;  // Unextracted text to put back in input
       trigger: Cell<string>;
     }
   >((_, ctx) => {
     // Read directly - computed() values are already unwrapped
     const selected = ctx.selectedValues ?? {};
     console.log("Applying selected fields:", selected);
+    console.log("Remaining text:", ctx.remainingText);
 
     // Apply each selected field
     if ("displayName" in selected && typeof selected.displayName === "string") {
@@ -104,6 +109,9 @@ export default pattern<TestInput, {}>((props) => {
     if ("notes" in selected && typeof selected.notes === "string") {
       ctx.notes.set(selected.notes);
     }
+
+    // Update input text to show only remaining (unextracted) text
+    ctx.inputText.set(ctx.remainingText ?? "");
 
     // Clear trigger to reset extraction state and hide the panel
     ctx.trigger.set("");
@@ -177,7 +185,9 @@ export default pattern<TestInput, {}>((props) => {
                   email,
                   phone,
                   notes,
+                  inputText,
                   selectedValues: extraction.selectedFieldValues,
+                  remainingText: extraction.remainingText,
                   trigger,
                 })}
               >
@@ -210,6 +220,9 @@ export default pattern<TestInput, {}>((props) => {
               <div>Field Diff Count: {extraction.fieldDiffCount}</div>
               <div>Selected Fields: {extraction.selectedFieldCount}</div>
               <div>Error: {derive(extraction.error, (e) => e ? "Yes" : "No")}</div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                Remaining Text: {derive(extraction.remainingText, (t) => t ? `"${t.slice(0, 50)}${t.length > 50 ? "..." : ""}"` : "(none)")}
+              </div>
             </div>
           </div>
         </div>

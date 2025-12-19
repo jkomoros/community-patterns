@@ -138,6 +138,22 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
    * @see food-recipe.tsx timingReview for correct usage example
    */
   mergeFieldMappings?: MergeFieldMapping[];
+
+  /**
+   * When true, ImportReview will ask the LLM to also return `remainingText`
+   * containing any text from the input that was NOT used for extraction.
+   *
+   * This enables consuming patterns to:
+   * - Update input text to show only unextracted content after commit
+   * - Support iterative extraction workflows (paste more, extract more)
+   *
+   * REQUIRES: When using with fieldMappings, use
+   * `buildFieldMappingSchema(mappings, { captureRemainingText: true })`
+   * to include the remainingText field in the schema.
+   *
+   * @default false
+   */
+  captureRemainingText?: boolean;
 }
 
 interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
@@ -280,6 +296,22 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   selectNoUnmatched: () => void;
   toggleUnmatchedSelection: (itemKey: string) => void;
 
+  /**
+   * Text from the input that was NOT extracted into any field.
+   * Only populated when `captureRemainingText: true` is set.
+   *
+   * Use this to update the input text Cell after commit:
+   * ```typescript
+   * const applyAndClear = handler((_, { inputText, remainingText }) => {
+   *   // Apply selected fields...
+   *   inputText.set(remainingText ?? "");
+   * });
+   * ```
+   *
+   * Returns empty string if all text was extracted or option not enabled.
+   */
+  remainingText: string;
+
   // Pre-composed UI components
   ui: {
     complete: JSX.Element; // Full drop-in component
@@ -344,7 +376,8 @@ const DEFAULT_SCHEMA = {
  * });
  */
 export function buildFieldMappingSchema(
-  mappings: Array<{ key: string; label: string; isArray?: boolean }>
+  mappings: Array<{ key: string; label: string; isArray?: boolean }>,
+  options?: { captureRemainingText?: boolean }
 ): object {
   const properties: Record<string, object> = {};
   // NOTE: No `required` array - let LLM omit fields it can't extract from input
@@ -363,6 +396,14 @@ export function buildFieldMappingSchema(
         description: mapping.label,
       };
     }
+  }
+
+  // Add remainingText field if requested - captures unextracted input text
+  if (options?.captureRemainingText) {
+    properties["remainingText"] = {
+      type: "string",
+      description: "Any text from the input that was NOT extracted into the above fields. Include context, filler words, and any content that doesn't map to a specific field. Return empty string if all text was extracted.",
+    };
   }
 
   return {
@@ -661,6 +702,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     hiddenItemIds,
     fieldMappings,
     mergeFieldMappings,
+    captureRemainingText,
   }) => {
     // Use constants directly - NOT from props (that breaks generateObject)
     // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
@@ -749,7 +791,14 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     // Solution: Parent builds schema as a Cell, Cells don't get OpaqueRef wrapped.
     // See: community-docs/superstitions/2025-12-17-array-isarray-fails-for-subpattern-props.md
     const effectiveSchema = schemaInput ?? Cell.of(DEFAULT_SCHEMA);
-    const effectiveSystemPrompt = systemPromptInput ?? Cell.of(DEFAULT_SYSTEM_PROMPT);
+
+    // Build effective system prompt - append remainingText instructions if enabled
+    const baseSystemPrompt = systemPromptInput ?? Cell.of(DEFAULT_SYSTEM_PROMPT);
+    const effectiveSystemPrompt = captureRemainingText
+      ? derive(baseSystemPrompt, (base) =>
+          `${base}\n\nIMPORTANT: Also include a "remainingText" field containing any text from the input that was NOT used for extraction. This includes filler words, context, and any content that doesn't map to a specific field. If all text was extracted, set remainingText to an empty string "".`
+        )
+      : baseSystemPrompt;
 
     // Check if fieldMappings was provided (for UI purposes only)
     // NOTE: Cannot iterate fieldMappings here - OpaqueRef wrapping.
@@ -971,6 +1020,27 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
       const hasFieldMappingsCheck = fmArray && fmArray.length > 0;
       return hasFieldMappingsCheck && triggered && !pending && !hasFields && !hasError;
+    });
+
+    // Extract remainingText from result (when captureRemainingText is enabled)
+    const remainingTextComputed = computed(() => {
+      // Return empty if feature not enabled
+      if (!captureRemainingText) return "";
+
+      const result = extractionResult;
+
+      // Guard: no result or not an object
+      if (!result || typeof result !== "object") return "";
+
+      const extractedData = result as Record<string, unknown>;
+      const remaining = extractedData["remainingText"];
+
+      // Validate it's a string and clean it up
+      if (typeof remaining === "string") {
+        return remaining.trim();
+      }
+
+      return "";
     });
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2100,6 +2170,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       selectNoUnmatched: selectNoUnmatchedHandler({ selectedUnmatchedKeys }),
       toggleUnmatchedSelection: (itemKey: string) =>
         toggleUnmatchedSelectionHandler({ selectedUnmatchedKeys, itemKey }),
+
+      // Remaining text (when captureRemainingText is enabled)
+      remainingText: remainingTextComputed,
 
       // UI components for composition
       ui: {
