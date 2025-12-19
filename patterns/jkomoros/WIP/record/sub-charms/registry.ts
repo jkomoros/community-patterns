@@ -255,3 +255,6 @@ export function getFieldToTypeMapping(): Record<string, string> {
   }
   return fieldToType;
 }
+
+// Note: setRecordPattern and getRecordPatternJson are in record-pattern-store.ts
+// to avoid circular dependencies (record.tsx → registry.ts → notes-module.tsx → registry.ts)

@@ -15,6 +15,7 @@ import {
   UI,
   wish,
 } from "commontools";
+import { getRecordPatternJson } from "./record-pattern-store.ts";
 
 // Define MentionableCharm type inline (matches backlinks-index.tsx)
 // to avoid import path resolution issues
@@ -65,7 +66,11 @@ export const NotesModule = recipe<NotesModuleInput, NotesModuleOutput>(
     // Backlink infrastructure
     const mentionable = wish<Default<MentionableCharm[], []>>("#mentionable");
     const mentioned = Cell.of<MentionableCharm[]>([]);
-    const pattern = computed(() => JSON.stringify(NotesModule));
+    // Use Record pattern for backlinks (creates new Records), fallback to NotesModule
+    const pattern = computed(() => {
+      const recordJson = getRecordPatternJson();
+      return recordJson || JSON.stringify(NotesModule);
+    });
 
     // Word count display
     const displayText = computed(() => {

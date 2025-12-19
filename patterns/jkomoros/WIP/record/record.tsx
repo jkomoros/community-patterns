@@ -29,6 +29,7 @@ import {
   getAddableTypes,
   getDefinition,
 } from "./sub-charms/registry.ts";
+import { setRecordPattern } from "./sub-charms/record-pattern-store.ts";
 import type { SubCharmEntry, TrashedSubCharmEntry } from "./types/record-types.ts";
 
 // ===== Types =====
@@ -64,8 +65,8 @@ const getModuleDisplay = lift(({ type }: { type: string }) => {
 const Record = recipe<RecordInput, RecordOutput>(
   "Record",
   ({ title, subCharms, trashedSubCharms }) => {
-    // Note: Initialization is handled by showing an "Add Notes" prompt when empty
-    // We can't auto-initialize inside computed() since subCharms isn't a Cell there
+    // Note: Auto-init not possible - can't call .get() in recipe body
+    // Users click "Add Notes" button in empty state instead
 
     // ===== Handlers =====
 
@@ -709,5 +710,9 @@ const Record = recipe<RecordInput, RecordOutput>(
     };
   }
 );
+
+// Register Record pattern for backlink creation in NotesModule
+// This allows [[New Name]] in Notes to create new Record charms
+setRecordPattern(Record);
 
 export default Record;
