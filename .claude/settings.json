@@ -100,6 +100,8 @@
       "Bash(./scripts/ct:*)",
       "Bash(./scripts/verify-branch)",
       "Bash(./scripts/rebase-main)",
+      "Bash(./scripts/wait-for-ci:*)",
+      "Bash(./scripts/land-pr:*)",
       "Bash(/Users/alex/Code/community-patterns/scripts/ct:*)",
       "SlashCommand:/session-startup",
       "SlashCommand:/deployment",

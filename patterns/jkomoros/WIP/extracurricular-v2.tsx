@@ -574,7 +574,12 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
         extractedText: Cell<string>;
         extractionError: Cell<string | null>;
       }
-    >(({ detail }, { uploadedFile, processingStatus, extractedText, extractionError }) => {
+    >(({ detail }: { detail: { files: FileData[] } }, { uploadedFile, processingStatus, extractedText, extractionError }: {
+      uploadedFile: Cell<FileData | null>;
+      processingStatus: Cell<ProcessingStatus>;
+      extractedText: Cell<string>;
+      extractionError: Cell<string | null>;
+    }) => {
       if (!detail?.files || detail.files.length === 0) return;
 
       const file = detail.files[detail.files.length - 1];  // Take most recent
@@ -637,7 +642,12 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
         processingStatus: Cell<ProcessingStatus>;
         extractionError: Cell<string | null>;
       }
-    >((_, { uploadedFile, extractedText, processingStatus, extractionError }) => {
+    >((_, { uploadedFile, extractedText, processingStatus, extractionError }: {
+      uploadedFile: Cell<FileData | null>;
+      extractedText: Cell<string>;
+      processingStatus: Cell<ProcessingStatus>;
+      extractionError: Cell<string | null>;
+    }) => {
       uploadedFile.set(null);
       extractedText.set("");
       processingStatus.set("idle");

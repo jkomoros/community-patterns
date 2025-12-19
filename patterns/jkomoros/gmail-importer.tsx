@@ -821,7 +821,7 @@ export default pattern<{
     );
 
     // Error from wish (for "not-found" state)
-    const wishError = derive(wishResult, (wr) => wr?.error || null);
+    const wishError = derive(wishResult, (wr: { error?: string | null } | undefined) => wr?.error || null);
 
     // Check if Gmail scope is granted
     const hasGmailScope = derive(auth, (a) => {

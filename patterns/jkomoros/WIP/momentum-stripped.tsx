@@ -633,8 +633,10 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               const metadata = item.metadata;
               const repoName = item.repoName;
               const starHistory = item.starHistory;  // ADD THIS - access starHistory
-              const isLoading = derive(metadata, (m) => m?.pending === true);
-              const hasError = derive(metadata, (m) => !!m?.error);
+              // deno-lint-ignore no-explicit-any
+              const isLoading = derive(metadata, (m: any) => m?.pending === true);
+              // deno-lint-ignore no-explicit-any
+              const hasError = derive(metadata, (m: any) => !!m?.error);
               const data = derive(metadata, (m) => m?.result);
 
               return (

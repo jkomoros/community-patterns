@@ -668,7 +668,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
                           After authenticating, click the star to favorite it, then come back here.
                         </p>
                         {ifElse(
-                          derive(wishError, (err) => !!err),
+                          derive(wishError, (err: string | null) => !!err),
                           <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#856404" }}>
                             Debug: {wishError}
                           </p>,

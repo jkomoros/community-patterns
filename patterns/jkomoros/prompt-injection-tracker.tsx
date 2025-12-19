@@ -899,7 +899,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
   );
   // Error = not pending AND no result (either .error is set OR .result is undefined)
-  const fetchErrorCount = derive(contentClassifications, (list) =>
+  // deno-lint-ignore no-explicit-any
+  const fetchErrorCount = derive(contentClassifications, (list: any[]) =>
     list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
   );
   // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)

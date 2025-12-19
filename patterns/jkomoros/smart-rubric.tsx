@@ -494,7 +494,8 @@ Be precise with categorical values - use exact label matches.`;
             {/* LLM Extraction Results - Display only, no handlers inside derive */}
             {derive(
               { pending: quickAddExtraction.pending, error: quickAddExtraction.error, result: quickAddExtraction.result, submitted: quickAddSubmitted },
-              ({ pending, error, result, submitted }) => {
+              // deno-lint-ignore no-explicit-any
+              ({ pending, error, result, submitted }: { pending: boolean; error: any; result: any; submitted: string | null }) => {
                 // Check if we have a submitted prompt (not the placeholder)
                 const hasSubmittedPrompt = submitted && submitted.trim() !== "" && submitted !== "No description submitted yet.";
 

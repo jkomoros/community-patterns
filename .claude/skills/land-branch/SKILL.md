@@ -266,29 +266,38 @@ fi
 echo "PR #$PR_NUMBER ready"
 ```
 
-## Step 4: Merge and Clean Up
+## Step 4: Wait for CI and Merge
+
+**By default, wait for CI checks to pass before merging.**
 
 ```bash
-# Merge with rebase strategy and delete branch
-gh pr merge $PR_NUMBER --rebase --delete-branch
+# Wait for CI then merge (default behavior)
+./scripts/land-pr
 
-# Switch back to main
-git checkout main
-
-# Pull the merged changes
-git pull $MAIN_REMOTE main
-
-# Push to origin (for forks)
-if [ "$IS_FORK" = "true" ]; then
-  git push origin main
-fi
-
-echo "Branch $CURRENT_BRANCH landed successfully!"
+# Or specify a PR number explicitly
+./scripts/land-pr 123
 ```
+
+**To skip waiting for CI (use with caution):**
+
+```bash
+# Force merge without waiting for CI
+./scripts/land-pr --force
+
+# Or with explicit PR number
+./scripts/land-pr --force 123
+```
+
+The `land-pr` script:
+- Waits for all CI checks to pass (unless `--force` is used)
+- Merges with rebase strategy
+- Deletes the feature branch
+- Switches to main and pulls merged changes
+- Pushes to origin (for forks)
 
 ## Complete Flow Using Scripts
 
-The first two steps use allowlisted scripts that don't require permission prompts:
+All steps use allowlisted scripts that don't require permission prompts:
 
 ```bash
 # Step 1: Verify we're ready
@@ -297,11 +306,19 @@ The first two steps use allowlisted scripts that don't require permission prompt
 # Step 2: Rebase and push
 ./scripts/rebase-main
 
-# Steps 3-4: PR and merge (use gh commands as shown above)
+# Step 3: Create PR (use gh commands as shown above)
+
+# Step 4: Wait for CI and merge
+./scripts/land-pr
+
+# Or force merge without waiting for CI
+./scripts/land-pr --force
 ```
 
 ## Important Notes
 
+- **Waits for CI by default** - ensures checks pass before merging
+- **Use `--force` sparingly** - only when you're confident CI will pass
 - **Always uses `--rebase`** for merging (preserves commit history)
 - **Auto-deletes the branch** after successful merge
 - **Force-with-lease** is safe - it only pushes if no one else pushed

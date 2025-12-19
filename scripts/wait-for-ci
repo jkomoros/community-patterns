@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Wait for CI checks to pass on a PR
+# Usage: ./scripts/wait-for-ci [PR_NUMBER]
+# Exit codes: 0 = success, 1 = failed/other error
+
+set -e
+
+PR_NUMBER="${1:-}"
+
+# Get PR number if not provided
+if [ -z "$PR_NUMBER" ]; then
+  PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
+fi
+
+if [ -z "$PR_NUMBER" ]; then
+  echo "Error: Could not determine PR number"
+  echo "Usage: ./scripts/wait-for-ci [PR_NUMBER]"
+  exit 1
+fi
+
+echo "⏳ Waiting for CI checks on PR #$PR_NUMBER..."
+echo "   (Use Ctrl+C to cancel, or use --force with land-pr to skip waiting)"
+echo ""
+
+# Watch for CI completion, fail fast on first failure
+gh pr checks "$PR_NUMBER" --watch --fail-fast
+
+echo ""
+echo "✅ All CI checks passed!"

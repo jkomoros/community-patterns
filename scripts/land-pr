@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Land a PR after CI passes (or force merge immediately)
+# Usage: ./scripts/land-pr [--force] [PR_NUMBER]
+#
+# By default, waits for CI checks to pass before merging.
+# Use --force to skip waiting and merge immediately.
+
+set -e
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_ROOT="$SCRIPT_DIR/.."
+
+FORCE=false
+PR_NUMBER=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force|-f)
+      FORCE=true
+      shift
+      ;;
+    *)
+      PR_NUMBER="$1"
+      shift
+      ;;
+  esac
+done
+
+# Get PR number if not provided
+if [ -z "$PR_NUMBER" ]; then
+  PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
+fi
+
+if [ -z "$PR_NUMBER" ]; then
+  echo "Error: Could not determine PR number"
+  echo "Usage: ./scripts/land-pr [--force] [PR_NUMBER]"
+  exit 1
+fi
+
+echo "🚀 Landing PR #$PR_NUMBER..."
+
+# Load workspace config for fork detection
+cd "$PROJECT_ROOT"
+if [ -f ".claude-workspace" ]; then
+  source .claude-workspace
+fi
+
+# Determine the main remote
+if [ "$is_fork" = "true" ]; then
+  MAIN_REMOTE="upstream"
+else
+  MAIN_REMOTE="origin"
+fi
+
+# Wait for CI unless --force is specified
+if [ "$FORCE" = "true" ]; then
+  echo "⚠️  Skipping CI wait (--force specified)"
+else
+  if ! "$SCRIPT_DIR/wait-for-ci" "$PR_NUMBER"; then
+    echo ""
+    echo "❌ CI checks failed or timed out."
+    echo "   Use --force to merge anyway: ./scripts/land-pr --force $PR_NUMBER"
+    exit 1
+  fi
+fi
+
+echo ""
+echo "📦 Merging PR #$PR_NUMBER..."
+
+# Merge with rebase strategy and delete branch
+gh pr merge "$PR_NUMBER" --rebase --delete-branch
+
+# Switch back to main
+echo "🔄 Switching to main..."
+git checkout main
+
+# Pull the merged changes
+echo "⬇️  Pulling merged changes from $MAIN_REMOTE..."
+git pull "$MAIN_REMOTE" main
+
+# Push to origin for forks
+if [ "$is_fork" = "true" ]; then
+  echo "⬆️  Pushing to origin (fork)..."
+  git push origin main
+fi
+
+echo ""
+echo "✅ PR #$PR_NUMBER landed successfully!"

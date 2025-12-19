@@ -114,7 +114,7 @@ const goToAuthCharm = handler<
 // =============================================================================
 
 export default pattern<Input, Output>(
-  ({ lastError }) => {
+  ({ lastError }: Input) => {
     const lastErrorCell = lastError;
 
     // Auth via wish - KEEPING THIS as it's part of the orchestrator structure

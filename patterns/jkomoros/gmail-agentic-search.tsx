@@ -1272,7 +1272,7 @@ When you're done searching, STOP calling tools and produce your final structured
         {/* Auth Status */}
         {derive(
           [isAuthenticated, hasAuthError, tokenMayBeExpired],
-          ([authenticated, authError, mayBeExpired]) => {
+          ([authenticated, authError, mayBeExpired]: [boolean, boolean, boolean]) => {
             if (authenticated) {
               if (authError) {
                 return (
