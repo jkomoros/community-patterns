@@ -46,6 +46,30 @@ const SCOPE_DESCRIPTIONS = {
   contacts: "Contacts (read contacts)",
 } as const;
 
+// Short names for scope summary display in previewUI
+const SCOPE_SHORT_NAMES: Record<string, string> = {
+  "https://www.googleapis.com/auth/gmail.readonly": "Gmail",
+  "https://www.googleapis.com/auth/gmail.send": "Gmail Send",
+  "https://www.googleapis.com/auth/gmail.modify": "Gmail",
+  "https://www.googleapis.com/auth/calendar.readonly": "Calendar",
+  "https://www.googleapis.com/auth/calendar.events": "Calendar",
+  "https://www.googleapis.com/auth/drive": "Drive",
+  "https://www.googleapis.com/auth/documents.readonly": "Docs",
+  "https://www.googleapis.com/auth/contacts.readonly": "Contacts",
+};
+
+function getScopeSummary(grantedScopes: string[]): string {
+  const names = new Set<string>();
+  for (const scope of grantedScopes) {
+    const name = SCOPE_SHORT_NAMES[scope];
+    if (name) names.add(name);
+  }
+  const arr = Array.from(names);
+  if (arr.length === 0) return "";
+  if (arr.length <= 3) return arr.join(", ");
+  return `${arr.slice(0, 2).join(", ")} +${arr.length - 2} more`;
+}
+
 /**
  * Auth data structure for Google OAuth tokens.
  *
@@ -126,6 +150,8 @@ interface Output {
   selectedScopes: SelectedScopes;
   /** Compact user display with avatar, name, and email */
   userChip: unknown;
+  /** Minimal preview for picker display with scope summary */
+  previewUI: unknown;
   /**
    * Refresh the OAuth token. Call this from other charms when the token expires.
    *
@@ -373,6 +399,79 @@ export default pattern<Input, Output>(
       );
     });
 
+    // Minimal preview chip for picker display with scope summary
+    const previewUI = computed(() => {
+      const email = auth?.user?.email;
+      const picture = auth?.user?.picture;
+      const name = auth?.user?.name;
+      const scopeSummary = getScopeSummary(auth?.scope || []);
+
+      return (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "12px 16px",
+            backgroundColor: "#f9fafb",
+            borderRadius: "8px",
+          }}
+        >
+          {/* Avatar */}
+          {picture
+            ? (
+              <img
+                src={picture}
+                alt=""
+                style={{ width: "36px", height: "36px", borderRadius: "50%" }}
+              />
+            )
+            : (
+              <div
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  backgroundColor: email ? "#10b981" : "#e5e7eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {email && (
+                  <span
+                    style={{
+                      color: "white",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                    }}
+                  >
+                    {(name || email)[0]?.toUpperCase()}
+                  </span>
+                )}
+              </div>
+            )}
+
+          {/* User info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 500, fontSize: "14px" }}>
+              {name || email || "Google Account"}
+            </div>
+            {name && email && (
+              <div style={{ fontSize: "12px", color: "#6b7280" }}>{email}</div>
+            )}
+            {scopeSummary && (
+              <div
+                style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}
+              >
+                {scopeSummary}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    });
+
     return {
       [NAME]: computed(() => {
         if (auth?.user?.email) {
@@ -586,6 +685,7 @@ export default pattern<Input, Output>(
       scopes,
       selectedScopes,
       userChip,
+      previewUI,
       // Export the refresh handler for cross-charm calling
       refreshToken: refreshTokenHandler({ auth }),
     };

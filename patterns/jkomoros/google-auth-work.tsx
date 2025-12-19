@@ -53,11 +53,44 @@ interface Input {
 interface Output {
   auth: Auth;
   accountType: "work";
+  /** Minimal preview for picker display with WORK badge */
+  previewUI: unknown;
 }
 
 export default pattern<Input, Output>(({ auth, selectedScopes }) => {
   // Compose the base GoogleAuth pattern
   const baseAuth = GoogleAuth({ auth, selectedScopes });
+
+  // Enhanced preview with WORK badge
+  const previewUI = computed(() => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "12px 16px",
+        backgroundColor: "#f9fafb",
+        borderRadius: "8px",
+      }}
+    >
+      {/* WORK badge */}
+      <span
+        style={{
+          background: "#dc2626",
+          color: "white",
+          padding: "2px 6px",
+          borderRadius: "4px",
+          fontSize: "10px",
+          fontWeight: "600",
+          flexShrink: 0,
+        }}
+      >
+        WORK
+      </span>
+      {/* Base userChip content */}
+      {baseAuth.userChip}
+    </div>
+  ));
 
   return {
     [NAME]: computed(() =>
@@ -122,5 +155,6 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
     ),
     auth: baseAuth.auth,
     accountType: "work" as const,
+    previewUI,
   };
 });
