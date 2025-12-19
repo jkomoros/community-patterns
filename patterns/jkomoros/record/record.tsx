@@ -391,8 +391,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                     </ct-drop-zone>
                     {pinnedEntries.map((entry, index) => {
                       const displayInfo = getModuleDisplay({ type: entry.type });
-                      // Get previous entry for drop zone reference
-                      const prevEntry = index > 0 ? pinnedEntries[index - 1] : null;
+                      const isLast = index === pinnedEntries.length - 1;
                       return (
                         <>
                           <ct-drag-source $cell={entry} type="module">
@@ -456,22 +455,30 @@ const Record = pattern<RecordInput, RecordOutput>(
                               </div>
                             </div>
                           </ct-drag-source>
-                          {/* Drop zone after this item */}
+                          {/* Drop zone after this item - final one is larger */}
                           <ct-drop-zone
                             accept="module"
                             onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: true })}
+                            style={isLast ? { flex: 1, display: "flex" } : {}}
                           >
-                            <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                            <div style={isLast ? {
+                              flex: 1,
+                              minHeight: "60px",
+                              margin: "4px 0",
+                              borderRadius: "8px",
+                              border: "2px dashed #e5e7eb",
+                              background: "#fafafa",
+                            } : { height: "8px", margin: "4px 0", borderRadius: "4px" }} />
                           </ct-drop-zone>
                         </>
                       );
                     })}
                   </div>
                   {/* Right: Unpinned items in rail (1/3 width) */}
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                     {ifElse(
                       hasUnpinned,
-                      <div style={{ display: "flex", flexDirection: "column" }}>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                         {/* Drop zone before first item */}
                         <ct-drop-zone
                           accept="module"
@@ -479,8 +486,9 @@ const Record = pattern<RecordInput, RecordOutput>(
                         >
                           <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
                         </ct-drop-zone>
-                        {unpinnedEntries.map((entry) => {
+                        {unpinnedEntries.map((entry, index) => {
                           const displayInfo = getModuleDisplay({ type: entry.type });
+                          const isLast = index === unpinnedEntries.length - 1;
                           return (
                             <>
                               <ct-drag-source $cell={entry} type="module">
@@ -544,12 +552,20 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   </div>
                                 </div>
                               </ct-drag-source>
-                              {/* Drop zone after this item */}
+                              {/* Drop zone after this item - final one is larger */}
                               <ct-drop-zone
                                 accept="module"
                                 onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
+                                style={isLast ? { flex: 1, display: "flex" } : {}}
                               >
-                                <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                                <div style={isLast ? {
+                                  flex: 1,
+                                  minHeight: "60px",
+                                  margin: "4px 0",
+                                  borderRadius: "8px",
+                                  border: "2px dashed #e5e7eb",
+                                  background: "#fafafa",
+                                } : { height: "8px", margin: "4px 0", borderRadius: "4px" }} />
                               </ct-drop-zone>
                             </>
                           );
@@ -558,8 +574,9 @@ const Record = pattern<RecordInput, RecordOutput>(
                       <ct-drop-zone
                         accept="module"
                         onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
+                        style={{ flex: 1, display: "flex" }}
                       >
-                        <div style={{ minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px" }}>
+                        <div style={{ flex: 1, minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px", border: "2px dashed #e5e7eb", borderRadius: "8px", background: "#fafafa" }}>
                           Drop here to unpin
                         </div>
                       </ct-drop-zone>
@@ -567,7 +584,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                   </div>
                 </div>,
                 // Grid layout (no pinned items) - use flex column with drop zones between
-                <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
                   {/* Drop zone before first item */}
                   <ct-drop-zone
                     accept="module"
@@ -647,7 +664,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                               </div>
                             </div>
                           </ct-drag-source>
-                          {/* Drop zone after this item */}
+                          {/* Drop zone after this item (small) */}
                           <ct-drop-zone
                             accept="module"
                             onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
@@ -658,6 +675,21 @@ const Record = pattern<RecordInput, RecordOutput>(
                       );
                     })}
                   </div>
+                  {/* Final drop zone after grid - fills remaining space */}
+                  <ct-drop-zone
+                    accept="module"
+                    onct-drop={insertAtPosition({ subCharms, insertAfterEntry: allEntries[allEntries.length - 1], targetPinned: false })}
+                    style={{ flex: 1, display: "flex" }}
+                  >
+                    <div style={{
+                      flex: 1,
+                      minHeight: "60px",
+                      margin: "4px 0",
+                      borderRadius: "8px",
+                      border: "2px dashed #e5e7eb",
+                      background: "#fafafa",
+                    }} />
+                  </ct-drop-zone>
                 </div>
               )
             }
