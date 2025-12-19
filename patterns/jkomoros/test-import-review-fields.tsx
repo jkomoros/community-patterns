@@ -93,8 +93,6 @@ export default pattern<TestInput, {}>((props) => {
   >((_, ctx) => {
     // Read directly - computed() values are already unwrapped
     const selected = ctx.selectedValues ?? {};
-    console.log("Applying selected fields:", selected);
-    console.log("Remaining text:", ctx.remainingText);
 
     // Apply each selected field
     if ("displayName" in selected && typeof selected.displayName === "string") {
