@@ -983,6 +983,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const pending = extractionPending;
       const hasItems = visibleItems.length > 0;
       const hasError = !!extractionError;
+      // Guard: Don't show empty state if result hasn't arrived yet
+      // This prevents flash when pending=false but derived values are stale
+      const result = extractionResult;
+      if (!result || typeof result !== "object") return false;
       return triggered && !pending && !hasItems && !hasError;
     });
 
@@ -1192,6 +1196,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Use .length check instead (OpaqueRef proxies array-like behavior)
       const fmArray = fieldMappings as unknown as FieldMapping[] | undefined;
       const hasFieldMappingsCheck = fmArray && fmArray.length > 0;
+      // Guard: Don't show empty state if result hasn't arrived yet
+      // This prevents flash when pending=false but fieldDiffs is stale
+      const result = extractionResult;
+      if (!result || typeof result !== "object") return false;
       return hasFieldMappingsCheck && triggered && !pending && !hasFields && !hasError;
     });
 
@@ -1365,6 +1373,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       // Only show if mergeFieldMappings is provided
       const mfmArray = mergeFieldMappings as unknown as MergeFieldMapping[] | undefined;
       const hasMergeFieldMappingsCheck = mfmArray && mfmArray.length > 0;
+      // Guard: Don't show empty state if result hasn't arrived yet
+      // This prevents flash when pending=false but mergeDiffs is stale
+      const result = extractionResult;
+      if (!result || typeof result !== "object") return false;
       return hasMergeFieldMappingsCheck && triggered && !pending && !hasMerge && !hasError;
     });
 
