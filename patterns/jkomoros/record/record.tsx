@@ -22,6 +22,7 @@ import {
   NAME,
   pattern,
   str,
+  toSchema,
   UI,
 } from "commontools";
 import {
@@ -45,6 +46,44 @@ interface RecordOutput {
   subCharms?: Default<SubCharmEntry[], []>;
   trashedSubCharms?: Default<TrashedSubCharmEntry[], []>;
 }
+
+// ===== Auto-Initialize Notes Module (Two-Lift Pattern) =====
+// Based on chatbot-list-view.tsx pattern:
+// - Outer lift creates the charm and calls inner lift
+// - Inner lift receives charm as input and stores it
+// This works because the inner lift provides proper cause context
+
+// Inner lift: stores the notes charm (receives charm as input)
+const storeNotesCharm = lift(
+  toSchema<{
+    notesCharm: unknown;
+    subCharms: Cell<SubCharmEntry[]>;
+    isInitialized: Cell<boolean>;
+  }>(),
+  undefined,
+  ({ notesCharm, subCharms, isInitialized }) => {
+    if (!isInitialized.get()) {
+      subCharms.set([{ type: "notes", pinned: true, charm: notesCharm }]);
+      isInitialized.set(true);
+    }
+  }
+);
+
+// Outer lift: checks if empty and creates charm, then calls inner lift
+const initializeNotes = lift(
+  toSchema<{
+    currentCharms: SubCharmEntry[];  // Unwrapped value, not Cell
+    subCharms: Cell<SubCharmEntry[]>;
+    isInitialized: Cell<boolean>;
+  }>(),
+  undefined,
+  ({ currentCharms, subCharms, isInitialized }) => {
+    if ((currentCharms || []).length === 0) {
+      const notesCharm = createSubCharm("notes");
+      return storeNotesCharm({ notesCharm, subCharms, isInitialized });
+    }
+  }
+);
 
 // ===== Helper: Get charm name =====
 const getCharmName = lift(({ charm }: { charm: unknown }) => {
@@ -86,14 +125,8 @@ const addSubCharm = handler<
   const type = detail?.value;
   if (!type) return;
 
-  // Check if type already exists (singleton modules)
+  // Create the sub-charm and add it (multiple modules of same type allowed)
   const current = sc.get() || [];
-  if (current.some((e) => e?.type === type)) {
-    sat.set("");
-    return;
-  }
-
-  // Create the sub-charm and add it
   const charm = createSubCharm(type);
   sc.set([...current, { type, pinned: false, charm }]);
   sat.set("");
@@ -140,17 +173,6 @@ const emptyTrash = handler<
   trash.set([]);
 });
 
-// Handler to quickly add notes
-const addNotes = handler<
-  unknown,
-  { subCharms: Cell<SubCharmEntry[]> }
->((_event, { subCharms: sc }) => {
-  const current = sc.get() || [];
-  if (current.some((e) => e?.type === "notes")) return;
-  const notesCharm = createSubCharm("notes");
-  sc.set([{ type: "notes", pinned: true, charm: notesCharm }, ...current]);
-});
-
 // Toggle trash section expanded/collapsed
 const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
   (_event, { expanded }) => expanded.set(!expanded.get())
@@ -163,6 +185,10 @@ const Record = pattern<RecordInput, RecordOutput>(
     // Local state
     const selectedAddType = Cell.of<string>("");
     const trashExpanded = Cell.of(false);
+
+    // ===== Auto-initialize Notes Module =====
+    const isInitialized = Cell.of(false);
+    initializeNotes({ currentCharms: subCharms, subCharms, isInitialized });
 
     // ===== Computed Values =====
 
@@ -193,36 +219,15 @@ const Record = pattern<RecordInput, RecordOutput>(
       (arr || []).length > 0
     )({ arr: unpinnedEntries });
 
-    // Check if record is empty (no sub-charms at all)
-    const isEmpty = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      (sc || []).length === 0
-    )({ sc: subCharms });
+    // Check if there are any module types available to add
+    // (always true unless registry is empty - multiple of same type allowed)
+    const hasTypesToAdd = getAddableTypes().length > 0;
 
-    // Check if notes module exists (required before adding other modules)
-    const hasNotes = lift(({ sc }: { sc: SubCharmEntry[] }) =>
-      (sc || []).some((e) => e?.type === "notes")
-    )({ sc: subCharms });
-
-    // Compute hasTypesToAdd directly from subCharms (no intermediate computed)
-    const hasTypesToAdd = lift(({ sc }: { sc: SubCharmEntry[] }) => {
-      const currentTypes = (sc || []).filter((e) => e?.type).map((e) => e.type);
-      const available = getAddableTypes().filter(
-        (def) => !currentTypes.some((t) => t === def.type)
-      );
-      return available.length > 0;
-    })({ sc: subCharms });
-
-    // Compute addSelectItems directly from subCharms (no intermediate computed)
-    const addSelectItems = lift(({ sc }: { sc: SubCharmEntry[] }) => {
-      const currentTypes = (sc || []).filter((e) => e?.type).map((e) => e.type);
-      const available = getAddableTypes().filter(
-        (def) => !currentTypes.some((t) => t === def.type)
-      );
-      return available.map((def) => ({
-        value: def.type,
-        label: `${def.icon} ${def.label}`,
-      }));
-    })({ sc: subCharms });
+    // Build dropdown items from registry (all types always available)
+    const addSelectItems = getAddableTypes().map((def) => ({
+      value: def.type,
+      label: `${def.icon} ${def.label}`,
+    }));
 
     // ===== Trash Section Computed Values =====
 
@@ -255,16 +260,14 @@ const Record = pattern<RecordInput, RecordOutput>(
               placeholder="Record title..."
               style={{ flex: "1", fontWeight: "600", fontSize: "16px" }}
             />
-            {ifElse(
-              computed(() => hasNotes && hasTypesToAdd),
+            {hasTypesToAdd && (
               <ct-select
                 $value={selectedAddType}
                 placeholder="+ Add"
                 items={addSelectItems}
                 onct-change={addSubCharm({ subCharms, selectedAddType })}
                 style={{ width: "130px" }}
-              />,
-              null
+              />
             )}
           </ct-hstack>
 
@@ -277,41 +280,8 @@ const Record = pattern<RecordInput, RecordOutput>(
               background: "#f9fafb",
             }}
           >
+            {/* Adaptive layout based on pinned count */}
             {ifElse(
-              isEmpty,
-              // Empty state - show welcome message with Add Notes button
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "100%",
-                  gap: "16px",
-                  color: "#6b7280",
-                }}
-              >
-                <span style={{ fontSize: "48px" }}>📋</span>
-                <span style={{ fontSize: "16px" }}>
-                  Start by adding notes to your record
-                </span>
-                <button
-                  onClick={addNotes({ subCharms })}
-                  style={{
-                    padding: "12px 24px",
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    cursor: "pointer",
-                  }}
-                >
-                  📝 Add Notes
-                </button>
-              </div>,
-              // Adaptive layout based on pinned count
-              ifElse(
                 pinnedCount > 0,
                 // Primary + Rail layout (when items are pinned)
                 <div style={{ display: "flex", gap: "16px" }}>
@@ -543,7 +513,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                   })}
                 </div>
               )
-            )}
+            }
 
             {/* Collapsible Trash Section */}
             {ifElse(

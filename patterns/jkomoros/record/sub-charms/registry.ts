@@ -209,9 +209,9 @@ export function getAvailableTypes(): SubCharmDefinition[] {
   return Object.values(SUB_CHARM_REGISTRY);
 }
 
-// Get types available for "Add" dropdown (excludes notes which is always present)
+// Get types available for "Add" dropdown (all types, including notes)
 export function getAddableTypes(): SubCharmDefinition[] {
-  return Object.values(SUB_CHARM_REGISTRY).filter((def) => def.type !== "notes");
+  return Object.values(SUB_CHARM_REGISTRY);
 }
 
 export function getDefinition(
