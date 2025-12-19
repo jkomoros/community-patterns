@@ -117,12 +117,22 @@
 
 **Workaround**: None - feature is broken
 
-**Root Cause Hypothesis**: The account picker pattern referenced by `navigateTo()` is not rendering its UI. Possible issues:
-1. Pattern compilation error
-2. Pattern not returning valid UI
-3. Cross-charm render issue
+**Root Cause Hypothesis**: The `navigateTo()` is receiving an improperly resolved charm reference.
 
-**Location**: Check `google-auth-manager.tsx` `handleSwitch` handler and the picker pattern it creates
+Looking at `google-auth-manager.tsx`:
+- `charmCell = derive(authInfo, (info) => info.charm)` (line 404)
+- `goToAuth` handler calls `charm.get()` then `navigateTo(c)` (lines 396-401)
+
+The issue is likely one of:
+1. **OpaqueRef leaking**: The derive() result is an OpaqueRef that `.get()` doesn't fully unwrap
+2. **Cell vs value confusion**: navigateTo expects a pattern instance but gets a Cell wrapper
+3. **Stale reference**: The charm reference is resolved at derive-time, not navigation-time
+
+**Console Error**: `Can't load wish.tsx CompilerError` appears in console, suggesting wish mechanism issues
+
+**Location**: `google-auth-manager.tsx` lines 396-404 (goToAuth handler and charmCell derive)
+
+**Additional Note**: Cannot fully reproduce in current session due to CT-1126 race condition preventing auth from reaching "ready" state where Switch button appears
 
 ---
 
