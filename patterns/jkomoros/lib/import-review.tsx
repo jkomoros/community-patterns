@@ -1025,6 +1025,11 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         // This happens when the input text doesn't contain relevant info for this field
         if (!extractedValue || extractedValue.trim() === "") continue;
 
+        // Skip placeholder values that LLM may fabricate when it can't extract real data
+        // Even without `required` array, some models still return these
+        const placeholderPatterns = /^(<UNKNOWN>|UNKNOWN|N\/A|n\/a|unknown|none|null|undefined|\[.*\]|\(.*\))$/i;
+        if (placeholderPatterns.test(extractedValue.trim())) continue;
+
         // For append mode, compute the combined value
         let displayValue = extractedValue;
         let combinedValue: string | undefined;
@@ -1387,14 +1392,18 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         if (deselected.includes(key)) continue;
         if (!(key in extractedData)) continue;
 
+        // Get append mode info - cast to string to avoid OpaqueRef issues
+        const isAppend = fieldDiff.appendMode === true;
+        const combinedVal = String(fieldDiff._combinedValue ?? "");
+        const separator = String(fieldDiff.appendSeparator ?? "\n\n");
+
         // Check if this field has append mode
-        if (fieldDiff.appendMode && fieldDiff._combinedValue !== undefined) {
+        if (isAppend && combinedVal) {
           // Use the pre-computed combined value
-          let finalValue = fieldDiff._combinedValue;
+          let finalValue = combinedVal;
 
           // If this field is the appendRemainingTextTo target, also append remaining text
           if (appendRemainingTextTo === key && remaining.trim()) {
-            const separator = fieldDiff.appendSeparator ?? "\n\n";
             finalValue = `${finalValue}${separator}${remaining}`;
           }
 
