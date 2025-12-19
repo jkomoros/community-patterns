@@ -66,6 +66,107 @@ The beauty: `record.tsx` doesn't know about "people" or "recipes". It just provi
 
 ---
 
+## Part 1.5: Templates (Pre-Assembled Module Sets)
+
+### Solving the Paradox of Choice
+
+While individual modules provide ultimate flexibility, presenting users with 50+ module choices is overwhelming. **Templates** solve this by offering pre-assembled bundles of modules for common record types.
+
+### What Are Templates?
+
+Templates are curated collections of modules that make sense together for specific use cases:
+
+| Template | Pre-Assembled Modules | Use Case |
+|----------|----------------------|----------|
+| **Person** | identity + contact + notes + birthday + relationship | People you know |
+| **Recipe** | ingredients + steps + timing + dietary + notes | Cooking recipes |
+| **Place** | identity + address + url + notes + rating | Locations, venues |
+| **Project** | identity + timeline + checklist + notes + url | Work/personal projects |
+| **Family** | identity + family-members + address + notes | Family units |
+| **Business** | identity + contact + address + url + social-links | Companies, organizations |
+
+### The Best of Both Worlds
+
+Templates give users a **quick start** without sacrificing flexibility:
+
+1. **Choose a template**: "What kind of thing is this?" → Person, Recipe, Place, etc.
+2. **Get sensible defaults**: Record starts with relevant modules pre-configured
+3. **Add more modules**: "What else?" → Add modules not in the template
+4. **Remove unused modules**: "What doesn't apply?" → Remove modules you don't need
+
+### Example: Creating a Person Record
+
+```typescript
+// User selects "Person" template
+const sarah = createRecordFromTemplate("person", {
+  title: "Sarah Chen"
+});
+
+// Template provides:
+sarah.modules = [
+  { type: "identity", data: { name: "Sarah Chen" } },
+  { type: "contact", data: {} },
+  { type: "notes", data: { content: "" } },
+  { type: "birthday", data: {} },
+  { type: "relationship", data: { relationships: [] } }
+];
+
+// User adds what they need:
+sarah.getModule("contact").data.email = "sarah@example.com";
+sarah.getModule("birthday").data.date = "1990-03-15";
+
+// User adds beyond template:
+sarah.addModule({ type: "social-links", data: { github: "schen" } });
+
+// User removes what they don't need:
+sarah.removeModule("relationship"); // Don't track relationships
+```
+
+### UI Flow
+
+```
+[Create New Record]
+       ↓
+Choose a template:
+  [👤 Person]  [🍳 Recipe]  [📍 Place]  [💼 Project]  [📝 Blank]
+       ↓
+Sarah Chen
+  ✓ Identity (name, pronouns)
+  ✓ Contact Info (email, phone)
+  ✓ Notes
+  ✓ Birthday
+  ✓ Relationships
+  [+ Add more modules...]
+  [− Remove unused modules...]
+```
+
+### Template Suggestions
+
+Templates can be **suggested** based on content analysis:
+
+```typescript
+// User creates blank record with title "Sarah Chen"
+const record = createRecord({ title: "Sarah Chen" });
+
+// Schema suggester analyzes title
+const suggestion = schemaSuggester.suggestTemplate(record);
+// → { template: "person", confidence: 0.85, reason: "Name pattern detected" }
+
+// UI shows: "This looks like a person. Use Person template? [Yes] [No]"
+```
+
+### Templates vs Individual Modules
+
+| Approach | When to Use |
+|----------|-------------|
+| **Template** | Quick start, common use case, standard structure needed |
+| **Blank + Modules** | Unique structure, experimental, cross-category record |
+| **Template + Customize** | Start standard, then adapt to specific needs |
+
+Templates are **not rigid types**—they're suggestions that get you started quickly while preserving the organic, data-up growth model.
+
+---
+
 ## Part 2: Module Taxonomy
 
 Modules fall into five conceptual categories, each serving a different role in the organic growth of records.
@@ -211,11 +312,10 @@ interface Module {
   renderFull(): VNode;          // Full detail view (expanded)
   renderEdit(): VNode;          // Edit mode with form controls
 
-  // ===== LIFECYCLE HOOKS =====
-  // How does this module integrate with record?
-  attach?(record: RecordCharm): void;      // Called when module added
-  detach?(record: RecordCharm): void;      // Called when module removed
-  onDataChange?(newData: any, oldData: any): void; // Called when data updates
+  // ===== REACTIVE COORDINATION =====
+  // Modules use computed() to derive behavior from state
+  // NO lifecycle hooks needed - framework handles reactivity
+  // See "Reactive Coordination" section below
 
   // ===== CROSS-MODULE AWARENESS =====
   // What other modules does this interact with?
@@ -306,16 +406,21 @@ const contactModule: Module = {
     `;
   },
 
-  // Lifecycle
-  attach(record) {
-    // Suggest adding identity if not present
-    if (!record.hasModule("identity")) {
-      this.suggestions = [{
-        moduleType: "identity",
-        reason: "Contact info usually needs a name",
-        confidence: 0.9
-      }];
-    }
+  // Reactive Suggestions
+  // Modules can use computed() to reactively suggest other modules
+  getSuggestions() {
+    return computed(() => {
+      const suggestions = [];
+      // Suggest adding identity if not present
+      if (!this.record.hasModule("identity")) {
+        suggestions.push({
+          moduleType: "identity",
+          reason: "Contact info usually needs a name",
+          confidence: 0.9
+        });
+      }
+      return suggestions;
+    });
   },
 
   // Validation
@@ -346,6 +451,134 @@ User Interaction
        ↓
   renderFull() → UI reflects new state
 ```
+
+### Reactive Coordination (No Lifecycle Hooks)
+
+The Common Fabric framework is **reactive**, not imperative. This has important implications for module coordination.
+
+**Traditional imperative approach** (NOT the Fabric way):
+
+```typescript
+// Don't do this - imperative lifecycle management
+interface Module {
+  attach?(record: RecordCharm): void;   // Called when module added
+  detach?(record: RecordCharm): void;   // Called when module removed
+}
+
+// This creates coupling and complexity
+module.attach = (record) => {
+  record.addEventListener("otherModuleChange", this.handleChange);
+  this.subscription = someService.subscribe(...);
+};
+
+module.detach = (record) => {
+  record.removeEventListener("otherModuleChange", this.handleChange);
+  this.subscription.unsubscribe();
+};
+```
+
+**Fabric's reactive approach** (the right way):
+
+```typescript
+// Modules use computed() to derive behavior from state
+interface Module {
+  // No attach/detach hooks needed!
+
+  // Instead, use computed() to react to state changes
+  render() {
+    // This automatically recomputes when dependencies change
+    const otherModule = this.record.getModule("other");
+    const derivedValue = computed(() => {
+      if (!otherModule) return null;
+      return transformData(otherModule.data);
+    });
+
+    return html`<div>${derivedValue()}</div>`;
+  }
+}
+```
+
+**Why this is better:**
+
+1. **No manual lifecycle management**: The framework tracks dependencies automatically
+2. **Simpler mental model**: Modules describe what they need, not how to wire it up
+3. **Less coupling**: Modules don't need to know when other modules come and go
+4. **More idiomatic**: Leverages the framework's reactive primitives
+
+**Example: Dietary aggregate module reacts to family members**
+
+```typescript
+// Family record has family-members module
+const family = createRecord({
+  title: "Chen Family",
+  modules: [
+    {
+      type: "family-members",
+      data: { members: [{ personRef: "sarah" }, { personRef: "mike" }] }
+    },
+    {
+      type: "dietary-aggregate"
+      // This module doesn't need attach() - it uses computed()
+    }
+  ]
+});
+
+// Dietary-aggregate implementation (reactive)
+const dietaryAggregateModule = {
+  moduleType: "dietary-aggregate",
+
+  render() {
+    // Computed automatically tracks dependencies
+    const aggregated = computed(() => {
+      const familyMembers = this.record.getModule("family-members");
+      if (!familyMembers) return null;
+
+      // Fetch dietary data from each person record (reactive)
+      const constraints = familyMembers.data.members.map(m => {
+        const person = fabric.getRecord(m.personRef);
+        const dietary = person?.getModule("dietary");
+        return dietary?.data || {};
+      });
+
+      // Aggregate (any changes to person dietary data trigger recompute)
+      return {
+        vegetarian: constraints.some(c => c.vegetarian),
+        glutenFree: constraints.some(c => c.glutenFree),
+        allergens: [...new Set(constraints.flatMap(c => c.allergens || []))]
+      };
+    });
+
+    return html`<div>Dietary needs: ${JSON.stringify(aggregated())}</div>`;
+  }
+};
+
+// When Sarah's dietary data changes, family aggregate updates automatically
+sarah.getModule("dietary").data.glutenFree = true;
+// → family dietary-aggregate recomputes automatically (no attach/detach needed!)
+```
+
+**Parent record state flows reactively:**
+
+```typescript
+// Record keeps track of which modules exist (reactive state)
+const record = {
+  modules: cell([moduleA, moduleB, moduleC])  // Cell array = reactive
+};
+
+// Modules can react to record structure changes
+const moduleCoordinator = {
+  render() {
+    const activeModules = computed(() => {
+      return this.record.modules.filter(m => m.enabled);
+    });
+
+    // Automatically recomputes when modules added/removed
+    return html`Active: ${activeModules().length}`;
+  }
+};
+```
+
+**Key insight**: The framework's reactivity system handles coordination. Modules don't need lifecycle hooks—they use `computed()` to derive behavior from state, and the framework automatically tracks dependencies and triggers updates.
 
 ---
 
@@ -760,7 +993,11 @@ const entities = entityLinker.findEntities(email);
 
 **Purpose**: Coordinate LLM extraction across multiple modules efficiently.
 
-Instead of each extraction module calling the LLM separately, the coordinator batches requests:
+Instead of each extraction module calling the LLM separately, the coordinator batches requests into a **single LLM call** that extracts data for all enabled modules at once.
+
+**Key insight: Dynamic schema composition IS supported!**
+
+The Common Fabric framework's `generateObject` accepts any JSONSchema object at runtime. The implementation uses `JSON.parse(JSON.stringify(schema))` to work with plain JavaScript objects, so schemas can be composed dynamically. The only trade-off is that TypeScript result types become `any` instead of fully typed—but this is acceptable for dynamic module systems where the structure isn't known at compile time.
 
 ```typescript
 interface ExtractionCoordinatorModule {
@@ -779,7 +1016,7 @@ const ingredients = await extractIngredients(recipeText); // LLM call 1
 const steps = await extractSteps(recipeText);             // LLM call 2
 const dietary = await extractDietary(recipeText);         // LLM call 3
 
-// With coordinator: 1 LLM call
+// With coordinator: 1 LLM call for ALL modules
 const extracted = await extractionCoordinator.coordinateExtraction(recipeText, [
   "ingredients",
   "steps",
@@ -792,17 +1029,19 @@ const extracted = await extractionCoordinator.coordinateExtraction(recipeText, [
 //   }
 ```
 
-**Implementation**: Single prompt with structured output:
+**Implementation**: Dynamic schema composition at runtime:
 
 ```typescript
 async coordinateExtraction(text: string, extractors: string[]) {
-  // Build combined schema from all extractors
+  // Build combined schema from all extractors DYNAMICALLY
+  // This works because generateObject accepts any JSONSchema object
   const combinedSchema = z.object(
     Object.fromEntries(
       extractors.map(e => [e, EXTRACTOR_SCHEMAS[e]])
     )
   );
 
+  // generateObject handles dynamic schemas - result type is 'any'
   const result = await generateObject({
     model: "claude-sonnet-4",
     prompt: `Extract structured data from this text:
@@ -810,12 +1049,46 @@ async coordinateExtraction(text: string, extractors: string[]) {
     ${text}
 
     Extract: ${extractors.join(", ")}`,
-    schema: combinedSchema
+    schema: combinedSchema  // Schema composed at runtime!
   });
 
+  // Result is correctly typed at runtime, even though TypeScript sees 'any'
   return result;
 }
+
+// Real-world example: Extract data for ALL enabled modules in one call
+async function extractFromAllModules(record: RecordCharm, text: string) {
+  // Get enabled extraction modules from record state
+  const extractionModules = record.modules.filter(m =>
+    m.moduleCategory === "extraction" && m.enabled
+  );
+
+  // Build schema for only the enabled modules
+  const extractorNames = extractionModules.map(m => m.moduleType);
+
+  // Single LLM call extracts data for all enabled modules
+  const extracted = await extractionCoordinator.coordinateExtraction(
+    text,
+    extractorNames
+  );
+
+  // Populate modules with extracted data
+  for (const [moduleName, data] of Object.entries(extracted)) {
+    const module = record.getModule(moduleName);
+    if (module) {
+      module.data = data;
+    }
+  }
+}
 ```
+
+**Efficiency gains:**
+
+- **3 extraction modules**: 3 LLM calls → 1 LLM call (3x faster, 3x cheaper)
+- **10 extraction modules**: 10 LLM calls → 1 LLM call (10x faster, 10x cheaper)
+- **Dynamic module sets**: Schema adapts to which modules are enabled
+
+The coordinator is essential for making extraction modules practical at scale.
 
 ### 4. Module Registry
 
@@ -1465,3 +1738,100 @@ This is computing that resonates—software that feels alive because it grows wi
 **The future is data-up.**
 
 Welcome to the fabric.
+
+---
+
+## Appendix: Critiques Addressed
+
+This architecture has been refined through several design critiques. Here are the key concerns that were raised and how they've been addressed:
+
+### 1. Paradox of Choice (UX Concern)
+
+**Critique**: "Presenting users with 50+ individual modules is overwhelming. Choice paralysis prevents people from getting started."
+
+**Resolution**: **Templates (Part 1.5)**
+
+Templates provide pre-assembled bundles of modules for common use cases (Person, Recipe, Place, Project, etc.). Users start with a sensible default, then customize by adding/removing modules. This gives both quick starts and full flexibility—best of both worlds.
+
+**Impact**: Users no longer face a blank slate with dozens of choices. They answer "What kind of thing is this?" (template) instead of "Which 8 of these 50 modules do you need?" (paralysis).
+
+---
+
+### 2. Extraction Efficiency (Technical Concern)
+
+**Critique**: "If each extraction module makes a separate LLM call, extracting data for 10 modules means 10 API calls. That's slow and expensive."
+
+**Resolution**: **Dynamic Schema Composition (Part 6, Section 3)**
+
+The framework's `generateObject` accepts runtime-composed JSONSchema objects, so the Extraction Coordinator can build a combined schema for all enabled modules and extract data in a **single LLM call**.
+
+**Key technical insight**: While TypeScript can't infer the result type of dynamic schemas (result becomes `any`), the runtime behavior is correct—the LLM extracts all fields in one call, and modules get populated with the right data.
+
+**Impact**: Extraction scales efficiently. 10 modules = 1 LLM call, not 10 calls (10x faster, 10x cheaper).
+
+---
+
+### 3. Lifecycle Complexity (Architecture Concern)
+
+**Critique**: "Modules need `attach()` and `detach()` lifecycle hooks to coordinate with each other. This creates imperative coupling and makes the system fragile."
+
+**Resolution**: **Reactive Coordination (Part 3)**
+
+The framework is reactive, not imperative. Modules use `computed()` to derive behavior from state. When a module is added/removed or data changes, dependent computeds automatically recompute. No manual lifecycle management needed.
+
+**Example**: A dietary-aggregate module doesn't need `attach()` to wire up listeners—it uses `computed()` to reactively aggregate data from person records. When person dietary data changes, the aggregate updates automatically.
+
+**Impact**: Simpler mental model, less coupling, more idiomatic to the framework's reactive primitives.
+
+---
+
+### 4. Source Module Rate Limiting (Practical Concern)
+
+**Critique**: "If 10 person records each have a `gmail-source` module, that's 10 concurrent Gmail API calls. APIs have rate limits. This will break."
+
+**Resolution**: **Shared Sync Managers** (Implementation detail, not yet in main doc)
+
+Source modules don't make API calls directly. They use a **shared sync manager** that coordinates requests across all instances of that source type:
+
+```typescript
+// All gmail-source modules share a single sync manager
+const gmailSyncManager = {
+  // Queue of pending sync requests
+  syncQueue: [],
+
+  // Rate limit: max 10 requests per minute
+  rateLimiter: new RateLimiter({ maxRequests: 10, windowMs: 60000 }),
+
+  // Schedule sync for a module
+  async scheduleSync(module: GmailSourceModule) {
+    this.syncQueue.push(module);
+    await this.rateLimiter.waitForSlot();
+    await this.executeSync(module);
+  },
+
+  // Batch multiple modules into one API call when possible
+  async executeBatchSync(modules: GmailSourceModule[]) {
+    // If multiple modules query the same email (e.g., family members),
+    // fetch once and distribute to all modules
+    const queries = modules.map(m => m.config.query);
+    const results = await gmail.batchSearch(queries);
+    modules.forEach((m, i) => m.setState({ emails: results[i] }));
+  }
+};
+```
+
+**Impact**: Rate limits respected, requests batched when possible, API usage optimized across all source module instances.
+
+---
+
+### Summary
+
+Each critique identified a real limitation in the initial design. The solutions—templates, dynamic schema composition, reactive coordination, and shared sync managers—make the architecture practical for real-world use while preserving the core "data-up" philosophy.
+
+The module system is now:
+- **User-friendly**: Templates provide quick starts
+- **Efficient**: Single LLM calls for extraction, batched API requests for sources
+- **Simple**: Reactive coordination eliminates lifecycle complexity
+- **Scalable**: Shared infrastructure handles rate limiting and resource management
+
+These refinements make the vision **implementable**, not just aspirational.
