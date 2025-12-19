@@ -58,7 +58,20 @@ const SCOPE_SHORT_NAMES: Record<string, string> = {
   "https://www.googleapis.com/auth/contacts.readonly": "Contacts",
 };
 
-function getScopeSummary(grantedScopes: string[]): string {
+// Short names for scope keys (for configured scopes summary)
+const SCOPE_KEY_SHORT_NAMES: Record<string, string> = {
+  gmail: "Gmail",
+  gmailSend: "Gmail",
+  gmailModify: "Gmail",
+  calendar: "Calendar",
+  calendarWrite: "Calendar",
+  drive: "Drive",
+  docs: "Docs",
+  contacts: "Contacts",
+};
+
+/** Get scope summary from granted scope URLs - exported for wrapper patterns */
+export function getScopeSummary(grantedScopes: string[]): string {
   const names = new Set<string>();
   for (const scope of grantedScopes) {
     const name = SCOPE_SHORT_NAMES[scope];
@@ -68,6 +81,166 @@ function getScopeSummary(grantedScopes: string[]): string {
   if (arr.length === 0) return "";
   if (arr.length <= 3) return arr.join(", ");
   return `${arr.slice(0, 2).join(", ")} +${arr.length - 2} more`;
+}
+
+/** Get scope summary from configured scope flags (for unauthenticated preview) */
+function getConfiguredScopeSummary(
+  selectedScopes: Record<string, boolean>,
+): string {
+  const names = new Set<string>();
+  for (const [key, enabled] of Object.entries(selectedScopes)) {
+    if (enabled) {
+      const name = SCOPE_KEY_SHORT_NAMES[key];
+      if (name) names.add(name);
+    }
+  }
+  const arr = Array.from(names);
+  if (arr.length === 0) return "";
+  if (arr.length <= 3) return arr.join(", ");
+  return `${arr.slice(0, 2).join(", ")} +${arr.length - 2} more`;
+}
+
+// Status indicator configuration
+const STATUS_CONFIG = {
+  ready: { dot: "#22c55e", bg: "#f0fdf4" },
+  warning: { dot: "#eab308", bg: "#fefce8" },
+  expired: { dot: "#ef4444", bg: "#fef2f2" },
+  "needs-login": { dot: "#9ca3af", bg: "#f9fafb" },
+} as const;
+
+type AuthStatus = keyof typeof STATUS_CONFIG;
+
+/**
+ * Helper to create preview UI for picker display.
+ * Exported for use by wrapper patterns (google-auth-personal, google-auth-work).
+ */
+export function createPreviewUI(
+  auth: Auth | undefined,
+  selectedScopes: Record<string, boolean>,
+  badge?: { text: string; color: string },
+): JSX.Element {
+  const email = auth?.user?.email;
+  const picture = auth?.user?.picture;
+  const name = auth?.user?.name;
+  const isAuthenticated = !!email;
+
+  // Status detection
+  const now = Date.now();
+  const expiresAt = auth?.expiresAt || 0;
+  const isExpired = isAuthenticated && expiresAt > 0 && expiresAt < now;
+  const isWarning =
+    isAuthenticated && !isExpired && expiresAt > 0 &&
+    expiresAt - now < 10 * 60 * 1000;
+
+  const status: AuthStatus = !isAuthenticated
+    ? "needs-login"
+    : isExpired
+    ? "expired"
+    : isWarning
+    ? "warning"
+    : "ready";
+
+  // Show configured scopes when not logged in, granted when logged in
+  const scopeSummary = isAuthenticated
+    ? getScopeSummary(auth?.scope || [])
+    : getConfiguredScopeSummary(selectedScopes);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        padding: "12px 16px",
+        backgroundColor: STATUS_CONFIG[status].bg,
+        borderRadius: "8px",
+      }}
+    >
+      {/* Avatar with status dot overlay */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        {picture
+          ? (
+            <img
+              src={picture}
+              alt=""
+              style={{ width: "36px", height: "36px", borderRadius: "50%" }}
+            />
+          )
+          : (
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                backgroundColor: isAuthenticated ? "#10b981" : "#e5e7eb",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {isAuthenticated && (
+                <span
+                  style={{
+                    color: "white",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {(name || email || "?")[0]?.toUpperCase()}
+                </span>
+              )}
+            </div>
+          )}
+        {/* Status dot */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-2px",
+            right: "-2px",
+            width: "12px",
+            height: "12px",
+            borderRadius: "50%",
+            backgroundColor: STATUS_CONFIG[status].dot,
+            border: "2px solid white",
+          }}
+        />
+      </div>
+
+      {/* Optional badge */}
+      {badge && (
+        <span
+          style={{
+            background: badge.color,
+            color: "white",
+            padding: "2px 6px",
+            borderRadius: "4px",
+            fontSize: "10px",
+            fontWeight: "600",
+            flexShrink: 0,
+          }}
+        >
+          {badge.text}
+        </span>
+      )}
+
+      {/* User info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: "14px" }}>
+          {isAuthenticated ? name || email : "Sign in required"}
+        </div>
+        {isAuthenticated && name && email && (
+          <div style={{ fontSize: "12px", color: "#6b7280" }}>{email}</div>
+        )}
+        {scopeSummary && (
+          <div
+            style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}
+          >
+            {scopeSummary}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -109,8 +282,8 @@ export type Auth = {
   }, { email: ""; name: ""; picture: "" }>;
 };
 
-// Selected scopes configuration
-type SelectedScopes = {
+// Selected scopes configuration - exported for wrapper patterns
+export type SelectedScopes = {
   gmail: Default<boolean, false>;
   gmailSend: Default<boolean, false>;
   gmailModify: Default<boolean, false>;
@@ -399,78 +572,10 @@ export default pattern<Input, Output>(
       );
     });
 
-    // Minimal preview chip for picker display with scope summary
-    const previewUI = computed(() => {
-      const email = auth?.user?.email;
-      const picture = auth?.user?.picture;
-      const name = auth?.user?.name;
-      const scopeSummary = getScopeSummary(auth?.scope || []);
-
-      return (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            padding: "12px 16px",
-            backgroundColor: "#f9fafb",
-            borderRadius: "8px",
-          }}
-        >
-          {/* Avatar */}
-          {picture
-            ? (
-              <img
-                src={picture}
-                alt=""
-                style={{ width: "36px", height: "36px", borderRadius: "50%" }}
-              />
-            )
-            : (
-              <div
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "50%",
-                  backgroundColor: email ? "#10b981" : "#e5e7eb",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {email && (
-                  <span
-                    style={{
-                      color: "white",
-                      fontSize: "14px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {(name || email)[0]?.toUpperCase()}
-                  </span>
-                )}
-              </div>
-            )}
-
-          {/* User info */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: "14px" }}>
-              {name || email || "Google Account"}
-            </div>
-            {name && email && (
-              <div style={{ fontSize: "12px", color: "#6b7280" }}>{email}</div>
-            )}
-            {scopeSummary && (
-              <div
-                style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}
-              >
-                {scopeSummary}
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    });
+    // Minimal preview chip for picker display using shared helper
+    const previewUI = computed(() =>
+      createPreviewUI(auth, selectedScopes as unknown as Record<string, boolean>)
+    );
 
     return {
       [NAME]: computed(() => {

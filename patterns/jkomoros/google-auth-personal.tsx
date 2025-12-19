@@ -10,19 +10,7 @@
  * 2. Post-hoc: Created by google-auth-switcher after login
  */
 import { computed, Default, NAME, pattern, UI } from "commontools";
-import GoogleAuth, { Auth } from "./google-auth.tsx";
-
-// Same selected scopes type as base GoogleAuth
-type SelectedScopes = {
-  gmail: Default<boolean, false>;
-  gmailSend: Default<boolean, false>;
-  gmailModify: Default<boolean, false>;
-  calendar: Default<boolean, false>;
-  calendarWrite: Default<boolean, false>;
-  drive: Default<boolean, false>;
-  docs: Default<boolean, false>;
-  contacts: Default<boolean, false>;
-};
+import GoogleAuth, { Auth, createPreviewUI, SelectedScopes } from "./google-auth.tsx";
 
 interface Input {
   selectedScopes: Default<SelectedScopes, {
@@ -61,36 +49,14 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
   // Compose the base GoogleAuth pattern
   const baseAuth = GoogleAuth({ auth, selectedScopes });
 
-  // Enhanced preview with PERSONAL badge
-  const previewUI = computed(() => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "12px 16px",
-        backgroundColor: "#f9fafb",
-        borderRadius: "8px",
-      }}
-    >
-      {/* PERSONAL badge */}
-      <span
-        style={{
-          background: "#3b82f6",
-          color: "white",
-          padding: "2px 6px",
-          borderRadius: "4px",
-          fontSize: "10px",
-          fontWeight: "600",
-          flexShrink: 0,
-        }}
-      >
-        PERSONAL
-      </span>
-      {/* Base userChip content */}
-      {baseAuth.userChip}
-    </div>
-  ));
+  // Enhanced preview with PERSONAL badge using shared helper
+  const previewUI = computed(() =>
+    createPreviewUI(
+      baseAuth.auth,
+      selectedScopes as unknown as Record<string, boolean>,
+      { text: "PERSONAL", color: "#3b82f6" },
+    )
+  );
 
   return {
     [NAME]: computed(() =>
