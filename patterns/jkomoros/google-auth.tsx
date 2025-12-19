@@ -448,10 +448,10 @@ export default pattern<Input, Output>(
                 fontSize: "14px",
               }}
             >
-              <strong>Favorite this charm</strong> to share your Google auth
-              across all your patterns! Any pattern using{" "}
+              <strong>Tip:</strong> Favorite this charm (click ⭐) to share your
+              Google auth across all your patterns. Any pattern using{" "}
               <code>wish("#googleAuth")</code> will automatically find and use
-              this authentication.
+              it.
             </div>
           )}
 

@@ -184,6 +184,10 @@ This limitation blocks any pattern that needs to:
 
 2025-01-24
 
+## Related Issues
+
+- **CT-1127**: [Feature: Add charmRef to WishState for navigation to wished charms](https://linear.app/common-tools/issue/CT-1127/feature-add-charmref-to-wishstate-for-navigation-to-wished) - Related navigation problem: patterns can't navigate to charms found via `wish()` because wish returns data, not charm identity. Proposed solution adds `charmRef` to WishState.
+
 ## Status
 
 Open - Awaiting framework author feedback

@@ -294,8 +294,8 @@ export default pattern<Input, Output>(({ token }) => {
             border: "1px solid #28a745",
             fontSize: "14px",
           }}>
-            <strong>Favorite this charm</strong> (click the star icon) to share your GitHub auth
-            across all your patterns! Any pattern using{" "}
+            <strong>Tip:</strong> Favorite this charm (click ⭐) to share your GitHub auth
+            across all your patterns. Any pattern using{" "}
             <code style={{ backgroundColor: "#e9ecef", padding: "2px 6px", borderRadius: "3px" }}>
               wish("#githubAuth")
             </code>{" "}
