@@ -72,12 +72,14 @@ export default pattern<TestInput, {}>((props) => {
   const company = cell<string>("Acme Corp");
 
   // Schema for field extraction
+  // NOTE: Using captureRemainingText to avoid schema validation errors
+  // when LLM returns extra remainingText field
   const fieldsSchema = Cell.of(buildFieldMappingSchema([
     { key: "displayName", label: "Display Name" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
     { key: "company", label: "Company" },
-  ]));
+  ], { captureRemainingText: true }));
 
   const fieldsSystemPrompt = Cell.of(
     "Extract person contact information from the text. " +
@@ -243,7 +245,7 @@ export default pattern<TestInput, {}>((props) => {
               <div>Error: {derive(extraction.error, (e) => e ? "YES" : "no")}</div>
               <div>Has Stale Fields: {derive(extraction.hasStaleFields, String)}</div>
               <div style={{ gridColumn: "1 / -1" }}>
-                Trigger: {derive(trigger, (t) => t ? `"${t.slice(0, 50)}..."` : "(empty)")}
+                Trigger: {derive(trigger, (t: string) => t ? `"${t.slice(0, 50)}..."` : "(empty)")}
               </div>
             </div>
           </div>

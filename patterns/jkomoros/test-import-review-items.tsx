@@ -29,7 +29,7 @@ import {
   pattern,
   UI,
 } from "commontools";
-import ImportReview from "./lib/import-review.tsx";
+import ImportReview, { ITEM_LIST_SCHEMA, ITEM_LIST_SYSTEM_PROMPT } from "./lib/import-review.tsx";
 
 interface TestInput {
   trigger?: Cell<Default<string, "">>;
@@ -79,19 +79,27 @@ export default pattern<TestInput, {}>((props) => {
   // Existing items (for NEW badge testing)
   const existingItems = cell<string[]>([]);
 
-  // Create ImportReview in item-list mode (no fieldMappings)
-  // Uses DEFAULT_SCHEMA which extracts { items: [{ name, description }] }
+  // Schema for item-list mode - use exported constants
+  // IMPORTANT: Cell.of() must be in parent pattern, not inside sub-pattern
+  // See: community-docs investigation of test-import-review-items not triggering LLM
+  const itemsSchema = Cell.of(ITEM_LIST_SCHEMA);
+  const itemsSystemPrompt = Cell.of(ITEM_LIST_SYSTEM_PROMPT);
+
+  // Create ImportReview in item-list mode
+  // NOTE: Explicitly pass schema Cell to ensure generateObject reactivity works
   const extraction = ImportReview({
     trigger,
     existingItems,
+    schema: itemsSchema,
+    systemPrompt: itemsSystemPrompt,
     // getKey and getLabel for item display
-    getKey: (item) => {
+    getKey: (item: unknown) => {
       if (item && typeof item === "object" && "name" in item) {
         return String((item as { name: string }).name);
       }
       return String(item);
     },
-    getLabel: (item) => {
+    getLabel: (item: unknown) => {
       if (item && typeof item === "object" && "name" in item) {
         const obj = item as { name: string; description?: string };
         return obj.description ? `${obj.name} - ${obj.description}` : obj.name;
@@ -140,7 +148,7 @@ export default pattern<TestInput, {}>((props) => {
                 </ct-button>
               </div>
               <div style={{ fontSize: "12px", marginTop: "4px", color: "#666" }}>
-                Current: {derive(existingItems, (items) => items.length > 0 ? `[${items.join(", ")}]` : "(none)")}
+                Current: {derive(existingItems, (items: string[]) => items.length > 0 ? `[${items.join(", ")}]` : "(none)")}
               </div>
             </div>
 
@@ -235,10 +243,10 @@ export default pattern<TestInput, {}>((props) => {
               <div>Error: {derive(extraction.error, (e) => e ? "YES" : "no")}</div>
               <div>Show Empty State: {derive(extraction.showEmptyState, String)}</div>
               <div style={{ gridColumn: "1 / -1" }}>
-                Existing Items: {derive(existingItems, (items) => items.length > 0 ? `[${items.join(", ")}]` : "(none)")}
+                Existing Items: {derive(existingItems, (items: string[]) => items.length > 0 ? `[${items.join(", ")}]` : "(none)")}
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                Selected Items: {derive(extraction.selectedItems, (items) =>
+                Selected Items: {derive(extraction.selectedItems, (items: unknown[]) =>
                   items.length > 0
                     ? JSON.stringify(items.map((i: unknown) => {
                         if (i && typeof i === "object" && "name" in i) {

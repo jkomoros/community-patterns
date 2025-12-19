@@ -267,7 +267,8 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   error: unknown;
   hasResults: boolean;
   hasFieldResults: boolean;  // For field-diff mode
-  showFieldEmptyState: boolean;  // True when extraction completed with no changes
+  showEmptyState: boolean;  // True when item extraction completed with no items
+  showFieldEmptyState: boolean;  // True when field extraction completed with no changes
   itemCount: number;
   selectedCount: number;
 
@@ -283,6 +284,7 @@ interface ImportReviewOutput<T extends ExtractedItem = ExtractedItem> {
   fieldDiffCount: number;                           // Number of changed fields
   selectedFieldCount: number;                       // Number of selected fields
   selectedFieldKeys: string[];                      // Keys of selected fields (reactive)
+  hasStaleFields: boolean;                          // True if any currentValue changed since extraction
   /**
    * Reactive computed of selected field values - use in JSX/computed.
    *
@@ -389,9 +391,46 @@ const DEFAULT_SCHEMA = {
   required: ["items"],
 } as const;
 
+// IMPORTANT: Create Cell wrapper at MODULE LEVEL, not inside pattern function.
+// Cell.of() inside pattern body breaks generateObject reactivity.
+// See: community-docs investigation of test-import-review-items not triggering LLM
+const DEFAULT_SCHEMA_CELL = Cell.of(DEFAULT_SCHEMA);
+const DEFAULT_SYSTEM_PROMPT_CELL = Cell.of(DEFAULT_SYSTEM_PROMPT);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPORTED HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Default schema for item-list mode.
+ * Extracts: { items: [{ name: string, description?: string }] }
+ *
+ * IMPORTANT: You must wrap this in Cell.of() in your parent pattern
+ * and pass it as the `schema` prop. Creating Cell.of() inside a sub-pattern
+ * breaks generateObject reactivity.
+ *
+ * @example
+ * const schema = Cell.of(ITEM_LIST_SCHEMA);
+ * const systemPrompt = Cell.of(ITEM_LIST_SYSTEM_PROMPT);
+ *
+ * const extraction = ImportReview({
+ *   trigger,
+ *   schema,
+ *   systemPrompt,
+ *   getKey: (item) => item.name,
+ *   getLabel: (item) => item.description ? `${item.name} - ${item.description}` : item.name,
+ * });
+ */
+export const ITEM_LIST_SCHEMA = DEFAULT_SCHEMA;
+
+/**
+ * Default system prompt for item-list mode.
+ * Use with ITEM_LIST_SCHEMA for extracting lists of items.
+ *
+ * @example
+ * const systemPrompt = Cell.of(ITEM_LIST_SYSTEM_PROMPT);
+ */
+export const ITEM_LIST_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT;
 
 /**
  * Build a JSON schema from FieldMapping array.
@@ -751,16 +790,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         "See food-recipe.tsx timingReview for correct usage."
       );
     }
-    // Validate appendRemainingTextTo references an existing field
-    if (appendRemainingTextTo && fieldMappings) {
-      const fieldKeys = fieldMappings.map(f => f.key);
-      if (!fieldKeys.includes(appendRemainingTextTo)) {
-        console.warn(
-          `[ImportReview] appendRemainingTextTo="${appendRemainingTextTo}" not found in fieldMappings. ` +
-          `Available keys: ${fieldKeys.join(", ")}. Remaining text will not be appended to any field.`
-        );
-      }
-    }
+    // NOTE: Validation of appendRemainingTextTo against fieldMappings is skipped here
+    // because CTS wraps arrays in OpaqueRef which cannot be directly accessed at pattern
+    // initialization time. The validation would require a computed() context.
+    // The validation is deferred - if the field key doesn't exist, it simply won't append.
 
     // Use triggerInput directly - framework provides default from schema (Default<string, "">)
     // Don't create a fallback cell - that breaks reactivity tracking
@@ -820,17 +853,20 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
     // Schema selection:
     // - If schema Cell provided: parent built the schema (field-diff mode)
-    // - Otherwise: use DEFAULT_SCHEMA constant (item-list mode)
+    // - Otherwise: use DEFAULT_SCHEMA_CELL constant (item-list mode)
     //
     // Why schema is a Cell prop:
     // OpaqueRef wrapping prevents building schemas from array props at init time.
     // Items iterated from `for...of` are ALSO OpaqueRef, so `mapping.key` throws.
     // Solution: Parent builds schema as a Cell, Cells don't get OpaqueRef wrapped.
     // See: community-docs/superstitions/2025-12-17-array-isarray-fails-for-subpattern-props.md
-    const effectiveSchema = schemaInput ?? Cell.of(DEFAULT_SCHEMA);
+    //
+    // CRITICAL: Use module-level Cell constants (DEFAULT_SCHEMA_CELL, DEFAULT_SYSTEM_PROMPT_CELL)
+    // NOT Cell.of() inside pattern body - that breaks generateObject reactivity!
+    const effectiveSchema = schemaInput ?? DEFAULT_SCHEMA_CELL;
 
     // Build effective system prompt - append remainingText instructions if enabled
-    const baseSystemPrompt = systemPromptInput ?? Cell.of(DEFAULT_SYSTEM_PROMPT);
+    const baseSystemPrompt = systemPromptInput ?? DEFAULT_SYSTEM_PROMPT_CELL;
     const effectiveSystemPrompt = captureRemainingText
       ? derive(baseSystemPrompt, (base) =>
           `${base}\n\nIMPORTANT: Also include a "remainingText" field containing any text from the input that was NOT used for extraction. This includes filler words, context, and any content that doesn't map to a specific field. If all text was extracted, set remainingText to an empty string "". CRITICAL: Exclude any text matching the pattern "---EXTRACT-[numbers]---" from remainingText - this is a system separator, not user content.`
@@ -1089,7 +1125,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     const hasStaleFields = computed(() => {
       for (const fieldDiff of fieldDiffs) {
         if (fieldDiff._currentValueCell && fieldDiff._snapshotValue !== undefined) {
-          const currentNow = fieldDiff._currentValueCell.get() ?? "";
+          // NOTE: Type assertion needed because CTS transformer wraps Cell types in OpaqueCell,
+          // creating complex intersection types. The .get() call is valid at runtime.
+          const cellRef = fieldDiff._currentValueCell as unknown as Cell<string>;
+          const currentNow = cellRef.get() ?? "";
           if (currentNow !== fieldDiff._snapshotValue) {
             return true;
           }
@@ -1530,6 +1569,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       </div>
     );
 
+    // Pre-bind dismissError handler OUTSIDE JSX to avoid ReadOnlyAddressError
+    // Must be defined before errorState JSX which uses it
+    const boundDismissError = dismissError({ trigger });
+
     const errorState = (
       <div
         style={{
@@ -1678,7 +1721,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     const boundSelectAllFields = selectAllFieldsHandler({ deselectedFieldKeys });
     const boundSelectNoFields = selectNoFieldsHandler({ deselectedFieldKeys, allChangedFieldKeys });
     const boundClearTrigger = clearTrigger({ trigger });
-    const boundDismissError = dismissError({ trigger });
+    // boundDismissError is defined earlier (before errorState JSX that uses it)
 
     const reviewPanel = (
       <div
@@ -2350,6 +2393,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       error: extractionError,
       hasResults,
       hasFieldResults,
+      showEmptyState,
       showFieldEmptyState,
       itemCount,
       selectedCount,
@@ -2361,6 +2405,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       fieldDiffCount,
       selectedFieldCount,
       selectedFieldKeys: selectedFieldKeysComputed,
+      hasStaleFields,
       selectedFieldValues: selectedFieldValuesCell,
 
       // Flattened handlers (following chatbot.tsx pattern)

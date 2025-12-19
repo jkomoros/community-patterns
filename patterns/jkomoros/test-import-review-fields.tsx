@@ -167,7 +167,7 @@ export default pattern<TestInput, {}>((props) => {
               <div><strong>Name:</strong> {displayName}</div>
               <div><strong>Email:</strong> {email}</div>
               <div><strong>Phone:</strong> {phone}</div>
-              <div><strong>Notes:</strong> {derive(notes, (n) => n ? (n.length > 100 ? n.slice(0, 100) + "..." : n) : "(empty)")}</div>
+              <div><strong>Notes:</strong> {derive(notes, (n: string) => n ? (n.length > 100 ? n.slice(0, 100) + "..." : n) : "(empty)")}</div>
             </div>
           </div>
 
