@@ -364,10 +364,10 @@ const Record = recipe<RecordInput, RecordOutput>(
                           background: "#fafafa",
                         }}
                       >
-                        <span style={{ fontSize: "14px", fontWeight: "500" }}>
+                        <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
                           {displayInfo.icon} {displayInfo.label}
                         </span>
-                        <ct-hstack style={{ gap: "8px", alignItems: "center" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
                           {/* Pin button - always visible, styled based on state */}
                           <button
                             onClick={togglePin({ subCharms, index })}
@@ -408,7 +408,7 @@ const Record = recipe<RecordInput, RecordOutput>(
                               ✕ Remove
                             </button>
                           )}
-                        </ct-hstack>
+                        </div>
                       </div>
                       {/* Card body - render the sub-charm's UI */}
                       <div style={{ padding: "12px" }}>
