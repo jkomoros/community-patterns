@@ -560,7 +560,6 @@ export default pattern<Input, Output>(
       fullUI: authFullUI,
       isReady: isAuthenticated,
       currentEmail,
-      protectedContent,
     } = createGoogleAuth({
       requiredScopes: ["drive", "docs"] as ScopeKey[],
     });
@@ -771,7 +770,8 @@ export default pattern<Input, Output>(
                     placeholder="https://docs.google.com/document/d/..."
                     style="flex: 1;"
                   />
-                  {protectedContent(
+                  {ifElse(
+                    isAuthenticated,
                     <ct-button
                       variant="primary"
                       type="button"
@@ -793,7 +793,8 @@ export default pattern<Input, Output>(
                         </ct-hstack>,
                         "Fetch Comments"
                       )}
-                    </ct-button>
+                    </ct-button>,
+                    null
                   )}
                 </ct-hstack>
 

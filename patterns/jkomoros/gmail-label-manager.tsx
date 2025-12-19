@@ -253,7 +253,7 @@ const dismissResult = handler<
 export default pattern<Input, Output>(
   ({ messageIds, labelsToAdd, labelsToRemove }) => {
     // Auth via createGoogleAuth utility - handles discovery, validation, and UI
-    const { auth, fullUI, isReady, protectedContent } = createGoogleAuth({
+    const { auth, fullUI, isReady } = createGoogleAuth({
       requiredScopes: ["gmail", "gmailModify"] as ScopeKey[],
     });
     const hasAuth = isReady;
@@ -309,7 +309,8 @@ export default pattern<Input, Output>(
           {fullUI}
 
           {/* Refresh labels button - protected until authenticated */}
-          {protectedContent(
+          {ifElse(
+            isReady,
             <div
               style={{
                 display: "flex",
@@ -331,7 +332,8 @@ export default pattern<Input, Output>(
               >
                 {ifElse(loadingLabels, "Loading...", "Refresh Labels")}
               </button>
-            </div>
+            </div>,
+            null
           )}
 
           {/* Result display */}

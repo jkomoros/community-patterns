@@ -700,7 +700,7 @@ export default pattern<{
     });
 
     // Use createGoogleAuth utility with reactive accountType
-    const { auth, fullUI, isReady, currentEmail, protectedContent } = createGoogleAuth({
+    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
       requiredScopes: ["gmail"] as ScopeKey[],
       accountType: selectedAccountType,
     });
@@ -788,7 +788,8 @@ export default pattern<{
                 Debug Mode (verbose console logging)
               </label>
             </div>
-            {protectedContent(
+            {ifElse(
+              isReady,
               <ct-button
                 type="button"
                 onClick={googleUpdater({
@@ -807,7 +808,8 @@ export default pattern<{
                   </span>,
                   "Fetch Emails"
                 )}
-              </ct-button>
+              </ct-button>,
+              null
             )}
           </ct-vstack>
 

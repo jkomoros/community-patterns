@@ -765,6 +765,11 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
 
     // Protected content wrapper - renders children only when auth is ready
     // Usage: {protectedContent(<button>Action</button>)}
+    //
+    // ⚠️ WARNING: This helper function does NOT survive serialization through the
+    // action system. If you get "TypeError: protectedContent is not a function",
+    // use ifElse(isReady, children, null) directly instead.
+    // See: community-docs/superstitions/2025-11-29-cells-must-be-json-serializable.md
     protectedContent: (children: JSX.Element) => ifElse(isReady, children, null),
 
     // Raw wish result for advanced use cases

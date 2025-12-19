@@ -64,6 +64,28 @@ Think of cells as being persisted to JSON:
 
 If your value wouldn't survive a `JSON.parse(JSON.stringify(value))` round-trip, it won't work in a cell.
 
+## Also Applies to: Helper Functions in Actions
+
+This serialization constraint also affects **functions returned from helper utilities** when used in JSX/actions.
+
+### Example: protectedContent from createGoogleAuth
+
+```typescript
+// FAILS: Helper function doesn't survive serialization
+const { protectedContent, isReady } = createGoogleAuth({...});
+
+// In JSX:
+{protectedContent(<button onClick={doAction}>Do Something</button>)}
+// TypeError: protectedContent is not a function
+
+// WORKS: Use framework primitive ifElse instead
+{ifElse(isReady, <button onClick={doAction}>Do Something</button>, null)}
+```
+
+**Why this happens:** The `protectedContent` function is essentially `(children) => ifElse(isReady, children, null)`. When passed through the action system, it gets serialized and becomes `undefined` or a plain object, losing its callable nature.
+
+**Workaround:** Always use framework primitives (`ifElse`, `computed`, etc.) directly instead of wrapper functions from helpers. The underlying cell/signal (`isReady`) survives serialization, but the wrapper function doesn't.
+
 ## Tags
 
 - cells
@@ -72,6 +94,9 @@ If your value wouldn't survive a `JSON.parse(JSON.stringify(value))` round-trip,
 - Set
 - Map
 - JSON
+- functions
+- actions
+- protectedContent
 
 ## Confirmation Status
 
@@ -83,3 +108,4 @@ If your value wouldn't survive a `JSON.parse(JSON.stringify(value))` round-trip,
 
 - 2025-11-29 - First observed with Set in cell (original author)
 - 2025-11-30 - Confirmed with Map in redactor pattern session state; got "TypeError: object is not iterable" when trying to iterate Map entries (jkomoros)
+- 2025-12-18 - Confirmed with `protectedContent` helper function from `createGoogleAuth`; got "TypeError: protectedContent is not a function" when using the helper in JSX. Workaround: use `ifElse(isReady, ...)` directly (jkomoros)

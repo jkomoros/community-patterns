@@ -444,7 +444,7 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
     const PAGE_SIZE = 10;
 
     // Use createGoogleAuth utility for auth management
-    const { auth, fullUI, isReady, currentEmail, protectedContent } = createGoogleAuth({
+    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
       requiredScopes: ["calendar"] as ScopeKey[],
     });
 
@@ -537,7 +537,8 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
                     Debug Mode (verbose console logging)
                   </label>
                 </div>
-                {protectedContent(
+                {ifElse(
+                  isReady,
                   <ct-button
                     type="button"
                     onClick={calendarUpdater({
@@ -557,7 +558,8 @@ const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
                       </span>,
                       "Fetch Calendar Events"
                     )}
-                  </ct-button>
+                  </ct-button>,
+                  null
                 )}
               </ct-vstack>
 
