@@ -1,9 +1,22 @@
 /// <cts-enable />
 /**
- * TEST: ImportReview Per-Field Diff Mode
+ * TEST: ImportReview Per-Field Diff Mode with SmartTextInput
  *
- * This pattern tests the fieldMappings feature of ImportReview.
- * It simulates a simple person-like extraction with field-by-field diff display.
+ * This pattern demonstrates the fieldMappings feature of ImportReview,
+ * combined with SmartTextInput for flexible text/image input.
+ *
+ * KEY CONCEPTS:
+ * - extractionInput: The source text for LLM extraction (paste, type, or upload images)
+ * - fieldMappings: Map extracted fields to existing data cells
+ * - appendMode: Notes field APPENDS extracted info instead of replacing
+ * - appendRemainingTextTo: Any unextracted text also goes to notes
+ *
+ * WORKFLOW:
+ * 1. User pastes text OR uploads images (SmartTextInput handles OCR)
+ * 2. User clicks "Extract Fields" to run LLM extraction
+ * 3. ImportReview shows diff panel with selectable changes
+ * 4. User reviews and clicks "Apply" to commit selected changes
+ * 5. Unextracted text goes back into the extraction input for refinement
  */
 import {
   cell,
@@ -17,19 +30,21 @@ import {
   UI,
 } from "commontools";
 import ImportReview, { buildFieldMappingSchema } from "./lib/import-review.tsx";
+import SmartTextInput from "./lib/smart-text-input.tsx";
 
 interface TestInput {
   trigger?: Cell<Default<string, "">>;
 }
 
-// Handler to trigger extraction
+// Handler to trigger extraction from the extractionInput text
 const triggerExtract = handler<
   unknown,
-  { trigger: Cell<string>; inputText: Cell<string> }
->((_, { trigger, inputText }) => {
-  if (!trigger || !inputText) return;
-  const text = inputText.get() ?? "";
+  { trigger: Cell<string>; extractionInput: Cell<string> }
+>((_, { trigger, extractionInput }) => {
+  if (!trigger || !extractionInput) return;
+  const text = extractionInput.get() ?? "";
   if (!text.trim()) return;
+  // Add timestamp for cache-busting (forces new extraction even with same text)
   trigger.set(`${text}\n---EXTRACT-${Date.now()}---`);
 });
 
@@ -43,8 +58,17 @@ export default pattern<TestInput, {}>((props) => {
   const phone = cell<string>("(415) 555-0142");
   const notes = cell<string>("Product manager at Acme Corp. Met at TechCrunch Disrupt 2024. Interested in AI integrations.");
 
-  // Input text for extraction
-  const inputText = cell<string>("");
+  // Extraction input - the source text for LLM extraction
+  // This is where users paste text or upload images for OCR
+  const extractionInput = cell<string>("");
+
+  // SmartTextInput for flexible text/image input
+  // Handles: typing, pasting, image upload with OCR
+  const smartInput = SmartTextInput({
+    $value: extractionInput,
+    placeholder: "Paste text, type notes, or upload images (business cards, screenshots, etc.)...",
+    ocrPrompt: "Extract all text from this image exactly as written, including any contact information, names, emails, phone numbers, and notes.",
+  });
 
   // Build schema from fieldMappings using helper
   // Enable captureRemainingText to get unextracted text back
@@ -61,9 +85,9 @@ export default pattern<TestInput, {}>((props) => {
     "Omit any fields not found in the input - do NOT use placeholders like 'unknown' or 'N/A'."
   );
 
-  // Create ImportReview with fieldMappings and captureRemainingText
-  // Notes uses appendMode - new info is ADDED to existing notes, not replaced
-  // Also use appendRemainingTextTo to add unextracted text to notes
+  // Create ImportReview with fieldMappings
+  // - notes has appendMode: new notes APPEND to existing instead of replacing
+  // - appendRemainingTextTo: unextracted text also goes to notes
   const extraction = ImportReview({
     trigger,
     schema: fieldsSchema,
@@ -72,15 +96,14 @@ export default pattern<TestInput, {}>((props) => {
       { key: "displayName", label: "Display Name", currentValue: displayName },
       { key: "email", label: "Email", currentValue: email },
       { key: "phone", label: "Phone", currentValue: phone },
-      { key: "notes", label: "Notes", currentValue: notes, appendMode: true },  // Append to notes
+      { key: "notes", label: "Notes", currentValue: notes, appendMode: true },
     ],
-    captureRemainingText: true,  // Enable remaining text capture
-    appendRemainingTextTo: "notes",  // Leftover text also goes to notes
+    captureRemainingText: true,
+    appendRemainingTextTo: "notes",
   });
 
-  // Create apply handler that uses the reactive Cell version of selected values
-  // NOTE: Functions from sub-patterns don't work due to OpaqueRef wrapping,
-  // but computed() values can be passed as handler params and read directly
+  // Apply handler - updates cells with selected values from extraction
+  // The selectedFieldValues already contains the combined append values
   const applySelectedFields = handler<
     unknown,
     {
@@ -88,16 +111,15 @@ export default pattern<TestInput, {}>((props) => {
       email: Cell<string>;
       phone: Cell<string>;
       notes: Cell<string>;
-      inputText: Cell<string>;  // For clearing after apply
-      selectedValues: Record<string, unknown>;  // computed() returns value, not Cell
-      remainingText: string;  // Unextracted text to put back in input
+      extractionInput: Cell<string>;
+      selectedValues: Record<string, unknown>;
+      remainingText: string;
       trigger: Cell<string>;
     }
   >((_, ctx) => {
-    // Read directly - computed() values are already unwrapped
     const selected = ctx.selectedValues ?? {};
 
-    // Apply each selected field
+    // Apply each selected field (type guard for safety)
     if ("displayName" in selected && typeof selected.displayName === "string") {
       ctx.displayName.set(selected.displayName);
     }
@@ -107,12 +129,15 @@ export default pattern<TestInput, {}>((props) => {
     if ("phone" in selected && typeof selected.phone === "string") {
       ctx.phone.set(selected.phone);
     }
+    // For notes: selectedFieldValues already contains the combined value
+    // (current + separator + extracted + separator + remainingText)
+    // So we just set it directly - no manual append needed!
     if ("notes" in selected && typeof selected.notes === "string") {
       ctx.notes.set(selected.notes);
     }
 
-    // Update input text to show only remaining (unextracted) text
-    ctx.inputText.set(ctx.remainingText ?? "");
+    // Put remaining text back in extraction input for potential refinement
+    ctx.extractionInput.set(ctx.remainingText ?? "");
 
     // Clear trigger to reset extraction state and hide the panel
     ctx.trigger.set("");
@@ -125,7 +150,7 @@ export default pattern<TestInput, {}>((props) => {
         <div style={{ padding: "16px", maxWidth: "600px", margin: "0 auto" }}>
           <h1 style={{ margin: "0 0 8px 0" }}>Contact Update Review</h1>
           <p style={{ color: "#666", margin: "0 0 16px 0" }}>
-            Paste updated contact info below to extract and review changes before applying.
+            Paste text, type notes, or upload images to extract and review contact updates.
           </p>
 
           {/* Current values display */}
@@ -142,27 +167,22 @@ export default pattern<TestInput, {}>((props) => {
               <div><strong>Name:</strong> {displayName}</div>
               <div><strong>Email:</strong> {email}</div>
               <div><strong>Phone:</strong> {phone}</div>
-              <div><strong>Notes:</strong> {derive(notes, (n) => n || "(empty)")}</div>
+              <div><strong>Notes:</strong> {derive(notes, (n) => n ? (n.length > 100 ? n.slice(0, 100) + "..." : n) : "(empty)")}</div>
             </div>
           </div>
 
-          {/* Input area */}
+          {/* Extraction Input area using SmartTextInput */}
           <div style={{ marginBottom: "16px" }}>
-            <p style={{ fontSize: "14px", color: "#666", marginBottom: "8px" }}>
-              Paste updated info from email, LinkedIn, business card, etc:
-            </p>
-            <ct-textarea
-              $value={inputText}
-              placeholder="e.g. Sarah just got promoted! Her new title is VP of Product and her new email is sarah.chen@acme.com. She's now based in NYC at (212) 555-8900."
-              rows={4}
-              style={{ width: "100%", marginBottom: "8px" }}
-            />
-            <ct-button
-              variant="primary"
-              onClick={triggerExtract({ trigger, inputText })}
-            >
-              Extract Fields
-            </ct-button>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "14px" }}>Extraction Input:</h3>
+            {smartInput.ui.complete}
+            <div style={{ marginTop: "8px" }}>
+              <ct-button
+                variant="primary"
+                onClick={triggerExtract({ trigger, extractionInput })}
+              >
+                Extract Fields
+              </ct-button>
+            </div>
           </div>
 
           {/* Field diff panel from ImportReview */}
@@ -186,7 +206,7 @@ export default pattern<TestInput, {}>((props) => {
                   email,
                   phone,
                   notes,
-                  inputText,
+                  extractionInput,
                   selectedValues: extraction.selectedFieldValues,
                   remainingText: extraction.remainingText,
                   trigger,

@@ -206,6 +206,10 @@ interface ProcessedFieldDiff {
   appendSeparator?: string;       // Separator for append (default "\n\n")
   _extractedOnly?: string;        // The raw extracted value (before combining with current)
   _combinedValue?: string;        // Preview of final value after append
+
+  // Staleness tracking - for detecting if currentValue changed after extraction
+  _currentValueCell?: Cell<string>;  // Original Cell reference (if was Cell)
+  _snapshotValue?: string;           // Value at extraction time
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -443,22 +447,6 @@ export function buildFieldMappingSchema(
     properties,
     additionalProperties: false,
   };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// VALIDATION HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Validate string value - handles generateObject returning string "null"
- * See: community-docs/superstitions/2025-11-29-llm-generateObject-returns-string-null.md
- */
-function isValidString(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  if (value.length === 0) return false;
-  const lower = value.toLowerCase().trim();
-  if (lower === "null" || lower === "undefined") return false;
-  return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -763,6 +751,16 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         "See food-recipe.tsx timingReview for correct usage."
       );
     }
+    // Validate appendRemainingTextTo references an existing field
+    if (appendRemainingTextTo && fieldMappings) {
+      const fieldKeys = fieldMappings.map(f => f.key);
+      if (!fieldKeys.includes(appendRemainingTextTo)) {
+        console.warn(
+          `[ImportReview] appendRemainingTextTo="${appendRemainingTextTo}" not found in fieldMappings. ` +
+          `Available keys: ${fieldKeys.join(", ")}. Remaining text will not be appended to any field.`
+        );
+      }
+    }
 
     // Use triggerInput directly - framework provides default from schema (Default<string, "">)
     // Don't create a fallback cell - that breaks reactivity tracking
@@ -1025,9 +1023,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         // This happens when the input text doesn't contain relevant info for this field
         if (!extractedValue || extractedValue.trim() === "") continue;
 
-        // Skip placeholder values that LLM may fabricate when it can't extract real data
-        // Even without `required` array, some models still return these
-        const placeholderPatterns = /^(<UNKNOWN>|UNKNOWN|N\/A|n\/a|unknown|none|null|undefined|\[.*\]|\(.*\))$/i;
+        // Filter placeholder values that LLM may fabricate when it can't extract real data
+        // Be moderately specific - only filter known placeholder patterns, not all brackets/parens
+        // This allows legitimate values like "(John Doe)" or "[2024-01-01]" to pass through
+        const placeholderPatterns = /^(<UNKNOWN>|UNKNOWN|N\/A|n\/a|unknown|none|null|undefined|\[unknown\]|\[n\/a\]|\[none\]|\(unknown\)|\(n\/a\)|\(none\))$/i;
         if (placeholderPatterns.test(extractedValue.trim())) continue;
 
         // For append mode, compute the combined value
@@ -1051,6 +1050,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
         // Pre-compute selectionKey with template literal to survive closure frame issues
         const selectionKey = `${fieldKey}`;
+
+        // Check if fieldCurrentInput is a Cell for staleness tracking
+        const isCell = fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput;
+
         processed.push({
           key: fieldKey,
           label: fieldLabel,
@@ -1064,6 +1067,9 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           appendSeparator,
           _extractedOnly: extractedValue,
           _combinedValue: combinedValue,
+          // Staleness tracking - store Cell ref and snapshot for later comparison
+          _currentValueCell: isCell ? (fieldCurrentInput as Cell<string>) : undefined,
+          _snapshotValue: resolvedCurrentValue,
         });
       }
 
@@ -1077,6 +1083,20 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     );
     const hasFieldResults = computed(() => fieldDiffs.length > 0);
     const allChangedFieldKeys = computed(() => fieldDiffs.map((f) => f.selectionKey));
+
+    // Check if any field's currentValue Cell has changed since extraction
+    // This warns user that the diff preview may be stale
+    const hasStaleFields = computed(() => {
+      for (const fieldDiff of fieldDiffs) {
+        if (fieldDiff._currentValueCell && fieldDiff._snapshotValue !== undefined) {
+          const currentNow = fieldDiff._currentValueCell.get() ?? "";
+          if (currentNow !== fieldDiff._snapshotValue) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
 
     // Show field empty state when triggered, not pending, no field results, no error
     const showFieldEmptyState = computed(() => {
@@ -1413,8 +1433,10 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           // But still check if this is the appendRemainingTextTo target
           if (appendRemainingTextTo === key && remaining.trim()) {
             // For non-append fields that receive remainingText, append it
+            // Use the field's separator if configured, otherwise default
             const extracted = String(extractedData[key] ?? "");
-            selectedValues[key] = extracted ? `${extracted}\n\n${remaining}` : remaining;
+            const fieldSeparator = String(fieldDiff.appendSeparator ?? "\n\n");
+            selectedValues[key] = extracted ? `${extracted}${fieldSeparator}${remaining}` : remaining;
           } else {
             selectedValues[key] = extractedData[key];
           }
@@ -1912,6 +1934,27 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         {ifElse(
           derive(extractionError, (err) => !!err && !extractionPending),
           errorState,
+          null
+        )}
+
+        {/* Stale data warning - shows if field values changed after extraction */}
+        {ifElse(
+          hasStaleFields,
+          <div
+            style={{
+              padding: "12px",
+              marginBottom: "12px",
+              background: "#fef3c7",
+              borderRadius: "8px",
+              border: "1px solid #f59e0b",
+              fontSize: "14px",
+            }}
+          >
+            <strong style={{ color: "#92400e" }}>⚠️ Fields changed:</strong>{" "}
+            <span style={{ color: "#92400e" }}>
+              Some field values have changed since extraction. Re-extract to see updated comparison.
+            </span>
+          </div>,
           null
         )}
 
