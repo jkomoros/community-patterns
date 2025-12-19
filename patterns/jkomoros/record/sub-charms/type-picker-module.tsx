@@ -23,7 +23,6 @@ import {
   UI,
   type Default,
 } from "commontools";
-import { createSubCharm } from "./registry.ts";
 import {
   createTemplateModules,
   getTemplateList,

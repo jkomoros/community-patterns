@@ -38,7 +38,9 @@ export type SubCharmType =
   | "location"
   | "relationship"
   | "giftprefs"
-  | "timing";
+  | "timing"
+  // Controller modules (internal, not user-addable)
+  | "type-picker";
 
 // Module type is the same as SubCharmType (notes is now included)
 export type ModuleType = SubCharmType;

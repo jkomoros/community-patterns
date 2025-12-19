@@ -210,7 +210,7 @@ export const SUB_CHARM_REGISTRY: Record<string, SubCharmDefinition> = {
   // Controller modules - metadata only (no createInstance to avoid circular deps)
   // TypePickerModule is imported directly in record.tsx
   "type-picker": {
-    type: "type-picker" as SubCharmType,
+    type: "type-picker",
     label: "Type Picker",
     icon: "\u{1F3AF}", // 🎯
     // createInstance is a no-op - record.tsx imports TypePickerModule directly
