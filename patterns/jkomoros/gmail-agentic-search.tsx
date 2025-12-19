@@ -1224,114 +1224,115 @@ When you're done searching, STOP calling tools and produce your final structured
           </div>
         ) : null)}
 
-        {/* Auth Status */}
-        {derive(
-          [isAuthenticated, hasAuthError, tokenMayBeExpired],
-          ([authenticated, authError, mayBeExpired]) => {
-            if (authenticated) {
-              if (authError) {
-                return (
-                  <div
-                    style={{
-                      padding: "12px",
-                      background: "#fef3c7",
-                      border: "1px solid #fde68a",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "#92400e",
-                        textAlign: "center",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      ⚠️ {authErrorMessage}
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      {derive(wishedAuthCharm, (charm) => charm ? (
-                        <ct-button
-                          onClick={() => navigateTo(charm)}
-                          size="sm"
-                          variant="secondary"
-                        >
-                          Re-authenticate Gmail
-                        </ct-button>
-                      ) : (
-                        <ct-button
-                          onClick={createGoogleAuth}
-                          size="sm"
-                          variant="secondary"
-                        >
-                          Connect Gmail
-                        </ct-button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              }
-              if (mayBeExpired) {
-                return (
-                  <div
-                    style={{
-                      padding: "12px",
-                      background: "#fef3c7",
-                      border: "1px solid #fde68a",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "#92400e",
-                        textAlign: "center",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      ⚠️ Gmail token may have expired - will verify on scan
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      {derive(wishedAuthCharm, (charm) => charm ? (
-                        <ct-button
-                          onClick={() => navigateTo(charm)}
-                          size="sm"
-                          variant="secondary"
-                        >
-                          Re-authenticate Gmail
-                        </ct-button>
-                      ) : null)}
-                    </div>
-                  </div>
-                );
-              }
+        {/* Auth Status - use ifElse to avoid returning Cell from derive callback */}
+        {/* BUG FIX: authFullUI is already a Cell<JSX.Element>, so we use ifElse
+            to compose it directly rather than returning it from derive (which
+            would create Cell<Cell<JSX.Element>> that doesn't render) */}
+        {ifElse(
+          isAuthenticated,
+          // Authenticated case - use derive for error/expiry/success states
+          derive([hasAuthError, tokenMayBeExpired], ([authError, mayBeExpired]) => {
+            if (authError) {
               return (
                 <div
                   style={{
                     padding: "12px",
-                    background: "#f0fdf4",
-                    border: "1px solid #bbf7d0",
+                    background: "#fef3c7",
+                    border: "1px solid #fde68a",
                     borderRadius: "8px",
                   }}
                 >
                   <div
                     style={{
                       fontSize: "14px",
-                      color: "#166534",
+                      color: "#92400e",
                       textAlign: "center",
+                      marginBottom: "8px",
                     }}
                   >
-                    ✓ Gmail connected {derive(authSource, (src: "direct" | "wish" | "none") => src === "direct" ? "(linked)" : "(shared)")}
+                    ⚠️ {authErrorMessage}
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    {derive(wishedAuthCharm, (charm) => charm ? (
+                      <ct-button
+                        onClick={() => navigateTo(charm)}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Re-authenticate Gmail
+                      </ct-button>
+                    ) : (
+                      <ct-button
+                        onClick={createGoogleAuth}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Connect Gmail
+                      </ct-button>
+                    ))}
                   </div>
                 </div>
               );
             }
-
-            // Show auth UI from utility (handles all states: picker, needs-login, etc.)
-            return authFullUI;
-          },
+            if (mayBeExpired) {
+              return (
+                <div
+                  style={{
+                    padding: "12px",
+                    background: "#fef3c7",
+                    border: "1px solid #fde68a",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#92400e",
+                      textAlign: "center",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    ⚠️ Gmail token may have expired - will verify on scan
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    {derive(wishedAuthCharm, (charm) => charm ? (
+                      <ct-button
+                        onClick={() => navigateTo(charm)}
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Re-authenticate Gmail
+                      </ct-button>
+                    ) : null)}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div
+                style={{
+                  padding: "12px",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "14px",
+                    color: "#166534",
+                    textAlign: "center",
+                  }}
+                >
+                  ✓ Gmail connected {derive(authSource, (src: "direct" | "wish" | "none") => src === "direct" ? "(linked)" : "(shared)")}
+                </div>
+              </div>
+            );
+          }),
+          // Not authenticated - use authFullUI directly (not wrapped in derive!)
+          authFullUI
         )}
-        {/* Note: Scope warnings are handled by authFullUI (line 1334) */}
+        {/* Note: Scope warnings are handled by authFullUI */}
       </div>
     );
 
