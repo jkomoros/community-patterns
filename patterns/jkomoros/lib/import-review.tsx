@@ -79,6 +79,11 @@ interface FieldMapping {
   // When true, shows count preview instead of diff, and apply uses .push()
   isArray?: boolean;
   arrayCountLabel?: string;                 // e.g., "ingredient(s)", "tag(s)"
+
+  // Scalar append mode (for notes-like fields)
+  // When true, extracted value appends to currentValue instead of replacing
+  appendMode?: boolean;
+  appendSeparator?: string;                 // Default: "\n\n"
 }
 
 interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
@@ -154,6 +159,27 @@ interface ImportReviewInput<T extends ExtractedItem = ExtractedItem> {
    * @default false
    */
   captureRemainingText?: boolean;
+
+  /**
+   * Field key to append remainingText to.
+   * Requires captureRemainingText: true.
+   *
+   * When specified:
+   * - The target field's selectedValue includes remainingText appended
+   * - Consumer doesn't need to manually handle remainingText
+   * - The target field should also have appendMode: true in fieldMappings
+   *
+   * @example
+   * ImportReview({
+   *   captureRemainingText: true,
+   *   appendRemainingTextTo: "notes",
+   *   fieldMappings: [
+   *     { key: "name", label: "Name", currentValue: name },
+   *     { key: "notes", label: "Notes", currentValue: notes, appendMode: true },
+   *   ],
+   * });
+   */
+  appendRemainingTextTo?: string;
 }
 
 interface ProcessedItem<T extends ExtractedItem = ExtractedItem> {
@@ -174,6 +200,12 @@ interface ProcessedFieldDiff {
   selected: boolean;              // Current selection state
   selectionKey: string;           // Pre-computed key for handler (survives closure frame issues)
   _rawValue?: unknown[];          // For array fields: the raw array for selectedFieldValues Cell
+
+  // Append mode metadata
+  appendMode?: boolean;           // True if this field uses append semantics
+  appendSeparator?: string;       // Separator for append (default "\n\n")
+  _extractedOnly?: string;        // The raw extracted value (before combining with current)
+  _combinedValue?: string;        // Preview of final value after append
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -707,6 +739,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     fieldMappings,
     mergeFieldMappings,
     captureRemainingText,
+    appendRemainingTextTo,
   }) => {
     // Use constants directly - NOT from props (that breaks generateObject)
     // See: community-docs/superstitions/2025-12-17-optional-non-cell-inputs-break-generateobject.md
@@ -972,7 +1005,11 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           continue;
         }
 
-        // Scalar field handling (original behavior)
+        // Scalar field handling
+        // Check for append mode
+        const isAppendMode = mapping.appendMode ?? false;
+        const appendSeparator = mapping.appendSeparator ?? "\n\n";
+
         // Resolve currentValue - could be Cell or string
         let resolvedCurrentValue: string;
         if (fieldCurrentInput && typeof fieldCurrentInput === "object" && "get" in fieldCurrentInput) {
@@ -988,8 +1025,23 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
         // This happens when the input text doesn't contain relevant info for this field
         if (!extractedValue || extractedValue.trim() === "") continue;
 
-        // Compare - only show if there's a change
-        const hasChanged = resolvedCurrentValue !== extractedValue;
+        // For append mode, compute the combined value
+        let displayValue = extractedValue;
+        let combinedValue: string | undefined;
+        if (isAppendMode) {
+          // Compute what the final value will be after append
+          if (!resolvedCurrentValue.trim()) {
+            combinedValue = extractedValue;
+          } else {
+            combinedValue = `${resolvedCurrentValue}${appendSeparator}${extractedValue}`;
+          }
+          // For display, we show what will be appended
+          displayValue = extractedValue;
+        }
+
+        // Compare - for append mode, always show if there's extracted content
+        // For replace mode, only show if there's a change
+        const hasChanged = isAppendMode ? true : (resolvedCurrentValue !== extractedValue);
         if (!hasChanged) continue;
 
         // Pre-compute selectionKey with template literal to survive closure frame issues
@@ -998,10 +1050,15 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
           key: fieldKey,
           label: fieldLabel,
           currentValue: resolvedCurrentValue,
-          extractedValue,
+          extractedValue: displayValue,
           hasChanged,
           selected: !deselected.includes(selectionKey),
           selectionKey,
+          // Append mode metadata
+          appendMode: isAppendMode,
+          appendSeparator,
+          _extractedOnly: extractedValue,
+          _combinedValue: combinedValue,
         });
       }
 
@@ -1321,13 +1378,37 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
       const extractedData = result as Record<string, unknown>;
       const selectedValues: Record<string, unknown> = {};
 
-      // Get all changed field keys (those that have diffs)
-      const allKeys = fieldDiffs.map((f) => f.key);
+      // Get remainingText for appendRemainingTextTo feature
+      const remaining = remainingTextComputed ?? "";
 
-      // Include values for keys that are NOT deselected
-      for (const key of allKeys) {
-        if (!deselected.includes(key) && key in extractedData) {
-          selectedValues[key] = extractedData[key];
+      // Process each field diff to handle append mode correctly
+      for (const fieldDiff of fieldDiffs) {
+        const key = fieldDiff.key;
+        if (deselected.includes(key)) continue;
+        if (!(key in extractedData)) continue;
+
+        // Check if this field has append mode
+        if (fieldDiff.appendMode && fieldDiff._combinedValue !== undefined) {
+          // Use the pre-computed combined value
+          let finalValue = fieldDiff._combinedValue;
+
+          // If this field is the appendRemainingTextTo target, also append remaining text
+          if (appendRemainingTextTo === key && remaining.trim()) {
+            const separator = fieldDiff.appendSeparator ?? "\n\n";
+            finalValue = `${finalValue}${separator}${remaining}`;
+          }
+
+          selectedValues[key] = finalValue;
+        } else {
+          // Normal replace mode - use extracted value directly
+          // But still check if this is the appendRemainingTextTo target
+          if (appendRemainingTextTo === key && remaining.trim()) {
+            // For non-append fields that receive remainingText, append it
+            const extracted = String(extractedData[key] ?? "");
+            selectedValues[key] = extracted ? `${extracted}\n\n${remaining}` : remaining;
+          } else {
+            selectedValues[key] = extractedData[key];
+          }
         }
       }
 
@@ -1685,32 +1766,74 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 500, marginBottom: "4px" }}>
                 {fieldDiff.label}
-              </div>
-              <div style={{ fontSize: "14px" }}>
-                {fieldDiff.currentValue && (
+                {fieldDiff.appendMode && (
                   <span
                     style={{
-                      textDecoration: "line-through",
-                      color: "#dc2626",
-                      marginRight: "8px",
+                      marginLeft: "8px",
+                      fontSize: "12px",
+                      color: "#2563eb",
+                      fontWeight: 400,
                     }}
                   >
-                    {fieldDiff.currentValue}
+                    (append)
                   </span>
                 )}
-                {fieldDiff.currentValue && (
-                  <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+              </div>
+              <div style={{ fontSize: "14px" }}>
+                {/* For append mode: show current value in blue with + indicator */}
+                {fieldDiff.appendMode ? (
+                  <>
+                    {fieldDiff.currentValue && (
+                      <span
+                        style={{
+                          color: "#2563eb",
+                          marginRight: "8px",
+                        }}
+                      >
+                        {fieldDiff.currentValue}
+                      </span>
+                    )}
+                    <span style={{ color: "#2563eb", marginRight: "8px", fontWeight: 600 }}>+</span>
+                    <span
+                      style={{
+                        backgroundColor: "#dbeafe",
+                        color: "#1e40af",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {fieldDiff.extractedValue || "(empty)"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {/* For replace mode: show current with strikethrough in red */}
+                    {fieldDiff.currentValue && (
+                      <span
+                        style={{
+                          textDecoration: "line-through",
+                          color: "#dc2626",
+                          marginRight: "8px",
+                        }}
+                      >
+                        {fieldDiff.currentValue}
+                      </span>
+                    )}
+                    {fieldDiff.currentValue && (
+                      <span style={{ color: "#666", marginRight: "8px" }}>→</span>
+                    )}
+                    <span
+                      style={{
+                        backgroundColor: "#dcfce7",
+                        color: "#166534",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {fieldDiff.extractedValue || "(empty)"}
+                    </span>
+                  </>
                 )}
-                <span
-                  style={{
-                    backgroundColor: "#dcfce7",
-                    color: "#166534",
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                  }}
-                >
-                  {fieldDiff.extractedValue || "(empty)"}
-                </span>
               </div>
             </div>
           </div>

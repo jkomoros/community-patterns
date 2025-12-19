@@ -62,6 +62,8 @@ export default pattern<TestInput, {}>((props) => {
   );
 
   // Create ImportReview with fieldMappings and captureRemainingText
+  // Notes uses appendMode - new info is ADDED to existing notes, not replaced
+  // Also use appendRemainingTextTo to add unextracted text to notes
   const extraction = ImportReview({
     trigger,
     schema: fieldsSchema,
@@ -70,9 +72,10 @@ export default pattern<TestInput, {}>((props) => {
       { key: "displayName", label: "Display Name", currentValue: displayName },
       { key: "email", label: "Email", currentValue: email },
       { key: "phone", label: "Phone", currentValue: phone },
-      { key: "notes", label: "Notes", currentValue: notes },
+      { key: "notes", label: "Notes", currentValue: notes, appendMode: true },  // Append to notes
     ],
     captureRemainingText: true,  // Enable remaining text capture
+    appendRemainingTextTo: "notes",  // Leftover text also goes to notes
   });
 
   // Create apply handler that uses the reactive Cell version of selected values
