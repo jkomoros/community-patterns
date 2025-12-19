@@ -243,11 +243,33 @@ const Record = pattern<RecordInput, RecordOutput>(
     // (always true unless registry is empty - multiple of same type allowed)
     const hasTypesToAdd = getAddableTypes().length > 0;
 
-    // Build dropdown items from registry (all types always available)
-    const addSelectItems = getAddableTypes().map((def) => ({
-      value: def.type,
-      label: `${def.icon} ${def.label}`,
-    }));
+    // Build dropdown items from registry, separating new types from existing ones
+    const addSelectItems = lift(({ sc }: { sc: SubCharmEntry[] }) => {
+      const existingTypes = new Set((sc || []).map((e) => e?.type).filter(Boolean));
+      const allTypes = getAddableTypes();
+
+      const newTypes = allTypes.filter((def) => !existingTypes.has(def.type));
+      const existingTypesDefs = allTypes.filter((def) => existingTypes.has(def.type));
+
+      const items: { value: string; label: string; disabled?: boolean }[] = [];
+
+      // Add new types first
+      for (const def of newTypes) {
+        items.push({ value: def.type, label: `${def.icon} ${def.label}` });
+      }
+
+      // Add divider and existing types if any
+      if (existingTypesDefs.length > 0) {
+        if (newTypes.length > 0) {
+          items.push({ value: "", label: "── Add another ──", disabled: true });
+        }
+        for (const def of existingTypesDefs) {
+          items.push({ value: def.type, label: `${def.icon} ${def.label}` });
+        }
+      }
+
+      return items;
+    })({ sc: subCharms });
 
     // Infer record type from modules (data-up philosophy)
     const inferredType = lift(({ sc }: { sc: SubCharmEntry[] }) => {
