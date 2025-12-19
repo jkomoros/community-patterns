@@ -538,11 +538,8 @@ const Person = recipe<Input, Output>(
         mastodon: { type: "string", description: "Mastodon handle (e.g., @user@instance.social)" },
         remainingNotes: { type: "string", description: "Any remaining text that doesn't fit the above fields" },
       },
-      required: [
-        "displayName", "givenName", "familyName", "nickname", "pronouns",
-        "birthday", "email", "phone", "twitter", "linkedin", "github",
-        "instagram", "mastodon", "remainingNotes",
-      ],
+      // NOTE: No `required` array - LLM should only return fields it finds in the text
+      // Having required fields causes LLM to return "<UNKNOWN>" for missing fields
     });
 
     // System prompt for person field extraction

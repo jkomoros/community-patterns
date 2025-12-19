@@ -1232,7 +1232,7 @@ Return suggestions for ALL groups with their IDs preserved.`),
                 id: { type: "string" },
                 maxWaitMinutes: { type: "number" },
               },
-              required: ["id", "maxWaitMinutes"],
+              required: ["id"],  // Only require ID - let LLM omit maxWaitMinutes if it can't suggest a value
             },
           },
         },
