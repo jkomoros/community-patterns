@@ -141,7 +141,6 @@ export interface AuthInfo {
   statusText: string;
   // For navigation/actions
   charm: GoogleAuthCharm | null;
-  hasPickerUI: boolean;
 }
 
 /** Account type for multi-account support */
@@ -264,10 +263,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     const wr = wishResult;
     const authData = auth?.get?.() ?? null;
 
-    // Check if wish result has picker UI (multiple matches)
-    const hasPickerUI = !!(wr as any)?.[UI];
-
     // Determine base state from wish result
+    // NOTE: wish() always returns [UI] for switching - don't use it to determine state
+    // Base state on whether wishResult.result exists with valid auth data
     let state: AuthState = "loading";
 
     if (!wr) {
@@ -275,9 +273,6 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     } else if (wr.error) {
       // Wish returned error - no matches found
       state = "not-found";
-    } else if (hasPickerUI) {
-      // Wish returned [UI] which means multiple matches - show picker
-      state = "selecting";
     } else if (wr.result) {
       const email = authData?.user?.email;
       if (email && email !== "") {
@@ -348,7 +343,6 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
       statusText,
       // Cast to any to handle OpaqueCell wrapper types from wish()
       charm: (wr?.result ?? null) as GoogleAuthCharm | null,
-      hasPickerUI,
     };
   });
 
