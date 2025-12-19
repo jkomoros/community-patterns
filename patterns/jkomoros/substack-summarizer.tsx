@@ -18,7 +18,6 @@ interface Output {
 }
 
 const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, limit }) => {
-  // Import emails from Substack
   // GmailImporter will automatically discover auth via wish({ tag: "#googleAuth" })
   const importer = GmailImporter({
     settings: {
@@ -27,8 +26,6 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
       historyId: "",
       debugMode: false,
     },
-    authCharm: null,  // Let importer wish for shared auth
-    accountType: "default",  // Use default account type for multi-account support
   });
 
   const emails = importer.emails;
