@@ -198,6 +198,11 @@ const Record = pattern<RecordInput, RecordOutput>(
       (sc || []).length === 0
     )({ sc: subCharms });
 
+    // Check if notes module exists (required before adding other modules)
+    const hasNotes = lift(({ sc }: { sc: SubCharmEntry[] }) =>
+      (sc || []).some((e) => e?.type === "notes")
+    )({ sc: subCharms });
+
     // Compute hasTypesToAdd directly from subCharms (no intermediate computed)
     const hasTypesToAdd = lift(({ sc }: { sc: SubCharmEntry[] }) => {
       const currentTypes = (sc || []).filter((e) => e?.type).map((e) => e.type);
@@ -271,7 +276,7 @@ const Record = pattern<RecordInput, RecordOutput>(
               style={{ flex: "1", fontWeight: "600", fontSize: "16px" }}
             />
             {ifElse(
-              hasTypesToAdd,
+              computed(() => hasNotes && hasTypesToAdd),
               <ct-select
                 $value={selectedAddType}
                 placeholder="+ Add"
@@ -279,9 +284,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                 onct-change={addSubCharm({ subCharms, selectedAddType })}
                 style={{ width: "130px" }}
               />,
-              <span style={{ color: "#9ca3af", fontSize: "12px" }}>
-                All modules added
-              </span>
+              null
             )}
           </ct-hstack>
 
