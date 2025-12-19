@@ -198,48 +198,44 @@ const toggleTrashExpanded = handler<unknown, { expanded: Cell<boolean> }>(
   (_event, { expanded }) => expanded.set(!expanded.get())
 );
 
-// Reorder modules via drag-and-drop
-// Uses pointer Y position to calculate target index within the section
-const reorderModule = handler<
-  { detail: { sourceCell: Cell<SubCharmEntry>; pointerY: number; dropZoneRect: { top: number; height: number } } },
-  { subCharms: Cell<SubCharmEntry[]>; sectionEntries: SubCharmEntry[]; targetPinned: boolean }
->((event, { subCharms, sectionEntries, targetPinned }) => {
+// Insert module at a specific position via drag-and-drop
+// Each drop zone knows exactly where to insert (after which entry)
+const insertAtPosition = handler<
+  { detail: { sourceCell: Cell<SubCharmEntry> } },
+  {
+    subCharms: Cell<SubCharmEntry[]>;
+    insertAfterEntry: SubCharmEntry | null; // null = insert at start
+    targetPinned: boolean;
+  }
+>((event, { subCharms, insertAfterEntry, targetPinned }) => {
   const draggedEntry = event.detail?.sourceCell?.get() as SubCharmEntry;
   if (!draggedEntry) return;
 
   const current = subCharms.get() || [];
-  const draggedIndex = current.findIndex((e) => e?.charm === draggedEntry?.charm);
-  if (draggedIndex < 0) return;
 
-  // Handle empty section - just add at the beginning
-  if (sectionEntries.length === 0) {
-    const newList = current.filter((e) => e?.charm !== draggedEntry?.charm);
-    const updatedEntry = { ...draggedEntry, pinned: targetPinned };
-    newList.unshift(updatedEntry);
-    subCharms.set(newList);
-    return;
-  }
+  // Remove from current position
+  const withoutDragged = current.filter((e) => e?.charm !== draggedEntry?.charm);
 
-  // Calculate target position from pointer Y relative to drop zone
-  const { top, height } = event.detail.dropZoneRect;
-  const relativeY = Math.max(0, event.detail.pointerY - top);
-  const itemHeight = height / sectionEntries.length;
-  const targetIndex = Math.min(
-    sectionEntries.length - 1,
-    Math.floor(relativeY / itemHeight)
-  );
-
-  // Find global index of target entry in the main array
-  const targetEntry = sectionEntries[targetIndex];
-  const globalTargetIndex = current.findIndex((e) => e?.charm === targetEntry?.charm);
-
-  // Build new array: remove dragged entry, then insert at target position
-  const newList = current.filter((e) => e?.charm !== draggedEntry?.charm);
+  // Update pinned state
   const updatedEntry = { ...draggedEntry, pinned: targetPinned };
 
-  // Adjust insertion index since we removed the dragged item
-  const insertAt = globalTargetIndex > draggedIndex ? globalTargetIndex - 1 : globalTargetIndex;
-  newList.splice(Math.max(0, insertAt), 0, updatedEntry);
+  // Find insertion index
+  let insertIndex: number;
+  if (insertAfterEntry === null) {
+    insertIndex = 0;
+  } else {
+    const afterIndex = withoutDragged.findIndex(
+      (e) => e?.charm === insertAfterEntry?.charm
+    );
+    insertIndex = afterIndex >= 0 ? afterIndex + 1 : withoutDragged.length;
+  }
+
+  // Insert at position
+  const newList = [
+    ...withoutDragged.slice(0, insertIndex),
+    updatedEntry,
+    ...withoutDragged.slice(insertIndex),
+  ];
 
   subCharms.set(newList);
 });
@@ -385,14 +381,20 @@ const Record = pattern<RecordInput, RecordOutput>(
                 // Primary + Rail layout (when items are pinned)
                 <div style={{ display: "flex", gap: "16px" }}>
                   {/* Left: Pinned items (2/3 width) */}
-                  <ct-drop-zone
-                    accept="module"
-                    onct-drop={reorderModule({ subCharms, sectionEntries: pinnedEntries, targetPinned: true })}
-                  >
-                    <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: "12px" }}>
-                      {pinnedEntries.map((entry: SubCharmEntry) => {
-                        const displayInfo = getModuleDisplay({ type: entry.type });
-                        return (
+                  <div style={{ flex: 2, display: "flex", flexDirection: "column" }}>
+                    {/* Drop zone before first item */}
+                    <ct-drop-zone
+                      accept="module"
+                      onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: true })}
+                    >
+                      <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                    </ct-drop-zone>
+                    {pinnedEntries.map((entry, index) => {
+                      const displayInfo = getModuleDisplay({ type: entry.type });
+                      // Get previous entry for drop zone reference
+                      const prevEntry = index > 0 ? pinnedEntries[index - 1] : null;
+                      return (
+                        <>
                           <ct-drag-source $cell={entry} type="module">
                             <div
                               style={{
@@ -400,7 +402,6 @@ const Record = pattern<RecordInput, RecordOutput>(
                                 borderRadius: "8px",
                                 border: "1px solid #e5e7eb",
                                 overflow: "hidden",
-                                cursor: "grab",
                               }}
                             >
                               <div
@@ -411,6 +412,7 @@ const Record = pattern<RecordInput, RecordOutput>(
                                   padding: "8px 12px",
                                   borderBottom: "1px solid #f3f4f6",
                                   background: "#fafafa",
+                                  cursor: "grab",
                                 }}
                               >
                                 <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
@@ -454,96 +456,125 @@ const Record = pattern<RecordInput, RecordOutput>(
                               </div>
                             </div>
                           </ct-drag-source>
-                        );
-                      })}
-                    </div>
-                  </ct-drop-zone>
+                          {/* Drop zone after this item */}
+                          <ct-drop-zone
+                            accept="module"
+                            onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: true })}
+                          >
+                            <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                          </ct-drop-zone>
+                        </>
+                      );
+                    })}
+                  </div>
                   {/* Right: Unpinned items in rail (1/3 width) */}
-                  <ct-drop-zone
-                    accept="module"
-                    onct-drop={reorderModule({ subCharms, sectionEntries: unpinnedEntries, targetPinned: false })}
-                  >
+                  <div style={{ flex: 1 }}>
                     {ifElse(
                       hasUnpinned,
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
-                        {unpinnedEntries.map((entry: SubCharmEntry) => {
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        {/* Drop zone before first item */}
+                        <ct-drop-zone
+                          accept="module"
+                          onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
+                        >
+                          <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                        </ct-drop-zone>
+                        {unpinnedEntries.map((entry) => {
                           const displayInfo = getModuleDisplay({ type: entry.type });
                           return (
-                            <ct-drag-source $cell={entry} type="module">
-                              <div
-                                style={{
-                                  background: "white",
-                                  borderRadius: "8px",
-                                  border: "1px solid #e5e7eb",
-                                  overflow: "hidden",
-                                  cursor: "grab",
-                                }}
-                              >
+                            <>
+                              <ct-drag-source $cell={entry} type="module">
                                 <div
                                   style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "8px 12px",
-                                    borderBottom: "1px solid #f3f4f6",
-                                    background: "#fafafa",
+                                    background: "white",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e5e7eb",
+                                    overflow: "hidden",
                                   }}
                                 >
-                                  <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                    ⋮⋮ {displayInfo.icon} {displayInfo.label}
-                                  </span>
-                                  <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                    <button
-                                      onClick={togglePin({ subCharms, entry })}
-                                      style={{
-                                        background: "transparent",
-                                        border: "1px solid #e5e7eb",
-                                        borderRadius: "4px",
-                                        cursor: "pointer",
-                                        padding: "4px 8px",
-                                        fontSize: "12px",
-                                        color: "#6b7280",
-                                      }}
-                                      title="Pin"
-                                    >
-                                      📌
-                                    </button>
-                                    <button
-                                      onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                      style={{
-                                        background: "transparent",
-                                        border: "1px solid #e5e7eb",
-                                        borderRadius: "4px",
-                                        cursor: "pointer",
-                                        padding: "4px 8px",
-                                        fontSize: "12px",
-                                        color: "#6b7280",
-                                      }}
-                                      title="Remove"
-                                    >
-                                      ✕
-                                    </button>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      padding: "8px 12px",
+                                      borderBottom: "1px solid #f3f4f6",
+                                      background: "#fafafa",
+                                      cursor: "grab",
+                                    }}
+                                  >
+                                    <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                      ⋮⋮ {displayInfo.icon} {displayInfo.label}
+                                    </span>
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                      <button
+                                        onClick={togglePin({ subCharms, entry })}
+                                        style={{
+                                          background: "transparent",
+                                          border: "1px solid #e5e7eb",
+                                          borderRadius: "4px",
+                                          cursor: "pointer",
+                                          padding: "4px 8px",
+                                          fontSize: "12px",
+                                          color: "#6b7280",
+                                        }}
+                                        title="Pin"
+                                      >
+                                        📌
+                                      </button>
+                                      <button
+                                        onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                        style={{
+                                          background: "transparent",
+                                          border: "1px solid #e5e7eb",
+                                          borderRadius: "4px",
+                                          cursor: "pointer",
+                                          padding: "4px 8px",
+                                          fontSize: "12px",
+                                          color: "#6b7280",
+                                        }}
+                                        title="Remove"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div style={{ padding: "12px" }}>
+                                    {(entry.charm as any)?.[UI]}
                                   </div>
                                 </div>
-                                <div style={{ padding: "12px" }}>
-                                  {(entry.charm as any)?.[UI]}
-                                </div>
-                              </div>
-                            </ct-drag-source>
+                              </ct-drag-source>
+                              {/* Drop zone after this item */}
+                              <ct-drop-zone
+                                accept="module"
+                                onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
+                              >
+                                <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                              </ct-drop-zone>
+                            </>
                           );
                         })}
                       </div>,
-                      <div style={{ flex: 1, minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px" }}>
-                        Drop here to unpin
-                      </div>
+                      <ct-drop-zone
+                        accept="module"
+                        onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
+                      >
+                        <div style={{ minHeight: "100px", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: "13px" }}>
+                          Drop here to unpin
+                        </div>
+                      </ct-drop-zone>
                     )}
-                  </ct-drop-zone>
+                  </div>
                 </div>,
-                // Grid layout (no pinned items)
-                <ct-drop-zone
-                  accept="module"
-                  onct-drop={reorderModule({ subCharms, sectionEntries: allEntries, targetPinned: false })}
-                >
+                // Grid layout (no pinned items) - use flex column with drop zones between
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {/* Drop zone before first item */}
+                  <ct-drop-zone
+                    accept="module"
+                    onct-drop={insertAtPosition({ subCharms, insertAfterEntry: null, targetPinned: false })}
+                  >
+                    <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                  </ct-drop-zone>
                   <div
                     style={{
                       display: "grid",
@@ -551,74 +582,83 @@ const Record = pattern<RecordInput, RecordOutput>(
                       gap: "12px",
                     }}
                   >
-                    {allEntries.map((entry: SubCharmEntry) => {
+                    {allEntries.map((entry) => {
                       const displayInfo = getModuleDisplay({ type: entry.type });
                       return (
-                        <ct-drag-source $cell={entry} type="module">
-                          <div
-                            style={{
-                              background: "white",
-                              borderRadius: "8px",
-                              border: "1px solid #e5e7eb",
-                              overflow: "hidden",
-                              cursor: "grab",
-                            }}
-                          >
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <ct-drag-source $cell={entry} type="module">
                             <div
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                padding: "8px 12px",
-                                borderBottom: "1px solid #f3f4f6",
-                                background: "#fafafa",
+                                background: "white",
+                                borderRadius: "8px",
+                                border: "1px solid #e5e7eb",
+                                overflow: "hidden",
                               }}
                             >
-                              <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
-                                ⋮⋮ {displayInfo.icon} {displayInfo.label}
-                              </span>
-                              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
-                                <button
-                                  onClick={togglePin({ subCharms, entry })}
-                                  style={{
-                                    background: "transparent",
-                                    border: "1px solid #e5e7eb",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    padding: "4px 8px",
-                                    fontSize: "12px",
-                                    color: "#6b7280",
-                                  }}
-                                  title="Pin"
-                                >
-                                  📌
-                                </button>
-                                <button
-                                  onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
-                                  style={{
-                                    background: "transparent",
-                                    border: "1px solid #e5e7eb",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                    padding: "4px 8px",
-                                    fontSize: "12px",
-                                    color: "#6b7280",
-                                  }}
-                                  title="Remove"
-                                >
-                                  ✕
-                                </button>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  padding: "8px 12px",
+                                  borderBottom: "1px solid #f3f4f6",
+                                  background: "#fafafa",
+                                  cursor: "grab",
+                                }}
+                              >
+                                <span style={{ fontSize: "14px", fontWeight: "500", flex: "1" }}>
+                                  ⋮⋮ {displayInfo.icon} {displayInfo.label}
+                                </span>
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexShrink: 0 }}>
+                                  <button
+                                    onClick={togglePin({ subCharms, entry })}
+                                    style={{
+                                      background: "transparent",
+                                      border: "1px solid #e5e7eb",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      padding: "4px 8px",
+                                      fontSize: "12px",
+                                      color: "#6b7280",
+                                    }}
+                                    title="Pin"
+                                  >
+                                    📌
+                                  </button>
+                                  <button
+                                    onClick={trashSubCharm({ subCharms, trashedSubCharms, entry })}
+                                    style={{
+                                      background: "transparent",
+                                      border: "1px solid #e5e7eb",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      padding: "4px 8px",
+                                      fontSize: "12px",
+                                      color: "#6b7280",
+                                    }}
+                                    title="Remove"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={{ padding: "12px" }}>
+                                {(entry.charm as any)?.[UI]}
                               </div>
                             </div>
-                            <div style={{ padding: "12px" }}>
-                              {(entry.charm as any)?.[UI]}
-                            </div>
-                          </div>
-                        </ct-drag-source>
+                          </ct-drag-source>
+                          {/* Drop zone after this item */}
+                          <ct-drop-zone
+                            accept="module"
+                            onct-drop={insertAtPosition({ subCharms, insertAfterEntry: entry, targetPinned: false })}
+                          >
+                            <div style={{ height: "8px", margin: "4px 0", borderRadius: "4px" }} />
+                          </ct-drop-zone>
+                        </div>
                       );
                     })}
                   </div>
-                </ct-drop-zone>
+                </div>
               )
             }
 
