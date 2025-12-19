@@ -802,7 +802,7 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
     const baseSystemPrompt = systemPromptInput ?? Cell.of(DEFAULT_SYSTEM_PROMPT);
     const effectiveSystemPrompt = captureRemainingText
       ? derive(baseSystemPrompt, (base) =>
-          `${base}\n\nIMPORTANT: Also include a "remainingText" field containing any text from the input that was NOT used for extraction. This includes filler words, context, and any content that doesn't map to a specific field. If all text was extracted, set remainingText to an empty string "".`
+          `${base}\n\nIMPORTANT: Also include a "remainingText" field containing any text from the input that was NOT used for extraction. This includes filler words, context, and any content that doesn't map to a specific field. If all text was extracted, set remainingText to an empty string "". CRITICAL: Exclude any text matching the pattern "---EXTRACT-[numbers]---" from remainingText - this is a system separator, not user content.`
         )
       : baseSystemPrompt;
 
@@ -1045,7 +1045,11 @@ const ImportReview = pattern<ImportReviewInput, ImportReviewOutput>(
 
       // Validate it's a string and clean it up
       if (typeof remaining === "string") {
-        return remaining.trim();
+        return remaining
+          .trim()
+          // Remove trigger separator pattern (framework implementation detail, not user content)
+          .replace(/\n?---EXTRACT-\d+---\n?/g, "")
+          .trim();
       }
 
       return "";
