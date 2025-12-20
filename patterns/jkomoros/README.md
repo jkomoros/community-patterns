@@ -187,17 +187,6 @@ Extended redactor with secure PII vault storage.
 - Vault pattern for secure storage
 - Reversible redaction with vault access
 
-#### `record/record.tsx`
-Meta-container pattern with modular sub-charms. Create Records that compose multiple module types (Notes, Code Editor, etc.) as independent sub-charms.
-
-**Interesting features:**
-- True sub-charm architecture: each module is its own charm
-- Modules can be @-referenced independently by charm ID
-- Backlink support: `[[New Name]]` in Notes creates new Records
-- Pin modules to top, collapse, trash/restore
-- ct-code-editor integration with syntax highlighting
-- Extensible registry system for adding new module types
-
 #### `reward-spinner.tsx`
 A fun prize spinner for kids with adjustable odds.
 

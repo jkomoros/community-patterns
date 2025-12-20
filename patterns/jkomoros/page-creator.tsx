@@ -25,7 +25,6 @@ import FavoritesViewer from "./favorites-viewer.tsx";
 import StarChart from "./star-chart.tsx";
 import StoryWeaver from "./story-weaver.tsx";
 import CodenamesHelper from "./codenames-helper.tsx";
-import Record from "./record/record.tsx";
 
 type Input = void;
 type Output = {
@@ -56,7 +55,6 @@ const handleCreateFavoritesViewer = handler<void, void>(() => navigateTo(Favorit
 const handleCreateStarChart = handler<void, void>(() => navigateTo(StarChart({})));
 const handleCreateStoryWeaver = handler<void, void>(() => navigateTo(StoryWeaver({})));
 const handleCreateCodenamesHelper = handler<void, void>(() => navigateTo(CodenamesHelper({})));
-const handleCreateRecord = handler<void, void>(() => navigateTo(Record({})));
 
 export default pattern<Input, Output>(
   (_) => {
@@ -161,10 +159,6 @@ export default pattern<Input, Output>(
 
                 <ct-button onClick={handleCreateCodenamesHelper()} size="lg">
                   🕵️ Codenames Helper
-                </ct-button>
-
-                <ct-button onClick={handleCreateRecord()} size="lg">
-                  📁 Record
                 </ct-button>
               </ct-vstack>
             </ct-vstack>
