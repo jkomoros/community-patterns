@@ -1241,21 +1241,30 @@ Return all visible text.`
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       {/* Pin button using handler pattern */}
-                      <ct-button
-                        style={{
-                          border: "none",
-                          borderRadius: "4px",
-                          padding: "0.25rem 0.5rem",
-                          cursor: "pointer",
-                        }}
-                        onClick={togglePinClass({
-                          classList: classes,
-                          activeSet: activeSetName,
-                          idx,
-                        })}
-                      >
-                        📍
-                      </ct-button>
+                      {/* Check if class is pinned to active set */}
+                      {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
+                        const pinArray: string[] = Array.isArray(pins) ? pins : [];
+                        const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
+                        const isPinned = pinArray.includes(activeSetStr);
+                        return (
+                          <ct-button
+                            style={{
+                              border: isPinned ? "2px solid #1976d2" : "none",
+                              borderRadius: "4px",
+                              padding: "0.25rem 0.5rem",
+                              cursor: "pointer",
+                              background: isPinned ? "#e3f2fd" : "transparent",
+                            }}
+                            onClick={togglePinClass({
+                              classList: classes,
+                              activeSet: activeSetName,
+                              idx,
+                            })}
+                          >
+                            {isPinned ? "📌" : "📍"}
+                          </ct-button>
+                        );
+                      })}
                       <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
                       <span style={{ marginLeft: "0.5rem", color: "#666", fontSize: "0.9em" }}>
                         @ {cls.location.name}
