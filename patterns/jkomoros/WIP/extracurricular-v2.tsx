@@ -920,9 +920,9 @@ Return all visible text.`
             </p>
           </div>
 
-          {/* Pinned Sets Section - Phase 5 */}
+          {/* Schedule Options Section - Phase 5 */}
           <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e3f2fd", borderRadius: "4px" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Pinned Sets</h2>
+            <h2 style={{ marginBottom: "0.5rem" }}>Schedule Options</h2>
             <p style={{ fontSize: "0.85em", color: "#555", marginBottom: "0.5rem" }}>
               Create different schedule combinations to compare
             </p>
@@ -930,7 +930,7 @@ Return all visible text.`
             {/* Set selector and add new set */}
             <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", marginBottom: "1rem", flexWrap: "wrap" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Active Set:</label>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Active Option:</label>
                 <select
                   style={{ padding: "0.5rem", minWidth: "150px" }}
                   value={(activeSetName as any) || ""}
@@ -943,7 +943,7 @@ Return all visible text.`
               </div>
               <div>
                 <ct-message-input
-                  placeholder="New set name..."
+                  placeholder="New option name..."
                   onct-send={(e: { detail: { message: string } }) => {
                     const name = e.detail?.message?.trim();
                     if (name) {
@@ -964,7 +964,7 @@ Return all visible text.`
               if (!list || list.length === 0) {
                 return (
                   <p style={{ color: "#666", fontStyle: "italic" }}>
-                    No classes pinned to "{displayName}". Use the 📌 button below to pin classes.
+                    No classes in "{displayName}". Use the 📌 button below to add classes to this option.
                   </p>
                 );
               }
