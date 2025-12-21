@@ -2,24 +2,19 @@
 topic: handlers
 discovered: 2025-12-20
 sessions: members-module-development
-related_labs_docs: none
-status: superstition
+related_labs_docs: ~/Code/labs/packages/runner/src/storage/transaction-explainer.md
+status: deprecated
+verified: 2025-12-20
+verdict: WRONG - push() and set() have identical atomicity
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# ❌ DEPRECATED - VERIFIED WRONG
 
-**This is a SUPERSTITION** - based on a single observation. It may be:
-- Incomplete or context-specific
-- Misunderstood or coincidental
-- Already contradicted by official docs
-- Wrong in subtle ways
+**This superstition has been VERIFIED WRONG by oracle review.**
 
-**DO NOT trust this blindly.** Verify against:
-1. Official labs/docs/ first
-2. Working examples in labs/packages/patterns/
-3. Your own testing
+The premise that `push()` is less atomic than `set()` is incorrect. Both operations have **identical atomicity guarantees** through the transaction system.
 
-**If this is verified correct,** upstream it to labs docs and delete this superstition.
+**Do NOT follow this advice.** It was based on a misunderstanding of the transaction model.
 
 ---
 
@@ -105,26 +100,59 @@ push(...value) {
 - **Cell implementation:** `labs/packages/runner/src/cell.ts` lines 678-728
 - **Transaction docs:** `labs/packages/runner/src/storage/transaction-explainer.md`
 
-## Uncertainty
+## Oracle Verification (2025-12-20)
 
-**Key unknowns:**
-- Does the transaction system actually detect conflicts?
-- Is push() truly non-atomic, or does the transaction provide protection?
-- What happens on conflict - retry or fail?
-- Is this a real problem in practice or just theoretical?
+**VERDICT: WRONG** - The superstition is based on a misunderstanding.
 
-**Need to verify:**
-- Test with deliberately concurrent operations
-- Check transaction-explainer.md for conflict detection details
-- Look for existing patterns that handle this
+### Why This Is Wrong
 
-## Next Steps
+**Both `push()` and `set()` use the same transaction mechanism.**
 
-- [ ] Read transaction-explainer.md thoroughly
-- [ ] Test concurrent operations
-- [ ] If correct, upstream to labs docs
-- [ ] Then delete this superstition
+From `/Users/alex/Code/labs-3/packages/runner/src/cell.ts`:
+
+Both methods:
+- Use the same transaction (`this.tx`)
+- Call the same write mechanism (`diffAndUpdate`)
+- Are subject to the same transaction lifecycle
+
+### The Actual Concurrency Model
+
+From `/Users/alex/Code/labs-3/packages/runner/src/storage/transaction-explainer.md:66-84`:
+
+> **Read Consistency**: All reads capture "invariants" - assumptions about the state when read. If any invariant is violated before commit, the transaction fails.
+
+This means:
+- **ANY read** in a transaction creates an invariant
+- **IF that value changes** before commit, the transaction fails
+- This applies **equally** to both `push()` and `get()+set()`
+
+### Automatic Retry
+
+From `/Users/alex/Code/labs-3/packages/runner/src/scheduler.ts:251-270`:
+The scheduler automatically retries on conflict, regardless of whether you used `push()` or `set()`.
+
+### The Correct Understanding
+
+```typescript
+// These have IDENTICAL atomicity guarantees:
+
+// Using push()
+members.push(newEntry);  // Will retry on conflict
+
+// Using get() + set()
+const current = members.get() || [];
+members.set([...current, newEntry]);  // Will also retry on conflict
+```
+
+Both approaches:
+- Record read invariant for `members`
+- Fail if `members` changed since read
+- Automatically retry via scheduler
+
+## Conclusion
+
+**Delete this superstition.** There is no atomicity difference between `push()` and `set()`.
 
 ---
 
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
+**This superstition is WRONG. Do not follow this advice.**

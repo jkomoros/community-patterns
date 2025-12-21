@@ -3,23 +3,18 @@ topic: reactivity
 discovered: 2025-12-20
 sessions: members-module-development
 related_labs_docs: ~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md
-status: superstition
+status: verified
+verified: 2025-12-20
+verdict: CORRECT - already documented in official docs
 ---
 
-# ⚠️ SUPERSTITION - UNVERIFIED
+# ✅ VERIFIED CORRECT - Should Upstream to Labs Docs
 
-**This is a SUPERSTITION** - based on a single observation. It may be:
-- Incomplete or context-specific
-- Misunderstood or coincidental
-- Already contradicted by official docs
-- Wrong in subtle ways
+**This superstition has been VERIFIED CORRECT by oracle review.**
 
-**DO NOT trust this blindly.** Verify against:
-1. Official labs/docs/ first
-2. Working examples in labs/packages/patterns/
-3. Your own testing
+It is already partially documented in `CELLS_AND_REACTIVITY.md` but could use expansion.
 
-**If this is verified correct,** upstream it to labs docs and delete this superstition.
+**Action:** Upstream the additional context to labs docs, then delete this file.
 
 ---
 
@@ -88,21 +83,61 @@ if (isDuplicate) return;  // Correctly detects duplicates
 - **Official docs:** `~/Code/labs/docs/common/CELLS_AND_REACTIVITY.md` (may mention Cell.equals)
 - **Related patterns:** `labs/packages/patterns/members.tsx`
 
-## Uncertainty
+## Oracle Verification (2025-12-20)
 
-**Key unknowns:**
-- Is Cell.equals() documented anywhere?
-- When exactly does === fail? All the time, or only in certain contexts?
-- Are there other comparison methods that work?
-- Does this apply to all Cell-wrapped values or only charm references?
+**VERDICT: CORRECT** - Verified by code analysis and official documentation.
+
+### Evidence from Source Code
+
+**Cell.equals() implementation** (`/Users/alex/Code/labs-3/packages/runner/src/cell.ts:781-790`):
+```typescript
+equals(other: any): boolean {
+  return areLinksSame(this, other, undefined, true, this.runtime.readTx(this.tx), this.runtime);
+}
+```
+
+**areLinksSame()** (`/Users/alex/Code/labs-3/packages/runner/src/link-utils.ts:138-175`):
+- First checks `value1 === value2` (returns true if same object)
+- If not, parses both as links and compares normalized structure (space, id, path)
+- Resolves aliases/redirects before comparing
+
+### When === Fails
+
+- When comparing values retrieved from `.get()` that are fresh Cell instances
+- When different Cell instances point to the same entity
+- When cells are created separately but reference the same charm
+
+### Official Documentation
+
+From `/Users/alex/Code/labs-3/docs/common/CELLS_AND_REACTIVITY.md:195-213`:
+```typescript
+### Cell.equals()
+Use `Cell.equals()` to compare cells or cell values:
+
+const removeItem = (items: Cell<Item[]>, item: Cell<Item>) => {
+  const currentItems = items.get();
+  const index = currentItems.findIndex(el => Cell.equals(item, el));
+};
+```
+
+### Test Evidence
+
+From `/Users/alex/Code/labs-3/packages/runner/test/cell-static-methods.test.ts:317-331`:
+```typescript
+it("should return true for cells with same link", () => {
+  const cell1 = runtime.getCell(space, "same-link", undefined, tx);
+  const cell2 = runtime.getCell(space, "same-link", undefined, tx);
+  expect(Cell.equals(cell1, cell2)).toBe(true);  // Different objects, same entity
+});
+```
 
 ## Next Steps
 
-- [ ] Check if Cell.equals() is documented
-- [ ] Test when === works vs fails
-- [ ] If correct, upstream to labs docs
+- [x] Check if Cell.equals() is documented - YES, in CELLS_AND_REACTIVITY.md
+- [x] Verify behavior - CONFIRMED by tests
+- [ ] Upstream expanded documentation to labs docs
 - [ ] Then delete this superstition
 
 ---
 
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
+**This is VERIFIED CORRECT. Upstream to labs docs and delete.**
