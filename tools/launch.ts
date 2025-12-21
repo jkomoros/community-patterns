@@ -221,6 +221,225 @@ interface SelectOption {
   icon?: string;
 }
 
+interface MultiSelectOption {
+  label: string;
+  value: string;
+  icon?: string;
+  selected?: boolean;  // Initial selection state (defaults to false)
+}
+
+// Multi-select interactive UI (checkbox-style)
+// Returns array of selected values, or null on cancel
+async function interactiveMultiSelect(
+  options: MultiSelectOption[],
+  title?: string
+): Promise<string[] | null> {
+  if (options.length === 0) {
+    return null;
+  }
+
+  if (title) {
+    console.log(`\n${title}\n`);
+  }
+
+  let selectedIndex = 0;
+  // Track which options are selected (start with whatever was passed in)
+  const selections = new Set<number>(
+    options.map((opt, idx) => opt.selected ? idx : -1).filter(idx => idx >= 0)
+  );
+  let lastRenderedLineCount = 0;
+
+  // Enable raw mode to capture keys
+  Deno.stdin.setRaw(true);
+
+  // Hide cursor
+  await Deno.stdout.write(new TextEncoder().encode(HIDE_CURSOR));
+
+  // Render the current state
+  const render = () => {
+    const lines: string[] = [];
+
+    // Show help text
+    lines.push("\x1b[90m(Space to toggle, 'a' to toggle all, Enter to confirm, Q to cancel)\x1b[0m");
+
+    // Options with checkboxes
+    for (let i = 0; i < options.length; i++) {
+      const option = options[i];
+      const icon = option.icon || "";
+      const prefix = i === selectedIndex ? "→ " : "  ";
+      const checkbox = selections.has(i) ? "[x]" : "[ ]";
+      const style = i === selectedIndex ? "\x1b[7m" : ""; // Reverse video for selected
+      const reset = i === selectedIndex ? "\x1b[0m" : "";
+      lines.push(`${prefix}${style}${checkbox} ${icon}${option.label}${reset}`);
+    }
+
+    // Show count of selected
+    const count = selections.size;
+    lines.push(`\n\x1b[90m${count} of ${options.length} selected\x1b[0m`);
+
+    return lines;
+  };
+
+  // Clear previous render and output new lines
+  const rerender = async () => {
+    // Move cursor up to clear previous output
+    for (let i = 0; i < lastRenderedLineCount; i++) {
+      await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+    }
+
+    // Clear all previous lines
+    for (let i = 0; i < lastRenderedLineCount; i++) {
+      await Deno.stdout.write(
+        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START)
+      );
+      if (i < lastRenderedLineCount - 1) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
+      }
+    }
+
+    // Move back to start
+    if (lastRenderedLineCount > 1) {
+      for (let i = 0; i < lastRenderedLineCount - 1; i++) {
+        await Deno.stdout.write(new TextEncoder().encode(CURSOR_UP));
+      }
+    }
+    await Deno.stdout.write(new TextEncoder().encode(CURSOR_TO_START));
+
+    // Render new content
+    const lines = render();
+    for (const line of lines) {
+      console.log(line);
+    }
+    lastRenderedLineCount = lines.length;
+  };
+
+  // Initial render
+  const initialLines = render();
+  for (const line of initialLines) {
+    console.log(line);
+  }
+  lastRenderedLineCount = initialLines.length;
+
+  // Listen for input
+  const buf = new Uint8Array(3);
+
+  while (true) {
+    const n = await Deno.stdin.read(buf);
+
+    if (n === null) break;
+
+    const input = buf.slice(0, n);
+
+    // Check for escape sequences (arrow keys)
+    if (input[0] === 0x1b && input[1] === 0x5b) {
+      if (input[2] === 0x41) {
+        // Up arrow
+        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+        await rerender();
+      } else if (input[2] === 0x42) {
+        // Down arrow
+        selectedIndex = (selectedIndex + 1) % options.length;
+        await rerender();
+      }
+    } else if (input[0] === 0x20) {
+      // Space - toggle current selection
+      if (selections.has(selectedIndex)) {
+        selections.delete(selectedIndex);
+      } else {
+        selections.add(selectedIndex);
+      }
+      await rerender();
+    } else if (input[0] === 0x0d || input[0] === 0x0a) {
+      // Enter key - confirm
+      Deno.stdin.setRaw(false);
+      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      // Return selected values
+      return Array.from(selections).sort().map(idx => options[idx].value);
+    } else if (input[0] === 0x03) {
+      // Ctrl-C
+      Deno.stdin.setRaw(false);
+      await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+      console.log("\n👋 Cancelled");
+      Deno.exit(0);
+    } else if (input[0] >= 0x20 && input[0] < 0x7f) {
+      const char = String.fromCharCode(input[0]);
+
+      // 'a' or 'A' - toggle all
+      if (char === "a" || char === "A") {
+        if (selections.size === options.length) {
+          // All selected, deselect all
+          selections.clear();
+        } else {
+          // Select all
+          for (let i = 0; i < options.length; i++) {
+            selections.add(i);
+          }
+        }
+        await rerender();
+      } else if (char === "i" || char === "I") {
+        // 'i' or 'I' - invert selection
+        for (let i = 0; i < options.length; i++) {
+          if (selections.has(i)) {
+            selections.delete(i);
+          } else {
+            selections.add(i);
+          }
+        }
+        await rerender();
+      } else if (char === "q" || char === "Q") {
+        // Quit
+        Deno.stdin.setRaw(false);
+        await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
+        return null;
+      }
+    }
+  }
+
+  Deno.stdin.setRaw(false);
+  await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR));
+  return null;
+}
+
+// Detect all labs directories in the parent directory
+async function detectLabsDirectories(): Promise<string[]> {
+  const parentDir = `${REPO_ROOT}..`;
+  const labsDirs: string[] = [];
+
+  try {
+    for await (const entry of Deno.readDir(parentDir)) {
+      if (entry.isDirectory && entry.name.startsWith("labs")) {
+        const fullPath = `${parentDir}/${entry.name}`;
+        // Verify it's actually a labs repo by checking for packages/toolshed
+        try {
+          const stat = await Deno.stat(`${fullPath}/packages/toolshed`);
+          if (stat.isDirectory) {
+            labsDirs.push(fullPath);
+          }
+        } catch {
+          // Not a valid labs directory, skip
+        }
+      }
+    }
+  } catch {
+    // Parent directory doesn't exist or can't be read
+  }
+
+  // Sort so "labs" comes first, then labs-2, labs-3, etc.
+  return labsDirs.sort((a, b) => {
+    const nameA = a.split("/").pop() || "";
+    const nameB = b.split("/").pop() || "";
+    // "labs" (without suffix) should come first
+    if (nameA === "labs") return -1;
+    if (nameB === "labs") return 1;
+    return nameA.localeCompare(nameB);
+  });
+}
+
+// Format labs directory for display (just the folder name)
+function formatLabsName(labsPath: string): string {
+  return labsPath.split("/").pop() || labsPath;
+}
+
 async function interactiveSelect(
   options: SelectOption[],
   title?: string
@@ -1483,10 +1702,92 @@ async function promptLinkAnother(): Promise<"same" | "different" | "done"> {
   return (selection as "same" | "different" | "done") || "done";
 }
 
+// Helper to select labs directories when multiple are available
+// Returns array of selected labs directories, or null on cancel
+async function selectLabsDirectories(
+  allLabsDirs: string[],
+  operationName: string
+): Promise<string[] | null> {
+  // If only one labs, no selection needed
+  if (allLabsDirs.length === 1) {
+    return allLabsDirs;
+  }
+
+  // Multiple labs detected - show selection UI
+  console.log(`\n📦 Multiple labs instances detected\n`);
+
+  // First ask: all or individual?
+  const strategyOptions: SelectOption[] = [
+    {
+      label: `All labs (${allLabsDirs.length} instances) - Recommended`,
+      value: "all",
+      icon: "✅ ",
+    },
+    {
+      label: "Select individual labs instances",
+      value: "individual",
+      icon: "📋 ",
+    },
+  ];
+
+  const strategy = await interactiveSelect(
+    strategyOptions,
+    `${operationName}\n\nChoose scope:`
+  );
+
+  if (strategy === null) {
+    return null;
+  }
+
+  if (strategy === "all") {
+    return allLabsDirs;
+  }
+
+  // Individual selection - show multi-select with nothing pre-selected
+  const labsOptions: MultiSelectOption[] = allLabsDirs.map(labsPath => ({
+    label: formatLabsName(labsPath),
+    value: labsPath,
+    icon: "📦 ",
+    selected: false,  // Nothing pre-selected for safety
+  }));
+
+  const selectedLabs = await interactiveMultiSelect(
+    labsOptions,
+    "Select which labs instances to clear:\n(Nothing is pre-selected for safety)"
+  );
+
+  if (selectedLabs === null || selectedLabs.length === 0) {
+    console.log("❌ No labs selected\n");
+    return null;
+  }
+
+  return selectedLabs;
+}
+
 async function clearLLMCache(labsDir: string): Promise<boolean> {
   console.log("\n🗑️  Clear LLM Cache\n");
-  console.log("This will delete all cached LLM responses.");
-  console.log("You will need to regenerate any AI-generated content.\n");
+
+  // Detect all labs directories
+  const allLabsDirs = await detectLabsDirectories();
+
+  // Fall back to provided labsDir if detection fails
+  if (allLabsDirs.length === 0) {
+    allLabsDirs.push(labsDir);
+  }
+
+  // Select which labs to clear
+  const selectedLabs = await selectLabsDirectories(allLabsDirs, "Clear LLM Cache");
+  if (selectedLabs === null) {
+    console.log("❌ Cancelled\n");
+    return false;
+  }
+
+  // Show what will be affected
+  console.log("\nThis will delete cached LLM responses from:");
+  for (const lab of selectedLabs) {
+    console.log(`   • ${formatLabsName(lab)}`);
+  }
+  console.log("\nYou will need to regenerate any AI-generated content.\n");
 
   const confirm = await prompt("Type 'yes' to confirm");
 
@@ -1495,33 +1796,65 @@ async function clearLLMCache(labsDir: string): Promise<boolean> {
     return false;
   }
 
-  try {
-    // Run deno task to clear LLM cache
-    const command = new Deno.Command("deno", {
-      args: ["task", "ct", "cache", "clear"],
-      cwd: labsDir,
-      stdout: "inherit",
-      stderr: "inherit",
-    });
+  let allSuccess = true;
+  let totalCleared = 0;
 
-    const { code } = await command.output();
+  for (const currentLabsDir of selectedLabs) {
+    const labsName = formatLabsName(currentLabsDir);
+    console.log(`\n🔄 Clearing ${labsName}...`);
 
-    if (code === 0) {
-      console.log("\n✅ LLM cache cleared successfully\n");
-      return true;
-    } else {
-      console.log("\n❌ Failed to clear LLM cache\n");
-      return false;
+    try {
+      // Clear LLM cache by removing files from cache/llm-api-cache
+      const llmCacheDir = `${currentLabsDir}/packages/toolshed/cache/llm-api-cache`;
+
+      let deletedCount = 0;
+      try {
+        for await (const entry of Deno.readDir(llmCacheDir)) {
+          if (entry.isFile && entry.name.endsWith(".json")) {
+            await Deno.remove(`${llmCacheDir}/${entry.name}`);
+            deletedCount++;
+          }
+        }
+        totalCleared += deletedCount;
+        console.log(`   ✅ Cleared ${deletedCount} cached responses`);
+      } catch {
+        console.log(`   ⚠️  No cache directory found or empty`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`   ❌ Error: ${message}`);
+      allSuccess = false;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error: ${message}\n`);
-    return false;
   }
+
+  if (totalCleared > 0) {
+    console.log(`\n✅ Cleared ${totalCleared} total cached LLM responses\n`);
+  } else {
+    console.log("\n⚠️  No cached responses found to clear\n");
+  }
+
+  return allSuccess;
 }
 
 async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   console.log("\n⚠️  ⚠️  ⚠️  DANGER: Clear Local SQLite Database ⚠️  ⚠️  ⚠️\n");
+
+  // Detect all labs directories
+  const allLabsDirs = await detectLabsDirectories();
+
+  // Fall back to provided labsDir if detection fails
+  if (allLabsDirs.length === 0) {
+    allLabsDirs.push(labsDir);
+  }
+
+  // Select which labs to clear
+  const selectedLabs = await selectLabsDirectories(allLabsDirs, "Clear SQLite Database");
+  if (selectedLabs === null) {
+    console.log("❌ Cancelled - no data was deleted\n");
+    return false;
+  }
+
+  // Show danger warning with selected labs
   console.log("╔═══════════════════════════════════════════════════════════╗");
   console.log("║                                                           ║");
   console.log("║  THIS WILL PERMANENTLY DELETE ALL LOCAL DATA             ║");
@@ -1535,6 +1868,12 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   console.log("║  THIS CANNOT BE UNDONE!                                   ║");
   console.log("║                                                           ║");
   console.log("╚═══════════════════════════════════════════════════════════╝\n");
+
+  console.log("Affected labs instances:");
+  for (const lab of selectedLabs) {
+    console.log(`   • ${formatLabsName(lab)}`);
+  }
+  console.log();
 
   const confirm1 = await prompt("Type 'DELETE' (in caps) to proceed");
 
@@ -1551,39 +1890,51 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
     return false;
   }
 
-  try {
-    // SQLite files are stored in cache/memory directories as per-space .sqlite files
-    const sqliteDir = `${labsDir}/packages/toolshed/cache/memory`;
+  let allSuccess = true;
+  let totalDeleted = 0;
 
-    let deletedCount = 0;
+  for (const currentLabsDir of selectedLabs) {
+    const labsName = formatLabsName(currentLabsDir);
+    console.log(`\n🔄 Clearing ${labsName}...`);
 
     try {
-      for await (const entry of Deno.readDir(sqliteDir)) {
-        if (entry.isFile && entry.name.endsWith(".sqlite")) {
-          await Deno.remove(`${sqliteDir}/${entry.name}`);
-          deletedCount++;
-        }
-      }
-    } catch {
-      // Directory doesn't exist or can't be read
-    }
+      // SQLite files are stored in cache/memory directories as per-space .sqlite files
+      const sqliteDir = `${currentLabsDir}/packages/toolshed/cache/memory`;
 
-    if (deletedCount > 0) {
-      console.log(`\n✅ Deleted ${deletedCount} SQLite database file${deletedCount > 1 ? 's' : ''} from:`);
-      console.log(`   ${sqliteDir}\n`);
-      console.log("   Restart your dev server to initialize fresh databases.\n");
-      return true;
-    } else {
-      console.log("\n⚠️  No SQLite database files found\n");
-      console.log(`   Checked: ${sqliteDir}/*.sqlite\n`);
-      console.log("   The database may already be clean.\n");
-      return false;
+      let deletedCount = 0;
+
+      try {
+        for await (const entry of Deno.readDir(sqliteDir)) {
+          if (entry.isFile && entry.name.endsWith(".sqlite")) {
+            await Deno.remove(`${sqliteDir}/${entry.name}`);
+            deletedCount++;
+          }
+        }
+        totalDeleted += deletedCount;
+        if (deletedCount > 0) {
+          console.log(`   ✅ Deleted ${deletedCount} SQLite database file${deletedCount > 1 ? 's' : ''}`);
+        } else {
+          console.log(`   ⚠️  No SQLite database files found`);
+        }
+      } catch {
+        console.log(`   ⚠️  No cache directory found or empty`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`   ❌ Error: ${message}`);
+      allSuccess = false;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error: ${message}\n`);
-    return false;
   }
+
+  if (totalDeleted > 0) {
+    console.log(`\n✅ Deleted ${totalDeleted} total SQLite database file${totalDeleted > 1 ? 's' : ''}`);
+    console.log("   Restart your dev server to initialize fresh databases.\n");
+  } else {
+    console.log("\n⚠️  No SQLite database files found in any selected labs\n");
+    console.log("   The databases may already be clean.\n");
+  }
+
+  return allSuccess;
 }
 
 async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod" | "link" | "other"> {
