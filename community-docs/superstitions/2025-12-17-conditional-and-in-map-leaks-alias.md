@@ -19,11 +19,11 @@ This is a **SUPERSTITION** - an unverified observation from a single session. It
 ## Metadata
 
 ```yaml
-topic: jsx, map, conditionals, alias, reactivity
+topic: jsx, map, conditionals, alias, reactivity, handlers
 discovered: 2025-12-17
-confirmed_count: 1
-last_confirmed: 2025-12-17
-sessions: [google-docs-comment-orchestrator]
+confirmed_count: 2
+last_confirmed: 2025-12-20
+sessions: [google-docs-comment-orchestrator, labs-4/record-module-refactor]
 related_labs_docs: none
 status: superstition
 stars:
@@ -98,3 +98,4 @@ The `ifElse()` function is designed to handle reactive values properly in the fr
 ## Guestbook
 
 - 2025-12-17 - Discovered while building google-docs-comment-orchestrator. Expanded comment section showed raw $alias JSON. Pre-computing data helped but didn't fully fix. Changing from `{item.isExpanded && ...}` to `{ifElse(item.isExpanded, ..., null)}` resolved the issue. (google-docs-comment-orchestrator / jkomoros)
+- 2025-12-20 - ALSO BREAKS HANDLER BINDING. In Record pattern, `{getDefinition(entry.type)?.allowMultiple && <button onClick={createSibling({...})}>+</button>}` caused handler to NEVER fire. Button rendered correctly, no console errors, but clicking did nothing. Changed to `{ifElse(getDefinition(entry.type)?.allowMultiple, <button onClick={...}>+</button>, null)}` and handler now works. Key insight: `&&` conditional doesn't just cause $alias leakage - it can completely break onClick handler binding with silent failure. (labs-4/record-module-refactor)
