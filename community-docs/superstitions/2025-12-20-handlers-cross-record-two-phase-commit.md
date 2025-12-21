@@ -3,12 +3,12 @@ topic: handlers
 discovered: 2025-12-20
 sessions: members-module-development
 related_labs_docs: ~/Code/labs/packages/runner/src/storage/transaction-explainer.md
-status: superstition
+status: verified
 verified: 2025-12-20
-verdict: MISGUIDED - only works within same memory space
+verdict: CORRECT for normal usage - all user records are in same space
 ---
 
-# ⚠️ SUPERSTITION - PARTIALLY VERIFIED (MISGUIDED)
+# ✅ VERIFIED CORRECT - No Issue in Normal Usage
 
 **This is a SUPERSTITION** - based on a single observation. It may be:
 - Incomplete or context-specific
@@ -106,46 +106,44 @@ See `packages/patterns/members.tsx` in labs-3 for the full implementation of thi
 
 ## Oracle Verification (2025-12-20)
 
-**VERDICT: MISGUIDED** - The pattern is good practice BUT has a critical limitation.
+**VERDICT: CORRECT** - No issue in normal usage.
 
-### What the Oracle Found
+### Initial Concern
 
-From `/Users/alex/Code/labs-3/packages/runner/src/storage/transaction-explainer.md` (lines 54-62):
+Transaction write isolation means a transaction can only write to ONE memory space. We worried that cross-record bidirectional linking might fail.
 
-> **Write Isolation**: A transaction can only write to one memory space. This prevents distributed consistency issues.
+### What Follow-up Investigation Found
 
-**Critical finding:** If the two cells (`members` and `targetMembersCell`) are in **different memory spaces**, the second `set()` will fail with `WriteIsolationError` and the first `set()` will have already succeeded - NO ROLLBACK.
+**All user-created Records are in the SAME space** (the user's home space).
 
-### When It Works
+From `/Users/alex/Code/labs-3/packages/runner/src/builtins/navigate-to.ts:28-29`:
+- Records created via `navigateTo(Record({...}))` inherit the parent's space
+- The parent is the default-app, which runs in `userIdentityDID` space
 
-The two-phase pattern provides atomic rollback **ONLY IF** both cells belong to the same memory space.
+**Therefore:**
+- Record A is in space `did:key:user`
+- Record B is in space `did:key:user`
+- Both writes are to the SAME space
+- **No WriteIsolationError occurs**
 
-### When It FAILS
+### When It Would Fail (Edge Case)
 
-If the cells are in different spaces:
-1. First `set()` succeeds (locks transaction to space A)
-2. Second `set()` fails with `WriteIsolationError` (trying to write to space B)
-3. First write is NOT rolled back
-
-### Recommendation
-
-The members.tsx code should either:
-1. Verify both cells are in the same space before claiming atomicity
-2. Handle `WriteIsolationError` explicitly
-3. Update comments to acknowledge this limitation
+If someone manually created Records in DIFFERENT spaces via direct runtime API calls, bidirectional linking would fail. But this is:
+1. Not a normal user workflow
+2. Correct behavior (cross-space writes are intentionally prevented)
+3. Properly caught by the error handler in members.tsx
 
 ### Evidence
 
-- Transaction enforcement: `/Users/alex/Code/labs-3/packages/runner/src/storage/transaction.ts:173-216`
-- Test evidence: `/Users/alex/Code/labs-3/packages/runner/test/transaction.test.ts:212-240`
+- Cell space assignment: `/Users/alex/Code/labs-3/packages/runner/src/cell.ts:472-475`
+- navigateTo uses parent space: `/Users/alex/Code/labs-3/packages/runner/src/builtins/navigate-to.ts:28-29`
 
-## Next Steps
+## Conclusion
 
-- [x] Verify against official docs (transaction semantics)
-- [ ] Determine if members module cells are always in same space
-- [ ] If cross-space, refactor to handle WriteIsolationError
-- [ ] Update labs docs with proper caveats
+The two-phase commit pattern in Members module is **correct** for its use case. All user records share the same space, so there's no write isolation violation.
+
+**Ready to upstream to labs docs.**
 
 ---
 
-**Remember:** This pattern is useful for clarity but the atomicity guarantee is conditional on space topology!
+**This pattern is VERIFIED CORRECT for normal usage.**
