@@ -371,12 +371,13 @@ Note: claude.key is at repo root, not in your pattern directory
 - Can be incomplete/messy
 - Move to root when stable
 
-**`lib/`** - Reference patterns (NO MODIFICATIONS)
+**`lib/`** - Reference patterns (NO MODIFICATIONS) - *Legacy approach*
 - **CRITICAL**: Files in lib/ should NEVER be modified
 - Copy patterns from `patterns/examples/` or `labs/packages/patterns/` here
 - Used for reference and learning
 - If you want to modify, copy to `WIP/` or root first
 - Helps you distinguish your work from upstream patterns
+- **Note:** As of 2025-12-22, the `--root` flag makes this pattern optional. You can now import directly from shared directories. See `patterns/jkomoros/lib/README.md` for details.
 
 **Root level** - Stable/production patterns
 - Completed and tested
@@ -879,6 +880,27 @@ import { helpers } from "./utils.tsx";
 ```
 
 Deploy the main file - ct bundles dependencies automatically.
+
+#### Importing from Parent Directories
+
+To share utilities across multiple pattern directories, use the `--root` flag:
+
+```
+patterns/YOUR-USERNAME/
+├── shared/
+│   └── common-utils.tsx    # Shared utilities
+├── app-a/
+│   └── main.tsx            # imports ../shared/common-utils.tsx
+└── app-b/
+    └── main.tsx            # imports ../shared/common-utils.tsx
+```
+
+```bash
+# Deploy with --root to allow parent imports
+./scripts/ct charm new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
+```
+
+This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports from `../shared/`.
 
 ---
 
