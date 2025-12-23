@@ -1343,6 +1343,7 @@ Return all visible text.`
     const calendarExportResult = cell<CalendarExportResult>(null);
     const calendarExportProcessing = cell<boolean>(false);
     const calendarExportProgress = cell<CalendarExportProgress>(null);
+    const calendarExportExpanded = cell<boolean>(false);  // Collapsed by default
 
     // Pre-computed button state to avoid nested derive() calls
     const exportButtonDisabled = derive(
@@ -1829,6 +1830,14 @@ Return all visible text.`
       );
     });
 
+    // Handler to toggle calendar export section
+    const toggleCalendarExport = handler<
+      unknown,
+      { expanded: Cell<boolean> }
+    >((_, { expanded }) => {
+      expanded.set(!expanded.get());
+    });
+
     // Handlers for semester date inputs
     const setSemesterStart = handler<
       { detail: { value: string } },
@@ -2151,87 +2160,98 @@ Return all visible text.`
               );
             })}
 
-            {/* Export to Calendar Section */}
+            {/* Export to Calendar Section - Collapsible */}
             <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#fff8e1", border: "1px solid #ffc107", borderRadius: "4px" }}>
-              <h4 style={{ marginBottom: "0.5rem", color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <h4
+                style={{ marginBottom: derive(calendarExportExpanded, (exp) => exp ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                onClick={toggleCalendarExport({ expanded: calendarExportExpanded })}
+              >
+                {ifElse(calendarExportExpanded, <span>▼</span>, <span>▶</span>)}
                 <span>📅</span> Export to Calendar
               </h4>
-              <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
-                Export pinned classes as recurring calendar events. Set semester dates first.
-              </p>
 
-              {/* Semester date inputs */}
-              <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
-                  <ct-input
-                    type="date"
-                    style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                    value={derive(semesterDates, (s: SemesterDates) => s.startDate || "")}
-                    onct-change={setSemesterStart({ dates: semesterDates })}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
-                  <ct-input
-                    type="date"
-                    style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                    value={derive(semesterDates, (s: SemesterDates) => s.endDate || "")}
-                    onct-change={setSemesterEnd({ dates: semesterDates })}
-                  />
-                </div>
-              </div>
-
-              {/* Calendar name input */}
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
-                  Target Calendar Name:
-                </label>
-                <ct-input
-                  type="text"
-                  placeholder="e.g., Kids Activities, Family"
-                  style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
-                  $value={calendarName}
-                />
-                <p style={{ fontSize: "0.7em", color: "#888", marginTop: "0.25rem" }}>
-                  Name of the calendar to add events to (must exist in Apple Calendar)
-                </p>
-              </div>
-
-              {/* Export button */}
-              <ct-button
-                variant="primary"
-                disabled={derive(canExportCalendar, (can) => !can)}
-                style={{
-                  opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
-                }}
-                onClick={prepareCalendarExport({
-                  pinnedClasses: pinnedClasses as unknown as Cell<Class[]>,
-                  semesterDates,
-                  child,
-                  activeSetName,
-                  calendarName,
-                  pendingExport: pendingCalendarExport,
-                  outbox: calendarOutbox,
-                })}
-              >
-                Export to iCal (.ics)
-              </ct-button>
-
-              {/* Validation message */}
               {ifElse(
-                derive(canExportCalendar, (can) => !can),
-                <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
-                  {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }) => {
-                    const p = pinned as unknown as Class[];
-                    const s = semester as unknown as SemesterDates;
-                    if (!p || p.length === 0) return "Pin some classes to export";
-                    if (!s.startDate) return "Set semester start date";
-                    if (!s.endDate) return "Set semester end date";
-                    if (s.startDate > s.endDate) return "End date must be after start date";
-                    return "";
-                  })}
-                </p>,
+                calendarExportExpanded,
+                <div>
+                  <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
+                    Export pinned classes as recurring calendar events. Set semester dates first.
+                  </p>
+
+                  {/* Semester date inputs */}
+                  <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
+                      <ct-input
+                        type="date"
+                        style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
+                        value={derive(semesterDates, (s: SemesterDates) => s.startDate || "")}
+                        onct-change={setSemesterStart({ dates: semesterDates })}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
+                      <ct-input
+                        type="date"
+                        style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
+                        value={derive(semesterDates, (s: SemesterDates) => s.endDate || "")}
+                        onct-change={setSemesterEnd({ dates: semesterDates })}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Calendar name input */}
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
+                      Target Calendar Name:
+                    </label>
+                    <ct-input
+                      type="text"
+                      placeholder="e.g., Kids Activities, Family"
+                      style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
+                      $value={calendarName}
+                    />
+                    <p style={{ fontSize: "0.7em", color: "#888", marginTop: "0.25rem" }}>
+                      Name of the calendar to add events to (must exist in Apple Calendar)
+                    </p>
+                  </div>
+
+                  {/* Export button */}
+                  <ct-button
+                    variant="primary"
+                    disabled={derive(canExportCalendar, (can) => !can)}
+                    style={{
+                      opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
+                    }}
+                    onClick={prepareCalendarExport({
+                      pinnedClasses: pinnedClasses as unknown as Cell<Class[]>,
+                      semesterDates,
+                      child,
+                      activeSetName,
+                      calendarName,
+                      pendingExport: pendingCalendarExport,
+                      outbox: calendarOutbox,
+                    })}
+                  >
+                    Export to iCal (.ics)
+                  </ct-button>
+
+                  {/* Validation message */}
+                  {ifElse(
+                    derive(canExportCalendar, (can) => !can),
+                    <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
+                      {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }) => {
+                        const p = pinned as unknown as Class[];
+                        const s = semester as unknown as SemesterDates;
+                        if (!p || p.length === 0) return "Pin some classes to export";
+                        if (!s.startDate) return "Set semester start date";
+                        if (!s.endDate) return "Set semester end date";
+                        if (s.startDate > s.endDate) return "End date must be after start date";
+                        return "";
+                      })}
+                    </p>,
+                    null
+                  )}
+                </div>,
                 null
               )}
             </div>
