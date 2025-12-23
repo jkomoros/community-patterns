@@ -1124,14 +1124,15 @@ Return all visible text.`
     }));
 
     // Import button state - pre-computed to avoid reactive context issues in JSX
+    // DEFENSIVE: Filter out undefined entries during hydration
     const importButtonDisabled = computed(() => {
-      const selCount = stagedClasses.get().filter(s => s.selected).length;
+      const selCount = stagedClasses.get().filter(s => s && s.selected).length;
       const locIdx = importLocationIndex.get();
       return selCount === 0 || locIdx < 0;
     });
     const importButtonText = computed(() => {
       const locIdx = importLocationIndex.get();
-      const selCount = stagedClasses.get().filter(s => s.selected).length;
+      const selCount = stagedClasses.get().filter(s => s && s.selected).length;
       return locIdx < 0 ? "Select a location to import" : `Import ${selCount} Selected Classes`;
     });
 
@@ -1173,10 +1174,12 @@ Return all visible text.`
     });
 
     // Computed: classes pinned to the active set
+    // DEFENSIVE: Filter out undefined entries that may appear during hydration
     const pinnedClasses = computed(() => {
       const setName = activeSetName.get();
       const classList = classes.get();
       return classList.filter(cls => {
+        if (!cls) return false; // Skip undefined entries during hydration
         const rawPins = cls.pinnedInSets;
         const pinArray: string[] = Array.isArray(rawPins) ? rawPins as string[] : [];
         return pinArray.indexOf(setName) >= 0;
@@ -1184,6 +1187,7 @@ Return all visible text.`
     });
 
     // Phase 6: Computed conflicts in active pinned set
+    // DEFENSIVE: Filter out undefined entries that may appear during hydration
     const pinnedSetConflicts = computed(() => {
       if (!pinnedClasses || pinnedClasses.length < 2) return [];
 
@@ -1192,6 +1196,7 @@ Return all visible text.`
         for (let j = i + 1; j < pinnedClasses.length; j++) {
           const class1 = pinnedClasses[i];
           const class2 = pinnedClasses[j];
+          if (!class1 || !class2) continue; // Skip undefined during hydration
 
           for (const slot1 of class1.timeSlots || []) {
             for (const slot2 of class2.timeSlots || []) {
@@ -1234,7 +1239,9 @@ Return all visible text.`
       };
 
       // Collect slots with timing info
+      // DEFENSIVE: Skip undefined entries that may appear during hydration
       pinned.forEach((cls) => {
+        if (!cls) return; // Skip undefined during hydration
         const color = getLocationColor(cls.location?.name || "");
         for (const slot of cls.timeSlots || []) {
           const startMins = parseTimeToMinutes(slot.startTime);
@@ -1520,12 +1527,13 @@ Return all visible text.`
         }
 
         // Create one ExportableEvent per class (time slots embedded)
+        // DEFENSIVE: Filter undefined slots during hydration
         const event: ExportableEvent = {
           id: `class-${cls.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
           title: cls.name,
           location: cls.location?.name,
           description: cls.description || undefined,
-          timeSlots: cls.timeSlots.map((slot) => ({
+          timeSlots: cls.timeSlots.filter(slot => slot != null).map((slot) => ({
             day: slot.day,
             startTime: slot.startTime,
             endTime: slot.endTime,
@@ -1576,13 +1584,14 @@ Return all visible text.`
       const outboxResult = classesToOutboxEvents(classList, semester, targetCalendar);
 
       // Check for duplicates: events already in outbox with same ID
+      // DEFENSIVE: Filter undefined entries/events during hydration
       const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
       const existingUIDs = new Set(
-        (currentOutbox.entries || []).flatMap(entry =>
-          (entry.events || []).map(e => e.id)
+        (currentOutbox.entries || []).filter(entry => entry != null).flatMap(entry =>
+          (entry.events || []).filter(e => e != null).map(e => e.id)
         )
       );
-      const newEvents = outboxResult.events.filter(e => !existingUIDs.has(e.id));
+      const newEvents = outboxResult.events.filter(e => e != null && !existingUIDs.has(e.id));
       const duplicateCount = outboxResult.events.length - newEvents.length;
 
       // Combine skipped items from both conversions (deduplicate)
@@ -1708,9 +1717,10 @@ Return all visible text.`
               dialogContent: {
                 displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
                 displayedCalendar: pending.calendarName,
-                displayedTimeRange: `${pending.semester.startDate} to ${pending.semester.endDate}`,
+                displayedTimeRange: `${pending.semester?.startDate || ""} to ${pending.semester?.endDate || ""}`,
                 displayedEventCount: pending.eventCount,
-                displayedClasses: pending.classes.map((c) => c.name),
+                // DEFENSIVE: Filter undefined during hydration
+                displayedClasses: pending.classes.filter(c => c != null).map((c) => c.name),
                 warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
               },
               sourcePattern: {
@@ -1818,12 +1828,14 @@ Return all visible text.`
     });
 
     // Computed: can export (has pinned classes and semester dates)
+    // DEFENSIVE: Check semester exists before accessing properties
     const canExportCalendar = computed(() => {
       const pinned = pinnedClasses as Class[];
       const semester = semesterDates.get();
       return (
         pinned &&
         pinned.length > 0 &&
+        semester &&
         semester.startDate &&
         semester.endDate &&
         semester.startDate <= semester.endDate
@@ -1979,7 +1991,8 @@ Return all visible text.`
 
             {/* Pinned classes in active set */}
             {derive({ pinnedClasses, displayActiveSetName }, ({ pinnedClasses: pinned, displayActiveSetName: displayName }) => {
-              const list = pinned as Class[];
+              // DEFENSIVE: Filter out undefined entries that may appear during hydration
+              const list = (pinned as Class[]).filter(cls => cls != null);
               if (!list || list.length === 0) {
                 return (
                   <p style={{ color: "#666", fontStyle: "italic" }}>
@@ -2004,7 +2017,7 @@ Return all visible text.`
                         }}
                       >
                         <span>{cls.name}</span>
-                        <span style={{ fontSize: "0.8em", color: "#666" }}>@ {cls.location.name}</span>
+                        <span style={{ fontSize: "0.8em", color: "#666" }}>@ {cls.location?.name || "Unknown"}</span>
                       </div>
                     ))}
                   </div>
@@ -2118,6 +2131,8 @@ Return all visible text.`
 
                             {/* Classes for this day - using precomputed positions, colors, and overlap columns */}
                             {daySlots.map(({ cls, slot, color, top, height, column, totalColumns }) => {
+                              // DEFENSIVE: Skip undefined during hydration
+                              if (!cls || !slot) return null;
                               // Calculate horizontal position based on overlap columns
                               const widthPercent = 100 / totalColumns;
                               const leftPercent = column * widthPercent;
@@ -2138,7 +2153,7 @@ Return all visible text.`
                                     cursor: "default",
                                     boxSizing: "border-box",
                                   }}
-                                  title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location.name}`}
+                                  title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location?.name || "Unknown"}`}
                                 >
                                   <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     {cls.name}
@@ -2426,7 +2441,8 @@ Return all visible text.`
                       <div style={{ fontWeight: "500", marginBottom: "8px" }}>Classes to export:</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                         {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                          (p?.classes || []).map((cls: Class) => (
+                          // DEFENSIVE: Filter out undefined during hydration
+                          (p?.classes || []).filter(c => c != null).map((cls: Class) => (
                             <span
                               style={{
                                 background: "white",
@@ -2438,7 +2454,7 @@ Return all visible text.`
                             >
                               {cls.name}
                               <span style={{ color: "#888", marginLeft: "4px" }}>
-                                ({(cls.timeSlots || []).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
+                                ({(cls.timeSlots || []).filter(s => s != null).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
                               </span>
                             </span>
                           ))
@@ -2735,6 +2751,8 @@ Return all visible text.`
             {/* List classes - SINGLE FLAT DERIVE (no nesting to preserve reactivity) */}
             <div style={{ marginBottom: "1rem" }}>
               {classes.map((cls, idx) => {
+                // DEFENSIVE: Skip undefined entries during hydration
+                if (!cls) return null;
                 // ALL reactive values in ONE derive call - no nested derive/computed allowed!
                 return derive({
                   name: cls.name,
@@ -2983,9 +3001,11 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: selectedLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc, idx) => (
-                    <option value={idx}>{loc.name}</option>
-                  ))}
+                  {locations.map((loc, idx) => {
+                    // DEFENSIVE: Skip undefined during hydration
+                    if (!loc) return null;
+                    return <option value={idx}>{loc.name}</option>;
+                  })}
                 </select>
               </div>
               <ct-message-input
@@ -3038,9 +3058,11 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: importLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc, idx) => (
-                    <option value={idx}>{loc.name}</option>
-                  ))}
+                  {locations.map((loc, idx) => {
+                    // DEFENSIVE: Skip undefined during hydration
+                    if (!loc) return null;
+                    return <option value={idx}>{loc.name}</option>;
+                  })}
                 </select>
               </div>
 
@@ -3159,6 +3181,8 @@ Return all visible text.`
               {/* WORKAROUND: Using pre-computed s.triageBgColor because
                   s.triageStatus === "auto_kept" doesn't work inside Cell.map() */}
               {stagedClasses.map((s, idx) => {
+                // DEFENSIVE: Skip undefined entries during hydration
+                if (!s) return null;
                 // s.triageBgColor, s.triageBorderColor, s.triageEmoji are pre-computed strings
                 return (
                   <div
@@ -3243,6 +3267,8 @@ Return all visible text.`
             {/* List locations with color indicators */}
             <div style={{ marginBottom: "1rem" }}>
               {locations.map((loc) => {
+                // DEFENSIVE: Skip undefined during hydration
+                if (!loc) return null;
                 // Use derive to unwrap reactive location properties
                 return derive({ name: loc.name, type: loc.type, address: loc.address }, ({ name, type, address }) => {
                   const locColor = getLocationColor(name || "");
