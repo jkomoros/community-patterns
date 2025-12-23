@@ -23,6 +23,13 @@
  * ```
  */
 
+// DOM types for browser download (patterns run in browser context)
+declare const document: {
+  createElement(tag: string): HTMLAnchorElement;
+  body: { appendChild(el: unknown): void; removeChild(el: unknown): void };
+};
+interface HTMLAnchorElement { href: string; download: string; click(): void; }
+
 // ============================================================================
 // TYPES
 // ============================================================================

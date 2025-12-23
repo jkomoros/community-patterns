@@ -235,7 +235,7 @@ interface CalendarOutbox {
 /** Pending calendar export operation for confirmation dialog */
 type PendingCalendarExport = {
   /** Classes to be exported */
-  classes: Class[];
+  classes: readonly Class[];
   /** Semester date range */
   semester: SemesterDates;
   /** Generated ICS content (for download fallback) */
@@ -1252,14 +1252,26 @@ Return all visible text.`
      * Converts pinned classes to ICalEvent array for export (ICS download).
      * Creates one event per time slot with weekly recurrence.
      */
+    // Helper to safely get a value that might be a cell or plain value
+    function unwrap<T>(val: T | { get?: () => T }): T {
+      if (val && typeof val === "object" && "get" in val && typeof val.get === "function") {
+        return val.get() as T;
+      }
+      return val as T;
+    }
+
     function classesToICalEvents(
-      classList: Class[],
+      classList: readonly Class[],
       semester: SemesterDates
     ): ICalEvent[] {
       const events: ICalEvent[] = [];
       let eventIndex = 0;
 
-      for (const cls of classList) {
+      for (const rawCls of classList) {
+        // Unwrap the class in case it's still a cell
+        const cls = unwrap(rawCls) as Class;
+        if (!cls || !cls.name) continue; // Skip if cls is undefined or missing name
+
         for (const slot of cls.timeSlots || []) {
           // Find the first occurrence of this weekday within the semester
           const firstDate = getFirstOccurrenceDate(
@@ -1299,14 +1311,18 @@ Return all visible text.`
      * Creates one event per time slot with weekly recurrence.
      */
     function classesToOutboxEvents(
-      classList: Class[],
+      classList: readonly Class[],
       semester: SemesterDates,
       targetCalendar: string
     ): CalendarOutboxEvent[] {
       const events: CalendarOutboxEvent[] = [];
       let eventIndex = 0;
 
-      for (const cls of classList) {
+      for (const rawCls of classList) {
+        // Unwrap the class in case it's still a cell
+        const cls = unwrap(rawCls) as Class;
+        if (!cls || !cls.name) continue; // Skip if cls is undefined or missing name
+
         for (const slot of cls.timeSlots || []) {
           // Find the first occurrence of this weekday within the semester
           const firstDate = getFirstOccurrenceDate(
@@ -1357,10 +1373,13 @@ Return all visible text.`
         pendingExport: Cell<PendingCalendarExport>;
       }
     >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport }) => {
-      const classList = pinnedClasses.get();
-      const semester = semesterDates.get();
-      const childProfile = child.get();
-      const setName = activeSetName.get();
+      // Deep copy to unwrap any reactive proxies
+      const rawClassList = pinnedClasses.get();
+      const classList: Class[] = JSON.parse(JSON.stringify(rawClassList || []));
+      const semester: SemesterDates = JSON.parse(JSON.stringify(semesterDates.get() || {}));
+      const rawChild = child.get();
+      const childProfile: ChildProfile = rawChild ? JSON.parse(JSON.stringify(rawChild)) : { name: "", grade: "TK", birthYear: 2015, birthMonth: 1 };
+      const setName = activeSetName.get() || "default";
       const targetCalendar = calendarNameCell.get() || "Calendar";
 
       if (!classList || classList.length === 0) return;
@@ -1478,7 +1497,7 @@ Return all visible text.`
 
         result.set({
           success: true,
-          message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. ICS file also downloaded as ${filename}`,
+          message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Run 'apple-sync calendar-write' to sync. (Backup ICS file: ${filename})`,
           timestamp: now,
           exportedCount: pending.eventCount,
           addedToOutbox: true,
@@ -1518,6 +1537,31 @@ Return all visible text.`
         semester.endDate &&
         semester.startDate <= semester.endDate
       );
+    });
+
+    // Handlers for semester date inputs
+    const setSemesterStart = handler<
+      { detail: { value: string } },
+      { dates: Cell<SemesterDates> }
+    >((event, { dates }) => {
+      const current = dates.get();
+      dates.set({ ...current, startDate: event.detail.value });
+    });
+
+    const setSemesterEnd = handler<
+      { detail: { value: string } },
+      { dates: Cell<SemesterDates> }
+    >((event, { dates }) => {
+      const current = dates.get();
+      dates.set({ ...current, endDate: event.detail.value });
+    });
+
+    // Handler for calendar name input
+    const setCalendarName = handler<
+      { detail: { value: string } },
+      { name: Cell<string> }
+    >((event, { name }) => {
+      name.set(event.detail.value);
     });
 
     return {
@@ -1830,26 +1874,20 @@ Return all visible text.`
               <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
                 <div>
                   <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
-                  <input
+                  <ct-input
                     type="date"
                     style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                    value={(semesterDates as any).startDate || ""}
-                    onChange={(e: { target: { value: string } }) => {
-                      const current = semesterDates.get();
-                      semesterDates.set({ ...current, startDate: e.target.value });
-                    }}
+                    value={derive(semesterDates, (s: SemesterDates) => s.startDate || "")}
+                    onct-change={setSemesterStart({ dates: semesterDates })}
                   />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
-                  <input
+                  <ct-input
                     type="date"
                     style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                    value={(semesterDates as any).endDate || ""}
-                    onChange={(e: { target: { value: string } }) => {
-                      const current = semesterDates.get();
-                      semesterDates.set({ ...current, endDate: e.target.value });
-                    }}
+                    value={derive(semesterDates, (s: SemesterDates) => s.endDate || "")}
+                    onct-change={setSemesterEnd({ dates: semesterDates })}
                   />
                 </div>
               </div>
@@ -1859,14 +1897,11 @@ Return all visible text.`
                 <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
                   Target Calendar Name:
                 </label>
-                <input
+                <ct-input
                   type="text"
                   placeholder="e.g., Kids Activities, Family"
                   style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
-                  value={calendarName}
-                  onChange={(e: { target: { value: string } }) => {
-                    calendarName.set(e.target.value);
-                  }}
+                  $value={calendarName}
                 />
                 <p style={{ fontSize: "0.7em", color: "#888", marginTop: "0.25rem" }}>
                   Name of the calendar to add events to (must exist in Apple Calendar)
@@ -1881,7 +1916,7 @@ Return all visible text.`
                   opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
                 }}
                 onClick={prepareCalendarExport({
-                  pinnedClasses: pinnedClasses as Cell<Class[]>,
+                  pinnedClasses: pinnedClasses as unknown as Cell<Class[]>,
                   semesterDates,
                   child,
                   activeSetName,
@@ -1897,8 +1932,8 @@ Return all visible text.`
                 derive(canExportCalendar, (can) => !can),
                 <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
                   {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }) => {
-                    const p = pinned as Class[];
-                    const s = semester as SemesterDates;
+                    const p = pinned as unknown as Class[];
+                    const s = semester as unknown as SemesterDates;
                     if (!p || p.length === 0) return "Pin some classes to export";
                     if (!s.startDate) return "Set semester start date";
                     if (!s.endDate) return "Set semester end date";
