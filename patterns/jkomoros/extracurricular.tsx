@@ -1216,48 +1216,74 @@ Return all visible text.`
 
             {/* List classes - direct Cell mapping, no derive needed */}
             <div style={{ marginBottom: "1rem" }}>
-              {classes.map((cls, idx) => (
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    background: "#f9f9f9",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: "4px",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      {/* Pin button using handler pattern */}
-                      {/* Check if class is pinned to active set */}
-                      {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
-                        const pinArray: string[] = Array.isArray(pins) ? pins : [];
-                        const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
-                        const isPinned = pinArray.includes(activeSetStr);
-                        return (
-                          <ct-button
+              {classes.map((cls, idx) => {
+                const locColor = getLocationColor(cls.location?.name || "");
+                // Format time slots for display
+                const timeSlotText = (cls.timeSlots || []).map((slot: TimeSlot) => {
+                  const day = slot.day ? slot.day.charAt(0).toUpperCase() + slot.day.slice(1, 3) : "";
+                  return `${day} ${slot.startTime}-${slot.endTime}`;
+                }).join(", ");
+
+                return (
+                  <div
+                    style={{
+                      padding: "0.75rem",
+                      background: "#f9f9f9",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "4px",
+                      marginBottom: "0.5rem",
+                      borderLeft: `4px solid ${locColor.border}`,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        {/* Pin button using handler pattern */}
+                        {/* Check if class is pinned to active set */}
+                        {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
+                          const pinArray: string[] = Array.isArray(pins) ? pins : [];
+                          const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
+                          const isPinned = pinArray.includes(activeSetStr);
+                          return (
+                            <ct-button
+                              style={{
+                                border: isPinned ? "2px solid #1976d2" : "none",
+                                borderRadius: "4px",
+                                padding: "0.25rem 0.5rem",
+                                cursor: "pointer",
+                                background: isPinned ? "#e3f2fd" : "transparent",
+                              }}
+                              onClick={togglePinClass({
+                                classList: classes,
+                                activeSet: activeSetName,
+                                idx,
+                              })}
+                            >
+                              {isPinned ? "📌" : "📍"}
+                            </ct-button>
+                          );
+                        })}
+                        <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
+                        {/* Location with color indicator */}
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#666", fontSize: "0.9em" }}>
+                          <span
                             style={{
-                              border: isPinned ? "2px solid #1976d2" : "none",
-                              borderRadius: "4px",
-                              padding: "0.25rem 0.5rem",
-                              cursor: "pointer",
-                              background: isPinned ? "#e3f2fd" : "transparent",
+                              width: "10px",
+                              height: "10px",
+                              borderRadius: "2px",
+                              background: locColor.bg,
+                              border: `1px solid ${locColor.border}`,
+                              flexShrink: 0,
                             }}
-                            onClick={togglePinClass({
-                              classList: classes,
-                              activeSet: activeSetName,
-                              idx,
-                            })}
-                          >
-                            {isPinned ? "📌" : "📍"}
-                          </ct-button>
-                        );
-                      })}
-                      <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
-                      <span style={{ marginLeft: "0.5rem", color: "#666", fontSize: "0.9em" }}>
-                        @ {cls.location.name}
-                      </span>
-                    </div>
+                          />
+                          @ {cls.location?.name || "Unknown"}
+                        </span>
+                        {/* Day/time display */}
+                        {timeSlotText && (
+                          <span style={{ color: "#888", fontSize: "0.85em" }}>
+                            • {timeSlotText}
+                          </span>
+                        )}
+                      </div>
                     <ct-button
                       onClick={() => {
                         const current = classes.get();
@@ -1311,7 +1337,8 @@ Return all visible text.`
                     </label>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Add class form */}
