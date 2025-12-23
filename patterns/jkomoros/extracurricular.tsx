@@ -856,6 +856,18 @@ Return all visible text.`
       discarded: stageCounts.discarded,
     }));
 
+    // Import button state - pre-computed to avoid reactive context issues in JSX
+    const importButtonDisabled = computed(() => {
+      const selCount = stagedClasses.get().filter(s => s.selected).length;
+      const locIdx = importLocationIndex.get();
+      return selCount === 0 || locIdx < 0;
+    });
+    const importButtonText = computed(() => {
+      const locIdx = importLocationIndex.get();
+      const selCount = stagedClasses.get().filter(s => s.selected).length;
+      return locIdx < 0 ? "Select a location to import" : `Import ${selCount} Selected Classes`;
+    });
+
     // =========================================================================
     // PHASE 5: PINNED SETS
     // =========================================================================
@@ -1835,13 +1847,13 @@ Return all visible text.`
                 null
               )}
 
-              {/* Import button - using computed values, handler uses original cell refs */}
+              {/* Import button - using pre-computed values */}
               {ifElse(
                 hasStaged,
                 <ct-button
                   variant="primary"
                   style={{ marginTop: "0.5rem" }}
-                  disabled={selectedCount === 0}
+                  disabled={importButtonDisabled}
                   onClick={doImportAll({
                     locIdx: importLocationIndex,
                     locs: locations,
@@ -1852,7 +1864,7 @@ Return all visible text.`
                     lastText: lastProcessedExtractionText,
                   })}
                 >
-                  Import {selectedCount} Selected Classes
+                  {importButtonText}
                 </ct-button>,
                 null
               )}
