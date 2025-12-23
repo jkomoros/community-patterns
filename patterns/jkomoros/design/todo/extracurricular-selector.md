@@ -1,5 +1,42 @@
 # Extracurricular Selector Pattern - Implementation Plan
 
+## Active Work (2025-12-23)
+
+### Bug Fix: Nested derive() breaks array reactivity
+**Status: FIXED** - Discovered that nested `derive()` calls inside `classes.map()` break array reactivity. See superstition: `2025-12-23-nested-derive-in-map-breaks-array-reactivity.md`
+
+### TODO: Restore Full Class Card Functionality (Single-Derive Approach)
+
+The fix simplified class cards to just name/location. Need to restore ALL functionality using a SINGLE flat derive (no nesting).
+
+**Class Card Features to Restore:**
+- [x] Pin button (📌/📍) to pin/unpin class from active set
+- [x] Day/time display from timeSlots array
+- [x] Edit button (toggles edit panel)
+- [x] Edit panel with:
+  - [x] Name input
+  - [x] Description textarea
+  - [x] Location dropdown
+  - [x] Cost input
+  - [x] Grade min/max inputs
+  - [x] Time slots management (add/remove/edit)
+- [x] Status checkboxes: Registered, Confirmed, Waitlisted, Paid, On Calendar
+- [x] Remove button
+
+**Key constraint:** ALL reactive values must be unwrapped in a SINGLE derive() call. No nested derive() or computed() inside the outer derive callback.
+
+### TODO: UI Improvements from Last Night
+
+- [x] **Date/time in class list** - Show day and time for each class in the list view
+- [ ] **Fix JSON display on 2nd+ extract** - Second/third extraction showing raw JSON instead of formatted cards
+- [x] **Calendar overlap display** - Conflicting classes should squeeze horizontally (side-by-side) instead of overlapping
+- [x] **Calendar entries colored by location** - Already implemented in scheduleData, verify working
+
+### TODO: Cleanup
+- [x] Remove DEBUG displays (red/green boxes showing classes.length and names)
+
+---
+
 ## Acceptance Testing Feedback (2025-12-13)
 
 **UX Issues to Address:**

@@ -1354,50 +1354,231 @@ Return all visible text.`
           {/* Classes Section */}
           <div style={{ marginBottom: "2rem" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
-            {/* DEBUG: Simple class count display - using computed */}
-            <div style={{ background: "#ffe0e0", padding: "0.5rem", marginBottom: "0.5rem" }}>
-              DEBUG: classes.length = {computed(() => classes.get().length)}
-            </div>
-            {/* DEBUG: Simple map without derive - just names using computed */}
-            <div style={{ background: "#e0ffe0", padding: "0.5rem", marginBottom: "0.5rem" }}>
-              DEBUG names: {computed(() => classes.get().map((c: Class) => c.name).join(", "))}
-            </div>
-            {/* List classes - SIMPLIFIED: single derive, no nesting to test reactivity */}
+            {/* List classes - SINGLE FLAT DERIVE (no nesting to preserve reactivity) */}
             <div style={{ marginBottom: "1rem" }}>
-              {classes.map((cls) => {
-                // Simple derive with just name and location - NO NESTED DERIVES
-                return derive({ name: cls.name, location: cls.location }, ({ name, location }) => {
+              {classes.map((cls, idx) => {
+                // ALL reactive values in ONE derive call - no nested derive/computed allowed!
+                return derive({
+                  name: cls.name,
+                  description: cls.description,
+                  location: cls.location,
+                  timeSlots: cls.timeSlots,
+                  cost: cls.cost,
+                  gradeMin: cls.gradeMin,
+                  gradeMax: cls.gradeMax,
+                  pinnedInSets: cls.pinnedInSets,
+                  statuses: cls.statuses,
+                  editIdx: editingClassIndex,
+                  activeSet: activeSetName,
+                  locs: locations,
+                }, (props) => {
+                  // Destructure with proper types - derive unwraps Cell values for item properties
+                  // Pattern-level Cells (editIdx, activeSet, locs) need .get()
+                  const name = props.name as string;
+                  const description = props.description as string;
+                  const location = props.location as Location;
+                  const timeSlots = props.timeSlots as TimeSlot[];
+                  const cost = props.cost as number;
+                  const gradeMin = props.gradeMin as string;
+                  const gradeMax = props.gradeMax as string;
+                  const pinnedInSets = props.pinnedInSets as string[];
+                  const statuses = props.statuses as StatusFlags;
+                  // Pattern-level Cells remain as Cells - use .get()
+                  const editIdx = (props.editIdx as Cell<number>).get();
+                  const activeSet = (props.activeSet as Cell<string>).get();
+                  const locs = (props.locs as Cell<Location[]>).get();
+
                   const locColor = getLocationColor(location?.name || "");
+                  const isEditing = editIdx === idx;
+                  const pinArray: string[] = Array.isArray(pinnedInSets) ? pinnedInSets : [];
+                  const isPinned = pinArray.includes(activeSet);
+                  const slots = timeSlots || [];
+                  const firstSlot = slots[0];
+                  const dayTimeDisplay = firstSlot
+                    ? `${firstSlot.day?.slice(0, 3) || "?"} ${firstSlot.startTime || "?"}-${firstSlot.endTime || "?"}`
+                    : "(no time set)";
+
                   return (
                     <div
                       style={{
                         padding: "0.75rem",
-                        background: "#f9f9f9",
-                        border: "1px solid #e0e0e0",
+                        background: isPinned ? "#e3f2fd" : "#f9f9f9",
+                        border: `1px solid ${isPinned ? "#1976d2" : "#e0e0e0"}`,
                         borderRadius: "4px",
                         marginBottom: "0.5rem",
                         borderLeft: `4px solid ${locColor.border}`,
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      {/* Main row: pin, name, location, day/time, buttons */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+                          {/* Pin button */}
+                          <ct-button
+                            variant="ghost"
+                            style={{ padding: "2px 6px", fontSize: "1em", minWidth: "auto" }}
+                            onClick={togglePinClass({ classList: classes, activeSet: activeSetName, idx })}
+                            title={isPinned ? "Unpin from set" : "Pin to set"}
+                          >
+                            {isPinned ? "📍" : "📌"}
+                          </ct-button>
                           <span style={{ fontWeight: "bold" }}>{name}</span>
                           <span style={{ color: "#666", fontSize: "0.9em" }}>
                             @ {location?.name || "Unknown"}
                           </span>
+                          <span style={{ color: "#888", fontSize: "0.85em" }}>
+                            {dayTimeDisplay}
+                          </span>
                         </div>
-                        <ct-button
-                          onClick={() => {
-                            const current = classes.get();
-                            const index = current.findIndex((el) => Cell.equals(cls, el));
-                            if (index >= 0) {
-                              classes.set(current.toSpliced(index, 1));
-                            }
-                          }}
-                        >
-                          Remove
-                        </ct-button>
+                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <ct-button
+                            variant="ghost"
+                            style={{ padding: "2px 6px", fontSize: "0.85em" }}
+                            onClick={() => editingClassIndex.set(isEditing ? -1 : idx)}
+                          >
+                            {isEditing ? "Done" : "Edit"}
+                          </ct-button>
+                          <ct-button
+                            variant="ghost"
+                            style={{ padding: "2px 6px", fontSize: "0.85em", color: "#c62828" }}
+                            onClick={() => {
+                              const current = classes.get();
+                              const index = current.findIndex((el) => Cell.equals(cls, el));
+                              if (index >= 0) {
+                                classes.set(current.toSpliced(index, 1));
+                              }
+                            }}
+                          >
+                            ✕
+                          </ct-button>
+                        </div>
                       </div>
+
+                      {/* Status checkboxes row */}
+                      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                        {(["registered", "confirmed", "waitlisted", "paid", "onCalendar"] as const).map((key) => (
+                          <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.8em", cursor: "pointer" }}>
+                            <input
+                              type="checkbox"
+                              checked={statuses?.[key] || false}
+                              onChange={() => toggleStatus(classes, cls, key)}
+                            />
+                            {key === "onCalendar" ? "On Cal" : key.charAt(0).toUpperCase() + key.slice(1)}
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Edit panel - shown when editing */}
+                      {isEditing && (
+                        <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", border: "1px solid #e0e0e0", borderRadius: "4px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Name:</label>
+                              <input
+                                type="text"
+                                value={name || ""}
+                                style={{ width: "100%", padding: "0.25rem" }}
+                                onChange={updateClassField({ classList: classes, idx, field: "name" })}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Location:</label>
+                              <select
+                                value={locs.findIndex((l: Location) => l.name === location?.name)}
+                                style={{ width: "100%", padding: "0.25rem" }}
+                                onChange={updateClassLocation({ classList: classes, locs: locations, classIdx: idx })}
+                              >
+                                {locs.map((loc: Location, locIdx: number) => (
+                                  <option value={locIdx}>{loc.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Description:</label>
+                            <textarea
+                              value={description || ""}
+                              style={{ width: "100%", padding: "0.25rem", minHeight: "60px" }}
+                              onChange={updateClassField({ classList: classes, idx, field: "description" })}
+                            />
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Cost ($):</label>
+                              <input
+                                type="number"
+                                value={cost || 0}
+                                style={{ width: "100%", padding: "0.25rem" }}
+                                onChange={updateClassCost({ classList: classes, idx })}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Grade Min:</label>
+                              <input
+                                type="text"
+                                value={gradeMin || ""}
+                                style={{ width: "100%", padding: "0.25rem" }}
+                                onChange={updateClassField({ classList: classes, idx, field: "gradeMin" })}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Grade Max:</label>
+                              <input
+                                type="text"
+                                value={gradeMax || ""}
+                                style={{ width: "100%", padding: "0.25rem" }}
+                                onChange={updateClassField({ classList: classes, idx, field: "gradeMax" })}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Time slots */}
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Time Slots:</label>
+                            {slots.map((slot: TimeSlot, slotIdx: number) => (
+                              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.25rem" }}>
+                                <select
+                                  value={slot.day || "monday"}
+                                  style={{ padding: "0.25rem" }}
+                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "day" })}
+                                >
+                                  {SCHEDULE_DAYS.map((d) => (
+                                    <option value={d}>{d.slice(0, 3)}</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={slot.startTime || ""}
+                                  placeholder="15:00"
+                                  style={{ width: "60px", padding: "0.25rem" }}
+                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "startTime" })}
+                                />
+                                <span>-</span>
+                                <input
+                                  type="text"
+                                  value={slot.endTime || ""}
+                                  placeholder="16:00"
+                                  style={{ width: "60px", padding: "0.25rem" }}
+                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "endTime" })}
+                                />
+                                <ct-button
+                                  variant="ghost"
+                                  style={{ padding: "2px 6px", fontSize: "0.8em" }}
+                                  onClick={removeClassTimeSlot({ classList: classes, classIdx: idx, slotIdx })}
+                                >
+                                  ✕
+                                </ct-button>
+                              </div>
+                            ))}
+                            <ct-button
+                              variant="ghost"
+                              style={{ padding: "2px 6px", fontSize: "0.8em", marginTop: "0.25rem" }}
+                              onClick={addClassTimeSlot({ classList: classes, idx })}
+                            >
+                              + Add Time Slot
+                            </ct-button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 });
@@ -1432,15 +1613,10 @@ Return all visible text.`
               <ct-message-input
                 placeholder="Class name (e.g., Robotics, Dance)"
                 onct-send={(e: { detail?: { message?: string } }) => {
-                  console.log("DEBUG: onct-send fired, e=", e);
                   const name = e.detail?.message?.trim();
-                  console.log("DEBUG: name=", name);
                   const locIdx = selectedLocationIndex.get();
-                  console.log("DEBUG: locIdx=", locIdx);
                   const locs = locations.get();
-                  console.log("DEBUG: locs=", locs, "length=", locs.length);
                   if (name && locIdx >= 0 && locIdx < locs.length) {
-                    console.log("DEBUG: conditions passed, pushing class");
                     classes.push({
                       name,
                       description: "",
@@ -1458,9 +1634,6 @@ Return all visible text.`
                         onCalendar: false,
                       },
                     });
-                    console.log("DEBUG: after push, classes.get()=", classes.get());
-                  } else {
-                    console.log("DEBUG: conditions FAILED - name:", !!name, "locIdx:", locIdx, "locs.length:", locs.length);
                   }
                 }}
               />
