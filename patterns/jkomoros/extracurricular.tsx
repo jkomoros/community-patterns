@@ -559,6 +559,67 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       }
     };
 
+    // Track which class index is being edited (-1 = none)
+    const editingClassIndex = cell<number>(-1);
+
+    // Handler to update a class field
+    const updateClassField = handler<
+      { target: { value: string } },
+      { classList: Cell<Class[]>; idx: number; field: keyof Class }
+    >((event, { classList, idx, field }) => {
+      const current = classList.get();
+      if (idx < 0 || idx >= current.length) return;
+      classList.key(idx).key(field).set(event.target.value);
+    });
+
+    // Handler to update class time slot
+    const updateClassTimeSlot = handler<
+      { target: { value: string } },
+      { classList: Cell<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
+    >((event, { classList, classIdx, slotIdx, field }) => {
+      const current = classList.get();
+      if (classIdx < 0 || classIdx >= current.length) return;
+      const cls = current[classIdx];
+      if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
+      classList.key(classIdx).key("timeSlots").key(slotIdx).key(field).set(event.target.value);
+    });
+
+    // Handler to add a time slot to a class
+    const addClassTimeSlot = handler<
+      unknown,
+      { classList: Cell<Class[]>; idx: number }
+    >((_, { classList, idx }) => {
+      const current = classList.get();
+      if (idx < 0 || idx >= current.length) return;
+      const cls = current[idx];
+      const newSlots = [...(cls.timeSlots || []), { day: "monday" as DayOfWeek, startTime: "15:00", endTime: "16:00" }];
+      classList.key(idx).key("timeSlots").set(newSlots);
+    });
+
+    // Handler to remove a time slot from a class
+    const removeClassTimeSlot = handler<
+      unknown,
+      { classList: Cell<Class[]>; classIdx: number; slotIdx: number }
+    >((_, { classList, classIdx, slotIdx }) => {
+      const current = classList.get();
+      if (classIdx < 0 || classIdx >= current.length) return;
+      const cls = current[classIdx];
+      if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
+      const newSlots = cls.timeSlots.filter((_, i) => i !== slotIdx);
+      classList.key(classIdx).key("timeSlots").set(newSlots);
+    });
+
+    // Handler to update class location
+    const updateClassLocation = handler<
+      { target: { value: string } },
+      { classList: Cell<Class[]>; locs: Cell<Location[]>; classIdx: number }
+    >((event, { classList, locs, classIdx }) => {
+      const locIdx = parseInt(event.target.value, 10);
+      const locList = locs.get();
+      if (locIdx < 0 || locIdx >= locList.length) return;
+      classList.key(classIdx).key("location").set(locList[locIdx]);
+    });
+
     // Handler to update child grade
     const setChildGrade = handler<
       { target: { value: string } },
@@ -1284,23 +1345,158 @@ Return all visible text.`
                           </span>
                         )}
                       </div>
-                    <ct-button
-                      onClick={() => {
-                        const current = classes.get();
-                        const index = current.findIndex((el) => Cell.equals(cls, el));
-                        if (index >= 0) {
-                          classes.set(current.toSpliced(index, 1));
-                        }
-                      }}
-                    >
-                      Remove
-                    </ct-button>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        {/* Edit button */}
+                        {derive(editingClassIndex, (editIdx: number) => (
+                          <ct-button
+                            onClick={() => {
+                              editingClassIndex.set(editIdx === idx ? -1 : idx);
+                            }}
+                          >
+                            {editIdx === idx ? "Done" : "Edit"}
+                          </ct-button>
+                        ))}
+                        <ct-button
+                          onClick={() => {
+                            const current = classes.get();
+                            const index = current.findIndex((el) => Cell.equals(cls, el));
+                            if (index >= 0) {
+                              classes.set(current.toSpliced(index, 1));
+                              // Close edit panel if this class was being edited
+                              if (editingClassIndex.get() === index) {
+                                editingClassIndex.set(-1);
+                              }
+                            }
+                          }}
+                        >
+                          Remove
+                        </ct-button>
+                      </div>
                   </div>
-                  {cls.description && (
-                    <p style={{ margin: "0.5rem 0", color: "#555", fontSize: "0.9em" }}>
-                      {cls.description}
-                    </p>
-                  )}
+
+                  {/* Edit panel - shown when editing this class */}
+                  {derive(editingClassIndex, (editIdx: number) => {
+                    if (editIdx !== idx) return null;
+                    return (
+                      <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", border: "1px solid #ddd", borderRadius: "4px" }}>
+                        <div style={{ display: "grid", gap: "0.5rem", gridTemplateColumns: "1fr 1fr" }}>
+                          {/* Name */}
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Name:</label>
+                            <input
+                              type="text"
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={cls.name || ""}
+                              onChange={updateClassField({ classList: classes, idx, field: "name" })}
+                            />
+                          </div>
+                          {/* Description */}
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Description:</label>
+                            <input
+                              type="text"
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={cls.description || ""}
+                              onChange={updateClassField({ classList: classes, idx, field: "description" })}
+                            />
+                          </div>
+                          {/* Location */}
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Location:</label>
+                            <select
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={locations.get().findIndex((l) => l.name === cls.location?.name)}
+                              onChange={updateClassLocation({ classList: classes, locs: locations, classIdx: idx })}
+                            >
+                              {locations.map((loc, locIdx) => (
+                                <option value={locIdx}>{loc.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {/* Cost */}
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Cost ($):</label>
+                            <input
+                              type="number"
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={cls.cost || 0}
+                              onChange={(e: { target: { value: string } }) => {
+                                classes.key(idx).key("cost").set(parseFloat(e.target.value) || 0);
+                              }}
+                            />
+                          </div>
+                          {/* Grade range */}
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Grade Min:</label>
+                            <input
+                              type="text"
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={cls.gradeMin || ""}
+                              onChange={updateClassField({ classList: classes, idx, field: "gradeMin" })}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Grade Max:</label>
+                            <input
+                              type="text"
+                              style={{ width: "100%", padding: "0.4rem" }}
+                              value={cls.gradeMax || ""}
+                              onChange={updateClassField({ classList: classes, idx, field: "gradeMax" })}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Time slots */}
+                        <div style={{ marginTop: "0.75rem" }}>
+                          <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem", fontWeight: "bold" }}>Time Slots:</label>
+                          {(cls.timeSlots || []).map((slot: TimeSlot, slotIdx: number) => (
+                            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.25rem" }}>
+                              <select
+                                style={{ padding: "0.3rem" }}
+                                value={slot.day}
+                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "day" })}
+                              >
+                                <option value="monday">Mon</option>
+                                <option value="tuesday">Tue</option>
+                                <option value="wednesday">Wed</option>
+                                <option value="thursday">Thu</option>
+                                <option value="friday">Fri</option>
+                                <option value="saturday">Sat</option>
+                                <option value="sunday">Sun</option>
+                              </select>
+                              <input
+                                type="text"
+                                style={{ width: "60px", padding: "0.3rem" }}
+                                placeholder="15:00"
+                                value={slot.startTime || ""}
+                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "startTime" })}
+                              />
+                              <span>-</span>
+                              <input
+                                type="text"
+                                style={{ width: "60px", padding: "0.3rem" }}
+                                placeholder="16:00"
+                                value={slot.endTime || ""}
+                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "endTime" })}
+                              />
+                              <ct-button
+                                onClick={removeClassTimeSlot({ classList: classes, classIdx: idx, slotIdx })}
+                              >
+                                ✕
+                              </ct-button>
+                            </div>
+                          ))}
+                          <ct-button
+                            style={{ marginTop: "0.25rem" }}
+                            onClick={addClassTimeSlot({ classList: classes, idx })}
+                          >
+                            + Add Time Slot
+                          </ct-button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
                   {/* Status checkboxes - embedded state */}
                   <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
