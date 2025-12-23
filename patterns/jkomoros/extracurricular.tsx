@@ -9,8 +9,22 @@
  * - Grade and age-based eligibility triage
  * - Schedule conflict detection
  * - Pinned sets for comparing schedule options
+ * - Export to Calendar (iCal) with confirmation dialog
+ *
+ * Security: Calendar export operations require explicit user confirmation
+ * via a modal dialog that shows exactly what will be exported. This pattern
+ * serves as a declassification gate for future policy-based trust systems.
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import {
+  generateICS,
+  generateEventUID,
+  getFirstOccurrenceDate,
+  dayToICalDay,
+  downloadICS,
+  type ICalEvent,
+  type DayOfWeek as ICalDayOfWeek,
+} from "./util/ical-generator.ts";
 
 // ============================================================================
 // TYPES
@@ -125,6 +139,40 @@ interface StagedClass extends ExtractedClassInfo {
 }
 
 // ============================================================================
+// CALENDAR EXPORT TYPES
+// ============================================================================
+
+/** Semester/term date range for recurring events */
+interface SemesterDates {
+  startDate: string;  // YYYY-MM-DD
+  endDate: string;    // YYYY-MM-DD
+}
+
+/** Pending calendar export operation for confirmation dialog */
+type PendingCalendarExport = {
+  /** Classes to be exported */
+  classes: Class[];
+  /** Semester date range */
+  semester: SemesterDates;
+  /** Generated ICS content */
+  icsContent: string;
+  /** Child name for filename */
+  childName: string;
+  /** Active set name for filename */
+  setName: string;
+  /** Number of individual events (class * time slots) */
+  eventCount: number;
+} | null;
+
+/** Result of a calendar export operation */
+type CalendarExportResult = {
+  success: boolean;
+  message: string;
+  timestamp: string;
+  exportedCount: number;
+} | null;
+
+// ============================================================================
 // PATTERN INPUT - Phase 5
 // ============================================================================
 
@@ -138,6 +186,8 @@ interface ExtracurricularInput {
   // Staged classes for import preview - pattern input for idiomatic $checked binding
   // Cell<Default<>> wrapper enables cell-like property access in .map()
   stagedClasses: Cell<Default<StagedClass[], []>>;
+  // Calendar export: semester dates for recurring events
+  semesterDates: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -375,7 +425,7 @@ type ScheduleSlotData = {
 // ============================================================================
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses }) => {
+  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses, semesterDates }) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
@@ -1094,6 +1144,196 @@ Return all visible text.`
       classList.key(idx).key("pinnedInSets").set(newPins);
     });
 
+    // =========================================================================
+    // CALENDAR EXPORT - Trusted UI gate for external system writes
+    // =========================================================================
+
+    // Calendar export state - pending operation and result
+    const pendingCalendarExport = cell<PendingCalendarExport>(null);
+    const calendarExportResult = cell<CalendarExportResult>(null);
+    const calendarExportProcessing = cell<boolean>(false);
+
+    /**
+     * Converts pinned classes to ICalEvent array for export.
+     * Creates one event per time slot with weekly recurrence.
+     */
+    function classesToICalEvents(
+      classList: Class[],
+      semester: SemesterDates
+    ): ICalEvent[] {
+      const events: ICalEvent[] = [];
+      let eventIndex = 0;
+
+      for (const cls of classList) {
+        for (const slot of cls.timeSlots || []) {
+          // Find the first occurrence of this weekday within the semester
+          const firstDate = getFirstOccurrenceDate(
+            semester.startDate,
+            slot.day as ICalDayOfWeek
+          );
+
+          // Skip if first occurrence is after semester end
+          if (firstDate > semester.endDate) continue;
+
+          const event: ICalEvent = {
+            uid: generateEventUID(cls.name, eventIndex++),
+            summary: cls.name,
+            location: cls.location?.name
+              ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+              : undefined,
+            description: cls.description || undefined,
+            startDate: firstDate,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            rrule: {
+              freq: "WEEKLY",
+              byday: dayToICalDay(slot.day as ICalDayOfWeek),
+              until: semester.endDate,
+            },
+          };
+
+          events.push(event);
+        }
+      }
+
+      return events;
+    }
+
+    /**
+     * Prepares calendar export - shows confirmation dialog.
+     * This is the "prepare" phase of the two-phase commit pattern.
+     */
+    const prepareCalendarExport = handler<
+      unknown,
+      {
+        pinnedClasses: Cell<Class[]>;
+        semesterDates: Cell<SemesterDates>;
+        child: Cell<ChildProfile>;
+        activeSetName: Cell<string>;
+        pendingExport: Cell<PendingCalendarExport>;
+      }
+    >((_, { pinnedClasses, semesterDates, child, activeSetName, pendingExport }) => {
+      const classList = pinnedClasses.get();
+      const semester = semesterDates.get();
+      const childProfile = child.get();
+      const setName = activeSetName.get();
+
+      if (!classList || classList.length === 0) return;
+      if (!semester.startDate || !semester.endDate) return;
+
+      // Generate ICS content
+      const events = classesToICalEvents(classList, semester);
+      const calendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
+      const icsContent = generateICS(events, {
+        calendarName,
+        prodId: "-//CommonTools//Extracurricular Selector//EN",
+      });
+
+      // Set pending operation for confirmation dialog
+      pendingExport.set({
+        classes: classList,
+        semester,
+        icsContent,
+        childName: childProfile.name || "Child",
+        setName: setName || "default",
+        eventCount: events.length,
+      });
+    });
+
+    /**
+     * Cancels the pending calendar export operation.
+     */
+    const cancelCalendarExport = handler<
+      unknown,
+      { pendingExport: Cell<PendingCalendarExport> }
+    >((_, { pendingExport }) => {
+      pendingExport.set(null);
+    });
+
+    /**
+     * Confirms and executes the calendar export - downloads ICS file.
+     * This is the "confirm" phase of the two-phase commit pattern.
+     */
+    const confirmCalendarExport = handler<
+      unknown,
+      {
+        pendingExport: Cell<PendingCalendarExport>;
+        processing: Cell<boolean>;
+        result: Cell<CalendarExportResult>;
+        classList: Cell<Class[]>;
+      }
+    >((_, { pendingExport, processing, result, classList }) => {
+      const pending = pendingExport.get();
+      if (!pending) return;
+
+      processing.set(true);
+
+      try {
+        // Generate filename
+        const dateStr = new Date().toISOString().split("T")[0];
+        const setSlug = pending.setName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+        const childSlug = pending.childName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+        const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
+
+        // Download the ICS file
+        downloadICS(pending.icsContent, filename);
+
+        // Mark classes as exported to calendar
+        const currentClasses = classList.get();
+        for (let i = 0; i < currentClasses.length; i++) {
+          const cls = currentClasses[i];
+          // Check if this class was in the exported set
+          const wasExported = pending.classes.some(
+            (exportedCls) => Cell.equals(cls, exportedCls)
+          );
+          if (wasExported && !cls.statuses?.onCalendar) {
+            classList.key(i).key("statuses").key("onCalendar").set(true);
+          }
+        }
+
+        result.set({
+          success: true,
+          message: `Successfully exported ${pending.eventCount} events to ${filename}`,
+          timestamp: new Date().toISOString(),
+          exportedCount: pending.eventCount,
+        });
+
+        pendingExport.set(null);
+      } catch (error) {
+        result.set({
+          success: false,
+          message: error instanceof Error ? error.message : String(error),
+          timestamp: new Date().toISOString(),
+          exportedCount: 0,
+        });
+      } finally {
+        processing.set(false);
+      }
+    });
+
+    /**
+     * Dismisses the export result notification.
+     */
+    const dismissExportResult = handler<
+      unknown,
+      { result: Cell<CalendarExportResult> }
+    >((_, { result }) => {
+      result.set(null);
+    });
+
+    // Computed: can export (has pinned classes and semester dates)
+    const canExportCalendar = computed(() => {
+      const pinned = pinnedClasses as Class[];
+      const semester = semesterDates.get();
+      return (
+        pinned &&
+        pinned.length > 0 &&
+        semester.startDate &&
+        semester.endDate &&
+        semester.startDate <= semester.endDate
+      );
+    });
+
     return {
       [NAME]: "Extracurricular Selector",
       [UI]: (
@@ -1390,7 +1630,328 @@ Return all visible text.`
                 </div>
               );
             })}
+
+            {/* Export to Calendar Section */}
+            <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#fff8e1", border: "1px solid #ffc107", borderRadius: "4px" }}>
+              <h4 style={{ marginBottom: "0.5rem", color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>📅</span> Export to Calendar
+              </h4>
+              <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
+                Export pinned classes as recurring calendar events. Set semester dates first.
+              </p>
+
+              {/* Semester date inputs */}
+              <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
+                  <input
+                    type="date"
+                    style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
+                    value={(semesterDates as any).startDate || ""}
+                    onChange={(e: { target: { value: string } }) => {
+                      const current = semesterDates.get();
+                      semesterDates.set({ ...current, startDate: e.target.value });
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
+                  <input
+                    type="date"
+                    style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
+                    value={(semesterDates as any).endDate || ""}
+                    onChange={(e: { target: { value: string } }) => {
+                      const current = semesterDates.get();
+                      semesterDates.set({ ...current, endDate: e.target.value });
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Export button */}
+              <ct-button
+                variant="primary"
+                disabled={derive(canExportCalendar, (can) => !can)}
+                style={{
+                  opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
+                }}
+                onClick={prepareCalendarExport({
+                  pinnedClasses: pinnedClasses as Cell<Class[]>,
+                  semesterDates,
+                  child,
+                  activeSetName,
+                  pendingExport: pendingCalendarExport,
+                })}
+              >
+                Export to iCal (.ics)
+              </ct-button>
+
+              {/* Validation message */}
+              {ifElse(
+                derive(canExportCalendar, (can) => !can),
+                <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
+                  {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }) => {
+                    const p = pinned as Class[];
+                    const s = semester as SemesterDates;
+                    if (!p || p.length === 0) return "Pin some classes to export";
+                    if (!s.startDate) return "Set semester start date";
+                    if (!s.endDate) return "Set semester end date";
+                    if (s.startDate > s.endDate) return "End date must be after start date";
+                    return "";
+                  })}
+                </p>,
+                null
+              )}
+            </div>
           </div>
+
+          {/* Calendar Export Result Toast */}
+          {ifElse(
+            derive(calendarExportResult, (r: CalendarExportResult) => r !== null),
+            <div
+              style={{
+                position: "fixed",
+                bottom: "20px",
+                right: "20px",
+                padding: "1rem 1.5rem",
+                borderRadius: "8px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                zIndex: 1000,
+                background: derive(calendarExportResult, (r: CalendarExportResult) =>
+                  r?.success ? "#d1fae5" : "#fee2e2"
+                ),
+                border: derive(calendarExportResult, (r: CalendarExportResult) =>
+                  r?.success ? "1px solid #10b981" : "1px solid #ef4444"
+                ),
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+              }}
+            >
+              <div>
+                <div style={{
+                  fontWeight: "bold",
+                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
+                    r?.success ? "#065f46" : "#991b1b"
+                  ),
+                }}>
+                  {derive(calendarExportResult, (r: CalendarExportResult) =>
+                    r?.success ? "Export Successful!" : "Export Failed"
+                  )}
+                </div>
+                <div style={{
+                  fontSize: "0.85em",
+                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
+                    r?.success ? "#047857" : "#b91c1c"
+                  ),
+                }}>
+                  {derive(calendarExportResult, (r: CalendarExportResult) => r?.message)}
+                </div>
+              </div>
+              <button
+                onClick={dismissExportResult({ result: calendarExportResult })}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: "1.2em",
+                  cursor: "pointer",
+                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
+                    r?.success ? "#065f46" : "#991b1b"
+                  ),
+                }}
+              >
+                ×
+              </button>
+            </div>,
+            null
+          )}
+
+          {/* Calendar Export Confirmation Dialog */}
+          {ifElse(
+            derive(pendingCalendarExport, (p: PendingCalendarExport) => p !== null),
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  borderRadius: "12px",
+                  maxWidth: "600px",
+                  width: "90%",
+                  maxHeight: "90vh",
+                  overflow: "auto",
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                }}
+              >
+                {/* Header */}
+                <div
+                  style={{
+                    padding: "20px",
+                    borderBottom: "2px solid #f59e0b",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                  }}
+                >
+                  <span style={{ fontSize: "24px" }}>📅</span>
+                  <h3 style={{ margin: 0, fontSize: "20px", color: "#b45309" }}>
+                    Export to Calendar
+                  </h3>
+                </div>
+
+                {/* Content */}
+                <div style={{ padding: "20px" }}>
+                  {/* Summary */}
+                  <div
+                    style={{
+                      background: "#f9fafb",
+                      borderRadius: "8px",
+                      padding: "16px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px" }}>
+                      {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                        `${p?.childName}'s ${p?.setName} Schedule`
+                      )}
+                    </div>
+
+                    {/* Event count */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
+                      <span>📝</span>
+                      <span>
+                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                          `${p?.eventCount} recurring events from ${p?.classes.length} classes`
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Date range */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: "#4b5563" }}>
+                      <span>📆</span>
+                      <span>
+                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                          `${p?.semester.startDate} to ${p?.semester.endDate}`
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Classes list */}
+                    <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "12px" }}>
+                      <div style={{ fontWeight: "500", marginBottom: "8px" }}>Classes to export:</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                          (p?.classes || []).map((cls: Class) => (
+                            <span
+                              style={{
+                                background: "white",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "16px",
+                                padding: "4px 10px",
+                                fontSize: "13px",
+                              }}
+                            >
+                              {cls.name}
+                              <span style={{ color: "#888", marginLeft: "4px" }}>
+                                ({(cls.timeSlots || []).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
+                              </span>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warning */}
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "8px",
+                      border: "1px solid #f59e0b",
+                      background: "#fef3c7",
+                    }}
+                  >
+                    <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
+                      This will download an iCal file
+                    </div>
+                    <div style={{ fontSize: "14px", color: "#78350f" }}>
+                      Import the downloaded .ics file into Apple Calendar, Google Calendar, or other calendar apps.
+                      Events will repeat weekly until the semester end date.
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
+                      Tip: On macOS, double-click the .ics file to add events directly to Calendar.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div
+                  style={{
+                    padding: "16px 20px",
+                    borderTop: "1px solid #e5e7eb",
+                    display: "flex",
+                    gap: "12px",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    onClick={cancelCalendarExport({ pendingExport: pendingCalendarExport })}
+                    disabled={calendarExportProcessing}
+                    style={{
+                      padding: "10px 20px",
+                      background: "white",
+                      color: "#374151",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmCalendarExport({
+                      pendingExport: pendingCalendarExport,
+                      processing: calendarExportProcessing,
+                      result: calendarExportResult,
+                      classList: classes,
+                    })}
+                    disabled={calendarExportProcessing}
+                    style={{
+                      padding: "10px 20px",
+                      background: "#f59e0b",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      opacity: derive(calendarExportProcessing, (p) => p ? 0.7 : 1),
+                    }}
+                  >
+                    {ifElse(
+                      calendarExportProcessing,
+                      "Exporting...",
+                      "Download .ics File"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            null
+          )}
 
           {/* Classes Section */}
           <div style={{ marginBottom: "2rem" }}>
@@ -2007,6 +2568,8 @@ Return all visible text.`
       // stagedClasses is a pattern INPUT (not local cell) for idiomatic $checked binding
       // Local cells don't support cell-like property access in .map(); pattern inputs do
       stagedClasses,
+      // semesterDates for calendar export
+      semesterDates,
     };
   }
 );
