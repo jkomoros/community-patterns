@@ -78,6 +78,7 @@ interface ExtractedClassInfo {
   endTime: string;
   gradeMin: string;
   gradeMax: string;
+  permissionGrades: string;  // Grades that can join "with permission" or "by invitation"
   cost: number;
   notes: string;
 }
@@ -182,15 +183,30 @@ function isGradeInRange(childGrade: Grade, gradeMin: string, gradeMax: string): 
 function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: TriageStatus; reason: string } {
   // Check for "with permission" or similar notes that suggest needs_review
   const notes = (cls.notes || "").toLowerCase();
-  const hasPermissionNote = notes.includes("permission") || notes.includes("approval");
+  const hasPermissionNote = notes.includes("permission") || notes.includes("approval") || notes.includes("invitation");
 
   const { eligible, reason } = isGradeInRange(childGrade, cls.gradeMin, cls.gradeMax);
+
+  // Check if child's grade is in the permissionGrades list
+  const permissionGrades = (cls.permissionGrades || "").toUpperCase();
+  const childGradeNorm = childGrade.toUpperCase();
+  // Match grade in permission list (handles "K", "3", "TK", etc.)
+  const isInPermissionGrades = permissionGrades.length > 0 && (
+    permissionGrades.includes(childGradeNorm) ||
+    permissionGrades.includes(childGradeNorm + "TH") ||  // "3" matches "3rd" -> "3TH" won't match but...
+    permissionGrades.includes(childGradeNorm + "RD") ||  // "3RD"
+    permissionGrades.includes(childGradeNorm + "ND") ||  // "2ND"
+    permissionGrades.includes(childGradeNorm + "ST")     // "1ST"
+  );
 
   if (eligible) {
     if (hasPermissionNote) {
       return { status: "needs_review", reason: `${reason}, but requires permission` };
     }
     return { status: "auto_kept", reason };
+  } else if (isInPermissionGrades) {
+    // Child's grade is outside normal range but eligible by permission/invitation
+    return { status: "needs_review", reason: `Grade ${childGrade} eligible by invitation/permission` };
   } else {
     return { status: "auto_discarded", reason };
   }
@@ -405,7 +421,14 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
 
 ${text}
 
-For each class found, extract: name, dayOfWeek (lowercase), startTime (24h format), endTime (24h format), gradeMin, gradeMax, cost (number), and notes.`;
+For each class found, extract:
+- name: class name
+- dayOfWeek: lowercase (monday, tuesday, etc.)
+- startTime, endTime: 24h format (e.g., "15:30")
+- gradeMin, gradeMax: the standard eligible grade range (e.g., "1" and "3" for Gr 1-3)
+- permissionGrades: grades outside the standard range that can join "with permission", "by invitation", or "w/permission" (e.g., "K" if "K with permission", or "3, 6" if "3rd and 6th with permission"). Empty string if none.
+- cost: number
+- notes: any other relevant info`;
     });
 
     // Run LLM extraction - destructure result/pending like food-recipe.tsx
@@ -427,6 +450,7 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
                 endTime: { type: "string" as const },
                 gradeMin: { type: "string" as const },
                 gradeMax: { type: "string" as const },
+                permissionGrades: { type: "string" as const },
                 cost: { type: "number" as const },
                 notes: { type: "string" as const },
               },
@@ -471,10 +495,11 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
         const triage = triageClass(cls, childGrade as Grade);
         // Pre-compute display values based on triage status
+        // needs_review uses ⚠️ warning icon to highlight "by invitation" classes
         const displayValues = triage.status === "auto_kept"
           ? { emoji: "✓", bg: "#e8f5e9", border: "#4caf50" }
           : triage.status === "needs_review"
-          ? { emoji: "?", bg: "#fff3e0", border: "#ff9800" }
+          ? { emoji: "⚠️", bg: "#fff3e0", border: "#ff9800" }
           : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
         // Explicitly extract all fields as primitives to avoid $alias proxy leakage
         return {
@@ -484,9 +509,11 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           endTime: String(cls.endTime || ""),
           gradeMin: String(cls.gradeMin || ""),
           gradeMax: String(cls.gradeMax || ""),
+          permissionGrades: String(cls.permissionGrades || ""),
           cost: Number(cls.cost) || 0,
           notes: String(cls.notes || ""),
-          selected: triage.status !== "auto_discarded",
+          // Only auto_kept is pre-selected; needs_review requires conscious opt-in
+          selected: triage.status === "auto_kept",
           triageStatus: triage.status,
           triageReason: triage.reason,
           triageEmoji: displayValues.emoji,
