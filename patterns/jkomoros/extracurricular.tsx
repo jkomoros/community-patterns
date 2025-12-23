@@ -276,12 +276,13 @@ interface ExtracurricularInput {
   // Staged classes for import preview - pattern input for idiomatic $checked binding
   // Cell<Default<>> wrapper enables cell-like property access in .map()
   stagedClasses: Cell<Default<StagedClass[], []>>;
-  // Calendar export: semester dates for recurring events
-  semesterDates: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
-  // Calendar export: target calendar name (persists)
-  calendarName: Cell<Default<string, "">>;
-  // Calendar export: outbox for apple-sync CLI to process
-  calendarOutbox: Cell<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
+
+  // Calendar export (optional feature) - provides semester date tracking
+  // and iCal export for pinned classes. Mark as optional with ? to signal
+  // these are auxiliary features, not core functionality.
+  semesterDates?: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
+  calendarName?: Cell<Default<string, "">>;
+  calendarOutbox?: Cell<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
