@@ -360,18 +360,26 @@ type ScheduleSlotData = {
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
   ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses }) => {
-    // Local cell for selected location when adding a class
-    const selectedLocationIndex = cell<number>(-1);
+    // Local cell for selected location when adding a class (string for ct-select binding)
+    const selectedLocationIndexStr = cell<string>("-1");
 
     // Local cell for new location type when adding a location
     const newLocationType = cell<LocationType>("afterschool-onsite");
 
-    // Handler to update selected location index
+    // Handler to update selected location index (for Import section, uses number)
     const setLocationIndex = handler<
       { target: { value: string } },
       { idx: Cell<number> }
     >((event, state) => {
       state.idx.set(parseInt(event.target.value, 10));
+    });
+
+    // Handler to update selected location index for Add Class (uses string)
+    const setLocationIndexStr = handler<
+      { target: { value: string } },
+      { idx: Cell<string> }
+    >((event, state) => {
+      state.idx.set(event.target.value);
     });
 
     // =========================================================================
@@ -631,6 +639,15 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       const locList = locs.get();
       if (locIdx < 0 || locIdx >= locList.length) return;
       classList.key(classIdx).key("location").set(locList[locIdx]);
+    });
+
+    // Handler to update class cost
+    const updateClassCost = handler<
+      { target: { value: string } },
+      { classList: Cell<Class[]>; idx: number }
+    >((event, { classList, idx }) => {
+      const cost = parseFloat(event.target.value) || 0;
+      classList.key(idx).key("cost").set(cost);
     });
 
     // Handler to update child grade
@@ -1341,76 +1358,78 @@ Return all visible text.`
           <div style={{ marginBottom: "2rem" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
 
-            {/* List classes - direct Cell mapping, no derive needed */}
+            {/* List classes - uses derive for reactive class properties */}
             <div style={{ marginBottom: "1rem" }}>
               {classes.map((cls, idx) => {
-                const locColor = getLocationColor(cls.location?.name || "");
-                // Format time slots for display
-                const timeSlotText = (cls.timeSlots || []).map((slot: TimeSlot) => {
-                  const day = slot.day ? slot.day.charAt(0).toUpperCase() + slot.day.slice(1, 3) : "";
-                  return `${day} ${slot.startTime}-${slot.endTime}`;
-                }).join(", ");
+                // Use derive to unwrap reactive class properties
+                return derive({ location: cls.location, timeSlots: cls.timeSlots, name: cls.name }, ({ location, timeSlots, name }) => {
+                  const locColor = getLocationColor(location?.name || "");
+                  // Format time slots for display
+                  const timeSlotText = (timeSlots || []).map((slot: TimeSlot) => {
+                    const day = slot.day ? slot.day.charAt(0).toUpperCase() + slot.day.slice(1, 3) : "";
+                    return `${day} ${slot.startTime}-${slot.endTime}`;
+                  }).join(", ");
 
-                return (
-                  <div
-                    style={{
-                      padding: "0.75rem",
-                      background: "#f9f9f9",
-                      border: "1px solid #e0e0e0",
-                      borderRadius: "4px",
-                      marginBottom: "0.5rem",
-                      borderLeft: `4px solid ${locColor.border}`,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                        {/* Pin button using handler pattern */}
-                        {/* Check if class is pinned to active set */}
-                        {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
-                          const pinArray: string[] = Array.isArray(pins) ? pins : [];
-                          const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
-                          const isPinned = pinArray.includes(activeSetStr);
-                          return (
-                            <ct-button
+                  return (
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        background: "#f9f9f9",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: "4px",
+                        marginBottom: "0.5rem",
+                        borderLeft: `4px solid ${locColor.border}`,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                          {/* Pin button using handler pattern */}
+                          {/* Check if class is pinned to active set */}
+                          {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
+                            const pinArray: string[] = Array.isArray(pins) ? pins : [];
+                            const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
+                            const isPinned = pinArray.includes(activeSetStr);
+                            return (
+                              <ct-button
+                                style={{
+                                  border: isPinned ? "2px solid #1976d2" : "none",
+                                  borderRadius: "4px",
+                                  padding: "0.25rem 0.5rem",
+                                  cursor: "pointer",
+                                  background: isPinned ? "#e3f2fd" : "transparent",
+                                }}
+                                onClick={togglePinClass({
+                                  classList: classes,
+                                  activeSet: activeSetName,
+                                  idx,
+                                })}
+                              >
+                                {isPinned ? "📌" : "📍"}
+                              </ct-button>
+                            );
+                          })}
+                          <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{name}</span>
+                          {/* Location with color indicator */}
+                          <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#666", fontSize: "0.9em" }}>
+                            <span
                               style={{
-                                border: isPinned ? "2px solid #1976d2" : "none",
-                                borderRadius: "4px",
-                                padding: "0.25rem 0.5rem",
-                                cursor: "pointer",
-                                background: isPinned ? "#e3f2fd" : "transparent",
+                                width: "10px",
+                                height: "10px",
+                                borderRadius: "2px",
+                                background: locColor.bg,
+                                border: `1px solid ${locColor.border}`,
+                                flexShrink: 0,
                               }}
-                              onClick={togglePinClass({
-                                classList: classes,
-                                activeSet: activeSetName,
-                                idx,
-                              })}
-                            >
-                              {isPinned ? "📌" : "📍"}
-                            </ct-button>
-                          );
-                        })}
-                        <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{cls.name}</span>
-                        {/* Location with color indicator */}
-                        <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#666", fontSize: "0.9em" }}>
-                          <span
-                            style={{
-                              width: "10px",
-                              height: "10px",
-                              borderRadius: "2px",
-                              background: locColor.bg,
-                              border: `1px solid ${locColor.border}`,
-                              flexShrink: 0,
-                            }}
-                          />
-                          @ {cls.location?.name || "Unknown"}
-                        </span>
-                        {/* Day/time display */}
-                        {timeSlotText && (
-                          <span style={{ color: "#888", fontSize: "0.85em" }}>
-                            • {timeSlotText}
+                            />
+                            @ {location?.name || "Unknown"}
                           </span>
-                        )}
-                      </div>
+                          {/* Day/time display */}
+                          {timeSlotText && (
+                            <span style={{ color: "#888", fontSize: "0.85em" }}>
+                              • {timeSlotText}
+                            </span>
+                          )}
+                        </div>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
                         {/* Edit button */}
                         {derive(editingClassIndex, (editIdx: number) => (
@@ -1486,9 +1505,7 @@ Return all visible text.`
                               type="number"
                               style={{ width: "100%", padding: "0.4rem" }}
                               value={cls.cost || 0}
-                              onChange={(e: { target: { value: string } }) => {
-                                classes.key(idx).key("cost").set(parseFloat(e.target.value) || 0);
-                              }}
+                              onChange={updateClassCost({ classList: classes, idx })}
                             />
                           </div>
                           {/* Grade range */}
@@ -1563,43 +1580,46 @@ Return all visible text.`
                     );
                   })}
 
-                  {/* Status checkboxes - embedded state */}
-                  <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                      <input
-                        type="checkbox"
-                        checked={cls.statuses.registered}
-                        onChange={() => toggleStatus(classes, cls, "registered")}
-                      />
-                      Registered
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                      <input
-                        type="checkbox"
-                        checked={cls.statuses.confirmed}
-                        onChange={() => toggleStatus(classes, cls, "confirmed")}
-                      />
-                      Confirmed
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                      <input
-                        type="checkbox"
-                        checked={cls.statuses.paid}
-                        onChange={() => toggleStatus(classes, cls, "paid")}
-                      />
-                      Paid
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                      <input
-                        type="checkbox"
-                        checked={cls.statuses.onCalendar}
-                        onChange={() => toggleStatus(classes, cls, "onCalendar")}
-                      />
-                      On Calendar
-                    </label>
-                  </div>
+                  {/* Status checkboxes - embedded state - uses derive for reactive statuses */}
+                  {derive(cls.statuses, (statuses: StatusFlags) => (
+                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                        <input
+                          type="checkbox"
+                          checked={statuses.registered}
+                          onChange={() => toggleStatus(classes, cls, "registered")}
+                        />
+                        Registered
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                        <input
+                          type="checkbox"
+                          checked={statuses.confirmed}
+                          onChange={() => toggleStatus(classes, cls, "confirmed")}
+                        />
+                        Confirmed
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                        <input
+                          type="checkbox"
+                          checked={statuses.paid}
+                          onChange={() => toggleStatus(classes, cls, "paid")}
+                        />
+                        Paid
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
+                        <input
+                          type="checkbox"
+                          checked={statuses.onCalendar}
+                          onChange={() => toggleStatus(classes, cls, "onCalendar")}
+                        />
+                        On Calendar
+                      </label>
+                    </div>
+                  ))}
                 </div>
-                );
+                  );
+                });
               })}
             </div>
 
@@ -1618,11 +1638,12 @@ Return all visible text.`
                 </label>
                 <select
                   style={{ width: "100%", padding: "0.5rem" }}
-                  onChange={setLocationIndex({ idx: selectedLocationIndex })}
+                  value={selectedLocationIndexStr}
+                  onChange={setLocationIndexStr({ idx: selectedLocationIndexStr })}
                 >
                   <option value="-1">-- Select a location --</option>
                   {locations.map((loc, idx) => (
-                    <option value={idx}>{loc.name}</option>
+                    <option value={String(idx)}>{loc.name}</option>
                   ))}
                 </select>
               </div>
@@ -1630,7 +1651,8 @@ Return all visible text.`
                 placeholder="Class name (e.g., Robotics, Dance)"
                 onct-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
-                  const locIdx = selectedLocationIndex.get();
+                  const locIdxStr = selectedLocationIndexStr.get();
+                  const locIdx = parseInt(locIdxStr, 10);
                   const locs = locations.get();
                   if (name && locIdx >= 0 && locIdx < locs.length) {
                     classes.push({
@@ -1878,55 +1900,58 @@ Return all visible text.`
             {/* List locations with color indicators */}
             <div style={{ marginBottom: "1rem" }}>
               {locations.map((loc) => {
-                const locColor = getLocationColor(loc.name);
-                return (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      alignItems: "center",
-                      padding: "0.5rem",
-                      background: "#f5f5f5",
-                      borderRadius: "4px",
-                      marginBottom: "0.5rem",
-                      borderLeft: `4px solid ${locColor.border}`,
-                    }}
-                  >
-                    <span
+                // Use derive to unwrap reactive location properties
+                return derive({ name: loc.name, type: loc.type, address: loc.address }, ({ name, type, address }) => {
+                  const locColor = getLocationColor(name || "");
+                  return (
+                    <div
                       style={{
-                        width: "12px",
-                        height: "12px",
-                        borderRadius: "2px",
-                        background: locColor.bg,
-                        border: `1px solid ${locColor.border}`,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ fontWeight: "bold" }}>{loc.name}</span>
-                    <span style={{ color: "#666", fontSize: "0.9em" }}>
-                      ({loc.type})
-                    </span>
-                    {loc.address && (
-                      <span style={{ color: "#888", fontSize: "0.8em" }}>
-                        - {loc.address}
-                      </span>
-                    )}
-                    <ct-button
-                      style={{ marginLeft: "auto" }}
-                      onClick={() => {
-                        const current = locations.get();
-                        const index = current.findIndex((el) =>
-                          Cell.equals(loc, el)
-                        );
-                        if (index >= 0) {
-                          locations.set(current.toSpliced(index, 1));
-                        }
+                        display: "flex",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                        padding: "0.5rem",
+                        background: "#f5f5f5",
+                        borderRadius: "4px",
+                        marginBottom: "0.5rem",
+                        borderLeft: `4px solid ${locColor.border}`,
                       }}
                     >
-                      Remove
-                    </ct-button>
-                  </div>
-                );
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "2px",
+                          background: locColor.bg,
+                          border: `1px solid ${locColor.border}`,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ fontWeight: "bold" }}>{name}</span>
+                      <span style={{ color: "#666", fontSize: "0.9em" }}>
+                        ({type})
+                      </span>
+                      {address && (
+                        <span style={{ color: "#888", fontSize: "0.8em" }}>
+                          - {address}
+                        </span>
+                      )}
+                      <ct-button
+                        style={{ marginLeft: "auto" }}
+                        onClick={() => {
+                          const current = locations.get();
+                          const index = current.findIndex((el) =>
+                            Cell.equals(loc, el)
+                          );
+                          if (index >= 0) {
+                            locations.set(current.toSpliced(index, 1));
+                          }
+                        }}
+                      >
+                        Remove
+                      </ct-button>
+                    </div>
+                  );
+                });
               })}
             </div>
 
