@@ -459,6 +459,8 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       // Construct full array then set once (avoids N+1 reactive updates from .push())
       // WORKAROUND: Must pre-compute colors/emoji here because inside Cell.map(),
       // s.triageStatus === "auto_kept" doesn't work (proxy vs string = always false)
+      // FIX: Explicitly extract primitive values to avoid spreading reactive proxy references
+      // that show as $alias JSON when rendered. Don't use ...cls spread on reactive objects.
       const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
         const triage = triageClass(cls, childGrade as Grade);
         // Pre-compute display values based on triage status
@@ -467,8 +469,16 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
           : triage.status === "needs_review"
           ? { emoji: "?", bg: "#fff3e0", border: "#ff9800" }
           : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
+        // Explicitly extract all fields as primitives to avoid $alias proxy leakage
         return {
-          ...cls,
+          name: String(cls.name || ""),
+          dayOfWeek: String(cls.dayOfWeek || ""),
+          startTime: String(cls.startTime || ""),
+          endTime: String(cls.endTime || ""),
+          gradeMin: String(cls.gradeMin || ""),
+          gradeMax: String(cls.gradeMax || ""),
+          cost: Number(cls.cost) || 0,
+          notes: String(cls.notes || ""),
           selected: triage.status !== "auto_discarded",
           triageStatus: triage.status,
           triageReason: triage.reason,
