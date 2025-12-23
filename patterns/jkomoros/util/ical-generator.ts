@@ -1,8 +1,12 @@
+/// <reference lib="dom" />
 /**
  * iCal/ICS Generator Utility
  *
  * Generates RFC 5545 compliant iCalendar content for calendar events.
  * Supports recurring events with RRULE for weekly schedules.
+ *
+ * Note: This utility runs in browser context (patterns are client-side).
+ * The `/// <reference lib="dom" />` directive enables DOM type checking.
  *
  * Usage:
  * ```ts
@@ -22,13 +26,6 @@
  * const icsContent = generateICS(events, { prodId: "-//MyApp//EN" });
  * ```
  */
-
-// DOM types for browser download (patterns run in browser context)
-declare const document: {
-  createElement(tag: string): HTMLAnchorElement;
-  body: { appendChild(el: unknown): void; removeChild(el: unknown): void };
-};
-interface HTMLAnchorElement { href: string; download: string; click(): void; }
 
 // ============================================================================
 // TYPES
@@ -114,6 +111,10 @@ const DAY_MAP: Record<DayOfWeek, string> = {
 
 const DEFAULT_PRODID = "-//CommonTools//Extracurricular//EN";
 
+// Regex patterns for validation
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_PATTERN = /^\d{1,2}:\d{2}$/;
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -135,17 +136,30 @@ function escapeText(text: string): string {
 }
 
 /**
- * Formats a date string (YYYY-MM-DD) to iCal date format (YYYYMMDD).
+ * Validates and formats a date string (YYYY-MM-DD) to iCal date format (YYYYMMDD).
+ * @throws Error if date format is invalid
  */
 function formatDate(dateStr: string): string {
+  if (!dateStr || !DATE_PATTERN.test(dateStr)) {
+    throw new Error(`Invalid date format: "${dateStr}". Expected YYYY-MM-DD`);
+  }
   return dateStr.replace(/-/g, "");
 }
 
 /**
- * Formats a time string (HH:MM) to iCal time format (HHMMSS).
+ * Validates and formats a time string (HH:MM) to iCal time format (HHMMSS).
+ * @throws Error if time format is invalid
  */
 function formatTime(timeStr: string): string {
+  if (!timeStr || !TIME_PATTERN.test(timeStr)) {
+    throw new Error(`Invalid time format: "${timeStr}". Expected HH:MM`);
+  }
   const [h, m] = timeStr.split(":");
+  const hour = parseInt(h, 10);
+  const minute = parseInt(m, 10);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    throw new Error(`Invalid time value: "${timeStr}". Hours must be 0-23, minutes 0-59`);
+  }
   return `${h.padStart(2, "0")}${m.padStart(2, "0")}00`;
 }
 
@@ -322,10 +336,35 @@ export function dayToICalDay(day: DayOfWeek): string {
 }
 
 /**
- * Generates a unique ID for an event.
- * Format: name-hash-timestamp@commontools
+ * Generates a deterministic unique ID for an event based on its properties.
+ * This allows duplicate detection - same event properties = same UID.
+ *
+ * Format: {name-slug}-{day}-{time}-{startDate}@commontools.app
+ *
+ * @param name - Event name/summary
+ * @param day - Day of week (e.g., "monday")
+ * @param startTime - Start time in HH:MM format
+ * @param startDate - First occurrence date in YYYY-MM-DD format
  */
-export function generateEventUID(name: string, index: number = 0): string {
+export function generateEventUID(
+  name: string,
+  day: string,
+  startTime: string,
+  startDate: string
+): string {
+  const slug = `${name}-${day}-${startTime}-${startDate}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") // trim leading/trailing dashes
+    .slice(0, 60);
+  return `${slug}@commontools.app`;
+}
+
+/**
+ * Legacy UID generator for backwards compatibility.
+ * @deprecated Use generateEventUID(name, day, startTime, startDate) instead
+ */
+export function generateEventUIDLegacy(name: string, index: number = 0): string {
   const timestamp = Date.now();
   const nameSlug = name
     .toLowerCase()
@@ -367,19 +406,41 @@ export function getFirstOccurrenceDate(
 }
 
 /**
+ * Sanitizes a string for use in a filename.
+ * Removes filesystem-unsafe characters and limits length.
+ */
+export function sanitizeFilename(name: string): string {
+  return name
+    .replace(/[/\\:*?"<>|]/g, "-") // Remove filesystem-unsafe chars
+    .replace(/\s+/g, "-")          // Replace spaces with dashes
+    .replace(/-+/g, "-")           // Collapse multiple dashes
+    .replace(/^-|-$/g, "")         // Trim leading/trailing dashes
+    .slice(0, 100);                // Limit length
+}
+
+/**
  * Triggers a download of an ICS file in the browser.
+ * Wraps download in try-catch to prevent failures from breaking the export flow.
+ *
+ * @returns true if download succeeded, false if it failed
  */
 export function downloadICS(
   content: string,
   filename: string = "calendar.ics"
-): void {
-  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+): boolean {
+  try {
+    const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.warn("Failed to download ICS file:", error);
+    return false;
+  }
 }

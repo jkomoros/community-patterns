@@ -22,6 +22,7 @@ import {
   getFirstOccurrenceDate,
   dayToICalDay,
   downloadICS,
+  sanitizeFilename,
   type ICalEvent,
   type DayOfWeek as ICalDayOfWeek,
 } from "./util/ical-generator.ts";
@@ -250,6 +251,10 @@ type PendingCalendarExport = {
   calendarName: string;
   /** Events formatted for outbox */
   outboxEvents: CalendarOutboxEvent[];
+  /** Classes/slots that were skipped during conversion */
+  skippedItems: { className: string; reason: string }[];
+  /** Number of duplicate events (already in outbox) */
+  duplicateCount: number;
 } | null;
 
 /** Result of a calendar export operation */
@@ -1249,30 +1254,41 @@ Return all visible text.`
     const calendarExportProcessing = cell<boolean>(false);
 
     /**
-     * Converts pinned classes to ICalEvent array for export (ICS download).
-     * Creates one event per time slot with weekly recurrence.
+     * Result of converting classes to events, including any skipped items.
      */
-    // Helper to safely get a value that might be a cell or plain value
-    function unwrap<T>(val: T | { get?: () => T }): T {
-      if (val && typeof val === "object" && "get" in val && typeof val.get === "function") {
-        return val.get() as T;
-      }
-      return val as T;
+    interface ConversionResult<T> {
+      events: T[];
+      skipped: { className: string; reason: string }[];
     }
 
+    /**
+     * Converts pinned classes to ICalEvent array for export (ICS download).
+     * Creates one event per time slot with weekly recurrence.
+     *
+     * Edge cases handled (with reporting):
+     * - Classes without name: skipped
+     * - Classes without time slots: skipped
+     * - Time slots starting after semester end: skipped
+     */
     function classesToICalEvents(
       classList: readonly Class[],
       semester: SemesterDates
-    ): ICalEvent[] {
+    ): ConversionResult<ICalEvent> {
       const events: ICalEvent[] = [];
-      let eventIndex = 0;
+      const skipped: { className: string; reason: string }[] = [];
 
-      for (const rawCls of classList) {
-        // Unwrap the class in case it's still a cell
-        const cls = unwrap(rawCls) as Class;
-        if (!cls || !cls.name) continue; // Skip if cls is undefined or missing name
+      for (const cls of classList) {
+        if (!cls || !cls.name) {
+          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+          continue;
+        }
 
-        for (const slot of cls.timeSlots || []) {
+        if (!cls.timeSlots || cls.timeSlots.length === 0) {
+          skipped.push({ className: cls.name, reason: "No time slots defined" });
+          continue;
+        }
+
+        for (const slot of cls.timeSlots) {
           // Find the first occurrence of this weekday within the semester
           const firstDate = getFirstOccurrenceDate(
             semester.startDate,
@@ -1280,10 +1296,17 @@ Return all visible text.`
           );
 
           // Skip if first occurrence is after semester end
-          if (firstDate > semester.endDate) continue;
+          if (firstDate > semester.endDate) {
+            skipped.push({
+              className: cls.name,
+              reason: `${slot.day} slot starts after semester ends`,
+            });
+            continue;
+          }
 
+          // Use deterministic UID based on event properties
           const event: ICalEvent = {
-            uid: generateEventUID(cls.name, eventIndex++),
+            uid: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
             summary: cls.name,
             location: cls.location?.name
               ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
@@ -1303,7 +1326,7 @@ Return all visible text.`
         }
       }
 
-      return events;
+      return { events, skipped };
     }
 
     /**
@@ -1314,16 +1337,22 @@ Return all visible text.`
       classList: readonly Class[],
       semester: SemesterDates,
       targetCalendar: string
-    ): CalendarOutboxEvent[] {
+    ): ConversionResult<CalendarOutboxEvent> {
       const events: CalendarOutboxEvent[] = [];
-      let eventIndex = 0;
+      const skipped: { className: string; reason: string }[] = [];
 
-      for (const rawCls of classList) {
-        // Unwrap the class in case it's still a cell
-        const cls = unwrap(rawCls) as Class;
-        if (!cls || !cls.name) continue; // Skip if cls is undefined or missing name
+      for (const cls of classList) {
+        if (!cls || !cls.name) {
+          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+          continue;
+        }
 
-        for (const slot of cls.timeSlots || []) {
+        if (!cls.timeSlots || cls.timeSlots.length === 0) {
+          skipped.push({ className: cls.name, reason: "No time slots defined" });
+          continue;
+        }
+
+        for (const slot of cls.timeSlots) {
           // Find the first occurrence of this weekday within the semester
           const firstDate = getFirstOccurrenceDate(
             semester.startDate,
@@ -1331,10 +1360,17 @@ Return all visible text.`
           );
 
           // Skip if first occurrence is after semester end
-          if (firstDate > semester.endDate) continue;
+          if (firstDate > semester.endDate) {
+            skipped.push({
+              className: cls.name,
+              reason: `${slot.day} slot starts after semester ends`,
+            });
+            continue;
+          }
 
+          // Use deterministic UID based on event properties
           const event: CalendarOutboxEvent = {
-            id: generateEventUID(cls.name, eventIndex++),
+            id: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
             title: cls.name,
             calendarName: targetCalendar,
             startDate: firstDate,
@@ -1355,7 +1391,7 @@ Return all visible text.`
         }
       }
 
-      return events;
+      return { events, skipped };
     }
 
     /**
@@ -1371,14 +1407,13 @@ Return all visible text.`
         activeSetName: Cell<string>;
         calendarName: Cell<string>;
         pendingExport: Cell<PendingCalendarExport>;
+        outbox: Cell<CalendarOutbox>;
       }
-    >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport }) => {
-      // Deep copy to unwrap any reactive proxies
-      const rawClassList = pinnedClasses.get();
-      const classList: Class[] = JSON.parse(JSON.stringify(rawClassList || []));
-      const semester: SemesterDates = JSON.parse(JSON.stringify(semesterDates.get() || {}));
-      const rawChild = child.get();
-      const childProfile: ChildProfile = rawChild ? JSON.parse(JSON.stringify(rawChild)) : { name: "", grade: "TK", birthYear: 2015, birthMonth: 1 };
+    >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }) => {
+      // Get values from cells (no deep cloning needed - we only read, not mutate)
+      const classList = pinnedClasses.get() || [];
+      const semester = semesterDates.get() || { startDate: "", endDate: "" };
+      const childProfile = child.get() || { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
       const setName = activeSetName.get() || "default";
       const targetCalendar = calendarNameCell.get() || "Calendar";
 
@@ -1386,15 +1421,34 @@ Return all visible text.`
       if (!semester.startDate || !semester.endDate) return;
 
       // Generate ICS content (for download fallback)
-      const icalEvents = classesToICalEvents(classList, semester);
+      const icalResult = classesToICalEvents(classList, semester);
       const icsCalendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
-      const icsContent = generateICS(icalEvents, {
+      const icsContent = generateICS(icalResult.events, {
         calendarName: icsCalendarName,
         prodId: "-//CommonTools//Extracurricular Selector//EN",
       });
 
       // Generate outbox events (for apple-sync CLI)
-      const outboxEvents = classesToOutboxEvents(classList, semester, targetCalendar);
+      const outboxResult = classesToOutboxEvents(classList, semester, targetCalendar);
+
+      // Check for duplicates: events already in outbox with same ID
+      const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+      const existingUIDs = new Set(
+        (currentOutbox.entries || []).flatMap(entry =>
+          (entry.events || []).map(e => e.id)
+        )
+      );
+      const newEvents = outboxResult.events.filter(e => !existingUIDs.has(e.id));
+      const duplicateCount = outboxResult.events.length - newEvents.length;
+
+      // Combine skipped items from both conversions (deduplicate)
+      const allSkipped = [...icalResult.skipped];
+      // Only add outbox skipped if not already in list
+      for (const skip of outboxResult.skipped) {
+        if (!allSkipped.some(s => s.className === skip.className && s.reason === skip.reason)) {
+          allSkipped.push(skip);
+        }
+      }
 
       // Set pending operation for confirmation dialog
       pendingExport.set({
@@ -1403,9 +1457,11 @@ Return all visible text.`
         icsContent,
         childName: childProfile.name || "Child",
         setName: setName || "default",
-        eventCount: icalEvents.length,
+        eventCount: newEvents.length,
         calendarName: targetCalendar,
-        outboxEvents,
+        outboxEvents: newEvents, // Only non-duplicate events
+        skippedItems: allSkipped,
+        duplicateCount,
       });
     });
 
@@ -1476,12 +1532,12 @@ Return all visible text.`
         };
         outbox.set(updatedOutbox);
 
-        // Also download ICS file as fallback
+        // Also download ICS file as fallback (use sanitizeFilename for safe filename)
         const dateStr = now.split("T")[0];
-        const setSlug = pending.setName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-        const childSlug = pending.childName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+        const childSlug = sanitizeFilename(pending.childName).toLowerCase();
+        const setSlug = sanitizeFilename(pending.setName).toLowerCase();
         const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
-        downloadICS(pending.icsContent, filename);
+        const downloadSucceeded = downloadICS(pending.icsContent, filename);
 
         // Mark classes as exported to calendar
         const currentClasses = classList.get();
@@ -1495,13 +1551,29 @@ Return all visible text.`
           }
         }
 
-        result.set({
+        // Build success message
+        let message = `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar.`;
+        if (downloadSucceeded) {
+          message += ` Backup ICS downloaded: ${filename}`;
+        }
+
+        const resultData = {
           success: true,
-          message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Run 'apple-sync calendar-write' to sync. (Backup ICS file: ${filename})`,
+          message,
           timestamp: now,
           exportedCount: pending.eventCount,
           addedToOutbox: true,
-        });
+        };
+        result.set(resultData);
+
+        // Auto-dismiss success toast after 5 seconds
+        setTimeout(() => {
+          // Only dismiss if this is still the same result (timestamp matches)
+          const currentResult = result.get();
+          if (currentResult?.timestamp === now && currentResult?.success) {
+            result.set(null);
+          }
+        }, 5000);
 
         pendingExport.set(null);
       } catch (error) {
@@ -1922,6 +1994,7 @@ Return all visible text.`
                   activeSetName,
                   calendarName,
                   pendingExport: pendingCalendarExport,
+                  outbox: calendarOutbox,
                 })}
               >
                 Export to iCal (.ics)
@@ -2120,6 +2193,46 @@ Return all visible text.`
                         )}
                       </div>
                     </div>
+
+                    {/* Duplicates warning - only show if there are duplicates */}
+                    {ifElse(
+                      derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.duplicateCount || 0) > 0),
+                      <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef3c7", borderRadius: "6px", border: "1px solid #f59e0b" }}>
+                        <div style={{ color: "#92400e", fontSize: "13px" }}>
+                          ⚠️ {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            `${p?.duplicateCount} event(s) already in outbox and will be skipped`
+                          )}
+                        </div>
+                      </div>,
+                      null
+                    )}
+
+                    {/* Skipped items - only show if there are skipped items */}
+                    {ifElse(
+                      derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.skippedItems || []).length > 0),
+                      <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef2f2", borderRadius: "6px", border: "1px solid #fecaca" }}>
+                        <div style={{ color: "#991b1b", fontSize: "13px", fontWeight: "500", marginBottom: "4px" }}>
+                          ⚠️ Some items were skipped:
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#7f1d1d" }}>
+                          {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            (p?.skippedItems || []).slice(0, 5).map((item) => (
+                              <li>{item.className}: {item.reason}</li>
+                            ))
+                          )}
+                          {ifElse(
+                            derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.skippedItems || []).length > 5),
+                            <li style={{ fontStyle: "italic" }}>
+                              {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                                `...and ${(p?.skippedItems || []).length - 5} more`
+                              )}
+                            </li>,
+                            null
+                          )}
+                        </ul>
+                      </div>,
+                      null
+                    )}
                   </div>
 
                   {/* Warning */}
