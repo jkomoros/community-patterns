@@ -1347,7 +1347,8 @@ Return all visible text.`
     // Pre-computed button state to avoid nested derive() calls
     const exportButtonDisabled = derive(
       { processing: calendarExportProcessing, pending: pendingCalendarExport },
-      ({ processing, pending }) => processing || !pending?.selectedTarget
+      ({ processing, pending }: { processing: boolean; pending: PendingCalendarExport }) =>
+        processing || !pending?.selectedTarget
     );
 
     // Google auth for calendar export - uses wish() to find existing google-auth charm
