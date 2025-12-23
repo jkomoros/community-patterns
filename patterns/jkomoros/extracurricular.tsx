@@ -1,14 +1,14 @@
 /// <cts-enable />
 /**
- * Extracurricular Selector v2
+ * Extracurricular Selector
  *
- * An idiomatic rewrite following framework author guidance:
- * - State lives ON objects (no separate ID maps)
- * - No local ID generation (use Cell.equals())
- * - Embed references (location: Location, not locationId)
- * - Fewer top-level Default<> inputs
- *
- * Phase 6: Conflict Detection
+ * Helps manage extracurricular class selection for children.
+ * Features:
+ * - Location management
+ * - Class extraction from schedules via LLM
+ * - Grade and age-based eligibility triage
+ * - Schedule conflict detection
+ * - Pinned sets for comparing schedule options
  */
 import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 
@@ -25,7 +25,8 @@ type Grade = "TK" | "K" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
 interface ChildProfile {
   name: string;
   grade: Grade;
-  birthDate: string;
+  birthYear: number;
+  birthMonth: number;  // 1-12
   eligibilityNotes: string;
 }
 
@@ -316,8 +317,8 @@ function durationToHeight(startStr: string, endStr: string): number {
   return (durationMins / 60) * SCHEDULE_HOUR_HEIGHT;
 }
 
-// Color palette for classes (by index)
-const CLASS_COLORS = [
+// Color palette for locations (deterministic by name hash)
+const LOCATION_COLORS = [
   { bg: "#e3f2fd", border: "#1976d2" }, // blue
   { bg: "#f3e5f5", border: "#7b1fa2" }, // purple
   { bg: "#e8f5e9", border: "#388e3c" }, // green
@@ -326,11 +327,26 @@ const CLASS_COLORS = [
   { bg: "#e0f7fa", border: "#0097a7" }, // cyan
 ];
 
+// Hash a string to a number (simple djb2 hash)
+function hashString(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+  }
+  return Math.abs(hash);
+}
+
+// Get color for a location by name (deterministic)
+function getLocationColor(locationName: string): { bg: string; border: string } {
+  const idx = hashString(locationName) % LOCATION_COLORS.length;
+  return LOCATION_COLORS[idx];
+}
+
 // Type for precomputed schedule slot data (used by scheduleData computed)
 type ScheduleSlotData = {
   cls: Class;
   slot: TimeSlot;
-  colorIdx: number;
+  color: { bg: string; border: string };
   top: number;
   height: number;
 };
@@ -559,6 +575,30 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
     >((event, state) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, name: event.target.value });
+    });
+
+    // Handler to update child birth year
+    const setChildBirthYear = handler<
+      { target: { value: string } },
+      { childCell: Cell<ChildProfile> }
+    >((event, state) => {
+      const current = state.childCell.get();
+      const year = parseInt(event.target.value, 10);
+      if (!isNaN(year)) {
+        state.childCell.set({ ...current, birthYear: year });
+      }
+    });
+
+    // Handler to update child birth month
+    const setChildBirthMonth = handler<
+      { target: { value: string } },
+      { childCell: Cell<ChildProfile> }
+    >((event, state) => {
+      const current = state.childCell.get();
+      const month = parseInt(event.target.value, 10);
+      if (!isNaN(month) && month >= 1 && month <= 12) {
+        state.childCell.set({ ...current, birthMonth: month });
+      }
     });
 
     // =========================================================================
@@ -824,9 +864,9 @@ Return all visible text.`
         sunday: [],
       };
 
-      // Single loop through all classes - colorIdx is just the array index
-      pinned.forEach((cls, classIdx) => {
-        const colorIdx = classIdx % CLASS_COLORS.length;
+      // Single loop through all classes - color based on location
+      pinned.forEach((cls) => {
+        const color = getLocationColor(cls.location?.name || "");
         for (const slot of cls.timeSlots || []) {
           // Precompute positions (parsing times once per slot, not N times)
           const startMins = parseTimeToMinutes(slot.startTime);
@@ -837,7 +877,7 @@ Return all visible text.`
           byDay[slot.day].push({
             cls,
             slot,
-            colorIdx,
+            color,
             top: startMins >= 0 ? (startOffsetMins / 60) * SCHEDULE_HOUR_HEIGHT : 0,
             height: startMins >= 0 && endMins >= 0
               ? (durationMins / 60) * SCHEDULE_HOUR_HEIGHT
@@ -877,12 +917,12 @@ Return all visible text.`
     });
 
     return {
-      [NAME]: "Extracurricular Selector v2",
+      [NAME]: "Extracurricular Selector",
       [UI]: (
         <div style={{ padding: "1rem", maxWidth: "800px", margin: "0 auto" }}>
-          <h1 style={{ marginBottom: "1rem" }}>Extracurricular Selector v2</h1>
+          <h1 style={{ marginBottom: "1rem" }}>Extracurricular Selector</h1>
 
-          {/* Child Profile Section - Phase 4 */}
+          {/* Child Profile Section */}
           <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e8f5e9", borderRadius: "4px" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Child Profile</h2>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
@@ -914,9 +954,41 @@ Return all visible text.`
                   <option value="8">8th</option>
                 </select>
               </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Birth Year:</label>
+                <input
+                  type="number"
+                  style={{ padding: "0.5rem", width: "80px" }}
+                  min="2005"
+                  max="2025"
+                  value={(child as any).birthYear || 2015}
+                  onChange={setChildBirthYear({ childCell: child })}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Birth Month:</label>
+                <select
+                  style={{ padding: "0.5rem" }}
+                  value={(child as any).birthMonth || 1}
+                  onChange={setChildBirthMonth({ childCell: child })}
+                >
+                  <option value="1">January</option>
+                  <option value="2">February</option>
+                  <option value="3">March</option>
+                  <option value="4">April</option>
+                  <option value="5">May</option>
+                  <option value="6">June</option>
+                  <option value="7">July</option>
+                  <option value="8">August</option>
+                  <option value="9">September</option>
+                  <option value="10">October</option>
+                  <option value="11">November</option>
+                  <option value="12">December</option>
+                </select>
+              </div>
             </div>
             <p style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#555" }}>
-              Classes will be auto-triaged based on grade eligibility
+              Classes will be auto-triaged based on grade and age eligibility
             </p>
           </div>
 
@@ -1097,9 +1169,8 @@ Return all visible text.`
                               />
                             ))}
 
-                            {/* Classes for this day - using precomputed positions and colors */}
-                            {daySlots.map(({ cls, slot, colorIdx, top, height }) => {
-                              const colors = CLASS_COLORS[colorIdx];
+                            {/* Classes for this day - using precomputed positions and location colors */}
+                            {daySlots.map(({ cls, slot, color, top, height }) => {
                               return (
                                 <div
                                   style={{
@@ -1108,8 +1179,8 @@ Return all visible text.`
                                     left: "2px",
                                     right: "2px",
                                     height: `${Math.max(height - 2, 20)}px`,
-                                    background: colors.bg,
-                                    border: `1px solid ${colors.border}`,
+                                    background: color.bg,
+                                    border: `1px solid ${color.border}`,
                                     borderRadius: "3px",
                                     padding: "2px 4px",
                                     fontSize: "0.7em",
@@ -1137,89 +1208,6 @@ Return all visible text.`
                 </div>
               );
             })}
-          </div>
-
-          {/* Locations Section */}
-          <div style={{ marginBottom: "2rem" }}>
-            <h2 style={{ marginBottom: "0.5rem" }}>Locations</h2>
-
-            {/* List locations */}
-            <div style={{ marginBottom: "1rem" }}>
-              {locations.map((loc) => (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    alignItems: "center",
-                    padding: "0.5rem",
-                    background: "#f5f5f5",
-                    borderRadius: "4px",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  <span style={{ fontWeight: "bold" }}>{loc.name}</span>
-                  <span style={{ color: "#666", fontSize: "0.9em" }}>
-                    ({loc.type})
-                  </span>
-                  {loc.address && (
-                    <span style={{ color: "#888", fontSize: "0.8em" }}>
-                      - {loc.address}
-                    </span>
-                  )}
-                  <ct-button
-                    style={{ marginLeft: "auto" }}
-                    onClick={() => {
-                      const current = locations.get();
-                      const index = current.findIndex((el) =>
-                        Cell.equals(loc, el)
-                      );
-                      if (index >= 0) {
-                        locations.set(current.toSpliced(index, 1));
-                      }
-                    }}
-                  >
-                    Remove
-                  </ct-button>
-                </div>
-              ))}
-            </div>
-
-            {/* Add location */}
-            <div
-              style={{
-                padding: "1rem",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-              }}
-            >
-              <h3 style={{ marginBottom: "0.5rem" }}>Add Location</h3>
-              <div style={{ marginBottom: "0.5rem" }}>
-                <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>Type:</label>
-                <ct-select
-                  $value={newLocationType}
-                  items={[
-                    { label: "Afterschool (On-site)", value: "afterschool-onsite" },
-                    { label: "Afterschool (Off-site)", value: "afterschool-offsite" },
-                    { label: "External", value: "external" },
-                  ]}
-                  style={{ padding: "0.25rem" }}
-                />
-              </div>
-              <ct-message-input
-                placeholder="Location name (e.g., TBS, BAM)"
-                button-text="Add"
-                onct-send={(e: { detail: { message: string } }) => {
-                  const name = e.detail?.message?.trim();
-                  if (name) {
-                    locations.push({
-                      name,
-                      type: newLocationType.get(),
-                      address: "",
-                    });
-                  }
-                }}
-              />
-            </div>
           </div>
 
           {/* Classes Section */}
@@ -1594,12 +1582,101 @@ Return all visible text.`
             </div>
           </div>
 
-          {/* Debug info */}
-          <div style={{ marginTop: "2rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
-            <h3>Debug Info</h3>
-            <p style={{ fontSize: "0.8em", color: "#666" }}>
-              Phase 6: Conflict detection for pinned sets
-            </p>
+          {/* Locations Section - at bottom since rarely edited */}
+          <div style={{ marginBottom: "2rem" }}>
+            <h2 style={{ marginBottom: "0.5rem" }}>Locations</h2>
+
+            {/* List locations with color indicators */}
+            <div style={{ marginBottom: "1rem" }}>
+              {locations.map((loc) => {
+                const locColor = getLocationColor(loc.name);
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "0.5rem",
+                      alignItems: "center",
+                      padding: "0.5rem",
+                      background: "#f5f5f5",
+                      borderRadius: "4px",
+                      marginBottom: "0.5rem",
+                      borderLeft: `4px solid ${locColor.border}`,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "2px",
+                        background: locColor.bg,
+                        border: `1px solid ${locColor.border}`,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontWeight: "bold" }}>{loc.name}</span>
+                    <span style={{ color: "#666", fontSize: "0.9em" }}>
+                      ({loc.type})
+                    </span>
+                    {loc.address && (
+                      <span style={{ color: "#888", fontSize: "0.8em" }}>
+                        - {loc.address}
+                      </span>
+                    )}
+                    <ct-button
+                      style={{ marginLeft: "auto" }}
+                      onClick={() => {
+                        const current = locations.get();
+                        const index = current.findIndex((el) =>
+                          Cell.equals(loc, el)
+                        );
+                        if (index >= 0) {
+                          locations.set(current.toSpliced(index, 1));
+                        }
+                      }}
+                    >
+                      Remove
+                    </ct-button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add location */}
+            <div
+              style={{
+                padding: "1rem",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+              }}
+            >
+              <h3 style={{ marginBottom: "0.5rem" }}>Add Location</h3>
+              <div style={{ marginBottom: "0.5rem" }}>
+                <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>Type:</label>
+                <ct-select
+                  $value={newLocationType}
+                  items={[
+                    { label: "Afterschool (On-site)", value: "afterschool-onsite" },
+                    { label: "Afterschool (Off-site)", value: "afterschool-offsite" },
+                    { label: "External", value: "external" },
+                  ]}
+                  style={{ padding: "0.25rem" }}
+                />
+              </div>
+              <ct-message-input
+                placeholder="Location name (e.g., TBS, BAM)"
+                button-text="Add"
+                onct-send={(e: { detail: { message: string } }) => {
+                  const name = e.detail?.message?.trim();
+                  if (name) {
+                    locations.push({
+                      name,
+                      type: newLocationType.get(),
+                      address: "",
+                    });
+                  }
+                }}
+              />
+            </div>
           </div>
         </div>
       ),
