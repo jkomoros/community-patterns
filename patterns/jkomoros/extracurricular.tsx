@@ -414,25 +414,27 @@ For each class found, extract: name, dayOfWeek (lowercase), startTime (24h forma
       prompt: extractionPrompt,
       system: "You are a precise data extraction assistant. Extract class information exactly as found. Do not invent information.",
       schema: {
-        type: "object",
+        type: "object" as const,
         properties: {
           classes: {
-            type: "array",
+            type: "array" as const,
             items: {
-              type: "object",
+              type: "object" as const,
               properties: {
-                name: { type: "string" },
-                dayOfWeek: { type: "string" },
-                startTime: { type: "string" },
-                endTime: { type: "string" },
-                gradeMin: { type: "string" },
-                gradeMax: { type: "string" },
-                cost: { type: "number" },
-                notes: { type: "string" },
+                name: { type: "string" as const },
+                dayOfWeek: { type: "string" as const },
+                startTime: { type: "string" as const },
+                endTime: { type: "string" as const },
+                gradeMin: { type: "string" as const },
+                gradeMax: { type: "string" as const },
+                cost: { type: "number" as const },
+                notes: { type: "string" as const },
               },
+              required: ["name", "dayOfWeek", "startTime", "endTime"] as const,
             },
           },
         },
+        required: ["classes"] as const,
       },
     });
 
