@@ -349,6 +349,9 @@ type ScheduleSlotData = {
   color: { bg: string; border: string };
   top: number;
   height: number;
+  // For overlap layout
+  column: number;      // Which column (0-based) this slot occupies
+  totalColumns: number; // Total columns in this overlap group
 };
 
 // ============================================================================
@@ -914,7 +917,7 @@ Return all visible text.`
         return null;
       }
 
-      // Precompute all data in a single pass
+      // First pass: collect all slots with basic data
       const byDay: Record<DayOfWeek, ScheduleSlotData[]> = {
         monday: [],
         tuesday: [],
@@ -925,11 +928,10 @@ Return all visible text.`
         sunday: [],
       };
 
-      // Single loop through all classes - color based on location
+      // Collect slots with timing info
       pinned.forEach((cls) => {
         const color = getLocationColor(cls.location?.name || "");
         for (const slot of cls.timeSlots || []) {
-          // Precompute positions (parsing times once per slot, not N times)
           const startMins = parseTimeToMinutes(slot.startTime);
           const endMins = parseTimeToMinutes(slot.endTime);
           const startOffsetMins = startMins - SCHEDULE_START_HOUR * 60;
@@ -943,9 +945,59 @@ Return all visible text.`
             height: startMins >= 0 && endMins >= 0
               ? (durationMins / 60) * SCHEDULE_HOUR_HEIGHT
               : SCHEDULE_HOUR_HEIGHT,
+            column: 0,
+            totalColumns: 1,
           });
         }
       });
+
+      // Second pass: calculate overlaps for each day
+      for (const day of SCHEDULE_DAYS) {
+        const slots = byDay[day];
+        if (slots.length < 2) continue;
+
+        // Sort by start time
+        slots.sort((a, b) => parseTimeToMinutes(a.slot.startTime) - parseTimeToMinutes(b.slot.startTime));
+
+        // Find overlapping groups using a sweep line algorithm
+        // For each slot, find all slots it overlaps with
+        for (let i = 0; i < slots.length; i++) {
+          const slotA = slots[i];
+          const startA = parseTimeToMinutes(slotA.slot.startTime);
+          const endA = parseTimeToMinutes(slotA.slot.endTime);
+
+          // Find all slots that overlap with slotA
+          const overlappingIndices: number[] = [i];
+          for (let j = 0; j < slots.length; j++) {
+            if (i === j) continue;
+            const slotB = slots[j];
+            const startB = parseTimeToMinutes(slotB.slot.startTime);
+            const endB = parseTimeToMinutes(slotB.slot.endTime);
+
+            // Check if they overlap
+            if (!(endA <= startB || endB <= startA)) {
+              overlappingIndices.push(j);
+            }
+          }
+
+          // If this slot overlaps with others, assign columns
+          if (overlappingIndices.length > 1) {
+            // Sort indices to ensure consistent column assignment
+            overlappingIndices.sort((a, b) => a - b);
+            const totalCols = overlappingIndices.length;
+
+            // Assign column based on position in overlap group
+            for (let col = 0; col < overlappingIndices.length; col++) {
+              const idx = overlappingIndices[col];
+              // Only update if this gives more columns (handles multi-way overlaps)
+              if (totalCols > slots[idx].totalColumns) {
+                slots[idx].column = col;
+                slots[idx].totalColumns = totalCols;
+              }
+            }
+          }
+        }
+      }
 
       return byDay;
     });
@@ -1230,15 +1282,18 @@ Return all visible text.`
                               />
                             ))}
 
-                            {/* Classes for this day - using precomputed positions and location colors */}
-                            {daySlots.map(({ cls, slot, color, top, height }) => {
+                            {/* Classes for this day - using precomputed positions, colors, and overlap columns */}
+                            {daySlots.map(({ cls, slot, color, top, height, column, totalColumns }) => {
+                              // Calculate horizontal position based on overlap columns
+                              const widthPercent = 100 / totalColumns;
+                              const leftPercent = column * widthPercent;
                               return (
                                 <div
                                   style={{
                                     position: "absolute",
                                     top: `${top}px`,
-                                    left: "2px",
-                                    right: "2px",
+                                    left: `calc(${leftPercent}% + 2px)`,
+                                    width: `calc(${widthPercent}% - 4px)`,
                                     height: `${Math.max(height - 2, 20)}px`,
                                     background: color.bg,
                                     border: `1px solid ${color.border}`,
@@ -1247,6 +1302,7 @@ Return all visible text.`
                                     fontSize: "0.7em",
                                     overflow: "hidden",
                                     cursor: "default",
+                                    boxSizing: "border-box",
                                   }}
                                   title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location.name}`}
                                 >
