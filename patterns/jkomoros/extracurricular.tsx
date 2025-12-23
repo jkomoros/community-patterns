@@ -1276,6 +1276,12 @@ Return all visible text.`
     const calendarExportProcessing = cell<boolean>(false);
     const calendarExportProgress = cell<CalendarExportProgress>(null);
 
+    // Pre-computed button state to avoid nested derive() calls
+    const exportButtonDisabled = derive(
+      { processing: calendarExportProcessing, pending: pendingCalendarExport },
+      ({ processing, pending }) => processing || !pending?.selectedTarget
+    );
+
     // Google auth for calendar export - uses wish() to find existing google-auth charm
     // Requires calendarWrite scope for creating events
     const googleAuthManager = createGoogleAuth({
@@ -2607,33 +2613,17 @@ Return all visible text.`
                       outbox: calendarOutbox,
                       auth: googleAuthManager.auth,
                     })}
-                    disabled={derive(calendarExportProcessing, (processing) =>
-                      derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
-                        processing || !pending?.selectedTarget
-                      )
-                    )}
+                    disabled={exportButtonDisabled}
                     style={{
                       padding: "10px 20px",
-                      background: derive(calendarExportProcessing, (processing) =>
-                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
-                          (processing || !pending?.selectedTarget) ? "#d1d5db" : "#f59e0b"
-                        )
-                      ),
+                      background: derive(exportButtonDisabled, (disabled) => disabled ? "#d1d5db" : "#f59e0b"),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: derive(calendarExportProcessing, (processing) =>
-                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
-                          (processing || !pending?.selectedTarget) ? "not-allowed" : "pointer"
-                        )
-                      ),
-                      opacity: derive(calendarExportProcessing, (processing) =>
-                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
-                          (processing || !pending?.selectedTarget) ? 0.7 : 1
-                        )
-                      ),
+                      cursor: derive(exportButtonDisabled, (disabled) => disabled ? "not-allowed" : "pointer"),
+                      opacity: derive(exportButtonDisabled, (disabled) => disabled ? 0.7 : 1),
                     }}
                   >
                     {ifElse(

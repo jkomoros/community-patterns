@@ -277,7 +277,7 @@ export class CalendarWriteClient {
    * @returns The created event
    * @throws Error if creation fails or auth is invalid
    */
-  async createEvent(params: CreateEventParams): Promise<CalendarEventResult> {
+  async createEvent(params: CreateEventParams, retryCount = 0): Promise<CalendarEventResult> {
     const token = this.auth.get()?.token;
     if (!token) {
       throw new Error("No authorization token. Please authenticate first.");
@@ -328,11 +328,14 @@ export class CalendarWriteClient {
       body: JSON.stringify(body),
     });
 
-    // Handle 401 (token expired) - try to refresh and retry once
+    // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
+      if (retryCount >= 2) {
+        throw new Error("Authentication failed after retries. Please re-authenticate.");
+      }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
-      return this.createEvent(params); // Retry with new token
+      return this.createEvent(params, retryCount + 1);
     }
 
     if (!res.ok) {
@@ -365,6 +368,7 @@ export class CalendarWriteClient {
     eventId: string,
     params: UpdateEventParams,
     sendUpdates: "all" | "externalOnly" | "none" = "all",
+    retryCount = 0,
   ): Promise<CalendarEventResult> {
     const token = this.auth.get()?.token;
     if (!token) {
@@ -409,11 +413,14 @@ export class CalendarWriteClient {
       body: JSON.stringify(body),
     });
 
-    // Handle 401 (token expired) - try to refresh and retry once
+    // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
+      if (retryCount >= 2) {
+        throw new Error("Authentication failed after retries. Please re-authenticate.");
+      }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
-      return this.updateEvent(calendarId, eventId, params, sendUpdates);
+      return this.updateEvent(calendarId, eventId, params, sendUpdates, retryCount + 1);
     }
 
     if (!res.ok) {
@@ -443,6 +450,7 @@ export class CalendarWriteClient {
     calendarId: string,
     eventId: string,
     sendUpdates: "all" | "externalOnly" | "none" = "all",
+    retryCount = 0,
   ): Promise<void> {
     const token = this.auth.get()?.token;
     if (!token) {
@@ -463,11 +471,14 @@ export class CalendarWriteClient {
       },
     });
 
-    // Handle 401 (token expired) - try to refresh and retry once
+    // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
+      if (retryCount >= 2) {
+        throw new Error("Authentication failed after retries. Please re-authenticate.");
+      }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
-      return this.deleteEvent(calendarId, eventId, sendUpdates);
+      return this.deleteEvent(calendarId, eventId, sendUpdates, retryCount + 1);
     }
 
     // DELETE returns 204 No Content on success
