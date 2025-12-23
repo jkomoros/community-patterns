@@ -21,11 +21,17 @@ import {
   generateEventUID,
   getFirstOccurrenceDate,
   dayToICalDay,
-  downloadICS,
   sanitizeFilename,
   type ICalEvent,
   type DayOfWeek as ICalDayOfWeek,
 } from "./util/ical-generator.ts";
+import { createGoogleAuth, type Auth as GoogleAuthType } from "./util/google-auth-manager.tsx";
+import {
+  exportToGoogle,
+  type ExportTarget,
+  type ExportableEvent,
+} from "./util/calendar-export.tsx";
+import { type ExportProgress } from "./util/calendar-export-types.ts";
 
 // ============================================================================
 // TYPES
@@ -255,6 +261,10 @@ type PendingCalendarExport = {
   skippedItems: { className: string; reason: string }[];
   /** Number of duplicate events (already in outbox) */
   duplicateCount: number;
+  /** Selected export target (google, apple, or ics) */
+  selectedTarget: ExportTarget | null;
+  /** Events in exportable format (for Google Calendar) */
+  exportableEvents: ExportableEvent[];
 } | null;
 
 /** Result of a calendar export operation */
@@ -263,9 +273,20 @@ type CalendarExportResult = {
   message: string;
   timestamp: string;
   exportedCount: number;
+  /** Export target used */
+  target?: ExportTarget;
   /** Whether this was added to outbox (vs downloaded) */
   addedToOutbox?: boolean;
+  /** For Google Calendar: number of failed events */
+  failedCount?: number;
+  /** ICS content for download (Apple/ICS targets) */
+  icsContent?: string;
+  /** ICS filename for download */
+  icsFilename?: string;
 } | null;
+
+/** Export progress state for Google Calendar batch operations */
+type CalendarExportProgress = ExportProgress | null;
 
 // ============================================================================
 // PATTERN INPUT - Phase 5
@@ -288,6 +309,7 @@ interface ExtracurricularInput {
   semesterDates?: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
   calendarName?: Cell<Default<string, "">>;
   calendarOutbox?: Cell<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
+  // Note: Google Calendar auth is managed internally via wish() - see createGoogleAuth usage
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -1252,6 +1274,13 @@ Return all visible text.`
     const pendingCalendarExport = cell<PendingCalendarExport>(null);
     const calendarExportResult = cell<CalendarExportResult>(null);
     const calendarExportProcessing = cell<boolean>(false);
+    const calendarExportProgress = cell<CalendarExportProgress>(null);
+
+    // Google auth for calendar export - uses wish() to find existing google-auth charm
+    // Requires calendarWrite scope for creating events
+    const googleAuthManager = createGoogleAuth({
+      requiredScopes: ["calendarWrite"],
+    });
 
     /**
      * Result of converting classes to events, including any skipped items.
@@ -1395,6 +1424,45 @@ Return all visible text.`
     }
 
     /**
+     * Convert classes to ExportableEvent format for unified export.
+     */
+    function classesToExportableEvents(
+      classList: readonly Class[],
+    ): ConversionResult<ExportableEvent> {
+      const events: ExportableEvent[] = [];
+      const skipped: { className: string; reason: string }[] = [];
+
+      for (const cls of classList) {
+        if (!cls || !cls.name) {
+          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+          continue;
+        }
+
+        if (!cls.timeSlots || cls.timeSlots.length === 0) {
+          skipped.push({ className: cls.name, reason: "No time slots defined" });
+          continue;
+        }
+
+        // Create one ExportableEvent per class (time slots embedded)
+        const event: ExportableEvent = {
+          id: `class-${cls.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          title: cls.name,
+          location: cls.location?.name,
+          description: cls.description || undefined,
+          timeSlots: cls.timeSlots.map((slot) => ({
+            day: slot.day,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+          })),
+        };
+
+        events.push(event);
+      }
+
+      return { events, skipped };
+    }
+
+    /**
      * Prepares calendar export - shows confirmation dialog.
      * This is the "prepare" phase of the two-phase commit pattern.
      */
@@ -1450,6 +1518,9 @@ Return all visible text.`
         }
       }
 
+      // Generate exportable events for Google Calendar
+      const exportableResult = classesToExportableEvents(classList);
+
       // Set pending operation for confirmation dialog
       pendingExport.set({
         classes: classList,
@@ -1462,6 +1533,8 @@ Return all visible text.`
         outboxEvents: newEvents, // Only non-duplicate events
         skippedItems: allSkipped,
         duplicateCount,
+        selectedTarget: null, // User picks in dialog
+        exportableEvents: exportableResult.events,
       });
     });
 
@@ -1476,8 +1549,23 @@ Return all visible text.`
     });
 
     /**
-     * Confirms and adds events to outbox for apple-sync CLI to process.
-     * Also downloads ICS file as a fallback/convenience.
+     * Select export target in the dialog.
+     */
+    const selectExportTarget = handler<
+      unknown,
+      { pendingExport: Cell<PendingCalendarExport>; target: ExportTarget }
+    >((_, { pendingExport, target }) => {
+      const pending = pendingExport.get();
+      if (!pending) return;
+      pendingExport.set({ ...pending, selectedTarget: target });
+    });
+
+    /**
+     * Confirms and executes the export based on selected target.
+     * - Google: Direct API with batch operations and progress tracking
+     * - Apple: Add to outbox for apple-sync CLI + download ICS backup
+     * - ICS: Just download the ICS file
+     *
      * This is the "confirm" phase of the two-phase commit pattern.
      */
     const confirmCalendarExport = handler<
@@ -1485,95 +1573,149 @@ Return all visible text.`
       {
         pendingExport: Cell<PendingCalendarExport>;
         processing: Cell<boolean>;
+        progress: Cell<CalendarExportProgress>;
         result: Cell<CalendarExportResult>;
         classList: Cell<Class[]>;
         outbox: Cell<CalendarOutbox>;
+        auth: Cell<GoogleAuthType>;
       }
-    >((_, { pendingExport, processing, result, classList, outbox }) => {
+    >(async (_, { pendingExport, processing, progress, result, classList, outbox, auth }) => {
       const pending = pendingExport.get();
-      if (!pending) return;
+      if (!pending || !pending.selectedTarget) return;
 
       processing.set(true);
+      progress.set(null);
 
       try {
         const now = new Date().toISOString();
+        const target = pending.selectedTarget;
+        let exportResult: CalendarExportResult;
 
-        // Create outbox entry with user confirmation metadata
-        const outboxEntry: CalendarOutboxEntry = {
-          id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          events: pending.outboxEvents,
-          confirmation: {
-            timestamp: now,
-            dialogContent: {
-              displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
-              displayedCalendar: pending.calendarName,
-              displayedTimeRange: `${pending.semester.startDate} to ${pending.semester.endDate}`,
-              displayedEventCount: pending.eventCount,
-              displayedClasses: pending.classes.map((c) => c.name),
-              warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
+        if (target === "google") {
+          // Verify we have auth before proceeding
+          const authData = auth.get();
+          if (!authData?.token) {
+            throw new Error("Google authentication required. Please sign in first.");
+          }
+
+          // Google Calendar: Use batch API with progress tracking
+          const googleResult = await exportToGoogle(
+            auth,
+            pending.exportableEvents,
+            {
+              calendarName: "primary", // Always use primary calendar for Google
+              dateRange: pending.semester,
+              exportTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+              sourcePattern: {
+                name: "Extracurricular Selector",
+                path: "patterns/jkomoros/extracurricular.tsx",
+              },
             },
-            sourcePattern: {
-              name: "Extracurricular Selector",
-              path: "patterns/jkomoros/extracurricular.tsx",
-            },
-          },
-          execution: {
-            status: "pending",
-          },
-          createdAt: now,
-        };
-
-        // Add to outbox
-        const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
-        const updatedOutbox: CalendarOutbox = {
-          entries: [...(currentOutbox.entries || []), outboxEntry],
-          lastUpdated: now,
-          version: "1.0",
-        };
-        outbox.set(updatedOutbox);
-
-        // Also download ICS file as fallback (use sanitizeFilename for safe filename)
-        const dateStr = now.split("T")[0];
-        const childSlug = sanitizeFilename(pending.childName).toLowerCase();
-        const setSlug = sanitizeFilename(pending.setName).toLowerCase();
-        const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
-        const downloadSucceeded = downloadICS(pending.icsContent, filename);
-
-        // Mark classes as exported to calendar
-        const currentClasses = classList.get();
-        for (let i = 0; i < currentClasses.length; i++) {
-          const cls = currentClasses[i];
-          const wasExported = pending.classes.some(
-            (exportedCls) => Cell.equals(cls, exportedCls)
+            (p) => progress.set(p), // Progress callback
           );
-          if (wasExported && !cls.statuses?.onCalendar) {
-            classList.key(i).key("statuses").key("onCalendar").set(true);
+
+          exportResult = {
+            success: googleResult.success,
+            message: googleResult.message,
+            timestamp: now,
+            exportedCount: googleResult.exportedCount,
+            target: "google",
+            failedCount: googleResult.failedCount,
+          };
+        } else if (target === "apple") {
+          // Apple Calendar: Add to outbox + download ICS backup
+          const outboxEntry: CalendarOutboxEntry = {
+            id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            events: pending.outboxEvents,
+            confirmation: {
+              timestamp: now,
+              dialogContent: {
+                displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+                displayedCalendar: pending.calendarName,
+                displayedTimeRange: `${pending.semester.startDate} to ${pending.semester.endDate}`,
+                displayedEventCount: pending.eventCount,
+                displayedClasses: pending.classes.map((c) => c.name),
+                warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
+              },
+              sourcePattern: {
+                name: "Extracurricular Selector",
+                path: "patterns/jkomoros/extracurricular.tsx",
+              },
+            },
+            execution: {
+              status: "pending",
+            },
+            createdAt: now,
+          };
+
+          // Add to outbox
+          const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+          const updatedOutbox: CalendarOutbox = {
+            entries: [...(currentOutbox.entries || []), outboxEntry],
+            lastUpdated: now,
+            version: "1.0",
+          };
+          outbox.set(updatedOutbox);
+
+          // Prepare ICS file for download via ct-file-download component
+          const dateStr = now.split("T")[0];
+          const childSlug = sanitizeFilename(pending.childName).toLowerCase();
+          const setSlug = sanitizeFilename(pending.setName).toLowerCase();
+          const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
+
+          exportResult = {
+            success: true,
+            message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Click below to download backup ICS.`,
+            timestamp: now,
+            exportedCount: pending.eventCount,
+            target: "apple",
+            addedToOutbox: true,
+            icsContent: pending.icsContent,
+            icsFilename: filename,
+          };
+        } else {
+          // ICS: Prepare file for download via ct-file-download component
+          const dateStr = now.split("T")[0];
+          const childSlug = sanitizeFilename(pending.childName).toLowerCase();
+          const setSlug = sanitizeFilename(pending.setName).toLowerCase();
+          const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
+
+          exportResult = {
+            success: true,
+            message: `Ready to download ${filename}`,
+            timestamp: now,
+            exportedCount: pending.eventCount,
+            target: "ics",
+            icsContent: pending.icsContent,
+            icsFilename: filename,
+          };
+        }
+
+        // Mark classes as exported to calendar (for any successful export)
+        if (exportResult.success) {
+          const currentClasses = classList.get();
+          for (let i = 0; i < currentClasses.length; i++) {
+            const cls = currentClasses[i];
+            const wasExported = pending.classes.some(
+              (exportedCls) => Cell.equals(cls, exportedCls)
+            );
+            if (wasExported && !cls.statuses?.onCalendar) {
+              classList.key(i).key("statuses").key("onCalendar").set(true);
+            }
           }
         }
 
-        // Build success message
-        let message = `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar.`;
-        if (downloadSucceeded) {
-          message += ` Backup ICS downloaded: ${filename}`;
-        }
-
-        const resultData = {
-          success: true,
-          message,
-          timestamp: now,
-          exportedCount: pending.eventCount,
-          addedToOutbox: true,
-        };
-        result.set(resultData);
+        result.set(exportResult);
 
         // Auto-dismiss success toast after 5 seconds
-        setTimeout(() => {
-          // Only dismiss if this is still the same result (timestamp matches)
-          const currentResult = result.get();
-          if (currentResult?.timestamp === now && currentResult?.success) {
-            result.set(null);
-          }
-        }, 5000);
+        if (exportResult.success) {
+          setTimeout(() => {
+            const currentResult = result.get();
+            if (currentResult?.timestamp === now && currentResult?.success) {
+              result.set(null);
+            }
+          }, 5000);
+        }
 
         pendingExport.set(null);
       } catch (error) {
@@ -1585,6 +1727,7 @@ Return all visible text.`
         });
       } finally {
         processing.set(false);
+        progress.set(null);
       }
     });
 
@@ -2062,6 +2205,20 @@ Return all visible text.`
                   {derive(calendarExportResult, (r: CalendarExportResult) => r?.message)}
                 </div>
               </div>
+              {/* Download button for ICS files */}
+              {ifElse(
+                derive(calendarExportResult, (r: CalendarExportResult) => !!r?.icsContent),
+                <ct-file-download
+                  $data={derive(calendarExportResult, (r: CalendarExportResult) => r?.icsContent || "")}
+                  $filename={derive(calendarExportResult, (r: CalendarExportResult) => r?.icsFilename || "calendar.ics")}
+                  mime-type="text/calendar"
+                  variant="primary"
+                  size="sm"
+                >
+                  Download ICS
+                </ct-file-download>,
+                null
+              )}
               <button
                 onClick={dismissExportResult({ result: calendarExportResult })}
                 style={{
@@ -2235,29 +2392,183 @@ Return all visible text.`
                     )}
                   </div>
 
-                  {/* Warning */}
-                  <div
-                    style={{
-                      padding: "12px 16px",
-                      borderRadius: "8px",
-                      border: "1px solid #f59e0b",
-                      background: "#fef3c7",
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
-                      {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                        `This will add ${p?.eventCount || 0} events to your "${p?.calendarName || 'Calendar'}" calendar`
-                      )}
+                  {/* Export Target Selection */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <div style={{ fontWeight: "500", marginBottom: "8px" }}>Export to:</div>
+
+                    {/* Google Auth UI - shows picker or status when needed */}
+                    <div style={{ marginBottom: "8px" }}>
+                      {googleAuthManager.fullUI}
                     </div>
-                    <div style={{ fontSize: "14px", color: "#78350f" }}>
-                      Events will be added to the outbox for apple-sync to process.
-                      An ICS file will also be downloaded as a backup.
-                      Events repeat weekly until the semester end date.
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
-                      Run <code style={{ background: "#fff3cd", padding: "1px 4px", borderRadius: "2px" }}>apple-sync calendar-write</code> to sync events to Apple Calendar.
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {/* Google Calendar option */}
+                      <button
+                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "google" })}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "12px 16px",
+                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "google" ? "2px solid #4285f4" : "1px solid #ddd"
+                          ),
+                          borderRadius: "8px",
+                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "google" ? "#e8f0fe" : "white"
+                          ),
+                          cursor: derive(googleAuthManager.isReady, (ready) => ready ? "pointer" : "not-allowed"),
+                          textAlign: "left",
+                          opacity: derive(googleAuthManager.isReady, (ready) => ready ? 1 : 0.5),
+                        }}
+                        disabled={derive(googleAuthManager.isReady, (ready) => !ready)}
+                      >
+                        <span style={{ fontSize: "24px" }}>📅</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: "500" }}>Google Calendar</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            {ifElse(
+                              googleAuthManager.isReady,
+                              derive(googleAuthManager.currentEmail, (email) =>
+                                `Export to ${email || "your Google Calendar"}`
+                              ),
+                              derive(googleAuthManager.currentState, (state) =>
+                                state === "loading" ? "Loading..." :
+                                state === "not-found" ? "Create a Google Auth charm first" :
+                                state === "selecting" ? "Select an account above" :
+                                "Sign in with Google to enable"
+                              )
+                            )}
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Apple Calendar option */}
+                      <button
+                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "apple" })}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "12px 16px",
+                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "apple" ? "2px solid #4285f4" : "1px solid #ddd"
+                          ),
+                          borderRadius: "8px",
+                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "apple" ? "#e8f0fe" : "white"
+                          ),
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <span style={{ fontSize: "24px" }}>🍎</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: "500" }}>Apple Calendar</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            Add to outbox for apple-sync CLI
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* ICS Download option */}
+                      <button
+                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "ics" })}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                          padding: "12px 16px",
+                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "ics" ? "2px solid #4285f4" : "1px solid #ddd"
+                          ),
+                          borderRadius: "8px",
+                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                            p?.selectedTarget === "ics" ? "#e8f0fe" : "white"
+                          ),
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <span style={{ fontSize: "24px" }}>📥</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: "500" }}>Download .ics</div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            Download file to import into any calendar app
+                          </div>
+                        </div>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Warning - varies by target */}
+                  {ifElse(
+                    derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.selectedTarget !== null),
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "8px",
+                        border: "1px solid #f59e0b",
+                        background: "#fef3c7",
+                      }}
+                    >
+                      <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
+                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                          `This will add ${p?.eventCount || 0} events to your calendar`
+                        )}
+                      </div>
+                      <div style={{ fontSize: "14px", color: "#78350f" }}>
+                        {derive(pendingCalendarExport, (p: PendingCalendarExport) => {
+                          if (p?.selectedTarget === "google") {
+                            return "Events will be created directly in your Google Calendar. Weekly recurring events will be created until the semester end date.";
+                          } else if (p?.selectedTarget === "apple") {
+                            return "Events will be added to the outbox for apple-sync to process. An ICS file will also be downloaded as a backup.";
+                          } else {
+                            return "Download the .ics file and import it into your preferred calendar application.";
+                          }
+                        })}
+                      </div>
+                      {ifElse(
+                        derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.selectedTarget === "apple"),
+                        <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
+                          Run <code style={{ background: "#fff3cd", padding: "1px 4px", borderRadius: "2px" }}>apple-sync calendar-write</code> to sync events to Apple Calendar.
+                        </div>,
+                        null
+                      )}
+                    </div>,
+                    null
+                  )}
+
+                  {/* Progress bar for Google Calendar export */}
+                  {ifElse(
+                    derive(calendarExportProgress, (p: CalendarExportProgress) => p !== null),
+                    <div style={{ marginTop: "16px" }}>
+                      <div style={{
+                        height: "8px",
+                        backgroundColor: "#e5e7eb",
+                        borderRadius: "4px",
+                        overflow: "hidden",
+                        marginBottom: "8px",
+                      }}>
+                        <div style={{
+                          height: "100%",
+                          backgroundColor: "#4285f4",
+                          width: derive(calendarExportProgress, (p: CalendarExportProgress) => `${p?.percentComplete || 0}%`),
+                          transition: "width 0.3s",
+                        }} />
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#666" }}>
+                        {derive(calendarExportProgress, (p: CalendarExportProgress) =>
+                          p?.phase === "preparing" ? "Preparing..." :
+                          p?.phase === "exporting" ? `Exporting ${p.processed}/${p.total}${p.currentEvent ? `: ${p.currentEvent}` : ""}` :
+                          p?.phase === "done" ? "Complete!" :
+                          p?.phase === "error" ? `Error: ${p.error}` :
+                          "Processing..."
+                        )}
+                      </div>
+                    </div>,
+                    null
+                  )}
                 </div>
 
                 {/* Footer */}
@@ -2290,27 +2601,47 @@ Return all visible text.`
                     onClick={confirmCalendarExport({
                       pendingExport: pendingCalendarExport,
                       processing: calendarExportProcessing,
+                      progress: calendarExportProgress,
                       result: calendarExportResult,
                       classList: classes,
                       outbox: calendarOutbox,
+                      auth: googleAuthManager.auth,
                     })}
-                    disabled={calendarExportProcessing}
+                    disabled={derive(calendarExportProcessing, (processing) =>
+                      derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
+                        processing || !pending?.selectedTarget
+                      )
+                    )}
                     style={{
                       padding: "10px 20px",
-                      background: "#f59e0b",
+                      background: derive(calendarExportProcessing, (processing) =>
+                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
+                          (processing || !pending?.selectedTarget) ? "#d1d5db" : "#f59e0b"
+                        )
+                      ),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: "pointer",
-                      opacity: derive(calendarExportProcessing, (p) => p ? 0.7 : 1),
+                      cursor: derive(calendarExportProcessing, (processing) =>
+                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
+                          (processing || !pending?.selectedTarget) ? "not-allowed" : "pointer"
+                        )
+                      ),
+                      opacity: derive(calendarExportProcessing, (processing) =>
+                        derive(pendingCalendarExport, (pending: PendingCalendarExport) =>
+                          (processing || !pending?.selectedTarget) ? 0.7 : 1
+                        )
+                      ),
                     }}
                   >
                     {ifElse(
                       calendarExportProcessing,
                       "Exporting...",
-                      "Export to Calendar"
+                      derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                        p?.selectedTarget ? "Export to Calendar" : "Select a destination"
+                      )
                     )}
                   </button>
                 </div>

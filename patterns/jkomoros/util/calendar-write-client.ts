@@ -2,7 +2,8 @@
  * Calendar Write API client for creating, updating, and deleting events.
  *
  * This module provides a client for Calendar API write operations:
- * - Create events with attendees
+ * - Create events with attendees and recurrence
+ * - Create multiple events in batches with progress tracking
  * - Update existing events
  * - Delete events
  * - RSVP to events (accept/decline/tentative)
@@ -13,11 +14,20 @@
  * import { CalendarWriteClient } from "./util/calendar-write-client.ts";
  *
  * const client = new CalendarWriteClient(authCell, { debugMode: true });
+ *
+ * // Single event
  * const event = await client.createEvent({
  *   calendarId: "primary",
  *   summary: "Team Meeting",
  *   start: "2024-01-15T10:00:00",
  *   end: "2024-01-15T11:00:00",
+ * });
+ *
+ * // Batch create with progress
+ * const result = await client.createBatchEvents({
+ *   calendarId: "primary",
+ *   events: [...],
+ *   onProgress: (p) => console.log(`${p.percentComplete}% complete`),
  * });
  * ```
  */
@@ -26,8 +36,8 @@ import { Cell, getRecipeEnvironment } from "commontools";
 const env = getRecipeEnvironment();
 
 // Re-export the Auth type for convenience
-export type { Auth } from "../google-auth.tsx";
-import type { Auth } from "../google-auth.tsx";
+export type { Auth } from "./google-auth-manager.tsx";
+import type { Auth } from "./google-auth-manager.tsx";
 
 // ============================================================================
 // TYPES
@@ -57,6 +67,11 @@ export interface CreateEventParams {
   sendUpdates?: "all" | "externalOnly" | "none";
   /** For all-day events, use date instead of dateTime */
   isAllDay?: boolean;
+  /**
+   * Recurrence rules in RFC 5545 RRULE format.
+   * Example: ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20240531T235959Z"]
+   */
+  recurrence?: string[];
 }
 
 export interface UpdateEventParams {
@@ -77,6 +92,93 @@ export interface UpdateEventParams {
 }
 
 export type RSVPStatus = "accepted" | "declined" | "tentative";
+
+// ============================================================================
+// BATCH API TYPES
+// ============================================================================
+
+/**
+ * Progress callback for batch operations.
+ */
+export interface BatchProgress {
+  /** Total events to process */
+  total: number;
+  /** Events processed so far */
+  processed: number;
+  /** Events successfully created */
+  succeeded: number;
+  /** Events that failed */
+  failed: number;
+  /** Percentage complete (0-100) */
+  percentComplete: number;
+  /** Current event being processed */
+  currentEvent?: string;
+}
+
+/**
+ * Result for a single event in a batch operation.
+ */
+export interface BatchEventResult {
+  /** Client-provided event ID (for correlation) */
+  clientId: string;
+  /** Whether the event was created successfully */
+  success: boolean;
+  /** The created event (if successful) */
+  event?: CalendarEventResult;
+  /** Error message (if failed) */
+  error?: string;
+}
+
+/**
+ * Parameters for batch event creation.
+ */
+export interface BatchCreateEventsParams {
+  /** Calendar ID (use "primary" for main calendar) */
+  calendarId: string;
+  /** Events to create */
+  events: Array<{
+    /** Client-provided ID for correlation in results */
+    clientId: string;
+    /** Event title/summary */
+    summary: string;
+    /** Start time - ISO datetime string or Date object */
+    start: string | Date;
+    /** End time - ISO datetime string or Date object */
+    end: string | Date;
+    /** Event description */
+    description?: string;
+    /** Location */
+    location?: string;
+    /** Attendee email addresses */
+    attendees?: string[];
+    /** For all-day events */
+    isAllDay?: boolean;
+    /** Recurrence rules in RFC 5545 RRULE format */
+    recurrence?: string[];
+  }>;
+  /** Whether to send email updates to attendees */
+  sendUpdates?: "all" | "externalOnly" | "none";
+  /** Batch size (default: 10, max: 50) */
+  batchSize?: number;
+  /** Delay between batches in ms (default: 100) */
+  batchDelayMs?: number;
+  /** Progress callback */
+  onProgress?: (progress: BatchProgress) => void;
+}
+
+/**
+ * Result of a batch event creation operation.
+ */
+export interface BatchCreateEventsResult {
+  /** Total events processed */
+  total: number;
+  /** Number of events successfully created */
+  succeeded: number;
+  /** Number of events that failed */
+  failed: number;
+  /** Per-event results */
+  results: BatchEventResult[];
+}
 
 export interface CalendarEventResult {
   /** Event ID */
@@ -204,6 +306,9 @@ export class CalendarWriteClient {
     }
     if (params.attendees && params.attendees.length > 0) {
       body.attendees = params.attendees.map((email) => ({ email }));
+    }
+    if (params.recurrence && params.recurrence.length > 0) {
+      body.recurrence = params.recurrence;
     }
 
     // Build URL with query params
@@ -482,6 +587,143 @@ export class CalendarWriteClient {
     debugLog(this.debugMode, "RSVP successful:", result.id, "status:", status);
 
     return result;
+  }
+
+  /**
+   * Create multiple calendar events in batches.
+   *
+   * This method creates events sequentially in batches, with rate limiting
+   * between batches to avoid hitting API quotas. Progress is reported via callback.
+   *
+   * @param params - Batch creation parameters
+   * @returns Result with per-event success/failure details
+   */
+  async createBatchEvents(
+    params: BatchCreateEventsParams,
+  ): Promise<BatchCreateEventsResult> {
+    const {
+      calendarId,
+      events,
+      sendUpdates = "none",
+      batchSize = 10,
+      batchDelayMs = 100,
+      onProgress,
+    } = params;
+
+    const effectiveBatchSize = Math.min(Math.max(1, batchSize), 50);
+    const results: BatchEventResult[] = [];
+    let succeeded = 0;
+    let failed = 0;
+
+    debugLog(this.debugMode, "Starting batch creation:", {
+      total: events.length,
+      batchSize: effectiveBatchSize,
+      calendarId,
+    });
+
+    // Report initial progress
+    onProgress?.({
+      total: events.length,
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      percentComplete: 0,
+    });
+
+    // Process events in batches
+    for (let i = 0; i < events.length; i += effectiveBatchSize) {
+      const batch = events.slice(i, i + effectiveBatchSize);
+
+      // Process each event in the batch sequentially
+      // (Google Calendar API doesn't have true batch endpoint for events)
+      for (const event of batch) {
+        onProgress?.({
+          total: events.length,
+          processed: results.length,
+          succeeded,
+          failed,
+          percentComplete: Math.round((results.length / events.length) * 100),
+          currentEvent: event.summary,
+        });
+
+        try {
+          const created = await this.createEvent({
+            calendarId,
+            summary: event.summary,
+            start: event.start,
+            end: event.end,
+            description: event.description,
+            location: event.location,
+            attendees: event.attendees,
+            isAllDay: event.isAllDay,
+            recurrence: event.recurrence,
+            sendUpdates,
+          });
+
+          results.push({
+            clientId: event.clientId,
+            success: true,
+            event: created,
+          });
+          succeeded++;
+
+          debugLog(
+            this.debugMode,
+            `Created event ${results.length}/${events.length}:`,
+            created.id,
+          );
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          results.push({
+            clientId: event.clientId,
+            success: false,
+            error: errorMessage,
+          });
+          failed++;
+
+          debugLog(
+            this.debugMode,
+            `Failed event ${results.length}/${events.length}:`,
+            errorMessage,
+          );
+        }
+      }
+
+      // Delay between batches to avoid rate limiting
+      if (i + effectiveBatchSize < events.length) {
+        await this.delay(batchDelayMs);
+      }
+    }
+
+    // Report final progress
+    onProgress?.({
+      total: events.length,
+      processed: events.length,
+      succeeded,
+      failed,
+      percentComplete: 100,
+    });
+
+    debugLog(this.debugMode, "Batch creation complete:", {
+      total: events.length,
+      succeeded,
+      failed,
+    });
+
+    return {
+      total: events.length,
+      succeeded,
+      failed,
+      results,
+    };
+  }
+
+  /**
+   * Delay helper for rate limiting.
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**

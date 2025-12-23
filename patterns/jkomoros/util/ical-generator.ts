@@ -1,12 +1,11 @@
-/// <reference lib="dom" />
+/// <cts-enable />
 /**
  * iCal/ICS Generator Utility
  *
  * Generates RFC 5545 compliant iCalendar content for calendar events.
  * Supports recurring events with RRULE for weekly schedules.
  *
- * Note: This utility runs in browser context (patterns are client-side).
- * The `/// <reference lib="dom" />` directive enables DOM type checking.
+ * Note: Use <ct-file-download> component to trigger downloads.
  *
  * Usage:
  * ```ts
@@ -418,29 +417,3 @@ export function sanitizeFilename(name: string): string {
     .slice(0, 100);                // Limit length
 }
 
-/**
- * Triggers a download of an ICS file in the browser.
- * Wraps download in try-catch to prevent failures from breaking the export flow.
- *
- * @returns true if download succeeded, false if it failed
- */
-export function downloadICS(
-  content: string,
-  filename: string = "calendar.ics"
-): boolean {
-  try {
-    const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    return true;
-  } catch (error) {
-    console.warn("Failed to download ICS file:", error);
-    return false;
-  }
-}
