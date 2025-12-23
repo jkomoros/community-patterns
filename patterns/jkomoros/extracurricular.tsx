@@ -148,13 +148,97 @@ interface SemesterDates {
   endDate: string;    // YYYY-MM-DD
 }
 
+/** Recurrence rule for calendar events */
+interface RecurrenceRule {
+  frequency: "WEEKLY";
+  byDay: string;      // e.g., "MO" or "MO,WE,FR"
+  until: string;      // YYYY-MM-DD
+}
+
+/** Single event to be created in Apple Calendar via outbox */
+interface CalendarOutboxEvent {
+  /** Unique ID for this event */
+  id: string;
+  /** Event title */
+  title: string;
+  /** Target calendar name (e.g., "Kids Activities", "Family") */
+  calendarName: string;
+  /** Start date in YYYY-MM-DD format */
+  startDate: string;
+  /** Start time in HH:MM format */
+  startTime: string;
+  /** End time in HH:MM format */
+  endTime: string;
+  /** Event location */
+  location?: string;
+  /** Event description/notes */
+  notes?: string;
+  /** Recurrence rule for weekly events */
+  recurrence?: RecurrenceRule;
+}
+
+/**
+ * User confirmation metadata - captures the declassification gate.
+ * This proves the user saw and approved the operation.
+ */
+interface UserConfirmation {
+  /** ISO timestamp when user clicked confirm */
+  timestamp: string;
+  /** What was shown to user in the confirmation dialog */
+  dialogContent: {
+    displayedTitle: string;
+    displayedCalendar: string;
+    displayedTimeRange: string;
+    displayedEventCount: number;
+    displayedClasses: string[];
+    warningMessage: string;
+  };
+  /** Source pattern for audit/future SHA verification */
+  sourcePattern: {
+    name: string;
+    path: string;
+  };
+}
+
+/** Execution status for outbox entries */
+interface ExecutionResult {
+  status: "pending" | "success" | "failed";
+  attemptedAt?: string;
+  executedAt?: string;
+  error?: string;
+}
+
+/**
+ * Complete outbox entry for calendar write operations.
+ * Written by pattern after user confirmation, read by apple-sync CLI.
+ */
+interface CalendarOutboxEntry {
+  /** Unique ID for this outbox entry */
+  id: string;
+  /** Events to create */
+  events: CalendarOutboxEvent[];
+  /** User confirmation metadata (proof of declassification gate) */
+  confirmation: UserConfirmation;
+  /** Execution result (updated by CLI) */
+  execution: ExecutionResult;
+  /** ISO timestamp when entry was created */
+  createdAt: string;
+}
+
+/** The outbox cell structure (stored in pattern) */
+interface CalendarOutbox {
+  entries: CalendarOutboxEntry[];
+  lastUpdated: string;
+  version: string;  // "1.0"
+}
+
 /** Pending calendar export operation for confirmation dialog */
 type PendingCalendarExport = {
   /** Classes to be exported */
   classes: Class[];
   /** Semester date range */
   semester: SemesterDates;
-  /** Generated ICS content */
+  /** Generated ICS content (for download fallback) */
   icsContent: string;
   /** Child name for filename */
   childName: string;
@@ -162,6 +246,10 @@ type PendingCalendarExport = {
   setName: string;
   /** Number of individual events (class * time slots) */
   eventCount: number;
+  /** Target calendar name for Apple Calendar */
+  calendarName: string;
+  /** Events formatted for outbox */
+  outboxEvents: CalendarOutboxEvent[];
 } | null;
 
 /** Result of a calendar export operation */
@@ -170,6 +258,8 @@ type CalendarExportResult = {
   message: string;
   timestamp: string;
   exportedCount: number;
+  /** Whether this was added to outbox (vs downloaded) */
+  addedToOutbox?: boolean;
 } | null;
 
 // ============================================================================
@@ -188,6 +278,10 @@ interface ExtracurricularInput {
   stagedClasses: Cell<Default<StagedClass[], []>>;
   // Calendar export: semester dates for recurring events
   semesterDates: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
+  // Calendar export: target calendar name (persists)
+  calendarName: Cell<Default<string, "">>;
+  // Calendar export: outbox for apple-sync CLI to process
+  calendarOutbox: Cell<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
 }
 
 interface ExtracurricularOutput extends ExtracurricularInput {
@@ -425,7 +519,7 @@ type ScheduleSlotData = {
 // ============================================================================
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses, semesterDates }) => {
+  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses, semesterDates, calendarName, calendarOutbox }) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = cell<number>(-1);
 
@@ -1154,7 +1248,7 @@ Return all visible text.`
     const calendarExportProcessing = cell<boolean>(false);
 
     /**
-     * Converts pinned classes to ICalEvent array for export.
+     * Converts pinned classes to ICalEvent array for export (ICS download).
      * Creates one event per time slot with weekly recurrence.
      */
     function classesToICalEvents(
@@ -1200,6 +1294,54 @@ Return all visible text.`
     }
 
     /**
+     * Converts pinned classes to CalendarOutboxEvent array for apple-sync CLI.
+     * Creates one event per time slot with weekly recurrence.
+     */
+    function classesToOutboxEvents(
+      classList: Class[],
+      semester: SemesterDates,
+      targetCalendar: string
+    ): CalendarOutboxEvent[] {
+      const events: CalendarOutboxEvent[] = [];
+      let eventIndex = 0;
+
+      for (const cls of classList) {
+        for (const slot of cls.timeSlots || []) {
+          // Find the first occurrence of this weekday within the semester
+          const firstDate = getFirstOccurrenceDate(
+            semester.startDate,
+            slot.day as ICalDayOfWeek
+          );
+
+          // Skip if first occurrence is after semester end
+          if (firstDate > semester.endDate) continue;
+
+          const event: CalendarOutboxEvent = {
+            id: generateEventUID(cls.name, eventIndex++),
+            title: cls.name,
+            calendarName: targetCalendar,
+            startDate: firstDate,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            location: cls.location?.name
+              ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+              : undefined,
+            notes: cls.description || undefined,
+            recurrence: {
+              frequency: "WEEKLY",
+              byDay: dayToICalDay(slot.day as ICalDayOfWeek),
+              until: semester.endDate,
+            },
+          };
+
+          events.push(event);
+        }
+      }
+
+      return events;
+    }
+
+    /**
      * Prepares calendar export - shows confirmation dialog.
      * This is the "prepare" phase of the two-phase commit pattern.
      */
@@ -1210,24 +1352,29 @@ Return all visible text.`
         semesterDates: Cell<SemesterDates>;
         child: Cell<ChildProfile>;
         activeSetName: Cell<string>;
+        calendarName: Cell<string>;
         pendingExport: Cell<PendingCalendarExport>;
       }
-    >((_, { pinnedClasses, semesterDates, child, activeSetName, pendingExport }) => {
+    >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport }) => {
       const classList = pinnedClasses.get();
       const semester = semesterDates.get();
       const childProfile = child.get();
       const setName = activeSetName.get();
+      const targetCalendar = calendarNameCell.get() || "Calendar";
 
       if (!classList || classList.length === 0) return;
       if (!semester.startDate || !semester.endDate) return;
 
-      // Generate ICS content
-      const events = classesToICalEvents(classList, semester);
-      const calendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
-      const icsContent = generateICS(events, {
-        calendarName,
+      // Generate ICS content (for download fallback)
+      const icalEvents = classesToICalEvents(classList, semester);
+      const icsCalendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
+      const icsContent = generateICS(icalEvents, {
+        calendarName: icsCalendarName,
         prodId: "-//CommonTools//Extracurricular Selector//EN",
       });
+
+      // Generate outbox events (for apple-sync CLI)
+      const outboxEvents = classesToOutboxEvents(classList, semester, targetCalendar);
 
       // Set pending operation for confirmation dialog
       pendingExport.set({
@@ -1236,7 +1383,9 @@ Return all visible text.`
         icsContent,
         childName: childProfile.name || "Child",
         setName: setName || "default",
-        eventCount: events.length,
+        eventCount: icalEvents.length,
+        calendarName: targetCalendar,
+        outboxEvents,
       });
     });
 
@@ -1251,7 +1400,8 @@ Return all visible text.`
     });
 
     /**
-     * Confirms and executes the calendar export - downloads ICS file.
+     * Confirms and adds events to outbox for apple-sync CLI to process.
+     * Also downloads ICS file as a fallback/convenience.
      * This is the "confirm" phase of the two-phase commit pattern.
      */
     const confirmCalendarExport = handler<
@@ -1261,28 +1411,62 @@ Return all visible text.`
         processing: Cell<boolean>;
         result: Cell<CalendarExportResult>;
         classList: Cell<Class[]>;
+        outbox: Cell<CalendarOutbox>;
       }
-    >((_, { pendingExport, processing, result, classList }) => {
+    >((_, { pendingExport, processing, result, classList, outbox }) => {
       const pending = pendingExport.get();
       if (!pending) return;
 
       processing.set(true);
 
       try {
-        // Generate filename
-        const dateStr = new Date().toISOString().split("T")[0];
+        const now = new Date().toISOString();
+
+        // Create outbox entry with user confirmation metadata
+        const outboxEntry: CalendarOutboxEntry = {
+          id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          events: pending.outboxEvents,
+          confirmation: {
+            timestamp: now,
+            dialogContent: {
+              displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+              displayedCalendar: pending.calendarName,
+              displayedTimeRange: `${pending.semester.startDate} to ${pending.semester.endDate}`,
+              displayedEventCount: pending.eventCount,
+              displayedClasses: pending.classes.map((c) => c.name),
+              warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
+            },
+            sourcePattern: {
+              name: "Extracurricular Selector",
+              path: "patterns/jkomoros/extracurricular.tsx",
+            },
+          },
+          execution: {
+            status: "pending",
+          },
+          createdAt: now,
+        };
+
+        // Add to outbox
+        const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+        const updatedOutbox: CalendarOutbox = {
+          entries: [...(currentOutbox.entries || []), outboxEntry],
+          lastUpdated: now,
+          version: "1.0",
+        };
+        outbox.set(updatedOutbox);
+
+        // Also download ICS file as fallback
+        const dateStr = now.split("T")[0];
         const setSlug = pending.setName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
         const childSlug = pending.childName.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
         const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
-
-        // Download the ICS file
         downloadICS(pending.icsContent, filename);
 
         // Mark classes as exported to calendar
         const currentClasses = classList.get();
         for (let i = 0; i < currentClasses.length; i++) {
           const cls = currentClasses[i];
-          // Check if this class was in the exported set
           const wasExported = pending.classes.some(
             (exportedCls) => Cell.equals(cls, exportedCls)
           );
@@ -1293,9 +1477,10 @@ Return all visible text.`
 
         result.set({
           success: true,
-          message: `Successfully exported ${pending.eventCount} events to ${filename}`,
-          timestamp: new Date().toISOString(),
+          message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. ICS file also downloaded as ${filename}`,
+          timestamp: now,
           exportedCount: pending.eventCount,
+          addedToOutbox: true,
         });
 
         pendingExport.set(null);
@@ -1668,6 +1853,25 @@ Return all visible text.`
                 </div>
               </div>
 
+              {/* Calendar name input */}
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
+                  Target Calendar Name:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Kids Activities, Family"
+                  style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
+                  value={calendarName}
+                  onChange={(e: { target: { value: string } }) => {
+                    calendarName.set(e.target.value);
+                  }}
+                />
+                <p style={{ fontSize: "0.7em", color: "#888", marginTop: "0.25rem" }}>
+                  Name of the calendar to add events to (must exist in Apple Calendar)
+                </p>
+              </div>
+
               {/* Export button */}
               <ct-button
                 variant="primary"
@@ -1680,6 +1884,7 @@ Return all visible text.`
                   semesterDates,
                   child,
                   activeSetName,
+                  calendarName,
                   pendingExport: pendingCalendarExport,
                 })}
               >
@@ -1838,12 +2043,20 @@ Return all visible text.`
                     </div>
 
                     {/* Date range */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: "#4b5563" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
                       <span>📆</span>
                       <span>
                         {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
                           `${p?.semester.startDate} to ${p?.semester.endDate}`
                         )}
+                      </span>
+                    </div>
+
+                    {/* Target calendar */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: "#4b5563" }}>
+                      <span>📁</span>
+                      <span>
+                        Target calendar: <strong>{derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.calendarName || "Calendar")}</strong>
                       </span>
                     </div>
 
@@ -1883,14 +2096,17 @@ Return all visible text.`
                     }}
                   >
                     <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
-                      This will download an iCal file
+                      {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                        `This will add ${p?.eventCount || 0} events to your "${p?.calendarName || 'Calendar'}" calendar`
+                      )}
                     </div>
                     <div style={{ fontSize: "14px", color: "#78350f" }}>
-                      Import the downloaded .ics file into Apple Calendar, Google Calendar, or other calendar apps.
-                      Events will repeat weekly until the semester end date.
+                      Events will be added to the outbox for apple-sync to process.
+                      An ICS file will also be downloaded as a backup.
+                      Events repeat weekly until the semester end date.
                     </div>
                     <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
-                      Tip: On macOS, double-click the .ics file to add events directly to Calendar.
+                      Run <code style={{ background: "#fff3cd", padding: "1px 4px", borderRadius: "2px" }}>apple-sync calendar-write</code> to sync events to Apple Calendar.
                     </div>
                   </div>
                 </div>
@@ -1927,6 +2143,7 @@ Return all visible text.`
                       processing: calendarExportProcessing,
                       result: calendarExportResult,
                       classList: classes,
+                      outbox: calendarOutbox,
                     })}
                     disabled={calendarExportProcessing}
                     style={{
@@ -1944,7 +2161,7 @@ Return all visible text.`
                     {ifElse(
                       calendarExportProcessing,
                       "Exporting...",
-                      "Download .ics File"
+                      "Export to Calendar"
                     )}
                   </button>
                 </div>
@@ -2568,8 +2785,10 @@ Return all visible text.`
       // stagedClasses is a pattern INPUT (not local cell) for idiomatic $checked binding
       // Local cells don't support cell-like property access in .map(); pattern inputs do
       stagedClasses,
-      // semesterDates for calendar export
+      // Calendar export fields
       semesterDates,
+      calendarName,
+      calendarOutbox,
     };
   }
 );

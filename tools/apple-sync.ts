@@ -108,6 +108,7 @@ COMMANDS:
   calendar          Sync Calendar events
   reminders         Sync Reminders
   notes             Sync Notes
+  calendar-write    Write events from extracurricular outbox to Apple Calendar
   status            Show sync status and configuration
   --all             Sync all data sources
   --help            Show this help message
@@ -128,6 +129,7 @@ EXAMPLES:
   ./tools/apple-sync.ts calendar --days-back 365  # Sync 1 year of calendar history
   ./tools/apple-sync.ts --all --daemon            # Run as background daemon
   ./tools/apple-sync.ts --all --daemon --interval 10  # Sync every 10 minutes
+  ./tools/apple-sync.ts calendar-write            # Write extracurricular events to Calendar
 
 CONFIGURATION:
   Config stored in: ${CONFIG_FILE}
@@ -143,6 +145,7 @@ const PATTERN_PATHS: Record<string, string> = {
   calendar: "patterns/jkomoros/calendar-viewer.tsx",
   reminders: "patterns/jkomoros/WIP/reminders-viewer.tsx",
   notes: "patterns/jkomoros/WIP/notes-viewer.tsx",
+  extracurricular: "patterns/jkomoros/extracurricular.tsx",
 };
 
 // Pattern name identifiers (used to find existing charms)
@@ -151,6 +154,7 @@ const PATTERN_NAMES: Record<string, string> = {
   calendar: "calendar-viewer",
   reminders: "reminders-viewer",
   notes: "notes-viewer",
+  extracurricular: "extracurricular",
 };
 
 interface CharmInfo {
@@ -1888,6 +1892,257 @@ async function ensureSpace(overrideSpace?: string): Promise<void> {
   console.log(`\n✅ Configuration saved. Using space: ${space}\n`);
 }
 
+// ===== CALENDAR WRITE TYPES =====
+
+interface CalendarOutboxEvent {
+  id: string;
+  title: string;
+  calendarName: string;
+  startDate: string;  // YYYY-MM-DD
+  startTime: string;  // HH:MM
+  endTime: string;    // HH:MM
+  location?: string;
+  notes?: string;
+  recurrence?: {
+    frequency: "WEEKLY";
+    daysOfWeek: string[];  // ["MO", "TU", etc.]
+    until?: string;        // YYYY-MM-DD
+  };
+}
+
+interface CalendarOutboxEntry {
+  id: string;
+  events: CalendarOutboxEvent[];
+  confirmation: {
+    timestamp: string;
+    dialogContent: {
+      displayedTitle: string;
+      displayedCalendar: string;
+      displayedEventCount: number;
+    };
+  };
+  execution: {
+    status: "pending" | "processing" | "completed" | "failed";
+    startedAt?: string;
+    completedAt?: string;
+    error?: string;
+    createdEventIds?: string[];
+  };
+  createdAt: string;
+}
+
+interface CalendarOutbox {
+  entries: CalendarOutboxEntry[];
+  lastUpdated: string;
+  version: string;
+}
+
+/**
+ * Create a calendar event in Apple Calendar via AppleScript
+ */
+async function createAppleCalendarEvent(
+  event: CalendarOutboxEvent
+): Promise<{ success: boolean; error?: string; eventId?: string }> {
+  // Build AppleScript to create the event
+  // Note: AppleScript calendar dates need to be in a specific format
+  const calendarName = event.calendarName.replace(/"/g, '\\"');
+  const title = event.title.replace(/"/g, '\\"');
+  const location = (event.location || "").replace(/"/g, '\\"');
+  const notes = (event.notes || "").replace(/"/g, '\\"');
+
+  // Parse date and times
+  const startDate = event.startDate; // YYYY-MM-DD
+  const [startHour, startMin] = event.startTime.split(":").map(Number);
+  const [endHour, endMin] = event.endTime.split(":").map(Number);
+
+  // Calculate duration in minutes
+  const durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+
+  // Build recurrence rule if present
+  let recurrenceRule = "";
+  if (event.recurrence) {
+    const days = event.recurrence.daysOfWeek.join(",");
+    recurrenceRule = `FREQ=${event.recurrence.frequency};BYDAY=${days}`;
+    if (event.recurrence.until) {
+      const until = event.recurrence.until.replace(/-/g, "");
+      recurrenceRule += `;UNTIL=${until}T235959Z`;
+    }
+  }
+
+  // AppleScript to create the event
+  // We use date string parsing that AppleScript understands
+  const script = `
+    tell application "Calendar"
+      tell calendar "${calendarName}"
+        -- Parse the start date
+        set startDateStr to "${startDate}"
+        set theYear to (text 1 thru 4 of startDateStr) as integer
+        set theMonth to (text 6 thru 7 of startDateStr) as integer
+        set theDay to (text 9 thru 10 of startDateStr) as integer
+
+        -- Create the start date object
+        set startDate to current date
+        set year of startDate to theYear
+        set month of startDate to theMonth
+        set day of startDate to theDay
+        set hours of startDate to ${startHour}
+        set minutes of startDate to ${startMin}
+        set seconds of startDate to 0
+
+        -- Create end date
+        set endDate to startDate + (${durationMinutes} * minutes)
+
+        -- Create the event
+        set newEvent to make new event with properties {summary:"${title}", start date:startDate, end date:endDate${location ? `, location:"${location}"` : ""}${notes ? `, description:"${notes}"` : ""}}
+
+        ${recurrenceRule ? `-- Set recurrence\nset recurrence of newEvent to "${recurrenceRule}"` : ""}
+
+        -- Return the event UID
+        return uid of newEvent
+      end tell
+    end tell
+  `;
+
+  try {
+    const command = new Deno.Command("osascript", {
+      args: ["-e", script],
+      stdout: "piped",
+      stderr: "piped",
+    });
+
+    const output = await command.output();
+
+    if (!output.success) {
+      const stderr = new TextDecoder().decode(output.stderr);
+      return { success: false, error: stderr.trim() };
+    }
+
+    const eventId = new TextDecoder().decode(output.stdout).trim();
+    return { success: true, eventId };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Process the calendar outbox - read pending entries and create events in Apple Calendar
+ */
+async function cmdCalendarWrite(overrideCharmId?: string): Promise<void> {
+  console.log("\n📅 Processing Calendar Outbox...\n");
+
+  const config = await loadConfig();
+  const apiUrl = config.apiUrl || "http://localhost:8000";
+
+  if (!config.space) {
+    console.log("❌ No space configured. Run 'apple-sync --all' first to configure.");
+    Deno.exit(1);
+  }
+
+  // Find extracurricular charm
+  let charmId: string | null = overrideCharmId || null;
+
+  if (!charmId) {
+    console.log("  Looking for extracurricular charm...");
+    charmId = await findCharmByPattern(apiUrl, config.space, "extracurricular");
+
+    if (!charmId) {
+      console.log("❌ No extracurricular charm found in space.");
+      console.log("   Deploy the extracurricular pattern first, then export events to the outbox.");
+      Deno.exit(1);
+    }
+  }
+
+  console.log(`  Found charm: ${charmId.substring(0, 20)}...`);
+
+  // Read the outbox from the charm
+  console.log("  Reading calendar outbox...");
+  const outbox = await readFromCharm<CalendarOutbox>({
+    apiUrl,
+    space: config.space,
+    charmId,
+    path: "calendarOutbox",
+  });
+
+  if (!outbox || !outbox.entries || outbox.entries.length === 0) {
+    console.log("\n✅ No pending events in outbox.\n");
+    return;
+  }
+
+  // Filter for pending entries only
+  const pendingEntries = outbox.entries.filter(
+    (entry) => entry.execution.status === "pending"
+  );
+
+  if (pendingEntries.length === 0) {
+    console.log(`\n✅ No pending entries (${outbox.entries.length} total, all processed).\n`);
+    return;
+  }
+
+  console.log(`  Found ${pendingEntries.length} pending entries\n`);
+
+  // Process each pending entry
+  for (const entry of pendingEntries) {
+    console.log(`  Processing entry ${entry.id.substring(0, 12)}...`);
+    console.log(`    Calendar: ${entry.events[0]?.calendarName || "Unknown"}`);
+    console.log(`    Events: ${entry.events.length}`);
+
+    // Mark as processing
+    entry.execution.status = "processing";
+    entry.execution.startedAt = new Date().toISOString();
+
+    // Create each event
+    const createdIds: string[] = [];
+    let hasError = false;
+    let errorMessage = "";
+
+    for (const event of entry.events) {
+      console.log(`      Creating: ${event.title}...`);
+      const result = await createAppleCalendarEvent(event);
+
+      if (result.success && result.eventId) {
+        createdIds.push(result.eventId);
+        console.log(`        ✓ Created`);
+      } else {
+        hasError = true;
+        errorMessage = result.error || "Unknown error";
+        console.log(`        ✗ Failed: ${errorMessage}`);
+        break; // Stop on first error
+      }
+    }
+
+    // Update execution status
+    if (hasError) {
+      entry.execution.status = "failed";
+      entry.execution.error = errorMessage;
+      entry.execution.completedAt = new Date().toISOString();
+      entry.execution.createdEventIds = createdIds;
+    } else {
+      entry.execution.status = "completed";
+      entry.execution.completedAt = new Date().toISOString();
+      entry.execution.createdEventIds = createdIds;
+      console.log(`    ✓ All ${entry.events.length} events created successfully`);
+    }
+  }
+
+  // Write updated outbox back to charm
+  console.log("\n  Updating outbox status...");
+  outbox.lastUpdated = new Date().toISOString();
+
+  await writeToCharm({
+    apiUrl,
+    space: config.space,
+    charmId,
+    path: "calendarOutbox",
+    data: outbox,
+  });
+
+  const successCount = pendingEntries.filter(e => e.execution.status === "completed").length;
+  const failCount = pendingEntries.filter(e => e.execution.status === "failed").length;
+
+  console.log(`\n✅ Done: ${successCount} succeeded, ${failCount} failed\n`);
+}
+
 /**
  * Run a single sync cycle for specified sources
  */
@@ -2006,6 +2261,12 @@ async function main(): Promise<void> {
 
   // Ensure space is configured before any sync command
   await ensureSpace(overrideSpace);
+
+  // Handle calendar-write command separately (not part of sync cycle)
+  if (command === "calendar-write") {
+    await cmdCalendarWrite(overrideCharmId);
+    return;
+  }
 
   // Determine which sources to sync
   let sources: string[] = [];
