@@ -80,6 +80,10 @@ const DAY_TO_RRULE: Record<DayOfWeek, string> = {
 /**
  * Convert ExportableEvent time slots to Google Calendar events.
  * Each time slot becomes a separate recurring event.
+ *
+ * TODO: Return { events, skipped } instead of just events array.
+ * Events without timeSlots or startDate/startTime/endTime are silently dropped.
+ * Same applies to convertToAppleOutbox and convertToICS.
  */
 export function convertToGoogleEvents(
   events: ExportableEvent[],
