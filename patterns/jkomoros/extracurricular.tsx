@@ -1807,10 +1807,12 @@ Return all visible text.`
                     <span style={{ color: "#666", fontSize: "0.85em" }}>
                       {s.dayOfWeek} {s.startTime}-{s.endTime}
                     </span>
-                    {s.gradeMin && s.gradeMax && (
+                    {ifElse(
+                      s.gradeMin && s.gradeMax,
                       <span style={{ color: "#888", fontSize: "0.8em" }}>
                         Gr {s.gradeMin}-{s.gradeMax}
-                      </span>
+                      </span>,
+                      null
                     )}
                     <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
                       {s.triageReason}
