@@ -38,8 +38,9 @@ interface LinkHistoryEntry {
 
 interface Config {
   lastSpaceLocal?: string;       // Last space for localhost deployments
-  lastSpaceProd?: string;        // Last space for production deployments
-  lastDeploymentTarget?: "local" | "prod";  // Last deployment target chosen
+  lastSpaceStaging?: string;     // Last space for toolshed (staging) deployments
+  lastSpaceProd?: string;        // Last space for estuary (production) deployments
+  lastDeploymentTarget?: "local" | "staging" | "prod";  // Last deployment target chosen
   labsDir?: string;              // Optional: override default labs location
   patterns: PatternRecord[];
   recentCharms: RecentCharm[];   // Recently deployed charms for linking
@@ -1015,7 +1016,8 @@ async function importCharmsFromSpace(
   // Select API URL
   const apiOptions: SelectOption[] = [
     { label: "localhost:8000", value: "http://localhost:8000", icon: "💻 " },
-    { label: "production (toolshed.saga-castor.ts.net)", value: "https://toolshed.saga-castor.ts.net", icon: "🌐 " },
+    { label: "toolshed (staging)", value: "https://toolshed.saga-castor.ts.net", icon: "🔧 " },
+    { label: "estuary (production)", value: "https://estuary.saga-castor.ts.net", icon: "🌐 " },
   ];
 
   const apiUrl = await interactiveSelect(apiOptions, "Select server:");
@@ -1024,10 +1026,12 @@ async function importCharmsFromSpace(
     return config;
   }
 
-  // Prompt for space name
-  const defaultSpace = apiUrl.includes("localhost")
-    ? config.lastSpaceLocal
-    : config.lastSpaceProd;
+  // Prompt for space name based on selected server
+  const defaultSpace = apiUrl.includes("estuary")
+    ? config.lastSpaceProd
+    : apiUrl.includes("toolshed")
+      ? config.lastSpaceStaging
+      : config.lastSpaceLocal;
 
   const space = await prompt("Enter space name", defaultSpace || "");
   if (!space) {
@@ -1937,35 +1941,43 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   return allSuccess;
 }
 
-async function promptForDeploymentTarget(config: Config): Promise<"local" | "prod" | "link" | "other"> {
+async function promptForDeploymentTarget(config: Config): Promise<"local" | "staging" | "prod" | "link" | "other"> {
   const options: SelectOption[] = [];
 
   // Get last used target
   const lastTarget = config.lastDeploymentTarget || "local";
 
-  // Add both options, with last used first
-  if (lastTarget === "local") {
-    options.push({
-      label: "localhost:8000 (last used)",
-      value: "local",
-      icon: "💻 ",
-    });
-    options.push({
-      label: "production (toolshed.saga-castor.ts.net)",
-      value: "prod",
-      icon: "🌐 ",
-    });
-  } else {
-    options.push({
-      label: "production (toolshed.saga-castor.ts.net) (last used)",
-      value: "prod",
-      icon: "🌐 ",
-    });
-    options.push({
+  // Define all deployment targets
+  const targets = [
+    {
       label: "localhost:8000",
       value: "local",
       icon: "💻 ",
+    },
+    {
+      label: "toolshed (staging)",
+      value: "staging",
+      icon: "🔧 ",
+    },
+    {
+      label: "estuary (production)",
+      value: "prod",
+      icon: "🌐 ",
+    },
+  ];
+
+  // Add targets with last used first
+  const lastUsedTarget = targets.find(t => t.value === lastTarget);
+  const otherTargets = targets.filter(t => t.value !== lastTarget);
+
+  if (lastUsedTarget) {
+    options.push({
+      ...lastUsedTarget,
+      label: `${lastUsedTarget.label} (last used)`,
     });
+  }
+  for (const target of otherTargets) {
+    options.push(target);
   }
 
   // Add "link charms" option
@@ -1991,15 +2003,19 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "pro
     "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):"
   );
 
-  return (selection as "local" | "prod" | "link" | "other") || lastTarget;
+  return (selection as "local" | "staging" | "prod" | "link" | "other") || lastTarget;
 }
 
-async function promptForSpace(config: Config, isProd: boolean): Promise<string> {
+async function promptForSpace(config: Config, target: "local" | "staging" | "prod"): Promise<string> {
   const options: SelectOption[] = [];
 
   // Get the appropriate last space based on deployment target
-  const lastSpace = isProd ? config.lastSpaceProd : config.lastSpaceLocal;
-  const defaultSpace = isProd ? "prod-space" : "test-space";
+  const lastSpace = target === "prod"
+    ? config.lastSpaceProd
+    : target === "staging"
+      ? config.lastSpaceStaging
+      : config.lastSpaceLocal;
+  const defaultSpace = target === "prod" ? "prod-space" : target === "staging" ? "staging-space" : "test-space";
 
   // Add last used space if available
   if (lastSpace) {
@@ -2451,12 +2467,10 @@ async function promptOpenBrowser(url: string): Promise<void> {
 async function deployPattern(
   patternPath: string,
   space: string,
-  isProd: boolean,
+  apiUrl: string,
   labsDir: string
 ): Promise<string | null> {
-  const apiUrl = isProd
-    ? "https://toolshed.saga-castor.ts.net"
-    : "http://localhost:8000";
+  const isRemote = !apiUrl.includes("localhost");
 
   console.log("\n🚀 Deploying...");
   console.log(`  Pattern: ${getShortPath(patternPath)}`);
@@ -2538,8 +2552,8 @@ async function deployPattern(
     if (output) console.log(output);
     if (errorOutput) console.error(errorOutput);
 
-    // If this was a production deployment, check for network-related errors
-    if (isProd) {
+    // If this was a remote deployment, check for network-related errors
+    if (isRemote) {
       const combinedOutput = (output + errorOutput).toLowerCase();
       const networkErrorPatterns = [
         'connect',
@@ -2672,10 +2686,8 @@ async function main() {
     Deno.exit(0);
   }
 
-  const isProd = deploymentTarget === "prod";
-
-  // Prompt for space
-  const space = await promptForSpace(config, isProd);
+  // Prompt for space (deploymentTarget is now "local" | "staging" | "prod")
+  const space = await promptForSpace(config, deploymentTarget);
   if (!space) {
     console.log("❌ No space provided");
     Deno.exit(1);
@@ -2683,8 +2695,10 @@ async function main() {
 
   // Save deployment target and space immediately (even if deployment fails)
   config.lastDeploymentTarget = deploymentTarget;
-  if (isProd) {
+  if (deploymentTarget === "prod") {
     config.lastSpaceProd = space;
+  } else if (deploymentTarget === "staging") {
+    config.lastSpaceStaging = space;
   } else {
     config.lastSpaceLocal = space;
   }
@@ -2701,11 +2715,13 @@ async function main() {
   config = recordPatternUsage(config, patternPath);
   await saveConfig(config);
 
-  // Deploy
-  const apiUrl = isProd
-    ? "https://toolshed.saga-castor.ts.net"
-    : "http://localhost:8000";
-  const result = await deployPattern(patternPath, space, isProd, labsDir);
+  // Deploy - determine API URL based on target
+  const apiUrl = deploymentTarget === "prod"
+    ? "https://estuary.saga-castor.ts.net"
+    : deploymentTarget === "staging"
+      ? "https://toolshed.saga-castor.ts.net"
+      : "http://localhost:8000";
+  const result = await deployPattern(patternPath, space, apiUrl, labsDir);
 
   if (!result) {
     // Deployment failed
