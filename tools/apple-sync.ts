@@ -1905,7 +1905,7 @@ interface CalendarOutboxEvent {
   notes?: string;
   recurrence?: {
     frequency: "WEEKLY";
-    daysOfWeek: string[];  // ["MO", "TU", etc.]
+    byDay: string;         // e.g., "MO" or "MO,WE,FR"
     until?: string;        // YYYY-MM-DD
   };
 }
@@ -1961,8 +1961,8 @@ async function createAppleCalendarEvent(
   // Build recurrence rule if present
   let recurrenceRule = "";
   if (event.recurrence) {
-    const days = event.recurrence.daysOfWeek.join(",");
-    recurrenceRule = `FREQ=${event.recurrence.frequency};BYDAY=${days}`;
+    // byDay is already in RRULE format (e.g., "MO" or "MO,WE,FR")
+    recurrenceRule = `FREQ=${event.recurrence.frequency};BYDAY=${event.recurrence.byDay}`;
     if (event.recurrence.until) {
       const until = event.recurrence.until.replace(/-/g, "");
       recurrenceRule += `;UNTIL=${until}T235959Z`;
