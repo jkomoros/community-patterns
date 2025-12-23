@@ -360,8 +360,8 @@ type ScheduleSlotData = {
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
   ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses }) => {
-    // Local cell for selected location when adding a class (string for ct-select binding)
-    const selectedLocationIndexStr = cell<string>("-1");
+    // Local cell for selected location when adding a class
+    const selectedLocationIndex = cell<number>(-1);
 
     // Local cell for new location type when adding a location
     const newLocationType = cell<LocationType>("afterschool-onsite");
@@ -374,13 +374,10 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
       state.idx.set(parseInt(event.target.value, 10));
     });
 
-    // Handler to update selected location index for Add Class (uses string)
-    const setLocationIndexStr = handler<
-      { target: { value: string } },
-      { idx: Cell<string> }
-    >((event, state) => {
-      state.idx.set(event.target.value);
-    });
+    // NOTE: Add Class uses inline handler because handler() state parameters
+    // get unwrapped to snapshots, not live reactive references. Inline handlers
+    // capture cells directly from closure and work correctly with reactivity.
+
 
     // =========================================================================
     // PHASE 3: IMPORT FLOW
@@ -1357,19 +1354,20 @@ Return all visible text.`
           {/* Classes Section */}
           <div style={{ marginBottom: "2rem" }}>
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
-
-            {/* List classes - uses derive for reactive class properties */}
+            {/* DEBUG: Simple class count display - using computed */}
+            <div style={{ background: "#ffe0e0", padding: "0.5rem", marginBottom: "0.5rem" }}>
+              DEBUG: classes.length = {computed(() => classes.get().length)}
+            </div>
+            {/* DEBUG: Simple map without derive - just names using computed */}
+            <div style={{ background: "#e0ffe0", padding: "0.5rem", marginBottom: "0.5rem" }}>
+              DEBUG names: {computed(() => classes.get().map((c: Class) => c.name).join(", "))}
+            </div>
+            {/* List classes - SIMPLIFIED: single derive, no nesting to test reactivity */}
             <div style={{ marginBottom: "1rem" }}>
-              {classes.map((cls, idx) => {
-                // Use derive to unwrap reactive class properties
-                return derive({ location: cls.location, timeSlots: cls.timeSlots, name: cls.name }, ({ location, timeSlots, name }) => {
+              {classes.map((cls) => {
+                // Simple derive with just name and location - NO NESTED DERIVES
+                return derive({ name: cls.name, location: cls.location }, ({ name, location }) => {
                   const locColor = getLocationColor(location?.name || "");
-                  // Format time slots for display
-                  const timeSlotText = (timeSlots || []).map((slot: TimeSlot) => {
-                    const day = slot.day ? slot.day.charAt(0).toUpperCase() + slot.day.slice(1, 3) : "";
-                    return `${day} ${slot.startTime}-${slot.endTime}`;
-                  }).join(", ");
-
                   return (
                     <div
                       style={{
@@ -1381,243 +1379,26 @@ Return all visible text.`
                         borderLeft: `4px solid ${locColor.border}`,
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                          {/* Pin button using handler pattern */}
-                          {/* Check if class is pinned to active set */}
-                          {derive({ pins: cls.pinnedInSets, activeSet: activeSetName }, ({ pins, activeSet }) => {
-                            const pinArray: string[] = Array.isArray(pins) ? pins : [];
-                            const activeSetStr = typeof activeSet === 'string' ? activeSet : '';
-                            const isPinned = pinArray.includes(activeSetStr);
-                            return (
-                              <ct-button
-                                style={{
-                                  border: isPinned ? "2px solid #1976d2" : "none",
-                                  borderRadius: "4px",
-                                  padding: "0.25rem 0.5rem",
-                                  cursor: "pointer",
-                                  background: isPinned ? "#e3f2fd" : "transparent",
-                                }}
-                                onClick={togglePinClass({
-                                  classList: classes,
-                                  activeSet: activeSetName,
-                                  idx,
-                                })}
-                              >
-                                {isPinned ? "📌" : "📍"}
-                              </ct-button>
-                            );
-                          })}
-                          <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>{name}</span>
-                          {/* Location with color indicator */}
-                          <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "#666", fontSize: "0.9em" }}>
-                            <span
-                              style={{
-                                width: "10px",
-                                height: "10px",
-                                borderRadius: "2px",
-                                background: locColor.bg,
-                                border: `1px solid ${locColor.border}`,
-                                flexShrink: 0,
-                              }}
-                            />
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={{ fontWeight: "bold" }}>{name}</span>
+                          <span style={{ color: "#666", fontSize: "0.9em" }}>
                             @ {location?.name || "Unknown"}
                           </span>
-                          {/* Day/time display */}
-                          {timeSlotText && (
-                            <span style={{ color: "#888", fontSize: "0.85em" }}>
-                              • {timeSlotText}
-                            </span>
-                          )}
                         </div>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        {/* Edit button */}
-                        {derive(editingClassIndex, (editIdx: number) => (
-                          <ct-button
-                            onClick={() => {
-                              editingClassIndex.set(editIdx === idx ? -1 : idx);
-                            }}
-                          >
-                            {editIdx === idx ? "Done" : "Edit"}
-                          </ct-button>
-                        ))}
                         <ct-button
                           onClick={() => {
                             const current = classes.get();
                             const index = current.findIndex((el) => Cell.equals(cls, el));
                             if (index >= 0) {
                               classes.set(current.toSpliced(index, 1));
-                              // Close edit panel if this class was being edited
-                              if (editingClassIndex.get() === index) {
-                                editingClassIndex.set(-1);
-                              }
                             }
                           }}
                         >
                           Remove
                         </ct-button>
                       </div>
-                  </div>
-
-                  {/* Edit panel - shown when editing this class */}
-                  {derive(editingClassIndex, (editIdx: number) => {
-                    if (editIdx !== idx) return null;
-                    return (
-                      <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", border: "1px solid #ddd", borderRadius: "4px" }}>
-                        <div style={{ display: "grid", gap: "0.5rem", gridTemplateColumns: "1fr 1fr" }}>
-                          {/* Name */}
-                          <div style={{ gridColumn: "1 / -1" }}>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Name:</label>
-                            <input
-                              type="text"
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={cls.name || ""}
-                              onChange={updateClassField({ classList: classes, idx, field: "name" })}
-                            />
-                          </div>
-                          {/* Description */}
-                          <div style={{ gridColumn: "1 / -1" }}>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Description:</label>
-                            <input
-                              type="text"
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={cls.description || ""}
-                              onChange={updateClassField({ classList: classes, idx, field: "description" })}
-                            />
-                          </div>
-                          {/* Location */}
-                          <div>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Location:</label>
-                            <select
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={locations.get().findIndex((l) => l.name === cls.location?.name)}
-                              onChange={updateClassLocation({ classList: classes, locs: locations, classIdx: idx })}
-                            >
-                              {locations.map((loc, locIdx) => (
-                                <option value={locIdx}>{loc.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          {/* Cost */}
-                          <div>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Cost ($):</label>
-                            <input
-                              type="number"
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={cls.cost || 0}
-                              onChange={updateClassCost({ classList: classes, idx })}
-                            />
-                          </div>
-                          {/* Grade range */}
-                          <div>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Grade Min:</label>
-                            <input
-                              type="text"
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={cls.gradeMin || ""}
-                              onChange={updateClassField({ classList: classes, idx, field: "gradeMin" })}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem" }}>Grade Max:</label>
-                            <input
-                              type="text"
-                              style={{ width: "100%", padding: "0.4rem" }}
-                              value={cls.gradeMax || ""}
-                              onChange={updateClassField({ classList: classes, idx, field: "gradeMax" })}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Time slots */}
-                        <div style={{ marginTop: "0.75rem" }}>
-                          <label style={{ display: "block", fontSize: "0.85em", marginBottom: "0.25rem", fontWeight: "bold" }}>Time Slots:</label>
-                          {(cls.timeSlots || []).map((slot: TimeSlot, slotIdx: number) => (
-                            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.25rem" }}>
-                              <select
-                                style={{ padding: "0.3rem" }}
-                                value={slot.day}
-                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "day" })}
-                              >
-                                <option value="monday">Mon</option>
-                                <option value="tuesday">Tue</option>
-                                <option value="wednesday">Wed</option>
-                                <option value="thursday">Thu</option>
-                                <option value="friday">Fri</option>
-                                <option value="saturday">Sat</option>
-                                <option value="sunday">Sun</option>
-                              </select>
-                              <input
-                                type="text"
-                                style={{ width: "60px", padding: "0.3rem" }}
-                                placeholder="15:00"
-                                value={slot.startTime || ""}
-                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "startTime" })}
-                              />
-                              <span>-</span>
-                              <input
-                                type="text"
-                                style={{ width: "60px", padding: "0.3rem" }}
-                                placeholder="16:00"
-                                value={slot.endTime || ""}
-                                onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "endTime" })}
-                              />
-                              <ct-button
-                                onClick={removeClassTimeSlot({ classList: classes, classIdx: idx, slotIdx })}
-                              >
-                                ✕
-                              </ct-button>
-                            </div>
-                          ))}
-                          <ct-button
-                            style={{ marginTop: "0.25rem" }}
-                            onClick={addClassTimeSlot({ classList: classes, idx })}
-                          >
-                            + Add Time Slot
-                          </ct-button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Status checkboxes - embedded state - uses derive for reactive statuses */}
-                  {derive(cls.statuses, (statuses: StatusFlags) => (
-                    <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={statuses.registered}
-                          onChange={() => toggleStatus(classes, cls, "registered")}
-                        />
-                        Registered
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={statuses.confirmed}
-                          onChange={() => toggleStatus(classes, cls, "confirmed")}
-                        />
-                        Confirmed
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={statuses.paid}
-                          onChange={() => toggleStatus(classes, cls, "paid")}
-                        />
-                        Paid
-                      </label>
-                      <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.85em" }}>
-                        <input
-                          type="checkbox"
-                          checked={statuses.onCalendar}
-                          onChange={() => toggleStatus(classes, cls, "onCalendar")}
-                        />
-                        On Calendar
-                      </label>
                     </div>
-                  ))}
-                </div>
                   );
                 });
               })}
@@ -1636,29 +1417,34 @@ Return all visible text.`
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
                   Location:
                 </label>
+                {/* Native select with value binding and handler for state sync */}
                 <select
                   style={{ width: "100%", padding: "0.5rem" }}
-                  value={selectedLocationIndexStr}
-                  onChange={setLocationIndexStr({ idx: selectedLocationIndexStr })}
+                  value={selectedLocationIndex}
+                  onChange={setLocationIndex({ idx: selectedLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
                   {locations.map((loc, idx) => (
-                    <option value={String(idx)}>{loc.name}</option>
+                    <option value={idx}>{loc.name}</option>
                   ))}
                 </select>
               </div>
               <ct-message-input
                 placeholder="Class name (e.g., Robotics, Dance)"
-                onct-send={(e: { detail: { message: string } }) => {
+                onct-send={(e: { detail?: { message?: string } }) => {
+                  console.log("DEBUG: onct-send fired, e=", e);
                   const name = e.detail?.message?.trim();
-                  const locIdxStr = selectedLocationIndexStr.get();
-                  const locIdx = parseInt(locIdxStr, 10);
+                  console.log("DEBUG: name=", name);
+                  const locIdx = selectedLocationIndex.get();
+                  console.log("DEBUG: locIdx=", locIdx);
                   const locs = locations.get();
+                  console.log("DEBUG: locs=", locs, "length=", locs.length);
                   if (name && locIdx >= 0 && locIdx < locs.length) {
+                    console.log("DEBUG: conditions passed, pushing class");
                     classes.push({
                       name,
                       description: "",
-                      location: locs[locIdx],  // EMBED the actual location object
+                      location: locs[locIdx],
                       timeSlots: [],
                       cost: 0,
                       gradeMin: "",
@@ -1672,6 +1458,9 @@ Return all visible text.`
                         onCalendar: false,
                       },
                     });
+                    console.log("DEBUG: after push, classes.get()=", classes.get());
+                  } else {
+                    console.log("DEBUG: conditions FAILED - name:", !!name, "locIdx:", locIdx, "locs.length:", locs.length);
                   }
                 }}
               />
