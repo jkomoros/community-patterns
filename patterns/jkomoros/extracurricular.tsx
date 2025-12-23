@@ -82,6 +82,10 @@ interface Class {
   cost: number;
   gradeMin: string;
   gradeMax: string;
+  // Session dates (from import, optional)
+  sessionStartDate?: string;    // YYYY-MM-DD, when this class session starts
+  sessionEndDate?: string;      // YYYY-MM-DD, when this class session ends
+  meetingCount?: number;        // Number of meetings in the session
   // STATE ON OBJECT (not in separate maps)
   pinnedInSets: string[];       // Which sets this class is pinned to
   statuses: StatusFlags;        // Registration status tracking
@@ -102,11 +106,20 @@ interface ExtractedClassInfo {
   permissionGrades: string;  // Grades that can join "with permission" or "by invitation"
   cost: number;
   notes: string;
+  // Session date info (extracted when available in source material)
+  sessionStartDate: string;  // YYYY-MM-DD format, empty if not found
+  sessionEndDate: string;    // YYYY-MM-DD format, empty if not found
+  meetingCount: number;      // Number of meetings/sessions, 0 if not found
+  noClassDates: string;      // Comma-separated dates with no class (holidays, breaks)
 }
 
-// Full extraction response from LLM
+// Full extraction response from LLM - includes session-level metadata
 interface ExtractionResponse {
   classes: ExtractedClassInfo[];
+  // Session-level dates that apply to all classes (if found in header/footer)
+  sessionStartDate: string;  // YYYY-MM-DD, empty if not found
+  sessionEndDate: string;    // YYYY-MM-DD, empty if not found
+  noClassDates: string;      // Comma-separated dates (holidays, breaks)
 }
 
 // Triage status for eligibility filtering
@@ -600,7 +613,16 @@ For each class found, extract:
 - gradeMin, gradeMax: the standard eligible grade range (e.g., "1" and "3" for Gr 1-3)
 - permissionGrades: grades outside the standard range that can join "with permission", "by invitation", or "w/permission" (e.g., "K" if "K with permission", or "3, 6" if "3rd and 6th with permission"). Empty string if none.
 - cost: number
-- notes: any other relevant info`;
+- notes: any other relevant info
+- sessionStartDate: if the class has a specific start date (YYYY-MM-DD format), empty string if not found
+- sessionEndDate: if the class has a specific end date (YYYY-MM-DD format), empty string if not found
+- meetingCount: number of meetings/sessions if mentioned (e.g., "12 mtgs" = 12), 0 if not found
+- noClassDates: comma-separated dates when class doesn't meet (holidays, breaks), empty string if not found
+
+Also extract session-level dates that apply to ALL classes (often in header/footer):
+- sessionStartDate: overall session/semester start date (YYYY-MM-DD), empty if not found
+- sessionEndDate: overall session/semester end date (YYYY-MM-DD), empty if not found
+- noClassDates: holidays/breaks that apply to all classes, empty if not found`;
     });
 
     // Run LLM extraction - destructure result/pending like food-recipe.tsx
@@ -625,10 +647,18 @@ For each class found, extract:
                 permissionGrades: { type: "string" as const },
                 cost: { type: "number" as const },
                 notes: { type: "string" as const },
+                sessionStartDate: { type: "string" as const },
+                sessionEndDate: { type: "string" as const },
+                meetingCount: { type: "number" as const },
+                noClassDates: { type: "string" as const },
               },
               required: ["name", "dayOfWeek", "startTime", "endTime"] as const,
             },
           },
+          // Session-level dates that apply to all classes
+          sessionStartDate: { type: "string" as const },
+          sessionEndDate: { type: "string" as const },
+          noClassDates: { type: "string" as const },
         },
         required: ["classes"] as const,
       },
@@ -674,6 +704,9 @@ For each class found, extract:
           ? { emoji: "⚠️", bg: "#fff3e0", border: "#ff9800" }
           : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
         // Explicitly extract all fields as primitives to avoid $alias proxy leakage
+        // Use session-level dates as fallback if class-specific dates not found
+        const classStartDate = String(cls.sessionStartDate || response.sessionStartDate || "");
+        const classEndDate = String(cls.sessionEndDate || response.sessionEndDate || "");
         return {
           name: String(cls.name || ""),
           dayOfWeek: String(cls.dayOfWeek || ""),
@@ -684,6 +717,11 @@ For each class found, extract:
           permissionGrades: String(cls.permissionGrades || ""),
           cost: Number(cls.cost) || 0,
           notes: String(cls.notes || ""),
+          // Session date info (class-specific or session-level fallback)
+          sessionStartDate: classStartDate,
+          sessionEndDate: classEndDate,
+          meetingCount: Number(cls.meetingCount) || 0,
+          noClassDates: String(cls.noClassDates || response.noClassDates || ""),
           // Only auto_kept is pre-selected; needs_review requires conscious opt-in
           selected: triage.status === "auto_kept",
           triageStatus: triage.status,
@@ -704,8 +742,8 @@ For each class found, extract:
     // Uses handler pattern to avoid closure issues
     const doImportAll = handler<
       unknown,
-      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: Cell<StagedClass[]>; trigger: Cell<string>; text: Cell<string>; lastText: Cell<string> }
-    >((_, { locIdx, locs, classList, staged, trigger, text, lastText }) => {
+      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: Cell<StagedClass[]>; trigger: Cell<string>; text: Cell<string>; lastText: Cell<string>; semester: Cell<SemesterDates> }
+    >((_, { locIdx, locs, classList, staged, trigger, text, lastText, semester }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
       if (locationIndex < 0 || locationIndex >= locationList.length) return;
@@ -714,9 +752,27 @@ For each class found, extract:
       const stagedList = staged.get();
       if (!stagedList || stagedList.length === 0) return;
 
+      // Auto-populate semester dates from imported classes if not already set
+      // Find the earliest start and latest end from all selected classes
+      const currentSemester = semester.get();
+      let earliestStart = currentSemester?.startDate || "";
+      let latestEnd = currentSemester?.endDate || "";
+
       // Import only classes that are selected
       for (const cls of stagedList) {
         if (!cls || !cls.selected) continue; // Skip unselected classes
+
+        // Track session dates for auto-population
+        if (cls.sessionStartDate) {
+          if (!earliestStart || cls.sessionStartDate < earliestStart) {
+            earliestStart = cls.sessionStartDate;
+          }
+        }
+        if (cls.sessionEndDate) {
+          if (!latestEnd || cls.sessionEndDate > latestEnd) {
+            latestEnd = cls.sessionEndDate;
+          }
+        }
 
         classList.push({
           name: cls.name || "",
@@ -730,6 +786,10 @@ For each class found, extract:
           cost: cls.cost || 0,
           gradeMin: cls.gradeMin || "",
           gradeMax: cls.gradeMax || "",
+          // Preserve session dates from extraction
+          sessionStartDate: cls.sessionStartDate || undefined,
+          sessionEndDate: cls.sessionEndDate || undefined,
+          meetingCount: cls.meetingCount || undefined,
           pinnedInSets: [],
           statuses: {
             registered: false,
@@ -739,6 +799,14 @@ For each class found, extract:
             onCalendar: false,
           },
         });
+      }
+
+      // Auto-populate semester dates if we found dates and current values are empty
+      if (earliestStart && !currentSemester?.startDate) {
+        semester.key("startDate").set(earliestStart);
+      }
+      if (latestEnd && !currentSemester?.endDate) {
+        semester.key("endDate").set(latestEnd);
       }
 
       // Clear import state
@@ -3137,6 +3205,7 @@ Return all visible text.`
                     trigger: extractionTriggerText,
                     text: importText,
                     lastText: lastProcessedExtractionText,
+                    semester: semesterDates,
                   })}
                 >
                   {importButtonText}
