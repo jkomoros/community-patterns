@@ -3,89 +3,123 @@ topic: deployment
 discovered: 2025-12-24
 sessions: [claude-code-session]
 related_labs_docs: none
-status: superstition
+status: verified-in-progress
+linear_issue: CT-1141
 ---
 
-# SUPERSTITION - UNVERIFIED
-
-**This is a SUPERSTITION** - based on a single observation. It may be:
-- Incomplete or context-specific
-- Misunderstood or coincidental
-- Already contradicted by official docs
-- Wrong in subtle ways
-
-**DO NOT trust this blindly.** Verify against:
-1. Official labs/docs/ first
-2. Working examples in labs/packages/patterns/
-3. Your own testing
-
-**If this is verified correct,** upstream it to labs docs and delete this superstition.
-
----
-
-# CLI Deployment Fails with Circular Schema (Stack Overflow) - Runtime Works Fine
+# CLI Deployment Fails with Large Patterns (OOM) - Runtime Works Fine
 
 ## Problem
 
-When deploying patterns with circular/self-referential schema structures via `ct charm new`, you get a "Maximum call stack size exceeded" error:
+When deploying patterns with large UI (like Record) via `ct charm new`, deployment fails with OOM:
 
 **Example error:**
 ```
+Fatal JavaScript out of memory: Reached heap limit
+```
+
+Previously manifested as stack overflow before cycle detection was added:
+```
 RangeError: Maximum call stack size exceeded
-    at recursiveStripAsCellAndStreamFromSchema (file:///packages/runner/src/link-utils.ts:426:32)
-    at recursiveStripAsCellAndStreamFromSchema (file:///packages/runner/src/link-utils.ts:426:32)
-    ... (repeated hundreds of times)
+    at recursiveStripAsCellAndStreamFromSchema (...)
 ```
 
-This happens with patterns like Record that have circular schema references (e.g., SubCharmEntry contains `schema?: JSONSchema` which can reference back to the parent pattern).
+## Root Cause Analysis (Verified)
 
-## Solution That Seemed To Work
+**Two separate issues identified:**
 
-**This is NOT a runtime issue** - the pattern works correctly at runtime. The error only affects CLI deployment.
+### Issue 1: SubCharmEntry.schema Explosion (FIXED in labs-4)
+- `getResultSchema(charm)` was capturing full result schemas at SubCharmEntry creation
+- These schemas include nested charm references, creating massive duplication
+- **Fix applied:** Removed all `getResultSchema` calls from `record.tsx`, using registry fallback instead
 
-The `recursiveStripAsCellAndStreamFromSchema` function in `packages/runner/src/link-utils.ts` lacks cycle detection (unlike other similar functions in the codebase that use `seen: Set<any>`).
+### Issue 2: vdomSchema $ref Self-Reference (NOT FIXED - CT-1141)
+- `packages/runner/src/schemas.ts` defines `vdomSchema` with `$ref: "#"` (self-reference)
+- This is valid JSON Schema but causes issues in `recursiveStripAsCellAndStreamFromSchema`
+- The function has object-identity cycle detection (`seen: Map`) but:
+  - Each schema property traversal creates new objects
+  - `$ref: "#"` is just a string, not resolved
+  - Large patterns with lots of UI generate massive schema trees
+- **This is the core CT-1141 bug that needs to land**
 
-**Workarounds:**
-1. Deploy via the browser/launcher instead of CLI
-2. Use the wish system to instantiate the pattern
-3. The pattern will work once deployed by any means
+## Current Status
 
-**Why runtime works:** The runtime has proper circular reference handling throughout:
-- Link resolution uses cycle detection
-- Cell system handles circular references
-- Schema queries have cycle-aware convergence
+1. ✅ Removed `recordPatternJson` / `linkPattern` dead code (was never used by Note)
+2. ✅ Removed `getResultSchema` calls to prevent schema duplication
+3. ❌ CLI still OOMs on Record due to vdomSchema $ref issue
+4. ✅ Simple patterns (email.tsx) deploy fine via CLI
+5. ✅ Record works at runtime - only CLI deployment affected
 
-## Example
+## Workarounds
 
-```bash
-# This fails with stack overflow
-deno task ct charm new packages/patterns/record.tsx -i claude.key -a http://localhost:8000 -s my-space
+1. **Deploy via browser/launcher** instead of CLI
+2. **Use wish system** to instantiate patterns
+3. **Pattern works once deployed** by any means
 
-# But deploying via browser/launcher works fine
-# Navigate to http://localhost:8000/~/launcher and ask "Create a Record charm"
+## Files Modified (in labs-4)
+
+- `packages/patterns/record.tsx`:
+  - Removed `JSON.stringify(Record)` computed
+  - Removed `recordPatternJson` parameter threading
+  - Removed `linkPattern` prop (was dead code - Note never used it)
+  - Removed all `getResultSchema` calls
+  - Added comments about registry fallback for schema discovery
+
+## Technical Details
+
+### The vdomSchema Problem
+
+```typescript
+// packages/runner/src/schemas.ts
+export const vdomSchema: JSONSchema = {
+  properties: {
+    children: {
+      items: {
+        anyOf: [
+          { $ref: "#", asCell: true },  // Self-reference
+          // ...
+        ],
+      },
+    },
+    [UI]: { $ref: "#" },  // Another self-reference
+  },
+}
 ```
 
-## Context
+### Why Object-Identity Cycle Detection Isn't Enough
 
-- The Record pattern contains SubCharmEntry which has a `schema?: JSONSchema` field
-- When sub-charms are created, their resultSchema is captured
-- Notes sub-charms created with `linkPattern: recordPatternJson` create circular schema references
-- CLI tries to serialize/sanitize schema before deployment, hitting the infinite recursion
-- Runtime doesn't use this serialization path, so patterns work fine once deployed
+```typescript
+// packages/runner/src/link-utils.ts
+function recursiveStripAsCellAndStreamFromSchema(schema, options, seen, depth) {
+  if (seen.has(schema)) return seen.get(schema);  // Object identity check
+  const result = { ...schema };  // Creates NEW object
+  seen.set(schema, result);
+  // ... recursively processes properties
+  // Problem: $ref is a string, not an object reference
+  // Each traversal creates new objects that aren't in 'seen'
+}
+```
 
-## Related Documentation
+### The Fix Needed (CT-1141)
 
-- **Official docs:** none found specifically about this
-- **Related code:** `packages/runner/src/link-utils.ts:396-435` (`recursiveStripAsCellAndStreamFromSchema`)
-- **Similar functions with cycle detection:** `createDataCellURI` at line 339-370 uses `seen: Set<any>`
+`recursiveStripAsCellAndStreamFromSchema` needs to either:
+1. Resolve `$ref` references before processing, OR
+2. Track `$ref` targets specially, OR
+3. Implement a depth/complexity limit for schema expansion
+
+## Linear Issue
+
+CT-1141 tracks the core `$ref` handling issue in `recursiveStripAsCellAndStreamFromSchema`.
 
 ## Next Steps
 
-- [ ] Verify against official docs
-- [ ] Potential fix: Add `seen: Set<any>` cycle detection to `recursiveStripAsCellAndStreamFromSchema`
-- [ ] If correct, upstream to labs docs
-- [ ] Then delete this superstition
+- [x] Remove SubCharmEntry.schema explosion (getResultSchema removal)
+- [x] Remove dead linkPattern code
+- [ ] CT-1141: Fix $ref handling in recursiveStripAsCellAndStreamFromSchema
+- [ ] Land labs runner fix
+- [ ] Verify Record deploys via CLI
+- [ ] Delete this superstition
 
 ---
 
-**Remember:** This is a hypothesis, not a fact. Treat with skepticism!
+**Status:** Partially verified. Root cause identified with two issues. One fixed (schema storage), one pending (CT-1141).
