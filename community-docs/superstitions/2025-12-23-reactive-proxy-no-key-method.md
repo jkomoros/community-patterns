@@ -41,6 +41,8 @@ targetMembersCell = membersCharm.key("members");  // TypeError!
 
 **Observed behavior:** The error `membersCharm.key is not a function` occurs because `targetMembersEntry.charm` is a reactive proxy object, NOT a Cell. Reactive proxies wrap values but don't have the `.key()` method that Cells have.
 
+**This bug bit us TWICE** - in both `addMember()` and `removeMember()` handlers in `members.tsx`, requiring fixes to the same cross-charm write pattern in both places.
+
 ## Why This Happens
 
 From `packages/runner/src/query-result-proxy.ts`:
@@ -63,10 +65,12 @@ Use `.key()` chains throughout to maintain writable Cell references:
 const subCharmsCell = charmCell.key("subCharms");
 const proxySubCharms = subCharmsCell.get() || [];
 
-// Find the index you need
+// Find the index you need using defensive property access
+// NOTE: Use .get?.() with fallback for robustness with reactive proxies
 let membersEntryIndex = -1;
 for (let i = 0; i < proxySubCharms.length; i++) {
-  const typeValue = subCharmsCell.key(i).key("type").get();
+  const typeCell = subCharmsCell.key(i).key("type");
+  const typeValue = String(typeCell.get?.() ?? typeCell ?? "");
   if (typeValue === "members") {
     membersEntryIndex = i;
     break;
@@ -88,7 +92,8 @@ if (membersEntryIndex >= 0) {
 
 This pattern is used successfully in:
 - `packages/patterns/record/extraction/extractor-module.tsx` line 351
-- `packages/patterns/members.tsx` bidirectional linking
+- `packages/patterns/members.tsx` bidirectional linking (`addMember` and `removeMember` handlers)
+- **Any pattern that needs cross-charm writes via navigation through nested structures**
 
 ## The Rule
 
@@ -101,14 +106,20 @@ cell.key("a").key("b").get()  // Returns value
 
 // Getting Cell for nested property (for writes):
 cell.key("a").key("b")  // Returns Cell with .get(), .set(), .key()
+
+// Defensive property access on reactive proxy arrays:
+const typeCell = arrayCell.key(i).key("type");
+const typeValue = String(typeCell.get?.() ?? typeCell ?? "");
 ```
 
 ## Context
 
 - Developed while fixing bidirectional linking in Members module
-- The error `membersCharm.key is not a function` was cryptic
+- The error `membersCharm.key is not a function` was cryptic and appeared in TWO places
 - Oracle investigation traced through `query-result-proxy.ts` to find root cause
-- The fix reduced ~30 lines of broken code to ~5 lines of working code
+- **Fixed in both `addMember` and `removeMember` handlers** (same pattern, same bug)
+- The fix reduced ~30 lines of broken code to ~5 lines of working code per handler
+- Critical for ANY cross-charm writes, not just Members module
 
 ## Related Documentation
 
