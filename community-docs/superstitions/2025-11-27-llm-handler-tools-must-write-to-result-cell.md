@@ -1,12 +1,12 @@
 ---
 topic: llm
 discovered: 2025-11-27
-confirmed_count: 1
-last_confirmed: 2025-11-27
-sessions: [hotel-membership-extractor-agent]
+confirmed_count: 2
+last_confirmed: 2025-12-24
+sessions: [hotel-membership-extractor-agent, omnibot-record-data-access]
 related_labs_docs: ~/Code/labs/docs/common/LLM.md
 status: superstition
-stars: ⭐
+stars: ⭐⭐
 ---
 
 # ⚠️ SUPERSTITION - UNVERIFIED
@@ -182,6 +182,69 @@ const addToListHandler = handler<{item: string; result?: Cell<any>}, {list: Cell
 - ✅ `result.set()` hack is **intentional** for handlers
 - ✅ Better approach: use `patternTool` for pure computation
 - ✅ Reserve handlers for operations with side effects
+
+---
+
+**Status:** CONFIRMED - Framework author clarified intended usage
+
+---
+
+## Guestbook
+
+### Entry 1: omnibot-record-data-access (December 2025)
+
+**Session:** omnibot-record-data-access
+**Date:** 2025-12-24
+**Pattern:** `packages/patterns/record.tsx`
+
+**Issue Encountered:**
+
+Added multiple LLM-callable handlers to the Record pattern:
+- `getSummary` - Read record title and modules
+- `addModule` / `removeModule` - Mutate modules array
+- `setTitle` - Update title
+- `updateModule` - Modify module properties
+- `listModuleTypes` - Read available module types
+
+All handlers initially used `return` statements to return data. When testing with Omnibot's `invoke()` tool, `getSummary` consistently returned `null` even though the handler was executing correctly.
+
+**Fix Applied:**
+
+Updated all handlers to use the `result.set()` pattern:
+
+```typescript
+const handleGetSummary = handler<
+  { result?: Cell<unknown> },
+  { title: Cell<string>; subCharms: Cell<SubCharmEntry[]>; }
+>(({ result }, { title, subCharms }) => {
+  const summary = {
+    title: title.get(),
+    modules: subCharms.get().map(entry => ({
+      id: entry.id,
+      type: entry.type,
+      // ...
+    }))
+  };
+
+  if (result) result.set(summary);
+});
+```
+
+**Interesting Observations:**
+
+1. **Mutation handlers appeared to "work"** - Handlers like `addModule` and `removeModule` successfully mutated the cells, so they appeared functional. However, their return values were ALSO `null` - the mutations just persisted independently of the return value.
+
+2. **setTitle worked AND persisted after refresh** - The `.set()` call on the title cell worked fine and persisted. The issue was only with the handler's return value being `null`.
+
+3. **Oracle investigation confirmed intended design** - This is not a bug, but the intended design. Handlers are for side effects, not return values. The `result` cell pattern is a deliberate hack to enable handlers as tools.
+
+**Key Insight:**
+
+The confusing part is that handlers with side effects (mutations) appear to work fine without `result.set()` because the mutations persist. But any handler used as an LLM tool needs `result.set()` if you want the LLM to receive data back.
+
+**Related Code:**
+- Pattern: `/Users/alex/Code/labs-2/packages/patterns/record.tsx`
+- Handlers: `handleGetSummary`, `handleAddModule`, `handleRemoveModule`, `handleSetTitle`, `handleUpdateModule`, `handleListModuleTypes`
 
 ---
 
