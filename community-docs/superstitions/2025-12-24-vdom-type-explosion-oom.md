@@ -10,7 +10,7 @@ TypeScript OOM errors during compilation when patterns return VDOM properties wi
 
 ## Problem
 
-When a pattern/recipe returns VDOM-producing properties (like `[UI]`, `settingsUI`, `fabUI`, `sidebarUI`) without declaring them in an explicit output interface, TypeScript attempts to infer the full recursive `RenderNode` type. This causes exponential type expansion that can exhaust memory and crash the TypeScript compiler during CI builds.
+When a pattern/recipe returns VDOM-producing properties (like `[UI]`, `settingsUI`, `fabUI`, `sidebarUI`, `embeddedUI`, `previewUI`) without declaring them in an explicit output interface, TypeScript attempts to infer the full recursive `RenderNode` type. This causes exponential type expansion that can exhaust memory and crash the TypeScript compiler during CI builds.
 
 ### Symptom
 
@@ -55,6 +55,8 @@ interface MyModuleOutput extends MyInput {
   settingsUI: unknown;  // `unknown` prevents deep type inference
   fabUI: unknown;
   sidebarUI: unknown;
+  embeddedUI: unknown;  // Minimal UI for ct-render variant="embedded"
+  previewUI: unknown;   // Preview UI for pickers/lists
 }
 
 export const MyModule = recipe<MyInput, MyModuleOutput>(
@@ -119,7 +121,7 @@ export default pattern<CharmsListInput, CharmsListOutput>((_) => {
 
 Use explicit output interfaces with `unknown` for VDOM properties when:
 
-1. Your pattern/recipe returns any UI-related properties (`[UI]`, `settingsUI`, `fabUI`, `sidebarUI`, etc.)
+1. Your pattern/recipe returns any UI-related properties (`[UI]`, `settingsUI`, `fabUI`, `sidebarUI`, `embeddedUI`, `previewUI`, etc.)
 2. You're creating patterns that will be used in CI/build environments
 3. You notice TypeScript compilation becoming slow or memory-intensive
 4. You're exporting patterns that other patterns will compose
