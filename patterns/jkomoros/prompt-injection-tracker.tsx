@@ -100,8 +100,7 @@
  *
  * AUTH NOTES:
  * -----------
- * - If no authCharm is provided, GmailImporter will automatically discover
- *   a favorited #googleAuth charm using wish() with 3-state UX
+ * - GmailImporter manages auth internally via createGoogleAuth()
  * - CT-1085 (favorites not persisting) is FIXED for same-space scenarios
  * - Cross-space auth access is a separate known issue
  */
@@ -486,9 +485,6 @@ interface TrackerInput {
   limit?: Default<number, 50>;
   // Manual articles (for testing without Gmail)
   articles?: Default<Article[], []>;
-  // Optional: explicitly provide auth charm. If null/undefined, GmailImporter
-  // will automatically wish for a favorited #googleAuth charm with 3-state UX.
-  authCharm?: Default<any, null>;
 }
 
 interface TrackerOutput {
@@ -496,7 +492,7 @@ interface TrackerOutput {
   extractedLinks: string[];
 }
 
-const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles, authCharm }) => {
+const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles }) => {
   // ==========================================================================
   // DEBUG: Pipeline Instrumentation (for caching investigation)
   // Remove this section once caching issues are resolved
@@ -526,8 +522,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // ==========================================================================
   // Gmail Integration
   // ==========================================================================
-  // If authCharm is null, GmailImporter will automatically wish for a favorited
-  // #googleAuth charm with 3-state UX (not-found, found-not-auth'd, authenticated)
+  // GmailImporter manages auth internally via createGoogleAuth()
   const importer = GmailImporter({
     settings: {
       gmailFilterQuery,
@@ -535,8 +530,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       historyId: "",
       debugMode: DEBUG_LOGGING, // Use same flag as pattern debug logging
     },
-    authCharm, // Pass explicit auth or null to use wish-based discovery
-    accountType: "default", // Use default account type for multi-account support
+    // Note: GmailImporter now manages auth internally via createGoogleAuth()
   });
 
   // Count for display (emails counted directly from importer)

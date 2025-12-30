@@ -380,7 +380,7 @@ const GmailSearchRegistry = pattern<
                                 <span style={{ color: "#22c55e" }}>+{query.upvotes || 0}</span>
                                 {" / "}
                                 <span style={{ color: "#ef4444" }}>-{query.downvotes || 0}</span>
-                                {query.submittedBy ? ` · by ${query.submittedBy}` : null}
+                                {query.submittedBy ? ` · by ${query.submittedBy}` : ""}
                               </div>
                               <div>
                                 {query.submittedAt ? new Date(query.submittedAt).toLocaleDateString() : ""}
