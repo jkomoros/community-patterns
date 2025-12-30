@@ -13,8 +13,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+is_pattern() {
+  # Check if file has a default export (patterns must have one, utilities don't)
+  # This works for all pattern variants:
+  #   - export default pattern<...>(...)
+  #   - const X = pattern<...>(...); export default X
+  #   - const X = recipe<...>(...); export default X
+  grep -q "export default" "$1"
+}
+
 check_file() {
   local file="$1"
+
+  # Skip non-pattern files (utilities, type definitions, etc.)
+  if ! is_pattern "$file"; then
+    echo "Skipping $file (not a pattern)"
+    return 0
+  fi
+
   echo "Checking $file..."
   if ! ct dev "$file" --no-run; then
     echo "❌ Error in $file"
