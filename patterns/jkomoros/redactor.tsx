@@ -6,14 +6,42 @@ import { Cell, computed, Default, NAME, pattern, UI, wish } from "commontools";
 // ============================================================================
 
 type PIICategory = "name" | "email" | "phone" | "ssn" | "address" | "custom";
+type DetectionSource = "manual" | "auto";
+type ConfidenceLevel = "high" | "medium";
 
 interface PIIEntry {
   category: PIICategory;
   value: string;
+  source?: DetectionSource;  // defaults to "manual"
+  confidence?: ConfidenceLevel;  // only present for auto-detected
 }
 
 interface CanonicalPIIEntry extends PIIEntry {
   canonical: string;
+}
+
+// Auto-detection result for internal use
+interface AutoDetectedPII {
+  category: PIICategory;
+  value: string;
+  confidence: ConfidenceLevel;
+  matchStart: number;
+  matchEnd: number;
+  patternName: string;
+}
+
+// Leak scan result
+interface LeakScanResult {
+  found: boolean;
+  leakedValues: string[];
+}
+
+// Stats for UI display
+interface RedactionStats {
+  manualCount: number;
+  autoDetectedCount: number;
+  highConfidenceCount: number;
+  mediumConfidenceCount: number;
 }
 
 // Use plain objects for JSON serialization in Cells
@@ -340,6 +368,181 @@ function findPIIMatches(text: string, piiEntries: CanonicalPIIEntry[]): PIIMatch
 }
 
 // ============================================================================
+// Auto-Detection - Regex patterns for common PII formats
+// ============================================================================
+
+interface PIIPattern {
+  regex: RegExp;
+  category: PIICategory;
+  confidence: ConfidenceLevel;
+  name: string;
+  validator?: (match: string) => boolean;
+}
+
+/**
+ * Luhn algorithm for credit card validation.
+ * Returns true if the number passes the checksum.
+ */
+function luhnValidate(cardNumber: string): boolean {
+  const digits = cardNumber.replace(/\D/g, '');
+  if (digits.length < 13 || digits.length > 19) return false;
+
+  let sum = 0;
+  let isEven = false;
+
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = parseInt(digits[i], 10);
+    if (isEven) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    isEven = !isEven;
+  }
+
+  return sum % 10 === 0;
+}
+
+const PII_PATTERNS: PIIPattern[] = [
+  // Email - high confidence (structured format)
+  {
+    regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    category: "email",
+    confidence: "high",
+    name: "email",
+  },
+  // SSN - high confidence (very specific format)
+  {
+    regex: /\b\d{3}-\d{2}-\d{4}\b/g,
+    category: "ssn",
+    confidence: "high",
+    name: "ssn",
+  },
+  // Credit card - high confidence with Luhn validation
+  // Matches 13-19 digits with optional spaces or dashes
+  {
+    regex: /\b(?:\d{4}[- ]?){3,4}\d{1,4}\b/g,
+    category: "custom",
+    confidence: "high",
+    name: "credit_card",
+    validator: luhnValidate,
+  },
+  // US Phone - medium confidence (many false positives possible)
+  // Matches: (555) 123-4567, 555-123-4567, 555.123.4567, +1 555 123 4567
+  {
+    regex: /\b(?:\+1[- .]?)?\(?[2-9]\d{2}\)?[- .]?\d{3}[- .]?\d{4}\b/g,
+    category: "phone",
+    confidence: "medium",
+    name: "phone_us",
+  },
+];
+
+/**
+ * Run auto-detection on input text.
+ * Returns detected PII items with positions and confidence.
+ */
+function autoDetectPII(text: string): AutoDetectedPII[] {
+  const results: AutoDetectedPII[] = [];
+  const coveredRanges: Array<[number, number]> = [];
+
+  for (const pattern of PII_PATTERNS) {
+    // Create a new regex instance to reset lastIndex
+    const regex = new RegExp(pattern.regex.source, pattern.regex.flags);
+
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const value = match[0];
+      const start = match.index;
+      const end = start + value.length;
+
+      // Check for overlap with existing matches (longer matches take precedence)
+      const overlaps = coveredRanges.some(
+        ([s, e]) => start < e && end > s
+      );
+      if (overlaps) continue;
+
+      // Run validator if present
+      if (pattern.validator && !pattern.validator(value)) continue;
+
+      results.push({
+        category: pattern.category,
+        value,
+        confidence: pattern.confidence,
+        matchStart: start,
+        matchEnd: end,
+        patternName: pattern.name,
+      });
+
+      coveredRanges.push([start, end]);
+    }
+  }
+
+  // Sort by position
+  return results.sort((a, b) => a.matchStart - b.matchStart);
+}
+
+/**
+ * Convert auto-detected items to PIIEntry format, removing duplicates
+ * that overlap with manual entries.
+ */
+function deduplicateAutoDetected(
+  autoDetected: AutoDetectedPII[],
+  manualEntries: CanonicalPIIEntry[]
+): PIIEntry[] {
+  const manualCanonicals = new Set(manualEntries.map(e => e.canonical));
+
+  return autoDetected
+    .filter(auto => {
+      const { canonical } = canonicalize(auto.value);
+      return !manualCanonicals.has(canonical);
+    })
+    .map(auto => ({
+      category: auto.category,
+      value: auto.value,
+      source: "auto" as DetectionSource,
+      confidence: auto.confidence,
+    }));
+}
+
+// ============================================================================
+// Leak Scanning - Detect if original PII appears in restored output
+// ============================================================================
+
+/**
+ * Scan restored text for any original PII that might have leaked.
+ * Uses canonicalization for evasion-resistant matching.
+ */
+function scanForLeaks(
+  restoredText: string,
+  originalPII: CanonicalPIIEntry[]
+): LeakScanResult {
+  const leaks: LeakScanResult = {
+    found: false,
+    leakedValues: [],
+  };
+
+  if (!restoredText || restoredText.trim() === "") {
+    return leaks;
+  }
+
+  const { canonical: canonicalText } = canonicalize(restoredText);
+
+  for (const pii of originalPII) {
+    if (pii.canonical.length === 0) continue;
+
+    // Check if the PII's canonical form appears in the restored text
+    if (canonicalText.includes(pii.canonical)) {
+      leaks.found = true;
+      if (!leaks.leakedValues.includes(pii.value)) {
+        leaks.leakedValues.push(pii.value);
+      }
+    }
+  }
+
+  return leaks;
+}
+
+// ============================================================================
 // Redact and Restore
 // ============================================================================
 
@@ -401,6 +604,7 @@ interface InputSchema {
   piiEntries: Default<PIIEntry[], []>;
   inputText: Default<string, "">;
   llmResponse: Default<string, "">;
+  autoDetectEnabled: Default<boolean, true>;
 }
 
 /** Text redactor that replaces PII with nonces for LLM safety. #redactor */
@@ -409,47 +613,85 @@ interface OutputSchema {
   piiEntries: Default<PIIEntry[], []>;
   inputText: Default<string, "">;
   llmResponse: Default<string, "">;
+  autoDetectEnabled: Default<boolean, true>;
   redactedText: string;
   restoredText: string;
+  autoDetectedPII: PIIEntry[];
+  leakScanResult: LeakScanResult;
+  stats: RedactionStats;
 }
 
 // Type for wish result
 type WishedVault = { entries: PIIEntry[] };
 
-export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputText, llmResponse }) => {
+export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputText, llmResponse, autoDetectEnabled }) => {
   // Wish for a PII vault as fallback if none linked
   // TODO(CT-1084): Update to wish({ query: "#pii-vault" }) when object syntax bug is fixed
   const wishedVault = wish<WishedVault>("#pii-vault");
 
-  // Effective PII entries: use linked entries if present, otherwise use wished vault
-  const effectivePII = computed(() => {
+  // Manual PII entries: use linked entries if present, otherwise use wished vault
+  const manualPII = computed(() => {
     // If we have directly linked entries, use those
     if (piiEntries.length > 0) {
-      return [...piiEntries] as PIIEntry[];
+      return [...piiEntries].map(e => ({ ...e, source: "manual" as DetectionSource })) as PIIEntry[];
     }
     // Otherwise try the wished vault
     const vault = wishedVault;
     if (vault && vault.entries && vault.entries.length > 0) {
-      return [...vault.entries] as PIIEntry[];
+      return [...vault.entries].map(e => ({ ...e, source: "manual" as DetectionSource })) as PIIEntry[];
     }
     return [] as PIIEntry[];
   });
 
-  // Stats
-  const piiCount = computed(() => effectivePII.length);
-  const hasPII = computed(() => effectivePII.length > 0);
+  // Auto-detected PII from input text
+  const autoDetectedPII = computed(() => {
+    if (!autoDetectEnabled) return [] as PIIEntry[];
+    const text = inputText;
+    if (!text || text.trim() === "") return [] as PIIEntry[];
+
+    // Prepare manual entries for deduplication
+    const preparedManual = preparePIIEntries(manualPII);
+
+    // Run auto-detection and deduplicate
+    const detected = autoDetectPII(text);
+    return deduplicateAutoDetected(detected, preparedManual);
+  });
+
+  // Combined PII: manual entries take precedence, then auto-detected
+  const combinedPII = computed(() => {
+    const manual = manualPII as PIIEntry[];
+    const auto = autoDetectedPII as PIIEntry[];
+    return [...manual, ...auto];
+  });
+
+  // Stats for UI
+  const stats = computed((): RedactionStats => {
+    const manual = manualPII as PIIEntry[];
+    const auto = autoDetectedPII as PIIEntry[];
+    return {
+      manualCount: manual.length,
+      autoDetectedCount: auto.length,
+      highConfidenceCount: auto.filter(e => e.confidence === "high").length,
+      mediumConfidenceCount: auto.filter(e => e.confidence === "medium").length,
+    };
+  });
+
+  // Legacy compatibility
+  const hasPII = computed(() => combinedPII.length > 0);
+  const hasAutoDetected = computed(() => (autoDetectedPII as PIIEntry[]).length > 0);
 
   // Auto-redact whenever inputText changes (reactive)
-  // FAIL CLOSED: If no PII entries, output error message instead of passing through
+  // FAIL CLOSED: If no PII entries AND no auto-detection, output error message
   const redactionResult = computed(() => {
     const text = inputText;
-    const entries = effectivePII;
+    const entries = combinedPII as PIIEntry[];
 
-    // Fail closed: require PII entries
-    if (entries.length === 0) {
+    // Fail closed: require some PII protection (manual or auto-detected)
+    if (entries.length === 0 && !autoDetectEnabled) {
       return {
-        redacted: "⚠️ ERROR: No PII vault connected. Cannot safely redact. Please link a PII vault or add entries.",
+        redacted: "⚠️ ERROR: No PII vault connected and auto-detection disabled. Cannot safely redact.",
         session: null as RedactionSession | null,
+        preparedPII: [] as CanonicalPIIEntry[],
       };
     }
 
@@ -458,14 +700,15 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
       return {
         redacted: "",
         session: null as RedactionSession | null,
+        preparedPII: [] as CanonicalPIIEntry[],
       };
     }
 
-    // Perform redaction
+    // Perform redaction with combined PII
     const preparedPII = preparePIIEntries(entries);
     const session = createSession();
     const redacted = redact(text, preparedPII, session);
-    return { redacted, session };
+    return { redacted, session, preparedPII };
   });
 
   // Reactive outputs from redaction
@@ -493,30 +736,97 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
     return restore(response, session);
   });
 
+  // Leak scanning - check if original PII appears in restored output
+  const leakScanResult = computed((): LeakScanResult => {
+    const restored = restoredText as string;
+    const preparedPII = redactionResult.preparedPII;
+
+    if (!restored || restored.trim() === "" || !preparedPII || preparedPII.length === 0) {
+      return { found: false, leakedValues: [] };
+    }
+
+    return scanForLeaks(restored, preparedPII);
+  });
+
   return {
     [NAME]: title,
     [UI]: (
       <div style={{ padding: "1rem", maxWidth: "900px" }}>
         <h2 style={{ margin: "0 0 1rem 0" }}>{title}</h2>
 
-        {/* Status bar */}
+        {/* Auto-detection toggle */}
+        <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <ct-checkbox $checked={autoDetectEnabled}>
+            <span style={{ fontSize: "13px" }}>
+              Auto-detect PII (emails, phones, SSNs, credit cards)
+            </span>
+          </ct-checkbox>
+        </div>
+
+        {/* Enhanced status bar with breakdown */}
         <div style={{ marginBottom: "1rem", fontSize: "13px" }}>
           {computed(() =>
-            hasPII ? (
-              <span style={{ color: "#16a34a" }}>
-                ✓ {piiCount} PII entries loaded - auto-redacting
-              </span>
+            hasPII || hasAutoDetected ? (
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ color: "#16a34a" }}>
+                  ✓ {stats.manualCount + stats.autoDetectedCount} PII items - auto-redacting
+                </span>
+                {stats.manualCount > 0 && (
+                  <span style={{
+                    padding: "2px 8px",
+                    backgroundColor: "#dbeafe",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#1e40af",
+                  }}>
+                    {stats.manualCount} manual
+                  </span>
+                )}
+                {stats.autoDetectedCount > 0 && (
+                  <span style={{
+                    padding: "2px 8px",
+                    backgroundColor: "#f3e8ff",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#7c3aed",
+                  }}>
+                    {stats.autoDetectedCount} auto-detected
+                  </span>
+                )}
+                {stats.highConfidenceCount > 0 && (
+                  <span style={{
+                    padding: "2px 8px",
+                    backgroundColor: "#d1fae5",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#065f46",
+                  }} title="High confidence detections">
+                    {stats.highConfidenceCount} high
+                  </span>
+                )}
+                {stats.mediumConfidenceCount > 0 && (
+                  <span style={{
+                    padding: "2px 8px",
+                    backgroundColor: "#fef3c7",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#92400e",
+                  }} title="Medium confidence detections">
+                    {stats.mediumConfidenceCount} medium
+                  </span>
+                )}
+              </div>
             ) : (
               <span style={{ color: "#dc2626", fontWeight: "500" }}>
-                ⚠️ No PII vault connected - FAIL CLOSED MODE
+                ⚠️ No PII protection active - {autoDetectEnabled ? "enter text to auto-detect" : "FAIL CLOSED MODE"}
               </span>
             )
           )}
         </div>
 
-        {/* Warning banner when no PII */}
+        {/* Warning banner when no PII and auto-detect disabled */}
         {computed(() =>
-          !hasPII ? (
+          !hasPII && !autoDetectEnabled ? (
             <div
               style={{
                 padding: "1rem",
@@ -527,9 +837,8 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
                 color: "#991b1b",
               }}
             >
-              <strong>Security Warning:</strong> No PII vault is connected.
-              The redactor will not pass through any text without a vault.
-              Please link a PII vault or favorite one tagged with #pii-vault.
+              <strong>Security Warning:</strong> No PII vault is connected and auto-detection is disabled.
+              The redactor will not pass through any text. Enable auto-detection or link a PII vault.
             </div>
           ) : null
         )}
@@ -547,6 +856,72 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
             Redaction happens automatically when text changes
           </div>
         </div>
+
+        {/* Auto-detected PII section */}
+        {computed(() =>
+          hasAutoDetected ? (
+            <div style={{ marginBottom: "1.5rem" }}>
+              <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "14px", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>Auto-Detected PII</span>
+                <span style={{
+                  padding: "2px 8px",
+                  backgroundColor: "#f3e8ff",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  fontWeight: "normal",
+                  color: "#7c3aed",
+                }}>
+                  {(autoDetectedPII as PIIEntry[]).length} items
+                </span>
+              </h3>
+              <div style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: "8px",
+                overflow: "hidden",
+              }}>
+                {(autoDetectedPII as PIIEntry[]).map((item: PIIEntry) => (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem 1rem",
+                    borderBottom: "1px solid #e5e7eb",
+                    backgroundColor: "#fafafa",
+                  }}>
+                    {/* Category badge */}
+                    <span style={{
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      fontSize: "11px",
+                      fontWeight: "500",
+                      backgroundColor: "#e0e7ff",
+                      color: "#3730a3",
+                      minWidth: "50px",
+                      textAlign: "center",
+                    }}>
+                      {item.category}
+                    </span>
+                    {/* Confidence badge */}
+                    <span style={{
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontSize: "10px",
+                      fontWeight: "500",
+                      backgroundColor: item.confidence === "high" ? "#d1fae5" : "#fef3c7",
+                      color: item.confidence === "high" ? "#065f46" : "#92400e",
+                    }}>
+                      {item.confidence}
+                    </span>
+                    {/* Value */}
+                    <span style={{ flex: 1, fontFamily: "monospace", fontSize: "13px" }}>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null
+        )}
 
         {/* Redacted output */}
         <div style={{ marginBottom: "1.5rem" }}>
@@ -603,13 +978,53 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
             {restoredText}
           </div>
         </div>
+
+        {/* Leak scan result */}
+        {computed(() =>
+          (leakScanResult as LeakScanResult).found ? (
+            <div style={{
+              padding: "1rem",
+              marginTop: "1rem",
+              backgroundColor: "#fef2f2",
+              border: "2px solid #dc2626",
+              borderRadius: "8px",
+              color: "#991b1b",
+            }}>
+              <strong>⚠️ LEAK DETECTED!</strong>
+              <p style={{ margin: "0.5rem 0 0 0", fontSize: "13px" }}>
+                Original PII was found in the restored output. The following values may have leaked:
+              </p>
+              <ul style={{ margin: "0.5rem 0 0 1rem", padding: 0 }}>
+                {(leakScanResult as LeakScanResult).leakedValues.map((val: string) => (
+                  <li style={{ fontFamily: "monospace" }}>{val}</li>
+                ))}
+              </ul>
+            </div>
+          ) : restoredText && (restoredText as string).trim() !== "" ? (
+            <div style={{
+              padding: "0.5rem 1rem",
+              marginTop: "0.5rem",
+              backgroundColor: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: "6px",
+              fontSize: "12px",
+              color: "#166534",
+            }}>
+              ✓ No PII leaks detected in restored output
+            </div>
+          ) : null
+        )}
       </div>
     ),
     title,
     piiEntries,
     inputText,
     llmResponse,
+    autoDetectEnabled,
     redactedText,
     restoredText,
+    autoDetectedPII,
+    leakScanResult,
+    stats,
   };
 });
