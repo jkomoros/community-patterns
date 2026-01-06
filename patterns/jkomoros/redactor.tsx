@@ -454,12 +454,21 @@ const PII_PATTERNS: PIIPattern[] = [
     confidence: "high",
     name: "email",
   },
-  // SSN - high confidence with validation for invalid ranges
+  // SSN with hyphens - high confidence with validation for invalid ranges
   {
     regex: /\b\d{3}-\d{2}-\d{4}\b/g,
     category: "ssn",
     confidence: "high",
-    name: "ssn",
+    name: "ssn_hyphen",
+    validator: validateSSN,
+  },
+  // SSN without hyphens - high confidence (9 consecutive digits)
+  // Note: Higher false positive risk, but important to catch
+  {
+    regex: /\b\d{9}\b/g,
+    category: "ssn",
+    confidence: "high",
+    name: "ssn_nohyphen",
     validator: validateSSN,
   },
   // Credit card - high confidence with Luhn validation
@@ -664,7 +673,7 @@ interface InputSchema {
   piiEntries: Default<PIIEntry[], []>;
   inputText: Default<string, "">;
   llmResponse: Default<string, "">;
-  autoDetectEnabled: Default<boolean, true>;
+  autoDetectEnabled: Default<boolean, false>;  // Opt-IN to preserve fail-closed behavior
 }
 
 /** Text redactor that replaces PII with nonces for LLM safety. #redactor */
@@ -673,7 +682,7 @@ interface OutputSchema {
   piiEntries: Default<PIIEntry[], []>;
   inputText: Default<string, "">;
   llmResponse: Default<string, "">;
-  autoDetectEnabled: Default<boolean, true>;
+  autoDetectEnabled: Default<boolean, false>;
   redactedText: string;
   restoredText: string;
   autoDetectedPII: PIIEntry[];
@@ -815,12 +824,17 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
         <h2 style={{ margin: "0 0 1rem 0" }}>{title}</h2>
 
         {/* Auto-detection toggle */}
-        <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <ct-checkbox $checked={autoDetectEnabled}>
-            <span style={{ fontSize: "13px" }}>
-              Auto-detect PII (emails, phones, SSNs, credit cards)
-            </span>
-          </ct-checkbox>
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <ct-checkbox $checked={autoDetectEnabled}>
+              <span style={{ fontSize: "13px" }}>
+                Auto-detect common PII patterns (supplements manual entries)
+              </span>
+            </ct-checkbox>
+          </div>
+          <div style={{ fontSize: "11px", color: "#666", marginTop: "4px", marginLeft: "24px" }}>
+            Detects: US emails, phones, SSNs, credit cards. Does NOT detect: names, addresses, international formats.
+          </div>
         </div>
 
         {/* Enhanced status bar with breakdown */}
@@ -1064,13 +1078,16 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
             <div style={{
               padding: "0.5rem 1rem",
               marginTop: "0.5rem",
-              backgroundColor: "#f0fdf4",
-              border: "1px solid #86efac",
+              backgroundColor: "#fefce8",
+              border: "1px solid #fde047",
               borderRadius: "6px",
               fontSize: "12px",
-              color: "#166534",
+              color: "#854d0e",
             }}>
-              ✓ No PII leaks detected in restored output
+              <div>No leaks detected for <strong>known PII entries</strong></div>
+              <div style={{ fontSize: "11px", marginTop: "4px", color: "#a16207" }}>
+                Note: Only checks PII you provided or auto-detected. Names, addresses, and international formats may not be covered.
+              </div>
             </div>
           ) : null
         )}
