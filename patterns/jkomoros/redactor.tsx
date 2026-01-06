@@ -403,6 +403,49 @@ function luhnValidate(cardNumber: string): boolean {
   return sum % 10 === 0;
 }
 
+/**
+ * Validate SSN ranges per SSA rules.
+ * Invalid: area 000, 666, or 900-999; group 00; serial 0000
+ */
+function validateSSN(ssn: string): boolean {
+  const digits = ssn.replace(/\D/g, '');
+  if (digits.length !== 9) return false;
+
+  const area = parseInt(digits.slice(0, 3), 10);
+  const group = parseInt(digits.slice(3, 5), 10);
+  const serial = parseInt(digits.slice(5, 9), 10);
+
+  // Invalid area numbers: 000, 666, 900-999
+  if (area === 0 || area === 666 || area >= 900) return false;
+  // Invalid group number: 00
+  if (group === 0) return false;
+  // Invalid serial number: 0000
+  if (serial === 0) return false;
+
+  return true;
+}
+
+/**
+ * Validate US phone number structure.
+ * Area code and exchange must start with 2-9.
+ */
+function validateUSPhone(phone: string): boolean {
+  const digits = phone.replace(/\D/g, '');
+  // Remove country code if present
+  const normalized = digits.length === 11 && digits[0] === '1'
+    ? digits.slice(1)
+    : digits;
+
+  if (normalized.length !== 10) return false;
+
+  // Area code (first 3) and exchange (next 3) must start with 2-9
+  const areaFirst = parseInt(normalized[0], 10);
+  const exchangeFirst = parseInt(normalized[3], 10);
+
+  return areaFirst >= 2 && areaFirst <= 9 &&
+         exchangeFirst >= 2 && exchangeFirst <= 9;
+}
+
 const PII_PATTERNS: PIIPattern[] = [
   // Email - high confidence (structured format)
   {
@@ -411,12 +454,13 @@ const PII_PATTERNS: PIIPattern[] = [
     confidence: "high",
     name: "email",
   },
-  // SSN - high confidence (very specific format)
+  // SSN - high confidence with validation for invalid ranges
   {
     regex: /\b\d{3}-\d{2}-\d{4}\b/g,
     category: "ssn",
     confidence: "high",
     name: "ssn",
+    validator: validateSSN,
   },
   // Credit card - high confidence with Luhn validation
   // Matches 13-19 digits with optional spaces or dashes
@@ -427,13 +471,15 @@ const PII_PATTERNS: PIIPattern[] = [
     name: "credit_card",
     validator: luhnValidate,
   },
-  // US Phone - medium confidence (many false positives possible)
+  // US Phone - medium confidence with validation
+  // Fixed: uses (?:\(\d{3}\)|\d{3}) to prevent unbalanced parentheses
   // Matches: (555) 123-4567, 555-123-4567, 555.123.4567, +1 555 123 4567
   {
-    regex: /\b(?:\+1[- .]?)?\(?[2-9]\d{2}\)?[- .]?\d{3}[- .]?\d{4}\b/g,
+    regex: /\b(?:\+1[- .]?)?(?:\(\d{3}\)|\d{3})[- .]?\d{3}[- .]?\d{4}\b/g,
     category: "phone",
     confidence: "medium",
     name: "phone_us",
+    validator: validateUSPhone,
   },
 ];
 
@@ -508,9 +554,14 @@ function deduplicateAutoDetected(
 // Leak Scanning - Detect if original PII appears in restored output
 // ============================================================================
 
+// Minimum canonical length to scan for leaks (avoids false positives from
+// short strings like "Al" matching "algorithm")
+const MIN_LEAK_CANONICAL_LENGTH = 3;
+
 /**
  * Scan restored text for any original PII that might have leaked.
- * Uses canonicalization for evasion-resistant matching.
+ * Uses the same word-boundary matching as redaction for consistency,
+ * avoiding false positives from substring matches.
  */
 function scanForLeaks(
   restoredText: string,
@@ -525,16 +576,25 @@ function scanForLeaks(
     return leaks;
   }
 
-  const { canonical: canonicalText } = canonicalize(restoredText);
+  // Filter to meaningful-length entries to reduce false positives
+  const significantPII = originalPII.filter(
+    pii => pii.canonical.length >= MIN_LEAK_CANONICAL_LENGTH
+  );
 
-  for (const pii of originalPII) {
-    if (pii.canonical.length === 0) continue;
+  if (significantPII.length === 0) {
+    return leaks;
+  }
 
-    // Check if the PII's canonical form appears in the restored text
-    if (canonicalText.includes(pii.canonical)) {
-      leaks.found = true;
-      if (!leaks.leakedValues.includes(pii.value)) {
-        leaks.leakedValues.push(pii.value);
+  // Reuse findPIIMatches for consistent word-boundary behavior
+  // This prevents false positives like "John" matching "Johnathan"
+  const matches = findPIIMatches(restoredText, significantPII);
+
+  if (matches.length > 0) {
+    leaks.found = true;
+    // Deduplicate leaked values
+    for (const match of matches) {
+      if (!leaks.leakedValues.includes(match.pii.value)) {
+        leaks.leakedValues.push(match.pii.value);
       }
     }
   }
