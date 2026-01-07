@@ -71,10 +71,9 @@ interface StoreMapInput {
   storeName?: Default<string, "">;
   aisles?: Default<StoreAisle[], []>;
   specialDepartments?: Default<DepartmentRecord[], []>; // Assigned departments
-  unassignedDepartments?: Default<
-    string[],
-    ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"]
-  >; // Unassigned
+  // TODO: Revert to pre-populated default once Robin's default propagation fix lands (~2 weeks)
+  // Pre-populated Default<T[], [values]> doesn't work with charm new deployment
+  unassignedDepartments?: Default<string[], []>; // Empty - users click "Load Common" to populate
   entrances?: Default<Entrance[], []>;
   notInStore?: Default<string[], []>;
   inCenterAisles?: Default<string[], []>; // Departments marked as being in center aisles (not perimeter)
@@ -165,6 +164,22 @@ const dismissSuggestion = handler<
 });
 
 // Department handlers - the new workflow!
+
+// Initialize default departments - WORKAROUND for "default propagation bug"
+// When deployed via `charm new`, Default<T[], [...]> doesn't initialize arrays.
+// This handler lets users manually initialize the defaults if the array is empty.
+// See: community-docs/superstitions/2025-11-29-generateObject-empty-array-handler-pattern.md
+const initializeDefaultDepartments = handler<
+  unknown,
+  { unassignedDepartments: Cell<string[]> }
+>((_event, { unassignedDepartments }) => {
+  if (unassignedDepartments.get().length === 0) {
+    for (const name of DEFAULT_DEPARTMENT_NAMES) {
+      unassignedDepartments.push(name);
+    }
+  }
+});
+
 const addCustomDepartment = handler<
   unknown,
   { unassignedDepartments: Cell<string[]>; customDeptName: Cell<string> }
@@ -680,7 +695,15 @@ function analyzeOverlap(existingDesc: string, suggestedProducts: string[]): Over
 }
 
 const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
-  ({ storeName, aisles, specialDepartments, unassignedDepartments, entrances, notInStore, inCenterAisles, itemLocations }) => {
+  ({ storeName, aisles, specialDepartments, unassignedDepartments: _inputUnassignedDepts, entrances, notInStore, inCenterAisles, itemLocations }) => {
+    // WORKAROUND: Pattern inputs with Default<> may be read-only.
+    // Create a local writable cell and initialize with defaults.
+    // See: community-docs/superstitions/2025-12-04-default-inputs-readonly-use-local-cell.md
+    // NOTE: We ignore the input value because:
+    // 1. Default<T[], [values]> doesn't populate via charm new anyway (default propagation bug)
+    // 2. Accessing inputUnassignedDepts outside computed() throws "reactive reference outside reactive context"
+    const unassignedDepartments = cell<string[]>([...DEFAULT_DEPARTMENT_NAMES]);
+
     const uploadedPhotos = cell<ImageData[]>([]);
     const hiddenPhotoIds = cell<string[]>([]); // Track deleted photos without splicing array
     const customDeptName = cell<string>("");
@@ -890,7 +913,7 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
       [aisleCount, departmentCount],
       ([a, d]) => a + d
     );
-    const unassignedCount = computed(() => unassignedDepartments.length);
+    const unassignedCount = computed(() => unassignedDepartments.get().length);
 
     // Gap detection for numbered aisles
     const detectedGaps = computed(() => {
@@ -968,8 +991,9 @@ What common sections might be missing?`,
       const gaps = detectedGaps as unknown as string[];
       return gaps.map((gapName: string, index: number) => (
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-          <button
-            className="suggestion-btn suggestion-btn-gap"
+          <ct-button
+            size="sm"
+            variant="secondary"
             onClick={addFromSuggestion({
               aisles,
               suggestions: detectedGaps,
@@ -977,9 +1001,10 @@ What common sections might be missing?`,
             })}
           >
             + {gapName}
-          </button>
-          <button
-            className="suggestion-dismiss-btn"
+          </ct-button>
+          <ct-button
+            size="sm"
+            variant="ghost"
             onClick={dismissSuggestion({
               notInStore,
               suggestions: detectedGaps,
@@ -987,7 +1012,7 @@ What common sections might be missing?`,
             })}
           >
             ×
-          </button>
+          </ct-button>
         </div>
       ));
     });
@@ -999,8 +1024,9 @@ What common sections might be missing?`,
       const suggestions = llmSuggestions as unknown as string[];
       return suggestions.map((suggestion: string, index: number) => (
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-          <button
-            className="suggestion-btn"
+          <ct-button
+            size="sm"
+            variant="secondary"
             onClick={addFromDepartmentSuggestion({
               unassignedDepartments,
               suggestions: llmSuggestions,
@@ -1008,9 +1034,10 @@ What common sections might be missing?`,
             })}
           >
             + {suggestion}
-          </button>
-          <button
-            className="suggestion-dismiss-btn"
+          </ct-button>
+          <ct-button
+            size="sm"
+            variant="ghost"
             onClick={dismissSuggestion({
               notInStore,
               suggestions: llmSuggestions,
@@ -1018,7 +1045,7 @@ What common sections might be missing?`,
             })}
           >
             ×
-          </button>
+          </ct-button>
         </div>
       ));
     });
@@ -1081,9 +1108,15 @@ What common sections might be missing?`,
     });
 
     // Filter unassigned to exclude dismissed departments and those in center aisles
+    // Use computed() with explicit .get() for all reactive values
+    // unassignedDepartments is our local Cell, notInStore/inCenterAisles are pattern inputs
     const visibleUnassigned = computed(() => {
-      return unassignedDepartments.filter(
-        (name) => !notInStore.includes(name) && !inCenterAisles.includes(name)
+      const unassignedArr = unassignedDepartments.get();
+      // Pattern inputs: cast to get the underlying array (auto-unwrapped in computed)
+      const excludedArr = (notInStore as unknown as string[]);
+      const centerArr = (inCenterAisles as unknown as string[]);
+      return unassignedArr.filter(
+        (name: string) => !excludedArr.includes(name) && !centerArr.includes(name)
       );
     });
 
@@ -1094,9 +1127,9 @@ What common sections might be missing?`,
       (sugs) => sugs.length > 0
     );
     const hasNotInStore = computed(() => notInStore.length > 0);
-    const hasUnassigned = computed(() => visibleUnassigned.length > 0);
+    const hasUnassigned = derive(visibleUnassigned, (arr) => arr.length > 0);
     const hasAssigned = computed(() => specialDepartments.length > 0);
-    const visibleUnassignedCount = computed(() => visibleUnassigned.length);
+    const visibleUnassignedCount = derive(visibleUnassigned, (arr) => arr.length);
     const llmPending = commonSectionsLLM.pending;
     const hasCorrections = computed(() => itemLocations.length > 0);
     const correctionsCount = computed(() => itemLocations.length);
@@ -1803,6 +1836,13 @@ What common sections might be missing?`,
                 })}
               >
                 + Add
+              </ct-button>
+              <ct-button
+                size="sm"
+                variant="outline"
+                onClick={initializeDefaultDepartments({ unassignedDepartments })}
+              >
+                Load Common
               </ct-button>
             </div>
           </div>
@@ -3243,5 +3283,42 @@ What common sections might be missing?`,
     };
   }
 );
+
+/**
+ * Default values for creating a new StoreMapper.
+ *
+ * IMPORTANT: The Default<T, V> idiom has a known "default propagation bug" -
+ * when deploying directly via `charm new`, pre-populated defaults don't work.
+ * This factory function works around that by explicitly passing the values.
+ *
+ * Once Robin's fix lands, this factory function may become unnecessary.
+ */
+const defaults = {
+  storeName: "",
+  aisles: [] as StoreAisle[],
+  specialDepartments: [] as DepartmentRecord[],
+  unassignedDepartments: [
+    "Bakery",
+    "Deli",
+    "Produce",
+    "Dairy",
+    "Frozen Foods",
+    "Meat & Seafood",
+    "Pharmacy",
+  ] as string[],
+  entrances: [] as Entrance[],
+  notInStore: [] as string[],
+  inCenterAisles: [] as string[],
+  itemLocations: [] as ItemLocation[],
+};
+
+/**
+ * Factory function to create a StoreMapper with sensible defaults.
+ * Use this instead of StoreMapper({}) directly to work around the default propagation bug.
+ * @example navigateTo(createStoreMapper({ storeName: "Trader Joe's" }));
+ */
+export function createStoreMapper(overrides?: Partial<typeof defaults>) {
+  return StoreMapper({ ...defaults, ...overrides });
+}
 
 export default StoreMapper;
