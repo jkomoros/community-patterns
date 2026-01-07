@@ -142,6 +142,18 @@ const addFromSuggestion = handler<
   }
 });
 
+// Add LLM-suggested departments (non-numbered sections like Bakery, Deli)
+// to unassignedDepartments instead of aisles
+const addFromDepartmentSuggestion = handler<
+  unknown,
+  { unassignedDepartments: Cell<string[]>; suggestions: string[]; index: number }
+>((_event, { unassignedDepartments, suggestions, index }) => {
+  const suggestion = suggestions[index];
+  if (suggestion) {
+    unassignedDepartments.push(suggestion);
+  }
+});
+
 const dismissSuggestion = handler<
   unknown,
   { notInStore: Cell<string[]>; suggestions: string[]; index: number }
@@ -981,15 +993,16 @@ What common sections might be missing?`,
     });
 
     // Pre-compute JSX for LLM suggestions (cannot .map() over derive results in JSX)
-    // Inside computed(), reactive values are auto-unwrapped, so llmSuggestions is already a plain array
+    // LLM suggestions are perimeter departments (Bakery, Deli, etc.), not numbered aisles.
+    // Add them to unassignedDepartments so users can assign them to walls.
     const llmSuggestionsButtons = computed(() => {
       const suggestions = llmSuggestions as unknown as string[];
       return suggestions.map((suggestion: string, index: number) => (
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
           <button
             className="suggestion-btn"
-            onClick={addFromSuggestion({
-              aisles,
+            onClick={addFromDepartmentSuggestion({
+              unassignedDepartments,
               suggestions: llmSuggestions,
               index,
             })}
@@ -1750,7 +1763,51 @@ What common sections might be missing?`,
             )}
           </div>
 
-          {/* Unassigned Departments - NEW WORKFLOW! */}
+          {/* Add custom department - always visible */}
+          <div
+            style={{
+              marginBottom: "1rem",
+              padding: "1rem",
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#475569",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Add a perimeter department (e.g., Bakery, Deli, Produce):
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                alignItems: "center",
+              }}
+            >
+              <ct-input
+                $value={customDeptName}
+                placeholder="Department name..."
+                style="flex: 1; font-size: 13px;"
+              />
+              <ct-button
+                size="sm"
+                variant="secondary"
+                onClick={addCustomDepartment({
+                  unassignedDepartments,
+                  customDeptName,
+                })}
+              >
+                + Add
+              </ct-button>
+            </div>
+          </div>
+
+          {/* Unassigned Departments - only shown when there are departments to assign */}
           {ifElse(
             hasUnassigned,
             <div
@@ -1780,32 +1837,6 @@ What common sections might be missing?`,
                 }}
               >
                 Choose which wall each department is on, or mark N/A if not in this store:
-              </div>
-
-              {/* Add custom department */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  marginBottom: "1rem",
-                  alignItems: "center",
-                }}
-              >
-                <ct-input
-                  $value={customDeptName}
-                  placeholder="Add custom department..."
-                  style="flex: 1; font-size: 13px;"
-                />
-                <ct-button
-                  size="sm"
-                  variant="secondary"
-                  onClick={addCustomDepartment({
-                    unassignedDepartments,
-                    customDeptName,
-                  })}
-                >
-                  + Add
-                </ct-button>
               </div>
 
               <div
