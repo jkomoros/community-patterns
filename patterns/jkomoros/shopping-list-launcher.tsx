@@ -1,6 +1,6 @@
 /// <cts-enable />
 import { Cell, cell, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
-import StoreMapper from "./store-mapper.tsx";
+import StoreMapper, { createStoreMapper } from "./store-mapper.tsx";
 
 interface ShoppingItem {
   title: string;
@@ -183,15 +183,8 @@ const addItems = handler<
 });
 
 const openStoreMapper = handler<unknown, { storeName: string }>((_event, { storeName }) => {
-  return navigateTo(StoreMapper({
+  return navigateTo(createStoreMapper({
     storeName: storeName || "My Store",
-    aisles: [],
-    specialDepartments: [],
-    unassignedDepartments: ["Bakery", "Deli", "Produce", "Dairy", "Frozen Foods", "Meat & Seafood", "Pharmacy"],
-    entrances: [],
-    notInStore: [],
-    inCenterAisles: [],
-    itemLocations: [],
   }));
 });
 
