@@ -1559,7 +1559,7 @@ Return all visible text.`
     const prepareCalendarExport = handler<
       unknown,
       {
-        pinnedClasses: Class[];
+        pinnedClasses: readonly Class[];
         semesterDates: Writable<SemesterDates>;
         child: Writable<ChildProfile>;
         activeSetName: Writable<string>;
@@ -1568,7 +1568,7 @@ Return all visible text.`
         outbox: Writable<CalendarOutbox>;
       }
     >((_: unknown, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }: {
-      pinnedClasses: Class[];
+      pinnedClasses: readonly Class[];
       semesterDates: Writable<SemesterDates>;
       child: Writable<ChildProfile>;
       activeSetName: Writable<string>;
