@@ -90,14 +90,14 @@ interface Output {
 
 const prepareToSend = handler<
   unknown,
-  { showConfirmation: Cell<boolean> }
+  { showConfirmation: Writable<boolean> }
 >((_, { showConfirmation }) => {
   showConfirmation.set(true);
 });
 
 const cancelSend = handler<
   unknown,
-  { showConfirmation: Cell<boolean> }
+  { showConfirmation: Writable<boolean> }
 >((_, { showConfirmation }) => {
   showConfirmation.set(false);
 });
@@ -105,11 +105,11 @@ const cancelSend = handler<
 const confirmAndSend = handler<
   unknown,
   {
-    draft: Cell<EmailDraft>;
-    auth: Cell<Auth>;
-    sending: Cell<boolean>;
-    result: Cell<SendResult | null>;
-    showConfirmation: Cell<boolean>;
+    draft: Writable<EmailDraft>;
+    auth: Writable<Auth>;
+    sending: Writable<boolean>;
+    result: Writable<SendResult | null>;
+    showConfirmation: Writable<boolean>;
   }
 >(async (_, { draft, auth, sending, result, showConfirmation }) => {
   sending.set(true);
@@ -159,7 +159,7 @@ const confirmAndSend = handler<
   }
 });
 
-const dismissResult = handler<unknown, { result: Cell<SendResult | null> }>(
+const dismissResult = handler<unknown, { result: Writable<SendResult | null> }>(
   (_, { result }) => {
     result.set(null);
   },

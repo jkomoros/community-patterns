@@ -9,7 +9,6 @@ import {
   str,
   UI,
   Writable,
-  writable,
 } from "commontools";
 import type {
   Collection,
@@ -304,19 +303,19 @@ const importFromJson = handler<
 export default pattern<CollectionDetailInput, CollectionDetailOutput>(
   ({ collection, allLinks, allCollections: _allCollections }) => {
     // Form inputs for adding new links
-    const titleInput = writable("");
-    const urlInput = writable("");
-    const descInput = writable("");
+    const titleInput = Writable.of("");
+    const urlInput = Writable.of("");
+    const descInput = Writable.of("");
 
     // Edit mode state
-    const editingLinkUrl = writable(""); // URL of link being edited (empty = none)
-    const editTitle = writable("");
-    const editUrl = writable("");
-    const editDesc = writable("");
+    const editingLinkUrl = Writable.of(""); // URL of link being edited (empty = none)
+    const editTitle = Writable.of("");
+    const editUrl = Writable.of("");
+    const editDesc = Writable.of("");
 
     // Export/Import state
-    const exportOutput = writable("");
-    const importInput = writable("");
+    const exportOutput = Writable.of("");
+    const importInput = Writable.of("");
 
     // Derive the links list
     const links = derive(

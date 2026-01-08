@@ -111,7 +111,7 @@ const GmailSearchRegistry = pattern<
       description?: string;
       submittedBy?: string;
     },
-    { queries: Cell<SharedQuery[]> }
+    { queries: Writable<SharedQuery[]> }
   >((input, state) => {
     const allQueries = state.queries.get() || [];
 
@@ -143,7 +143,7 @@ const GmailSearchRegistry = pattern<
   // Handler to upvote a query
   const upvoteQuery = handler<
     { agentTypeUrl: string; queryId: string },
-    { queries: Cell<SharedQuery[]> }
+    { queries: Writable<SharedQuery[]> }
   >((input, state) => {
     const allQueries = state.queries.get() || [];
     const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);
@@ -167,7 +167,7 @@ const GmailSearchRegistry = pattern<
   // Handler to downvote a query
   const downvoteQuery = handler<
     { agentTypeUrl: string; queryId: string },
-    { queries: Cell<SharedQuery[]> }
+    { queries: Writable<SharedQuery[]> }
   >((input, state) => {
     const allQueries = state.queries.get() || [];
     const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);

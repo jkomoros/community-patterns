@@ -17,7 +17,6 @@ import {
   pattern,
   UI,
   Writable,
-  writable,
 } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -113,7 +112,7 @@ const toggleCalendar = handler<
 export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
-  const hiddenCalendars = writable<string[]>([]);
+  const hiddenCalendars = Writable.of<string[]>([]);
 
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 

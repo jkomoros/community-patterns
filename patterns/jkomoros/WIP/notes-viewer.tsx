@@ -9,7 +9,6 @@
  *   ./tools/apple-sync.ts notes
  */
 import {
-  writable,
   Default,
   derive,
   handler,
@@ -109,7 +108,7 @@ const backToList = handler<
 export default pattern<{
   notes: Default<Confidential<NoteItem[]>, []>;
 }>(({ notes }) => {
-  const selectedNoteId = writable<string | null>(null);
+  const selectedNoteId = Writable.of<string | null>(null);
 
   const noteCount = derive(
     notes,

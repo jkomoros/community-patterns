@@ -10,7 +10,6 @@
  * See: patterns/jkomoros/issues/ISSUE-navigateTo-generateObject-cpu-spike.md
  */
 import {
-  writable,
   Writable,
   computed,
   generateObject,
@@ -55,8 +54,8 @@ interface Props {
 }
 
 export default pattern<Props>(({ notes }) => {
-  const trigger = writable<string>("");
-  const startTimeMs = writable<number>(0);
+  const trigger = Writable.of<string>("");
+  const startTimeMs = Writable.of<number>(0);
 
   const guardedPrompt = computed(() => {
     const t = trigger.get();

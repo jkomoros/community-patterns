@@ -116,7 +116,6 @@ import {
   str,
   UI,
   Writable,
-  writable,
 } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -429,7 +428,7 @@ const loadTestArticles = handler<unknown, { articles: Writable<Article[]> }>(
     for (const article of TEST_ARTICLES) {
       articles.push(article);
     }
-  }
+  },
 );
 
 // Extra test article for incremental caching tests
@@ -454,7 +453,7 @@ These hardware-level vulnerabilities require both firmware and OS-level patches.
 const addSingleArticle = handler<unknown, { articles: Writable<Article[]> }>(
   (_event, { articles }) => {
     articles.push(EXTRA_TEST_ARTICLE);
-  }
+  },
 );
 
 // Handler to toggle read/unread state for a report URL
@@ -544,8 +543,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // ==========================================================================
   // Reports storage and read state
   // ==========================================================================
-  const reports = writable<PromptInjectionReport[]>([]);
-  const readUrls = writable<string[]>([]); // Track which report URLs have been read (normalized)
+  const reports = Writable.of<PromptInjectionReport[]>([]);
+  const readUrls = Writable.of<string[]>([]); // Track which report URLs have been read (normalized)
 
   // ==========================================================================
   // LEVEL 1: Extract security links from articles (the "dumb map approach")

@@ -14,7 +14,6 @@ import {
   UI,
   wish,
   Writable,
-  writable,
 } from "commontools";
 
 import FoodRecipe from "./food-recipe.tsx";
@@ -422,18 +421,18 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
     // Track charms created by this meal orchestrator
     // These will be exported as mentionable so they become discoverable
-    const createdCharms = writable<any[]>([]);
+    const createdCharms = Writable.of<any[]>([]);
 
     // Writables for ct-code-editor inputs and outputs
     // $mentioned is automatically populated by ct-code-editor with charm references
-    const recipeInputText = writable<string>("");
-    const recipeMentioned = writable<any[]>([]);
-    const preparedFoodInputText = writable<string>("");
-    const preparedFoodMentioned = writable<any[]>([]);
+    const recipeInputText = Writable.of<string>("");
+    const recipeMentioned = Writable.of<any[]>([]);
+    const preparedFoodInputText = Writable.of<string>("");
+    const preparedFoodMentioned = Writable.of<any[]>([]);
 
     // LLM Recipe Linking State
-    const linkingAnalysisTrigger = writable<string>("");
-    const linkingAnalysisResult = writable<AnalysisResult | null>(null);
+    const linkingAnalysisTrigger = Writable.of<string>("");
+    const linkingAnalysisResult = Writable.of<AnalysisResult | null>(null);
 
     // LLM Analysis of Planning Notes
     const { result: linkingResult, pending: linkingPending } = generateObject({

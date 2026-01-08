@@ -32,7 +32,7 @@ import {
 // Handler to add a new family member
 const addMember = handler<
   { detail: { message: string } },
-  { members: Cell<FamilyMember[]> }
+  { members: Writable<FamilyMember[]> }
 >(({ detail }, { members }) => {
   const name = detail?.message?.trim();
   if (!name) return;
@@ -49,7 +49,7 @@ const addMember = handler<
 // Handler to remove a family member
 const removeMember = handler<
   unknown,
-  { members: Cell<FamilyMember[]>; memberId: string }
+  { members: Writable<FamilyMember[]>; memberId: string }
 >((_, { members, memberId }) => {
   const current = members.get();
   const index = current.findIndex((m) => m.id === memberId);
@@ -61,7 +61,7 @@ const removeMember = handler<
 // Handler to update member role
 const updateMemberRole = handler<
   { target: { value: FamilyRole } },
-  { members: Cell<FamilyMember[]>; memberId: string }
+  { members: Writable<FamilyMember[]>; memberId: string }
 >(({ target }, { members, memberId }) => {
   const current = members.get();
   const index = current.findIndex((m) => m.id === memberId);
@@ -75,7 +75,7 @@ const updateMemberRole = handler<
 // Handler to add a new address
 const addAddress = handler<
   { detail: { message: string } },
-  { addresses: Cell<Address[]> }
+  { addresses: Writable<Address[]> }
 >(({ detail }, { addresses }) => {
   const fullAddress = detail?.message?.trim();
   if (!fullAddress) return;
@@ -94,7 +94,7 @@ const addAddress = handler<
 // Handler to remove an address
 const removeAddress = handler<
   unknown,
-  { addresses: Cell<Address[]>; addressId: string }
+  { addresses: Writable<Address[]>; addressId: string }
 >((_, { addresses, addressId }) => {
   const current = addresses.get();
   const index = current.findIndex((a) => a.id === addressId);
@@ -114,7 +114,7 @@ const removeAddress = handler<
 // Handler to update address label
 const updateAddressLabel = handler<
   { target: { value: string } },
-  { addresses: Cell<Address[]>; addressId: string }
+  { addresses: Writable<Address[]>; addressId: string }
 >(({ target }, { addresses, addressId }) => {
   const current = addresses.get();
   const index = current.findIndex((a) => a.id === addressId);
@@ -128,7 +128,7 @@ const updateAddressLabel = handler<
 // Handler to set primary address
 const setPrimaryAddress = handler<
   unknown,
-  { addresses: Cell<Address[]>; addressId: string }
+  { addresses: Writable<Address[]>; addressId: string }
 >((_, { addresses, addressId }) => {
   const current = addresses.get();
   const updated = current.map((addr) => ({
@@ -141,7 +141,7 @@ const setPrimaryAddress = handler<
 // Handler to add a tag
 const addTag = handler<
   { detail: { message: string } },
-  { tags: Cell<string[]> }
+  { tags: Writable<string[]> }
 >(({ detail }, { tags }) => {
   const tag = detail?.message?.trim().toLowerCase();
   if (!tag) return;
@@ -155,7 +155,7 @@ const addTag = handler<
 // Handler to remove a tag
 const removeTag = handler<
   unknown,
-  { tags: Cell<string[]>; tag: string }
+  { tags: Writable<string[]>; tag: string }
 >((_, { tags, tag }) => {
   const current = tags.get();
   const index = current.indexOf(tag);

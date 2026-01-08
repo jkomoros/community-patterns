@@ -14,7 +14,6 @@
  * - If ~4 seconds: Need to add more complexity
  */
 import {
-  writable,
   Writable,
   computed,
   generateObject,
@@ -153,24 +152,24 @@ interface ExtractionResult {
 
 export default pattern(() => {
   // Trigger for extraction
-  const trigger = writable<string>("");
-  const startTimeMs = writable<number>(0);
+  const trigger = Writable.of<string>("");
+  const startTimeMs = Writable.of<number>(0);
 
   // Mock current values (empty, like a new person)
-  const displayName = writable<string>("");
-  const givenName = writable<string>("");
-  const familyName = writable<string>("");
-  const nickname = writable<string>("");
-  const pronouns = writable<string>("");
-  const birthday = writable<string>("");
-  const emailValue = writable<string>("");
-  const phoneValue = writable<string>("");
-  const twitterHandle = writable<string>("");
-  const linkedinHandle = writable<string>("");
-  const githubHandle = writable<string>("");
-  const instagramHandle = writable<string>("");
-  const mastodonHandle = writable<string>("");
-  const notes = writable<string>("");
+  const displayName = Writable.of<string>("");
+  const givenName = Writable.of<string>("");
+  const familyName = Writable.of<string>("");
+  const nickname = Writable.of<string>("");
+  const pronouns = Writable.of<string>("");
+  const birthday = Writable.of<string>("");
+  const emailValue = Writable.of<string>("");
+  const phoneValue = Writable.of<string>("");
+  const twitterHandle = Writable.of<string>("");
+  const linkedinHandle = Writable.of<string>("");
+  const githubHandle = Writable.of<string>("");
+  const instagramHandle = Writable.of<string>("");
+  const mastodonHandle = Writable.of<string>("");
+  const notes = Writable.of<string>("");
 
   // Guarded prompt
   const guardedPrompt = computed(() => {

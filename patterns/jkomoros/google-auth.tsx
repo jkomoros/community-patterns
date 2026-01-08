@@ -348,7 +348,7 @@ interface Output {
 // Handler for toggling scope selection
 const toggleScope = handler<
   { target: { checked: boolean } },
-  { selectedScopes: Cell<SelectedScopes>; scopeKey: string }
+  { selectedScopes: Writable<SelectedScopes>; scopeKey: string }
 >(
   ({ target }, { selectedScopes, scopeKey }) => {
     const current = selectedScopes.get();
@@ -372,7 +372,7 @@ const toggleScope = handler<
  */
 const refreshTokenHandler = handler<
   Record<string, never>,
-  { auth: Cell<Auth> }
+  { auth: Writable<Auth> }
 >(async (_event, { auth }) => {
   authDebugLog('refreshTokenHandler called');
   const currentAuth = auth.get();
@@ -464,7 +464,7 @@ export default pattern<Input, Output>(
     });
 
     // Handler to trigger token refresh (same as refreshTokenHandler but bound for UI)
-    const handleRefresh = handler<unknown, { auth: Cell<Auth> }>(
+    const handleRefresh = handler<unknown, { auth: Writable<Auth> }>(
       async (_event, { auth: authCell }) => {
         const currentAuth = authCell.get();
         const refreshToken = currentAuth?.refreshToken;

@@ -24,8 +24,7 @@
  * ```
  */
 import {
-  cell,
-  Cell,
+  Writable,
   Default,
   derive,
   generateObject,
@@ -208,8 +207,8 @@ export interface GmailAgenticSearchInput {
 
   // Optional signal cell for consuming patterns to indicate "found an item"
   // When this value increases, marks the most recent query as having found items
-  // Create with cell<number>(0) and pass in - both patterns share the same cell
-  itemFoundSignal?: Cell<number>;
+  // Create with Writable.of<number>(0) and pass in - both patterns share the same cell
+  itemFoundSignal?: Writable<number>;
 }
 
 /** Reusable Gmail agentic search base pattern. #gmailAgenticSearch */
@@ -270,7 +269,7 @@ export interface GmailAgenticSearchOutput {
 
   // Cell that consuming patterns can increment to signal "found an item"
   // When this value increases, the base pattern marks the most recent query as having found items
-  itemFoundSignal: Cell<number>;
+  itemFoundSignal: Writable<number>;
 }
 
 // ============================================================================
@@ -284,8 +283,8 @@ export interface GmailAgenticSearchOutput {
 //
 // ```typescript
 // const reportHandler = handler<
-//   { field1: string; field2: string; result?: Cell<any> },
-//   { items: Cell<MyRecord[]> }
+//   { field1: string; field2: string; result?: Writable<any> },
+//   { items: Writable<MyRecord[]> }
 // >((input, state) => {
 //   const currentItems = state.items.get() || [];
 //
@@ -375,7 +374,7 @@ const GmailAgenticSearch = pattern<
     // Input `accountType` may be read-only (Default cells are read-only when using default value)
     // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
     // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md ("Local Cells for Component Output")
-    const selectedAccountType = cell<"default" | "personal" | "work">("default");
+    const selectedAccountType = Writable.of<"default" | "personal" | "work">("default");
 
     // ========================================================================
     // LOCAL QUERY STATE
@@ -391,15 +390,15 @@ const GmailAgenticSearch = pattern<
     // Use input signal cell if provided, otherwise create a local one
     // This follows the "share cells by making them inputs" pattern
     // See: community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md
-    const itemFoundSignal = itemFoundSignalInput || cell<number>(0);
+    const itemFoundSignal = itemFoundSignalInput || Writable.of<number>(0);
     // Track last signal value in a Cell (closure vars don't persist in derive)
-    const lastSignalValueCell = cell<number>(0);
+    const lastSignalValueCell = Writable.of<number>(0);
     // Track last executed query ID in a Cell (so derive can access it)
-    const lastExecutedQueryIdCell = cell<string | null>(null);
+    const lastExecutedQueryIdCell = Writable.of<string | null>(null);
     // Track foundItems counts separately from localQueries
     // Local cells work correctly in derives (no closure issues with input cells)
     // See: community-docs/superstitions/2025-12-08-locally-created-cells-not-unwrapped-in-derive.md
-    const foundItemsTracker = cell<Record<string, number>>({});
+    const foundItemsTracker = Writable.of<Record<string, number>>({});
 
     // Watch the signal and update foundItemsTracker when it increases
     derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([_signalRef, _lastSignalRef, _queryIdRef]: [number, number, string | null]) => {
@@ -542,7 +541,7 @@ const GmailAgenticSearch = pattern<
     // Handler to change account type (writes to local writable cell)
     const setAccountType = handler<
       { target: { value: string } },
-      { selectedType: Cell<"default" | "personal" | "work"> }
+      { selectedType: Writable<"default" | "personal" | "work"> }
     >((event, state) => {
       const newType = event.target.value as "default" | "personal" | "work";
       console.log("[GmailAgenticSearch] Account type changed to:", newType);
@@ -614,7 +613,7 @@ const GmailAgenticSearch = pattern<
 
     // Helper to add a debug log entry using push (proper array cell mutation)
     const addDebugLogEntry = (
-      logCell: Cell<DebugLogEntry[]>,
+      logCell: Writable<DebugLogEntry[]>,
       entry: Omit<DebugLogEntry, "timestamp">,
     ) => {
       try {
@@ -630,19 +629,19 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
 
     const searchGmailHandler = handler<
-      { query: string; result?: Cell<any> },
+      { query: string; result?: Writable<any> },
       {
-        auth: Cell<Auth>;
+        auth: Writable<Auth>;
         // Stream<T> in signature lets framework unwrap opaque stream from wished charms
         authRefreshStream: RefreshStreamType | null;
-        progress: Cell<SearchProgress>;
-        maxSearches: Cell<Default<number, 0>>;
-        debugLog: Cell<DebugLogEntry[]>;
-        localQueries: Cell<LocalQuery[]>;
-        communityQueryRefs: Cell<CommunityQueryRef[]>;
-        registryWish: Cell<any>;
-        agentTypeUrl: Cell<string>;
-        lastExecutedQueryIdCell: Cell<string | null>;
+        progress: Writable<SearchProgress>;
+        maxSearches: Writable<Default<number, 0>>;
+        debugLog: Writable<DebugLogEntry[]>;
+        localQueries: Writable<LocalQuery[]>;
+        communityQueryRefs: Writable<CommunityQueryRef[]>;
+        registryWish: Writable<any>;
+        agentTypeUrl: Writable<string>;
+        lastExecutedQueryIdCell: Writable<string | null>;
       }
     >(async (input, state) => {
       const authData = state.auth.get();
@@ -1020,11 +1019,11 @@ When you're done searching, STOP calling tools and produce your final structured
     const startScan = handler<
       unknown,
       {
-        isScanning: Cell<Default<boolean, false>>;
-        isAuthenticated: Cell<boolean>;
-        progress: Cell<SearchProgress>;
-        auth: Cell<Auth>;
-        debugLog: Cell<DebugLogEntry[]>;
+        isScanning: Writable<Default<boolean, false>>;
+        isAuthenticated: Writable<boolean>;
+        progress: Writable<SearchProgress>;
+        auth: Writable<Auth>;
+        debugLog: Writable<DebugLogEntry[]>;
         // Stream<T> in signature lets framework unwrap opaque stream from wished charms
         authRefreshStream: RefreshStreamType | null;
       }
@@ -1100,8 +1099,8 @@ When you're done searching, STOP calling tools and produce your final structured
     const stopScan = handler<
       unknown,
       {
-        lastScanAt: Cell<Default<number, 0>>;
-        isScanning: Cell<Default<boolean, false>>;
+        lastScanAt: Writable<Default<number, 0>>;
+        isScanning: Writable<Default<boolean, false>>;
       }
     >((_, state) => {
       state.lastScanAt.set(Date.now());
@@ -1112,8 +1111,8 @@ When you're done searching, STOP calling tools and produce your final structured
     const completeScan = handler<
       unknown,
       {
-        lastScanAt: Cell<Default<number, 0>>;
-        isScanning: Cell<Default<boolean, false>>;
+        lastScanAt: Writable<Default<number, 0>>;
+        isScanning: Writable<Default<boolean, false>>;
       }
     >((_, state) => {
       state.lastScanAt.set(Date.now());
@@ -1169,7 +1168,7 @@ When you're done searching, STOP calling tools and produce your final structured
 
     // Track if debug log is expanded (local UI state)
     const debugExpanded = Cell.of(false);
-    const toggleDebug = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
+    const toggleDebug = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
       state.expanded.set(!state.expanded.get());
     });
 
@@ -1697,7 +1696,7 @@ When you're done searching, STOP calling tools and produce your final structured
     // Uses handler<unknown, State> pattern where State contains both cells AND input values
     const rateQuery = handler<
       unknown,
-      { queryId: string; rating: number; localQueries: Cell<LocalQuery[]> }
+      { queryId: string; rating: number; localQueries: Writable<LocalQuery[]> }
     >((_, state) => {
       const queries = state.localQueries.get() || [];
       const index = queries.findIndex((q) => q.id === state.queryId);
@@ -1710,7 +1709,7 @@ When you're done searching, STOP calling tools and produce your final structured
     // Uses handler<unknown, State> pattern where State contains both cells AND input values
     const deleteLocalQuery = handler<
       unknown,
-      { queryId: string; localQueries: Cell<LocalQuery[]>; pendingSubmissions: Cell<PendingSubmission[]> }
+      { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
     >((_, state) => {
       const queries = state.localQueries.get() || [];
       state.localQueries.set(queries.filter((q) => q.id !== state.queryId));
@@ -1726,7 +1725,7 @@ When you're done searching, STOP calling tools and produce your final structured
     // to avoid transaction conflicts. Both writes happen in the same handler transaction.
     const flagForShare = handler<
       unknown,
-      { queryId: string; localQueries: Cell<LocalQuery[]>; pendingSubmissions: Cell<PendingSubmission[]> }
+      { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
     >((_, state) => {
       // Read both cells upfront
       const queries = state.localQueries.get() || [];
@@ -1942,8 +1941,8 @@ When you're done searching, STOP calling tools and produce your final structured
     const flagQueryForSharing = handler<
       { queryId: string },
       {
-        localQueries: Cell<LocalQuery[]>;
-        pendingSubmissions: Cell<PendingSubmission[]>;
+        localQueries: Writable<LocalQuery[]>;
+        pendingSubmissions: Writable<PendingSubmission[]>;
       }
     >(async (input, state) => {
       const queries = state.localQueries.get() || [];
@@ -2080,7 +2079,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     // Handler to approve a pending submission
     const approvePendingSubmission = handler<
       { localQueryId: string },
-      { pendingSubmissions: Cell<PendingSubmission[]> }
+      { pendingSubmissions: Writable<PendingSubmission[]> }
     >((input, state) => {
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
@@ -2093,8 +2092,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     const rejectPendingSubmission = handler<
       { localQueryId: string },
       {
-        pendingSubmissions: Cell<PendingSubmission[]>;
-        localQueries: Cell<LocalQuery[]>;
+        pendingSubmissions: Writable<PendingSubmission[]>;
+        localQueries: Writable<LocalQuery[]>;
       }
     >((input, state) => {
       // Remove from pending
@@ -2112,7 +2111,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
     // Handler to update the sanitized query manually
     const updateSanitizedQuery = handler<
       { localQueryId: string; sanitizedQuery: string },
-      { pendingSubmissions: Cell<PendingSubmission[]> }
+      { pendingSubmissions: Writable<PendingSubmission[]> }
     >((input, state) => {
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
@@ -2123,7 +2122,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
 
     // Track if pending submissions UI is expanded
     const pendingSubmissionsExpanded = Cell.of(false);
-    const togglePendingSubmissions = handler<unknown, { expanded: Cell<boolean> }>((_, state) => {
+    const togglePendingSubmissions = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
       state.expanded.set(!state.expanded.get());
     });
 

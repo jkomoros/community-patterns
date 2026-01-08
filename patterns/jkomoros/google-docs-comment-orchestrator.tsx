@@ -135,25 +135,25 @@ interface AIResponseSuggestion {
 
 interface Input {
   // Config
-  docUrl?: Cell<Default<string, "">>;
-  globalPrompt?: Cell<Default<string, "">>;
+  docUrl?: Writable<Default<string, "">>;
+  globalPrompt?: Writable<Default<string, "">>;
 
   // Fetched data
-  comments?: Cell<Default<GoogleComment[], []>>;
-  docContent?: Cell<Default<string, "">>;
+  comments?: Writable<Default<GoogleComment[], []>>;
+  docContent?: Writable<Default<string, "">>;
 
   // Per-comment state (keyed by comment ID)
-  commentStates?: Cell<Default<Record<string, CommentState>, {}>>;
+  commentStates?: Writable<Default<Record<string, CommentState>, {}>>;
 
   // UI state
-  expandedCommentId?: Cell<Default<string | null, null>>;
-  isFetching?: Cell<Default<boolean, false>>;
-  showGlobalPrompt?: Cell<Default<boolean, false>>;
-  lastError?: Cell<Default<string | null, null>>;
+  expandedCommentId?: Writable<Default<string | null, null>>;
+  isFetching?: Writable<Default<boolean, false>>;
+  showGlobalPrompt?: Writable<Default<boolean, false>>;
+  lastError?: Writable<Default<string | null, null>>;
 
   // Pending action for trusted confirmation
-  pendingAction?: Cell<Default<PendingCommentAction | null, null>>;
-  isExecuting?: Cell<Default<boolean, false>>;
+  pendingAction?: Writable<Default<PendingCommentAction | null, null>>;
+  isExecuting?: Writable<Default<boolean, false>>;
 }
 
 /** Google Docs Comment Orchestrator. AI-powered comment responses. #googleDocsComments */
@@ -365,7 +365,7 @@ JSON only.`;
 // Toggle expanded comment
 const toggleExpand = handler<
   unknown,
-  { expandedCommentId: Cell<string | null>; commentId: string }
+  { expandedCommentId: Writable<string | null>; commentId: string }
 >((_, { expandedCommentId, commentId }) => {
   const current = expandedCommentId.get();
   expandedCommentId.set(current === commentId ? null : commentId);
@@ -374,7 +374,7 @@ const toggleExpand = handler<
 // Toggle global prompt visibility
 const toggleGlobalPrompt = handler<
   unknown,
-  { showGlobalPrompt: Cell<boolean> }
+  { showGlobalPrompt: Writable<boolean> }
 >((_, { showGlobalPrompt }) => {
   showGlobalPrompt.set(!showGlobalPrompt.get());
 });
@@ -383,12 +383,12 @@ const toggleGlobalPrompt = handler<
 const fetchComments = handler<
   unknown,
   {
-    docUrl: Cell<string>;
-    auth: Cell<Auth>;
-    comments: Cell<GoogleComment[]>;
-    docContent: Cell<string>;
-    isFetching: Cell<boolean>;
-    lastError: Cell<string | null>;
+    docUrl: Writable<string>;
+    auth: Writable<Auth>;
+    comments: Writable<GoogleComment[]>;
+    docContent: Writable<string>;
+    isFetching: Writable<boolean>;
+    lastError: Writable<string | null>;
   }
 >(async (_, { docUrl, auth, comments, docContent, isFetching, lastError }) => {
   const url = docUrl.get();
@@ -440,7 +440,7 @@ const fetchComments = handler<
 // Regenerate AI response for a comment (bump nonce)
 const regenerateResponse = handler<
   unknown,
-  { commentStates: Cell<Record<string, CommentState>>; commentId: string }
+  { commentStates: Writable<Record<string, CommentState>>; commentId: string }
 >((_, { commentStates, commentId }) => {
   const current = commentStates.get() ?? {};
   const state = current[commentId] ?? { regenerateNonce: 0, status: "pending" };
@@ -458,12 +458,12 @@ const regenerateResponse = handler<
 const prepareReply = handler<
   unknown,
   {
-    docUrl: Cell<string>;
-    comments: Cell<GoogleComment[]>;
+    docUrl: Writable<string>;
+    comments: Writable<GoogleComment[]>;
     commentId: string;
     responseText: string;
     resolve: boolean;
-    pendingAction: Cell<PendingCommentAction | null>;
+    pendingAction: Writable<PendingCommentAction | null>;
   }
 >((_, {
   docUrl,
@@ -506,8 +506,8 @@ const skipComment = handler<
   unknown,
   {
     commentId: string;
-    commentStates: Cell<Record<string, CommentState>>;
-    expandedCommentId: Cell<string | null>;
+    commentStates: Writable<Record<string, CommentState>>;
+    expandedCommentId: Writable<string | null>;
   }
 >((_, { commentId, commentStates, expandedCommentId }) => {
   const current = commentStates.get() ?? {};

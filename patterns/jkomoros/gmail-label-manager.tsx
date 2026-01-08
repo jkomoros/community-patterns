@@ -90,9 +90,9 @@ interface Output {
 const fetchLabels = handler<
   unknown,
   {
-    auth: Cell<Auth>;
-    availableLabels: Cell<GmailLabel[]>;
-    loadingLabels: Cell<boolean>;
+    auth: Writable<Auth>;
+    availableLabels: Writable<GmailLabel[]>;
+    loadingLabels: Writable<boolean>;
   }
 >(async (_, { auth, availableLabels, loadingLabels }) => {
   loadingLabels.set(true);
@@ -116,7 +116,7 @@ const fetchLabels = handler<
 
 const toggleAddLabel = handler<
   unknown,
-  { labelsToAdd: Cell<string[]>; labelId: string }
+  { labelsToAdd: Writable<string[]>; labelId: string }
 >((_, { labelsToAdd, labelId }) => {
   const current = labelsToAdd.get();
   if (current.includes(labelId)) {
@@ -128,7 +128,7 @@ const toggleAddLabel = handler<
 
 const toggleRemoveLabel = handler<
   unknown,
-  { labelsToRemove: Cell<string[]>; labelId: string }
+  { labelsToRemove: Writable<string[]>; labelId: string }
 >((_, { labelsToRemove, labelId }) => {
   const current = labelsToRemove.get();
   if (current.includes(labelId)) {
@@ -141,11 +141,11 @@ const toggleRemoveLabel = handler<
 const prepareOperation = handler<
   unknown,
   {
-    messageIds: Cell<string[]>;
-    labelsToAdd: Cell<string[]>;
-    labelsToRemove: Cell<string[]>;
-    availableLabels: Cell<GmailLabel[]>;
-    pendingOp: Cell<LabelOperation>;
+    messageIds: Writable<string[]>;
+    labelsToAdd: Writable<string[]>;
+    labelsToRemove: Writable<string[]>;
+    availableLabels: Writable<GmailLabel[]>;
+    pendingOp: Writable<LabelOperation>;
   }
 >(
   (
@@ -172,7 +172,7 @@ const prepareOperation = handler<
 
 const cancelOperation = handler<
   unknown,
-  { pendingOp: Cell<LabelOperation | null> }
+  { pendingOp: Writable<LabelOperation | null> }
 >((_, { pendingOp }) => {
   pendingOp.set(null);
 });
@@ -180,12 +180,12 @@ const cancelOperation = handler<
 const confirmOperation = handler<
   unknown,
   {
-    pendingOp: Cell<LabelOperation | null>;
-    auth: Cell<Auth>;
-    processing: Cell<boolean>;
-    result: Cell<OperationResult | null>;
-    labelsToAdd: Cell<string[]>;
-    labelsToRemove: Cell<string[]>;
+    pendingOp: Writable<LabelOperation | null>;
+    auth: Writable<Auth>;
+    processing: Writable<boolean>;
+    result: Writable<OperationResult | null>;
+    labelsToAdd: Writable<string[]>;
+    labelsToRemove: Writable<string[]>;
   }
 >(
   async (
@@ -241,7 +241,7 @@ const confirmOperation = handler<
 
 const dismissResult = handler<
   unknown,
-  { result: Cell<OperationResult | null> }
+  { result: Writable<OperationResult | null> }
 >((_, { result }) => {
   result.set(null);
 });

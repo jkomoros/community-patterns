@@ -16,8 +16,8 @@ import {
 } from "commontools";
 import { type MentionableCharm } from "./backlinks-index.tsx";
 type Input = {
-  title?: Cell<Default<string, "Untitled Note">>;
-  content?: Cell<Default<string, "">>;
+  title?: Writable<Default<string, "Untitled Note">>;
+  content?: Writable<Default<string, "">>;
 };
 
 /** Represents a small #note a user took to remember some text. */
@@ -33,7 +33,7 @@ type Output = {
 
 const _updateTitle = handler<
   { detail: { value: string } },
-  { title: Cell<string> }
+  { title: Writable<string> }
 >(
   (event, state) => {
     state.title.set(event.detail?.value ?? "");
@@ -42,7 +42,7 @@ const _updateTitle = handler<
 
 const _updateContent = handler<
   { detail: { value: string } },
-  { content: Cell<string> }
+  { content: Writable<string> }
 >(
   (event, state) => {
     state.content.set(event.detail?.value ?? "");
@@ -52,7 +52,7 @@ const _updateContent = handler<
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
     };
   },
   Record<string, never>
@@ -65,12 +65,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Cell<MentionableCharm[]>;
+    mentionable: Writable<MentionableCharm[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -84,8 +84,8 @@ const handleNewBacklink = handler<
 
 /** This edits the content */
 const handleEditContent = handler<
-  { detail: { value: string }; result?: Cell<string> },
-  { content: Cell<string> }
+  { detail: { value: string }; result?: Writable<string> },
+  { content: Writable<string> }
 >(
   ({ detail, result }, { content }) => {
     content.set(detail.value);
@@ -93,7 +93,7 @@ const handleEditContent = handler<
   },
 );
 
-const handleCharmLinkClicked = handler<void, { charm: Cell<MentionableCharm> }>(
+const handleCharmLinkClicked = handler<void, { charm: Writable<MentionableCharm> }>(
   (_, { charm }) => {
     return navigateTo(charm);
   },

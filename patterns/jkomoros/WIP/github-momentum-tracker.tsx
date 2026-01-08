@@ -1,7 +1,6 @@
 /// <cts-enable />
 import {
   Writable,
-  writable,
   computed,
   Default,
   derive,
@@ -171,7 +170,7 @@ const removeRepo = handler<
   { repos: Writable<string[]>; repoName: Writable<string> | string }
 >((_event, { repos, repoName }) => {
   const current = repos.get();
-  // Handle both Cell<string> and plain string
+  // Handle both Writable<string> and plain string
   const nameToRemove = typeof repoName === "string" ? repoName : (repoName as any).get?.() || repoName;
   repos.set(current.filter((r) => r !== nameToRemove));
 });
@@ -276,7 +275,7 @@ function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): Mome
 
 export default pattern<Input, Output>(({ repos, authCharm }) => {
   // Internal state
-  const inputText = writable<string>("");
+  const inputText = Writable.of<string>("");
 
   // ==========================================================================
   // Authentication
@@ -634,7 +633,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
               const metadata = item.metadata;
               const commitActivity = item.commitActivity;
               const starHistory = item.starHistory;
-              const repoName = item.repoName; // This is a Cell<string>
+              const repoName = item.repoName; // This is a Writable<string>
               // deno-lint-ignore no-explicit-any
               const isLoading = derive(metadata, (m: any) => m?.pending === true);
               // deno-lint-ignore no-explicit-any

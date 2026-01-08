@@ -70,7 +70,7 @@ interface ViewerOutput extends ViewerInput {}
 const toggleStepCompletion = handler<
   Record<string, never>,
   {
-    completedSteps: Cell<StepCompletion[]>;
+    completedSteps: Writable<StepCompletion[]>;
     groupId: string;
     stepIndex: number;
   }
@@ -93,8 +93,8 @@ const toggleStepCompletion = handler<
 const toggleGroupCompletion = handler<
   Record<string, never>,
   {
-    completedSteps: Cell<StepCompletion[]>;
-    completedGroups: Cell<GroupCompletion[]>;
+    completedSteps: Writable<StepCompletion[]>;
+    completedGroups: Writable<GroupCompletion[]>;
     groupId: string;
     group: StepGroup;
   }

@@ -9,7 +9,6 @@
  *   ./tools/apple-sync.ts imessage
  */
 import {
-  writable,
   Default,
   derive,
   handler,
@@ -102,7 +101,7 @@ const backToList = handler<
 export default pattern<{
   messages: Default<Confidential<Message[]>, []>;
 }>(({ messages }) => {
-  const selectedChatId = writable<string | null>(null);
+  const selectedChatId = Writable.of<string | null>(null);
 
   const messageCount = derive(messages, (msgs: Message[]) => msgs?.length ?? 0);
 

@@ -9,7 +9,6 @@
  *   ./tools/apple-sync.ts reminders
  */
 import {
-  writable,
   Default,
   derive,
   handler,
@@ -141,7 +140,7 @@ const backToList = handler<
 export default pattern<{
   reminders: Default<Confidential<ReminderItem[]>, []>;
 }>(({ reminders }) => {
-  const selectedReminderId = writable<string | null>(null);
+  const selectedReminderId = Writable.of<string | null>(null);
 
   const reminderCount = derive(
     reminders,

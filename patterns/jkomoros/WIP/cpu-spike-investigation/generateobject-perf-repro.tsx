@@ -22,7 +22,6 @@ import {
   UI,
   NAME,
   toSchema,
-  writable,
   Writable,
   computed,
   handler,
@@ -62,9 +61,9 @@ interface ExtractionResult {
 
 export default pattern(() => {
   // Trigger for extraction
-  const trigger = writable<string>("");
-  const startTimeMs = writable<number>(0);
-  const elapsedMs = writable<number | null>(null);
+  const trigger = Writable.of<string>("");
+  const startTimeMs = Writable.of<number>(0);
+  const elapsedMs = Writable.of<number | null>(null);
 
   // Guarded prompt - only triggers when explicitly set
   const guardedPrompt = computed(() => {

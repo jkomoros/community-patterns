@@ -143,14 +143,14 @@ class GoogleDocsClient {
 export const executeAction = handler<
   unknown,
   {
-    action: Cell<PendingCommentAction | null>;
+    action: Writable<PendingCommentAction | null>;
     // deno-lint-ignore no-explicit-any
     auth: any; // Accepts OpaqueCell or Cell from wish()
-    comments: Cell<GoogleComment[]>;
-    commentStates: Cell<Record<string, CommentState>>;
-    expandedCommentId: Cell<string | null>;
-    lastError: Cell<string | null>;
-    isExecuting: Cell<boolean>;
+    comments: Writable<GoogleComment[]>;
+    commentStates: Writable<Record<string, CommentState>>;
+    expandedCommentId: Writable<string | null>;
+    lastError: Writable<string | null>;
+    isExecuting: Writable<boolean>;
   }
 >(async (_, {
   action,
@@ -220,7 +220,7 @@ export const executeAction = handler<
  */
 export const cancelAction = handler<
   unknown,
-  { action: Cell<PendingCommentAction | null> }
+  { action: Writable<PendingCommentAction | null> }
 >((_, { action }) => {
   action.set(null);
 });

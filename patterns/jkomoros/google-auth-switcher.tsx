@@ -71,7 +71,7 @@ interface Output {
 // Handler to create personal wrapper and navigate to it
 const createPersonalWrapper = handler<
   unknown,
-  { auth: Cell<Auth>; selectedScopes: Cell<SelectedScopes> }
+  { auth: Writable<Auth>; selectedScopes: Writable<SelectedScopes> }
 >((_, { auth, selectedScopes }) => {
   const wrapper = GoogleAuthPersonal({ auth, selectedScopes });
   return navigateTo(wrapper);
@@ -80,7 +80,7 @@ const createPersonalWrapper = handler<
 // Handler to create work wrapper and navigate to it
 const createWorkWrapper = handler<
   unknown,
-  { auth: Cell<Auth>; selectedScopes: Cell<SelectedScopes> }
+  { auth: Writable<Auth>; selectedScopes: Writable<SelectedScopes> }
 >((_, { auth, selectedScopes }) => {
   const wrapper = GoogleAuthWork({ auth, selectedScopes });
   return navigateTo(wrapper);

@@ -8,10 +8,10 @@
  * Note: Links to charms in other spaces may not work until
  * navigateTo supports multi-space navigation.
  */
-import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
 
 // Favorites can have either 'tag' or 'description' field depending on version
-type Favorite = { cell: Cell<{ [NAME]?: string }>; tag?: string; description?: string };
+type Favorite = { cell: Writable<{ [NAME]?: string }>; tag?: string; description?: string };
 
 // Helper to safely get the tag/description from a favorite
 function getTag(fav: Favorite | undefined): string {

@@ -182,7 +182,7 @@ export default pattern<Input, Output>(
     // Handler to attempt refresh via stream
     // KEY INSIGHT from Berni: Pass the stream directly to the handler with Stream<T> type
     // in the handler signature. The framework will give you a callable stream if you
-    // declare it properly, analogous to how handlers declare Cell<T> for what they write to.
+    // declare it properly, analogous to how handlers declare Writable<T> for what they write to.
     const attemptRefresh = handler<
       Record<string, never>,
       { testLog: Writable<string[]>; refreshStream: Stream<Record<string, never>> }

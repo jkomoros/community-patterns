@@ -127,14 +127,14 @@ interface CalendarClientConfig {
 }
 
 class CalendarClient {
-  private auth: Cell<Auth>;
+  private auth: Writable<Auth>;
   private retries: number;
   private delay: number;
   private delayIncrement: number;
   private debugMode: boolean;
 
   constructor(
-    auth: Cell<Auth>,
+    auth: Writable<Auth>,
     { retries = 3, delay = 1000, delayIncrement = 100, debugMode = false }: CalendarClientConfig = {},
   ) {
     this.auth = auth;
@@ -293,16 +293,16 @@ function parseCalendarEvent(event: any, calendarId: string, calendarName: string
 }
 
 const calendarUpdater = handler<unknown, {
-  events: Cell<CalendarEvent[]>;
-  calendars: Cell<Calendar[]>;
-  auth: Cell<Auth>;
-  settings: Cell<{
+  events: Writable<CalendarEvent[]>;
+  calendars: Writable<Calendar[]>;
+  auth: Writable<Auth>;
+  settings: Writable<{
     daysBack: number;
     daysForward: number;
     maxResults: number;
     debugMode: boolean;
   }>;
-  fetching?: Cell<boolean>;
+  fetching?: Writable<boolean>;
 }>(
   async (_event, state) => {
     // Set fetching state if available
@@ -381,7 +381,7 @@ const calendarUpdater = handler<unknown, {
 
 const toggleDebugMode = handler<
   { target: { checked: boolean } },
-  { settings: Cell<Settings> }
+  { settings: Writable<Settings> }
 >(
   ({ target }, { settings }) => {
     const current = settings.get();
@@ -389,13 +389,13 @@ const toggleDebugMode = handler<
   },
 );
 
-const nextPage = handler<unknown, { currentPage: Cell<number> }>(
+const nextPage = handler<unknown, { currentPage: Writable<number> }>(
   (_, { currentPage }) => {
     currentPage.set(currentPage.get() + 1);
   },
 );
 
-const prevPage = handler<unknown, { currentPage: Cell<number> }>(
+const prevPage = handler<unknown, { currentPage: Writable<number> }>(
   (_, { currentPage }) => {
     const current = currentPage.get();
     if (current > 0) {

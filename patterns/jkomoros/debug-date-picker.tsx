@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * Debug Date Picker
@@ -24,11 +24,11 @@ import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
  */
 
 interface DatePickerInput {
-  date: Cell<Default<string, "">>;
+  date: Writable<Default<string, "">>;
 }
 
 interface DatePickerOutput {
-  date: Cell<Default<string, "">>;
+  date: Writable<Default<string, "">>;
 }
 
 // Helper to get today's date as YYYY-MM-DD (local timezone)
@@ -41,12 +41,12 @@ function getTodayString(): string {
 }
 
 // Handler to set date to today
-const setToday = handler<unknown, { date: Cell<string> }>((_, { date }) => {
+const setToday = handler<unknown, { date: Writable<string> }>((_, { date }) => {
   date.set(getTodayString());
 });
 
 // Handler to clear date (use real date)
-const clearDate = handler<unknown, { date: Cell<string> }>((_, { date }) => {
+const clearDate = handler<unknown, { date: Writable<string> }>((_, { date }) => {
   date.set("");
 });
 

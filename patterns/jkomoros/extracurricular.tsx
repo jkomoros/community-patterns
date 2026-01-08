@@ -15,7 +15,7 @@
  * via a modal dialog that shows exactly what will be exported. This pattern
  * serves as a declassification gate for future policy-based trust systems.
  */
-import { cell, Cell, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 import {
   generateICS,
   generateEventUID,
@@ -306,22 +306,22 @@ type CalendarExportProgress = ExportProgress | null;
 // ============================================================================
 
 interface ExtracurricularInput {
-  locations: Cell<Location[]>;
-  classes: Cell<Class[]>;
-  child: Cell<ChildProfile>;  // Cell<> for write access, not Default<>
+  locations: Writable<Location[]>;
+  classes: Writable<Class[]>;
+  child: Writable<ChildProfile>;  // Writable<> for write access, not Default<>
   // Phase 5: Pinned sets
-  pinnedSetNames: Cell<string[]>;  // Available set names
-  activeSetName: Cell<string>;     // Currently active set
+  pinnedSetNames: Writable<string[]>;  // Available set names
+  activeSetName: Writable<string>;     // Currently active set
   // Staged classes for import preview - pattern input for idiomatic $checked binding
-  // Cell<Default<>> wrapper enables cell-like property access in .map()
-  stagedClasses: Cell<Default<StagedClass[], []>>;
+  // Writable<Default<>> wrapper enables cell-like property access in .map()
+  stagedClasses: Writable<Default<StagedClass[], []>>;
 
   // Calendar export (optional feature) - provides semester date tracking
   // and iCal export for pinned classes. Mark as optional with ? to signal
   // these are auxiliary features, not core functionality.
-  semesterDates?: Cell<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
-  calendarName?: Cell<Default<string, "">>;
-  calendarOutbox?: Cell<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
+  semesterDates?: Writable<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
+  calendarName?: Writable<Default<string, "">>;
+  calendarOutbox?: Writable<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
   // Note: Google Calendar auth is managed internally via wish() - see createGoogleAuth usage
 }
 
@@ -562,15 +562,15 @@ type ScheduleSlotData = {
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
   ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses, semesterDates, calendarName, calendarOutbox }) => {
     // Local cell for selected location when adding a class
-    const selectedLocationIndex = cell<number>(-1);
+    const selectedLocationIndex = Writable.of<number>(-1);
 
     // Local cell for new location type when adding a location
-    const newLocationType = cell<LocationType>("afterschool-onsite");
+    const newLocationType = Writable.of<LocationType>("afterschool-onsite");
 
     // Handler to update selected location index (for Import section, uses number)
     const setLocationIndex = handler<
       { target: { value: string } },
-      { idx: Cell<number> }
+      { idx: Writable<number> }
     >((event, state) => {
       state.idx.set(parseInt(event.target.value, 10));
     });
@@ -585,15 +585,15 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     // =========================================================================
 
     // Import state
-    const importText = cell<string>("");
-    const importLocationIndex = cell<number>(-1);
-    const extractionTriggerText = cell<string>(""); // Triggers LLM when set
+    const importText = Writable.of<string>("");
+    const importLocationIndex = Writable.of<number>(-1);
+    const extractionTriggerText = Writable.of<string>(""); // Triggers LLM when set
 
     // Phase 5.5: Unified file/image upload state
-    const uploadedFile = cell<FileData | null>(null);
-    const uploadProcessingStatus = cell<ProcessingStatus>("idle");
-    const uploadExtractedText = cell<string>("");  // Preview/edit buffer
-    const uploadExtractionError = cell<string | null>(null);
+    const uploadedFile = Writable.of<FileData | null>(null);
+    const uploadProcessingStatus = Writable.of<ProcessingStatus>("idle");
+    const uploadExtractedText = Writable.of<string>("");  // Preview/edit buffer
+    const uploadExtractionError = Writable.of<string | null>(null);
 
     // NOTE: For Phase 3, we skip individual selection and just import all extracted classes
     // Selection state can be added in a later phase if needed
@@ -673,7 +673,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Track last processed extraction to detect new extractions
     // Using cell (not closure variable) because closures don't persist across pattern re-instantiation
     // The computed is idempotent: first run sets data, subsequent runs hit guard and return early
-    const lastProcessedExtractionText = cell<string>("");
+    const lastProcessedExtractionText = Writable.of<string>("");
 
     // Populate stagedClasses when extraction completes (idempotent side effect)
     // Pre-computes triage at population time (not render time) to avoid Cell.map() closure issues
@@ -742,7 +742,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Uses handler pattern to avoid closure issues
     const doImportAll = handler<
       unknown,
-      { locIdx: Cell<number>; locs: Cell<Location[]>; classList: Cell<Class[]>; staged: Cell<StagedClass[]>; trigger: Cell<string>; text: Cell<string>; lastText: Cell<string>; semester: Cell<SemesterDates> }
+      { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }
     >((_, { locIdx, locs, classList, staged, trigger, text, lastText, semester }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
@@ -822,7 +822,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // See: patterns/jkomoros/issues/ISSUE-checked-binding-cellmap-silent-failure.md
     const toggleStagedSelection = handler<
       unknown,
-      { staged: Cell<StagedClass[]>; idx: number }
+      { staged: Writable<StagedClass[]>; idx: number }
     >((_, { staged, idx }) => {
       const current = staged.get();
       if (idx < 0 || idx >= current.length) return;
@@ -832,7 +832,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
 
     // Helper to toggle a status - takes classList explicitly to avoid closure issues
     const toggleStatus = (
-      classList: Cell<Class[]>,
+      classList: Writable<Class[]>,
       cls: Class,
       statusKey: keyof StatusFlags
     ) => {
@@ -847,12 +847,12 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     };
 
     // Track which class index is being edited (-1 = none)
-    const editingClassIndex = cell<number>(-1);
+    const editingClassIndex = Writable.of<number>(-1);
 
     // Handler to update a class field
     const updateClassField = handler<
       { target: { value: string } },
-      { classList: Cell<Class[]>; idx: number; field: keyof Class }
+      { classList: Writable<Class[]>; idx: number; field: keyof Class }
     >((event, { classList, idx, field }) => {
       const current = classList.get();
       if (idx < 0 || idx >= current.length) return;
@@ -862,7 +862,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update class time slot
     const updateClassTimeSlot = handler<
       { target: { value: string } },
-      { classList: Cell<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
+      { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
     >((event, { classList, classIdx, slotIdx, field }) => {
       const current = classList.get();
       if (classIdx < 0 || classIdx >= current.length) return;
@@ -874,7 +874,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to add a time slot to a class
     const addClassTimeSlot = handler<
       unknown,
-      { classList: Cell<Class[]>; idx: number }
+      { classList: Writable<Class[]>; idx: number }
     >((_, { classList, idx }) => {
       const current = classList.get();
       if (idx < 0 || idx >= current.length) return;
@@ -886,7 +886,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to remove a time slot from a class
     const removeClassTimeSlot = handler<
       unknown,
-      { classList: Cell<Class[]>; classIdx: number; slotIdx: number }
+      { classList: Writable<Class[]>; classIdx: number; slotIdx: number }
     >((_, { classList, classIdx, slotIdx }) => {
       const current = classList.get();
       if (classIdx < 0 || classIdx >= current.length) return;
@@ -899,7 +899,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update class location
     const updateClassLocation = handler<
       { target: { value: string } },
-      { classList: Cell<Class[]>; locs: Cell<Location[]>; classIdx: number }
+      { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }
     >((event, { classList, locs, classIdx }) => {
       const locIdx = parseInt(event.target.value, 10);
       const locList = locs.get();
@@ -910,7 +910,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update class cost
     const updateClassCost = handler<
       { target: { value: string } },
-      { classList: Cell<Class[]>; idx: number }
+      { classList: Writable<Class[]>; idx: number }
     >((event, { classList, idx }) => {
       const cost = parseFloat(event.target.value) || 0;
       classList.key(idx).key("cost").set(cost);
@@ -919,7 +919,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update child grade
     const setChildGrade = handler<
       { target: { value: string } },
-      { childCell: Cell<ChildProfile> }
+      { childCell: Writable<ChildProfile> }
     >((event, state) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, grade: event.target.value as Grade });
@@ -928,7 +928,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update child name
     const setChildName = handler<
       { target: { value: string } },
-      { childCell: Cell<ChildProfile> }
+      { childCell: Writable<ChildProfile> }
     >((event, state) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, name: event.target.value });
@@ -937,7 +937,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update child birth year
     const setChildBirthYear = handler<
       { target: { value: string } },
-      { childCell: Cell<ChildProfile> }
+      { childCell: Writable<ChildProfile> }
     >((event, state) => {
       const current = state.childCell.get();
       const year = parseInt(event.target.value, 10);
@@ -949,7 +949,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     // Handler to update child birth month
     const setChildBirthMonth = handler<
       { target: { value: string } },
-      { childCell: Cell<ChildProfile> }
+      { childCell: Writable<ChildProfile> }
     >((event, state) => {
       const current = state.childCell.get();
       const month = parseInt(event.target.value, 10);
@@ -966,16 +966,16 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const handleFileUpload = handler<
       { detail: { files: FileData[] } },
       {
-        uploadedFile: Cell<FileData | null>;
-        processingStatus: Cell<ProcessingStatus>;
-        extractedText: Cell<string>;
-        extractionError: Cell<string | null>;
+        uploadedFile: Writable<FileData | null>;
+        processingStatus: Writable<ProcessingStatus>;
+        extractedText: Writable<string>;
+        extractionError: Writable<string | null>;
       }
     >(({ detail }: { detail: { files: FileData[] } }, { uploadedFile, processingStatus, extractedText, extractionError }: {
-      uploadedFile: Cell<FileData | null>;
-      processingStatus: Cell<ProcessingStatus>;
-      extractedText: Cell<string>;
-      extractionError: Cell<string | null>;
+      uploadedFile: Writable<FileData | null>;
+      processingStatus: Writable<ProcessingStatus>;
+      extractedText: Writable<string>;
+      extractionError: Writable<string | null>;
     }) => {
       if (!detail?.files || detail.files.length === 0) return;
 
@@ -1012,10 +1012,10 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const applyExtractedText = handler<
       unknown,
       {
-        extractedText: Cell<string>;
-        importText: Cell<string>;
-        uploadedFile: Cell<FileData | null>;
-        processingStatus: Cell<ProcessingStatus>;
+        extractedText: Writable<string>;
+        importText: Writable<string>;
+        uploadedFile: Writable<FileData | null>;
+        processingStatus: Writable<ProcessingStatus>;
         ocrText: string | null;
       }
     >((_, { extractedText, importText, uploadedFile, processingStatus, ocrText }) => {
@@ -1034,16 +1034,16 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const cancelUpload = handler<
       unknown,
       {
-        uploadedFile: Cell<FileData | null>;
-        extractedText: Cell<string>;
-        processingStatus: Cell<ProcessingStatus>;
-        extractionError: Cell<string | null>;
+        uploadedFile: Writable<FileData | null>;
+        extractedText: Writable<string>;
+        processingStatus: Writable<ProcessingStatus>;
+        extractionError: Writable<string | null>;
       }
     >((_, { uploadedFile, extractedText, processingStatus, extractionError }: {
-      uploadedFile: Cell<FileData | null>;
-      extractedText: Cell<string>;
-      processingStatus: Cell<ProcessingStatus>;
-      extractionError: Cell<string | null>;
+      uploadedFile: Writable<FileData | null>;
+      extractedText: Writable<string>;
+      processingStatus: Writable<ProcessingStatus>;
+      extractionError: Writable<string | null>;
     }) => {
       uploadedFile.set(null);
       extractedText.set("");
@@ -1145,7 +1145,7 @@ Return all visible text.`
 
     // Guard cell to ensure default set initialization only runs once
     // This prevents reactive thrashing from non-idempotent writes
-    const defaultSetInitialized = cell<boolean>(false);
+    const defaultSetInitialized = Writable.of<boolean>(false);
 
     // Ensure default set exists and is active on first load
     computed(() => {
@@ -1317,7 +1317,7 @@ Return all visible text.`
     // Handler to switch active set
     const setActiveSet = handler<
       { target: { value: string } },
-      { activeCell: Cell<string> }
+      { activeCell: Writable<string> }
     >((event, state) => {
       state.activeCell.set(event.target.value);
     });
@@ -1325,7 +1325,7 @@ Return all visible text.`
     // Handler to toggle pin on a class
     const togglePinClass = handler<
       unknown,
-      { classList: Cell<Class[]>; activeSet: Cell<string>; idx: number }
+      { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }
     >((_, { classList, activeSet, idx }) => {
       const current = classList.get();
       const setName = activeSet.get();
@@ -1346,11 +1346,11 @@ Return all visible text.`
     // =========================================================================
 
     // Calendar export state - pending operation and result
-    const pendingCalendarExport = cell<PendingCalendarExport>(null);
-    const calendarExportResult = cell<CalendarExportResult>(null);
-    const calendarExportProcessing = cell<boolean>(false);
-    const calendarExportProgress = cell<CalendarExportProgress>(null);
-    const calendarExportExpanded = cell<boolean>(false);  // Collapsed by default
+    const pendingCalendarExport = Writable.of<PendingCalendarExport>(null);
+    const calendarExportResult = Writable.of<CalendarExportResult>(null);
+    const calendarExportProcessing = Writable.of<boolean>(false);
+    const calendarExportProgress = Writable.of<CalendarExportProgress>(null);
+    const calendarExportExpanded = Writable.of<boolean>(false);  // Collapsed by default
 
     // Pre-computed button state to avoid nested derive() calls
     const exportButtonDisabled = derive(
@@ -1553,13 +1553,13 @@ Return all visible text.`
     const prepareCalendarExport = handler<
       unknown,
       {
-        pinnedClasses: Cell<Class[]>;
-        semesterDates: Cell<SemesterDates>;
-        child: Cell<ChildProfile>;
-        activeSetName: Cell<string>;
-        calendarName: Cell<string>;
-        pendingExport: Cell<PendingCalendarExport>;
-        outbox: Cell<CalendarOutbox>;
+        pinnedClasses: Writable<Class[]>;
+        semesterDates: Writable<SemesterDates>;
+        child: Writable<ChildProfile>;
+        activeSetName: Writable<string>;
+        calendarName: Writable<string>;
+        pendingExport: Writable<PendingCalendarExport>;
+        outbox: Writable<CalendarOutbox>;
       }
     >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }) => {
       // Get values from cells (no deep cloning needed - we only read, not mutate)
@@ -1628,7 +1628,7 @@ Return all visible text.`
      */
     const cancelCalendarExport = handler<
       unknown,
-      { pendingExport: Cell<PendingCalendarExport> }
+      { pendingExport: Writable<PendingCalendarExport> }
     >((_, { pendingExport }) => {
       pendingExport.set(null);
     });
@@ -1638,7 +1638,7 @@ Return all visible text.`
      */
     const selectExportTarget = handler<
       unknown,
-      { pendingExport: Cell<PendingCalendarExport>; target: ExportTarget }
+      { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }
     >((_, { pendingExport, target }) => {
       const pending = pendingExport.get();
       if (!pending) return;
@@ -1656,13 +1656,13 @@ Return all visible text.`
     const confirmCalendarExport = handler<
       unknown,
       {
-        pendingExport: Cell<PendingCalendarExport>;
-        processing: Cell<boolean>;
-        progress: Cell<CalendarExportProgress>;
-        result: Cell<CalendarExportResult>;
-        classList: Cell<Class[]>;
-        outbox: Cell<CalendarOutbox>;
-        auth: Cell<GoogleAuthType>;
+        pendingExport: Writable<PendingCalendarExport>;
+        processing: Writable<boolean>;
+        progress: Writable<CalendarExportProgress>;
+        result: Writable<CalendarExportResult>;
+        classList: Writable<Class[]>;
+        outbox: Writable<CalendarOutbox>;
+        auth: Writable<GoogleAuthType>;
       }
     >(async (_, { pendingExport, processing, progress, result, classList, outbox, auth }) => {
       const pending = pendingExport.get();
@@ -1822,7 +1822,7 @@ Return all visible text.`
      */
     const dismissExportResult = handler<
       unknown,
-      { result: Cell<CalendarExportResult> }
+      { result: Writable<CalendarExportResult> }
     >((_, { result }) => {
       result.set(null);
     });
@@ -1845,7 +1845,7 @@ Return all visible text.`
     // Handler to toggle calendar export section
     const toggleCalendarExport = handler<
       unknown,
-      { expanded: Cell<boolean> }
+      { expanded: Writable<boolean> }
     >((_, { expanded }) => {
       expanded.set(!expanded.get());
     });
@@ -1853,7 +1853,7 @@ Return all visible text.`
     // Handlers for semester date inputs
     const setSemesterStart = handler<
       { detail: { value: string } },
-      { dates: Cell<SemesterDates> }
+      { dates: Writable<SemesterDates> }
     >((event, { dates }) => {
       const current = dates.get();
       dates.set({ ...current, startDate: event.detail.value });
@@ -1861,7 +1861,7 @@ Return all visible text.`
 
     const setSemesterEnd = handler<
       { detail: { value: string } },
-      { dates: Cell<SemesterDates> }
+      { dates: Writable<SemesterDates> }
     >((event, { dates }) => {
       const current = dates.get();
       dates.set({ ...current, endDate: event.detail.value });
@@ -1870,7 +1870,7 @@ Return all visible text.`
     // Handler for calendar name input
     const setCalendarName = handler<
       { detail: { value: string } },
-      { name: Cell<string> }
+      { name: Writable<string> }
     >((event, { name }) => {
       name.set(event.detail.value);
     });
@@ -2238,7 +2238,7 @@ Return all visible text.`
                       opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
                     }}
                     onClick={prepareCalendarExport({
-                      pinnedClasses: pinnedClasses as unknown as Cell<Class[]>,
+                      pinnedClasses: pinnedClasses as unknown as Writable<Class[]>,
                       semesterDates,
                       child,
                       activeSetName,
@@ -2780,9 +2780,9 @@ Return all visible text.`
                   const pinnedInSets = props.pinnedInSets as string[];
                   const statuses = props.statuses as StatusFlags;
                   // Pattern-level Cells remain as Cells - use .get()
-                  const editIdx = (props.editIdx as Cell<number>).get();
-                  const activeSet = (props.activeSet as Cell<string>).get();
-                  const locs = (props.locs as Cell<Location[]>).get();
+                  const editIdx = (props.editIdx as Writable<number>).get();
+                  const activeSet = (props.activeSet as Writable<string>).get();
+                  const locs = (props.locs as Writable<Location[]>).get();
 
                   const locColor = getLocationColor(location?.name || "");
                   const isEditing = editIdx === idx;

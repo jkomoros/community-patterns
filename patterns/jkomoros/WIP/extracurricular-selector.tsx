@@ -15,7 +15,6 @@
  */
 import {
   Writable,
-  writable,
   computed,
   Default,
   derive,
@@ -1040,16 +1039,16 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // ========================================================================
 
     // Form state for adding new locations
-    const newLocationForm = cell({ name: "", type: "afterschool-onsite" as LocationType, address: "", hasFlatDailyRate: false, dailyRate: 0 });
+    const newLocationForm = Writable.of({ name: "", type: "afterschool-onsite" as LocationType, address: "", hasFlatDailyRate: false, dailyRate: 0 });
 
     // Form state for adding new tags
-    const newTagName = cell<string>("");
+    const newTagName = Writable.of<string>("");
 
     // Form state for adding new friends
-    const newFriendName = cell<string>("");
+    const newFriendName = Writable.of<string>("");
 
     // Form state for manual class entry
-    const manualClassForm = cell({
+    const manualClassForm = Writable.of({
       name: "",
       day: "monday" as DayOfWeek,
       startTime: "15:00",
@@ -1062,7 +1061,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     });
 
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
-    const selectedClassId = cell<string>("");
+    const selectedClassId = Writable.of<string>("");
 
     // Plain function for toggling staged class selection
     // Defined here at pattern level to capture stagedClassSelections BEFORE any derive() context
@@ -1130,10 +1129,10 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // because $checked on computed array items causes ReadOnlyAddressError
 
     // Settings dialog state - starts open by default, closes only when user manually closes
-    const showSettingsDialog = cell<boolean>(true);
+    const showSettingsDialog = Writable.of<boolean>(true);
 
     // Active tab state for custom tab UI (ct-tabs not available in JSX types)
-    const activeTab = cell<"dashboard" | "configure" | "import" | "selection">("dashboard");
+    const activeTab = Writable.of<"dashboard" | "configure" | "import" | "selection">("dashboard");
 
     // Computed values for tab visibility
     const isDashboardTab = computed(() => activeTab.get() === "dashboard");
@@ -1142,14 +1141,14 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const isSelectionTab = computed(() => activeTab.get() === "selection");
 
     // File upload state - stores uploaded files (ct-file-input provides FileData[])
-    const uploadedFiles = cell<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
+    const uploadedFiles = Writable.of<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
 
     // Image upload state for OCR - stores array of images (ct-image-input uses $images two-way binding)
-    const uploadedImagesForOcr = cell<ImageData[]>([]);
+    const uploadedImagesForOcr = Writable.of<ImageData[]>([]);
 
     // Extraction trigger - user must click button to extract classes
     // Stores the text that was submitted for extraction (empty = not triggered)
-    const extractionTriggerText = cell<string>("");
+    const extractionTriggerText = Writable.of<string>("");
 
     // Computed: Can extraction button be enabled? (text >= 50 chars AND location selected)
     const canExtract = computed(() => {

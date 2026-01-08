@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, writable, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
+import { Writable, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
 import StoreMapper, { createStoreMapper } from "./store-mapper.tsx";
 
 interface ShoppingItem {
@@ -313,18 +313,18 @@ const submitCorrection = handler<
 
 const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
   ({ items, storeData, storeName }) => {
-    const currentView = writable<"basic" | "sorted">("basic");
+    const currentView = Writable.of<"basic" | "sorted">("basic");
     const isBasicView = computed(() => currentView.get() === "basic");
 
     // Mutable store data cell to allow runtime corrections
     // For now, just use ANDRONICOS_DATA (not the input storeData) to avoid circular refs
-    const mutableStoreData = writable<StoreData | null>(ANDRONICOS_DATA);
+    const mutableStoreData = Writable.of<StoreData | null>(ANDRONICOS_DATA);
 
     // Cell to track which item is being corrected
-    const correctionState = writable<CorrectionState | null>(null);
+    const correctionState = Writable.of<CorrectionState | null>(null);
 
     // Cell to store uploaded images
-    const uploadedImages = writable<ImageData[]>([]);
+    const uploadedImages = Writable.of<ImageData[]>([]);
 
     // Process uploaded images with vision LLM to extract shopping items
     const imageExtractions = uploadedImages.map((image) => {

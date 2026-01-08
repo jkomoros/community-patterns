@@ -116,7 +116,7 @@ function debugWarn(debugMode: boolean, ...args: unknown[]) {
 
 const updateLimit = handler<
   { detail: { value: string } },
-  { limit: Cell<number> }
+  { limit: Writable<number> }
 >(
   ({ detail }, state) => {
     state.limit.set(parseInt(detail?.value ?? "100") || 0);
@@ -128,15 +128,15 @@ const updateLimit = handler<
 // consistent token refresh behavior across all Gmail patterns.
 
 const googleUpdater = handler<unknown, {
-  emails: Cell<Email[]>;
-  auth: Cell<Auth>;
-  settings: Cell<{
+  emails: Writable<Email[]>;
+  auth: Writable<Auth>;
+  settings: Writable<{
     gmailFilterQuery: string;
     limit: number;
     historyId: string;
     debugMode: boolean;
   }>;
-  fetching?: Cell<boolean>;
+  fetching?: Writable<boolean>;
 }>(
   async (_event, state) => {
     // Set fetching state if available
@@ -396,12 +396,12 @@ function messageToEmail(
 }
 
 export async function process(
-  auth: Cell<Auth>,
+  auth: Writable<Auth>,
   maxResults: number = 100,
   gmailFilterQuery: string = "in:INBOX",
   state: {
-    emails: Cell<Email[]>;
-    settings: Cell<
+    emails: Writable<Email[]>;
+    settings: Writable<
       { gmailFilterQuery: string; limit: number; historyId: string }
     >;
   },
@@ -655,7 +655,7 @@ export async function process(
 
 const updateGmailFilterQuery = handler<
   { detail: { value: string } },
-  { gmailFilterQuery: Cell<string> }
+  { gmailFilterQuery: Writable<string> }
 >(
   ({ detail }, state) => {
     state.gmailFilterQuery.set(detail?.value ?? "in:INBOX");
@@ -665,7 +665,7 @@ const updateGmailFilterQuery = handler<
 
 const toggleDebugMode = handler<
   { target: { checked: boolean } },
-  { settings: Cell<Settings> }
+  { settings: Writable<Settings> }
 >(
   ({ target }, { settings }) => {
     const current = settings.get();
@@ -692,7 +692,7 @@ export default pattern<{
     // Handler to change account type
     const setAccountType = handler<
       { target: { value: string } },
-      { selectedType: Cell<AccountType> }
+      { selectedType: Writable<AccountType> }
     >((event, state) => {
       const newType = event.target.value as AccountType;
       console.log("[GmailImporter] Account type changed to:", newType);

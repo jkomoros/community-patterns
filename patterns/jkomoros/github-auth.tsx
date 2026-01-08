@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * GitHub Personal Access Token Authentication
@@ -51,7 +51,7 @@ interface Output {
 // Handler to save token
 const saveToken = handler<
   { detail: { value: string } },
-  { token: Cell<string> }
+  { token: Writable<string> }
 >(({ detail }, { token }) => {
   token.set(detail?.value?.trim() || "");
 });
@@ -59,7 +59,7 @@ const saveToken = handler<
 // Handler to clear token
 const clearToken = handler<
   unknown,
-  { token: Cell<string> }
+  { token: Writable<string> }
 >((_event, { token }) => {
   token.set("");
 });

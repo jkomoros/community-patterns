@@ -37,8 +37,7 @@
  * - Avoid relying on vision API's native PDF support (if it exists)
  */
 import {
-  cell,
-  Cell,
+  Writable,
   computed,
   Default,
   derive,
@@ -160,7 +159,7 @@ interface RecipeOutput extends RecipeInput {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
     };
   },
   Record<string, never>
@@ -174,12 +173,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Cell<MentionableCharm[]>;
+    mentionable: Writable<MentionableCharm[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -192,7 +191,7 @@ const handleNewBacklink = handler<
 });
 
 // Ingredient handlers
-const addIngredient = handler<unknown, { ingredients: Cell<Ingredient[]> }>(
+const addIngredient = handler<unknown, { ingredients: Writable<Ingredient[]> }>(
   (_event, { ingredients }) => {
     ingredients.push({
       item: "",
@@ -205,15 +204,15 @@ const addIngredient = handler<unknown, { ingredients: Cell<Ingredient[]> }>(
 const removeIngredient = handler<
   unknown,
   {
-    ingredients: Cell<Array<Cell<Ingredient>>>;
-    ingredient: Cell<Ingredient>;
+    ingredients: Writable<Array<Writable<Ingredient>>>;
+    ingredient: Writable<Ingredient>;
   }
 >((_event, { ingredients, ingredient }) => {
   ingredients.remove(ingredient);
 });
 
 // Step Group handlers
-const addStepGroup = handler<unknown, { stepGroups: Cell<StepGroup[]> }>(
+const addStepGroup = handler<unknown, { stepGroups: Writable<StepGroup[]> }>(
   (_event, { stepGroups }) => {
     stepGroups.push({
       id: `group-${Date.now()}`,
@@ -237,8 +236,8 @@ const addStepGroup = handler<unknown, { stepGroups: Cell<StepGroup[]> }>(
 const removeStepGroup = handler<
   unknown,
   {
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
-    stepGroup: Cell<StepGroup>;
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
+    stepGroup: Writable<StepGroup>;
   }
 >((_event, { stepGroups, stepGroup }) => {
   stepGroups.remove(stepGroup);
@@ -247,8 +246,8 @@ const removeStepGroup = handler<
 const moveGroupUp = handler<
   unknown,
   {
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
-    stepGroup: Cell<StepGroup>;
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
+    stepGroup: Writable<StepGroup>;
   }
 >((_event, { stepGroups, stepGroup }) => {
   const currentGroups = stepGroups.get();
@@ -264,8 +263,8 @@ const moveGroupUp = handler<
 const moveGroupDown = handler<
   unknown,
   {
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
-    stepGroup: Cell<StepGroup>;
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
+    stepGroup: Writable<StepGroup>;
   }
 >((_event, { stepGroups, stepGroup }) => {
   const currentGroups = stepGroups.get();
@@ -280,7 +279,7 @@ const moveGroupDown = handler<
 
 const addStepToGroup = handler<
   unknown,
-  { stepGroup: Cell<StepGroup> }
+  { stepGroup: Writable<StepGroup> }
 >((_event, { stepGroup }) => {
   const group = stepGroup.get();
   stepGroup.set({
@@ -292,7 +291,7 @@ const addStepToGroup = handler<
 const removeStepFromGroup = handler<
   unknown,
   {
-    stepGroup: Cell<StepGroup>;
+    stepGroup: Writable<StepGroup>;
     stepIndex: number;
   }
 >((_event, { stepGroup, stepIndex }) => {
@@ -306,7 +305,7 @@ const removeStepFromGroup = handler<
 const moveStepUp = handler<
   unknown,
   {
-    stepGroup: Cell<StepGroup>;
+    stepGroup: Writable<StepGroup>;
     stepIndex: number;
   }
 >((_event, { stepGroup, stepIndex }) => {
@@ -324,7 +323,7 @@ const moveStepUp = handler<
 const moveStepDown = handler<
   unknown,
   {
-    stepGroup: Cell<StepGroup>;
+    stepGroup: Writable<StepGroup>;
     stepIndex: number;
   }
 >((_event, { stepGroup, stepIndex }) => {
@@ -342,7 +341,7 @@ const moveStepDown = handler<
 // Oven requirements update handler
 const updateOvenTemp = handler<
   { detail: { value: string } },
-  { stepGroup: Cell<StepGroup> }
+  { stepGroup: Writable<StepGroup> }
 >(({ detail }, { stepGroup }) => {
   const group = stepGroup.get();
   const temp = detail.value ? parseInt(detail.value, 10) : 0;
@@ -358,7 +357,7 @@ const updateOvenTemp = handler<
 
 const updateOvenDuration = handler<
   { detail: { value: string } },
-  { stepGroup: Cell<StepGroup> }
+  { stepGroup: Writable<StepGroup> }
 >(({ detail }, { stepGroup }) => {
   const group = stepGroup.get();
   const duration = detail.value ? parseInt(detail.value, 10) : 0;
@@ -374,7 +373,7 @@ const updateOvenDuration = handler<
 
 const updateOvenHeightSlots = handler<
   { detail: { value: string } },
-  { stepGroup: Cell<StepGroup> }
+  { stepGroup: Writable<StepGroup> }
 >(({ detail }, { stepGroup }) => {
   const group = stepGroup.get();
   const heightSlots = detail.value ? parseInt(detail.value, 10) : 1;
@@ -393,7 +392,7 @@ const updateOvenHeightSlots = handler<
 
 const updateOvenRackWidth = handler<
   { detail: { value: string } },
-  { stepGroup: Cell<StepGroup> }
+  { stepGroup: Writable<StepGroup> }
 >(({ detail }, { stepGroup }) => {
   const group = stepGroup.get();
   const width = detail.value as "full" | "half" || "full";
@@ -413,7 +412,7 @@ const updateOvenRackWidth = handler<
 // Tag handlers
 const addTag = handler<
   { detail: { message: string } },
-  { tags: Cell<string[]> }
+  { tags: Writable<string[]> }
 >(({ detail }, { tags }) => {
   const tagName = detail?.message?.trim();
   if (!tagName) return;
@@ -426,7 +425,7 @@ const addTag = handler<
 
 const removeTag = handler<
   unknown,
-  { tags: Cell<Array<Cell<string>>>; tag: Cell<string> }
+  { tags: Writable<Array<Writable<string>>>; tag: Writable<string> }
 >((_event, { tags, tag }) => {
   tags.remove(tag);
 });
@@ -435,8 +434,8 @@ const removeTag = handler<
 const scaleRecipe = handler<
   unknown,
   {
-    servings: Cell<number>;
-    ingredients: Cell<Array<Cell<Ingredient>>>;
+    servings: Writable<number>;
+    ingredients: Writable<Array<Writable<Ingredient>>>;
     scaleFactor: number;
   }
 >((_event, { servings, ingredients, scaleFactor }) => {
@@ -475,7 +474,7 @@ const scaleRecipe = handler<
 // Image Upload Handler
 const handleImageUpload = handler<
   { detail: { images: ImageData[] } },
-  { uploadedImage: Cell<ImageData | null> }
+  { uploadedImage: Writable<ImageData | null> }
 >(({ detail }, { uploadedImage }) => {
   if (!detail.images || detail.images.length === 0) return;
 
@@ -489,7 +488,7 @@ const handleImageUpload = handler<
 // LLM Extraction Handlers
 const triggerExtraction = handler<
   Record<string, never>,
-  { notes: string; extractTrigger: Cell<string> }
+  { notes: string; extractTrigger: Writable<string> }
 >(
   (_, { notes, extractTrigger }) => {
     extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
@@ -498,7 +497,7 @@ const triggerExtraction = handler<
 
 const cancelExtraction = handler<
   Record<string, never>,
-  { extractedData: Cell<any> }
+  { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
     extractedData.set(null);
@@ -508,21 +507,21 @@ const cancelExtraction = handler<
 const applyExtractedData = handler<
   Record<string, never>,
   {
-    extractedData: Cell<any>;
-    name: Cell<string>;
-    cuisine: Cell<string>;
-    servings: Cell<number>;
-    difficulty: Cell<"easy" | "medium" | "hard">;
-    prepTime: Cell<number>;
-    cookTime: Cell<number>;
-    restTime: Cell<number>;
-    holdTime: Cell<number>;
-    category: Cell<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other">;
-    ingredients: Cell<Ingredient[]>;
-    stepGroups: Cell<StepGroup[]>;
-    tags: Cell<string[]>;
-    source: Cell<string>;
-    notes: Cell<string>;
+    extractedData: Writable<any>;
+    name: Writable<string>;
+    cuisine: Writable<string>;
+    servings: Writable<number>;
+    difficulty: Writable<"easy" | "medium" | "hard">;
+    prepTime: Writable<number>;
+    cookTime: Writable<number>;
+    restTime: Writable<number>;
+    holdTime: Writable<number>;
+    category: Writable<"appetizer" | "main" | "side" | "starch" | "vegetable" | "dessert" | "bread" | "other">;
+    ingredients: Writable<Ingredient[]>;
+    stepGroups: Writable<StepGroup[]>;
+    tags: Writable<string[]>;
+    source: Writable<string>;
+    notes: Writable<string>;
   }
 >(
   (
@@ -609,7 +608,7 @@ const applyExtractedData = handler<
 // LLM Timing Suggestion Handlers
 const triggerTimingSuggestion = handler<
   Record<string, never>,
-  { stepGroups: Cell<Array<Cell<StepGroup>>>; timingSuggestionTrigger: Cell<string> }
+  { stepGroups: Writable<Array<Writable<StepGroup>>>; timingSuggestionTrigger: Writable<string> }
 >(
   (_, { stepGroups, timingSuggestionTrigger }) => {
     // Unwrap cells before serializing
@@ -621,8 +620,8 @@ const triggerTimingSuggestion = handler<
 const applyTimingSuggestions = handler<
   Record<string, never>,
   {
-    timingSuggestions: Cell<any>;
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
+    timingSuggestions: Writable<any>;
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
   }
 >(
   (_, { timingSuggestions, stepGroups }) => {
@@ -663,7 +662,7 @@ const applyTimingSuggestions = handler<
 // LLM Wait Time Suggestion Handlers
 const triggerWaitTimeSuggestion = handler<
   Record<string, never>,
-  { stepGroups: Cell<Array<Cell<StepGroup>>>; waitTimeSuggestionTrigger: Cell<string> }
+  { stepGroups: Writable<Array<Writable<StepGroup>>>; waitTimeSuggestionTrigger: Writable<string> }
 >(
   (_, { stepGroups, waitTimeSuggestionTrigger }) => {
     // Unwrap cells before serializing
@@ -676,10 +675,10 @@ const triggerWaitTimeSuggestion = handler<
 const createCookingView = handler<
   Record<string, never>,
   {
-    name: Cell<string>;
-    servings: Cell<number>;
-    ingredients: Cell<Ingredient[]>;
-    stepGroups: Cell<StepGroup[]>;
+    name: Writable<string>;
+    servings: Writable<number>;
+    ingredients: Writable<Ingredient[]>;
+    stepGroups: Writable<StepGroup[]>;
   }
 >((_event, { name, servings, ingredients, stepGroups }) => {
   // Unwrap cells before passing to viewer
@@ -698,8 +697,8 @@ const createCookingView = handler<
 const applyWaitTimeSuggestions = handler<
   Record<string, never>,
   {
-    waitTimeSuggestions: Cell<any>;
-    stepGroups: Cell<Array<Cell<StepGroup>>>;
+    waitTimeSuggestions: Writable<any>;
+    stepGroups: Writable<Array<Writable<StepGroup>>>;
   }
 >(
   (_, { waitTimeSuggestions, stepGroups }) => {
@@ -754,7 +753,7 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
   }) => {
     // Set up mentionable charms for @ references
     const mentionable = wish<MentionableCharm[]>("#mentionable");
-    const mentioned = cell<MentionableCharm[]>([]);
+    const mentioned = Writable.of<MentionableCharm[]>([]);
 
     // Computed values
     const totalTime = derive(
@@ -809,7 +808,7 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     });
 
     // Image Upload Extraction state
-    const uploadedImage = cell<ImageData | null>(null);
+    const uploadedImage = Writable.of<ImageData | null>(null);
 
     const { result: imageTextResult, pending: imageExtractionPending } =
       generateObject({
@@ -854,9 +853,9 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
     const applyImageText = handler<
       Record<string, never>,
       {
-        notes: Cell<string>;
-        uploadedImage: Cell<ImageData | null>;
-        imageTextResult: Cell<any>;
+        notes: Writable<string>;
+        uploadedImage: Writable<ImageData | null>;
+        imageTextResult: Writable<any>;
       }
     >(
       (_, { notes, uploadedImage, imageTextResult }) => {
@@ -877,7 +876,7 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
 
     // LLM Extraction state
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
-    const extractTrigger = cell<string>("");
+    const extractTrigger = Writable.of<string>("");
 
     // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
     // The extraction marker (---EXTRACT-*---) indicates a real extraction request
@@ -1060,7 +1059,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     });
 
     // LLM Timing Suggestion state
-    const timingSuggestionTrigger = cell<string>("");
+    const timingSuggestionTrigger = Writable.of<string>("");
 
     const { result: timingSuggestions, pending: timingSuggestionPending } =
       generateObject({
@@ -1122,7 +1121,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
       });
 
     // LLM Wait Time Suggestion state
-    const waitTimeSuggestionTrigger = cell<string>("");
+    const waitTimeSuggestionTrigger = Writable.of<string>("");
 
     const { result: waitTimeSuggestions, pending: waitTimeSuggestionPending } =
       generateObject({
@@ -2182,7 +2181,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   marginTop: "1rem",
                 }}>
                   <ct-button
-                    onClick={handler<Record<string, never>, { timingSuggestions: Cell<any> }>(
+                    onClick={handler<Record<string, never>, { timingSuggestions: Writable<any> }>(
                       (_, { timingSuggestions }) => timingSuggestions.set(null)
                     )({ timingSuggestions })}
                   >
@@ -2270,7 +2269,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   marginTop: "1rem",
                 }}>
                   <ct-button
-                    onClick={handler<Record<string, never>, { waitTimeSuggestions: Cell<any> }>(
+                    onClick={handler<Record<string, never>, { waitTimeSuggestions: Writable<any> }>(
                       (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
                     )({ waitTimeSuggestions })}
                   >

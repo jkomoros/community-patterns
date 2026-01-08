@@ -7,7 +7,6 @@ import {
   pattern,
   UI,
   Writable,
-  writable,
 } from "commontools";
 import type {
   Collection,
@@ -80,8 +79,8 @@ const goToCollection = handler<
 export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
   ({ collections, allLinks }) => {
     // Form inputs
-    const nameInput = writable("");
-    const descInput = writable("");
+    const nameInput = Writable.of("");
+    const descInput = Writable.of("");
 
     // Derived count for each collection
     const collectionList = derive(collections, (cols) => cols || []);

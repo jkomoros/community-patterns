@@ -11,15 +11,12 @@
  */
 
 import {
-  writable,
   derive,
-  handler,
-  generateObject,
   NAME,
   UI,
   recipe,
+  Writable,
 } from "commontools";
-import type { OpaqueRef, Writable } from "commontools";
 
 // Utility to check if something is a Cell/proxy
 function isProxy(value: any): boolean {
@@ -65,7 +62,7 @@ interface Item {
   value: number;
 }
 
-const items = writable<Item[]>([
+const items = Writable.of<Item[]>([
   { id: 1, value: 10 },
   { id: 2, value: 20 },
   { id: 3, value: 30 },
@@ -115,7 +112,7 @@ interface LLMResult {
 }
 
 // Simulate what map() with generateObject would produce
-const mockLLMResults = writable<LLMResult[]>([
+const mockLLMResults = Writable.of<LLMResult[]>([
   { pending: false, result: { text: "hello", score: 10 } },
   { pending: true },
   { pending: false, result: { text: "world", score: 20 } },

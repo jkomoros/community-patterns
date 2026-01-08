@@ -243,7 +243,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   // IMPORTANT: wish() requires a string value, NOT a Cell. Passing a Cell
   // causes wish() to never resolve, leaving the pattern stuck in "loading" state.
   // For static accountType (the common case), compute the string directly.
-  // TODO: For reactive account switching (Cell<AccountType>), we need a different
+  // TODO: For reactive account switching (Writable<AccountType>), we need a different
   // approach since wish() doesn't support Cell query values.
   const tag =
     accountType === "personal" ? "#googleAuthPersonal" :
