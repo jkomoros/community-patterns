@@ -1,13 +1,13 @@
 /// <cts-enable />
 import {
-  Cell,
-  cell,
   derive,
   handler,
   NAME,
   navigateTo,
   pattern,
   UI,
+  Writable,
+  writable,
 } from "commontools";
 import type {
   Collection,
@@ -28,9 +28,9 @@ import CollectionDetail from "./collection.tsx";
 const createCollection = handler<
   unknown,
   {
-    collections: Cell<Collection[]>;
-    nameInput: Cell<string>;
-    descInput: Cell<string>;
+    collections: Writable<Collection[]>;
+    nameInput: Writable<string>;
+    descInput: Writable<string>;
   }
 >((_event, { collections, nameInput, descInput }) => {
   const name = nameInput.get().trim();
@@ -51,7 +51,7 @@ const createCollection = handler<
 // Handler to delete a collection
 const deleteCollection = handler<
   unknown,
-  { collections: Cell<Collection[]>; collection: Collection }
+  { collections: Writable<Collection[]>; collection: Collection }
 >((_event, { collections, collection }) => {
   const current = collections.get();
   const index = current.findIndex((c) => c.name === collection.name);
@@ -64,9 +64,9 @@ const deleteCollection = handler<
 const goToCollection = handler<
   unknown,
   {
-    collection: Cell<Collection>;
-    allLinks: Cell<Link[]>;
-    allCollections: Cell<Collection[]>;
+    collection: Writable<Collection>;
+    allLinks: Writable<Link[]>;
+    allCollections: Writable<Collection[]>;
   }
 >((_event, { collection, allLinks, allCollections }) => {
   const detailInstance = CollectionDetail({
@@ -80,8 +80,8 @@ const goToCollection = handler<
 export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
   ({ collections, allLinks }) => {
     // Form inputs
-    const nameInput = cell("");
-    const descInput = cell("");
+    const nameInput = writable("");
+    const descInput = writable("");
 
     // Derived count for each collection
     const collectionList = derive(collections, (cols) => cols || []);

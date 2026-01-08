@@ -1,7 +1,5 @@
 /// <cts-enable />
 import {
-  Cell,
-  cell,
   computed,
   derive,
   handler,
@@ -10,6 +8,8 @@ import {
   pattern,
   str,
   UI,
+  Writable,
+  writable,
 } from "commontools";
 import type {
   Collection,
@@ -32,11 +32,11 @@ import type {
 const addLink = handler<
   unknown,
   {
-    collection: Cell<Collection>;
-    allLinks: Cell<Link[]>;
-    titleInput: Cell<string>;
-    urlInput: Cell<string>;
-    descInput: Cell<string>;
+    collection: Writable<Collection>;
+    allLinks: Writable<Link[]>;
+    titleInput: Writable<string>;
+    urlInput: Writable<string>;
+    descInput: Writable<string>;
   }
 >((_event, { collection, allLinks, titleInput, urlInput, descInput }) => {
   const title = titleInput.get().trim();
@@ -71,7 +71,7 @@ const addLink = handler<
 // Handler to remove a link from this collection
 const removeLink = handler<
   unknown,
-  { collection: Cell<Collection>; linkToRemove: Link }
+  { collection: Writable<Collection>; linkToRemove: Link }
 >((_event, { collection, linkToRemove }) => {
   const col = collection.get();
   const currentLinks = col.links || [];
@@ -88,7 +88,7 @@ const removeLink = handler<
 const addRelationship = handler<
   unknown,
   {
-    collection: Cell<Collection>;
+    collection: Writable<Collection>;
     linkA: Link;
     linkB: Link;
   }
@@ -131,7 +131,7 @@ const addRelationship = handler<
 const _removeRelationship = handler<
   unknown,
   {
-    collection: Cell<Collection>;
+    collection: Writable<Collection>;
     linkA: Link;
     linkB: Link;
   }
@@ -166,10 +166,10 @@ const _removeRelationship = handler<
 const startEditing = handler<
   unknown,
   {
-    editingLinkUrl: Cell<string>;
-    editTitle: Cell<string>;
-    editUrl: Cell<string>;
-    editDesc: Cell<string>;
+    editingLinkUrl: Writable<string>;
+    editTitle: Writable<string>;
+    editUrl: Writable<string>;
+    editDesc: Writable<string>;
     link: Link;
   }
 >((_event, { editingLinkUrl, editTitle, editUrl, editDesc, link }) => {
@@ -184,11 +184,11 @@ const startEditing = handler<
 const saveEdit = handler<
   unknown,
   {
-    collection: Cell<Collection>;
-    editingLinkUrl: Cell<string>;
-    editTitle: Cell<string>;
-    editUrl: Cell<string>;
-    editDesc: Cell<string>;
+    collection: Writable<Collection>;
+    editingLinkUrl: Writable<string>;
+    editTitle: Writable<string>;
+    editUrl: Writable<string>;
+    editDesc: Writable<string>;
   }
 >((_event, { collection, editingLinkUrl, editTitle, editUrl, editDesc }) => {
   const originalUrl = editingLinkUrl.get();
@@ -223,7 +223,7 @@ const saveEdit = handler<
 // Handler to cancel editing
 const cancelEdit = handler<
   unknown,
-  { editingLinkUrl: Cell<string> }
+  { editingLinkUrl: Writable<string> }
 >((_event, { editingLinkUrl }) => {
   editingLinkUrl.set("");
 });
@@ -231,7 +231,7 @@ const cancelEdit = handler<
 // Handler to export collection as JSON
 const exportToJson = handler<
   unknown,
-  { collection: Cell<Collection>; exportOutput: Cell<string> }
+  { collection: Writable<Collection>; exportOutput: Writable<string> }
 >((_event, { collection, exportOutput }) => {
   const col = collection.get();
   const exportData = {
@@ -254,9 +254,9 @@ const exportToJson = handler<
 const importFromJson = handler<
   unknown,
   {
-    collection: Cell<Collection>;
-    allLinks: Cell<Link[]>;
-    importInput: Cell<string>;
+    collection: Writable<Collection>;
+    allLinks: Writable<Link[]>;
+    importInput: Writable<string>;
   }
 >((_event, { collection, allLinks, importInput }) => {
   const jsonStr = importInput.get().trim();
@@ -304,19 +304,19 @@ const importFromJson = handler<
 export default pattern<CollectionDetailInput, CollectionDetailOutput>(
   ({ collection, allLinks, allCollections: _allCollections }) => {
     // Form inputs for adding new links
-    const titleInput = cell("");
-    const urlInput = cell("");
-    const descInput = cell("");
+    const titleInput = writable("");
+    const urlInput = writable("");
+    const descInput = writable("");
 
     // Edit mode state
-    const editingLinkUrl = cell(""); // URL of link being edited (empty = none)
-    const editTitle = cell("");
-    const editUrl = cell("");
-    const editDesc = cell("");
+    const editingLinkUrl = writable(""); // URL of link being edited (empty = none)
+    const editTitle = writable("");
+    const editUrl = writable("");
+    const editDesc = writable("");
 
     // Export/Import state
-    const exportOutput = cell("");
-    const importInput = cell("");
+    const exportOutput = writable("");
+    const importInput = writable("");
 
     // Derive the links list
     const links = derive(

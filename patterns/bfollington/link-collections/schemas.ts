@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default } from "commontools";
+import { Default, Writable } from "commontools";
 
 /**
  * Link Collections - Data Types
@@ -30,22 +30,22 @@ export interface Collection {
 
 // Main pattern input/output
 export interface LinkCollectionsInput {
-  collections: Cell<Default<Collection[], []>>;
-  allLinks: Cell<Default<Link[], []>>;
+  collections: Writable<Default<Collection[], []>>;
+  allLinks: Writable<Default<Link[], []>>;
 }
 
 export interface LinkCollectionsOutput {
-  collections: Cell<Default<Collection[], []>>;
-  allLinks: Cell<Default<Link[], []>>;
+  collections: Writable<Default<Collection[], []>>;
+  allLinks: Writable<Default<Link[], []>>;
 }
 
 // Collection detail pattern input
 export interface CollectionDetailInput {
-  collection: Cell<Collection>;
-  allLinks: Cell<Link[]>;
-  allCollections: Cell<Collection[]>;
+  collection: Writable<Collection>;
+  allLinks: Writable<Link[]>;
+  allCollections: Writable<Collection[]>;
 }
 
 export interface CollectionDetailOutput {
-  collection: Cell<Collection>;
+  collection: Writable<Collection>;
 }
