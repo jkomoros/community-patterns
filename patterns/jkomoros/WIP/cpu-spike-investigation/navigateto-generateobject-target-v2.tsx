@@ -10,7 +10,6 @@
  * This tests if recipe() alone triggers the bug.
  */
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -19,6 +18,7 @@ import {
   recipe,
   toSchema,
   UI,
+  Writable,
 } from "commontools";
 
 // 14-field schema to match person.tsx
@@ -42,7 +42,7 @@ interface ExtractionResult {
 // Handler to trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { extractTrigger: Cell<string>; startTimeMs: Cell<number> }
+  { extractTrigger: Writable<string>; startTimeMs: Writable<number> }
 >(
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V2-RECIPE] Starting extraction...");
@@ -65,8 +65,8 @@ interface Output {
 const ExtractTargetV2 = recipe<Input, Output>(
   "Extract Target V2",
   ({ notes }) => {
-    const extractTrigger = Cell.of<string>("");
-    const startTimeMs = Cell.of<number>(0);
+    const extractTrigger = Writable.of<string>("");
+    const startTimeMs = Writable.of<number>(0);
 
     const guardedPrompt = computed(() => {
       const t = extractTrigger.get();

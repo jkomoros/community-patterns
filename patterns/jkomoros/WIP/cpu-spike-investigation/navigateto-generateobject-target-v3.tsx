@@ -7,7 +7,6 @@
  * Adding changesPreview computed to see if post-extraction processing triggers it.
  */
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -16,6 +15,7 @@ import {
   recipe,
   toSchema,
   UI,
+  Writable,
 } from "commontools";
 // Inline the diff utilities to avoid import issues
 type DiffChunk = {
@@ -111,7 +111,7 @@ interface ExtractionResult {
 // Handler to trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { extractTrigger: Cell<string>; startTimeMs: Cell<number> }
+  { extractTrigger: Writable<string>; startTimeMs: Writable<number> }
 >(
   (_, { extractTrigger, startTimeMs }) => {
     console.log("[V3-CHANGES] Starting extraction...");
@@ -134,24 +134,24 @@ interface Output {
 const ExtractTargetV3 = recipe<Input, Output>(
   "Extract Target V3",
   ({ notes }) => {
-    const extractTrigger = Cell.of<string>("");
-    const startTimeMs = Cell.of<number>(0);
+    const extractTrigger = Writable.of<string>("");
+    const startTimeMs = Writable.of<number>(0);
 
     // Existing field values (simulating person.tsx's stored cells)
-    const displayName = Cell.of<string>("");
-    const givenName = Cell.of<string>("");
-    const familyName = Cell.of<string>("");
-    const nickname = Cell.of<string>("");
-    const pronouns = Cell.of<string>("");
-    const email = Cell.of<string>("");
-    const phone = Cell.of<string>("");
-    const birthday = Cell.of<string>("");
-    const twitter = Cell.of<string>("");
-    const linkedin = Cell.of<string>("");
-    const github = Cell.of<string>("");
-    const instagram = Cell.of<string>("");
-    const mastodon = Cell.of<string>("");
-    const remainingNotes = Cell.of<string>("");
+    const displayName = Writable.of<string>("");
+    const givenName = Writable.of<string>("");
+    const familyName = Writable.of<string>("");
+    const nickname = Writable.of<string>("");
+    const pronouns = Writable.of<string>("");
+    const email = Writable.of<string>("");
+    const phone = Writable.of<string>("");
+    const birthday = Writable.of<string>("");
+    const twitter = Writable.of<string>("");
+    const linkedin = Writable.of<string>("");
+    const github = Writable.of<string>("");
+    const instagram = Writable.of<string>("");
+    const mastodon = Writable.of<string>("");
+    const remainingNotes = Writable.of<string>("");
 
     const guardedPrompt = computed(() => {
       const t = extractTrigger.get();

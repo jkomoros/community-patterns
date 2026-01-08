@@ -9,7 +9,6 @@
  * V1: Just recipe + generateObject + simple UI (no ct-autolayout, no ifElse)
  */
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -18,6 +17,7 @@ import {
   recipe,
   str,
   UI,
+  Writable,
 } from "commontools";
 
 // Minimal extraction result
@@ -31,7 +31,7 @@ interface ExtractionResult {
 // Trigger extraction handler
 const triggerExtraction = handler<
   Record<string, never>,
-  { notes: string; extractTrigger: Cell<string> }
+  { notes: string; extractTrigger: Writable<string> }
 >(
   (_, { notes, extractTrigger }) => {
     console.log("[PERSON-MIN-V1] Starting extraction...");
@@ -65,7 +65,7 @@ const PersonMinimalV1 = recipe<Input, Output>(
     });
 
     // Extraction trigger cell
-    const extractTrigger = Cell.of<string>("");
+    const extractTrigger = Writable.of<string>("");
 
     // Guarded prompt
     const guardedPrompt = computed(() => {

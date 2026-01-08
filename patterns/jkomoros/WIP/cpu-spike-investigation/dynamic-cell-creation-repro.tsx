@@ -26,11 +26,11 @@
  * - Click "Load Data" → 30+ second freeze → UI updates
  */
 import {
-  Cell,
   handler,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 type Item = {
@@ -43,7 +43,7 @@ type Props = Record<string, never>;
 // Handler to load data (mimics generateObject completion)
 const loadData = handler<
   Record<string, never>,
-  { items: Cell<Item[]>; outerCount: number; innerCount: number }
+  { items: Writable<Item[]>; outerCount: number; innerCount: number }
 >((_, { items, outerCount, innerCount }) => {
   console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
   const t0 = Date.now();
@@ -63,7 +63,7 @@ const loadData = handler<
 });
 
 // Handler to clear data
-const clearData = handler<Record<string, never>, { items: Cell<Item[]> }>(
+const clearData = handler<Record<string, never>, { items: Writable<Item[]> }>(
   (_, { items }) => {
     items.set([]);
   }
@@ -71,7 +71,7 @@ const clearData = handler<Record<string, never>, { items: Cell<Item[]> }>(
 
 export default pattern<Props>(() => {
   // Start EMPTY - this is crucial for testing dynamic cell creation
-  const items = Cell.of<Item[]>([]);
+  const items = Writable.of<Item[]>([]);
 
   // Configuration for testing different scales
   const outerCount = 9; // Like changesPreview (9 extracted fields)

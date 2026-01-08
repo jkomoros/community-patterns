@@ -21,7 +21,6 @@
  * of O(n²) scheduler operations.
  */
 import {
-  Cell,
   computed,
   generateObject,
   handler,
@@ -29,6 +28,7 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 type Props = {
@@ -45,7 +45,7 @@ type ChangeWithChunks = {
 // Trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { notes: string; extractTrigger: Cell<string> }
+  { notes: string; extractTrigger: Writable<string> }
 >((_, { notes, extractTrigger }) => {
   extractTrigger.set(`${notes}\n---EXTRACT-${Date.now()}---`);
 });
@@ -53,14 +53,14 @@ const triggerExtraction = handler<
 // Clear extraction
 const clearExtraction = handler<
   Record<string, never>,
-  { extractedData: Cell<any> }
+  { extractedData: Writable<any> }
 >((_, { extractedData }) => {
   extractedData.set(null);
 });
 
 export default pattern<Props>(({ notes }) => {
   // Trigger cell for extraction
-  const extractTrigger = Cell.of<string>("");
+  const extractTrigger = Writable.of<string>("");
 
   // Guard the prompt (same pattern as person.tsx)
   const guardedPrompt = computed(() => {

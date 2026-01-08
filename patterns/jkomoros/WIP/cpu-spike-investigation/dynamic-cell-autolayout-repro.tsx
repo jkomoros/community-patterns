@@ -15,12 +15,12 @@
  * - Form view vs results view (like person.tsx extraction modal)
  */
 import {
-  Cell,
   handler,
   ifElse,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 type Item = {
@@ -33,7 +33,7 @@ type Props = Record<string, never>;
 // Handler to load data (mimics generateObject completion)
 const loadData = handler<
   Record<string, never>,
-  { items: Cell<Item[]>; hasResults: Cell<boolean>; outerCount: number; innerCount: number }
+  { items: Writable<Item[]>; hasResults: Writable<boolean>; outerCount: number; innerCount: number }
 >((_, { items, hasResults, outerCount, innerCount }) => {
   console.log(`[PERF] Loading ${outerCount} × ${innerCount} = ${outerCount * innerCount} items...`);
   const t0 = Date.now();
@@ -52,7 +52,7 @@ const loadData = handler<
 });
 
 // Handler to clear data
-const clearData = handler<Record<string, never>, { items: Cell<Item[]>; hasResults: Cell<boolean> }>(
+const clearData = handler<Record<string, never>, { items: Writable<Item[]>; hasResults: Writable<boolean> }>(
   (_, { items, hasResults }) => {
     items.set([]);
     hasResults.set(false);
@@ -60,8 +60,8 @@ const clearData = handler<Record<string, never>, { items: Cell<Item[]>; hasResul
 );
 
 export default pattern<Props>(() => {
-  const items = Cell.of<Item[]>([]);
-  const hasResults = Cell.of<boolean>(false);
+  const items = Writable.of<Item[]>([]);
+  const hasResults = Writable.of<boolean>(false);
   const outerCount = 9;
   const innerCount = 60;
 

@@ -4,12 +4,12 @@
  * @description Minimal test for ct-autolayout tabNames undefined issue
  */
 import {
-  Cell,
   handler,
   ifElse,
   NAME,
   recipe,
   UI,
+  Writable,
 } from "commontools";
 
 type Props = {
@@ -17,14 +17,14 @@ type Props = {
 };
 
 // Handlers defined OUTSIDE the recipe
-const showModalHandler = handler<void, { showModal: Cell<boolean> }>(
+const showModalHandler = handler<void, { showModal: Writable<boolean> }>(
   (_, { showModal }) => {
     console.log("[TEST] Showing modal...");
     showModal.set(true);
   }
 );
 
-const hideModalHandler = handler<void, { showModal: Cell<boolean> }>(
+const hideModalHandler = handler<void, { showModal: Writable<boolean> }>(
   (_, { showModal }) => {
     console.log("[TEST] Hiding modal...");
     showModal.set(false);
@@ -32,8 +32,8 @@ const hideModalHandler = handler<void, { showModal: Cell<boolean> }>(
 );
 
 export default recipe<Props>(({ notes: initialNotes }) => {
-  const showModal = Cell.of(false);
-  const notes = Cell.of(initialNotes || "");
+  const showModal = Writable.of(false);
+  const notes = Writable.of(initialNotes || "");
 
   return {
     [NAME]: "CTAutoLayout TabNames Test",

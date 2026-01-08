@@ -6,7 +6,6 @@
  * V1 was fast - no bug. Now adding ct-autolayout to see if that triggers it.
  */
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -15,6 +14,7 @@ import {
   recipe,
   str,
   UI,
+  Writable,
 } from "commontools";
 
 // Minimal extraction result
@@ -28,7 +28,7 @@ interface ExtractionResult {
 // Trigger extraction handler
 const triggerExtraction = handler<
   Record<string, never>,
-  { notes: string; extractTrigger: Cell<string> }
+  { notes: string; extractTrigger: Writable<string> }
 >(
   (_, { notes, extractTrigger }) => {
     console.log("[PERSON-MIN-V2] Starting extraction...");
@@ -60,7 +60,7 @@ const PersonMinimalV2 = recipe<Input, Output>(
       return name || "(Untitled Person)";
     });
 
-    const extractTrigger = Cell.of<string>("");
+    const extractTrigger = Writable.of<string>("");
 
     const guardedPrompt = computed(() => {
       const trigger = extractTrigger.get();

@@ -33,13 +33,13 @@
  * - packages/runner/src/builtins/map.ts (lines 108-161) - array writes
  */
 import {
-  Cell,
   computed,
   Default,
   handler,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 type Item = {
@@ -56,7 +56,7 @@ type Props = {
 // Handler to trigger the slow render
 const triggerRender = handler<
   Record<string, never>,
-  { items: Cell<Item[]>; itemCount: number; childCount: number }
+  { items: Writable<Item[]>; itemCount: number; childCount: number }
 >((_, { items, itemCount, childCount }) => {
   // Create nested data structure
   const newItems = Array.from({ length: itemCount }, (_, i) => ({
@@ -71,7 +71,7 @@ const triggerRender = handler<
 });
 
 // Handler to clear items
-const clearItems = handler<Record<string, never>, { items: Cell<Item[]> }>(
+const clearItems = handler<Record<string, never>, { items: Writable<Item[]> }>(
   (_, { items }) => {
     items.set([]);
   }
@@ -79,7 +79,7 @@ const clearItems = handler<Record<string, never>, { items: Cell<Item[]> }>(
 
 export default pattern<Props>(({ itemCount, childCount }) => {
   // Start with empty array
-  const items = Cell.of<Item[]>([]);
+  const items = Writable.of<Item[]>([]);
 
   // Computed for total cell count
   const totalCells = computed(() => {

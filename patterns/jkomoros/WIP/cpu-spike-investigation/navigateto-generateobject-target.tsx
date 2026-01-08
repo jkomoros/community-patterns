@@ -10,8 +10,8 @@
  * See: patterns/jkomoros/issues/ISSUE-navigateTo-generateObject-cpu-spike.md
  */
 import {
-  cell,
-  Cell,
+  writable,
+  Writable,
   computed,
   generateObject,
   handler,
@@ -41,7 +41,7 @@ interface ExtractionResult {
 
 const triggerExtraction = handler<
   Record<string, never>,
-  { trigger: Cell<string>; startTimeMs: Cell<number> }
+  { trigger: Writable<string>; startTimeMs: Writable<number> }
 >(
   (_, { trigger, startTimeMs }) => {
     console.log("[EXTRACT-TARGET] Starting extraction...");
@@ -55,8 +55,8 @@ interface Props {
 }
 
 export default pattern<Props>(({ notes }) => {
-  const trigger = cell<string>("");
-  const startTimeMs = cell<number>(0);
+  const trigger = writable<string>("");
+  const startTimeMs = writable<number>(0);
 
   const guardedPrompt = computed(() => {
     const t = trigger.get();

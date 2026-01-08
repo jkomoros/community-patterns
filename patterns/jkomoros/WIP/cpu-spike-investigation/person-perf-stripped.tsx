@@ -14,8 +14,8 @@
  * - If ~6 seconds: Need to add more complexity
  */
 import {
-  cell,
-  Cell,
+  writable,
+  Writable,
   computed,
   generateObject,
   handler,
@@ -101,7 +101,7 @@ function compareFields<T extends Record<string, any>>(
 // Handler to trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { trigger: Cell<string>; startTimeMs: Cell<number> }
+  { trigger: Writable<string>; startTimeMs: Writable<number> }
 >(
   (_, { trigger, startTimeMs }) => {
     console.log("[PERF-STRIPPED] Starting extraction...");
@@ -114,7 +114,7 @@ const triggerExtraction = handler<
 // Handler to cancel extraction
 const cancelExtraction = handler<
   Record<string, never>,
-  { extractedData: Cell<any> }
+  { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
     extractedData.set(null);
@@ -124,7 +124,7 @@ const cancelExtraction = handler<
 // Handler to apply extracted data (just clears for this test)
 const applyExtractedData = handler<
   Record<string, never>,
-  { extractedData: Cell<any> }
+  { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
     console.log("[PERF-STRIPPED] Applying extracted data");
@@ -152,24 +152,24 @@ interface ExtractionResult {
 
 export default pattern(() => {
   // Trigger for extraction
-  const trigger = cell<string>("");
-  const startTimeMs = cell<number>(0);
+  const trigger = writable<string>("");
+  const startTimeMs = writable<number>(0);
 
   // Mock current values (empty, like a new person)
-  const displayName = cell<string>("");
-  const givenName = cell<string>("");
-  const familyName = cell<string>("");
-  const nickname = cell<string>("");
-  const pronouns = cell<string>("");
-  const birthday = cell<string>("");
-  const emailValue = cell<string>("");
-  const phoneValue = cell<string>("");
-  const twitterHandle = cell<string>("");
-  const linkedinHandle = cell<string>("");
-  const githubHandle = cell<string>("");
-  const instagramHandle = cell<string>("");
-  const mastodonHandle = cell<string>("");
-  const notes = cell<string>("");
+  const displayName = writable<string>("");
+  const givenName = writable<string>("");
+  const familyName = writable<string>("");
+  const nickname = writable<string>("");
+  const pronouns = writable<string>("");
+  const birthday = writable<string>("");
+  const emailValue = writable<string>("");
+  const phoneValue = writable<string>("");
+  const twitterHandle = writable<string>("");
+  const linkedinHandle = writable<string>("");
+  const githubHandle = writable<string>("");
+  const instagramHandle = writable<string>("");
+  const mastodonHandle = writable<string>("");
+  const notes = writable<string>("");
 
   // Guarded prompt
   const guardedPrompt = computed(() => {

@@ -17,11 +17,11 @@
  * - renderCompleteTime: When the LAST item renders (true end-to-end time)
  */
 import {
-  Cell,
   handler,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 type Item = {
@@ -40,7 +40,7 @@ let lastRenderTime = 0;
 // Handler to load data
 const loadData = handler<
   Record<string, never>,
-  { items: Cell<Item[]>; outerCount: number; innerCount: number }
+  { items: Writable<Item[]>; outerCount: number; innerCount: number }
 >((_, { items, outerCount, innerCount }) => {
   // Reset counters
   outerMapCalls = 0;
@@ -69,7 +69,7 @@ const loadData = handler<
 });
 
 // Handler to clear data
-const clearData = handler<Record<string, never>, { items: Cell<Item[]> }>(
+const clearData = handler<Record<string, never>, { items: Writable<Item[]> }>(
   (_, { items }) => {
     items.set([]);
     console.log(`[PERF] Cleared. Final stats:`);
@@ -94,7 +94,7 @@ const showStats = handler<Record<string, never>, Record<string, never>>(
 );
 
 export default pattern<Props>(() => {
-  const items = Cell.of<Item[]>([]);
+  const items = Writable.of<Item[]>([]);
   const outerCount = 9;
   const innerCount = 60;
 

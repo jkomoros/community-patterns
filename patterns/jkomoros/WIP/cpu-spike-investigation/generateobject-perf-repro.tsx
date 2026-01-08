@@ -22,8 +22,8 @@ import {
   UI,
   NAME,
   toSchema,
-  cell,
-  Cell,
+  writable,
+  Writable,
   computed,
   handler,
 } from "commontools";
@@ -31,7 +31,7 @@ import {
 // Handler to trigger extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { trigger: Cell<string>; startTimeMs: Cell<number>; elapsedMs: Cell<number | null> }
+  { trigger: Writable<string>; startTimeMs: Writable<number>; elapsedMs: Writable<number | null> }
 >(
   (_, { trigger, startTimeMs, elapsedMs }) => {
     console.log("[PERF] Starting 14-field extraction...");
@@ -62,9 +62,9 @@ interface ExtractionResult {
 
 export default pattern(() => {
   // Trigger for extraction
-  const trigger = cell<string>("");
-  const startTimeMs = cell<number>(0);
-  const elapsedMs = cell<number | null>(null);
+  const trigger = writable<string>("");
+  const startTimeMs = writable<number>(0);
+  const elapsedMs = writable<number | null>(null);
 
   // Guarded prompt - only triggers when explicitly set
   const guardedPrompt = computed(() => {
