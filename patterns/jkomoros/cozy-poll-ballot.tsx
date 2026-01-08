@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, ifElse, NAME, navigateTo, pattern, str, UI } from "commontools";
+import { computed, Default, handler, ifElse, NAME, navigateTo, pattern, str, UI, Writable } from "commontools";
 
 /**
  * Cozy Poll Ballot Pattern
@@ -28,15 +28,15 @@ interface VoterCharmRef {
 
 interface VoterInput {
   question: Default<string, "">;            // Read-only from admin
-  options: Cell<Default<Option[], []>>;     // Shared from admin
-  votes: Cell<Default<Vote[], []>>;         // Shared from admin
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;  // Shared from admin
-  myName: Cell<Default<string, "">>;        // Local to this voter
+  options: Writable<Default<Option[], []>>;     // Shared from admin
+  votes: Writable<Default<Vote[], []>>;         // Shared from admin
+  voterCharms: Writable<Default<VoterCharmRef[], []>>;  // Shared from admin
+  myName: Writable<Default<string, "">>;        // Local to this voter
 }
 
 /** Individual voter ballot for cozy poll. #cozyPollBallot */
 interface VoterOutput {
-  myName: Cell<Default<string, "">>;
+  myName: Writable<Default<string, "">>;
 }
 
 // Utility function to get initials from a name

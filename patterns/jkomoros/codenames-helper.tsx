@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI } from "commontools";
+import { computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI, Writable } from "commontools";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -177,20 +177,20 @@ function initializeEmptyBoard(): BoardWord[] {
 }
 
 interface CodenamesHelperInput {
-  board?: Cell<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
-  myTeam?: Cell<Default<Team, "red">>;
-  setupMode?: Cell<Default<boolean, true>>;
-  selectedWordIndex?: Cell<Default<number, 999>>;
+  board?: Writable<Default<BoardWord[], typeof DEFAULT_EMPTY_BOARD>>;
+  myTeam?: Writable<Default<Team, "red">>;
+  setupMode?: Writable<Default<boolean, true>>;
+  selectedWordIndex?: Writable<Default<number, 999>>;
 }
 
 // Initialize once for default
 const DEFAULT_EMPTY_BOARD = initializeEmptyBoard();
 
 interface CodenamesHelperOutput {
-  board: Cell<BoardWord[]>;
-  myTeam: Cell<Team>;
-  setupMode: Cell<boolean>;
-  selectedWordIndex: Cell<number>;
+  board: Writable<BoardWord[]>;
+  myTeam: Writable<Team>;
+  setupMode: Writable<boolean>;
+  selectedWordIndex: Writable<number>;
 }
 
 // Validation result structure
@@ -302,7 +302,7 @@ function getWordBackgroundColor(owner: WordOwner): string {
 // Apply extracted board data from AI (after approval)
 const applyExtractedData = handler<
   unknown,
-  { board: Cell<BoardWord[]>; extraction: any; approvalState: Cell<Array<{ correctionText: string; applied: boolean }>>; idx: number }
+  { board: Writable<BoardWord[]>; extraction: any; approvalState: Writable<Array<{ correctionText: string; applied: boolean }>>; idx: number }
 >((_event, { board, extraction, approvalState, idx }) => {
   if (!extraction || !extraction.result) return;
 
@@ -354,7 +354,7 @@ const applyExtractedData = handler<
 // Reject extraction
 const rejectExtraction = handler<
   unknown,
-  { uploadedPhotos: Cell<ImageData[]>; idx: number; approvalState: Cell<Array<{ correctionText: string; applied: boolean }>> }
+  { uploadedPhotos: Writable<ImageData[]>; idx: number; approvalState: Writable<Array<{ correctionText: string; applied: boolean }>> }
 >((_event, { uploadedPhotos, idx, approvalState }) => {
   // Remove from uploaded photos
   const photos = uploadedPhotos.get().slice();
@@ -370,7 +370,7 @@ const rejectExtraction = handler<
 // Update correction text
 const updateCorrectionText = handler<
   any,
-  { approvalState: Cell<Array<{ correctionText: string; applied: boolean }>>; idx: number }
+  { approvalState: Writable<Array<{ correctionText: string; applied: boolean }>>; idx: number }
 >((event, { approvalState, idx }) => {
   const text = event.target.value;
   const currentApprovals = approvalState.get().slice();
@@ -385,7 +385,7 @@ const updateCorrectionText = handler<
 // Assign color to selected word
 const assignColor = handler<
   unknown,
-  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number>; owner: WordOwner }
+  { board: Writable<BoardWord[]>; selectedWordIndex: Writable<number>; owner: WordOwner }
 >((_event, { board, selectedWordIndex, owner }) => {
   const selIdx = selectedWordIndex.get();
   if (selIdx >= 0 && selIdx < 25) {
@@ -399,7 +399,7 @@ const assignColor = handler<
 // Reset all word colors to unassigned
 const resetAllColors = handler<
   unknown,
-  { board: Cell<BoardWord[]>; selectedWordIndex: Cell<number> }
+  { board: Writable<BoardWord[]>; selectedWordIndex: Writable<number> }
 >((_event, { board, selectedWordIndex }) => {
   const currentBoard = board.get().slice();
   for (let i = 0; i < currentBoard.length; i++) {
@@ -412,7 +412,7 @@ const resetAllColors = handler<
 // Update word text in a cell
 const updateWord = handler<
   any,
-  { board: Cell<BoardWord[]>; row: number; col: number }
+  { board: Writable<BoardWord[]>; row: number; col: number }
 >((event, { board, row, col }) => {
   const text = event.target.value;
   const currentBoard = board.get().slice();
@@ -430,7 +430,7 @@ const updateWord = handler<
 // Handle cell click (setup mode: select, play mode: reveal)
 const cellClick = handler<
   unknown,
-  { board: Cell<BoardWord[]>; setupMode: Cell<boolean>; selectedWordIndex: Cell<number>; row: number; col: number }
+  { board: Writable<BoardWord[]>; setupMode: Writable<boolean>; selectedWordIndex: Writable<number>; row: number; col: number }
 >((_event, { board, setupMode, selectedWordIndex, row, col }) => {
   const currentBoard = board.get();
 
@@ -459,7 +459,7 @@ const cellClick = handler<
 // Initialize board with empty cells
 const initializeBoardHandler = handler<
   unknown,
-  { board: Cell<BoardWord[]>; setupMode: Cell<boolean> }
+  { board: Writable<BoardWord[]>; setupMode: Writable<boolean> }
 >((_event, { board, setupMode }) => {
   board.set(initializeEmptyBoard());
   setupMode.set(true);
@@ -472,10 +472,10 @@ export default pattern<CodenamesHelperInput, CodenamesHelperOutput>(
     // Note: board starts empty, user must click "Create Board" or it initializes on first interaction
 
     // Image upload for board and key card
-    const uploadedPhotos = Cell.of<ImageData[]>([]);
+    const uploadedPhotos = Writable.of<ImageData[]>([]);
 
     // Approval state for each photo (tracks corrections, approval status)
-    const approvalState = Cell.of<Array<{
+    const approvalState = Writable.of<Array<{
       correctionText: string;
       applied: boolean;
     }>>([]);

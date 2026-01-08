@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, pattern, str, UI } from "commontools";
+import { Writable, computed, Default, handler, NAME, pattern, str, UI } from "commontools";
 
 /**
  * Reward Spinner Pattern
@@ -24,28 +24,28 @@ interface SpinRecord {
 }
 
 interface SpinnerInput {
-  currentEmoji?: Cell<Default<string, "🎁">>;
-  isSpinning?: Cell<Default<boolean, false>>;
+  currentEmoji?: Writable<Default<string, "🎁">>;
+  isSpinning?: Writable<Default<boolean, false>>;
   // Generosity level: 0 = mostly hugs (95%), 10 = lots of candy (95%)
-  generosity?: Cell<Default<number, 10>>;
+  generosity?: Writable<Default<number, 10>>;
   // Sequence of emojis for slot machine animation
-  spinSequence?: Cell<Default<string[], []>>;
+  spinSequence?: Writable<Default<string[], []>>;
   // Counter to force animation restart
-  spinCount?: Cell<Default<number, 0>>;
+  spinCount?: Writable<Default<number, 0>>;
   // Counter to force payout animation restart
-  payoutAnimationCount?: Cell<Default<number, 0>>;
+  payoutAnimationCount?: Writable<Default<number, 0>>;
   // History of all spins (timestamp, generosity level, result)
-  spinHistory?: Cell<Default<SpinRecord[], []>>;
+  spinHistory?: Writable<Default<SpinRecord[], []>>;
 }
 
 interface SpinnerOutput {
-  currentEmoji: Cell<Default<string, "🎁">>;
-  isSpinning: Cell<Default<boolean, false>>;
-  generosity: Cell<Default<number, 10>>;
-  spinSequence: Cell<Default<string[], []>>;
-  spinCount: Cell<Default<number, 0>>;
-  payoutAnimationCount: Cell<Default<number, 0>>;
-  spinHistory: Cell<Default<SpinRecord[], []>>;
+  currentEmoji: Writable<Default<string, "🎁">>;
+  isSpinning: Writable<Default<boolean, false>>;
+  generosity: Writable<Default<number, 10>>;
+  spinSequence: Writable<Default<string[], []>>;
+  spinCount: Writable<Default<number, 0>>;
+  payoutAnimationCount: Writable<Default<number, 0>>;
+  spinHistory: Writable<Default<SpinRecord[], []>>;
 }
 
 /**
@@ -72,12 +72,12 @@ function calculatePrizeWeights(generosity: number): [number, number, number] {
 const spin = handler<
   unknown,
   {
-    currentEmoji: Cell<string>;
-    isSpinning: Cell<boolean>;
-    generosity: Cell<number>;
-    spinSequence: Cell<string[]>;
-    spinCount: Cell<number>;
-    spinHistory: Cell<SpinRecord[]>;
+    currentEmoji: Writable<string>;
+    isSpinning: Writable<boolean>;
+    generosity: Writable<number>;
+    spinSequence: Writable<string[]>;
+    spinCount: Writable<number>;
+    spinHistory: Writable<SpinRecord[]>;
   }
 >(
   (_, { currentEmoji, isSpinning, generosity, spinSequence, spinCount, spinHistory }) => {
@@ -156,7 +156,7 @@ const spin = handler<
 
 const decrementGenerosity = handler<
   unknown,
-  { generosity: Cell<number>; payoutAnimationCount: Cell<number> }
+  { generosity: Writable<number>; payoutAnimationCount: Writable<number> }
 >(
   (_, { generosity, payoutAnimationCount }) => {
     const current = generosity.get();
@@ -169,7 +169,7 @@ const decrementGenerosity = handler<
 
 const incrementGenerosity = handler<
   unknown,
-  { generosity: Cell<number>; payoutAnimationCount: Cell<number> }
+  { generosity: Writable<number>; payoutAnimationCount: Writable<number> }
 >(
   (_, { generosity, payoutAnimationCount }) => {
     const current = generosity.get();

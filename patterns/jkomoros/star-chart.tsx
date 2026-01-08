@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 /**
  * Star Chart Pattern
@@ -59,32 +59,32 @@ function getMilestoneForStreak(streak: number): typeof MILESTONES[number] | null
 }
 
 interface StarChartInput {
-  goalName?: Cell<Default<string, "Gold Star Goal">>;
+  goalName?: Writable<Default<string, "Gold Star Goal">>;
   // Optional description for the goal (e.g., "No accidents all day!")
-  goalDescription?: Cell<Default<string, "">>;
-  days?: Cell<Default<DayRecord[], []>>;
+  goalDescription?: Writable<Default<string, "">>;
+  days?: Writable<Default<DayRecord[], []>>;
   // Best streak ever achieved
-  bestStreak?: Cell<Default<number, 0>>;
+  bestStreak?: Writable<Default<number, 0>>;
   // Last milestone that was celebrated (to avoid repeating)
-  lastCelebratedMilestone?: Cell<Default<number, 0>>;
+  lastCelebratedMilestone?: Writable<Default<number, 0>>;
   // Trigger for sparkle animation (increments when star placed)
-  sparkleKey?: Cell<Default<number, 0>>;
+  sparkleKey?: Writable<Default<number, 0>>;
   // Current view mode: main (daily use) or corrections (parent edit mode) or settings (edit goal)
-  viewMode?: Cell<Default<"main" | "corrections" | "settings", "main">>;
+  viewMode?: Writable<Default<"main" | "corrections" | "settings", "main">>;
   // Debug: override "today" for testing (empty string = use real today)
   // Link a date picker charm to this for debugging
-  debugDate?: Cell<Default<string, "">>;
+  debugDate?: Writable<Default<string, "">>;
 }
 
 interface StarChartOutput {
-  goalName: Cell<Default<string, "Gold Star Goal">>;
-  goalDescription: Cell<Default<string, "">>;
-  days: Cell<Default<DayRecord[], []>>;
-  bestStreak: Cell<Default<number, 0>>;
-  lastCelebratedMilestone: Cell<Default<number, 0>>;
-  sparkleKey: Cell<Default<number, 0>>;
-  viewMode: Cell<Default<"main" | "corrections" | "settings", "main">>;
-  debugDate: Cell<Default<string, "">>;
+  goalName: Writable<Default<string, "Gold Star Goal">>;
+  goalDescription: Writable<Default<string, "">>;
+  days: Writable<Default<DayRecord[], []>>;
+  bestStreak: Writable<Default<number, 0>>;
+  lastCelebratedMilestone: Writable<Default<number, 0>>;
+  sparkleKey: Writable<Default<number, 0>>;
+  viewMode: Writable<Default<"main" | "corrections" | "settings", "main">>;
+  debugDate: Writable<Default<string, "">>;
 }
 
 // Helper to format a Date as YYYY-MM-DD in local timezone
@@ -133,7 +133,7 @@ function calculateStreak(daysArray: readonly DayRecord[], todayStr: string): num
 // auto-protect yesterday
 const placeStar = handler<
   unknown,
-  { days: Cell<DayRecord[]>; bestStreak: Cell<number>; lastCelebratedMilestone: Cell<number>; sparkleKey: Cell<number>; debugDate: Cell<string> }
+  { days: Writable<DayRecord[]>; bestStreak: Writable<number>; lastCelebratedMilestone: Writable<number>; sparkleKey: Writable<number>; debugDate: Writable<string> }
 >((_, { days, bestStreak, lastCelebratedMilestone, sparkleKey, debugDate }) => {
   const currentDays = days.get();
   const override = debugDate.get();
@@ -204,7 +204,7 @@ const placeStar = handler<
 // Handler to enter corrections view
 const enterCorrections = handler<
   unknown,
-  { viewMode: Cell<string> }
+  { viewMode: Writable<string> }
 >((_, { viewMode }) => {
   viewMode.set("corrections");
 });
@@ -212,7 +212,7 @@ const enterCorrections = handler<
 // Handler to return to main view
 const exitCorrections = handler<
   unknown,
-  { viewMode: Cell<string> }
+  { viewMode: Writable<string> }
 >((_, { viewMode }) => {
   viewMode.set("main");
 });
@@ -220,7 +220,7 @@ const exitCorrections = handler<
 // Handler to enter settings view (edit goal name/description)
 const enterSettings = handler<
   unknown,
-  { viewMode: Cell<string> }
+  { viewMode: Writable<string> }
 >((_, { viewMode }) => {
   viewMode.set("settings");
 });
@@ -228,7 +228,7 @@ const enterSettings = handler<
 // Handler to exit settings view
 const exitSettings = handler<
   unknown,
-  { viewMode: Cell<string> }
+  { viewMode: Writable<string> }
 >((_, { viewMode }) => {
   viewMode.set("main");
 });
@@ -238,7 +238,7 @@ const exitSettings = handler<
 // may not be accessible in CommonTools handlers
 const toggleDayStar = handler<
   unknown,
-  { days: Cell<DayRecord[]>; bestStreak: Cell<number>; dateToToggle: string }
+  { days: Writable<DayRecord[]>; bestStreak: Writable<number>; dateToToggle: string }
 >((_, { days, bestStreak, dateToToggle }) => {
   const date = dateToToggle;
   if (!date) return;

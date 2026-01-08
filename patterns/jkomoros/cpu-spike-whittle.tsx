@@ -8,7 +8,6 @@
  * STEP 1: Keep ALL the structure from orchestrator but remove unrelated UI/handlers
  */
 import {
-  Cell,
   computed,
   Default,
   handler,
@@ -18,6 +17,7 @@ import {
   pattern,
   UI,
   wish,
+  Writable,
 } from "commontools";
 
 // Import GoogleAuth pattern for creating new auth charms
@@ -55,7 +55,7 @@ interface GoogleAuthCharm {
 
 interface Input {
   // Minimal state
-  lastError?: Cell<Default<string | null, null>>;
+  lastError?: Writable<Default<string | null, null>>;
 }
 
 /** CPU Spike Whittle Test. #cpuSpikeWhittle */

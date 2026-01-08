@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, NAME, pattern, UI, wish } from "commontools";
+import { computed, Default, NAME, pattern, UI, wish } from "commontools";
 
 // ============================================================================
 // Types

@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -13,6 +12,7 @@ import {
   str,
   UI,
   wish,
+  Writable,
 } from "commontools";
 
 // Type for a person charm reference
@@ -46,7 +46,7 @@ type Output = {
 // Handler to trigger analysis
 const triggerAnalysis = handler<
   Record<string, never>,
-  { analysisInput: Cell<string>; personCharms: Array<OpaqueRef<PersonCharm>>; hasAnalyzed: Cell<boolean> }
+  { analysisInput: Writable<string>; personCharms: Array<OpaqueRef<PersonCharm>>; hasAnalyzed: Writable<boolean> }
 >(
   (_, { analysisInput, personCharms, hasAnalyzed }) => {
     // Create a snapshot of all person data for analysis
@@ -77,9 +77,9 @@ const MetaAnalyzer = recipe<Input, Output>(
       )
     );
 
-    // Cell to hold the input for analysis
-    const analysisInput = Cell.of<string>("");
-    const hasAnalyzed = Cell.of<boolean>(false);
+    // Writable to hold the input for analysis
+    const analysisInput = Writable.of<string>("");
+    const hasAnalyzed = Writable.of<boolean>(false);
 
     // Derive count of person charms
     const personCount = computed(() => personCharms.length);

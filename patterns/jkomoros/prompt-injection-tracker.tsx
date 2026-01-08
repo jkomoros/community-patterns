@@ -105,8 +105,6 @@
  * - Cross-space auth access is a separate known issue
  */
 import {
-  Cell,
-  cell,
   Default,
   derive,
   fetchData,
@@ -117,6 +115,8 @@ import {
   pattern,
   str,
   UI,
+  Writable,
+  writable,
 } from "commontools";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -423,7 +423,7 @@ No security vulnerabilities mentioned in this marketing email - just product inf
 // =============================================================================
 
 // Handler to load test articles (like addItem in map-test-100-items)
-const loadTestArticles = handler<unknown, { articles: Cell<Article[]> }>(
+const loadTestArticles = handler<unknown, { articles: Writable<Article[]> }>(
   (_event, { articles }) => {
     // Clear and load test articles
     for (const article of TEST_ARTICLES) {
@@ -451,7 +451,7 @@ These hardware-level vulnerabilities require both firmware and OS-level patches.
 };
 
 // Handler to add a single extra article (for incremental caching tests)
-const addSingleArticle = handler<unknown, { articles: Cell<Article[]> }>(
+const addSingleArticle = handler<unknown, { articles: Writable<Article[]> }>(
   (_event, { articles }) => {
     articles.push(EXTRA_TEST_ARTICLE);
   }
@@ -460,7 +460,7 @@ const addSingleArticle = handler<unknown, { articles: Cell<Article[]> }>(
 // Handler to toggle read/unread state for a report URL
 const toggleRead = handler<
   unknown,
-  { readUrls: Cell<string[]>; url: string }
+  { readUrls: Writable<string[]>; url: string }
 >((_event, { readUrls, url }) => {
   const current = readUrls.get();
   const normalizedUrl = normalizeURL(url);
@@ -544,8 +544,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // ==========================================================================
   // Reports storage and read state
   // ==========================================================================
-  const reports = cell<PromptInjectionReport[]>([]);
-  const readUrls = cell<string[]>([]); // Track which report URLs have been read (normalized)
+  const reports = writable<PromptInjectionReport[]>([]);
+  const readUrls = writable<string[]>([]); // Track which report URLs have been read (normalized)
 
   // ==========================================================================
   // LEVEL 1: Extract security links from articles (the "dumb map approach")

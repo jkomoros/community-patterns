@@ -12,8 +12,6 @@
  * - LLM-assisted rule suggestions
  */
 import {
-  Cell,
-  cell,
   Default,
   derive,
   generateObject,
@@ -25,6 +23,8 @@ import {
   str,
   UI,
   wish,
+  Writable,
+  writable,
 } from "commontools";
 import Family from "./family.tsx";
 import CalendarViewer from "./calendar-viewer.tsx";
@@ -119,7 +119,7 @@ type EventSuggestion = {
 // Handler to add a new address to "my addresses"
 const addMyAddress = handler<
   { detail: { message: string } },
-  { myAddresses: Cell<Address[]> }
+  { myAddresses: Writable<Address[]> }
 >(({ detail }, { myAddresses }) => {
   const fullAddress = detail?.message?.trim();
   if (!fullAddress) return;
@@ -138,7 +138,7 @@ const addMyAddress = handler<
 // Handler to remove one of my addresses
 const removeMyAddress = handler<
   unknown,
-  { myAddresses: Cell<Address[]>; addressId: string }
+  { myAddresses: Writable<Address[]>; addressId: string }
 >((_, { myAddresses, addressId }) => {
   const current = myAddresses.get();
   const index = current.findIndex((a) => a.id === addressId);
@@ -156,8 +156,8 @@ const removeMyAddress = handler<
 const addManualEvent = handler<
   unknown,
   {
-    hostingEvents: Cell<HostingEvent[]>;
-    manualEventForm: Cell<{
+    hostingEvents: Writable<HostingEvent[]>;
+    manualEventForm: Writable<{
       title: string;
       date: string;
       location: string;
@@ -206,7 +206,7 @@ const addManualEvent = handler<
 const classifyEvent = handler<
   unknown,
   {
-    hostingEvents: Cell<HostingEvent[]>;
+    hostingEvents: Writable<HostingEvent[]>;
     event: NormalizedCalendarEvent;
     familyId: string;
     familyName: string;
@@ -235,14 +235,14 @@ const classifyEvent = handler<
 const applySuggestion = handler<
   unknown,
   {
-    hostingEvents: Cell<HostingEvent[]>;
+    hostingEvents: Writable<HostingEvent[]>;
     event: NormalizedCalendarEvent;
     category: HostingCategory;
     familyId: string | null;
     familyName: string | null;
     confidence: number;
     matchedRule: ClassificationRule | null;
-    rules: Cell<ClassificationRule[]>;
+    rules: Writable<ClassificationRule[]>;
   }
 >((_, { hostingEvents, event, category, familyId, familyName, confidence, matchedRule, rules }) => {
   const newEvent: HostingEvent = {
@@ -281,7 +281,7 @@ const applySuggestion = handler<
 // Handler to remove a hosting event
 const removeHostingEvent = handler<
   unknown,
-  { hostingEvents: Cell<HostingEvent[]>; eventId: string }
+  { hostingEvents: Writable<HostingEvent[]>; eventId: string }
 >((_, { hostingEvents, eventId }) => {
   const current = hostingEvents.get();
   const index = current.findIndex((e) => e.id === eventId);
@@ -294,8 +294,8 @@ const removeHostingEvent = handler<
 const addRule = handler<
   unknown,
   {
-    rules: Cell<ClassificationRule[]>;
-    newRule: Cell<Partial<ClassificationRule>>;
+    rules: Writable<ClassificationRule[]>;
+    newRule: Writable<Partial<ClassificationRule>>;
   }
 >((_, { rules, newRule }) => {
   const rule = newRule.get();
@@ -329,7 +329,7 @@ const addRule = handler<
 // Handler to toggle rule enabled state
 const toggleRule = handler<
   unknown,
-  { rules: Cell<ClassificationRule[]>; ruleId: string }
+  { rules: Writable<ClassificationRule[]>; ruleId: string }
 >((_, { rules, ruleId }) => {
   const current = rules.get();
   const index = current.findIndex((r) => r.id === ruleId);
@@ -343,7 +343,7 @@ const toggleRule = handler<
 // Handler to delete a rule
 const deleteRule = handler<
   unknown,
-  { rules: Cell<ClassificationRule[]>; ruleId: string }
+  { rules: Writable<ClassificationRule[]>; ruleId: string }
 >((_, { rules, ruleId }) => {
   const current = rules.get();
   const index = current.findIndex((r) => r.id === ruleId);
@@ -355,7 +355,7 @@ const deleteRule = handler<
 // Handler to update overdueThresholdDays
 const updateThreshold = handler<
   { target: { value: string } },
-  { overdueThresholdDays: Cell<number> }
+  { overdueThresholdDays: Writable<number> }
 >(({ target }, { overdueThresholdDays }) => {
   const value = parseInt(target.value, 10);
   if (!isNaN(value) && value > 0) {
@@ -367,7 +367,7 @@ const updateThreshold = handler<
 const selectManualFamily = handler<
   { target: { value: string } },
   {
-    manualEventForm: Cell<{
+    manualEventForm: Writable<{
       title: string;
       date: string;
       location: string;
@@ -376,7 +376,7 @@ const selectManualFamily = handler<
       category: HostingCategory;
       notes: string;
     }>;
-    trackedFamilies: Cell<Array<{ id: string; name: string }>>;
+    trackedFamilies: Writable<Array<{ id: string; name: string }>>;
   }
 >(({ target }, { manualEventForm, trackedFamilies }) => {
   const familyId = target.value;
@@ -390,7 +390,7 @@ const selectManualFamily = handler<
 const selectManualCategory = handler<
   { target: { value: string } },
   {
-    manualEventForm: Cell<{
+    manualEventForm: Writable<{
       title: string;
       date: string;
       location: string;
@@ -407,7 +407,7 @@ const selectManualCategory = handler<
 // Handler to update new rule form name
 const updateRuleName = handler<
   { target: { value: string } },
-  { newRuleForm: Cell<Partial<ClassificationRule>> }
+  { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
   const current = newRuleForm.get();
   newRuleForm.set({ ...current, name: target.value });
@@ -416,7 +416,7 @@ const updateRuleName = handler<
 // Handler to update new rule form type
 const updateRuleType = handler<
   { target: { value: string } },
-  { newRuleForm: Cell<Partial<ClassificationRule>> }
+  { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
   const current = newRuleForm.get();
   newRuleForm.set({ ...current, type: target.value as RuleType });
@@ -425,7 +425,7 @@ const updateRuleType = handler<
 // Handler to update new rule form pattern
 const updateRulePattern = handler<
   { target: { value: string } },
-  { newRuleForm: Cell<Partial<ClassificationRule>> }
+  { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
   const current = newRuleForm.get();
   newRuleForm.set({ ...current, pattern: target.value });
@@ -434,7 +434,7 @@ const updateRulePattern = handler<
 // Handler to update new rule form category
 const updateRuleCategory = handler<
   { target: { value: string } },
-  { newRuleForm: Cell<Partial<ClassificationRule>> }
+  { newRuleForm: Writable<Partial<ClassificationRule>> }
 >(({ target }, { newRuleForm }) => {
   const current = newRuleForm.get();
   newRuleForm.set({ ...current, category: target.value as HostingCategory });
@@ -444,7 +444,7 @@ const updateRuleCategory = handler<
 const requestRuleSuggestions = handler<
   unknown,
   {
-    ruleSuggestionPrompt: Cell<string>;
+    ruleSuggestionPrompt: Writable<string>;
     event: {
       title: string;
       location: string;
@@ -472,9 +472,9 @@ Focus on patterns that are specific enough to avoid false positives.`;
 const acceptSuggestion = handler<
   unknown,
   {
-    rules: Cell<ClassificationRule[]>;
+    rules: Writable<ClassificationRule[]>;
     suggestion: RuleSuggestion;
-    ruleSuggestionPrompt: Cell<string>;
+    ruleSuggestionPrompt: Writable<string>;
   }
 >((_, { rules, suggestion, ruleSuggestionPrompt }) => {
   const newRule: ClassificationRule = {
@@ -501,7 +501,7 @@ const acceptSuggestion = handler<
 // Handler to dismiss all LLM suggestions
 const dismissSuggestions = handler<
   unknown,
-  { ruleSuggestionPrompt: Cell<string> }
+  { ruleSuggestionPrompt: Writable<string> }
 >((_, { ruleSuggestionPrompt }) => {
   ruleSuggestionPrompt.set("");
 });
@@ -510,8 +510,8 @@ const dismissSuggestions = handler<
 const addEventAndSuggestRules = handler<
   unknown,
   {
-    hostingEvents: Cell<HostingEvent[]>;
-    manualEventForm: Cell<{
+    hostingEvents: Writable<HostingEvent[]>;
+    manualEventForm: Writable<{
       title: string;
       date: string;
       location: string;
@@ -520,7 +520,7 @@ const addEventAndSuggestRules = handler<
       category: HostingCategory;
       notes: string;
     }>;
-    ruleSuggestionPrompt: Cell<string>;
+    ruleSuggestionPrompt: Writable<string>;
   }
 >((_, { hostingEvents, manualEventForm, ruleSuggestionPrompt }) => {
   const form = manualEventForm.get();
@@ -824,7 +824,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const familyWishResult = wish<FamilyCharm>({ query: "#family" });
 
     // Form state for manual event entry
-    const manualEventForm = Cell.of({
+    const manualEventForm = Writable.of({
       title: "",
       date: "",
       location: "",
@@ -835,17 +835,17 @@ const HostingTracker = pattern<HostingTrackerInput>(
     });
 
     // Form state for new rule
-    const newRuleForm = Cell.of<Partial<ClassificationRule>>({});
+    const newRuleForm = Writable.of<Partial<ClassificationRule>>({});
 
     // Selected family for event assignment
-    const selectedFamilyId = Cell.of("");
+    const selectedFamilyId = Writable.of("");
 
     // LLM rule suggestion state
     // When this is non-empty, generateObject will run to suggest rules
-    const ruleSuggestionPrompt = Cell.of("");
+    const ruleSuggestionPrompt = Writable.of("");
 
     // Track pending suggestions that user can accept/reject
-    const pendingSuggestions = Cell.of<RuleSuggestion[]>([]);
+    const pendingSuggestions = Writable.of<RuleSuggestion[]>([]);
 
     // Derive list of tracked families from wish result
     // Note: wish({ query }) returns a single match, not an array

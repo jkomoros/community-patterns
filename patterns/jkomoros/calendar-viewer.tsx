@@ -9,7 +9,6 @@
  *   ./tools/apple-sync.ts calendar
  */
 import {
-  cell,
   Default,
   derive,
   handler,
@@ -17,7 +16,8 @@ import {
   NAME,
   pattern,
   UI,
-  Cell,
+  Writable,
+  writable,
 } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -99,7 +99,7 @@ function getCalendarColor(calendarName: string): string {
 // Handler to toggle calendar visibility
 const toggleCalendar = handler<
   unknown,
-  { calendarName: string; hiddenCalendars: Cell<string[]> }
+  { calendarName: string; hiddenCalendars: Writable<string[]> }
 >((_, { calendarName, hiddenCalendars }) => {
   const current = hiddenCalendars.get() || [];
   if (current.includes(calendarName)) {
@@ -113,7 +113,7 @@ const toggleCalendar = handler<
 export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
-  const hiddenCalendars = cell<string[]>([]);
+  const hiddenCalendars = writable<string[]>([]);
 
   const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
 

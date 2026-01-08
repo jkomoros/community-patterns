@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, patternTool, pattern, UI } from "commontools";
+import { Writable, computed, Default, handler, NAME, patternTool, pattern, UI } from "commontools";
 
 interface ShoppingItem {
   title: string;
@@ -26,7 +26,7 @@ type InputEventType = {
 };
 
 interface ListState {
-  items: Cell<ShoppingItem[]>;
+  items: Writable<ShoppingItem[]>;
 }
 
 const addItem = handler<InputEventType, ListState>(
@@ -37,14 +37,14 @@ const addItem = handler<InputEventType, ListState>(
 
 const removeItem = handler<
   unknown,
-  { items: Cell<Array<Cell<ShoppingItem>>>; item: Cell<ShoppingItem> }
+  { items: Writable<Array<Writable<ShoppingItem>>>; item: Writable<ShoppingItem> }
 >((_event, { items, item }) => {
   items.remove(item);
 });
 
 const updateItem = handler<
   { detail: { value: string } },
-  { items: Cell<ShoppingItem[]>; index: number }
+  { items: Writable<ShoppingItem[]>; index: number }
 >(({ detail: { value } }, { items, index }) => {
   const itemsCopy = items.get().slice();
   if (index >= 0 && index < itemsCopy.length) {
@@ -74,7 +74,7 @@ export default pattern<InputSchema, Output>(
     // Create an add item tool for omnibot - takes itemText parameter
     const addItemForOmnibot = handler<
       { itemText: string },
-      { items: Cell<ShoppingItem[]> }
+      { items: Writable<ShoppingItem[]> }
     >(({ itemText }, { items }) => {
       if (itemText && itemText.trim()) {
         items.push({ title: itemText.trim(), done: false });

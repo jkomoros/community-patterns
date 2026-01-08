@@ -17,7 +17,6 @@
  * This pattern is kept as a debugging tool for future CPU spike investigations.
  */
 import {
-  Cell,
   computed,
   Default,
   handler,
@@ -25,6 +24,7 @@ import {
   navigateTo,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 // Import actual GoogleAuth pattern
@@ -171,7 +171,7 @@ const createSimpleWithPlainObject = handler<unknown, Record<string, never>>(() =
 // Level 1B: Cell reference
 const createSimpleWithCellRef = handler<
   unknown,
-  { configCell: Cell<{ enabled: boolean }> }
+  { configCell: Writable<{ enabled: boolean }> }
 >((_, { configCell }) => {
   const charm = SimplePattern({ config: configCell });
   return navigateTo(charm);
@@ -198,7 +198,7 @@ const createComplexWithPlainObject = handler<unknown, Record<string, never>>(() 
 // Level 2B: Cell reference
 const createComplexWithCellRef = handler<
   unknown,
-  { scopesCell: Cell<SelectedScopes> }
+  { scopesCell: Writable<SelectedScopes> }
 >((_, { scopesCell }) => {
   const charm = ComplexPattern({ selectedScopes: scopesCell });
   return navigateTo(charm);
@@ -229,7 +229,7 @@ const createGoogleAuthWithPlainObject = handler<unknown, Record<string, never>>(
 // Level 3B: Cell reference
 const createGoogleAuthWithCellRef = handler<
   unknown,
-  { scopesCell: Cell<SelectedScopes> }
+  { scopesCell: Writable<SelectedScopes> }
 >((_, { scopesCell }) => {
   // deno-lint-ignore no-explicit-any
   const charm = (GoogleAuth as any)({ selectedScopes: scopesCell });

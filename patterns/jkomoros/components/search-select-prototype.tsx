@@ -17,7 +17,7 @@
  * See: patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md for technical details
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,
@@ -59,7 +59,7 @@ interface SearchSelectInput {
   items: Default<SearchSelectItem[], []>;
 
   // Currently selected values (Cell for write access from handlers)
-  selected: Cell<string[]>;
+  selected: Writable<string[]>;
 
   // UI configuration
   placeholder?: Default<string, "Search...">;
@@ -67,7 +67,7 @@ interface SearchSelectInput {
 }
 
 interface SearchSelectOutput {
-  selected: Cell<string[]>;
+  selected: Writable<string[]>;
 }
 
 // =============================================================================
@@ -79,9 +79,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // -------------------------------------------------------------------------
     // Local UI State
     // -------------------------------------------------------------------------
-    const searchQuery = Cell.of("");
-    const isOpen = Cell.of(false);
-    const highlightedIndex = Cell.of(0); // Index of currently highlighted item
+    const searchQuery = Writable.of("");
+    const isOpen = Writable.of(false);
+    const highlightedIndex = Writable.of(0); // Index of currently highlighted item
 
     // -------------------------------------------------------------------------
     // Derived Data (using computed() with direct cell access)
@@ -168,10 +168,10 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const addItem = handler<
       Record<string, never>,
       {
-        selected: Cell<string[]>;
-        isOpen: Cell<boolean>;
-        searchQuery: Cell<string>;
-        highlightedIndex: Cell<number>;
+        selected: Writable<string[]>;
+        isOpen: Writable<boolean>;
+        searchQuery: Writable<string>;
+        highlightedIndex: Writable<number>;
         value: string;
       }
     >((_, state) => {
@@ -188,7 +188,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // Remove item from selected (value passed as state, not closure)
     const removeItem = handler<
       Record<string, never>,
-      { selected: Cell<string[]>; value: string }
+      { selected: Writable<string[]>; value: string }
     >((_, { selected, value }) => {
       const current = selected.get();
       selected.set(current.filter((v) => v !== value));
@@ -198,9 +198,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const toggleDropdown = handler<
       Record<string, never>,
       {
-        isOpen: Cell<boolean>;
-        searchQuery: Cell<string>;
-        highlightedIndex: Cell<number>;
+        isOpen: Writable<boolean>;
+        searchQuery: Writable<string>;
+        highlightedIndex: Writable<number>;
       }
     >((_, state) => {
       const wasOpen = state.isOpen.get();
@@ -215,9 +215,9 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const closeDropdown = handler<
       Record<string, never>,
       {
-        isOpen: Cell<boolean>;
-        searchQuery: Cell<string>;
-        highlightedIndex: Cell<number>;
+        isOpen: Writable<boolean>;
+        searchQuery: Writable<string>;
+        highlightedIndex: Writable<number>;
       }
     >((_, state) => {
       state.isOpen.set(false);
@@ -228,7 +228,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     // Move highlight up (for ArrowUp key)
     const moveUp = handler<
       Record<string, never>,
-      { isOpen: Cell<boolean>; highlightedIndex: Cell<number> }
+      { isOpen: Writable<boolean>; highlightedIndex: Writable<number> }
     >((_, state) => {
       if (!state.isOpen.get()) return;
       const current = state.highlightedIndex.get();
@@ -242,8 +242,8 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const moveDown = handler<
       Record<string, never>,
       {
-        isOpen: Cell<boolean>;
-        highlightedIndex: Cell<number>;
+        isOpen: Writable<boolean>;
+        highlightedIndex: Writable<number>;
         maxItems: number;
       }
     >((_, state) => {
@@ -258,10 +258,10 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
     const selectHighlighted = handler<
       Record<string, never>,
       {
-        isOpen: Cell<boolean>;
-        selected: Cell<string[]>;
-        searchQuery: Cell<string>;
-        highlightedIndex: Cell<number>;
+        isOpen: Writable<boolean>;
+        selected: Writable<string[]>;
+        searchQuery: Writable<string>;
+        highlightedIndex: Writable<number>;
         highlightedValue: string | null;
       }
     >((_, state) => {

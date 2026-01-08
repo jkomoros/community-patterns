@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Cell,
   computed,
   Default,
   handler,
@@ -8,6 +7,7 @@ import {
   pattern,
   str,
   UI,
+  Writable,
 } from "commontools";
 
 interface PreparedFoodInput {
@@ -45,7 +45,7 @@ interface PreparedFoodOutput extends PreparedFoodInput {
 // Handler for adding dietary tags
 const addDietaryTag = handler<
   { detail: { message: string } },
-  { dietaryTags: Cell<string[]> }
+  { dietaryTags: Writable<string[]> }
 >(({ detail }, { dietaryTags }) => {
   const tag = detail?.message?.trim().toLowerCase();
   if (!tag) return;
@@ -58,7 +58,7 @@ const addDietaryTag = handler<
 
 const removeDietaryTag = handler<
   unknown,
-  { dietaryTags: Cell<string[]>; tag: string }
+  { dietaryTags: Writable<string[]>; tag: string }
 >((_event, { dietaryTags, tag }) => {
   const current = dietaryTags.get();
   dietaryTags.set(current.filter((t) => t !== tag));
@@ -67,7 +67,7 @@ const removeDietaryTag = handler<
 // Handler for quick-adding dietary tags from common list
 const quickAddDietaryTag = handler<
   unknown,
-  { dietaryTags: Cell<string[]>; tag: string }
+  { dietaryTags: Writable<string[]>; tag: string }
 >((_event, { dietaryTags, tag }) => {
   const current = dietaryTags.get();
   if (!current.includes(tag)) {
@@ -78,7 +78,7 @@ const quickAddDietaryTag = handler<
 // Handler for adding primary ingredients
 const addIngredient = handler<
   { detail: { message: string } },
-  { primaryIngredients: Cell<string[]> }
+  { primaryIngredients: Writable<string[]> }
 >(({ detail }, { primaryIngredients }) => {
   const ingredient = detail?.message?.trim().toLowerCase();
   if (!ingredient) return;
@@ -91,7 +91,7 @@ const addIngredient = handler<
 
 const removeIngredient = handler<
   unknown,
-  { primaryIngredients: Cell<string[]>; ingredient: string }
+  { primaryIngredients: Writable<string[]>; ingredient: string }
 >((_event, { primaryIngredients, ingredient }) => {
   const current = primaryIngredients.get();
   primaryIngredients.set(current.filter((i) => i !== ingredient));

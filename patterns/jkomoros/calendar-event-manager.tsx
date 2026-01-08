@@ -23,8 +23,6 @@
  */
 
 import {
-  Cell,
-  cell,
   Default,
   derive,
   handler,
@@ -32,6 +30,8 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
+  writable,
 } from "commontools";
 import {
   CalendarWriteClient,
@@ -192,7 +192,7 @@ function getOperationWarning(op: PendingOperation): {
 
 const prepareCreate = handler<
   unknown,
-  { draft: Cell<EventDraft>; pendingOp: Cell<PendingOperation> }
+  { draft: Writable<EventDraft>; pendingOp: Writable<PendingOperation> }
 >((_, { draft, pendingOp }) => {
   const d = draft.get();
   pendingOp.set({
@@ -212,9 +212,9 @@ const prepareCreate = handler<
 const prepareUpdate = handler<
   unknown,
   {
-    draft: Cell<EventDraft>;
-    existingEvent: Cell<ExistingEvent>;
-    pendingOp: Cell<PendingOperation>;
+    draft: Writable<EventDraft>;
+    existingEvent: Writable<ExistingEvent>;
+    pendingOp: Writable<PendingOperation>;
   }
 >((_, { draft, existingEvent, pendingOp }) => {
   const d = draft.get();
@@ -239,9 +239,9 @@ const prepareUpdate = handler<
 const prepareDelete = handler<
   unknown,
   {
-    draft: Cell<EventDraft>;
-    existingEvent: Cell<ExistingEvent>;
-    pendingOp: Cell<PendingOperation>;
+    draft: Writable<EventDraft>;
+    existingEvent: Writable<ExistingEvent>;
+    pendingOp: Writable<PendingOperation>;
   }
 >((_, { draft, existingEvent, pendingOp }) => {
   const d = draft.get();
@@ -264,9 +264,9 @@ const prepareRsvp = handler<
   unknown,
   {
     status: RSVPStatus;
-    draft: Cell<EventDraft>;
-    existingEvent: Cell<ExistingEvent>;
-    pendingOp: Cell<PendingOperation>;
+    draft: Writable<EventDraft>;
+    existingEvent: Writable<ExistingEvent>;
+    pendingOp: Writable<PendingOperation>;
   }
 >((_, { status, draft, existingEvent, pendingOp }) => {
   const d = draft.get();
@@ -286,7 +286,7 @@ const prepareRsvp = handler<
   });
 });
 
-const cancelOperation = handler<unknown, { pendingOp: Cell<PendingOperation> }>(
+const cancelOperation = handler<unknown, { pendingOp: Writable<PendingOperation> }>(
   (_, { pendingOp }) => {
     pendingOp.set(null);
   },
@@ -295,12 +295,12 @@ const cancelOperation = handler<unknown, { pendingOp: Cell<PendingOperation> }>(
 const confirmOperation = handler<
   unknown,
   {
-    pendingOp: Cell<PendingOperation>;
-    auth: Cell<Auth>;
-    processing: Cell<boolean>;
-    result: Cell<OperationResult>;
-    draft: Cell<EventDraft>;
-    existingEvent: Cell<ExistingEvent>;
+    pendingOp: Writable<PendingOperation>;
+    auth: Writable<Auth>;
+    processing: Writable<boolean>;
+    result: Writable<OperationResult>;
+    draft: Writable<EventDraft>;
+    existingEvent: Writable<ExistingEvent>;
   }
 >(
   async (
@@ -407,7 +407,7 @@ const confirmOperation = handler<
   },
 );
 
-const dismissResult = handler<unknown, { result: Cell<OperationResult> }>(
+const dismissResult = handler<unknown, { result: Writable<OperationResult> }>(
   (_, { result }) => {
     result.set(null);
   },
@@ -425,9 +425,9 @@ export default pattern<Input, Output>(({ draft, existingEvent }) => {
   const hasAuth = isReady;
 
   // UI state
-  const pendingOp = Cell.of<PendingOperation>(null);
-  const processing = Cell.of(false);
-  const result = Cell.of<OperationResult>(null);
+  const pendingOp = Writable.of<PendingOperation>(null);
+  const processing = Writable.of(false);
+  const result = Writable.of<OperationResult>(null);
 
   // Computed helpers
   const hasExistingEvent = derive(existingEvent, (e) => !!e?.id);

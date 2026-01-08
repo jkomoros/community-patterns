@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, handler, NAME, pattern, UI } from "commontools";
 
 // PII categories for structured input
 type PIICategory = "name" | "email" | "phone" | "ssn" | "address" | "custom";
@@ -35,7 +35,7 @@ const CATEGORY_INFO: Record<PIICategory, { label: string; placeholder: string }>
 // Handler for adding entries
 const addEntry = handler<
   unknown,
-  { entries: Cell<PIIEntry[]>; category: Cell<PIICategory>; value: Cell<string> }
+  { entries: Writable<PIIEntry[]>; category: Writable<PIICategory>; value: Writable<string> }
 >((_event, { entries, category, value }) => {
   const val = value.get().trim();
   if (val) {
@@ -47,15 +47,15 @@ const addEntry = handler<
 // Handler for removing entries
 const removeEntry = handler<
   unknown,
-  { entries: Cell<Array<Cell<PIIEntry>>>; entry: Cell<PIIEntry> }
+  { entries: Writable<Array<Writable<PIIEntry>>>; entry: Writable<PIIEntry> }
 >((_event, { entries, entry }) => {
   entries.remove(entry);
 });
 
 export default pattern<InputSchema, Output>(({ title, entries }) => {
   // Local state for the add form
-  const newCategory = Cell.of<PIICategory>("name");
-  const newValue = Cell.of("");
+  const newCategory = Writable.of<PIICategory>("name");
+  const newValue = Writable.of("");
 
   // Computed stats
   const entryCount = computed(() => entries.length);

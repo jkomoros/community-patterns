@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI } from "commontools";
+import { computed, Default, equals, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI, Writable } from "commontools";
 import CozyPollLobby from "./cozy-poll-lobby.tsx";
 
 /**
@@ -29,30 +29,30 @@ interface VoterCharmRef {
 }
 
 interface PollInput {
-  question?: Cell<Default<string, "">>;
-  options?: Cell<Default<Option[], []>>;
-  votes?: Cell<Default<Vote[], []>>;
-  voterCharms?: Cell<Default<VoterCharmRef[], []>>;
-  nextOptionId?: Cell<Default<number, 1>>;
+  question?: Writable<Default<string, "">>;
+  options?: Writable<Default<Option[], []>>;
+  votes?: Writable<Default<Vote[], []>>;
+  voterCharms?: Writable<Default<VoterCharmRef[], []>>;
+  nextOptionId?: Writable<Default<number, 1>>;
 }
 
 /** Collaborative poll with green/yellow/red voting. #cozyPoll */
 interface PollOutput {
-  question: Cell<Default<string, "">>;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
-  nextOptionId: Cell<Default<number, 1>>;
+  question: Writable<Default<string, "">>;
+  options: Writable<Default<Option[], []>>;
+  votes: Writable<Default<Vote[], []>>;
+  voterCharms: Writable<Default<VoterCharmRef[], []>>;
+  nextOptionId: Writable<Default<number, 1>>;
 }
 
 // Handler to create the public viewer charm (poll lobby)
 const createViewer = handler<
   unknown,
   {
-    question: Cell<string>;
-    options: Cell<Option[]>;
-    votes: Cell<Vote[]>;
-    voterCharms: Cell<VoterCharmRef[]>;
+    question: Writable<string>;
+    options: Writable<Option[]>;
+    votes: Writable<Vote[]>;
+    voterCharms: Writable<VoterCharmRef[]>;
   }
 >(
   (_, { question, options, votes, voterCharms }) => {
@@ -77,8 +77,8 @@ const createViewer = handler<
 const startNewSession = handler<
   unknown,
   {
-    question: Cell<string>;
-    options: Cell<Option[]>;
+    question: Writable<string>;
+    options: Writable<Option[]>;
   }
 >(
   (_, { question, options }) => {
@@ -89,8 +89,8 @@ const startNewSession = handler<
     const currentOptions = options.get();
 
     // Create new cells for the fresh session
-    const newVotes = Cell.of<Vote[]>([]);
-    const newVoterCharms = Cell.of<VoterCharmRef[]>([]);
+    const newVotes = Writable.of<Vote[]>([]);
+    const newVoterCharms = Writable.of<VoterCharmRef[]>([]);
 
     console.log(`Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`);
 
@@ -429,7 +429,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                   <ct-button
                     onClick={() => {
                       const current = options.get();
-                      const index = current.findIndex((el) => Cell.equals(option, el));
+                      const index = current.findIndex((el) => equals(option, el));
                       if (index >= 0) {
                         options.set(current.toSpliced(index, 1));
                       }

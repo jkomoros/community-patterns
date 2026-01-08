@@ -1,8 +1,8 @@
 /// <cts-enable />
 import {
   BuiltInLLMMessage,
-  Cell,
-  cell,
+  Writable,
+  writable,
   computed,
   Default,
   derive,
@@ -36,7 +36,7 @@ type Output = {
 // Tool: Create a Note charm with given title and content
 const createNote = handler<
   { title: string; content: string },
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >(({ title, content }, { createdCharms }) => {
   const result = navigateTo(Note({ title, content }));
   createdCharms.push(`Note: "${title}"`);
@@ -52,7 +52,7 @@ const createPerson = handler<
     birthday?: string;
     notes?: string;
   },
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >((
   { displayName, givenName, familyName, birthday, notes },
   { createdCharms },
@@ -71,7 +71,7 @@ const createPerson = handler<
 // Tool: Create a PageCreator instance
 const createPageCreator = handler<
   Record<string, never>,
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >((_args, { createdCharms }) => {
   const result = navigateTo(PageCreator(undefined));
   createdCharms.push("Page Creator");
@@ -83,7 +83,7 @@ const createStoreMapper = handler<
   {
     storeName?: string;
   },
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >(({ storeName }, { createdCharms }) => {
   const result = navigateTo(StoreMapper({
     storeName: storeName || "",
@@ -98,7 +98,7 @@ const createFoodRecipe = handler<
     name?: string;
     notes?: string;
   },
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >(({ name, notes }, { createdCharms }) => {
   const result = navigateTo(FoodRecipe({
     name: name || "",
@@ -111,7 +111,7 @@ const createFoodRecipe = handler<
 // Tool: List all charms created so far
 const listCreatedCharms = handler<
   Record<string, never>,
-  { createdCharms: Cell<string[]> }
+  { createdCharms: Writable<string[]> }
 >((_args, { createdCharms }) => {
   const charms = createdCharms.get();
   if (charms.length === 0) {
@@ -129,7 +129,7 @@ const startExecution = handler<
   {
     addMessage: Stream<BuiltInLLMMessage>;
     instructions: string;
-    executed: Cell<boolean>;
+    executed: Writable<boolean>;
     cacheBuster: string;
   }
 >((_event, { addMessage, instructions, executed, cacheBuster }) => {
@@ -161,10 +161,10 @@ const startExecution = handler<
 const resetExecution = handler<
   never,
   {
-    messages: Cell<BuiltInLLMMessage[]>;
-    createdCharms: Cell<string[]>;
-    executed: Cell<boolean>;
-    cacheBuster: Cell<string>;
+    messages: Writable<BuiltInLLMMessage[]>;
+    createdCharms: Writable<string[]>;
+    executed: Writable<boolean>;
+    cacheBuster: Writable<string>;
   }
 >((_event, { messages, createdCharms, executed, cacheBuster }) => {
   messages.set([]);
@@ -176,11 +176,11 @@ const resetExecution = handler<
 
 export default pattern<Input, Output>(
   ({ instructions }) => {
-    const model = Cell.of<string>("anthropic:claude-sonnet-4-5");
-    const messages = Cell.of<BuiltInLLMMessage[]>([]);
-    const createdCharms = Cell.of<string[]>([]);
-    const executed = Cell.of(false);
-    const cacheBuster = Cell.of<string>(""); // For cache busting on reset
+    const model = Writable.of<string>("anthropic:claude-sonnet-4-5");
+    const messages = Writable.of<BuiltInLLMMessage[]>([]);
+    const createdCharms = Writable.of<string[]>([]);
+    const executed = Writable.of(false);
+    const cacheBuster = Writable.of<string>(""); // For cache busting on reset
 
     // Define tools for the LLM
     const tools = {

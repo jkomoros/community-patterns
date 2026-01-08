@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, cell, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
+import { Writable, writable, computed, Default, derive, generateObject, handler, ifElse, ImageData, llm, NAME, navigateTo, OpaqueRef, pattern, str, Stream, UI } from "commontools";
 import StoreMapper, { createStoreMapper } from "./store-mapper.tsx";
 
 interface ShoppingItem {
@@ -140,24 +140,24 @@ const ANDRONICOS_DATA: StoreData = {
 // Legacy markdown format - keep for backward compatibility with existing data
 const ANDRONICOS_OUTLINE = storeDataToMarkdown(ANDRONICOS_DATA);
 
-const showSorted = handler<unknown, { currentView: Cell<"basic" | "sorted"> }>((_event, { currentView }) => {
+const showSorted = handler<unknown, { currentView: Writable<"basic" | "sorted"> }>((_event, { currentView }) => {
   currentView.set("sorted");
 });
 
-const showBasic = handler<unknown, { currentView: Cell<"basic" | "sorted"> }>((_event, { currentView }) => {
+const showBasic = handler<unknown, { currentView: Writable<"basic" | "sorted"> }>((_event, { currentView }) => {
   currentView.set("basic");
 });
 
 const removeItem = handler<
   unknown,
-  { items: Cell<Array<Cell<ShoppingItem>>>; item: Cell<ShoppingItem> }
+  { items: Writable<Array<Writable<ShoppingItem>>>; item: Writable<ShoppingItem> }
 >((_event, { items, item }) => {
   items.remove(item);
 });
 
 const retryAisle = handler<
   unknown,
-  { item: Cell<ShoppingItem> }
+  { item: Writable<ShoppingItem> }
 >((_event, { item }) => {
   const current = item.get();
   item.set({ ...current, aisleSeed: (current.aisleSeed || 0) + 1 });
@@ -165,7 +165,7 @@ const retryAisle = handler<
 
 const addItem = handler<
   { detail: { message: string } },
-  { items: Cell<ShoppingItem[]> }
+  { items: Writable<ShoppingItem[]> }
 >(({ detail }, { items }) => {
   items.push({ title: detail.message, done: false });
 });
@@ -173,7 +173,7 @@ const addItem = handler<
 // Handler for omnibot to add multiple items at once
 const addItems = handler<
   { itemNames: string[] },
-  { items: Cell<ShoppingItem[]> }
+  { items: Writable<ShoppingItem[]> }
 >(({ itemNames }, { items }) => {
   itemNames.forEach((name) => {
     if (name && name.trim()) {
@@ -189,7 +189,7 @@ const openStoreMapper = handler<unknown, { storeName: string }>((_event, { store
 });
 
 // Handler to view existing store mapping (for demo: shows what the community created)
-const viewStoreMap = handler<unknown, { storeName: string; storeData: Cell<StoreData | null> }>(
+const viewStoreMap = handler<unknown, { storeName: string; storeData: Writable<StoreData | null> }>(
   (_event, { storeName, storeData }) => {
     const currentStoreData = storeData.get();
     // For demo: Use ANDRONICOS_DATA if storeName is "Andronico's on Shattuck" and no data linked
@@ -232,7 +232,7 @@ const viewStoreMap = handler<unknown, { storeName: string; storeData: Cell<Store
 // Simple handler to store uploaded images - LLM processing happens in recipe body
 const handlePhotoUpload = handler<
   { detail: { images: ImageData[] } },
-  { uploadedImages: Cell<ImageData[]> }
+  { uploadedImages: Writable<ImageData[]> }
 >(({ detail }, { uploadedImages }) => {
   console.log("Received", detail.images.length, "image(s)");
   uploadedImages.set(detail.images);
@@ -240,7 +240,7 @@ const handlePhotoUpload = handler<
 
 // Correction state for tracking which item is being corrected
 interface CorrectionState {
-  item: Cell<ShoppingItem>;
+  item: Writable<ShoppingItem>;
   incorrectAisle: string;
 }
 
@@ -248,9 +248,9 @@ interface CorrectionState {
 const startCorrection = handler<
   unknown,
   {
-    item: Cell<ShoppingItem>;
+    item: Writable<ShoppingItem>;
     incorrectAisle: string;
-    correctionState: Cell<CorrectionState | null>;
+    correctionState: Writable<CorrectionState | null>;
   }
 >((_event, { item, incorrectAisle, correctionState }) => {
   console.log("[startCorrection] Setting correction state:", { item: item.get().title, incorrectAisle });
@@ -261,7 +261,7 @@ const startCorrection = handler<
 // Handler to cancel correction
 const cancelCorrection = handler<
   unknown,
-  { correctionState: Cell<CorrectionState | null> }
+  { correctionState: Writable<CorrectionState | null> }
 >((_event, { correctionState }) => {
   correctionState.set(null);
 });
@@ -270,11 +270,11 @@ const cancelCorrection = handler<
 const submitCorrection = handler<
   unknown,
   {
-    item: Cell<ShoppingItem>;
+    item: Writable<ShoppingItem>;
     incorrectAisle: string;
     correctAisle: string;
-    mutableStoreData: Cell<StoreData | null>;
-    correctionState: Cell<CorrectionState | null>;
+    mutableStoreData: Writable<StoreData | null>;
+    correctionState: Writable<CorrectionState | null>;
   }
 >((_event, { item, incorrectAisle, correctAisle, mutableStoreData, correctionState }) => {
   const currentData = mutableStoreData.get();
@@ -313,18 +313,18 @@ const submitCorrection = handler<
 
 const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
   ({ items, storeData, storeName }) => {
-    const currentView = cell<"basic" | "sorted">("basic");
+    const currentView = writable<"basic" | "sorted">("basic");
     const isBasicView = computed(() => currentView.get() === "basic");
 
     // Mutable store data cell to allow runtime corrections
     // For now, just use ANDRONICOS_DATA (not the input storeData) to avoid circular refs
-    const mutableStoreData = cell<StoreData | null>(ANDRONICOS_DATA);
+    const mutableStoreData = writable<StoreData | null>(ANDRONICOS_DATA);
 
     // Cell to track which item is being corrected
-    const correctionState = cell<CorrectionState | null>(null);
+    const correctionState = writable<CorrectionState | null>(null);
 
     // Cell to store uploaded images
-    const uploadedImages = cell<ImageData[]>([]);
+    const uploadedImages = writable<ImageData[]>([]);
 
     // Process uploaded images with vision LLM to extract shopping items
     const imageExtractions = uploadedImages.map((image) => {
@@ -350,7 +350,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     // Handler to add extracted items to shopping list
     const addExtractedItems = handler<
       unknown,
-      { items: Cell<ShoppingItem[]>; extractedItems: string[]; uploadedImages: Cell<ImageData[]> }
+      { items: Writable<ShoppingItem[]>; extractedItems: string[]; uploadedImages: Writable<ImageData[]> }
     >((_event, { items, extractedItems, uploadedImages }) => {
       extractedItems.forEach((itemText: string) => {
         if (itemText && itemText.trim()) {
@@ -749,7 +749,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                           {assignment.item.title}
                           {derive(
                             { storeData: mutableStoreData, itemTitle: assignment.item.title },
-                            (values: { storeData: Cell<StoreData | null>; itemTitle: string }) => {
+                            (values: { storeData: Writable<StoreData | null>; itemTitle: string }) => {
                               const data = values.storeData.get();
                               if (!data) return null;
                               if (!values.itemTitle) return null;

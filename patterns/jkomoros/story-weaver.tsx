@@ -13,7 +13,7 @@
  * See design/todo/spindle-prd.md for full specification.
  */
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   generateObject,
@@ -249,8 +249,8 @@ interface StoryWeaverOutput {
 
 // Helper function to actually apply branch factor change
 function actuallyApplyBranchFactor(
-  levels: Cell<LevelConfig[]>,
-  spindles: Cell<SpindleConfig[]>,
+  levels: Writable<LevelConfig[]>,
+  spindles: Writable<SpindleConfig[]>,
   levelIndex: number,
   newFactor: number,
   currentLevels: LevelConfig[],
@@ -334,7 +334,7 @@ function actuallyApplyBranchFactor(
 }
 
 // Generate synopsis ideas
-const generateSynopsisIdeas = handler<unknown, { synopsisIdeasNonce: Cell<number> }>(
+const generateSynopsisIdeas = handler<unknown, { synopsisIdeasNonce: Writable<number> }>(
   (_, { synopsisIdeasNonce }) => {
     synopsisIdeasNonce.set((synopsisIdeasNonce.get() || 0) + 1);
   }
@@ -343,7 +343,7 @@ const generateSynopsisIdeas = handler<unknown, { synopsisIdeasNonce: Cell<number
 // Select a synopsis idea - immediately applies it to synopsis text
 const selectSynopsisIdea = handler<
   unknown,
-  { synopsisText: Cell<string>; synopsisIdeasNonce: Cell<number>; synopsis: string }
+  { synopsisText: Writable<string>; synopsisIdeasNonce: Writable<number>; synopsis: string }
 >((_, { synopsisText, synopsisIdeasNonce, synopsis }) => {
   // Immediately set the synopsis text
   synopsisText.set(synopsis);
@@ -354,7 +354,7 @@ const selectSynopsisIdea = handler<
 // Set synopsis text (root spindle)
 const setSynopsis = handler<
   unknown,
-  { spindles: Cell<SpindleConfig[]>; synopsisText: Cell<string>; levels: Cell<LevelConfig[]> }
+  { spindles: Writable<SpindleConfig[]>; synopsisText: Writable<string>; levels: Writable<LevelConfig[]> }
 >((_, { spindles, synopsisText, levels }) => {
   const text = synopsisText.get() || "";
   const current = [...(spindles.get() || [])]; // Copy to make mutable
@@ -417,11 +417,11 @@ const setSynopsis = handler<
 const openAddLevelModal = handler<
   unknown,
   {
-    showAddLevelModal: Cell<boolean>;
-    newLevelTitle: Cell<string>;
-    newLevelPrompt: Cell<string>;
-    newLevelBranch: Cell<number>;
-    levels: Cell<LevelConfig[]>;
+    showAddLevelModal: Writable<boolean>;
+    newLevelTitle: Writable<string>;
+    newLevelPrompt: Writable<string>;
+    newLevelBranch: Writable<number>;
+    levels: Writable<LevelConfig[]>;
   }
 >((_, { showAddLevelModal, newLevelTitle, newLevelPrompt, newLevelBranch, levels }) => {
   // Set smart defaults based on current level count
@@ -442,7 +442,7 @@ const openAddLevelModal = handler<
 });
 
 // Close modal
-const closeModal = handler<unknown, { showAddLevelModal: Cell<boolean> }>(
+const closeModal = handler<unknown, { showAddLevelModal: Writable<boolean> }>(
   (_, { showAddLevelModal }) => {
     showAddLevelModal.set(false);
   }
@@ -452,12 +452,12 @@ const closeModal = handler<unknown, { showAddLevelModal: Cell<boolean> }>(
 const addLevel = handler<
   unknown,
   {
-    levels: Cell<LevelConfig[]>;
-    spindles: Cell<SpindleConfig[]>;
-    title: Cell<string>;
-    prompt: Cell<string>;
-    branchFactor: Cell<number>;
-    showAddLevelModal: Cell<boolean>;
+    levels: Writable<LevelConfig[]>;
+    spindles: Writable<SpindleConfig[]>;
+    title: Writable<string>;
+    prompt: Writable<string>;
+    branchFactor: Writable<number>;
+    showAddLevelModal: Writable<boolean>;
   }
 >((_, { levels, spindles, title, prompt, branchFactor, showAddLevelModal }) => {
   // Read values from Cells
@@ -520,9 +520,9 @@ const addLevel = handler<
 const removeLevel = handler<
   unknown,
   {
-    levels: Cell<LevelConfig[]>;
-    spindles: Cell<SpindleConfig[]>;
-    levelIndex: Cell<number> | number;
+    levels: Writable<LevelConfig[]>;
+    spindles: Writable<SpindleConfig[]>;
+    levelIndex: Writable<number> | number;
   }
 >((_, { levels, spindles, levelIndex }) => {
   const currentLevels = levels.get() || [];
@@ -565,11 +565,11 @@ const removeLevel = handler<
 const pinOption = handler<
   unknown,
   {
-    spindles: Cell<SpindleConfig[]>;
-    levels: Cell<LevelConfig[]>;
-    spindleIndex: Cell<number>;
+    spindles: Writable<SpindleConfig[]>;
+    levels: Writable<LevelConfig[]>;
+    spindleIndex: Writable<number>;
     optionIndex: number;
-    optionContent: Cell<string>;
+    optionContent: Writable<string>;
   }
 >((_, { spindles, levels, spindleIndex, optionIndex, optionContent }) => {
   const spindlesArray = spindles.get() || [];
@@ -646,7 +646,7 @@ const pinOption = handler<
 
 // Respin a spindle
 // Uses .key().set() for O(1) update instead of O(n) array replacement
-const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number> }>(
+const respinSpindle = handler<unknown, { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number> }>(
   (_, { spindles, spindleIndex }) => {
     const idx = spindleIndex.get();
     const spindlesArray = spindles.get() || [];
@@ -669,7 +669,7 @@ const respinSpindle = handler<unknown, { spindles: Cell<SpindleConfig[]>; spindl
 // Uses .key().set() for O(1) update instead of O(n) array replacement
 const startGeneration = handler<
   unknown,
-  { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number> }
+  { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number> }
 >((_, { spindles, spindleIndex }) => {
   const idx = spindleIndex.get();
   const spindlesArray = spindles.get() || [];
@@ -688,7 +688,7 @@ const startGeneration = handler<
 // Uses .key().set() for O(1) update instead of O(n) array replacement
 const setExtraPrompt = handler<
   unknown,
-  { spindles: Cell<SpindleConfig[]>; spindleIndex: Cell<number>; prompt: Cell<string> }
+  { spindles: Writable<SpindleConfig[]>; spindleIndex: Writable<number>; prompt: Writable<string> }
 >((_, { spindles, spindleIndex, prompt }) => {
   const idx = spindleIndex.get();
   const promptVal = prompt.get() || "";
@@ -710,12 +710,12 @@ const setExtraPrompt = handler<
 const openEditLevelModal = handler<
   unknown,
   {
-    showEditLevelModal: Cell<boolean>;
-    editingLevelIndex: Cell<number>;
-    editLevelTitle: Cell<string>;
-    editLevelPrompt: Cell<string>;
-    levels: Cell<LevelConfig[]>;
-    levelIndex: Cell<number>;
+    showEditLevelModal: Writable<boolean>;
+    editingLevelIndex: Writable<number>;
+    editLevelTitle: Writable<string>;
+    editLevelPrompt: Writable<string>;
+    levels: Writable<LevelConfig[]>;
+    levelIndex: Writable<number>;
   }
 >(
   (
@@ -735,7 +735,7 @@ const openEditLevelModal = handler<
 );
 
 // Close edit level modal
-const closeEditLevelModal = handler<unknown, { showEditLevelModal: Cell<boolean> }>(
+const closeEditLevelModal = handler<unknown, { showEditLevelModal: Writable<boolean> }>(
   (_, { showEditLevelModal }) => {
     showEditLevelModal.set(false);
   }
@@ -745,11 +745,11 @@ const closeEditLevelModal = handler<unknown, { showEditLevelModal: Cell<boolean>
 const saveEditLevel = handler<
   unknown,
   {
-    levels: Cell<LevelConfig[]>;
-    editingLevelIndex: Cell<number>;
-    editLevelTitle: Cell<string>;
-    editLevelPrompt: Cell<string>;
-    showEditLevelModal: Cell<boolean>;
+    levels: Writable<LevelConfig[]>;
+    editingLevelIndex: Writable<number>;
+    editLevelTitle: Writable<string>;
+    editLevelPrompt: Writable<string>;
+    showEditLevelModal: Writable<boolean>;
   }
 >(
   (
@@ -778,9 +778,9 @@ const saveEditLevel = handler<
 const openViewPromptModal = handler<
   unknown,
   {
-    showViewPromptModal: Cell<boolean>;
-    viewPromptSpindleIndex: Cell<number>;
-    spindleIndex: Cell<number>;
+    showViewPromptModal: Writable<boolean>;
+    viewPromptSpindleIndex: Writable<number>;
+    spindleIndex: Writable<number>;
   }
 >((_, { showViewPromptModal, viewPromptSpindleIndex, spindleIndex }) => {
   viewPromptSpindleIndex.set(spindleIndex.get());
@@ -788,7 +788,7 @@ const openViewPromptModal = handler<
 });
 
 // Close view prompt modal
-const closeViewPromptModal = handler<unknown, { showViewPromptModal: Cell<boolean> }>(
+const closeViewPromptModal = handler<unknown, { showViewPromptModal: Writable<boolean> }>(
   (_, { showViewPromptModal }) => {
     showViewPromptModal.set(false);
   }
@@ -798,11 +798,11 @@ const closeViewPromptModal = handler<unknown, { showViewPromptModal: Cell<boolea
 const openEditSpindlePromptModal = handler<
   unknown,
   {
-    showEditSpindlePromptModal: Cell<boolean>;
-    editingSpindlePromptIndex: Cell<number>;
-    editSpindlePromptText: Cell<string>;
-    spindles: Cell<SpindleConfig[]>;
-    spindleIndex: Cell<number>;
+    showEditSpindlePromptModal: Writable<boolean>;
+    editingSpindlePromptIndex: Writable<number>;
+    editSpindlePromptText: Writable<string>;
+    spindles: Writable<SpindleConfig[]>;
+    spindleIndex: Writable<number>;
   }
 >(
   (
@@ -829,7 +829,7 @@ const openEditSpindlePromptModal = handler<
 // Close edit spindle prompt modal
 const closeEditSpindlePromptModal = handler<
   unknown,
-  { showEditSpindlePromptModal: Cell<boolean> }
+  { showEditSpindlePromptModal: Writable<boolean> }
 >((_, { showEditSpindlePromptModal }) => {
   showEditSpindlePromptModal.set(false);
 });
@@ -838,10 +838,10 @@ const closeEditSpindlePromptModal = handler<
 const saveSpindlePrompt = handler<
   unknown,
   {
-    spindles: Cell<SpindleConfig[]>;
-    editingSpindlePromptIndex: Cell<number>;
-    editSpindlePromptText: Cell<string>;
-    showEditSpindlePromptModal: Cell<boolean>;
+    spindles: Writable<SpindleConfig[]>;
+    editingSpindlePromptIndex: Writable<number>;
+    editSpindlePromptText: Writable<string>;
+    showEditSpindlePromptModal: Writable<boolean>;
   }
 >(
   (
@@ -871,8 +871,8 @@ const saveSpindlePrompt = handler<
 const clearSpindlePrompt = handler<
   unknown,
   {
-    spindles: Cell<SpindleConfig[]>;
-    spindleIndex: Cell<number>;
+    spindles: Writable<SpindleConfig[]>;
+    spindleIndex: Writable<number>;
   }
 >((_, { spindles, spindleIndex }) => {
   const idx = spindleIndex.get();
@@ -895,10 +895,10 @@ const clearSpindlePrompt = handler<
 const openEditBranchModal = handler<
   unknown,
   {
-    showEditBranchModal: Cell<boolean>;
-    editingBranchLevelIndex: Cell<number>;
-    editBranchFactor: Cell<number>;
-    levels: Cell<LevelConfig[]>;
+    showEditBranchModal: Writable<boolean>;
+    editingBranchLevelIndex: Writable<number>;
+    editBranchFactor: Writable<number>;
+    levels: Writable<LevelConfig[]>;
     levelIndex: number;
   }
 >(
@@ -919,7 +919,7 @@ const openEditBranchModal = handler<
 // Close edit branch factor modal
 const closeEditBranchModal = handler<
   unknown,
-  { showEditBranchModal: Cell<boolean>; showBranchDeleteWarning: Cell<boolean> }
+  { showEditBranchModal: Writable<boolean>; showBranchDeleteWarning: Writable<boolean> }
 >((_, { showEditBranchModal, showBranchDeleteWarning }) => {
   showEditBranchModal.set(false);
   showBranchDeleteWarning.set(false);
@@ -929,13 +929,13 @@ const closeEditBranchModal = handler<
 const applyBranchFactor = handler<
   unknown,
   {
-    levels: Cell<LevelConfig[]>;
-    spindles: Cell<SpindleConfig[]>;
-    editingBranchLevelIndex: Cell<number>;
-    editBranchFactor: Cell<number>;
-    showEditBranchModal: Cell<boolean>;
-    showBranchDeleteWarning: Cell<boolean>;
-    pendingBranchFactor: Cell<number>;
+    levels: Writable<LevelConfig[]>;
+    spindles: Writable<SpindleConfig[]>;
+    editingBranchLevelIndex: Writable<number>;
+    editBranchFactor: Writable<number>;
+    showEditBranchModal: Writable<boolean>;
+    showBranchDeleteWarning: Writable<boolean>;
+    pendingBranchFactor: Writable<number>;
   }
 >(
   (
@@ -996,12 +996,12 @@ const applyBranchFactor = handler<
 const confirmBranchDecrease = handler<
   unknown,
   {
-    levels: Cell<LevelConfig[]>;
-    spindles: Cell<SpindleConfig[]>;
-    editingBranchLevelIndex: Cell<number>;
-    pendingBranchFactor: Cell<number>;
-    showEditBranchModal: Cell<boolean>;
-    showBranchDeleteWarning: Cell<boolean>;
+    levels: Writable<LevelConfig[]>;
+    spindles: Writable<SpindleConfig[]>;
+    editingBranchLevelIndex: Writable<number>;
+    pendingBranchFactor: Writable<number>;
+    showEditBranchModal: Writable<boolean>;
+    showBranchDeleteWarning: Writable<boolean>;
   }
 >(
   (
@@ -1037,11 +1037,11 @@ const confirmBranchDecrease = handler<
 const openOptionPicker = handler<
   unknown,
   {
-    showOptionPicker: Cell<boolean>;
-    pickerSpindleIndex: Cell<number>;
-    pickerPreviewIndex: Cell<number>;
-    spindleIndex: Cell<number>;
-    currentPinnedIdx: Cell<number>;
+    showOptionPicker: Writable<boolean>;
+    pickerSpindleIndex: Writable<number>;
+    pickerPreviewIndex: Writable<number>;
+    spindleIndex: Writable<number>;
+    currentPinnedIdx: Writable<number>;
   }
 >(
   (
@@ -1056,7 +1056,7 @@ const openOptionPicker = handler<
 );
 
 // Close option picker modal (without pinning)
-const closeOptionPicker = handler<unknown, { showOptionPicker: Cell<boolean> }>(
+const closeOptionPicker = handler<unknown, { showOptionPicker: Writable<boolean> }>(
   (_, { showOptionPicker }) => {
     showOptionPicker.set(false);
   }
@@ -1067,12 +1067,12 @@ const closeOptionPicker = handler<unknown, { showOptionPicker: Cell<boolean> }>(
 const pinFromPicker = handler<
   unknown,
   {
-    spindles: Cell<SpindleConfig[]>;
-    levels: Cell<LevelConfig[]>;
-    pickerSpindleIndex: Cell<number>;
-    pickerPreviewIndex: Cell<number>;
-    showOptionPicker: Cell<boolean>;
-    optionContent: Cell<string>;
+    spindles: Writable<SpindleConfig[]>;
+    levels: Writable<LevelConfig[]>;
+    pickerSpindleIndex: Writable<number>;
+    pickerPreviewIndex: Writable<number>;
+    showOptionPicker: Writable<boolean>;
+    optionContent: Writable<string>;
   }
 >(
   (
@@ -3553,7 +3553,7 @@ Make them diverse in genre and tone:
                   <div style={{ marginBottom: "16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <button
-                        onClick={handler<unknown, { editBranchFactor: Cell<number> }>(
+                        onClick={handler<unknown, { editBranchFactor: Writable<number> }>(
                           (_, { editBranchFactor }) => {
                             const current = editBranchFactor.get();
                             if (current > 1) editBranchFactor.set(current - 1);
@@ -3575,7 +3575,7 @@ Make them diverse in genre and tone:
                         {derive(editBranchFactor, (v: number) => String(v))}
                       </span>
                       <button
-                        onClick={handler<unknown, { editBranchFactor: Cell<number> }>(
+                        onClick={handler<unknown, { editBranchFactor: Writable<number> }>(
                           (_, { editBranchFactor }) => {
                             const current = editBranchFactor.get();
                             if (current < 10) editBranchFactor.set(current + 1);
@@ -3762,7 +3762,7 @@ Make them diverse in genre and tone:
                 }}
               >
                 <button
-                  onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                  onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
                     (_, { pickerPreviewIndex }) => {
                       const current = pickerPreviewIndex.get();
                       pickerPreviewIndex.set((current - 1 + 4) % 4);
@@ -3794,7 +3794,7 @@ Make them diverse in genre and tone:
                         ),
                         cursor: "pointer",
                       }}
-                      onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                      onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
                         (_, { pickerPreviewIndex }) => {
                           pickerPreviewIndex.set(i);
                         }
@@ -3804,7 +3804,7 @@ Make them diverse in genre and tone:
                 </div>
 
                 <button
-                  onClick={handler<unknown, { pickerPreviewIndex: Cell<number> }>(
+                  onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
                     (_, { pickerPreviewIndex }) => {
                       const current = pickerPreviewIndex.get();
                       pickerPreviewIndex.set((current + 1) % 4);

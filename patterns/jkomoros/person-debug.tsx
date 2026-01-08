@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Cell,
   computed,
   Default,
   generateObject,
@@ -14,6 +13,7 @@ import {
   str,
   UI,
   wish,
+  Writable,
 } from "commontools";
 import { type MentionableCharm } from "./lib/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
@@ -273,7 +273,7 @@ type Output = ProfileData & {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
     };
   },
   Record<string, never>
@@ -287,12 +287,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Cell<MentionableCharm>;
+      charm: Writable<MentionableCharm>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Cell<MentionableCharm[]>;
+    mentionable: Writable<MentionableCharm[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -307,7 +307,7 @@ const handleNewBacklink = handler<
 // Handler to update text fields
 const updateField = handler<
   { detail: { value: string } },
-  { field: Cell<string> }
+  { field: Writable<string> }
 >(
   ({ detail }, { field }) => {
     field.set(detail?.value ?? "");
@@ -317,7 +317,7 @@ const updateField = handler<
 // Handler to update email
 const updateEmail = handler<
   { detail: { value: string } },
-  { emails: Cell<EmailEntry[]> }
+  { emails: Writable<EmailEntry[]> }
 >(
   ({ detail }, { emails }) => {
     const value = detail?.value ?? "";
@@ -335,7 +335,7 @@ const updateEmail = handler<
 // Handler to update phone
 const updatePhone = handler<
   { detail: { value: string } },
-  { phones: Cell<PhoneEntry[]> }
+  { phones: Writable<PhoneEntry[]> }
 >(
   ({ detail }, { phones }) => {
     const value = detail?.value ?? "";
@@ -353,7 +353,7 @@ const updatePhone = handler<
 // Handler to update social media handle
 const updateSocial = handler<
   { detail: { value: string } },
-  { socialLinks: Cell<SocialLink[]>; platform: SocialPlatform }
+  { socialLinks: Writable<SocialLink[]>; platform: SocialPlatform }
 >(
   ({ detail }, { socialLinks, platform }) => {
     const value = detail?.value ?? "";
@@ -383,7 +383,7 @@ const updateSocial = handler<
 // Handler to toggle an origin
 const toggleOrigin = handler<
   Record<string, never>,
-  { origins: Cell<Origin[]>; origin: Origin }
+  { origins: Writable<Origin[]>; origin: Origin }
 >(
   (_, { origins, origin }) => {
     const current = origins.get();
@@ -401,7 +401,7 @@ const toggleOrigin = handler<
 // Handler to remove a relationship type
 const removeRelationshipType = handler<
   Record<string, never>,
-  { relationshipTypes: Cell<RelationshipType[]>; typeToRemove: string }
+  { relationshipTypes: Writable<RelationshipType[]>; typeToRemove: string }
 >(
   (_, { relationshipTypes, typeToRemove }) => {
     const current = relationshipTypes.get() || [];
@@ -412,7 +412,7 @@ const removeRelationshipType = handler<
 // Handler to set closeness
 const setCloseness = handler<
   { detail: { value: Closeness | "" } },
-  { closeness: Cell<Closeness | ""> }
+  { closeness: Writable<Closeness | ""> }
 >(
   ({ detail }, { closeness }) => {
     closeness.set(detail.value);
@@ -422,7 +422,7 @@ const setCloseness = handler<
 // Handler to set gift tier
 const setGiftTier = handler<
   { detail: { value: GiftTier | "" } },
-  { giftTier: Cell<GiftTier | ""> }
+  { giftTier: Writable<GiftTier | ""> }
 >(
   ({ detail }, { giftTier }) => {
     giftTier.set(detail.value);
@@ -432,7 +432,7 @@ const setGiftTier = handler<
 // Handler to toggle boolean flags
 const toggleFlag = handler<
   Record<string, never>,
-  { flag: Cell<boolean> }
+  { flag: Writable<boolean> }
 >(
   (_, { flag }) => {
     flag.set(!flag.get());
@@ -442,7 +442,7 @@ const toggleFlag = handler<
 // Handler to trigger LLM extraction
 const triggerExtraction = handler<
   Record<string, never>,
-  { notes: string; extractTrigger: Cell<string> }
+  { notes: string; extractTrigger: Writable<string> }
 >(
   (_, { notes, extractTrigger }) => {
     // Add timestamp to ensure the trigger value always changes
@@ -453,7 +453,7 @@ const triggerExtraction = handler<
 // Handler to cancel extraction (clear the result)
 const cancelExtraction = handler<
   Record<string, never>,
-  { extractedData: Cell<any> }
+  { extractedData: Writable<any> }
 >(
   (_, { extractedData }) => {
     extractedData.set(null);
@@ -464,17 +464,17 @@ const cancelExtraction = handler<
 const applyExtractedData = handler<
   Record<string, never>,
   {
-    extractedData: Cell<any>;
-    displayName: Cell<string>;
-    givenName: Cell<string>;
-    familyName: Cell<string>;
-    nickname: Cell<string>;
-    pronouns: Cell<string>;
-    emails: Cell<EmailEntry[]>;
-    phones: Cell<PhoneEntry[]>;
-    socialLinks: Cell<SocialLink[]>;
-    birthday: Cell<string>;
-    notes: Cell<string>;
+    extractedData: Writable<any>;
+    displayName: Writable<string>;
+    givenName: Writable<string>;
+    familyName: Writable<string>;
+    nickname: Writable<string>;
+    pronouns: Writable<string>;
+    emails: Writable<EmailEntry[]>;
+    phones: Writable<PhoneEntry[]>;
+    socialLinks: Writable<SocialLink[]>;
+    birthday: Writable<string>;
+    notes: Writable<string>;
   }
 >(
   (
@@ -625,7 +625,7 @@ const Person = recipe<Input, Output>(
   }) => {
     // Set up mentionable charms for @ references
     const mentionable = wish<MentionableCharm[]>("#mentionable");
-    const mentioned = Cell.of<MentionableCharm[]>([]);
+    const mentioned = Writable.of<MentionableCharm[]>([]);
 
     // The only way to serialize a pattern, apparently?
     const pattern = computed(() => JSON.stringify(Person));
@@ -666,9 +666,9 @@ const Person = recipe<Input, Output>(
       () => socialLinks.find((l) => l && l.platform === "mastodon")?.handle ?? "",
     );
 
-    // Trigger for LLM extraction - cell that holds notes snapshot to extract
+    // Trigger for LLM extraction - writable that holds notes snapshot to extract
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
-    const extractTrigger = Cell.of<string>("");
+    const extractTrigger = Writable.of<string>("");
 
     // PERFORMANCE FIX: Guard the prompt to ensure LLM only runs when explicitly triggered
     // The extraction marker (---EXTRACT-*---) indicates a real extraction request

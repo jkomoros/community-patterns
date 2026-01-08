@@ -1,10 +1,11 @@
 /// <cts-enable />
 import {
-  Cell,
-  cell,
+  Writable,
+  writable,
   computed,
   Default,
   derive,
+  equals,
   generateObject,
   handler,
   ifElse,
@@ -86,7 +87,7 @@ interface StoreMapOutput extends StoreMapInput {
 }
 
 // Aisle handlers
-const addAisle = handler<unknown, { aisles: Cell<StoreAisle[]> }>(
+const addAisle = handler<unknown, { aisles: Writable<StoreAisle[]> }>(
   (_event, { aisles }) => {
     aisles.push({ name: "", description: "" });
   }
@@ -94,17 +95,17 @@ const addAisle = handler<unknown, { aisles: Cell<StoreAisle[]> }>(
 
 const removeAisle = handler<
   unknown,
-  { aisles: Cell<Array<Cell<StoreAisle>>>; aisle: Cell<StoreAisle> }
+  { aisles: Writable<Array<Writable<StoreAisle>>>; aisle: Writable<StoreAisle> }
 >((_event, { aisles, aisle }) => {
   aisles.remove(aisle);
 });
 
 const moveAisleUp = handler<
   unknown,
-  { aisles: Cell<Array<Cell<StoreAisle>>>; aisle: Cell<StoreAisle> }
+  { aisles: Writable<Array<Writable<StoreAisle>>>; aisle: Writable<StoreAisle> }
 >((_event, { aisles, aisle }) => {
   const currentAisles = aisles.get();
-  const index = currentAisles.findIndex((el) => el.equals(aisle));
+  const index = currentAisles.findIndex((el) => equals(el, aisle));
   if (index > 0) {
     const newAisles = [...currentAisles];
     [newAisles[index - 1], newAisles[index]] = [
@@ -117,10 +118,10 @@ const moveAisleUp = handler<
 
 const moveAisleDown = handler<
   unknown,
-  { aisles: Cell<Array<Cell<StoreAisle>>>; aisle: Cell<StoreAisle> }
+  { aisles: Writable<Array<Writable<StoreAisle>>>; aisle: Writable<StoreAisle> }
 >((_event, { aisles, aisle }) => {
   const currentAisles = aisles.get();
-  const index = currentAisles.findIndex((el) => el.equals(aisle));
+  const index = currentAisles.findIndex((el) => equals(el, aisle));
   if (index >= 0 && index < currentAisles.length - 1) {
     const newAisles = [...currentAisles];
     [newAisles[index], newAisles[index + 1]] = [
@@ -133,7 +134,7 @@ const moveAisleDown = handler<
 
 const addFromSuggestion = handler<
   unknown,
-  { aisles: Cell<StoreAisle[]>; suggestions: string[]; index: number }
+  { aisles: Writable<StoreAisle[]>; suggestions: string[]; index: number }
 >((_event, { aisles, suggestions, index }) => {
   const suggestion = suggestions[index];
   if (suggestion) {
@@ -145,7 +146,7 @@ const addFromSuggestion = handler<
 // to unassignedDepartments instead of aisles
 const addFromDepartmentSuggestion = handler<
   unknown,
-  { unassignedDepartments: Cell<string[]>; suggestions: string[]; index: number }
+  { unassignedDepartments: Writable<string[]>; suggestions: string[]; index: number }
 >((_event, { unassignedDepartments, suggestions, index }) => {
   const suggestion = suggestions[index];
   if (suggestion) {
@@ -155,7 +156,7 @@ const addFromDepartmentSuggestion = handler<
 
 const dismissSuggestion = handler<
   unknown,
-  { notInStore: Cell<string[]>; suggestions: string[]; index: number }
+  { notInStore: Writable<string[]>; suggestions: string[]; index: number }
 >((_event, { notInStore, suggestions, index }) => {
   const suggestion = suggestions[index];
   if (suggestion) {
@@ -171,7 +172,7 @@ const dismissSuggestion = handler<
 // See: community-docs/superstitions/2025-11-29-generateObject-empty-array-handler-pattern.md
 const initializeDefaultDepartments = handler<
   unknown,
-  { unassignedDepartments: Cell<string[]> }
+  { unassignedDepartments: Writable<string[]> }
 >((_event, { unassignedDepartments }) => {
   if (unassignedDepartments.get().length === 0) {
     for (const name of DEFAULT_DEPARTMENT_NAMES) {
@@ -182,7 +183,7 @@ const initializeDefaultDepartments = handler<
 
 const addCustomDepartment = handler<
   unknown,
-  { unassignedDepartments: Cell<string[]>; customDeptName: Cell<string> }
+  { unassignedDepartments: Writable<string[]>; customDeptName: Writable<string> }
 >((_event, { unassignedDepartments, customDeptName }) => {
   const name = customDeptName.get().trim();
   if (name) {
@@ -194,8 +195,8 @@ const addCustomDepartment = handler<
 const assignDepartment = handler<
   unknown,
   {
-    specialDepartments: Cell<DepartmentRecord[]>;
-    unassignedDepartments: Cell<string[]>;
+    specialDepartments: Writable<DepartmentRecord[]>;
+    unassignedDepartments: Writable<string[]>;
     departmentName: string;
     location: WallPosition;
     icon: string;
@@ -223,13 +224,13 @@ const assignDepartment = handler<
 const unassignDepartment = handler<
   unknown,
   {
-    specialDepartments: Cell<Array<Cell<DepartmentRecord>>>;
-    unassignedDepartments: Cell<string[]>;
-    department: Cell<DepartmentRecord>;
+    specialDepartments: Writable<Array<Writable<DepartmentRecord>>>;
+    unassignedDepartments: Writable<string[]>;
+    department: Writable<DepartmentRecord>;
   }
 >((_event, { specialDepartments, unassignedDepartments, department }) => {
   const current = specialDepartments.get();
-  const index = current.findIndex((el) => el.equals(department));
+  const index = current.findIndex((el) => equals(el, department));
 
   if (index >= 0) {
     const deptData = current[index].get();
@@ -245,8 +246,8 @@ const unassignDepartment = handler<
 const dismissDepartment = handler<
   unknown,
   {
-    unassignedDepartments: Cell<string[]>;
-    notInStore: Cell<string[]>;
+    unassignedDepartments: Writable<string[]>;
+    notInStore: Writable<string[]>;
     departmentName: string;
   }
 >((_event, { unassignedDepartments, notInStore, departmentName }) => {
@@ -262,8 +263,8 @@ const dismissDepartment = handler<
 const markAsNormalAisle = handler<
   unknown,
   {
-    unassignedDepartments: Cell<string[]>;
-    inCenterAisles: Cell<string[]>;
+    unassignedDepartments: Writable<string[]>;
+    inCenterAisles: Writable<string[]>;
     departmentName: string;
   }
 >((_event, { unassignedDepartments, inCenterAisles, departmentName }) => {
@@ -280,7 +281,7 @@ const markAsNormalAisle = handler<
 const addExtractedAisle = handler<
   unknown,
   {
-    aisles: Cell<StoreAisle[]>;
+    aisles: Writable<StoreAisle[]>;
     extractedAisle: { name: string; products: string[] };
   }
 >((_event, { aisles, extractedAisle }) => {
@@ -299,7 +300,7 @@ const addExtractedAisle = handler<
 const toggleMergeItem = handler<
   unknown,
   {
-    selectedMergeItems: Cell<Record<string, string[]>>;
+    selectedMergeItems: Writable<Record<string, string[]>>;
     selectionKey: string;
     itemName: string;
     allItems: string[];
@@ -322,13 +323,13 @@ const toggleMergeItem = handler<
 const mergeExtractedAisle = handler<
   unknown,
   {
-    aisles: Cell<Array<Cell<StoreAisle>>>;
-    existingAisle: Cell<StoreAisle>;
+    aisles: Writable<Array<Writable<StoreAisle>>>;
+    existingAisle: Writable<StoreAisle>;
     newItems: string[];
-    selectedMergeItems: Cell<Record<string, string[]>>;
+    selectedMergeItems: Writable<Record<string, string[]>>;
     selectionKey: string;
-    hiddenPhotoIds: Cell<string[]>;
-    photo: Cell<ImageData>;
+    hiddenPhotoIds: Writable<string[]>;
+    photo: Writable<ImageData>;
     extractedAisles: Array<{ name: string; products: readonly string[] }>;
   }
 >((_event, { aisles, existingAisle, newItems, selectedMergeItems, selectionKey, hiddenPhotoIds, photo, extractedAisles }) => {
@@ -394,11 +395,11 @@ const mergeExtractedAisle = handler<
 const batchAddNonConflicting = handler<
   unknown,
   {
-    aisles: Cell<StoreAisle[]>;
+    aisles: Writable<StoreAisle[]>;
     extractedAisles: Array<{ name: string; products: string[] }>;
-    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
-    photo: Cell<ImageData>;
-    hiddenPhotoIds: Cell<string[]>;
+    uploadedPhotos: Writable<Array<Writable<ImageData>>>;
+    photo: Writable<ImageData>;
+    hiddenPhotoIds: Writable<string[]>;
   }
 >((_event, { aisles, extractedAisles, uploadedPhotos, photo, hiddenPhotoIds }) => {
   const currentAisles = aisles.get();
@@ -436,8 +437,8 @@ const batchAddNonConflicting = handler<
 const batchAddAllPhotosNonConflicting = handler<
   unknown,
   {
-    aisles: Cell<StoreAisle[]>;
-    uploadedPhotos: Cell<Array<Cell<ImageData>>>;
+    aisles: Writable<StoreAisle[]>;
+    uploadedPhotos: Writable<Array<Writable<ImageData>>>;
     batchData: {
       aislesToAdd: Array<{ name: string; description: string }>;
       photosToDelete: Array<string>; // photo names
@@ -458,21 +459,21 @@ const batchAddAllPhotosNonConflicting = handler<
 // Entrance handlers
 const addEntrance = handler<
   unknown,
-  { entrances: Cell<Entrance[]>; position: WallPosition; name: string }
+  { entrances: Writable<Entrance[]>; position: WallPosition; name: string }
 >((_event, { entrances, position, name }) => {
   entrances.push({ name, position });
 });
 
 const removeEntrance = handler<
   unknown,
-  { entrances: Cell<Array<Cell<Entrance>>>; entrance: Cell<Entrance> }
+  { entrances: Writable<Array<Writable<Entrance>>>; entrance: Writable<Entrance> }
 >((_event, { entrances, entrance }) => {
   entrances.remove(entrance);
 });
 
 const toggleEntrancesComplete = handler<
   unknown,
-  { entrancesComplete: Cell<boolean> }
+  { entrancesComplete: Writable<boolean> }
 >((_event, { entrancesComplete }) => {
   entrancesComplete.set(!entrancesComplete.get());
 });
@@ -492,7 +493,7 @@ const copyOutline = handler<unknown, { outline: string }>(
 // Delete photo handler
 const deletePhoto = handler<
   unknown,
-  { hiddenPhotoIds: Cell<string[]>; photo: Cell<ImageData> }
+  { hiddenPhotoIds: Writable<string[]>; photo: Writable<ImageData> }
 >((_event, { hiddenPhotoIds, photo }) => {
   // Instead of splicing the array (which shifts indices and breaks map identity),
   // just mark the photo as hidden. This preserves array indices and keeps
@@ -507,7 +508,7 @@ const deletePhoto = handler<
 // Delete correction handler
 const deleteCorrection = handler<
   unknown,
-  { itemLocations: Cell<Array<Cell<ItemLocation>>>; correction: Cell<ItemLocation> }
+  { itemLocations: Writable<Array<Writable<ItemLocation>>>; correction: Writable<ItemLocation> }
 >((_event, { itemLocations, correction }) => {
   itemLocations.remove(correction);
 });
@@ -516,10 +517,10 @@ const deleteCorrection = handler<
 const addItemLocation = handler<
   unknown,
   {
-    itemLocations: Cell<ItemLocation[]>;
-    newItemName: Cell<string>;
-    newCorrectAisle: Cell<string>;
-    newIncorrectAisle: Cell<string>;
+    itemLocations: Writable<ItemLocation[]>;
+    newItemName: Writable<string>;
+    newCorrectAisle: Writable<string>;
+    newIncorrectAisle: Writable<string>;
   }
 >((_event, { itemLocations, newItemName, newCorrectAisle, newIncorrectAisle }) => {
   const itemName = newItemName.get().trim();

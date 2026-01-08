@@ -1,7 +1,5 @@
 /// <cts-enable />
 import {
-  cell,
-  Cell,
   computed,
   Default,
   derive,
@@ -15,6 +13,8 @@ import {
   str,
   UI,
   wish,
+  Writable,
+  writable,
 } from "commontools";
 
 import FoodRecipe from "./food-recipe.tsx";
@@ -122,7 +122,7 @@ interface OvenTimelineEvent {
 }
 
 // Handlers for oven configuration
-const addOven = handler<unknown, { ovens: Cell<OvenConfig[]> }>(
+const addOven = handler<unknown, { ovens: Writable<OvenConfig[]> }>(
   (_event, { ovens }) => {
     ovens.push({
       rackPositions: 5,
@@ -133,7 +133,7 @@ const addOven = handler<unknown, { ovens: Cell<OvenConfig[]> }>(
 
 const removeOven = handler<
   unknown,
-  { ovens: Cell<Array<Cell<OvenConfig>>>; oven: Cell<OvenConfig> }
+  { ovens: Writable<Array<Writable<OvenConfig>>>; oven: Writable<OvenConfig> }
 >((_event, { ovens, oven }) => {
   ovens.remove(oven);
 });
@@ -141,7 +141,7 @@ const removeOven = handler<
 // Handlers for dietary profiles
 const addDietaryProfile = handler<
   unknown,
-  { dietaryProfiles: Cell<GuestDietaryProfile[]> }
+  { dietaryProfiles: Writable<GuestDietaryProfile[]> }
 >((_event, { dietaryProfiles }) => {
   dietaryProfiles.push({
     guestName: "",
@@ -152,8 +152,8 @@ const addDietaryProfile = handler<
 const removeDietaryProfile = handler<
   unknown,
   {
-    dietaryProfiles: Cell<Array<Cell<GuestDietaryProfile>>>;
-    profile: Cell<GuestDietaryProfile>;
+    dietaryProfiles: Writable<Array<Writable<GuestDietaryProfile>>>;
+    profile: Writable<GuestDietaryProfile>;
   }
 >((_event, { dietaryProfiles, profile }) => {
   dietaryProfiles.remove(profile);
@@ -162,7 +162,7 @@ const removeDietaryProfile = handler<
 // Handler for adding dietary requirement tags
 const addDietaryRequirement = handler<
   { detail: { message: string } },
-  { profile: Cell<GuestDietaryProfile> }
+  { profile: Writable<GuestDietaryProfile> }
 >(({ detail }, { profile }) => {
   const requirement = detail?.message?.trim();
   if (!requirement) return;
@@ -179,7 +179,7 @@ const addDietaryRequirement = handler<
 const removeDietaryRequirement = handler<
   unknown,
   {
-    profile: Cell<GuestDietaryProfile>;
+    profile: Writable<GuestDietaryProfile>;
     requirement: string;
   }
 >((_event, { profile, requirement }) => {
@@ -194,8 +194,8 @@ const removeDietaryRequirement = handler<
 const removeRecipe = handler<
   unknown,
   {
-    recipes: Cell<Array<Cell<OpaqueRef<FoodRecipe>>>>;
-    recipe: Cell<OpaqueRef<FoodRecipe>>;
+    recipes: Writable<Array<Writable<OpaqueRef<FoodRecipe>>>>;
+    recipe: Writable<OpaqueRef<FoodRecipe>>;
   }
 >((_event, { recipes, recipe }) => {
   recipes.remove(recipe);
@@ -205,8 +205,8 @@ const removeRecipe = handler<
 const removePreparedFood = handler<
   unknown,
   {
-    preparedFoods: Cell<Array<Cell<OpaqueRef<PreparedFood>>>>;
-    preparedFood: Cell<OpaqueRef<PreparedFood>>;
+    preparedFoods: Writable<Array<Writable<OpaqueRef<PreparedFood>>>>;
+    preparedFood: Writable<OpaqueRef<PreparedFood>>;
   }
 >((_event, { preparedFoods, preparedFood }) => {
   preparedFoods.remove(preparedFood);
@@ -242,11 +242,11 @@ interface AnalysisResult {
 const triggerRecipeLinking = handler<
   unknown,
   {
-    planningNotes: Cell<string>;
+    planningNotes: Writable<string>;
     mentionable: any[];
-    recipeMentioned: Cell<any[]>;
-    preparedFoodMentioned: Cell<any[]>;
-    linkingAnalysisTrigger: Cell<string>;
+    recipeMentioned: Writable<any[]>;
+    preparedFoodMentioned: Writable<any[]>;
+    linkingAnalysisTrigger: Writable<string>;
   }
 >(
   (_event, { planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
@@ -291,7 +291,7 @@ Please analyze the planning notes and extract all food items, matching them to e
 // Handler to cancel analysis
 const cancelLinking = handler<
   unknown,
-  { linkingAnalysisTrigger: Cell<string> }
+  { linkingAnalysisTrigger: Writable<string> }
 >((_event, { linkingAnalysisTrigger }) => {
   // Reset the trigger to clear the generateObject result
   linkingAnalysisTrigger.set("");
@@ -303,10 +303,10 @@ const applyLinking = handler<
   {
     linkingResult: AnalysisResult | null;
     mentionable: any[];
-    createdCharms: Cell<any[]>;
-    recipeMentioned: Cell<any[]>;
-    preparedFoodMentioned: Cell<any[]>;
-    linkingAnalysisTrigger: Cell<string>;
+    createdCharms: Writable<any[]>;
+    recipeMentioned: Writable<any[]>;
+    preparedFoodMentioned: Writable<any[]>;
+    linkingAnalysisTrigger: Writable<string>;
   }
 >((_event, { linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger }) => {
   if (!linkingResult || !linkingResult.matches) return;
@@ -422,18 +422,18 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
     // Track charms created by this meal orchestrator
     // These will be exported as mentionable so they become discoverable
-    const createdCharms = cell<any[]>([]);
+    const createdCharms = writable<any[]>([]);
 
-    // Cells for ct-code-editor inputs and outputs
+    // Writables for ct-code-editor inputs and outputs
     // $mentioned is automatically populated by ct-code-editor with charm references
-    const recipeInputText = cell<string>("");
-    const recipeMentioned = cell<any[]>([]);
-    const preparedFoodInputText = cell<string>("");
-    const preparedFoodMentioned = cell<any[]>([]);
+    const recipeInputText = writable<string>("");
+    const recipeMentioned = writable<any[]>([]);
+    const preparedFoodInputText = writable<string>("");
+    const preparedFoodMentioned = writable<any[]>([]);
 
     // LLM Recipe Linking State
-    const linkingAnalysisTrigger = cell<string>("");
-    const linkingAnalysisResult = cell<AnalysisResult | null>(null);
+    const linkingAnalysisTrigger = writable<string>("");
+    const linkingAnalysisResult = writable<AnalysisResult | null>(null);
 
     // LLM Analysis of Planning Notes
     const { result: linkingResult, pending: linkingPending } = generateObject({

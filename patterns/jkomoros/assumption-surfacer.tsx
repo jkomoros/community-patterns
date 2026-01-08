@@ -1,7 +1,6 @@
 /// <cts-enable />
 import {
   BuiltInLLMMessage,
-  Cell,
   computed,
   Default,
   generateObject,
@@ -11,6 +10,7 @@ import {
   pattern,
   Stream,
   UI,
+  Writable,
 } from "commontools";
 
 // ============================================================================
@@ -62,11 +62,11 @@ interface UserContextNote {
 // ============================================================================
 
 interface AssumptionSurfacerInput {
-  messages?: Cell<Default<BuiltInLLMMessage[], []>>;
-  assumptionsByMessage?: Cell<Default<MessageAssumptions[], []>>; // Accumulated assumptions
+  messages?: Writable<Default<BuiltInLLMMessage[], []>>;
+  assumptionsByMessage?: Writable<Default<MessageAssumptions[], []>>; // Accumulated assumptions
   // Corrections keyed by "${messageIndex}-${assumptionLabel}" for cleaner updates
-  corrections?: Cell<Default<Record<string, Correction>, {}>>;
-  userContext?: Cell<Default<UserContextNote[], []>>;
+  corrections?: Writable<Default<Record<string, Correction>, {}>>;
+  userContext?: Writable<Default<UserContextNote[], []>>;
   systemPrompt?: string;
 }
 
@@ -124,10 +124,10 @@ const sendMessage = handler<
 const clearChat = handler<
   never,
   {
-    messages: Cell<BuiltInLLMMessage[]>;
-    assumptionsByMessage: Cell<MessageAssumptions[]>;
-    corrections: Cell<Record<string, Correction>>;
-    userContext: Cell<UserContextNote[]>;
+    messages: Writable<BuiltInLLMMessage[]>;
+    assumptionsByMessage: Writable<MessageAssumptions[]>;
+    corrections: Writable<Record<string, Correction>>;
+    userContext: Writable<UserContextNote[]>;
   }
 >((_, { messages, assumptionsByMessage, corrections, userContext }) => {
   messages.set([]);
@@ -145,8 +145,8 @@ const onAssumptionChange = handler<
     originalIndex: number;
     alternatives: Array<{ value: string; description?: string }>;
     addMessage: Stream<BuiltInLLMMessage>;
-    corrections: Cell<Record<string, Correction>>;
-    userContext: Cell<UserContextNote[]>;
+    corrections: Writable<Record<string, Correction>>;
+    userContext: Writable<UserContextNote[]>;
   }
 >(({ detail }, { messageIndex, assumptionLabel, originalIndex, alternatives, addMessage, corrections, userContext }) => {
   const newIndex = parseInt(detail.value, 10);
@@ -201,8 +201,8 @@ const selectAlternative = handler<
     oldValue: string;
     newValue: string;
     addMessage: Stream<BuiltInLLMMessage>;
-    corrections: Cell<Record<string, Correction>>;
-    userContext: Cell<UserContextNote[]>;
+    corrections: Writable<Record<string, Correction>>;
+    userContext: Writable<UserContextNote[]>;
   }
 >((_, { messageIndex, assumptionLabel, originalIndex, newIndex, oldValue, newValue, addMessage, corrections, userContext }) => {
   // Key for this correction (replace spaces with underscores for framework compatibility)
@@ -246,7 +246,7 @@ const selectAlternative = handler<
 
 export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
   ({ messages, assumptionsByMessage, corrections, userContext, systemPrompt }) => {
-    const model = Cell.of<string>("anthropic:claude-sonnet-4-5");
+    const model = Writable.of<string>("anthropic:claude-sonnet-4-5");
 
     // Set up llmDialog for the main chat
     const { addMessage, cancelGeneration, pending } = llmDialog({

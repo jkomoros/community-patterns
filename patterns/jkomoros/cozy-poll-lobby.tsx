@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, handler, NAME, navigateTo, pattern, str, UI } from "commontools";
+import { computed, Default, handler, NAME, navigateTo, pattern, str, UI, Writable } from "commontools";
 import CozyPollBallot from "./cozy-poll-ballot.tsx";
 
 /**
@@ -30,17 +30,17 @@ interface VoterCharmRef {
 
 interface ViewerInput {
   question: Default<string, "">;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
+  options: Writable<Default<Option[], []>>;
+  votes: Writable<Default<Vote[], []>>;
+  voterCharms: Writable<Default<VoterCharmRef[], []>>;
 }
 
 /** Public poll lobby with live results. #cozyPollLobby */
 interface ViewerOutput {
   question: Default<string, "">;
-  options: Cell<Default<Option[], []>>;
-  votes: Cell<Default<Vote[], []>>;
-  voterCharms: Cell<Default<VoterCharmRef[], []>>;
+  options: Writable<Default<Option[], []>>;
+  votes: Writable<Default<Vote[], []>>;
+  voterCharms: Writable<Default<VoterCharmRef[], []>>;
 }
 
 // Utility function to get initials from a name
@@ -60,9 +60,9 @@ const createBallot = handler<
   {},
   {
     question: string;
-    options: Cell<Option[]>;
-    votes: Cell<Vote[]>;
-    voterCharms: Cell<VoterCharmRef[]>;
+    options: Writable<Option[]>;
+    votes: Writable<Vote[]>;
+    voterCharms: Writable<VoterCharmRef[]>;
   }
 >(
   (_event, { question, options, votes, voterCharms }) => {
@@ -75,7 +75,7 @@ const createBallot = handler<
       options,
       votes,
       voterCharms,
-      myName: Cell.of(""),  // Empty name - voter will fill it in
+      myName: Writable.of(""),  // Empty name - voter will fill it in
     });
 
     console.log("[Handler] Navigating to voter ballot...");

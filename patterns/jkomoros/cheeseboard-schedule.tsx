@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI } from "commontools";
+import { computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI, Writable } from "commontools";
 
 // ct-loader is a Web Component for showing loading spinners
 // Properties: size="sm"|"md"|"lg", show-elapsed (boolean attr), show-stop (boolean attr)
@@ -55,14 +55,14 @@ interface HistoricalPizza {
 type PizzaHistory = Record<string, HistoricalPizza>;
 
 interface CheeseboardScheduleInput {
-  preferences?: Cell<Default<IngredientPreference[], []>>;
-  history?: Cell<Default<PizzaHistory, {}>>;
+  preferences?: Writable<Default<IngredientPreference[], []>>;
+  history?: Writable<Default<PizzaHistory, {}>>;
 }
 
 /** Cheeseboard pizza schedule tracker. #cheeseboardSchedule */
 interface CheeseboardScheduleOutput {
-  preferences: Cell<IngredientPreference[]>;
-  history: Cell<PizzaHistory>;
+  preferences: Writable<IngredientPreference[]>;
+  history: Writable<PizzaHistory>;
 }
 
 // ============================================================================
@@ -272,7 +272,7 @@ function getIngredientHashColor(ingredient: string | undefined): string {
 
 const togglePreference = handler<
   unknown,
-  { preferences: Cell<IngredientPreference[]>; ingredient: string; preference: "liked" | "disliked" }
+  { preferences: Writable<IngredientPreference[]>; ingredient: string; preference: "liked" | "disliked" }
 >((_event, { preferences, ingredient, preference }) => {
   const current = preferences.get();
   const existingIndex = current.findIndex(p => p.ingredient === ingredient);
@@ -296,7 +296,7 @@ const togglePreference = handler<
 
 const removePreference = handler<
   unknown,
-  { preferences: Cell<IngredientPreference[]>; ingredient: string }
+  { preferences: Writable<IngredientPreference[]>; ingredient: string }
 >((_event, { preferences, ingredient }) => {
   const current = preferences.get();
   preferences.set(current.filter(p => p.ingredient !== ingredient));
@@ -305,7 +305,7 @@ const removePreference = handler<
 // Handler to mark if user ate a pizza (works with object-based history)
 const markAte = handler<
   unknown,
-  { history: Cell<PizzaHistory>; date: string; ate: "yes" | "no" }
+  { history: Writable<PizzaHistory>; date: string; ate: "yes" | "no" }
 >((_event, { history, date, ate }) => {
   const pizza = history.key(date).get();
   if (pizza) {
@@ -316,7 +316,7 @@ const markAte = handler<
 // Handler to remove a pizza from history (works with object-based history)
 const removeFromHistory = handler<
   unknown,
-  { history: Cell<PizzaHistory>; date: string }
+  { history: Writable<PizzaHistory>; date: string }
 >((_event, { history, date }) => {
   // Set to undefined to remove the key
   history.key(date).set(undefined as any);

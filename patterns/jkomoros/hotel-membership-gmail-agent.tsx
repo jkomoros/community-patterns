@@ -8,8 +8,6 @@
  * Usage: wish("#hotelMemberships") to get discovered memberships.
  */
 import {
-  cell,
-  Cell,
   Default,
   derive,
   handler,
@@ -17,6 +15,8 @@ import {
   NAME,
   pattern,
   UI,
+  Writable,
+  writable,
   // wish,  // TEMPORARILY DISABLED - may cause self-referential loop
 } from "commontools";
 import GmailAgenticSearch, { type SearchProgress, type GmailAgenticSearchInput } from "./gmail-agentic-search.tsx";
@@ -271,9 +271,9 @@ YOUR FINAL OUTPUT should summarize: which brands you searched, how many membersh
     // Create signal cell HERE and pass to base pattern - both share same cell
     // This follows the "share cells by making them inputs" pattern
     // See: community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md
-    const itemFoundSignal = cell<number>(0);
-    // Track last membership count in a Cell (closure vars don't persist in derive)
-    const lastMembershipCountCell = cell<number>(0);
+    const itemFoundSignal = writable<number>(0);
+    // Track last membership count in a Writable (closure vars don't persist in derive)
+    const lastMembershipCountCell = writable<number>(0);
 
     // ========================================================================
     // CREATE BASE SEARCHER
@@ -364,10 +364,10 @@ Report memberships as you find them. Don't wait until the end.`,
       {
         mode: ScanMode;
         searchLimit: number;  // 0 = unlimited, >0 = limit
-        currentScanMode: Cell<Default<ScanMode, "full">>;
-        maxSearches: Cell<Default<number, 0>>;
-        isScanning: Cell<Default<boolean, false>>;
-        searchProgress: Cell<SearchProgress>;
+        currentScanMode: Writable<Default<ScanMode, "full">>;
+        maxSearches: Writable<Default<number, 0>>;
+        isScanning: Writable<Default<boolean, false>>;
+        searchProgress: Writable<SearchProgress>;
       }
     >((_, state) => {
       const mode = state.mode;

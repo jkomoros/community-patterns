@@ -1,9 +1,10 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   derive,
+  equals,
   generateObject,
   handler,
   NAME,
@@ -24,7 +25,7 @@ import {
  * - Changing dimension weights and values
  * - Editing option values for dimensions via detail pane
  * - Manual ranking with up/down buttons using boxing pattern
- * - Cell.equals() for Cell identity comparison
+ * - equals() for Writable identity comparison
  * - LLM-powered Quick Add: describe an option, get extracted dimension values
  */
 
@@ -63,7 +64,7 @@ interface SelectionState {
 
 interface RubricInput {
   title?: Default<string, "Decision Rubric">;
-  options?: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Cell<Array<Cell<RubricOption>>>
+  options?: Default<RubricOption[], []>;  // Plain array - framework auto-boxes to Writable<Array<Writable<RubricOption>>>
   dimensions?: Default<Dimension[], []>;
   selection?: Default<SelectionState, { value: null }>;
   quickAddPrompt?: Default<string, "">;  // For LLM Quick Add feature - user types here
@@ -71,12 +72,12 @@ interface RubricInput {
 }
 
 interface RubricOutput {
-  title: Cell<string>;
-  options: Cell<Array<Cell<RubricOption>>>;  // Auto-boxed by framework
-  dimensions: Cell<Dimension[]>;
-  selection: Cell<SelectionState>;
-  quickAddPrompt: Cell<string>;
-  quickAddSubmitted: Cell<string>;
+  title: Writable<string>;
+  options: Writable<Array<Writable<RubricOption>>>;  // Auto-boxed by framework
+  dimensions: Writable<Dimension[]>;
+  selection: Writable<SelectionState>;
+  quickAddPrompt: Writable<string>;
+  quickAddSubmitted: Writable<string>;
 }
 
 // LLM Response type for Quick Add - must be object at root (not array)
@@ -190,7 +191,7 @@ Be precise with categorical values - use exact label matches.`;
     // Handlers
     // ========================================================================
 
-    const addTestOption = handler<unknown, { options: Cell<Array<Cell<RubricOption>>> }>(
+    const addTestOption = handler<unknown, { options: Writable<Array<Writable<RubricOption>>> }>(
       (_, { options }) => {
         // Framework auto-boxes - just push plain object
         options.push({
@@ -206,10 +207,10 @@ Be precise with categorical values - use exact label matches.`;
     const acceptQuickAddFromResult = handler<
       unknown,
       {
-        resultCell: Cell<QuickAddResponse | undefined>,
-        optionsCell: Cell<Array<Cell<RubricOption>>>,
-        promptCell: Cell<string>,
-        submittedCell: Cell<string>,
+        resultCell: Writable<QuickAddResponse | undefined>,
+        optionsCell: Writable<Array<Writable<RubricOption>>>,
+        promptCell: Writable<string>,
+        submittedCell: Writable<string>,
       }
     >(
       (_, { resultCell, optionsCell, promptCell, submittedCell }) => {
@@ -240,7 +241,7 @@ Be precise with categorical values - use exact label matches.`;
     // Submit prompt to trigger LLM analysis
     const submitQuickAdd = handler<
       unknown,
-      { promptCell: Cell<string>, submittedCell: Cell<string> }
+      { promptCell: Writable<string>, submittedCell: Writable<string> }
     >(
       (_, { promptCell, submittedCell }) => {
         const prompt = promptCell.get();
@@ -253,7 +254,7 @@ Be precise with categorical values - use exact label matches.`;
     // Clear Quick Add prompt without accepting
     const clearQuickAdd = handler<
       unknown,
-      { promptCell: Cell<string>, submittedCell: Cell<string> }
+      { promptCell: Writable<string>, submittedCell: Writable<string> }
     >(
       (_, { promptCell, submittedCell }) => {
         promptCell.set("");
@@ -261,7 +262,7 @@ Be precise with categorical values - use exact label matches.`;
       }
     );
 
-    const addTestDimension = handler<unknown, { dimensions: Cell<Dimension[]> }>(
+    const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>(
       (_, { dimensions }) => {
         const count = dimensions.get().length + 1;
         const isEven = count % 2 === 0;
@@ -297,7 +298,7 @@ Be precise with categorical values - use exact label matches.`;
 
     const changeDimensionMultiplier = handler<
       unknown,
-      { dimension: Cell<Dimension>, delta: number }
+      { dimension: Writable<Dimension>, delta: number }
     >(
       (_, { dimension, delta }) => {
         const current = dimension.key("multiplier").get();
@@ -305,7 +306,7 @@ Be precise with categorical values - use exact label matches.`;
       }
     );
 
-    const selectOption = handler<unknown, { name: string, selectionCell: Cell<SelectionState> }>(
+    const selectOption = handler<unknown, { name: string, selectionCell: Writable<SelectionState> }>(
       (_, { name, selectionCell }) => {
         selectionCell.set({ value: name });
       }
@@ -313,7 +314,7 @@ Be precise with categorical values - use exact label matches.`;
 
     const changeCategoricalValue = handler<
       unknown,
-      { optionName: string, optionsCell: Cell<Array<Cell<RubricOption>>>, dimensionName: string, categoryValue: string }
+      { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, categoryValue: string }
     >(
       (_, { optionName, optionsCell, dimensionName, categoryValue }) => {
         // Look up option by name and mutate using .key()
@@ -345,7 +346,7 @@ Be precise with categorical values - use exact label matches.`;
 
     const changeNumericValue = handler<
       unknown,
-      { optionName: string, optionsCell: Cell<Array<Cell<RubricOption>>>, dimensionName: string, delta: number, min: number, max: number }
+      { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, delta: number, min: number, max: number }
     >(
       (_, { optionName, optionsCell, dimensionName, delta, min, max }) => {
         // Look up option by name and mutate using .key()
@@ -384,12 +385,12 @@ Be precise with categorical values - use exact label matches.`;
 
     const moveOptionUp = handler<
       unknown,
-      { optionCell: Cell<RubricOption>, optionsCell: Cell<Array<Cell<RubricOption>>> }
+      { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
     >(
       (_, { optionCell, optionsCell }) => {
         const opts = optionsCell.get();
         // Use .equals() instance method for proper Cell comparison
-        const index = opts.findIndex(opt => opt.equals(optionCell));
+        const index = opts.findIndex(opt => equals(opt, optionCell));
 
         if (index <= 0) return; // Already at top or not found
 
@@ -407,12 +408,12 @@ Be precise with categorical values - use exact label matches.`;
 
     const moveOptionDown = handler<
       unknown,
-      { optionCell: Cell<RubricOption>, optionsCell: Cell<Array<Cell<RubricOption>>> }
+      { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
     >(
       (_, { optionCell, optionsCell }) => {
         const opts = optionsCell.get();
         // Use .equals() instance method for proper Cell comparison
-        const index = opts.findIndex(opt => opt.equals(optionCell));
+        const index = opts.findIndex(opt => equals(opt, optionCell));
 
         if (index < 0 || index >= opts.length - 1) return; // Already at bottom or not found
 
@@ -430,7 +431,7 @@ Be precise with categorical values - use exact label matches.`;
 
     const resetManualRanks = handler<
       unknown,
-      { optionsCell: Cell<Array<Cell<RubricOption>>> }
+      { optionsCell: Writable<Array<Writable<RubricOption>>> }
     >(
       (_, { optionsCell }) => {
         const opts = optionsCell.get();
@@ -610,7 +611,7 @@ Be precise with categorical values - use exact label matches.`;
                   No options yet. Add some test data!
                 </div>
               ) : (
-                // Boxing: optionCell is a Cell<RubricOption>
+                // Boxing: optionCell is a Writable<RubricOption>
                 options.map((optionCell, index) => {
                   // Use derive() to reactively compute score
                   const score = derive(
