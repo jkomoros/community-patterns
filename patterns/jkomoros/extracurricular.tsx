@@ -1559,7 +1559,7 @@ Return all visible text.`
     const prepareCalendarExport = handler<
       unknown,
       {
-        pinnedClasses: readonly Class[];
+        pinnedClasses: Class[];
         semesterDates: Writable<SemesterDates>;
         child: Writable<ChildProfile>;
         activeSetName: Writable<string>;
@@ -1567,15 +1567,17 @@ Return all visible text.`
         pendingExport: Writable<PendingCalendarExport>;
         outbox: Writable<CalendarOutbox>;
       }
-    >((_: unknown, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }: {
-      pinnedClasses: readonly Class[];
-      semesterDates: Writable<SemesterDates>;
-      child: Writable<ChildProfile>;
-      activeSetName: Writable<string>;
-      calendarName: Writable<string>;
-      pendingExport: Writable<PendingCalendarExport>;
-      outbox: Writable<CalendarOutbox>;
-    }) => {
+    >((_: unknown, state) => {
+      // Handler receives readonly props from framework, cast to mutable for internal use
+      const { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox } = state as {
+        pinnedClasses: Class[];
+        semesterDates: Writable<SemesterDates>;
+        child: Writable<ChildProfile>;
+        activeSetName: Writable<string>;
+        calendarName: Writable<string>;
+        pendingExport: Writable<PendingCalendarExport>;
+        outbox: Writable<CalendarOutbox>;
+      };
       // pinnedClasses is a computed cell - handler receives unwrapped value (not cell)
       const classList = pinnedClasses || [];
       const semester = semesterDates.get() || { startDate: "", endDate: "" };
