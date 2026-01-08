@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, handler, NAME, recipe, str, UI } from "commontools";
+import { Default, handler, NAME, recipe, str, UI, Writable } from "commontools";
 
 /**
  * Example: Simple Counter Pattern
@@ -19,19 +19,19 @@ interface CounterOutput {
   count: Default<number, 0>;
 }
 
-const decrement = handler<unknown, { count: Cell<number> }>(
+const decrement = handler<unknown, { count: Writable<number> }>(
   (_, { count }) => {
     count.set(count.get() - 1);
   }
 );
 
-const reset = handler<unknown, { count: Cell<number> }>(
+const reset = handler<unknown, { count: Writable<number> }>(
   (_, { count }) => {
     count.set(0);
   }
 );
 
-const increment = handler<unknown, { count: Cell<number> }>(
+const increment = handler<unknown, { count: Writable<number> }>(
   (_, { count }) => {
     count.set(count.get() + 1);
   }

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, NAME, pattern, UI } from "commontools";
+import { Default, equals, NAME, pattern, UI, Writable } from "commontools";
 
 /**
  * Example: Todo List Pattern
@@ -9,7 +9,7 @@ import { Cell, Default, NAME, pattern, UI } from "commontools";
  * - Bidirectional binding with $checked
  * - Adding/removing items
  * - Using Default<> for default values
- * - Using Cell.equals() to find items
+ * - Using equals() to find items
  */
 
 interface TodoItem {
@@ -18,11 +18,11 @@ interface TodoItem {
 }
 
 interface TodoListInput {
-  items: Cell<TodoItem[]>;
+  items: Writable<TodoItem[]>;
 }
 
 interface TodoListOutput {
-  items: Cell<TodoItem[]>;
+  items: Writable<TodoItem[]>;
 }
 
 export default pattern<TodoListInput, TodoListOutput>(
@@ -61,7 +61,7 @@ export default pattern<TodoListInput, TodoListOutput>(
                 <button
                   onClick={() => {
                     const current = items.get();
-                    const index = current.findIndex((el) => Cell.equals(item, el));
+                    const index = current.findIndex((el) => equals(item, el));
                     if (index >= 0) {
                       items.set(current.toSpliced(index, 1));
                     }
