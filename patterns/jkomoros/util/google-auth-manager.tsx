@@ -54,7 +54,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   computed,
   derive,
   handler,
@@ -127,7 +127,7 @@ export interface AuthInfo {
   state: AuthState;
   auth: Auth | null;
   /** The writable auth cell for token refresh - use this, not auth data */
-  authCell: Cell<Auth> | null;
+  authCell: Writable<Auth> | null;
   email: string;
   hasRequiredScopes: boolean;
   grantedScopes: string[];
@@ -157,14 +157,14 @@ export interface CreateGoogleAuthOptions {
   requiredScopes?: ScopeKey[];
   /**
    * Account type preference for wish tag.
-   * Can be a static string or a reactive Cell for dynamic account switching.
+   * Can be a static string or a reactive Writable for dynamic account switching.
    */
-  accountType?: AccountType | Cell<AccountType>;
+  accountType?: AccountType | Writable<AccountType>;
 }
 
 /** Type for the Google Auth charm returned by wish */
 export interface GoogleAuthCharm {
-  auth: Cell<Auth>;
+  auth: Writable<Auth>;
   scopes?: string[];
   selectedScopes?: Record<ScopeKey, boolean>;
   /** Compact user display with avatar, name, and email */
@@ -403,7 +403,7 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   );
 
   // Handler to navigate to existing auth charm
-  const goToAuth = handler<unknown, { charm: Cell<GoogleAuthCharm | null> }>(
+  const goToAuth = handler<unknown, { charm: Writable<GoogleAuthCharm | null> }>(
     (_event, { charm }) => {
       const c = charm.get();
       if (c) return navigateTo(c);

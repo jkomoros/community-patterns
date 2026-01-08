@@ -15,7 +15,7 @@
  * const emails = await client.searchEmails("from:amazon.com", 20);
  * ```
  */
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Writable, getRecipeEnvironment } from "commontools";
 
 const env = getRecipeEnvironment();
 
@@ -97,7 +97,7 @@ function debugWarn(debugMode: boolean, ...args: unknown[]) {
  * See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
  */
 export class GmailClient {
-  private auth: Cell<Auth>;
+  private auth: Writable<Auth>;
   private retries: number;
   private delay: number;
   private delayIncrement: number;
@@ -105,7 +105,7 @@ export class GmailClient {
   private onRefresh?: () => Promise<void>;
 
   constructor(
-    auth: Cell<Auth>,
+    auth: Writable<Auth>,
     {
       retries = 3,
       delay = 1000,
@@ -567,7 +567,7 @@ export async function validateGmailToken(
  * @returns { valid: true, refreshed?: boolean } or { valid: false, error: string }
  */
 export async function validateAndRefreshToken(
-  auth: Cell<Auth>,
+  auth: Writable<Auth>,
   debugMode: boolean = false,
 ): Promise<{ valid: boolean; refreshed?: boolean; error?: string }> {
   const authData = auth.get();
@@ -652,7 +652,7 @@ export async function validateAndRefreshToken(
  * @returns { valid: true, refreshed?: boolean } or { valid: false, error: string }
  */
 export async function validateAndRefreshTokenCrossCharm(
-  auth: Cell<Auth>,
+  auth: Writable<Auth>,
   refreshStream: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void } | null | undefined,
   debugMode: boolean = false,
 ): Promise<{ valid: boolean; refreshed?: boolean; error?: string }> {

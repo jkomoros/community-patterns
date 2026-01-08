@@ -34,7 +34,7 @@
  * }
  * ```
  */
-import { Cell, handler, JSONSchema } from "commontools";
+import { Writable, handler, JSONSchema } from "commontools";
 
 // =============================================================================
 // SCHEMA UTILITIES
@@ -140,7 +140,7 @@ export function listTool<Fields extends string>(
     schema as unknown as JSONSchema,
     LIST_TOOL_STATE_SCHEMA,
     (input: Record<string, any>, state: {
-      items: Cell<any[]>;
+      items: Writable<any[]>;
       dedupeFields: string[];
       idPrefix: string;
       timestampField: string;

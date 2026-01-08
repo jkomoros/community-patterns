@@ -36,7 +36,7 @@
  * }
  * ```
  */
-import { Cell, handler, JSONSchema } from "commontools";
+import { Writable, handler, JSONSchema } from "commontools";
 
 // =============================================================================
 // EMAIL SUGGESTION TOOL
@@ -109,13 +109,13 @@ export interface EmailDraft {
  * @param pendingDraft - Cell to write the suggested email to
  * @returns Bound handler ready for use in additionalTools
  */
-export function suggestEmailTool(pendingDraft: Cell<EmailDraft | null>) {
+export function suggestEmailTool(pendingDraft: Writable<EmailDraft | null>) {
   return handler(
     SUGGEST_EMAIL_SCHEMA,
     SUGGEST_EMAIL_STATE_SCHEMA,
     (
-      input: EmailDraft & { result?: Cell<any> },
-      state: { pendingDraft: Cell<EmailDraft | null> },
+      input: EmailDraft & { result?: Writable<any> },
+      state: { pendingDraft: Writable<EmailDraft | null> },
     ) => {
       const draft: EmailDraft = {
         to: input.to,
@@ -222,7 +222,7 @@ export interface CalendarEventDraft {
  * @returns Bound handler ready for use in additionalTools
  */
 export function suggestCalendarEventTool(
-  pendingEvent: Cell<CalendarEventDraft | null>,
+  pendingEvent: Writable<CalendarEventDraft | null>,
 ) {
   return handler(
     SUGGEST_CALENDAR_EVENT_SCHEMA,
@@ -236,9 +236,9 @@ export function suggestCalendarEventTool(
         location?: string;
         attendees?: string;
         calendarId?: string;
-        result?: Cell<any>;
+        result?: Writable<any>;
       },
-      state: { pendingEvent: Cell<CalendarEventDraft | null> },
+      state: { pendingEvent: Writable<CalendarEventDraft | null> },
     ) => {
       const event: CalendarEventDraft = {
         summary: input.summary,
@@ -326,7 +326,7 @@ export interface LabelChangeDraft {
  * @returns Bound handler ready for use in additionalTools
  */
 export function suggestLabelChangeTool(
-  pendingLabelOp: Cell<LabelChangeDraft | null>,
+  pendingLabelOp: Writable<LabelChangeDraft | null>,
 ) {
   return handler(
     SUGGEST_LABEL_CHANGE_SCHEMA,
@@ -336,9 +336,9 @@ export function suggestLabelChangeTool(
         messageIds: string;
         addLabels?: string;
         removeLabels?: string;
-        result?: Cell<any>;
+        result?: Writable<any>;
       },
-      state: { pendingLabelOp: Cell<LabelChangeDraft | null> },
+      state: { pendingLabelOp: Writable<LabelChangeDraft | null> },
     ) => {
       const messageIds = input.messageIds
         .split(",")

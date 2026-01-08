@@ -33,7 +33,7 @@
  * });
  * ```
  */
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Writable, getRecipeEnvironment } from "commontools";
 
 const env = getRecipeEnvironment();
 
@@ -158,11 +158,11 @@ function encodeHeaderValue(value: string): string {
  * IMPORTANT: The auth cell MUST be writable for token refresh to work!
  */
 export class GmailSendClient {
-  private auth: Cell<Auth>;
+  private auth: Writable<Auth>;
   private debugMode: boolean;
 
   constructor(
-    auth: Cell<Auth>,
+    auth: Writable<Auth>,
     { debugMode = false }: GmailSendClientConfig = {},
   ) {
     this.auth = auth;

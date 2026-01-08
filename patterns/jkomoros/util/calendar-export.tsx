@@ -20,7 +20,7 @@
  * ```
  */
 
-import type { Cell } from "commontools";
+import type { Writable } from "commontools";
 import type { Auth } from "./google-auth-manager.tsx";
 import {
   CalendarWriteClient,
@@ -309,7 +309,7 @@ export function convertToICS(
  * @returns Export result
  */
 export async function exportToGoogle(
-  auth: Cell<Auth>,
+  auth: Writable<Auth>,
   events: ExportableEvent[],
   config: ExportConfig,
   onProgress?: ExportProgressCallback,
@@ -446,7 +446,7 @@ export function exportToICS(
  * @returns Array of available export targets with status
  */
 export function getAvailableTargets(
-  googleAuth?: Cell<Auth> | null,
+  googleAuth?: Writable<Auth> | null,
 ): ExportTargetInfo[] {
   const targets: ExportTargetInfo[] = [];
 

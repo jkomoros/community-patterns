@@ -47,15 +47,15 @@
  *
  * See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
  */
-import { Cell, handler, JSONSchema } from "commontools";
+import { Writable, handler, JSONSchema } from "commontools";
 
 /**
  * Config passed when binding the handler (pattern author provides this).
  * All fields are DATA (serializable), no functions.
  */
 export interface ReportHandlerConfig {
-  /** Cell containing the list of items */
-  items: Cell<any[]>;
+  /** Writable containing the list of items */
+  items: Writable<any[]>;
   /** Prefix for generated IDs (e.g., "membership", "food") */
   idPrefix: string;
   /** Fields that make up the dedup key */
