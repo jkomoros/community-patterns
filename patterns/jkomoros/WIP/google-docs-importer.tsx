@@ -22,9 +22,14 @@ import {
 import {
   convertDocToMarkdown,
   extractDocTitle,
-  type GoogleDocsDocument,
-  type GoogleComment,
 } from "../util/google-docs-markdown.ts";
+
+// Import Google Docs client
+import {
+  GoogleDocsClient,
+  extractFileId,
+  type GoogleComment,
+} from "../util/google-docs-client.ts";
 
 // Import Note pattern for "Save as Note" feature
 import Note from "../lib/note.tsx";
@@ -58,6 +63,7 @@ interface Input {
   isFetching?: Cell<Default<boolean, false>>;
   lastError?: Cell<Default<string | null, null>>;
   includeComments?: Cell<Default<boolean, true>>;
+  embedImages?: Cell<Default<boolean, false>>;
 }
 
 /** Google Docs Markdown Importer. Import Google Docs as Markdown with comments. #googleDocsImporter */
@@ -67,133 +73,6 @@ interface Output {
   docTitle: string;
 }
 
-// =============================================================================
-// API Client (adapted from google-docs-comment-orchestrator.tsx)
-// =============================================================================
-
-class GoogleDocsClient {
-  private token: string;
-  private delay = 0;
-  private delayIncrement = 1000;
-
-  constructor(token: string) {
-    this.token = token;
-  }
-
-  private async request(
-    url: URL,
-    options?: RequestInit,
-    retries = 3
-  ): Promise<Response> {
-    const token = this.token;
-    if (!token) throw new Error("No authorization token");
-
-    const opts = options ?? {};
-    opts.headers = new Headers(opts.headers);
-    opts.headers.set("Authorization", `Bearer ${token}`);
-
-    // Add delay if we've been rate limited
-    if (this.delay > 0) {
-      await new Promise((r) => setTimeout(r, this.delay));
-    }
-
-    const res = await fetch(url, opts);
-    const status = res.status;
-
-    // Handle 401 (expired token) - tell user to refresh auth
-    if (status === 401) {
-      throw new Error(
-        "Token expired. Please re-authenticate in your Google Auth charm."
-      );
-    }
-
-    // Handle 429 (rate limit) - exponential backoff
-    if (status === 429 && retries > 0) {
-      this.delay += this.delayIncrement;
-      console.log(`[GoogleDocsClient] Rate limited, waiting ${this.delay}ms...`);
-      await new Promise((r) => setTimeout(r, this.delay));
-      return this.request(url, options, retries - 1);
-    }
-
-    // Reset delay on success
-    if (res.ok) {
-      this.delay = 0;
-    }
-
-    return res;
-  }
-
-  async listComments(fileId: string): Promise<GoogleComment[]> {
-    const url = new URL(
-      `https://www.googleapis.com/drive/v3/files/${fileId}/comments`
-    );
-    url.searchParams.set(
-      "fields",
-      "comments(id,author,content,htmlContent,createdTime,modifiedTime,resolved,quotedFileContent,anchor,replies)"
-    );
-    url.searchParams.set("pageSize", "100");
-
-    const res = await this.request(url);
-    if (!res.ok) {
-      const text = await res.text();
-      if (res.status === 403) {
-        throw new Error(
-          `Access denied (403). This could mean:\n` +
-            `- The document is not shared with your Google account\n` +
-            `- Your account doesn't have access to this document\n` +
-            `- The document has restricted sharing settings\n\n` +
-            `Make sure you're signed in with an account that has access to this document.`
-        );
-      }
-      throw new Error(`Failed to list comments: ${res.status} - ${text}`);
-    }
-
-    const json = await res.json();
-    return json.comments || [];
-  }
-
-  async getDocument(docId: string): Promise<GoogleDocsDocument> {
-    const url = new URL(`https://docs.googleapis.com/v1/documents/${docId}`);
-
-    const res = await this.request(url);
-    if (!res.ok) {
-      const text = await res.text();
-      if (res.status === 403) {
-        throw new Error(
-          `Access denied to document (403). Make sure:\n` +
-            `- The Google Docs API is enabled in your Google Cloud project\n` +
-            `- You have access to this document\n` +
-            `- Your Google Auth charm has the 'Docs' scope enabled`
-        );
-      }
-      throw new Error(`Failed to get document: ${res.status} - ${text}`);
-    }
-
-    return await res.json();
-  }
-}
-
-// Helper to extract file ID from Google Docs URL
-function extractFileId(url: string): string | null {
-  // Handle various Google Docs URL formats:
-  // https://docs.google.com/document/d/FILE_ID/edit
-  // https://docs.google.com/document/d/FILE_ID/edit?...
-  // https://drive.google.com/file/d/FILE_ID/view
-  const patterns = [
-    /\/document\/d\/([a-zA-Z0-9_-]+)/,
-    /\/file\/d\/([a-zA-Z0-9_-]+)/,
-    /id=([a-zA-Z0-9_-]+)/,
-  ];
-
-  for (const p of patterns) {
-    const match = url.match(p);
-    if (match) {
-      return match[1];
-    }
-  }
-
-  return null;
-}
 
 // =============================================================================
 // Handlers
@@ -210,11 +89,12 @@ const importDocument = handler<
     isFetching: Cell<boolean>;
     lastError: Cell<string | null>;
     includeComments: Cell<boolean>;
+    embedImages: Cell<boolean>;
   }
 >(
   async (
     _,
-    { docUrl, auth, markdown, docTitle, isFetching, lastError, includeComments }
+    { docUrl, auth, markdown, docTitle, isFetching, lastError, includeComments, embedImages }
   ) => {
     const url = docUrl.get();
     if (!url) {
@@ -239,20 +119,19 @@ const importDocument = handler<
     lastError.set(null);
 
     try {
-      const client = new GoogleDocsClient(token);
+      // Create client with auth Cell for automatic token refresh
+      const client = new GoogleDocsClient(auth as Cell<any>, { debugMode: true });
 
       // Fetch document content
       const doc = await client.getDocument(fileId);
       const title = extractDocTitle(doc);
       docTitle.set(title);
 
-      // Fetch comments if enabled
+      // Fetch comments if enabled (client handles pagination and filtering)
       let comments: GoogleComment[] = [];
       if (includeComments.get()) {
         try {
-          const allComments = await client.listComments(fileId);
-          // Filter to only unresolved comments
-          comments = allComments.filter((c) => !c.resolved);
+          comments = await client.listComments(fileId, false /* includeResolved */);
         } catch (e) {
           console.warn("[importDocument] Could not fetch comments:", e);
           // Non-fatal - we can still convert without comments
@@ -262,7 +141,7 @@ const importDocument = handler<
       // Convert to markdown
       const md = await convertDocToMarkdown(doc, comments, {
         includeComments: includeComments.get(),
-        embedImages: true,
+        embedImages: embedImages.get(),
         token,
       });
 
@@ -302,12 +181,19 @@ const toggleComments = handler<unknown, { includeComments: Cell<boolean> }>(
   }
 );
 
+// Toggle embed images
+const toggleEmbedImages = handler<unknown, { embedImages: Cell<boolean> }>(
+  (_, { embedImages }) => {
+    embedImages.set(!embedImages.get());
+  }
+);
+
 // =============================================================================
 // Pattern
 // =============================================================================
 
 export default pattern<Input, Output>(
-  ({ docUrl, markdown, docTitle, isFetching, lastError, includeComments }) => {
+  ({ docUrl, markdown, docTitle, isFetching, lastError, includeComments, embedImages }) => {
     // Save cell references
     const docUrlCell = docUrl;
     const markdownCell = markdown;
@@ -315,6 +201,7 @@ export default pattern<Input, Output>(
     const isFetchingCell = isFetching;
     const lastErrorCell = lastError;
     const includeCommentsCell = includeComments;
+    const embedImagesCell = embedImages;
 
     // Auth via createGoogleAuth utility (requires Drive and Docs scopes)
     const {
@@ -396,6 +283,7 @@ export default pattern<Input, Output>(
                         isFetching: isFetchingCell,
                         lastError: lastErrorCell,
                         includeComments: includeCommentsCell,
+                        embedImages: embedImagesCell,
                       })}
                     >
                       {ifElse(
@@ -412,7 +300,7 @@ export default pattern<Input, Output>(
                 </ct-hstack>
 
                 {/* Options */}
-                <ct-hstack gap={2} style={{ marginTop: "8px" }}>
+                <ct-hstack gap={3} style={{ marginTop: "8px" }}>
                   <label
                     style={{
                       display: "flex",
@@ -431,6 +319,25 @@ export default pattern<Input, Output>(
                       style={{ cursor: "pointer" }}
                     />
                     Include open comments
+                  </label>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                    onClick={toggleEmbedImages({
+                      embedImages: embedImagesCell,
+                    })}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={embedImagesCell}
+                      style={{ cursor: "pointer" }}
+                    />
+                    Embed images as base64
                   </label>
                 </ct-hstack>
 
