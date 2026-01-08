@@ -278,24 +278,19 @@ const importDocument = handler<
   }
 );
 
-// Copy markdown to clipboard
+// Copy markdown to clipboard - show notification since clipboard API isn't available in patterns
 const copyToClipboard = handler<
   unknown,
   { markdown: Cell<string>; lastError: Cell<string | null> }
->(async (_, { markdown, lastError }) => {
+>((_, { markdown, lastError }) => {
   const md = markdown.get();
   if (!md) {
     lastError.set("No markdown to copy");
     return;
   }
 
-  try {
-    await navigator.clipboard.writeText(md);
-    // Brief success indication could be added here
-  } catch (e) {
-    console.error("[copyToClipboard] Error:", e);
-    lastError.set("Failed to copy to clipboard");
-  }
+  // Clipboard API not available in pattern sandbox - guide user to select manually
+  lastError.set("Select the markdown text above and use Cmd/Ctrl+C to copy");
 });
 
 // Save as Note charm
@@ -354,10 +349,14 @@ export default pattern<Input, Output>(
     // Has error
     const hasError = computed(() => !!lastErrorCell.get());
 
+    // Computed name based on doc title
+    const charmName = computed(() => {
+      const title = docTitleCell.get();
+      return title ? `Import: ${title}` : "Google Docs Importer";
+    });
+
     return {
-      [NAME]: derive(docTitleCell, (title) =>
-        title ? `Import: ${title}` : "Google Docs Importer"
-      ),
+      [NAME]: charmName,
       [UI]: (
         <ct-screen>
           {/* Header */}
@@ -544,9 +543,9 @@ export default pattern<Input, Output>(
           </ct-vstack>
         </ct-screen>
       ),
-      docUrl: docUrl ?? "",
-      markdown: markdown ?? "",
-      docTitle: docTitle ?? "",
+      docUrl,
+      markdown,
+      docTitle,
     };
   }
 );
