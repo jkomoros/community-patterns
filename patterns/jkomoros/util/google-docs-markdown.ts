@@ -175,17 +175,22 @@ export interface GoogleCommentReply {
 // Image Handling
 // =============================================================================
 
+/** Default max image size for base64 embedding: 5MB */
+const DEFAULT_MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
 /**
  * Download an image and convert to base64 data URL.
  * Images in Google Docs require authentication to access.
  *
  * @param url The image URL (from Google Docs)
  * @param token OAuth access token
- * @returns Base64 data URL or null if download fails
+ * @param maxSizeBytes Optional maximum image size in bytes (default: 5MB). Images larger than this will be skipped.
+ * @returns Base64 data URL or null if download fails or image exceeds size limit
  */
 export async function downloadImageAsBase64(
   url: string,
-  token: string
+  token: string,
+  maxSizeBytes: number = DEFAULT_MAX_IMAGE_SIZE
 ): Promise<string | null> {
   try {
     const response = await fetch(url, {
@@ -199,8 +204,22 @@ export async function downloadImageAsBase64(
       return null;
     }
 
+    // Check content-length header first (if available) for early rejection
+    const contentLength = response.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > maxSizeBytes) {
+      console.warn(`[downloadImageAsBase64] Image too large (${contentLength} bytes > ${maxSizeBytes}), skipping`);
+      return null;
+    }
+
     const contentType = response.headers.get("content-type") || "image/png";
     const blob = await response.blob();
+
+    // Check actual size after download
+    if (blob.size > maxSizeBytes) {
+      console.warn(`[downloadImageAsBase64] Image too large (${blob.size} bytes > ${maxSizeBytes}), skipping`);
+      return null;
+    }
+
     const arrayBuffer = await blob.arrayBuffer();
     const base64 = btoa(
       new Uint8Array(arrayBuffer).reduce(
@@ -463,11 +482,12 @@ export async function convertDocToMarkdown(
               if (base64Url) {
                 paragraphText += `![${altText}](${base64Url})`;
               } else {
-                // Fallback to URL (won't work without auth)
-                paragraphText += `![${altText}](${imageUrl})`;
+                // Fallback to URL with auth note (image too large or download failed)
+                paragraphText += `![${altText}](${imageUrl})\n<!-- Note: Image requires Google authentication to view -->`;
               }
             } else if (imageUrl) {
-              paragraphText += `![${altText}](${imageUrl})`;
+              // Not embedding images - include URL with note about authentication
+              paragraphText += `![${altText}](${imageUrl})\n<!-- Note: Image requires Google authentication to view -->`;
             }
           }
         } else if (elem.horizontalRule) {
