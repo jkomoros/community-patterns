@@ -19,7 +19,7 @@
  * TODO: Future framework enhancement will support wish() without requiring favorites
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,

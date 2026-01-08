@@ -25,7 +25,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   handler,

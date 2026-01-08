@@ -8,7 +8,7 @@
  * Discoverable via wish("#family") when favorited.
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,

@@ -10,7 +10,7 @@
  * Better UX than pre-hoc: user sees actual email before classifying.
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,

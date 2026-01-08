@@ -1,7 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
-  cell,
+  Writable,
   computed,
   Default,
   derive,

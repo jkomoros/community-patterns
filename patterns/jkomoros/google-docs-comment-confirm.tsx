@@ -12,7 +12,7 @@
  * to assert "this action was user-approved".
  */
 import {
-  Cell,
+  Writable,
   Default,
   handler,
 } from "commontools";
