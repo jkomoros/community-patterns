@@ -278,20 +278,6 @@ const importDocument = handler<
   }
 );
 
-// Copy markdown to clipboard - show notification since clipboard API isn't available in patterns
-const copyToClipboard = handler<
-  unknown,
-  { markdown: Cell<string>; lastError: Cell<string | null> }
->((_, { markdown, lastError }) => {
-  const md = markdown.get();
-  if (!md) {
-    lastError.set("No markdown to copy");
-    return;
-  }
-
-  // Clipboard API not available in pattern sandbox - guide user to select manually
-  lastError.set("Select the markdown text above and use Cmd/Ctrl+C to copy");
-});
 
 // Save as Note charm
 const saveAsNote = handler<
@@ -483,16 +469,9 @@ export default pattern<Input, Output>(
                     Preview: {docTitleCell}
                   </span>
                   <ct-hstack gap={1}>
-                    <ct-button
-                      variant="secondary"
-                      type="button"
-                      onClick={copyToClipboard({
-                        markdown: markdownCell,
-                        lastError: lastErrorCell,
-                      })}
-                    >
+                    <ct-copy-button text={markdownCell} variant="secondary">
                       Copy to Clipboard
-                    </ct-button>
+                    </ct-copy-button>
                     <ct-button
                       variant="primary"
                       type="button"
