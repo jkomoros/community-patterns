@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,
@@ -59,7 +59,7 @@ function generateFakeEvents(count: number): FakeEvent[] {
 // Handler definitions (will be instantiated inside pattern)
 const generateEventsHandler = handler<
   unknown,
-  { events: Cell<FakeEvent[]>; count: Cell<number> }
+  { events: Writable<FakeEvent[]>; count: Writable<number> }
 >((_event, { events, count }) => {
   const numEvents = count.get();
   console.log(`Generating ${numEvents} fake events...`);
@@ -68,7 +68,7 @@ const generateEventsHandler = handler<
   console.log(`Generated ${fakeEvents.length} events`);
 });
 
-const clearEventsHandler = handler<unknown, { events: Cell<FakeEvent[]> }>(
+const clearEventsHandler = handler<unknown, { events: Writable<FakeEvent[]> }>(
   (_event, { events }) => {
     events.set([]);
     console.log("Cleared events");
@@ -95,7 +95,7 @@ interface DerivePerfReproInput {
  */
 const DerivePerfRepro = pattern<DerivePerfReproInput, { events: FakeEvent[]; eventCount: number }>(
   ({ count }) => {
-    const events = Cell.of<FakeEvent[]>([]);
+    const events = Writable.of<FakeEvent[]>([]);
     const eventCount = computed(() => events.get().length);
 
     return {

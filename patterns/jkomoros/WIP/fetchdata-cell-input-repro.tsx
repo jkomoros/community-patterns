@@ -1,11 +1,11 @@
 /// <cts-enable />
 /**
- * Repro: Does Cell<object> input parameter interact badly with fetchData inside .map()?
+ * Repro: Does Writable<object> input parameter interact badly with fetchData inside .map()?
  *
  * github-momentum-tracker has:
  *   interface Input {
  *     repos?: Default<string[], []>;
- *     authCharm?: Cell<{ token: string }>; // Optional linked auth charm
+ *     authCharm?: Writable<{ token: string }>; // Optional linked auth charm
  *   }
  *
  * When a charm links to another charm, authCharm gets populated.
@@ -13,7 +13,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -29,16 +29,16 @@ type Todo = { userId: number; id: number; title: string; completed: boolean };
 
 interface Input {
   ids?: Default<number[], []>;
-  // The key difference: optional Cell<object> input (like authCharm)
-  linkedConfig?: Cell<{ multiplier: number }>;
+  // The key difference: optional Writable<object> input (like authCharm)
+  linkedConfig?: Writable<{ multiplier: number }>;
 }
 
 interface Output {
-  ids: Cell<number[]>;
+  ids: Writable<number[]>;
 }
 
 // Handler to add a new ID
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -48,13 +48,13 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
 );
 
 // Handler to clear all
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 
 export default pattern<Input, Output>(({ ids, linkedConfig }) => {
-  // Derive from the optional Cell<object> input - EXACTLY like momentum-tracker
-  // Note: linkedConfig is Cell<object>, must use derive with object params and .get() pattern
+  // Derive from the optional Writable<object> input - EXACTLY like momentum-tracker
+  // Note: linkedConfig is Writable<object>, must use derive with object params and .get() pattern
   const hasConfig = derive(
     { linkedConfig },
     (values) => {
@@ -68,7 +68,7 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
     // Parse ref
     const ref = derive(idCell, (id) => ({ userId: id }));
 
-    // THE PATTERN: derive with object params including optional Cell<object> input
+    // THE PATTERN: derive with object params including optional Writable<object> input
     const apiUrl = derive(
       { hasConfig, ref },
       (values) => {
@@ -122,7 +122,7 @@ export default pattern<Input, Output>(({ ids, linkedConfig }) => {
   });
 
   return {
-    [NAME]: "fetchData + Cell<object> Input Repro",
+    [NAME]: "fetchData + Writable<object> Input Repro",
     [UI]: (
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h1>fetchData + Cell&lt;object&gt; Input Repro</h1>

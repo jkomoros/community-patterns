@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   derive,
@@ -37,7 +37,7 @@ interface RecipeCompanionInput {
 
 const updateFood = handler<
   { detail: { message: string } },
-  { foodDescription: Cell<string> }
+  { foodDescription: Writable<string> }
 >((event, { foodDescription }) => {
   const newDesc = event.detail?.message?.trim();
   if (newDesc) {
@@ -47,7 +47,7 @@ const updateFood = handler<
 
 const addPreference = handler<
   { detail: { message: string } },
-  { preferences: Cell<IngredientPreference[]>; type: "liked" | "disliked" }
+  { preferences: Writable<IngredientPreference[]>; type: "liked" | "disliked" }
 >((event, { preferences, type }) => {
   const ingredient = event.detail?.message?.trim().toLowerCase();
   if (ingredient) {
@@ -60,7 +60,7 @@ const addPreference = handler<
 
 const removePreference = handler<
   unknown,
-  { preferences: Cell<IngredientPreference[]>; ingredient: string }
+  { preferences: Writable<IngredientPreference[]>; ingredient: string }
 >((_event, { preferences, ingredient }) => {
   const current = preferences.get();
   preferences.set(current.filter(p => p.ingredient !== ingredient));
@@ -100,7 +100,7 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
 
   // The magic: wish() with an open-ended query
   // This will launch suggestion.tsx which uses AI to find/run appropriate patterns
-  const companionRecipe = wish<{ cell: Cell<any> }>({
+  const companionRecipe = wish<{ cell: Writable<any> }>({
     query: wishQuery,
     context: {
       mainDish: foodDescription,

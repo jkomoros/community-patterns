@@ -5,9 +5,9 @@
  * Debug pattern to understand why wish({ tag: "#googleAuth" }) fails
  * even when favorites-debug shows the tag is present
  */
-import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
 
-type Favorite = { cell: Cell<unknown>; tag: string };
+type Favorite = { cell: Writable<unknown>; tag: string };
 
 export default pattern<Record<string, never>>((_) => {
   // Try to wish for #googleAuth - this is what wish-auth-test does

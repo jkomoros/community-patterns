@@ -8,8 +8,8 @@
  * Outputs a markdown-formatted "agentic notes" blob with footnoted sources.
  */
 import {
-  Cell,
-  cell,
+  Writable,
+  writable,
   Default,
   derive,
   handler,
@@ -458,9 +458,9 @@ const PersonResearchGmailAgent = pattern<
     // become read-only when using default values. Create local writable cells
     // for UI input handling.
     // See: community-docs/folk_wisdom/thinking-reactively-vs-events.md
-    const localPersonName = Cell.of("");
-    const localKnownEmail = Cell.of("");
-    const localContextNotes = Cell.of("");
+    const localPersonName = Writable.of("");
+    const localKnownEmail = Writable.of("");
+    const localContextNotes = Writable.of("");
 
     // ========================================================================
     // EFFECTIVE VALUES FROM MANUAL INPUT
@@ -552,7 +552,7 @@ const PersonResearchGmailAgent = pattern<
     // Communication stats handler - not using createReportTool since it's singular
     const reportCommunicationStatsHandler = handler<
       CommunicationStatsInput,
-      { stats: Cell<PersonFindings["communicationStats"]> }
+      { stats: Writable<PersonFindings["communicationStats"]> }
     >((input, state) => {
       state.stats.set({
         totalEmails: input.totalEmails,

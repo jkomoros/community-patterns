@@ -7,7 +7,7 @@
  * creating a multi-select experience from the single-select autocomplete component.
  */
 
-import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI, equals } from "commontools";
 
 // Sample relationship types for demo
 const RELATIONSHIP_ITEMS = [
@@ -33,7 +33,7 @@ interface TagItem {
 }
 
 type Input = {
-  selectedTags: Cell<Default<TagItem[], []>>;
+  selectedTags: Writable<Default<TagItem[], []>>;
 };
 
 type Result = {
@@ -92,7 +92,7 @@ export default pattern<Input, Result>(
                     <button
                       onClick={() => {
                         const current = selectedTags.get();
-                        const index = current.findIndex((el) => Cell.equals(tag, el));
+                        const index = current.findIndex((el) => equals(tag, el));
                         if (index >= 0) {
                           selectedTags.set(current.toSpliced(index, 1));
                         }

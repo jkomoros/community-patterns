@@ -11,7 +11,7 @@
  * Simplified: no add button, just test the core map + generateObject.
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   generateObject,
@@ -37,7 +37,7 @@ interface MapTestOutput {
 }
 
 // Handler to add a single item
-const addItem = handler<unknown, { items: Cell<Item[]> }>((_event, { items }) => {
+const addItem = handler<unknown, { items: Writable<Item[]> }>((_event, { items }) => {
   const currentItems = items.get();
   const nextId = currentItems.length;
   items.push({

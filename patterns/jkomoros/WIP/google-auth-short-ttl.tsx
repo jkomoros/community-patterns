@@ -11,7 +11,7 @@
  * Google - we're just pretending the token expires faster for testing.
  */
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   getRecipeEnvironment,
@@ -116,7 +116,7 @@ interface Output {
 // Handler for toggling scope selection
 const toggleScope = handler<
   { target: { checked: boolean } },
-  { selectedScopes: Cell<SelectedScopes>; scopeKey: string }
+  { selectedScopes: Writable<SelectedScopes>; scopeKey: string }
 >(
   ({ target }, { selectedScopes, scopeKey }) => {
     const current = selectedScopes.get();
@@ -133,7 +133,7 @@ const toggleScope = handler<
  */
 const refreshTokenHandler = handler<
   Record<string, never>,
-  { auth: Cell<Auth> }
+  { auth: Writable<Auth> }
 >(async (_event, { auth }) => {
   console.log('[SHORT-TTL] refreshTokenHandler called');
   const currentAuth = auth.get();

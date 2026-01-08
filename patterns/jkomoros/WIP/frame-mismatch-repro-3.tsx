@@ -7,7 +7,7 @@
  */
 import {
   BuiltInLLMMessage,
-  Cell,
+  Writable,
   computed,
   Default,
   generateObject,
@@ -48,8 +48,8 @@ interface AnalysisResult {
 }
 
 interface ReproInput {
-  messages?: Cell<Default<BuiltInLLMMessage[], []>>;
-  assumptions?: Cell<Default<Assumption[], []>>;
+  messages?: Writable<Default<BuiltInLLMMessage[], []>>;
+  assumptions?: Writable<Default<Assumption[], []>>;
 }
 
 interface ReproOutput {
@@ -70,7 +70,7 @@ const sendMessage = handler<
 });
 
 export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
-  const model = Cell.of<string>("anthropic:claude-sonnet-4-5");
+  const model = Writable.of<string>("anthropic:claude-sonnet-4-5");
 
   const { addMessage, cancelGeneration, pending } = llmDialog({
     system: computed(() => "You are a helpful assistant."),
@@ -78,7 +78,7 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
     model,
   });
 
-  const analyzedCount = Cell.of<number>(0);
+  const analyzedCount = Writable.of<number>(0);
 
   const analysisPrompt = computed(() => {
     const msgList = messages.get();

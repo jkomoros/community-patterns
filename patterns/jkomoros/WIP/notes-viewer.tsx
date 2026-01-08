@@ -9,7 +9,7 @@
  *   ./tools/apple-sync.ts notes
  */
 import {
-  cell,
+  writable,
   Default,
   derive,
   handler,
@@ -17,7 +17,7 @@ import {
   NAME,
   pattern,
   UI,
-  Cell,
+  Writable,
 } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -93,7 +93,7 @@ function groupByFolder(notes: NoteItem[]): Map<string, NoteItem[]> {
 // Handler to select a note
 const selectNote = handler<
   unknown,
-  { noteId: string; selectedNoteId: Cell<string | null> }
+  { noteId: string; selectedNoteId: Writable<string | null> }
 >((_, { noteId, selectedNoteId }) => {
   selectedNoteId.set(noteId);
 });
@@ -101,7 +101,7 @@ const selectNote = handler<
 // Handler to go back to list
 const backToList = handler<
   unknown,
-  { selectedNoteId: Cell<string | null> }
+  { selectedNoteId: Writable<string | null> }
 >((_, { selectedNoteId }) => {
   selectedNoteId.set(null);
 });
@@ -109,7 +109,7 @@ const backToList = handler<
 export default pattern<{
   notes: Default<Confidential<NoteItem[]>, []>;
 }>(({ notes }) => {
-  const selectedNoteId = cell<string | null>(null);
+  const selectedNoteId = writable<string | null>(null);
 
   const noteCount = derive(
     notes,

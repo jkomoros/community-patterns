@@ -3,15 +3,15 @@
  * Simple config pattern - used as imported dependency for repro testing
  */
 
-import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
 
 interface Input {
   multiplier?: Default<number, 1>;
 }
 
 interface Output {
-  multiplier: Cell<number>;
-  doubled: Cell<number>;
+  multiplier: Writable<number>;
+  doubled: Writable<number>;
 }
 
 export default pattern<Input, Output>(({ multiplier }) => {

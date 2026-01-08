@@ -5,14 +5,14 @@
  * Combines:
  * - wish() primitive
  * - Imported pattern instantiation
- * - Cell<object> input parameter
+ * - Writable<object> input parameter
  * - ifElse conditional rendering
  * - 10 fetchData slots per item (like starSample0-9)
  * - Three-way derive combining multiple sources
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -31,15 +31,15 @@ type Todo = { userId: number; id: number; title: string; completed: boolean };
 
 interface Input {
   ids?: Default<number[], []>;
-  linkedConfig?: Cell<{ multiplier: number }>;
+  linkedConfig?: Writable<{ multiplier: number }>;
 }
 
 interface Output {
-  ids: Cell<number[]>;
+  ids: Writable<number[]>;
 }
 
 // Handler to add a new ID
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -49,7 +49,7 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
 );
 
 // Handler to clear all
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 

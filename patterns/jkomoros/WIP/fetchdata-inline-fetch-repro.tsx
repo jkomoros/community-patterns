@@ -11,7 +11,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -29,11 +29,11 @@ type Todo = { userId: number; id: number; title: string; completed: boolean };
 
 interface Input {
   ids?: Default<number[], []>;
-  authCharm?: Cell<{ token: string }>;
+  authCharm?: Writable<{ token: string }>;
 }
 
 interface Output {
-  ids: Cell<number[]>;
+  ids: Writable<number[]>;
 }
 
 function makeHeaders(token: string) {
@@ -43,7 +43,7 @@ function makeHeaders(token: string) {
   };
 }
 
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -52,7 +52,7 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
   }
 );
 
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 

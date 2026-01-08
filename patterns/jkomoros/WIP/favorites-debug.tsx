@@ -5,10 +5,10 @@
  * Debug pattern to see what's actually in the favorites list
  * Following the same approach as favorites-manager.tsx from labs
  */
-import { Cell, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
 
 // Match the labs favorites-manager type (but use 'tag' since that's what the schema says)
-type Favorite = { cell: Cell<{ [NAME]?: string }>; tag: string };
+type Favorite = { cell: Writable<{ [NAME]?: string }>; tag: string };
 
 export default pattern<Record<string, never>>((_) => {
   // Wish for the raw favorites list - same as favorites-manager.tsx

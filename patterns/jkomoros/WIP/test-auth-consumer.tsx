@@ -13,8 +13,8 @@
  * 4. Does the token actually refresh?
  */
 import {
-  cell,
-  Cell,
+  writable,
+  Writable,
   Default,
   derive,
   handler,
@@ -61,7 +61,7 @@ interface Output {
 // Handler to log a message
 const logMessage = handler<
   Record<string, never>,
-  { testLog: Cell<string[]>; message: string }
+  { testLog: Writable<string[]>; message: string }
 >((_event, { testLog, message }) => {
   const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
   const logs = testLog.get() || [];
@@ -72,7 +72,7 @@ const logMessage = handler<
 // Handler to clear log
 const clearLog = handler<
   Record<string, never>,
-  { testLog: Cell<string[]> }
+  { testLog: Writable<string[]> }
 >((_event, { testLog }) => {
   testLog.set([]);
 });
@@ -136,7 +136,7 @@ export default pattern<Input, Output>(
     // Handler to test stream access - defined inside pattern to access wishedCharm
     const testStreamAccess = handler<
       Record<string, never>,
-      { testLog: Cell<string[]> }
+      { testLog: Writable<string[]> }
     >((_event, { testLog: logCell }) => {
       const logs = logCell.get() || [];
       const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
@@ -185,7 +185,7 @@ export default pattern<Input, Output>(
     // declare it properly, analogous to how handlers declare Cell<T> for what they write to.
     const attemptRefresh = handler<
       Record<string, never>,
-      { testLog: Cell<string[]>; refreshStream: Stream<Record<string, never>> }
+      { testLog: Writable<string[]>; refreshStream: Stream<Record<string, never>> }
     >(async (_event, { testLog: logCell, refreshStream }) => {
       const logs = logCell.get() || [];
       const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);

@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   Default,
   NAME,
   pattern,

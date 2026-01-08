@@ -14,7 +14,7 @@
  * - Custom values with "Add X" option
  */
 
-import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
 
 // Sample items for demo
 const CATEGORY_ITEMS = [
@@ -29,9 +29,9 @@ const CATEGORY_ITEMS = [
 
 type Input = {
   // Single select value
-  singleValue: Cell<Default<string, "">>;
+  singleValue: Writable<Default<string, "">>;
   // Multi select values
-  multiValues: Cell<Default<string[], []>>;
+  multiValues: Writable<Default<string[], []>>;
 };
 
 type Result = {

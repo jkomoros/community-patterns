@@ -9,7 +9,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -29,11 +29,11 @@ interface Input {
 }
 
 interface Output {
-  ids: Cell<number[]>;
+  ids: Writable<number[]>;
 }
 
 // Handler to add a new ID
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -43,7 +43,7 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
 );
 
 // Handler to clear all
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 

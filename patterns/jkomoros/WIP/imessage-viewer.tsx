@@ -9,7 +9,7 @@
  *   ./tools/apple-sync.ts imessage
  */
 import {
-  cell,
+  writable,
   Default,
   derive,
   handler,
@@ -17,7 +17,7 @@ import {
   NAME,
   pattern,
   UI,
-  Cell,
+  Writable,
 } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -86,7 +86,7 @@ function groupByChat(messages: Message[]): Map<string, Message[]> {
 // Handler to select a conversation
 const selectConversation = handler<
   unknown,
-  { chatId: string; selectedChatId: Cell<string | null> }
+  { chatId: string; selectedChatId: Writable<string | null> }
 >((_, { chatId, selectedChatId }) => {
   selectedChatId.set(chatId);
 });
@@ -94,7 +94,7 @@ const selectConversation = handler<
 // Handler to go back to conversation list
 const backToList = handler<
   unknown,
-  { selectedChatId: Cell<string | null> }
+  { selectedChatId: Writable<string | null> }
 >((_, { selectedChatId }) => {
   selectedChatId.set(null);
 });
@@ -102,7 +102,7 @@ const backToList = handler<
 export default pattern<{
   messages: Default<Confidential<Message[]>, []>;
 }>(({ messages }) => {
-  const selectedChatId = cell<string | null>(null);
+  const selectedChatId = writable<string | null>(null);
 
   const messageCount = derive(messages, (msgs: Message[]) => msgs?.length ?? 0);
 

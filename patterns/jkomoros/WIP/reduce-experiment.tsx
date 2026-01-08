@@ -11,7 +11,7 @@
  */
 
 import {
-  cell,
+  writable,
   derive,
   handler,
   generateObject,
@@ -19,7 +19,7 @@ import {
   UI,
   recipe,
 } from "commontools";
-import type { OpaqueRef, Cell } from "commontools";
+import type { OpaqueRef, Writable } from "commontools";
 
 // Utility to check if something is a Cell/proxy
 function isProxy(value: any): boolean {
@@ -42,7 +42,7 @@ function isProxy(value: any): boolean {
 // EXPERIMENT 1: Simple array with derive + reduce
 // =============================================================================
 
-const simpleNumbers = Cell.of([1, 2, 3, 4, 5]);
+const simpleNumbers = Writable.of([1, 2, 3, 4, 5]);
 
 const simpleSum = derive([simpleNumbers], (nums) => {
   console.log("[Exp1] nums type:", typeof nums);
@@ -65,7 +65,7 @@ interface Item {
   value: number;
 }
 
-const items = cell<Item[]>([
+const items = writable<Item[]>([
   { id: 1, value: 10 },
   { id: 2, value: 20 },
   { id: 3, value: 30 },
@@ -115,7 +115,7 @@ interface LLMResult {
 }
 
 // Simulate what map() with generateObject would produce
-const mockLLMResults = cell<LLMResult[]>([
+const mockLLMResults = writable<LLMResult[]>([
   { pending: false, result: { text: "hello", score: 10 } },
   { pending: true },
   { pending: false, result: { text: "world", score: 20 } },
@@ -171,7 +171,7 @@ const aggregatedResults = derive([mockLLMResults], (results) => {
 // EXPERIMENT 4: Real map() output with derive reduce
 // =============================================================================
 
-const urls = Cell.of(["url1", "url2", "url3"]);
+const urls = Writable.of(["url1", "url2", "url3"]);
 
 // This creates Cell references in the array
 const fetched = urls.map((url) => ({

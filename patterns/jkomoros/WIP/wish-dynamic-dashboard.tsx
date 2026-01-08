@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   handler,
@@ -34,7 +34,7 @@ interface DynamicDashboardInput {
 
 const addWidget = handler<
   { detail: { message: string } },
-  { widgets: Cell<DashboardWidget[]> }
+  { widgets: Writable<DashboardWidget[]> }
 >((event, { widgets }) => {
   const query = event.detail?.message?.trim();
   if (query) {
@@ -49,7 +49,7 @@ const addWidget = handler<
 
 const removeWidget = handler<
   unknown,
-  { widgets: Cell<DashboardWidget[]>; id: string }
+  { widgets: Writable<DashboardWidget[]>; id: string }
 >((_event, { widgets, id }) => {
   const current = widgets.get();
   widgets.set(current.filter(w => w.id !== id));
@@ -57,7 +57,7 @@ const removeWidget = handler<
 
 const clearAllWidgets = handler<
   unknown,
-  { widgets: Cell<DashboardWidget[]> }
+  { widgets: Writable<DashboardWidget[]> }
 >((_event, { widgets }) => {
   widgets.set([]);
 });
@@ -66,7 +66,7 @@ const clearAllWidgets = handler<
 const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => void }>(
   ({ widget, onRemove }) => {
     // Each widget has its own wish based on its query
-    const wishResult = wish<{ cell: Cell<any> }>({
+    const wishResult = wish<{ cell: Writable<any> }>({
       query: widget.query,
       context: {
         dashboardWidget: true,

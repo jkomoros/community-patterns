@@ -14,8 +14,8 @@
  * - Friend co-enrollment tracking
  */
 import {
-  Cell,
-  cell,
+  Writable,
+  writable,
   computed,
   Default,
   derive,
@@ -99,7 +99,7 @@ interface StagedClass extends Class {
 }
 
 // Extended type for staged classes with user selection state
-// NOTE: Using plain boolean since we'll track selections in a separate Cell<Record<string, boolean>>
+// NOTE: Using plain boolean since we'll track selections in a separate Writable<Record<string, boolean>>
 interface StagedClassWithSelection extends StagedClass {
   selected: boolean;
 }
@@ -220,7 +220,7 @@ const STATUS_LABELS: Record<string, string> = {
 // Location handlers
 const addLocation = handler<
   unknown,
-  { locations: Cell<Location[]>; newLocationForm: Cell<{ name: string; type: LocationType; address: string; hasFlatDailyRate: boolean; dailyRate: number }> }
+  { locations: Writable<Location[]>; newLocationForm: Writable<{ name: string; type: LocationType; address: string; hasFlatDailyRate: boolean; dailyRate: number }> }
 >((_, { locations, newLocationForm }) => {
   const form = newLocationForm.get();
   const name = form.name || "";
@@ -241,7 +241,7 @@ const addLocation = handler<
 
 const removeLocation = handler<
   unknown,
-  { locations: Cell<Location[]>; locationId: string }
+  { locations: Writable<Location[]>; locationId: string }
 >((_, { locations, locationId }) => {
   const current = locations.get();
   const index = current.findIndex((loc) => loc.id === locationId);
@@ -253,7 +253,7 @@ const removeLocation = handler<
 // Category tag handlers
 const addCategoryTag = handler<
   unknown,
-  { categoryTags: Cell<CategoryTag[]>; newTagName: Cell<string> }
+  { categoryTags: Writable<CategoryTag[]>; newTagName: Writable<string> }
 >((_, { categoryTags, newTagName }) => {
   const name = newTagName.get().trim();
   if (!name) return;
@@ -274,7 +274,7 @@ const addCategoryTag = handler<
 
 const removeCategoryTag = handler<
   unknown,
-  { categoryTags: Cell<CategoryTag[]>; tagId: string }
+  { categoryTags: Writable<CategoryTag[]>; tagId: string }
 >((_, { categoryTags, tagId }) => {
   const current = categoryTags.get();
   const index = current.findIndex((t) => t.id === tagId);
@@ -286,7 +286,7 @@ const removeCategoryTag = handler<
 // Friend handlers
 const addFriend = handler<
   unknown,
-  { friends: Cell<Friend[]>; newFriendName: Cell<string> }
+  { friends: Writable<Friend[]>; newFriendName: Writable<string> }
 >((_, { friends, newFriendName }) => {
   const name = newFriendName.get().trim();
   if (!name) return;
@@ -302,7 +302,7 @@ const addFriend = handler<
 
 const removeFriend = handler<
   unknown,
-  { friends: Cell<Friend[]>; friendId: string }
+  { friends: Writable<Friend[]>; friendId: string }
 >((_, { friends, friendId }) => {
   const current = friends.get();
   const index = current.findIndex((f) => f.id === friendId);
@@ -314,7 +314,7 @@ const removeFriend = handler<
 // Travel time handler - set or update travel time between two locations
 const setTravelTime = handler<
   unknown,
-  { travelTimes: Cell<TravelTime[]>; fromLocationId: string; toLocationId: string; minutes: number }
+  { travelTimes: Writable<TravelTime[]>; fromLocationId: string; toLocationId: string; minutes: number }
 >((_, { travelTimes, fromLocationId, toLocationId, minutes }) => {
   if (!fromLocationId || !toLocationId || fromLocationId === toLocationId) return;
 
@@ -346,8 +346,8 @@ const setTravelTime = handler<
 const addManualClass = handler<
   unknown,
   {
-    classes: Cell<Class[]>;
-    manualClassForm: Cell<{
+    classes: Writable<Class[]>;
+    manualClassForm: Writable<{
       name: string;
       day: DayOfWeek;
       startTime: string;
@@ -358,8 +358,8 @@ const addManualClass = handler<
       gradeMax: string;
       description: string;
     }>;
-    importLocationId: Cell<string>;
-    locations: Cell<Location[]>;
+    importLocationId: Writable<string>;
+    locations: Writable<Location[]>;
   }
 >((_, { classes, manualClassForm, importLocationId, locations }) => {
   const form = manualClassForm.get();
@@ -415,7 +415,7 @@ const addManualClass = handler<
 // Create a new pinned set
 const createPinnedSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string> }
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string> }
 >((_, { pinnedSets, activePinnedSetId }) => {
   const sets = pinnedSets.get();
   const newId = generateId();
@@ -431,7 +431,7 @@ const createPinnedSet = handler<
 // Delete a pinned set
 const deletePinnedSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; setId: string }
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; setId: string }
 >((_, { pinnedSets, activePinnedSetId, setId }) => {
   const sets = pinnedSets.get();
   const newSets = sets.filter((s) => s.id !== setId);
@@ -447,7 +447,7 @@ const deletePinnedSet = handler<
 // Rename a pinned set
 const renamePinnedSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; setId: string; newName: string }
+  { pinnedSets: Writable<PinnedSet[]>; setId: string; newName: string }
 >((_, { pinnedSets, setId, newName }) => {
   const sets = pinnedSets.get();
   pinnedSets.set(
@@ -458,7 +458,7 @@ const renamePinnedSet = handler<
 // Add a class to the active pinned set
 const addClassToSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classId: string }
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classId: string }
 >((_, { pinnedSets, activePinnedSetId, classId }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -476,7 +476,7 @@ const addClassToSet = handler<
 // Remove a class from the active pinned set
 const removeClassFromSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classId: string }
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classId: string }
 >((_, { pinnedSets, activePinnedSetId, classId }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -493,7 +493,7 @@ const removeClassFromSet = handler<
 // Switch active pinned set
 const switchActiveSet = handler<
   unknown,
-  { activePinnedSetId: Cell<string>; setId: string }
+  { activePinnedSetId: Writable<string>; setId: string }
 >((_, { activePinnedSetId, setId }) => {
   activePinnedSetId.set(setId);
 });
@@ -501,7 +501,7 @@ const switchActiveSet = handler<
 // Add all classes from a suggested set
 const addSuggestedSet = handler<
   unknown,
-  { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string>; classIds: string[] }
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string>; classIds: string[] }
 >((_, { pinnedSets, activePinnedSetId, classIds }) => {
   const activeId = activePinnedSetId.get();
   if (!activeId) return;
@@ -520,7 +520,7 @@ const addSuggestedSet = handler<
 // Toggle selected class for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
 const toggleSelectedClass = handler<
   unknown,
-  { selectedClassId: Cell<string>; classId: string }
+  { selectedClassId: Writable<string>; classId: string }
 >((_, { selectedClassId, classId }) => {
   const current = selectedClassId.get();
   selectedClassId.set(current === classId ? "" : classId);
@@ -529,7 +529,7 @@ const toggleSelectedClass = handler<
 // Toggle a status checkbox for a class
 const toggleClassStatus = handler<
   unknown,
-  { classStatuses: Cell<ClassStatus[]>; classId: string; statusKey: string }
+  { classStatuses: Writable<ClassStatus[]>; classId: string; statusKey: string }
 >((_, { classStatuses, classId, statusKey }) => {
   const statuses = classStatuses.get();
   const existingIndex = statuses.findIndex((s) => s.classId === classId);
@@ -556,14 +556,14 @@ const toggleClassStatus = handler<
 // Open/close settings dialog
 const openSettingsDialog = handler<
   unknown,
-  { showSettingsDialog: Cell<boolean> }
+  { showSettingsDialog: Writable<boolean> }
 >((_, { showSettingsDialog }) => {
   showSettingsDialog.set(true);
 });
 
 const closeSettingsDialog = handler<
   unknown,
-  { showSettingsDialog: Cell<boolean> }
+  { showSettingsDialog: Writable<boolean> }
 >((_, { showSettingsDialog }) => {
   showSettingsDialog.set(false);
 });
@@ -571,7 +571,7 @@ const closeSettingsDialog = handler<
 // Set active tab for custom tab UI
 const setActiveTab = handler<
   unknown,
-  { activeTab: Cell<"dashboard" | "configure" | "import" | "selection">; tab: "dashboard" | "configure" | "import" | "selection" }
+  { activeTab: Writable<"dashboard" | "configure" | "import" | "selection">; tab: "dashboard" | "configure" | "import" | "selection" }
 >((_, { activeTab, tab }) => {
   activeTab.set(tab);
 });
@@ -579,7 +579,7 @@ const setActiveTab = handler<
 // Handle file upload change - extract text content from uploaded file
 const handleFileUploadChange = handler<
   { detail: { files: Array<{ data: string; name: string; type: string }> } },
-  { importText: Cell<string> }
+  { importText: Writable<string> }
 >((event, { importText }) => {
   const files = event?.detail?.files;
   if (!files || files.length === 0) return;
@@ -607,7 +607,7 @@ const handleFileUploadChange = handler<
 // Clear uploaded files
 const clearUploadedFiles = handler<
   unknown,
-  { uploadedFiles: Cell<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>> }
+  { uploadedFiles: Writable<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>> }
 >((_, { uploadedFiles }) => {
   uploadedFiles.set([]);
 });
@@ -618,7 +618,7 @@ type ImageData = { id: string; name: string; url: string; data: string; timestam
 // Handle image upload for OCR - extracts first image from the array
 const handleImageUploadForOcr = handler<
   { detail: { images: ImageData[] } },
-  { uploadedImageForOcr: Cell<ImageData | null> }
+  { uploadedImageForOcr: Writable<ImageData | null> }
 >(({ detail }, { uploadedImageForOcr }) => {
   if (!detail.images || detail.images.length === 0) return;
   // Get the most recently uploaded image
@@ -629,7 +629,7 @@ const handleImageUploadForOcr = handler<
 // Clear uploaded image for OCR
 const clearUploadedImageForOcr = handler<
   unknown,
-  { uploadedImageForOcr: Cell<ImageData | null> }
+  { uploadedImageForOcr: Writable<ImageData | null> }
 >((_, { uploadedImageForOcr }) => {
   uploadedImageForOcr.set(null);
 });
@@ -637,7 +637,7 @@ const clearUploadedImageForOcr = handler<
 // Copy OCR extracted text to import text field
 const copyOcrToImportText = handler<
   unknown,
-  { imageOcrResult: any; importText: Cell<string> }
+  { imageOcrResult: any; importText: Writable<string> }
 >((_, { imageOcrResult, importText }) => {
   // imageOcrResult is the reactive result object from generateObject
   const result = imageOcrResult?.get ? imageOcrResult.get() : imageOcrResult;
@@ -649,7 +649,7 @@ const copyOcrToImportText = handler<
 // Trigger class extraction from current import text
 const triggerExtraction = handler<
   unknown,
-  { importText: Cell<string>; extractionTriggerText: Cell<string> }
+  { importText: Writable<string>; extractionTriggerText: Writable<string> }
 >((_, { importText, extractionTriggerText }) => {
   const text = importText.get();
   if (text && text.trim().length >= 50) {
@@ -983,10 +983,10 @@ function generateSuggestedSets(
 
 interface ExtracurricularSelectorInput {
   // Child profile - flattened for two-way binding (Cell for $value binding)
-  childName: Cell<Default<string, "">>;
-  childGrade: Cell<Default<Grade, "K">>;
-  childBirthDate: Cell<Default<string, "">>;
-  childEligibilityNotes: Cell<Default<string, "">>;
+  childName: Writable<Default<string, "">>;
+  childGrade: Writable<Default<Grade, "K">>;
+  childBirthDate: Writable<Default<string, "">>;
+  childEligibilityNotes: Writable<Default<string, "">>;
   // Collections - Default<> because framework provides them as Cells automatically
   locations: Default<Location[], []>;
   travelTimes: Default<TravelTime[], []>;
@@ -998,7 +998,7 @@ interface ExtracurricularSelectorInput {
   classStatuses: Default<ClassStatus[], []>;
   pinnedSets: Default<PinnedSet[], []>;
   activePinnedSetId: Default<string, "">;
-  // Staged class selections - separate Cell<Record<id, boolean>> for writable checkbox state
+  // Staged class selections - separate Writable<Record<id, boolean>> for writable checkbox state
   // NOTE: stagedClasses Cell was removed - it was dead code (never populated, only cleared)
   // Actual staged classes are derived from extractionResult via processedStagedClasses computed
   // NOTE: We can't use $checked on array items from computed() - they become read-only
@@ -1006,8 +1006,8 @@ interface ExtracurricularSelectorInput {
   // Uses Default<> to ensure cell starts as {} (required for .key().set() to work)
   // Lazy defaults at read time: auto_kept → true, others → false
   stagedClassSelections: Default<Record<string, boolean>, {}>;
-  importText: Cell<Default<string, "">>;
-  importLocationId: Cell<Default<string, "">>;
+  importText: Writable<Default<string, "">>;
+  importLocationId: Writable<Default<string, "">>;
 }
 
 interface ExtracurricularSelectorOutput extends ExtracurricularSelectorInput {
@@ -1126,7 +1126,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
       // NOTE: No more stagedClasses.set([]) - that Cell was dead code
     };
 
-    // Note: Selection state uses separate stagedClassSelections Cell<Record<string, boolean>>
+    // Note: Selection state uses separate stagedClassSelections Writable<Record<string, boolean>>
     // because $checked on computed array items causes ReadOnlyAddressError
 
     // Settings dialog state - starts open by default, closes only when user manually closes
@@ -1177,7 +1177,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     });
 
     // Computed: location pairs for travel time editing
-    // Note: locations/travelTimes are Default<> inputs, not Cell<>, so access directly (no .get())
+    // Note: locations/travelTimes are Default<> inputs, not Writable<>, so access directly (no .get())
     // Defensive filtering: arrays may contain undefined elements due to framework quirks
     const locationPairs = computed(() => {
       const locs = (locations || []).filter((l) => l != null);
@@ -1364,7 +1364,7 @@ Return the complete extracted text.`
       // extractionResult is a generateObject result with .result, .pending, .error properties
       // Access via extractionResult directly - framework handles reactivity
       const extractionState = (extractionResult as any);
-      const locId = importLocationId.get();  // Cell<> - use .get()
+      const locId = importLocationId.get();  // Writable<> - use .get()
       const locs = locations;                // Default<> - access directly
       const tags = categoryTags;             // Default<> - access directly
 
@@ -2001,7 +2001,7 @@ Return the complete extracted text.`
     // Delete active set - need to get activeSetId at click time, so we create a wrapper handler
     const deleteActiveSetHandler = handler<
       unknown,
-      { pinnedSets: Cell<PinnedSet[]>; activePinnedSetId: Cell<string> }
+      { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string> }
     >((_, { pinnedSets, activePinnedSetId }) => {
       const activeId = activePinnedSetId.get();
       if (!activeId) return;

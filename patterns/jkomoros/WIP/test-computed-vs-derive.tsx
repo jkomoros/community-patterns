@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   derive,
@@ -55,7 +55,7 @@ type Output = Input & {
 // Handler to trigger computation
 const triggerCompute = handler<
   Record<string, never>,
-  { computeTrigger: Cell<number> }
+  { computeTrigger: Writable<number> }
 >(
   (_, { computeTrigger }) => {
     computeTrigger.set(computeTrigger.get() + 1);
@@ -65,7 +65,7 @@ const triggerCompute = handler<
 // Handler to toggle mode
 const toggleMode = handler<
   Record<string, never>,
-  { useDerive: Cell<boolean> }
+  { useDerive: Writable<boolean> }
 >(
   (_, { useDerive }) => {
     useDerive.set(!useDerive.get());
@@ -75,7 +75,7 @@ const toggleMode = handler<
 // Handler to update field
 const updateField = handler<
   { detail: { value: string } },
-  { field: Cell<string> }
+  { field: Writable<string> }
 >(
   ({ detail }, { field }) => {
     field.set(detail?.value ?? "");
@@ -103,7 +103,7 @@ const TestPattern = recipe<Input, Output>(
     computeTrigger,
   }) => {
     // Create a prompt that depends on the trigger (to force re-computation)
-    const promptBase = Cell.of<string>("Summarize the following fields concisely in one sentence:");
+    const promptBase = Writable.of<string>("Summarize the following fields concisely in one sentence:");
 
     // Construct the full prompt in a computed cell
     const fullPrompt = computed(() => {

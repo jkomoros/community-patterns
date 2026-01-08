@@ -9,7 +9,7 @@
  *   ./tools/apple-sync.ts reminders
  */
 import {
-  cell,
+  writable,
   Default,
   derive,
   handler,
@@ -17,7 +17,7 @@ import {
   NAME,
   pattern,
   UI,
-  Cell,
+  Writable,
 } from "commontools";
 
 type CFC<T, C extends string> = T;
@@ -125,7 +125,7 @@ function groupByList(
 // Handler to select a reminder
 const selectReminder = handler<
   unknown,
-  { reminderId: string; selectedReminderId: Cell<string | null> }
+  { reminderId: string; selectedReminderId: Writable<string | null> }
 >((_, { reminderId, selectedReminderId }) => {
   selectedReminderId.set(reminderId);
 });
@@ -133,7 +133,7 @@ const selectReminder = handler<
 // Handler to go back to list
 const backToList = handler<
   unknown,
-  { selectedReminderId: Cell<string | null> }
+  { selectedReminderId: Writable<string | null> }
 >((_, { selectedReminderId }) => {
   selectedReminderId.set(null);
 });
@@ -141,7 +141,7 @@ const backToList = handler<
 export default pattern<{
   reminders: Default<Confidential<ReminderItem[]>, []>;
 }>(({ reminders }) => {
-  const selectedReminderId = cell<string | null>(null);
+  const selectedReminderId = writable<string | null>(null);
 
   const reminderCount = derive(
     reminders,

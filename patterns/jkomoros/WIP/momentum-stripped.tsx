@@ -1,7 +1,7 @@
 /// <cts-enable />
 import {
-  Cell,
-  cell,
+  Writable,
+  writable,
   computed,
   Default,
   derive,
@@ -74,11 +74,11 @@ interface MomentumAnalysis {
 
 interface Input {
   repos?: Default<string[], []>; // List of "owner/repo" strings
-  authCharm?: Cell<{ token: string }>; // Optional linked auth charm
+  authCharm?: Writable<{ token: string }>; // Optional linked auth charm
 }
 
 interface Output {
-  repos: Cell<string[]>;
+  repos: Writable<string[]>;
 }
 
 // =============================================================================
@@ -149,7 +149,7 @@ function parseMultipleUrls(text: string): RepoReference[] {
 
 const addRepos = handler<
   unknown,
-  { repos: Cell<string[]>; inputText: Cell<string> }
+  { repos: Writable<string[]>; inputText: Writable<string> }
 >((_event, { repos, inputText }) => {
   const text = inputText.get();
   const parsed = parseMultipleUrls(text);
@@ -168,7 +168,7 @@ const addRepos = handler<
 
 const removeRepo = handler<
   unknown,
-  { repos: Cell<string[]>; repoName: Cell<string> | string }
+  { repos: Writable<string[]>; repoName: Writable<string> | string }
 >((_event, { repos, repoName }) => {
   const current = repos.get();
   // Handle both Cell<string> and plain string
@@ -178,7 +178,7 @@ const removeRepo = handler<
 
 const clearAllRepos = handler<
   unknown,
-  { repos: Cell<string[]> }
+  { repos: Writable<string[]> }
 >((_event, { repos }) => {
   repos.set([]);
 });
@@ -276,7 +276,7 @@ function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): Mome
 
 export default pattern<Input, Output>(({ repos, authCharm }) => {
   // Internal state
-  const inputText = cell<string>("");
+  const inputText = writable<string>("");
 
   // ==========================================================================
   // Authentication

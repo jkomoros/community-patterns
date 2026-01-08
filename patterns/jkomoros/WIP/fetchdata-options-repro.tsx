@@ -10,7 +10,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -29,11 +29,11 @@ interface Input {
 }
 
 interface Output {
-  ids: Cell<number[]>;
-  enableFetching: Cell<boolean>;
+  ids: Writable<number[]>;
+  enableFetching: Writable<boolean>;
 }
 
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -42,11 +42,11 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
   }
 );
 
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 
-const toggleFetching = handler<unknown, { enableFetching: Cell<boolean> }>(
+const toggleFetching = handler<unknown, { enableFetching: Writable<boolean> }>(
   (_, { enableFetching }) => {
     enableFetching.set(!enableFetching.get());
   }

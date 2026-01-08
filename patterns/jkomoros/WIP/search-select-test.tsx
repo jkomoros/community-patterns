@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
 import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
 
 // Test data - relationship types with groups
@@ -26,7 +26,7 @@ interface TestInput {
 
 export default pattern<TestInput>(({ initialSelected }) => {
   // Create the selected cell with initial values
-  const selected = Cell.of<string[]>(initialSelected || []);
+  const selected = Writable.of<string[]>(initialSelected || []);
 
   // Create the search-select instance
   const relationshipSelector = SearchSelect({

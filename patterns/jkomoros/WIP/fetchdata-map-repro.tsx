@@ -7,7 +7,7 @@
  */
 
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   fetchData,
@@ -28,12 +28,12 @@ interface Input {
 }
 
 interface Output {
-  ids: Cell<number[]>;
-  externalFlag: Cell<boolean>;
+  ids: Writable<number[]>;
+  externalFlag: Writable<boolean>;
 }
 
 // Handler to add a new ID
-const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
+const addId = handler<unknown, { ids: Writable<number[]>; newId: number }>(
   (_, { ids, newId }) => {
     const current = ids.get();
     if (!current.includes(newId)) {
@@ -43,12 +43,12 @@ const addId = handler<unknown, { ids: Cell<number[]>; newId: number }>(
 );
 
 // Handler to clear all
-const clearAll = handler<unknown, { ids: Cell<number[]> }>((_, { ids }) => {
+const clearAll = handler<unknown, { ids: Writable<number[]> }>((_, { ids }) => {
   ids.set([]);
 });
 
 // Handler to toggle external flag
-const toggleFlag = handler<unknown, { externalFlag: Cell<boolean> }>(
+const toggleFlag = handler<unknown, { externalFlag: Writable<boolean> }>(
   (_, { externalFlag }) => {
     externalFlag.set(!externalFlag.get());
   }

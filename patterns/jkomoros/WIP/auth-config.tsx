@@ -4,19 +4,19 @@
  * Simulates GitHubAuth - a pattern that itself has fetchData calls
  */
 
-import { Cell, computed, Default, fetchData, handler, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, fetchData, handler, NAME, pattern, UI } from "commontools";
 
 interface Input {
   token?: Default<string, "">;
 }
 
 interface Output {
-  token: Cell<string>;
-  isValid: Cell<boolean>;
-  userData: Cell<{ login: string } | null>;
+  token: Writable<string>;
+  isValid: Writable<boolean>;
+  userData: Writable<{ login: string } | null>;
 }
 
-const setToken = handler<unknown, { token: Cell<string>; value: string }>(
+const setToken = handler<unknown, { token: Writable<string>; value: string }>(
   (_, { token, value }) => {
     token.set(value);
   }

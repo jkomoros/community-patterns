@@ -1,6 +1,6 @@
 /// <cts-enable />
 import {
-  Cell,
+  Writable,
   Default,
   derive,
   handler,
@@ -45,7 +45,7 @@ interface ContextNoterInput {
 
 const setContextType = handler<
   unknown,
-  { currentContext: Cell<ContextItem>; type: ContextItem["type"] }
+  { currentContext: Writable<ContextItem>; type: ContextItem["type"] }
 >((_event, { currentContext, type }) => {
   const current = currentContext.get();
   currentContext.set({ ...current, type });
@@ -53,7 +53,7 @@ const setContextType = handler<
 
 const setContextTitle = handler<
   { detail: { message: string } },
-  { currentContext: Cell<ContextItem> }
+  { currentContext: Writable<ContextItem> }
 >((event, { currentContext }) => {
   const newTitle = event.detail?.message?.trim();
   if (newTitle) {
@@ -64,7 +64,7 @@ const setContextTitle = handler<
 
 const setContextContent = handler<
   { detail: { message: string } },
-  { currentContext: Cell<ContextItem> }
+  { currentContext: Writable<ContextItem> }
 >((event, { currentContext }) => {
   const newContent = event.detail?.message?.trim();
   if (newContent) {
@@ -75,7 +75,7 @@ const setContextContent = handler<
 
 const addNote = handler<
   { detail: { message: string } },
-  { notes: Cell<Note[]>; currentContext: Cell<ContextItem> }
+  { notes: Writable<Note[]>; currentContext: Writable<ContextItem> }
 >((event, { notes, currentContext }) => {
   const noteContent = event.detail?.message?.trim();
   if (noteContent) {
@@ -93,7 +93,7 @@ const addNote = handler<
 
 const removeNote = handler<
   unknown,
-  { notes: Cell<Note[]>; id: string }
+  { notes: Writable<Note[]>; id: string }
 >((_event, { notes, id }) => {
   notes.set(notes.get().filter(n => n.id !== id));
 });
@@ -122,7 +122,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
   );
 
   // Wish for contextual suggestions
-  const contextualSuggestion = wish<{ cell: Cell<any> }>({
+  const contextualSuggestion = wish<{ cell: Writable<any> }>({
     query: suggestionQuery,
     context: {
       contextType: contextType,

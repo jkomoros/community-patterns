@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Cell, Default, handler, NAME, recipe, str, UI } from "commontools";
+import { Writable, Default, handler, NAME, recipe, str, UI } from "commontools";
 
 /**
  * Test pattern for ct-tabs with $value cell binding
@@ -24,20 +24,20 @@ interface TabsTestOutput {
 // Handler for tab change event - increment change counter
 const onTabChange = handler<
   { value: string; oldValue: string },
-  { changeCount: Cell<number> }
+  { changeCount: Writable<number> }
 >((_, { changeCount }) => {
   changeCount.set((changeCount.get() || 0) + 1);
 });
 
 // Handler to programmatically switch to Tab 1
-const switchToTab1 = handler<unknown, { activeTab: Cell<string> }>(
+const switchToTab1 = handler<unknown, { activeTab: Writable<string> }>(
   (_, { activeTab }) => {
     activeTab.set("tab1");
   }
 );
 
 // Handler to programmatically switch to Tab 2
-const switchToTab2 = handler<unknown, { activeTab: Cell<string> }>(
+const switchToTab2 = handler<unknown, { activeTab: Writable<string> }>(
   (_, { activeTab }) => {
     activeTab.set("tab2");
   }

@@ -6,7 +6,7 @@
  * when using generateObject with computed values that read from input cells.
  */
 import {
-  Cell,
+  Writable,
   computed,
   Default,
   generateObject,
@@ -27,7 +27,7 @@ interface AnalysisResult {
 }
 
 interface ReproInput {
-  items?: Cell<Default<Item[], []>>;
+  items?: Writable<Default<Item[], []>>;
 }
 
 interface ReproOutput {
@@ -36,7 +36,7 @@ interface ReproOutput {
 
 export default pattern<ReproInput, ReproOutput>(({ items }) => {
   // Track analyzed count
-  const analyzedCount = Cell.of<number>(0);
+  const analyzedCount = Writable.of<number>(0);
 
   // Build prompt from items
   const analysisPrompt = computed(() => {

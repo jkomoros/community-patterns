@@ -12,7 +12,7 @@
  * Look for the generated schemas - the generic handler's input schema
  * will be missing fields that only exist in the type parameter.
  */
-import { Cell, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Writable, generateObject, handler, NAME, pattern, UI } from "commontools";
 
 // ============================================================================
 // ISSUE: Generic type parameters produce incomplete schemas
@@ -30,8 +30,8 @@ interface MyRecord {
 // BUT: The CTS compiler can't resolve T at compile time!
 function createGenericHandler<T extends { id: string }>() {
   return handler<
-    Omit<T, "id"> & { result?: Cell<any> },  // T is unknown to compiler!
-    { items: Cell<T[]> }
+    Omit<T, "id"> & { result?: Writable<any> },  // T is unknown to compiler!
+    { items: Writable<T[]> }
   >((input, state) => {
     // This works at RUNTIME - input has the fields
     // But LLM never gets the schema to know what fields to send!
@@ -73,8 +73,8 @@ const explicitSchemaHandler = handler(
     required: ["items"],
   },
   // CALLBACK
-  (input: { name: string; category: string; priority: number; result?: Cell<any> },
-   state: { items: Cell<MyRecord[]> }) => {
+  (input: { name: string; category: string; priority: number; result?: Writable<any> },
+   state: { items: Writable<MyRecord[]> }) => {
     const items = state.items.get() || [];
     const id = `item-${Date.now()}`;
     const newItem: MyRecord = {
@@ -97,8 +97,8 @@ const explicitSchemaHandler = handler(
 // ============================================================================
 
 interface Input {
-  itemsGeneric: Cell<MyRecord[]>;
-  itemsExplicit: Cell<MyRecord[]>;
+  itemsGeneric: Writable<MyRecord[]>;
+  itemsExplicit: Writable<MyRecord[]>;
   testPrompt: string;
 }
 
