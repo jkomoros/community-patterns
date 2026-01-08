@@ -105,10 +105,10 @@ const Note = recipe<Input, Output>(
     const mentionable = wish<Default<MentionableCharm[], []>>(
       "#mentionable",
     );
-    const mentioned = Cell.of<MentionableCharm[]>([]);
+    const mentioned = Writable.of<MentionableCharm[]>([]);
 
     // populated in backlinks-index.tsx
-    const backlinks = Cell.of<MentionableCharm[]>([]);
+    const backlinks = Writable.of<MentionableCharm[]>([]);
 
     // The only way to serialize a pattern, apparently?
     const pattern = computed(() => JSON.stringify(Note));

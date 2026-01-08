@@ -181,9 +181,9 @@ export default pattern<Input, Output>(({ draft }) => {
   });
 
   // UI state
-  const showConfirmation = Cell.of(false);
-  const sending = Cell.of(false);
-  const result = Cell.of<SendResult | null>(null);
+  const showConfirmation = Writable.of(false);
+  const sending = Writable.of(false);
+  const result = Writable.of<SendResult | null>(null);
 
   // Validation
   const canSend = computed(() =>

@@ -13,7 +13,6 @@
  * 4. Does the token actually refresh?
  */
 import {
-  writable,
   Writable,
   Default,
   derive,

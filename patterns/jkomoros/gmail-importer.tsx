@@ -682,11 +682,11 @@ export default pattern<{
   }>;
 }, Output>(
   ({ settings }) => {
-    const emails = Cell.of<Confidential<Email[]>>([]);
-    const fetching = Cell.of(false);
+    const emails = Writable.of<Confidential<Email[]>>([]);
+    const fetching = Writable.of(false);
 
     // Local writable cell for account type selection
-    const selectedAccountType = Cell.of<AccountType>("default");
+    const selectedAccountType = Writable.of<AccountType>("default");
 
     // Handler to change account type
     const setAccountType = handler<

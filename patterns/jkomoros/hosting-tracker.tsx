@@ -24,7 +24,6 @@ import {
   UI,
   wish,
   Writable,
-  writable,
 } from "commontools";
 import Family from "./family.tsx";
 import CalendarViewer from "./calendar-viewer.tsx";

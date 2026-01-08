@@ -436,10 +436,10 @@ interface Output {
 
 const GoogleCalendarImporter = pattern<GoogleCalendarImporterInput, Output>(
   ({ settings }) => {
-    const events = Cell.of<Confidential<CalendarEvent[]>>([]);
-    const calendars = Cell.of<Calendar[]>([]);
-    const fetching = Cell.of(false);
-    const currentPage = Cell.of(0);
+    const events = Writable.of<Confidential<CalendarEvent[]>>([]);
+    const calendars = Writable.of<Calendar[]>([]);
+    const fetching = Writable.of(false);
+    const currentPage = Writable.of(0);
     const PAGE_SIZE = 10;
 
     // Use createGoogleAuth utility for auth management
