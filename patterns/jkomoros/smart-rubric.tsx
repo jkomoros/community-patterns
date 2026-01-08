@@ -25,7 +25,7 @@ import {
  * - Changing dimension weights and values
  * - Editing option values for dimensions via detail pane
  * - Manual ranking with up/down buttons using boxing pattern
- * - equals() for Writable identity comparison
+ * - equals() standalone function for Writable identity comparison
  * - LLM-powered Quick Add: describe an option, get extracted dimension values
  */
 
@@ -111,7 +111,7 @@ const SmartRubric = pattern<RubricInput, RubricOutput>(
     // Build system prompt with current dimensions using derive for reactivity
     const quickAddSystemPrompt = derive(
       { dims: dimensions },
-      ({ dims }) => {
+      ({ dims }: { dims: Dimension[] }) => {
         if (dims.length === 0) {
           return `You are helping extract information for a decision rubric.
 There are no dimensions defined yet. Extract a suitable name for the option and suggest what dimensions might be useful.`;
@@ -162,8 +162,8 @@ Be precise with categorical values - use exact label matches.`;
     const calculateScore = (option: RubricOption) => {
       let totalScore = 0;
 
-      // Get array value from Cell
-      const dimensionsArray = dimensions.get();
+      // Cell arrays are iterable - spread to get array value
+      const dimensionsArray = [...dimensions];
 
       dimensionsArray.forEach(dim => {
         const valueRecord = option.values.find(v => v.dimensionName === dim.name);
@@ -264,7 +264,7 @@ Be precise with categorical values - use exact label matches.`;
 
     const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>(
       (_, { dimensions }) => {
-        const count = dimensions.get().length + 1;
+        const count = [...dimensions.get()].length + 1;
         const isEven = count % 2 === 0;
 
         if (isEven) {
@@ -298,11 +298,15 @@ Be precise with categorical values - use exact label matches.`;
 
     const changeDimensionMultiplier = handler<
       unknown,
-      { dimension: Writable<Dimension>, delta: number }
+      { dimensionsCell: Writable<Dimension[]>, dimensionName: string, delta: number }
     >(
-      (_, { dimension, delta }) => {
-        const current = dimension.key("multiplier").get();
-        dimension.key("multiplier").set(Math.max(0.1, current + delta));
+      (_, { dimensionsCell, dimensionName, delta }) => {
+        const dims = [...dimensionsCell.get()];
+        const index = dims.findIndex((d: Dimension) => d.name === dimensionName);
+        if (index < 0) return;
+        const current = dims[index].multiplier;
+        const updated = { ...dims[index], multiplier: Math.max(0.1, current + delta) };
+        dimensionsCell.set(dims.toSpliced(index, 1, updated));
       }
     );
 
@@ -380,7 +384,7 @@ Be precise with categorical values - use exact label matches.`;
     );
 
     // ========================================================================
-    // Manual Ranking Handlers - Using .equals() instance method for comparison
+    // Manual Ranking Handlers - Using equals() for comparison
     // ========================================================================
 
     const moveOptionUp = handler<
@@ -389,7 +393,7 @@ Be precise with categorical values - use exact label matches.`;
     >(
       (_, { optionCell, optionsCell }) => {
         const opts = optionsCell.get();
-        // Use .equals() instance method for proper Cell comparison
+        // Use equals() for proper Cell comparison
         const index = opts.findIndex(opt => equals(opt, optionCell));
 
         if (index <= 0) return; // Already at top or not found
@@ -412,7 +416,7 @@ Be precise with categorical values - use exact label matches.`;
     >(
       (_, { optionCell, optionsCell }) => {
         const opts = optionsCell.get();
-        // Use .equals() instance method for proper Cell comparison
+        // Use equals() for proper Cell comparison
         const index = opts.findIndex(opt => equals(opt, optionCell));
 
         if (index < 0 || index >= opts.length - 1) return; // Already at bottom or not found
@@ -639,7 +643,7 @@ Be precise with categorical values - use exact label matches.`;
                   const optionName = derive(optionCell, (opt: RubricOption) => opt.name);
                   const isSelected = derive(
                     { selected: selection, name: optionName },
-                    ({ selected, name }) => selected.value === name
+                    ({ selected, name }: { selected: SelectionState; name: string }) => selected.value === name
                   );
                   const hasManualRank = derive(optionCell, (opt: RubricOption) => opt.manualRank !== null);
 
@@ -647,9 +651,9 @@ Be precise with categorical values - use exact label matches.`;
                     <div
                       style={{
                         padding: "0.75rem",
-                        border: derive(isSelected, (sel) => sel ? "2px solid #007bff" : "1px solid #ddd"),
+                        border: derive(isSelected, (sel: boolean) => sel ? "2px solid #007bff" : "1px solid #ddd"),
                         borderRadius: "4px",
-                        background: derive(isSelected, (sel) => sel ? "#e7f3ff" : "white"),
+                        background: derive(isSelected, (sel: boolean) => sel ? "#e7f3ff" : "white"),
                         transition: "all 0.2s",
                       }}
                     >
@@ -699,9 +703,9 @@ Be precise with categorical values - use exact label matches.`;
                             fontWeight: "bold",
                             color: "#007bff",
                           }}>
-                            {derive(score, (s) => s.toFixed(1))}
+                            {derive(score, (s: number) => s.toFixed(1))}
                           </span>
-                          {derive(hasManualRank, (manual) =>
+                          {derive(hasManualRank, (manual: boolean) =>
                             manual ? (
                               <span style={{
                                 fontSize: "0.8em",
@@ -727,7 +731,7 @@ Be precise with categorical values - use exact label matches.`;
             >
               {derive(
                 { selectedState: selection, opts: options, dims: dimensions },
-                ({ selectedState, opts, dims }) => {
+                ({ selectedState, opts, dims }: { selectedState: SelectionState; opts: RubricOption[]; dims: Dimension[] }) => {
                   // Inside derive(), opts is unwrapped to RubricOption[] (plain objects)
                   // No .get() needed - access properties directly
                   const selectedData = selectedState.value
@@ -924,10 +928,10 @@ Be precise with categorical values - use exact label matches.`;
                       <span style={{ marginRight: "0.5rem" }}>
                         Weight: {dim.multiplier.toFixed(1)}×
                       </span>
-                      <ct-button onClick={changeDimensionMultiplier({ dimension: dim, delta: -0.5 })}>
+                      <ct-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: -0.5 })}>
                         -
                       </ct-button>
-                      <ct-button onClick={changeDimensionMultiplier({ dimension: dim, delta: 0.5 })}>
+                      <ct-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: 0.5 })}>
                         +
                       </ct-button>
                     </ct-hstack>

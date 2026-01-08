@@ -4,7 +4,6 @@ import {
   Writable,
   computed,
   Default,
-  derive,
   handler,
   llmDialog,
   NAME,
@@ -117,7 +116,7 @@ const listCreatedCharms = handler<
     return "No charms created yet.";
   } else {
     return `Created charms:\n${
-      charms.map((c, i) => `${i + 1}. ${c}`).join("\n")
+      charms.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")
     }`;
   }
 });
@@ -309,7 +308,7 @@ Execute the instructions by calling the appropriate tools immediately, then conf
                   }
                   return (
                     <ct-vstack gap="1">
-                      {charms.map((charm) => <ct-text>• {charm}</ct-text>)}
+                      {charms.map((charm: string) => <ct-text>• {charm}</ct-text>)}
                     </ct-vstack>
                   );
                 })}

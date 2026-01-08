@@ -15,7 +15,7 @@
  * via a modal dialog that shows exactly what will be exported. This pattern
  * serves as a declassification gate for future policy-based trust systems.
  */
-import { Writable, computed, Default, derive, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, derive, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 import {
   generateICS,
   generateEventUID,
@@ -571,7 +571,7 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     const setLocationIndex = handler<
       { target: { value: string } },
       { idx: Writable<number> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { idx: Writable<number> }) => {
       state.idx.set(parseInt(event.target.value, 10));
     });
 
@@ -743,7 +743,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const doImportAll = handler<
       unknown,
       { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }
-    >((_, { locIdx, locs, classList, staged, trigger, text, lastText, semester }) => {
+    >((_: unknown, { locIdx, locs, classList, staged, trigger, text, lastText, semester }: { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }) => {
       const locationIndex = locIdx.get();
       const locationList = locs.get();
       if (locationIndex < 0 || locationIndex >= locationList.length) return;
@@ -823,7 +823,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const toggleStagedSelection = handler<
       unknown,
       { staged: Writable<StagedClass[]>; idx: number }
-    >((_, { staged, idx }) => {
+    >((_: unknown, { staged, idx }: { staged: Writable<StagedClass[]>; idx: number }) => {
       const current = staged.get();
       if (idx < 0 || idx >= current.length) return;
       // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
@@ -837,7 +837,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
       statusKey: keyof StatusFlags
     ) => {
       const current = classList.get();
-      const index = current.findIndex((el) => Cell.equals(cls, el));
+      const index = current.findIndex((el: Class) => equals(cls, el));
       if (index >= 0) {
         // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
         classList.key(index).key("statuses").key(statusKey).set(
@@ -853,7 +853,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const updateClassField = handler<
       { target: { value: string } },
       { classList: Writable<Class[]>; idx: number; field: keyof Class }
-    >((event, { classList, idx, field }) => {
+    >((event: { target: { value: string } }, { classList, idx, field }: { classList: Writable<Class[]>; idx: number; field: keyof Class }) => {
       const current = classList.get();
       if (idx < 0 || idx >= current.length) return;
       classList.key(idx).key(field).set(event.target.value);
@@ -863,7 +863,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const updateClassTimeSlot = handler<
       { target: { value: string } },
       { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
-    >((event, { classList, classIdx, slotIdx, field }) => {
+    >((event: { target: { value: string } }, { classList, classIdx, slotIdx, field }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }) => {
       const current = classList.get();
       if (classIdx < 0 || classIdx >= current.length) return;
       const cls = current[classIdx];
@@ -875,7 +875,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const addClassTimeSlot = handler<
       unknown,
       { classList: Writable<Class[]>; idx: number }
-    >((_, { classList, idx }) => {
+    >((_: unknown, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
       const current = classList.get();
       if (idx < 0 || idx >= current.length) return;
       const cls = current[idx];
@@ -887,12 +887,12 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const removeClassTimeSlot = handler<
       unknown,
       { classList: Writable<Class[]>; classIdx: number; slotIdx: number }
-    >((_, { classList, classIdx, slotIdx }) => {
+    >((_: unknown, { classList, classIdx, slotIdx }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number }) => {
       const current = classList.get();
       if (classIdx < 0 || classIdx >= current.length) return;
       const cls = current[classIdx];
       if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
-      const newSlots = cls.timeSlots.filter((_, i) => i !== slotIdx);
+      const newSlots = cls.timeSlots.filter((_: TimeSlot, i: number) => i !== slotIdx);
       classList.key(classIdx).key("timeSlots").set(newSlots);
     });
 
@@ -900,7 +900,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const updateClassLocation = handler<
       { target: { value: string } },
       { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }
-    >((event, { classList, locs, classIdx }) => {
+    >((event: { target: { value: string } }, { classList, locs, classIdx }: { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }) => {
       const locIdx = parseInt(event.target.value, 10);
       const locList = locs.get();
       if (locIdx < 0 || locIdx >= locList.length) return;
@@ -911,7 +911,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const updateClassCost = handler<
       { target: { value: string } },
       { classList: Writable<Class[]>; idx: number }
-    >((event, { classList, idx }) => {
+    >((event: { target: { value: string } }, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
       const cost = parseFloat(event.target.value) || 0;
       classList.key(idx).key("cost").set(cost);
     });
@@ -920,7 +920,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const setChildGrade = handler<
       { target: { value: string } },
       { childCell: Writable<ChildProfile> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, grade: event.target.value as Grade });
     });
@@ -929,7 +929,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const setChildName = handler<
       { target: { value: string } },
       { childCell: Writable<ChildProfile> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
       const current = state.childCell.get();
       state.childCell.set({ ...current, name: event.target.value });
     });
@@ -938,7 +938,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const setChildBirthYear = handler<
       { target: { value: string } },
       { childCell: Writable<ChildProfile> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
       const current = state.childCell.get();
       const year = parseInt(event.target.value, 10);
       if (!isNaN(year)) {
@@ -950,7 +950,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const setChildBirthMonth = handler<
       { target: { value: string } },
       { childCell: Writable<ChildProfile> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
       const current = state.childCell.get();
       const month = parseInt(event.target.value, 10);
       if (!isNaN(month) && month >= 1 && month <= 12) {
@@ -1018,7 +1018,13 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
         processingStatus: Writable<ProcessingStatus>;
         ocrText: string | null;
       }
-    >((_, { extractedText, importText, uploadedFile, processingStatus, ocrText }) => {
+    >((_: unknown, { extractedText, importText, uploadedFile, processingStatus, ocrText }: {
+      extractedText: Writable<string>;
+      importText: Writable<string>;
+      uploadedFile: Writable<FileData | null>;
+      processingStatus: Writable<ProcessingStatus>;
+      ocrText: string | null;
+    }) => {
       // Use extracted text from file, or OCR result from image
       const text = extractedText.get() || ocrText || "";
       if (text) {
@@ -1039,7 +1045,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
         processingStatus: Writable<ProcessingStatus>;
         extractionError: Writable<string | null>;
       }
-    >((_, { uploadedFile, extractedText, processingStatus, extractionError }: {
+    >((_: unknown, { uploadedFile, extractedText, processingStatus, extractionError }: {
       uploadedFile: Writable<FileData | null>;
       extractedText: Writable<string>;
       processingStatus: Writable<ProcessingStatus>;
@@ -1126,13 +1132,13 @@ Return all visible text.`
     // Import button state - pre-computed to avoid reactive context issues in JSX
     // DEFENSIVE: Filter out undefined entries during hydration
     const importButtonDisabled = computed(() => {
-      const selCount = stagedClasses.get().filter(s => s && s.selected).length;
+      const selCount = stagedClasses.get().filter((s: StagedClass) => s && s.selected).length;
       const locIdx = importLocationIndex.get();
       return selCount === 0 || locIdx < 0;
     });
     const importButtonText = computed(() => {
       const locIdx = importLocationIndex.get();
-      const selCount = stagedClasses.get().filter(s => s && s.selected).length;
+      const selCount = stagedClasses.get().filter((s: StagedClass) => s && s.selected).length;
       return locIdx < 0 ? "Select a location to import" : `Import ${selCount} Selected Classes`;
     });
 
@@ -1240,7 +1246,7 @@ Return all visible text.`
 
       // Collect slots with timing info
       // DEFENSIVE: Skip undefined entries that may appear during hydration
-      pinned.forEach((cls) => {
+      pinned.forEach((cls: Class) => {
         if (!cls) return; // Skip undefined during hydration
         const color = getLocationColor(cls.location?.name || "");
         for (const slot of cls.timeSlots || []) {
@@ -1318,7 +1324,7 @@ Return all visible text.`
     const setActiveSet = handler<
       { target: { value: string } },
       { activeCell: Writable<string> }
-    >((event, state) => {
+    >((event: { target: { value: string } }, state: { activeCell: Writable<string> }) => {
       state.activeCell.set(event.target.value);
     });
 
@@ -1326,7 +1332,7 @@ Return all visible text.`
     const togglePinClass = handler<
       unknown,
       { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }
-    >((_, { classList, activeSet, idx }) => {
+    >((_: unknown, { classList, activeSet, idx }: { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }) => {
       const current = classList.get();
       const setName = activeSet.get();
       if (idx < 0 || idx >= current.length) return;
@@ -1533,7 +1539,7 @@ Return all visible text.`
           title: cls.name,
           location: cls.location?.name,
           description: cls.description || undefined,
-          timeSlots: cls.timeSlots.filter(slot => slot != null).map((slot) => ({
+          timeSlots: cls.timeSlots.filter((slot: TimeSlot) => slot != null).map((slot: TimeSlot) => ({
             day: slot.day,
             startTime: slot.startTime,
             endTime: slot.endTime,
@@ -1553,7 +1559,7 @@ Return all visible text.`
     const prepareCalendarExport = handler<
       unknown,
       {
-        pinnedClasses: Writable<Class[]>;
+        pinnedClasses: Class[];
         semesterDates: Writable<SemesterDates>;
         child: Writable<ChildProfile>;
         activeSetName: Writable<string>;
@@ -1561,9 +1567,17 @@ Return all visible text.`
         pendingExport: Writable<PendingCalendarExport>;
         outbox: Writable<CalendarOutbox>;
       }
-    >((_, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }) => {
-      // Get values from cells (no deep cloning needed - we only read, not mutate)
-      const classList = pinnedClasses.get() || [];
+    >((_: unknown, { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox }: {
+      pinnedClasses: Class[];
+      semesterDates: Writable<SemesterDates>;
+      child: Writable<ChildProfile>;
+      activeSetName: Writable<string>;
+      calendarName: Writable<string>;
+      pendingExport: Writable<PendingCalendarExport>;
+      outbox: Writable<CalendarOutbox>;
+    }) => {
+      // pinnedClasses is a computed cell - handler receives unwrapped value (not cell)
+      const classList = pinnedClasses || [];
       const semester = semesterDates.get() || { startDate: "", endDate: "" };
       const childProfile = child.get() || { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
       const setName = activeSetName.get() || "default";
@@ -1587,11 +1601,11 @@ Return all visible text.`
       // DEFENSIVE: Filter undefined entries/events during hydration
       const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
       const existingUIDs = new Set(
-        (currentOutbox.entries || []).filter(entry => entry != null).flatMap(entry =>
-          (entry.events || []).filter(e => e != null).map(e => e.id)
+        (currentOutbox.entries || []).filter((entry: CalendarOutboxEntry) => entry != null).flatMap((entry: CalendarOutboxEntry) =>
+          (entry.events || []).filter((e: CalendarOutboxEvent) => e != null).map((e: CalendarOutboxEvent) => e.id)
         )
       );
-      const newEvents = outboxResult.events.filter(e => e != null && !existingUIDs.has(e.id));
+      const newEvents = outboxResult.events.filter((e: CalendarOutboxEvent) => e != null && !existingUIDs.has(e.id));
       const duplicateCount = outboxResult.events.length - newEvents.length;
 
       // Combine skipped items from both conversions (deduplicate)
@@ -1629,7 +1643,7 @@ Return all visible text.`
     const cancelCalendarExport = handler<
       unknown,
       { pendingExport: Writable<PendingCalendarExport> }
-    >((_, { pendingExport }) => {
+    >((_: unknown, { pendingExport }: { pendingExport: Writable<PendingCalendarExport> }) => {
       pendingExport.set(null);
     });
 
@@ -1639,7 +1653,7 @@ Return all visible text.`
     const selectExportTarget = handler<
       unknown,
       { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }
-    >((_, { pendingExport, target }) => {
+    >((_: unknown, { pendingExport, target }: { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }) => {
       const pending = pendingExport.get();
       if (!pending) return;
       pendingExport.set({ ...pending, selectedTarget: target });
@@ -1664,7 +1678,15 @@ Return all visible text.`
         outbox: Writable<CalendarOutbox>;
         auth: Writable<GoogleAuthType>;
       }
-    >(async (_, { pendingExport, processing, progress, result, classList, outbox, auth }) => {
+    >(async (_: unknown, { pendingExport, processing, progress, result, classList, outbox, auth }: {
+      pendingExport: Writable<PendingCalendarExport>;
+      processing: Writable<boolean>;
+      progress: Writable<CalendarExportProgress>;
+      result: Writable<CalendarExportResult>;
+      classList: Writable<Class[]>;
+      outbox: Writable<CalendarOutbox>;
+      auth: Writable<GoogleAuthType>;
+    }) => {
       const pending = pendingExport.get();
       if (!pending || !pending.selectedTarget) return;
 
@@ -1720,7 +1742,7 @@ Return all visible text.`
                 displayedTimeRange: `${pending.semester?.startDate || ""} to ${pending.semester?.endDate || ""}`,
                 displayedEventCount: pending.eventCount,
                 // DEFENSIVE: Filter undefined during hydration
-                displayedClasses: pending.classes.filter(c => c != null).map((c) => c.name),
+                displayedClasses: pending.classes.filter((c: Class) => c != null).map((c: Class) => c.name),
                 warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
               },
               sourcePattern: {
@@ -1783,7 +1805,7 @@ Return all visible text.`
           for (let i = 0; i < currentClasses.length; i++) {
             const cls = currentClasses[i];
             const wasExported = pending.classes.some(
-              (exportedCls) => Cell.equals(cls, exportedCls)
+              (exportedCls: Class) => equals(cls, exportedCls)
             );
             if (wasExported && !cls.statuses?.onCalendar) {
               classList.key(i).key("statuses").key("onCalendar").set(true);
@@ -1823,7 +1845,7 @@ Return all visible text.`
     const dismissExportResult = handler<
       unknown,
       { result: Writable<CalendarExportResult> }
-    >((_, { result }) => {
+    >((_: unknown, { result }: { result: Writable<CalendarExportResult> }) => {
       result.set(null);
     });
 
@@ -1846,7 +1868,7 @@ Return all visible text.`
     const toggleCalendarExport = handler<
       unknown,
       { expanded: Writable<boolean> }
-    >((_, { expanded }) => {
+    >((_: unknown, { expanded }: { expanded: Writable<boolean> }) => {
       expanded.set(!expanded.get());
     });
 
@@ -1854,7 +1876,7 @@ Return all visible text.`
     const setSemesterStart = handler<
       { detail: { value: string } },
       { dates: Writable<SemesterDates> }
-    >((event, { dates }) => {
+    >((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
       const current = dates.get();
       dates.set({ ...current, startDate: event.detail.value });
     });
@@ -1862,7 +1884,7 @@ Return all visible text.`
     const setSemesterEnd = handler<
       { detail: { value: string } },
       { dates: Writable<SemesterDates> }
-    >((event, { dates }) => {
+    >((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
       const current = dates.get();
       dates.set({ ...current, endDate: event.detail.value });
     });
@@ -1871,7 +1893,7 @@ Return all visible text.`
     const setCalendarName = handler<
       { detail: { value: string } },
       { name: Writable<string> }
-    >((event, { name }) => {
+    >((event: { detail: { value: string } }, { name }: { name: Writable<string> }) => {
       name.set(event.detail.value);
     });
 
@@ -1967,7 +1989,7 @@ Return all visible text.`
                   value={(activeSetName as any) || ""}
                   onChange={setActiveSet({ activeCell: activeSetName })}
                 >
-                  {pinnedSetNames.map((name) => (
+                  {pinnedSetNames.map((name: string) => (
                     <option value={name}>{displaySetName(name)}</option>
                   ))}
                 </select>
@@ -1990,9 +2012,9 @@ Return all visible text.`
             </div>
 
             {/* Pinned classes in active set */}
-            {derive({ pinnedClasses, displayActiveSetName }, ({ pinnedClasses: pinned, displayActiveSetName: displayName }) => {
+            {derive({ pinnedClasses, displayActiveSetName }, ({ pinnedClasses: pinned, displayActiveSetName: displayName }: { pinnedClasses: Class[]; displayActiveSetName: string }) => {
               // DEFENSIVE: Filter out undefined entries that may appear during hydration
-              const list = (pinned as Class[]).filter(cls => cls != null);
+              const list = pinned.filter((cls: Class) => cls != null);
               if (!list || list.length === 0) {
                 return (
                   <p style={{ color: "#666", fontStyle: "italic" }}>
@@ -2074,7 +2096,7 @@ Return all visible text.`
                     <div style={{ width: "50px", flexShrink: 0, borderRight: "1px solid #e0e0e0", background: "#fafafa" }}>
                       <div style={{ height: "30px", borderBottom: "1px solid #e0e0e0" }} />
                       <div style={{ position: "relative", height: `${totalHeight}px` }}>
-                        {hourLabels.map(({ hour, label }) => (
+                        {hourLabels.map(({ hour, label }: { hour: number; label: string }) => (
                           <div
                             style={{
                               position: "absolute",
@@ -2091,7 +2113,7 @@ Return all visible text.`
                     </div>
 
                     {/* Day columns - now uses precomputed data, no filtering or indexOf */}
-                    {SCHEDULE_DAYS.map((day) => {
+                    {SCHEDULE_DAYS.map((day: DayOfWeek) => {
                       // Get precomputed slots for this day (O(1) lookup)
                       const daySlots = data[day] || [];
 
@@ -2117,7 +2139,7 @@ Return all visible text.`
                           {/* Time grid */}
                           <div style={{ position: "relative", height: `${totalHeight}px`, background: "#fff" }}>
                             {/* Hour lines */}
-                            {hourLabels.slice(0, -1).map(({ hour }) => (
+                            {hourLabels.slice(0, -1).map(({ hour }: { hour: number; label: string }) => (
                               <div
                                 style={{
                                   position: "absolute",
@@ -2130,7 +2152,7 @@ Return all visible text.`
                             ))}
 
                             {/* Classes for this day - using precomputed positions, colors, and overlap columns */}
-                            {daySlots.map(({ cls, slot, color, top, height, column, totalColumns }) => {
+                            {daySlots.map(({ cls, slot, color, top, height, column, totalColumns }: ScheduleSlotData) => {
                               // DEFENSIVE: Skip undefined during hydration
                               if (!cls || !slot) return null;
                               // Calculate horizontal position based on overlap columns
@@ -2178,7 +2200,7 @@ Return all visible text.`
             {/* Export to Calendar Section - Collapsible */}
             <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#fff8e1", border: "1px solid #ffc107", borderRadius: "4px" }}>
               <h4
-                style={{ marginBottom: derive(calendarExportExpanded, (exp) => exp ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                style={{ marginBottom: derive(calendarExportExpanded, (exp: boolean) => exp ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
                 onClick={toggleCalendarExport({ expanded: calendarExportExpanded })}
               >
                 {ifElse(calendarExportExpanded, <span>▼</span>, <span>▶</span>)}
@@ -2233,12 +2255,12 @@ Return all visible text.`
                   {/* Export button */}
                   <ct-button
                     variant="primary"
-                    disabled={derive(canExportCalendar, (can) => !can)}
+                    disabled={derive(canExportCalendar, (can: boolean) => !can)}
                     style={{
-                      opacity: derive(canExportCalendar, (can) => can ? 1 : 0.5),
+                      opacity: derive(canExportCalendar, (can: boolean) => can ? 1 : 0.5),
                     }}
                     onClick={prepareCalendarExport({
-                      pinnedClasses: pinnedClasses as unknown as Writable<Class[]>,
+                      pinnedClasses: pinnedClasses as Class[],
                       semesterDates,
                       child,
                       activeSetName,
@@ -2252,15 +2274,13 @@ Return all visible text.`
 
                   {/* Validation message */}
                   {ifElse(
-                    derive(canExportCalendar, (can) => !can),
+                    derive(canExportCalendar, (can: boolean) => !can),
                     <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
-                      {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }) => {
-                        const p = pinned as unknown as Class[];
-                        const s = semester as unknown as SemesterDates;
-                        if (!p || p.length === 0) return "Pin some classes to export";
-                        if (!s.startDate) return "Set semester start date";
-                        if (!s.endDate) return "Set semester end date";
-                        if (s.startDate > s.endDate) return "End date must be after start date";
+                      {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }: { pinned: Class[]; semester: SemesterDates }) => {
+                        if (!pinned || pinned.length === 0) return "Pin some classes to export";
+                        if (!semester.startDate) return "Set semester start date";
+                        if (!semester.endDate) return "Set semester end date";
+                        if (semester.startDate > semester.endDate) return "End date must be after start date";
                         return "";
                       })}
                     </p>,
@@ -2442,7 +2462,7 @@ Return all visible text.`
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                         {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
                           // DEFENSIVE: Filter out undefined during hydration
-                          (p?.classes || []).filter(c => c != null).map((cls: Class) => (
+                          (p?.classes || []).filter((c: Class) => c != null).map((cls: Class) => (
                             <span
                               style={{
                                 background: "white",
@@ -2454,7 +2474,7 @@ Return all visible text.`
                             >
                               {cls.name}
                               <span style={{ color: "#888", marginLeft: "4px" }}>
-                                ({(cls.timeSlots || []).filter(s => s != null).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
+                                ({(cls.timeSlots || []).filter((s: TimeSlot) => s != null).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
                               </span>
                             </span>
                           ))
@@ -2484,7 +2504,7 @@ Return all visible text.`
                         </div>
                         <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#7f1d1d" }}>
                           {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            (p?.skippedItems || []).slice(0, 5).map((item) => (
+                            (p?.skippedItems || []).slice(0, 5).map((item: { className: string; reason: string }) => (
                               <li>{item.className}: {item.reason}</li>
                             ))
                           )}
@@ -2528,11 +2548,11 @@ Return all visible text.`
                           background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
                             p?.selectedTarget === "google" ? "#e8f0fe" : "white"
                           ),
-                          cursor: derive(googleAuthManager.isReady, (ready) => ready ? "pointer" : "not-allowed"),
+                          cursor: derive(googleAuthManager.isReady, (ready: boolean) => ready ? "pointer" : "not-allowed"),
                           textAlign: "left",
-                          opacity: derive(googleAuthManager.isReady, (ready) => ready ? 1 : 0.5),
+                          opacity: derive(googleAuthManager.isReady, (ready: boolean) => ready ? 1 : 0.5),
                         }}
-                        disabled={derive(googleAuthManager.isReady, (ready) => !ready)}
+                        disabled={derive(googleAuthManager.isReady, (ready: boolean) => !ready)}
                       >
                         <span style={{ fontSize: "24px" }}>📅</span>
                         <div style={{ flex: 1 }}>
@@ -2540,10 +2560,10 @@ Return all visible text.`
                           <div style={{ fontSize: "12px", color: "#666" }}>
                             {ifElse(
                               googleAuthManager.isReady,
-                              derive(googleAuthManager.currentEmail, (email) =>
+                              derive(googleAuthManager.currentEmail, (email: string | null) =>
                                 `Export to ${email || "your Google Calendar"}`
                               ),
-                              derive(googleAuthManager.currentState, (state) =>
+                              derive(googleAuthManager.currentState, (state: string) =>
                                 state === "loading" ? "Loading..." :
                                 state === "not-found" ? "Create a Google Auth charm first" :
                                 state === "selecting" ? "Select an account above" :
@@ -2721,14 +2741,14 @@ Return all visible text.`
                     disabled={exportButtonDisabled}
                     style={{
                       padding: "10px 20px",
-                      background: derive(exportButtonDisabled, (disabled) => disabled ? "#d1d5db" : "#f59e0b"),
+                      background: derive(exportButtonDisabled, (disabled: boolean) => disabled ? "#d1d5db" : "#f59e0b"),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: derive(exportButtonDisabled, (disabled) => disabled ? "not-allowed" : "pointer"),
-                      opacity: derive(exportButtonDisabled, (disabled) => disabled ? 0.7 : 1),
+                      cursor: derive(exportButtonDisabled, (disabled: boolean) => disabled ? "not-allowed" : "pointer"),
+                      opacity: derive(exportButtonDisabled, (disabled: boolean) => disabled ? 0.7 : 1),
                     }}
                   >
                     {ifElse(
@@ -2750,7 +2770,7 @@ Return all visible text.`
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
             {/* List classes - SINGLE FLAT DERIVE (no nesting to preserve reactivity) */}
             <div style={{ marginBottom: "1rem" }}>
-              {classes.map((cls, idx) => {
+              {classes.map((cls: Class, idx: number) => {
                 // DEFENSIVE: Skip undefined entries during hydration
                 if (!cls) return null;
                 // ALL reactive values in ONE derive call - no nested derive/computed allowed!
@@ -2767,22 +2787,35 @@ Return all visible text.`
                   editIdx: editingClassIndex,
                   activeSet: activeSetName,
                   locs: locations,
-                }, (props) => {
+                }, (props: {
+                  name: string;
+                  description: string;
+                  location: Location;
+                  timeSlots: TimeSlot[];
+                  cost: number;
+                  gradeMin: string;
+                  gradeMax: string;
+                  pinnedInSets: string[];
+                  statuses: StatusFlags;
+                  editIdx: Writable<number>;
+                  activeSet: Writable<string>;
+                  locs: Writable<Location[]>;
+                }) => {
                   // Destructure with proper types - derive unwraps Cell values for item properties
                   // Pattern-level Cells (editIdx, activeSet, locs) need .get()
-                  const name = props.name as string;
-                  const description = props.description as string;
-                  const location = props.location as Location;
-                  const timeSlots = props.timeSlots as TimeSlot[];
-                  const cost = props.cost as number;
-                  const gradeMin = props.gradeMin as string;
-                  const gradeMax = props.gradeMax as string;
-                  const pinnedInSets = props.pinnedInSets as string[];
-                  const statuses = props.statuses as StatusFlags;
+                  const name = props.name;
+                  const description = props.description;
+                  const location = props.location;
+                  const timeSlots = props.timeSlots;
+                  const cost = props.cost;
+                  const gradeMin = props.gradeMin;
+                  const gradeMax = props.gradeMax;
+                  const pinnedInSets = props.pinnedInSets;
+                  const statuses = props.statuses;
                   // Pattern-level Cells remain as Cells - use .get()
-                  const editIdx = (props.editIdx as Writable<number>).get();
-                  const activeSet = (props.activeSet as Writable<string>).get();
-                  const locs = (props.locs as Writable<Location[]>).get();
+                  const editIdx = props.editIdx.get();
+                  const activeSet = props.activeSet.get();
+                  const locs = props.locs.get();
 
                   const locColor = getLocationColor(location?.name || "");
                   const isEditing = editIdx === idx;
@@ -2838,7 +2871,7 @@ Return all visible text.`
                             style={{ padding: "2px 6px", fontSize: "0.85em", color: "#c62828" }}
                             onClick={() => {
                               const current = classes.get();
-                              const index = current.findIndex((el) => Cell.equals(cls, el));
+                              const index = current.findIndex((el: Class) => equals(cls, el));
                               if (index >= 0) {
                                 classes.set(current.toSpliced(index, 1));
                               }
@@ -3001,7 +3034,7 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: selectedLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc, idx) => {
+                  {locations.map((loc: Location, idx: number) => {
                     // DEFENSIVE: Skip undefined during hydration
                     if (!loc) return null;
                     return <option value={idx}>{loc.name}</option>;
@@ -3058,7 +3091,7 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: importLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc, idx) => {
+                  {locations.map((loc: Location, idx: number) => {
                     // DEFENSIVE: Skip undefined during hydration
                     if (!loc) return null;
                     return <option value={idx}>{loc.name}</option>;
@@ -3086,7 +3119,7 @@ Return all visible text.`
                 </div>
 
                 {/* Error state - only show when error is truthy */}
-                {derive(uploadExtractionError, (e) => {
+                {derive(uploadExtractionError, (e: string | null) => {
                   if (!e) return null;
                   return (
                     <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
@@ -3180,7 +3213,7 @@ Return all visible text.`
 
               {/* WORKAROUND: Using pre-computed s.triageBgColor because
                   s.triageStatus === "auto_kept" doesn't work inside Cell.map() */}
-              {stagedClasses.map((s, idx) => {
+              {stagedClasses.map((s: StagedClass, idx: number) => {
                 // DEFENSIVE: Skip undefined entries during hydration
                 if (!s) return null;
                 // s.triageBgColor, s.triageBorderColor, s.triageEmoji are pre-computed strings
@@ -3266,11 +3299,11 @@ Return all visible text.`
 
             {/* List locations with color indicators */}
             <div style={{ marginBottom: "1rem" }}>
-              {locations.map((loc) => {
+              {locations.map((loc: Location) => {
                 // DEFENSIVE: Skip undefined during hydration
                 if (!loc) return null;
                 // Use derive to unwrap reactive location properties
-                return derive({ name: loc.name, type: loc.type, address: loc.address }, ({ name, type, address }) => {
+                return derive({ name: loc.name, type: loc.type, address: loc.address }, ({ name, type, address }: { name: string; type: LocationType; address: string }) => {
                   const locColor = getLocationColor(name || "");
                   return (
                     <div
@@ -3308,8 +3341,8 @@ Return all visible text.`
                         style={{ marginLeft: "auto" }}
                         onClick={() => {
                           const current = locations.get();
-                          const index = current.findIndex((el) =>
-                            Cell.equals(loc, el)
+                          const index = current.findIndex((el: Location) =>
+                            equals(loc, el)
                           );
                           if (index >= 0) {
                             locations.set(current.toSpliced(index, 1));

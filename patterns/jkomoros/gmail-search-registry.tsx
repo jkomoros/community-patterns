@@ -193,12 +193,13 @@ const GmailSearchRegistry = pattern<
   const boundDownvoteQuery = downvoteQuery({ queries });
 
   // Helper to get queries for a specific agent type
+  // Note: queries is an input cell - use it directly without .get()
   const getQueriesForAgent = (agentTypeUrl: string): SharedQuery[] => {
-    const allQueries = queries.get() || [];
+    const allQueries: SharedQuery[] = (queries as SharedQuery[]) || [];
     // Filter to this agent type and sort by score
     return allQueries
-      .filter((q) => q && q.agentTypeUrl === agentTypeUrl)
-      .sort((a, b) => {
+      .filter((q: SharedQuery) => q && q.agentTypeUrl === agentTypeUrl)
+      .sort((a: SharedQuery, b: SharedQuery) => {
         const scoreA = a.upvotes - a.downvotes;
         const scoreB = b.upvotes - b.downvotes;
         if (scoreB !== scoreA) return scoreB - scoreA;

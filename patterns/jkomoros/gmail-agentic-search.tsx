@@ -381,8 +381,8 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
     // Use input cells directly - Default<> types handle writability and defaults.
     // Cannot call .get() on input cells at build time (causes "space is required" error).
-    const localQueries = localQueriesInput;
-    const pendingSubmissions = pendingSubmissionsInput;
+    const localQueries = localQueriesInput as unknown as Writable<LocalQuery[]>;
+    const pendingSubmissions = pendingSubmissionsInput as unknown as Writable<PendingSubmission[]>;
 
     // ========================================================================
     // QUERY TRACKING (for foundItems feature)
@@ -502,11 +502,11 @@ const GmailAgenticSearch = pattern<
 
     const isAuthenticated = derive(
       auth,
-      (a) => !!(a && a.token && a.user && a.user.email),
+      (a: Auth) => !!(a && a.token && a.user && a.user.email),
     );
 
     // Check if token may be expired based on expiresAt timestamp
-    const tokenMayBeExpired = derive(auth, (a) => {
+    const tokenMayBeExpired = derive(auth, (a: Auth) => {
       if (!a?.expiresAt) return false;
       // Add 5 minute buffer - if within 5 min of expiry, consider it potentially expired
       const bufferMs = 5 * 60 * 1000;
@@ -516,7 +516,7 @@ const GmailAgenticSearch = pattern<
     // Gmail scope URL for checking
     const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
-    const hasGmailScope = derive(auth, (a) => {
+    const hasGmailScope = derive(auth, (a: Auth) => {
       const scopes = a?.scope || [];
       return scopes.includes(GMAIL_SCOPE);
     });
@@ -800,10 +800,10 @@ const GmailAgenticSearch = pattern<
             // Update existing query using .key().key().set() for atomic updates
             const existing = currentLocalQueries[existingQueryIndex];
             const itemCell = state.localQueries.key(existingQueryIndex);
-            itemCell.key("lastUsed").set(Date.now());
-            itemCell.key("useCount").set(existing.useCount + 1);
+            (itemCell.key("lastUsed") as unknown as Writable<number>).set(Date.now());
+            (itemCell.key("useCount") as unknown as Writable<number>).set(existing.useCount + 1);
             // Auto-increase effectiveness if it found results (capped at 5)
-            itemCell.key("effectiveness").set(
+            (itemCell.key("effectiveness") as unknown as Writable<number>).set(
               emails.length > 0
                 ? Math.min(5, existing.effectiveness + 1)
                 : existing.effectiveness
@@ -924,7 +924,7 @@ const GmailAgenticSearch = pattern<
     );
 
     // Merge searchGmail with additional tools
-    const allTools = derive(additionalTools, (additional) => {
+    const allTools = derive(additionalTools, (additional: Record<string, ToolDefinition>) => {
       const baseTools = {
         searchGmail: {
           description:
@@ -991,7 +991,7 @@ When you're done searching, STOP calling tools and produce your final structured
       prompt: agentPrompt,
       tools: allTools,
       model: "anthropic:claude-sonnet-4-5",
-      schema: derive(resultSchema, (schema) => {
+      schema: derive(resultSchema, (schema: object) => {
         if (schema && Object.keys(schema).length > 0) {
           return schema;
         }
@@ -1123,7 +1123,7 @@ When you're done searching, STOP calling tools and produce your final structured
     // Detect when agent completes
     const scanCompleted = derive(
       [isScanning, agentPending, agentResult],
-      ([scanning, pending, result]) => scanning && !pending && !!result,
+      ([scanning, pending, result]: [boolean, boolean, any]) => scanning && !pending && !!result,
     );
 
     // Detect auth errors from agent result or token validation
@@ -1249,7 +1249,7 @@ When you're done searching, STOP calling tools and produce your final structured
               ⚠️ {authErrorMessage}
             </div>
             <div style={{ textAlign: "center" }}>
-              {derive(wishedAuthCharm, (charm) => charm ? (
+              {derive(wishedAuthCharm, (charm: any) => charm ? (
                 <ct-button
                   onClick={() => navigateTo(charm)}
                   size="sm"
@@ -1292,7 +1292,7 @@ When you're done searching, STOP calling tools and produce your final structured
                 ⚠️ Gmail token may have expired - will verify on scan
               </div>
               <div style={{ textAlign: "center" }}>
-                {derive(wishedAuthCharm, (charm) => charm ? (
+                {derive(wishedAuthCharm, (charm: any) => charm ? (
                   <ct-button
                     onClick={() => navigateTo(charm)}
                     size="sm"
@@ -1539,7 +1539,7 @@ When you're done searching, STOP calling tools and produce your final structured
         )}
 
         {/* Scan Complete */}
-        {derive(scanCompleted, (completed) =>
+        {derive(scanCompleted, (completed: boolean) =>
           completed ? (
             <div
               style={{
@@ -1568,7 +1568,7 @@ When you're done searching, STOP calling tools and produce your final structured
                   fontStyle: "italic",
                 }}
               >
-                {derive(agentResult, (r) => r?.summary || "")}
+                {derive(agentResult, (r: any) => r?.summary || "")}
               </div>
               <ct-button
                 onClick={boundCompleteScan}
@@ -1586,7 +1586,7 @@ When you're done searching, STOP calling tools and produce your final structured
     // Stats UI - last scan timestamp
     const statsUI = (
       <div style={{ fontSize: "13px", color: "#666" }}>
-        {derive(lastScanAt, (ts) =>
+        {derive(lastScanAt, (ts: number) =>
           ts > 0 ? (
             <div>Last Scan: {new Date(ts).toLocaleString()}</div>
           ) : null,
@@ -1701,7 +1701,7 @@ When you're done searching, STOP calling tools and produce your final structured
       const queries = state.localQueries.get() || [];
       const index = queries.findIndex((q) => q.id === state.queryId);
       if (index >= 0) {
-        state.localQueries.key(index).key("effectiveness").set(state.rating);
+        (state.localQueries.key(index).key("effectiveness") as unknown as Writable<number>).set(state.rating);
       }
     });
 
@@ -1740,7 +1740,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update localQueries FIRST (mark as pending_review)
       const idx = queries.findIndex((q) => q.id === state.queryId);
       if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("pending_review");
+        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("pending_review");
       }
 
       // Then add to pendingSubmissions
@@ -1969,7 +1969,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update the local query status
       const idx = queries.findIndex((q) => q.id === input.queryId);
       if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("pending_review");
+        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("pending_review");
       }
     });
 
@@ -2043,7 +2043,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
 
     // Update pending submissions with screening results
     // This is a side effect that runs when screening completes
-    derive(piiScreeningResult, (result) => {
+    derive(piiScreeningResult, (result: any) => {
       if (!result || !result.result) return;
 
       const screeningData = result.result as {
@@ -2056,7 +2056,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
         recommendation: "share" | "share_with_edits" | "do_not_share";
       };
 
-      const submissions = (pendingSubmissions.get() || []).filter((s): s is PendingSubmission => s != null);
+      const pendingWritable = pendingSubmissions as Writable<PendingSubmission[]>;
+      const submissions = (pendingWritable.get() || []).filter((s: PendingSubmission | null): s is PendingSubmission => s != null);
 
       // Find the submission that was screened (still pending)
       const unscreened = submissions.filter(
@@ -2069,11 +2070,11 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       if (idx < 0) return;
 
       // Update the submission with screening results using .key().key().set()
-      const itemCell = pendingSubmissions.key(idx);
-      itemCell.key("sanitizedQuery").set(screeningData.sanitizedQuery || submission.originalQuery);
-      itemCell.key("piiWarnings").set(screeningData.piiFound || []);
-      itemCell.key("generalizabilityIssues").set(screeningData.generalizabilityIssues || []);
-      itemCell.key("recommendation").set(screeningData.recommendation);
+      const itemCell = pendingWritable.key(idx);
+      (itemCell.key("sanitizedQuery") as Writable<string>).set(screeningData.sanitizedQuery || submission.originalQuery);
+      (itemCell.key("piiWarnings") as Writable<string[]>).set(screeningData.piiFound || []);
+      (itemCell.key("generalizabilityIssues") as Writable<string[]>).set(screeningData.generalizabilityIssues || []);
+      (itemCell.key("recommendation") as Writable<"share" | "share_with_edits" | "do_not_share" | "pending">).set(screeningData.recommendation);
     });
 
     // Handler to approve a pending submission
@@ -2084,7 +2085,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        state.pendingSubmissions.key(idx).key("userApproved").set(true);
+        (state.pendingSubmissions.key(idx).key("userApproved") as unknown as Writable<boolean>).set(true);
       }
     });
 
@@ -2104,7 +2105,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const queries = state.localQueries.get() || [];
       const idx = queries.findIndex((q) => q.id === input.localQueryId);
       if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("private");
+        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("private");
       }
     });
 
@@ -2116,7 +2117,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        state.pendingSubmissions.key(idx).key("sanitizedQuery").set(input.sanitizedQuery);
+        (state.pendingSubmissions.key(idx).key("sanitizedQuery") as unknown as Writable<string>).set(input.sanitizedQuery);
       }
     });
 
@@ -2263,10 +2264,11 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                             value={submission.sanitizedQuery}
                             onChange={(e: any) => {
                               const newValue = e.target.value;
-                              const subs = pendingSubmissions.get() || [];
-                              const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                              const pendingWritable = pendingSubmissions as Writable<PendingSubmission[]>;
+                              const subs = pendingWritable.get() || [];
+                              const idx = subs.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
                               if (idx >= 0) {
-                                pendingSubmissions.key(idx).key("sanitizedQuery").set(newValue);
+                                (pendingWritable.key(idx).key("sanitizedQuery") as Writable<string>).set(newValue);
                               }
                             }}
                             style={{
@@ -2285,13 +2287,15 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                           <ct-button
                             onClick={() => {
                               // Reject
-                              const subs = pendingSubmissions.get() || [];
-                              pendingSubmissions.set(subs.filter((s) => s.localQueryId !== submission.localQueryId));
+                              const pendingWritable = pendingSubmissions as Writable<PendingSubmission[]>;
+                              const localWritable = localQueries as Writable<LocalQuery[]>;
+                              const subs = pendingWritable.get() || [];
+                              pendingWritable.set(subs.filter((s: PendingSubmission) => s.localQueryId !== submission.localQueryId));
                               // Reset local query status
-                              const queries = localQueries.get() || [];
-                              const idx = queries.findIndex((q) => q.id === submission.localQueryId);
+                              const queries = localWritable.get() || [];
+                              const idx = queries.findIndex((q: LocalQuery) => q.id === submission.localQueryId);
                               if (idx >= 0) {
-                                localQueries.key(idx).key("shareStatus").set("private");
+                                (localWritable.key(idx).key("shareStatus") as Writable<"private" | "pending_review" | "submitted">).set("private");
                               }
                             }}
                             variant="ghost"
@@ -2303,10 +2307,11 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                           <ct-button
                             onClick={() => {
                               // Approve
-                              const subs = pendingSubmissions.get() || [];
-                              const idx = subs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                              const pendingWritable = pendingSubmissions as Writable<PendingSubmission[]>;
+                              const subs = pendingWritable.get() || [];
+                              const idx = subs.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
                               if (idx >= 0) {
-                                pendingSubmissions.key(idx).key("userApproved").set(true);
+                                (pendingWritable.key(idx).key("userApproved") as Writable<boolean>).set(true);
                               }
                             }}
                             variant={submission.userApproved ? "secondary" : "default"}
@@ -2333,11 +2338,13 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                               disabled={!hasRegistry}
                               onClick={() => {
                                 if (!hasRegistry || !typeUrl) return;
-                                const approved = (subs || []).filter((s) => s.userApproved && !s.submittedAt);
+                                const approved = (subs || []).filter((s: PendingSubmission) => s.userApproved && !s.submittedAt);
                                 const submitHandler = registry?.result?.submitQuery;
+                                const pendingWritable = pendingSubmissions as Writable<PendingSubmission[]>;
+                                const localWritable = localQueries as Writable<LocalQuery[]>;
 
                                 // Submit each approved query
-                                approved.forEach((submission) => {
+                                approved.forEach((submission: PendingSubmission) => {
                                   if (submitHandler) {
                                     submitHandler({
                                       agentTypeUrl: typeUrl,
@@ -2346,17 +2353,17 @@ Be conservative: when in doubt, recommend "do_not_share".`,
                                   }
 
                                   // Mark as submitted in pendingSubmissions
-                                  const currentSubs = pendingSubmissions.get() || [];
-                                  const idx = currentSubs.findIndex((s) => s.localQueryId === submission.localQueryId);
+                                  const currentSubs = pendingWritable.get() || [];
+                                  const idx = currentSubs.findIndex((s: PendingSubmission) => s.localQueryId === submission.localQueryId);
                                   if (idx >= 0) {
-                                    pendingSubmissions.key(idx).key("submittedAt").set(Date.now());
+                                    (pendingWritable.key(idx).key("submittedAt") as Writable<number | undefined>).set(Date.now());
                                   }
 
                                   // Update local query status to submitted
-                                  const queries = localQueries.get() || [];
-                                  const qIdx = queries.findIndex((q) => q.id === submission.localQueryId);
+                                  const queries = localWritable.get() || [];
+                                  const qIdx = queries.findIndex((q: LocalQuery) => q.id === submission.localQueryId);
                                   if (qIdx >= 0) {
-                                    localQueries.key(qIdx).key("shareStatus").set("submitted");
+                                    (localWritable.key(qIdx).key("shareStatus") as Writable<"private" | "pending_review" | "submitted">).set("submitted");
                                   }
                                 });
                               }}
