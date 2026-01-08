@@ -1,7 +1,6 @@
 /// <cts-enable />
 import {
   Writable,
-  writable,
   computed,
   Default,
   derive,
@@ -703,13 +702,13 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     // NOTE: We ignore the input value because:
     // 1. Default<T[], [values]> doesn't populate via charm new anyway (default propagation bug)
     // 2. Accessing inputUnassignedDepts outside computed() throws "reactive reference outside reactive context"
-    const unassignedDepartments = cell<string[]>([...DEFAULT_DEPARTMENT_NAMES]);
+    const unassignedDepartments = Writable.of<string[]>([...DEFAULT_DEPARTMENT_NAMES]);
 
-    const uploadedPhotos = cell<ImageData[]>([]);
-    const hiddenPhotoIds = cell<string[]>([]); // Track deleted photos without splicing array
-    const customDeptName = cell<string>("");
+    const uploadedPhotos = Writable.of<ImageData[]>([]);
+    const hiddenPhotoIds = Writable.of<string[]>([]); // Track deleted photos without splicing array
+    const customDeptName = Writable.of<string>("");
     const entranceCount = computed(() => entrances.length);
-    const entrancesComplete = cell<boolean>(false);
+    const entrancesComplete = Writable.of<boolean>(false);
 
     // Helper to check if an entrance position is already used
     const isEntranceUsed = (position: WallPosition) => {
@@ -717,12 +716,12 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     };
 
     // Form fields for adding item location corrections
-    const newItemName = cell<string>("");
-    const newCorrectAisle = cell<string>("");
-    const newIncorrectAisle = cell<string>("");
+    const newItemName = Writable.of<string>("");
+    const newCorrectAisle = Writable.of<string>("");
+    const newIncorrectAisle = Writable.of<string>("");
 
     // Track selected items for merge (key: "${photoName}-${aisleName}", value: array of selected item names)
-    const selectedMergeItems = cell<Record<string, string[]>>({});
+    const selectedMergeItems = Writable.of<Record<string, string[]>>({});
 
     // Process uploaded photos
     // Note: Photos are NOT auto-deleted after "Add All" to prevent the photo extraction
