@@ -208,7 +208,7 @@ export interface GmailAgenticSearchInput {
   // Optional signal cell for consuming patterns to indicate "found an item"
   // When this value increases, marks the most recent query as having found items
   // Create with Writable.of<number>(0) and pass in - both patterns share the same cell
-  itemFoundSignal?: Writable<number>;
+  itemFoundSignal?: Default<number, 0>;
 }
 
 /** Reusable Gmail agentic search base pattern. #gmailAgenticSearch */
@@ -390,10 +390,10 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
     // QUERY TRACKING (for foundItems feature)
     // ========================================================================
-    // Use input signal cell if provided, otherwise create a local one
+    // Use the input signal cell directly - Default<number, 0> provides the default
     // This follows the "share cells by making them inputs" pattern
     // See: community-docs/superstitions/2025-12-04-share-cells-between-composed-patterns.md
-    const itemFoundSignal = itemFoundSignalInput || Writable.of<number>(0);
+    const itemFoundSignal = itemFoundSignalInput;
     // Track last signal value in a Cell (closure vars don't persist in derive)
     const lastSignalValueCell = Writable.of<number>(0);
     // Track last executed query ID in a Cell (so derive can access it)
@@ -404,14 +404,14 @@ const GmailAgenticSearch = pattern<
     const foundItemsTracker = Writable.of<Record<string, number>>({});
 
     // Watch the signal and update foundItemsTracker when it increases
-    derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([_signalRef, _lastSignalRef, _queryIdRef]: [number, number, string | null]) => {
-      const signalValue = itemFoundSignal.get() || 0;
-      const lastSignalValue = lastSignalValueCell.get() || 0;
-      const queryId = lastExecutedQueryIdCell.get();
+    derive([itemFoundSignal, lastSignalValueCell, lastExecutedQueryIdCell], ([signalValue, lastSignalValue, queryId]: [number, number, string | null]) => {
+      // Use the unwrapped values from derive directly
+      const signalVal = signalValue || 0;
+      const lastSignalVal = lastSignalValue || 0;
 
-      console.log(`[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalValue}, lastSignalValue=${lastSignalValue}, queryId=${queryId}`);
+      console.log(`[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalVal}, lastSignalValue=${lastSignalVal}, queryId=${queryId}`);
 
-      if (signalValue > lastSignalValue) {
+      if (signalVal > lastSignalVal) {
         if (queryId) {
           const tracker = foundItemsTracker.get() || {};
           const currentCount = tracker[queryId] || 0;
@@ -426,7 +426,7 @@ const GmailAgenticSearch = pattern<
         } else {
           console.warn("[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark");
         }
-        lastSignalValueCell.set(signalValue);
+        lastSignalValueCell.set(signalVal);
       }
     });
 
