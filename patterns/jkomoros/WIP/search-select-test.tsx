@@ -1,6 +1,17 @@
 /// <cts-enable />
 import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
-import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
+// TODO: search-select.tsx component doesn't exist yet - create it or remove this test file
+// import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
+
+// Placeholder types until search-select.tsx is created
+type SearchSelectItem = { value: string; label: string; group?: string };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const SearchSelect = (_props: {
+  items: SearchSelectItem[];
+  selected: Writable<string[]>;
+  placeholder?: string;
+  maxVisible?: number;
+}): JSX.Element => <div>SearchSelect component not implemented</div>;
 
 // Test data - relationship types with groups
 const RELATIONSHIP_ITEMS: SearchSelectItem[] = [

@@ -17,6 +17,7 @@
  * - `claim()` - called excessively during LLM result processing
  */
 import {
+  derive,
   generateObject,
   pattern,
   UI,
@@ -139,17 +140,17 @@ export default pattern(() => {
             <p>
               <strong>✅ Completed!</strong>
             </p>
-            {elapsedMs.get() !== null && (
+            {derive(elapsedMs, (ms: number | null) => ms !== null ? (
               <p>
-                <strong>Time:</strong> {elapsedMs.get()}ms (
-                {((elapsedMs.get() ?? 0) / 1000).toFixed(1)}s)
+                <strong>Time:</strong> {ms}ms (
+                {(ms as number / 1000).toFixed(1)}s)
               </p>
-            )}
+            ) : <></>)}
             <pre style={{ fontSize: "0.8rem", overflow: "auto" }}>
               {JSON.stringify(result.result, null, 2)}
             </pre>
           </div>
-        ) : null}
+        ) : <></>}
 
         <h2>Debugging Steps</h2>
         <ol>

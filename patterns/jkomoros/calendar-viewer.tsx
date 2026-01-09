@@ -214,7 +214,7 @@ export default pattern<{
                 })
             )}
           </div>,
-          null
+          <></>
         )}
 
         {/* Content */}
@@ -310,9 +310,9 @@ export default pattern<{
                           <div style={{ fontSize: "14px", color: "#666" }}>
                             {getRelativeLabel(evt.startDate)} {evt.isAllDay ? "(All day)" : formatTime(evt.startDate)}
                           </div>
-                          {evt.location && (
+                          {evt.location ? (
                             <div style={{ fontSize: "13px", color: "#999" }}>{evt.location}</div>
-                          )}
+                          ) : <></>}
                         </div>
                       </div>
                     ))}

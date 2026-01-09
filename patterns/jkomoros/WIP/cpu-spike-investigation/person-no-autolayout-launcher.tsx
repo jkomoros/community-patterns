@@ -30,7 +30,7 @@ LinkedIn: linkedin.com/in/maya-rodriguez
 
 Biotech researcher specializing in CRISPR gene editing. Lead scientist at GeneTech Labs. Published 25+ peer-reviewed papers. Avid rock climber. Speaks Spanish and English. MIT PhD 2015.`;
 
-const launchPerson = handler<void, void>(() => {
+const launchPerson = handler<unknown, Record<string, never>>(() => {
   console.log("[NO-AUTOLAYOUT LAUNCHER] Navigating to person WITHOUT ct-autolayout...");
   navigateTo(Person({ notes: DEMO_NOTES }));
 });
@@ -58,7 +58,7 @@ export default pattern(() => {
           </ol>
         </div>
 
-        <ct-button onClick={launchPerson()}>
+        <ct-button onClick={launchPerson({})}>
           Launch Person (WITHOUT ct-autolayout)
         </ct-button>
       </div>

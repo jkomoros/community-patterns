@@ -35,7 +35,7 @@ export default pattern(() => {
             <div>Message: {result.result.message}</div>
             <div>Timestamp: {result.result.timestamp}</div>
           </div>
-        ) : null}
+        ) : <></>}
       </div>
     ),
   };

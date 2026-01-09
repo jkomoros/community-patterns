@@ -15,8 +15,8 @@ import {
   wish,
   Writable,
 } from "commontools";
-import { type MentionableCharm } from "../lib/backlinks-index.tsx";
-import { computeWordDiff, compareFields } from "../utils/diff-utils.ts";
+import { type MentionableCharm } from "../../lib/backlinks-index.tsx";
+import { computeWordDiff, compareFields } from "../../utils/diff-utils.ts";
 
 // Performance measurement - set to true to see timing in console
 const PERF_MEASURE = false;

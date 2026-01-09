@@ -14,6 +14,7 @@
  * - Friend co-enrollment tracking
  */
 import {
+  Cell,
   Writable,
   computed,
   Default,
@@ -336,10 +337,10 @@ const setTravelTime = handler<
   }
 });
 
-// NOTE: confirmImport and selectAllInCategory handlers were removed.
-// Now using doConfirmImport() and doSelectAllInCategory() plain functions inside the pattern.
-// This fixes ConflictError by reducing writes and reading from processedStagedClasses (computed)
-// instead of the dead stagedClasses Cell.
+// NOTE: handlers are defined at module level (selectAllInCategoryHandler, deselectAllInCategoryHandler,
+// confirmImportHandler) for proper Cell access from onClick. The pattern provides pre-computed
+// Cell values (autoKeptClassIds, needsReviewClassIds, autoDiscardedClassIds, classesToImport)
+// that the handlers read via .get() at click time.
 
 // Manual class entry handler
 const addManualClass = handler<
@@ -977,6 +978,59 @@ function generateSuggestedSets(
 }
 
 // ============================================================================
+// HANDLERS (defined at module level for proper Cell access)
+// ============================================================================
+
+// Handler for selecting all classes in a category (sets all to true)
+// Context provides: stagedClassSelections Cell and classIds Cell (computed)
+// Note: classIds is a Cell<string[]> that is read at click time via .get()
+const selectAllInCategoryHandler = handler<
+  unknown,
+  { stagedClassSelections: Writable<Record<string, boolean>>; classIds: Cell<string[]> }
+>((_, { stagedClassSelections, classIds }) => {
+  const current = stagedClassSelections.get() || {};
+  const updated: Record<string, boolean> = { ...current };
+  const ids = classIds.get();
+  ids.forEach((id: string) => {
+    updated[id] = true;
+  });
+  stagedClassSelections.set(updated);
+});
+
+// Handler for deselecting all classes in a category (sets all to false)
+// Context provides: stagedClassSelections Cell and classIds Cell (computed)
+const deselectAllInCategoryHandler = handler<
+  unknown,
+  { stagedClassSelections: Writable<Record<string, boolean>>; classIds: Cell<string[]> }
+>((_, { stagedClassSelections, classIds }) => {
+  const current = stagedClassSelections.get() || {};
+  const updated: Record<string, boolean> = { ...current };
+  const ids = classIds.get();
+  ids.forEach((id: string) => {
+    updated[id] = false;
+  });
+  stagedClassSelections.set(updated);
+});
+
+// Handler for confirming import - moves classes to main list and clears import state
+// Context provides: cells for reading/writing, classesToImport Cell for reading new classes
+// Event is unused (button click)
+// Note: classesToImport is a Cell<Class[]> computed that is read at click time
+const confirmImportHandler = handler<
+  unknown,
+  { classes: Writable<Class[]>; importText: Writable<string>; stagedClassSelections: Writable<Record<string, boolean>>; classesToImport: Cell<Class[]> }
+>((_, { classes, importText, stagedClassSelections, classesToImport }) => {
+  const newClasses = classesToImport.get();
+  if (newClasses.length === 0) return;
+  // Add all imported classes to the main classes list
+  const currentClasses = classes.get();
+  classes.set([...currentClasses, ...newClasses]);
+  // Clear import state
+  importText.set("");
+  stagedClassSelections.set({});
+});
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -986,7 +1040,7 @@ interface ExtracurricularSelectorInput {
   childGrade: Writable<Default<Grade, "K">>;
   childBirthDate: Writable<Default<string, "">>;
   childEligibilityNotes: Writable<Default<string, "">>;
-  // Collections - Default<> because framework provides them as Cells automatically
+  // Collections - Default<> allows reading in computeds; handlers type them as Writable for .set()
   locations: Default<Location[], []>;
   travelTimes: Default<TravelTime[], []>;
   categoryTags: Default<CategoryTag[], typeof DEFAULT_CATEGORY_TAGS>;
@@ -997,7 +1051,7 @@ interface ExtracurricularSelectorInput {
   classStatuses: Default<ClassStatus[], []>;
   pinnedSets: Default<PinnedSet[], []>;
   activePinnedSetId: Default<string, "">;
-  // Staged class selections - separate Writable<Record<id, boolean>> for writable checkbox state
+  // Staged class selections - Default<> for reading, handlers type as Writable for .set()
   // NOTE: stagedClasses Cell was removed - it was dead code (never populated, only cleared)
   // Actual staged classes are derived from extractionResult via processedStagedClasses computed
   // NOTE: We can't use $checked on array items from computed() - they become read-only
@@ -1063,40 +1117,24 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = Writable.of<string>("");
 
-    // Plain function for toggling staged class selection
-    // Defined here at pattern level to capture stagedClassSelections BEFORE any derive() context
-    // This avoids the read-only proxy issue when accessing cells via closure inside derive
-    const doToggleSelection = (classId: string, currentSelected: boolean) => {
-      const current = stagedClassSelections.get() || {};
-      stagedClassSelections.set({ ...current, [classId]: !currentSelected });
-    };
+    // Pre-computed class ID lists for each triage category (for use in handlers)
+    const autoKeptClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").map((c: StagedClass) => c.id)
+    );
+    const needsReviewClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").map((c: StagedClass) => c.id)
+    );
+    const autoDiscardedClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").map((c: StagedClass) => c.id)
+    );
 
-    // Plain function for selecting/deselecting all classes in a triage category
-    // Uses same pattern as doToggleSelection - .get() and .set() work on argument cells
-    const doSelectAllInCategory = (triageStatus: TriageStatus, selected: boolean) => {
-      const current = stagedClassSelections.get() || {};
-      const updated: Record<string, boolean> = { ...current };
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === triageStatus).forEach((c: StagedClass) => {
-        updated[c.id] = selected;
+    // Pre-computed list of classes to import (for confirm import handler)
+    const classesToImport = computed(() => {
+      const toImport = processedStagedClasses.filter((c: StagedClass) => {
+        return c.triageStatus === "auto_kept" || c.triageStatus === "user_kept";
       });
-      stagedClassSelections.set(updated);
-    };
-
-    // Plain function for confirming import - moves selected staged classes to main classes list
-    // Uses closure access to processedStagedClasses (computed) instead of reading from a Cell
-    // This is the FIX for ConflictError: reduces writes from 4 to 2
-    const doConfirmImport = () => {
-      // Read from processedStagedClasses (computed) via closure - NOT from a Cell
-      const selections = stagedClassSelections.get() || {};
-      // Use lazy defaults: auto_kept → true by default, others → false
-      const toImport = processedStagedClasses.filter((c: StagedClass) =>
-        selections[c.id] ?? (c.triageStatus === "auto_kept")
-      );
-
-      if (toImport.length === 0) return;
-
       // Convert StagedClass to Class (remove triage fields)
-      const newClasses: Class[] = toImport.map((staged: StagedClass) => ({
+      return toImport.map((staged: StagedClass) => ({
         id: generateId(), // Generate fresh IDs to avoid duplicates
         name: staged.name,
         locationId: staged.locationId,
@@ -1112,18 +1150,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
         startDate: staged.startDate,
         endDate: staged.endDate,
       }));
-
-      // Add all imported classes to the main classes list
-      const currentClasses = classes.get();
-      classes.set([...currentClasses, ...newClasses]);
-
-      // Clear import state - only 2 writes now (down from 4):
-      // 1. Clear import text (which clears extractionResult → clears processedStagedClasses)
-      importText.set("");
-      // 2. Clear selection state
-      stagedClassSelections.set({});
-      // NOTE: No more stagedClasses.set([]) - that Cell was dead code
-    };
+    });
 
     // Note: Selection state uses separate stagedClassSelections Writable<Record<string, boolean>>
     // because $checked on computed array items causes ReadOnlyAddressError
@@ -2620,11 +2647,11 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #166534; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("auto_kept", true)}
+                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: autoKeptClassIds })}
                             >All</button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #166534; border: 1px solid #166534; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("auto_kept", false)}
+                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: autoKeptClassIds })}
                             >None</button>
                           </div>
                         </div>
@@ -2668,11 +2695,11 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #854d0e; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("needs_review", true)}
+                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: needsReviewClassIds })}
                             >All</button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #854d0e; border: 1px solid #854d0e; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("needs_review", false)}
+                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: needsReviewClassIds })}
                             >None</button>
                           </div>
                         </div>
@@ -2714,11 +2741,11 @@ Return the complete extracted text.`
                           <div style="display: flex; gap: 8px;">
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("auto_discarded", true)}
+                              onClick={selectAllInCategoryHandler({ stagedClassSelections, classIds: autoDiscardedClassIds })}
                             >All</button>
                             <button
                               style="font-size: 11px; padding: 2px 8px; background: white; color: #6b7280; border: 1px solid #6b7280; border-radius: 4px; cursor: pointer;"
-                              onClick={() => doSelectAllInCategory("auto_discarded", false)}
+                              onClick={deselectAllInCategoryHandler({ stagedClassSelections, classIds: autoDiscardedClassIds })}
                             >None</button>
                           </div>
                         </div>
@@ -2776,9 +2803,9 @@ Return the complete extracted text.`
                         <ct-button
                           variant="default"
                           style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
-                          onClick={() => doConfirmImport()}
+                          onClick={confirmImportHandler({ classes, importText, stagedClassSelections, classesToImport })}
                         >
-                          ✅ Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
+                          Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
                         </ct-button>
                         <div style="font-size: 12px; color: #059669; margin-top: 8px;">
                           Selected classes will be added to your class list.

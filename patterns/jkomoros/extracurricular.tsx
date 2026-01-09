@@ -2141,8 +2141,9 @@ Return all visible text.`
                           {/* Time grid */}
                           <div style={{ position: "relative", height: `${totalHeight}px`, background: "#fff" }}>
                             {/* Hour lines */}
-                            {hourLabels.slice(0, -1).map(({ hour }: { hour: number; label: string }) => (
+                            {hourLabels.slice(0, -1).map(({ hour }: { hour: number; label: string }, idx: number) => (
                               <div
+                                key={idx}
                                 style={{
                                   position: "absolute",
                                   top: `${(hour - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT}px`,
@@ -2154,9 +2155,7 @@ Return all visible text.`
                             ))}
 
                             {/* Classes for this day - using precomputed positions, colors, and overlap columns */}
-                            {daySlots.map(({ cls, slot, color, top, height, column, totalColumns }: ScheduleSlotData) => {
-                              // DEFENSIVE: Skip undefined during hydration
-                              if (!cls || !slot) return null;
+                            {daySlots.filter(({ cls, slot }: ScheduleSlotData) => cls && slot).map(({ cls, slot, color, top, height, column, totalColumns }: ScheduleSlotData) => {
                               // Calculate horizontal position based on overlap columns
                               const widthPercent = 100 / totalColumns;
                               const leftPercent = column * widthPercent;
@@ -2182,11 +2181,11 @@ Return all visible text.`
                                   <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                     {cls.name}
                                   </div>
-                                  {height > 35 && (
+                                  {height > 35 ? (
                                     <div style={{ fontSize: "0.9em", color: "#666" }}>
                                       {slot.startTime}
                                     </div>
-                                  )}
+                                  ) : <></>}
                                 </div>
                               );
                             })}

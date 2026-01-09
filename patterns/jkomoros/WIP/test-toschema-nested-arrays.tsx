@@ -73,7 +73,7 @@ export default pattern(() => {
               {JSON.stringify(result.result, null, 2)}
             </div>
           </div>
-        ) : null}
+        ) : <></>}
       </div>
     ),
   };

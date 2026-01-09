@@ -1292,7 +1292,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </ct-vstack>,
-                  <div />
+                  <></>
                 )}
 
                 {/* We Owe Families */}
@@ -1333,7 +1333,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </ct-vstack>,
-                  <div />
+                  <></>
                 )}
 
                 {/* Balanced Families */}
@@ -1374,7 +1374,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       ))}
                     </div>
                   </ct-vstack>,
-                  <div />
+                  <></>
                 )}
 
                 {/* Recent Events */}
@@ -1599,14 +1599,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                                         {" "}(rule: {suggestion.matchedRule.name})
                                       </span>
                                     ) : (
-                                      <span />
+                                      <></>
                                     )}
                                     <span style={{ color: "#666", marginLeft: "8px" }}>
                                       ({Math.round(suggestion.confidence * 100)}% confidence)
                                     </span>
                                   </div>
                                 ) : (
-                                  <div />
+                                  <></>
                                 )}
 
                                 <ct-hstack style="gap: 8px; flex-wrap: wrap;">
@@ -1637,7 +1637,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                                       Apply
                                     </button>
                                   ) : (
-                                    <span />
+                                    <></>
                                   )}
 
                                   {/* Manual classification buttons */}
@@ -2146,7 +2146,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                                       <span style="font-size: 11px; color: #dc2626;">
                                         Watch for: {derive(suggestion.potentialFalsePositives, (fp) => fp?.join(", ") || "")}
                                       </span>,
-                                      <span />
+                                      <></>
                                     )}
                                   </ct-vstack>
                                   <ct-button
@@ -2162,7 +2162,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         )
                       )}
                     </div>,
-                    <div />
+                    <></>
                   )}
                 </ct-vstack>
               </ct-vstack>

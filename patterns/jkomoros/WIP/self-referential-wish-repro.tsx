@@ -147,8 +147,8 @@ const SelfWishRepro = pattern<SelfWishReproInput, SelfWishReproOutput>(
             }
             return (
               <ul>
-                {list.map((item: ItemRecord & { _fromWish?: boolean }) => (
-                  <li key={item.id} style={{
+                {list.map((item: ItemRecord & { _fromWish?: boolean }, index: number) => (
+                  <li key={index} style={{
                     background: (item as any)._fromWish ? "#e0f2fe" : "#f8f9fa",
                     padding: "8px",
                     marginBottom: "4px",

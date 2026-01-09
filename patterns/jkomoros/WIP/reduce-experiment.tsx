@@ -14,7 +14,7 @@ import {
   derive,
   NAME,
   UI,
-  recipe,
+  pattern,
   Writable,
 } from "commontools";
 
@@ -41,13 +41,14 @@ function isProxy(value: any): boolean {
 
 const simpleNumbers = Writable.of([1, 2, 3, 4, 5]);
 
-const simpleSum = derive([simpleNumbers], (nums) => {
+// NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+const simpleSum = derive([simpleNumbers], (nums: any) => {
   console.log("[Exp1] nums type:", typeof nums);
   console.log("[Exp1] nums isArray:", Array.isArray(nums));
   console.log("[Exp1] nums[0] type:", typeof nums[0]);
   console.log("[Exp1] nums[0] isProxy:", isProxy(nums[0]));
 
-  return nums.reduce((acc, n) => {
+  return nums.reduce((acc: number, n: any) => {
     console.log("[Exp1] n type:", typeof n, "value:", n);
     return acc + n;
   }, 0);
@@ -68,14 +69,23 @@ const items = Writable.of<Item[]>([
   { id: 3, value: 30 },
 ]);
 
-// Map to transform items
-const doubled = items.map((item) => ({
+// Map to transform items - items.map() returns Cell-wrapped items
+// NOTE: The callback receives Cell-wrapped items at runtime, use 'any'
+const doubled = items.map((item: any) => ({
   id: item.id,
   doubled: item.value * 2,
 }));
 
+// Define the type for mapped items (what they look like after map)
+interface DoubledItem {
+  id: number;
+  doubled: number;
+}
+
 // Try to reduce the mapped results
-const mapThenReduce = derive([doubled], (results) => {
+// NOTE: derive() receives Cell-wrapped array, items inside are also Cell-wrapped
+// We use 'any' to bypass TypeScript since this is an experiment to test runtime behavior
+const mapThenReduce = derive([doubled], (results: any) => {
   console.log("[Exp2] results type:", typeof results);
   console.log("[Exp2] results isArray:", Array.isArray(results));
   console.log("[Exp2] results.length:", results?.length);
@@ -91,7 +101,7 @@ const mapThenReduce = derive([doubled], (results) => {
   console.log("[Exp2] first.doubled value:", first?.doubled);
 
   try {
-    const sum = results.reduce((acc, item) => {
+    const sum = results.reduce((acc: number, item: any) => {
       console.log("[Exp2] item:", item, "doubled:", item?.doubled);
       return acc + (item?.doubled ?? 0);
     }, 0);
@@ -119,7 +129,8 @@ const mockLLMResults = Writable.of<LLMResult[]>([
   { pending: false, error: "failed" },
 ]);
 
-const aggregatedResults = derive([mockLLMResults], (results) => {
+// NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+const aggregatedResults = derive([mockLLMResults], (results: any) => {
   console.log("[Exp3] results type:", typeof results);
   console.log("[Exp3] results isArray:", Array.isArray(results));
 
@@ -139,8 +150,9 @@ const aggregatedResults = derive([mockLLMResults], (results) => {
   console.log("[Exp3] first.pending value:", first?.pending);
   console.log("[Exp3] first.pending === false:", first?.pending === false);
 
+  interface AggAcc { completed: number; pending: number; errors: number; totalScore: number; debug: string; }
   return results.reduce(
-    (acc, item) => {
+    (acc: AggAcc, item: any) => {
       console.log(
         "[Exp3] reduce item.pending:",
         item?.pending,
@@ -171,13 +183,15 @@ const aggregatedResults = derive([mockLLMResults], (results) => {
 const urls = Writable.of(["url1", "url2", "url3"]);
 
 // This creates Cell references in the array
-const fetched = urls.map((url) => ({
+// NOTE: urls.map() callback receives Cell-wrapped items at runtime
+const fetched = urls.map((url: any) => ({
   url,
   status: url === "url2" ? "pending" : "done",
   data: url === "url2" ? null : `data for ${url}`,
 }));
 
-const fetchAggregated = derive([fetched], (results) => {
+// NOTE: derive() may not fully unwrap Cell arrays - use 'any' to test runtime behavior
+const fetchAggregated = derive([fetched], (results: any) => {
   console.log("[Exp4] results:", results);
   console.log("[Exp4] results isArray:", Array.isArray(results));
 
@@ -190,8 +204,9 @@ const fetchAggregated = derive([fetched], (results) => {
   console.log("[Exp4] first.status:", first?.status);
   console.log("[Exp4] typeof first.status:", typeof first?.status);
 
+  interface FetchAcc { done: number; pending: number; debug: string; }
   return results.reduce(
-    (acc, item) => {
+    (acc: FetchAcc, item: any) => {
       if (item?.status === "pending") {
         return { ...acc, pending: acc.pending + 1 };
       }
@@ -205,7 +220,7 @@ const fetchAggregated = derive([fetched], (results) => {
 // UI
 // =============================================================================
 
-export default recipe<{}, { experiments: any }>(({ }) => {
+export default pattern<{}, { experiments: any }>(({}) => {
   return {
     [NAME]: "Reduce Experiments",
     [UI]: (
