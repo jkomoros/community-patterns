@@ -83,15 +83,7 @@ If you verify a superstition is correct, **upstream it to labs docs** instead of
 - `debugging-` - General debugging strategies
 - `framework-` - Core framework behavior
 
-## Deprecated: blessed/ and folk_wisdom/
-
-The `blessed/` and `folk_wisdom/` directories are **deprecated**.
-
-Previously, we had a three-tier system where superstitions would be "promoted" to folk_wisdom after multiple confirmations, then to blessed after framework author approval.
-
-**New model:** Verified knowledge should be upstreamed directly to `~/Code/labs/docs/common/` rather than maintained separately here. Community-patterns only holds unverified superstitions.
-
-If you find useful content in these deprecated directories, consider upstreaming it to labs docs.
+Verified knowledge should be upstreamed directly to `~/Code/labs/docs/common/` rather than maintained separately here. Community-patterns only holds unverified superstitions.
 
 ---
 
