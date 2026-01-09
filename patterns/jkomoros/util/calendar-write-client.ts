@@ -552,8 +552,10 @@ export class CalendarWriteClient {
     const event = (await getRes.json()) as CalendarEventResult;
 
     // Find and update own attendee status
+    const userEmailLower = userEmail.toLowerCase();
     const attendees = (event.attendees || []).map((a) => {
-      if (a.email.toLowerCase() === userEmail.toLowerCase()) {
+      const attendeeEmail = a.email.toLowerCase();
+      if (attendeeEmail === userEmailLower) {
         return { ...a, responseStatus: status };
       }
       return a;
@@ -561,7 +563,7 @@ export class CalendarWriteClient {
 
     // Check if user was found as an attendee
     const userFound = event.attendees?.some(
-      (a) => a.email.toLowerCase() === userEmail.toLowerCase(),
+      (a) => a.email.toLowerCase() === userEmailLower,
     );
 
     if (!userFound) {

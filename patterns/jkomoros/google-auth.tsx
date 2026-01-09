@@ -574,7 +574,16 @@ export default pattern<Input, Output>(
 
     // Minimal preview chip for picker display using shared helper
     const previewUI = computed(() =>
-      createPreviewUI(auth, selectedScopes as unknown as Record<string, boolean>)
+      createPreviewUI(auth, {
+        gmail: selectedScopes.gmail,
+        gmailSend: selectedScopes.gmailSend,
+        gmailModify: selectedScopes.gmailModify,
+        calendar: selectedScopes.calendar,
+        calendarWrite: selectedScopes.calendarWrite,
+        drive: selectedScopes.drive,
+        docs: selectedScopes.docs,
+        contacts: selectedScopes.contacts,
+      })
     );
 
     return {

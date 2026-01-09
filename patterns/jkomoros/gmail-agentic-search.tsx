@@ -381,8 +381,11 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
     // Use input cells directly - Default<> types handle writability and defaults.
     // Cannot call .get() on input cells at build time (causes "space is required" error).
-    const localQueries = localQueriesInput as unknown as Writable<LocalQuery[]>;
-    const pendingSubmissions = pendingSubmissionsInput as unknown as Writable<PendingSubmission[]>;
+    // Input cells from Default<T[], D> are OpaqueCell types that have writable methods at runtime.
+    // Use 'any' to avoid double-casting (as unknown as) which is disallowed by the compiler.
+    // See: patterns/jkomoros/util/agentic-tools.ts for similar pattern
+    const localQueries: any = localQueriesInput;
+    const pendingSubmissions: any = pendingSubmissionsInput;
 
     // ========================================================================
     // QUERY TRACKING (for foundItems feature)
@@ -800,10 +803,10 @@ const GmailAgenticSearch = pattern<
             // Update existing query using .key().key().set() for atomic updates
             const existing = currentLocalQueries[existingQueryIndex];
             const itemCell = state.localQueries.key(existingQueryIndex);
-            (itemCell.key("lastUsed") as unknown as Writable<number>).set(Date.now());
-            (itemCell.key("useCount") as unknown as Writable<number>).set(existing.useCount + 1);
+            itemCell.key("lastUsed").set(Date.now());
+            itemCell.key("useCount").set(existing.useCount + 1);
             // Auto-increase effectiveness if it found results (capped at 5)
-            (itemCell.key("effectiveness") as unknown as Writable<number>).set(
+            itemCell.key("effectiveness").set(
               emails.length > 0
                 ? Math.min(5, existing.effectiveness + 1)
                 : existing.effectiveness
@@ -1701,7 +1704,7 @@ When you're done searching, STOP calling tools and produce your final structured
       const queries = state.localQueries.get() || [];
       const index = queries.findIndex((q) => q.id === state.queryId);
       if (index >= 0) {
-        (state.localQueries.key(index).key("effectiveness") as unknown as Writable<number>).set(state.rating);
+        state.localQueries.key(index).key("effectiveness").set(state.rating);
       }
     });
 
@@ -1740,7 +1743,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update localQueries FIRST (mark as pending_review)
       const idx = queries.findIndex((q) => q.id === state.queryId);
       if (idx >= 0) {
-        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("pending_review");
+        state.localQueries.key(idx).key("shareStatus").set("pending_review");
       }
 
       // Then add to pendingSubmissions
@@ -1969,7 +1972,7 @@ When you're done searching, STOP calling tools and produce your final structured
       // Update the local query status
       const idx = queries.findIndex((q) => q.id === input.queryId);
       if (idx >= 0) {
-        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("pending_review");
+        state.localQueries.key(idx).key("shareStatus").set("pending_review");
       }
     });
 
@@ -2085,7 +2088,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        (state.pendingSubmissions.key(idx).key("userApproved") as unknown as Writable<boolean>).set(true);
+        state.pendingSubmissions.key(idx).key("userApproved").set(true);
       }
     });
 
@@ -2105,7 +2108,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const queries = state.localQueries.get() || [];
       const idx = queries.findIndex((q) => q.id === input.localQueryId);
       if (idx >= 0) {
-        (state.localQueries.key(idx).key("shareStatus") as unknown as Writable<"private" | "pending_review" | "submitted">).set("private");
+        state.localQueries.key(idx).key("shareStatus").set("private");
       }
     });
 
@@ -2117,7 +2120,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       const submissions = state.pendingSubmissions.get() || [];
       const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
       if (idx >= 0) {
-        (state.pendingSubmissions.key(idx).key("sanitizedQuery") as unknown as Writable<string>).set(input.sanitizedQuery);
+        state.pendingSubmissions.key(idx).key("sanitizedQuery").set(input.sanitizedQuery);
       }
     });
 

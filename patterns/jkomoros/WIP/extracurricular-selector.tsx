@@ -1117,41 +1117,6 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Selected state for "what becomes incompatible" feature (click/tap - works on desktop and mobile)
     const selectedClassId = Writable.of<string>("");
 
-    // Pre-computed class ID lists for each triage category (for use in handlers)
-    const autoKeptClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").map((c: StagedClass) => c.id)
-    );
-    const needsReviewClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").map((c: StagedClass) => c.id)
-    );
-    const autoDiscardedClassIds = computed(() =>
-      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").map((c: StagedClass) => c.id)
-    );
-
-    // Pre-computed list of classes to import (for confirm import handler)
-    const classesToImport = computed(() => {
-      const toImport = processedStagedClasses.filter((c: StagedClass) => {
-        return c.triageStatus === "auto_kept" || c.triageStatus === "user_kept";
-      });
-      // Convert StagedClass to Class (remove triage fields)
-      return toImport.map((staged: StagedClass) => ({
-        id: generateId(), // Generate fresh IDs to avoid duplicates
-        name: staged.name,
-        locationId: staged.locationId,
-        locationName: staged.locationName,
-        timeSlots: staged.timeSlots,
-        cost: staged.cost,
-        costPer: staged.costPer,
-        categoryTagIds: staged.categoryTagIds,
-        categoryTagNames: staged.categoryTagNames,
-        gradeMin: staged.gradeMin,
-        gradeMax: staged.gradeMax,
-        description: staged.description,
-        startDate: staged.startDate,
-        endDate: staged.endDate,
-      }));
-    });
-
     // Note: Selection state uses separate stagedClassSelections Writable<Record<string, boolean>>
     // because $checked on computed array items causes ReadOnlyAddressError
 
@@ -1452,6 +1417,41 @@ Return the complete extracted text.`
           eligibilityConfidence: confidence
         };
       });
+    });
+
+    // Pre-computed class ID lists for each triage category (for use in handlers)
+    const autoKeptClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_kept").map((c: StagedClass) => c.id)
+    );
+    const needsReviewClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "needs_review").map((c: StagedClass) => c.id)
+    );
+    const autoDiscardedClassIds = computed(() =>
+      processedStagedClasses.filter((c: StagedClass) => c.triageStatus === "auto_discarded").map((c: StagedClass) => c.id)
+    );
+
+    // Pre-computed list of classes to import (for confirm import handler)
+    const classesToImport = computed(() => {
+      const toImport = processedStagedClasses.filter((c: StagedClass) => {
+        return c.triageStatus === "auto_kept" || c.triageStatus === "user_kept";
+      });
+      // Convert StagedClass to Class (remove triage fields)
+      return toImport.map((staged: StagedClass) => ({
+        id: generateId(), // Generate fresh IDs to avoid duplicates
+        name: staged.name,
+        locationId: staged.locationId,
+        locationName: staged.locationName,
+        timeSlots: staged.timeSlots,
+        cost: staged.cost,
+        costPer: staged.costPer,
+        categoryTagIds: staged.categoryTagIds,
+        categoryTagNames: staged.categoryTagNames,
+        gradeMin: staged.gradeMin,
+        gradeMax: staged.gradeMax,
+        description: staged.description,
+        startDate: staged.startDate,
+        endDate: staged.endDate,
+      }));
     });
 
     // No initialization needed - lazy defaults computed at read time
