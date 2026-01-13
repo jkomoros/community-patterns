@@ -43,6 +43,9 @@ interface Entrance {
   position: WallPosition;
 }
 
+// Type alias for itemsByPosition result (must be at module scope for pattern compiler)
+type ItemsByPositionType = Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+
 const DEFAULT_DEPARTMENTS = [
   { name: "Bakery", icon: "🥖" },
   { name: "Deli", icon: "🥪" },
@@ -1100,9 +1103,6 @@ What common sections might be missing?`,
     const rightDepartments = computed(() =>
       specialDepartments.filter((dept) => dept.location?.startsWith("right"))
     );
-
-    // Type alias for itemsByPosition result
-    type ItemsByPositionType = Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
 
     // Group all items by exact position for the store map visualization
     const itemsByPosition = computed(() => {
