@@ -2,6 +2,9 @@
 /**
  * TRUSTED FILE - Google Docs Comment Confirmation Handlers
  *
+ * NOTE: This is a utility module, not a standalone pattern.
+ * It is imported by google-docs-comment-orchestrator.tsx.
+ *
  * This file contains the trusted handlers and API client for Google Docs
  * comment actions. The actual side effects (API calls) happen here.
  *

@@ -19,7 +19,7 @@ import {
   executeAction,
   cancelAction,
   type PendingCommentAction,
-} from "./google-docs-comment-confirm.tsx";
+} from "./google-docs-comment-confirm.ts";
 
 // Import Google Auth utility
 import { createGoogleAuth, type ScopeKey } from "./util/google-auth-manager.tsx";
