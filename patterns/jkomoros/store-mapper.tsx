@@ -1916,21 +1916,23 @@ What common sections might be missing?`,
                     <div
                       style={{
                         display: "flex",
-                        alignItems: "flex-start",
-                        gap: "0.5rem",
-                        flexWrap: "wrap",
+                        flexDirection: "column",
+                        gap: "6px",
+                        padding: "0.75rem",
+                        background: "#fafafa",
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb",
                       }}
                     >
                       <div
                         style={{
-                          width: "140px",
                           fontSize: "14px",
-                          fontWeight: "500",
+                          fontWeight: "600",
+                          marginBottom: "4px",
                         }}
                       >
                         {deptInfo.icon} {deptName}
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                         {/* Front Wall */}
                         <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                           <div style={{ width: "70px", fontSize: "12px", fontWeight: "600", color: "#3b82f6" }}>
@@ -2178,7 +2180,6 @@ What common sections might be missing?`,
                             Not in Store
                           </ct-button>
                         </div>
-                      </div>
                     </div>
                   );
                 })}
@@ -2992,7 +2993,7 @@ What common sections might be missing?`,
                                             fontSize: "12px",
                                           }}
                                         >
-                                          Aisle {extractedAisle.name} (matches existing aisle)
+                                          Aisle {extractedAisle?.name ?? '?'} (matches existing aisle)
                                         </div>
 
                                         {overlapAnalysis && overlapAnalysis.hasOverlap && overlapAnalysis.overlap && overlapAnalysis.overlap.length > 0 ? (
@@ -3009,7 +3010,7 @@ What common sections might be missing?`,
                                               Select items to add:
                                             </div>
                                             {overlapAnalysis.newItems.filter(item => item).map((item) => {
-                                              const selKey = `${extraction.photoName}-${extractedAisle.name}`;
+                                              const selKey = `${extraction.photoName}-${extractedAisle?.name ?? 'unknown'}`;
                                               // Use derive to access cell state
                                               const isChecked = derive(selectedMergeItems, (selections: Record<string, string[]>) => {
                                                 const selected = selections[selKey] || overlapAnalysis.newItems;
@@ -3050,7 +3051,7 @@ What common sections might be missing?`,
                                                 existingAisle: matchingAisle,
                                                 newItems: overlapAnalysis.newItems.filter(item => item),
                                                 selectedMergeItems,
-                                                selectionKey: `${extraction.photoName}-${extractedAisle.name}`,
+                                                selectionKey: `${extraction.photoName}-${extractedAisle?.name ?? 'unknown'}`,
                                                 hiddenPhotoIds,
                                                 photo: extraction.photo,
                                                 extractedAisles: validAisles,
@@ -3060,7 +3061,7 @@ What common sections might be missing?`,
                                                 padding: "4px 8px",
                                               }}
                                             >
-                                              + Merge Selected into Aisle {extractedAisle.name}
+                                              + Merge Selected into Aisle {extractedAisle?.name ?? '?'}
                                             </ct-button>
                                           </div>
                                         ) : <></>}
@@ -3081,10 +3082,10 @@ What common sections might be missing?`,
                                               color: "#166534",
                                             }}
                                           >
-                                            Aisle {extractedAisle.name}
+                                            Aisle {extractedAisle?.name ?? '?'}
                                           </div>
                                           <div style={{ color: "#666", fontSize: "10px", lineHeight: "1.4" }}>
-                                            {extractedAisle.products && extractedAisle.products.length > 0
+                                            {extractedAisle?.products && extractedAisle.products.length > 0
                                               ? `+ Will add: ${extractedAisle.products.join(', ')}`
                                               : "(no products)"}
                                           </div>
@@ -3101,7 +3102,7 @@ What common sections might be missing?`,
                                             padding: "4px 8px",
                                           }}
                                         >
-                                          + Add Aisle {extractedAisle.name}
+                                          + Add Aisle {extractedAisle?.name ?? '?'}
                                         </ct-button>
                                       </div>
                                     )}
@@ -3140,7 +3141,7 @@ What common sections might be missing?`,
                 📄 Outline Preview
               </h3>
               {ifElse(
-                derive(totalSections, (count) => count > 0),
+                derive(outline, (o) => o.length > 0),
                 <ct-button
                   size="sm"
                   variant="secondary"
@@ -3153,7 +3154,7 @@ What common sections might be missing?`,
               )}
             </div>
             {ifElse(
-              derive(totalSections, (count) => count > 0),
+              derive(outline, (o) => o.length > 0),
               <pre
                 style={{
                   fontSize: "12px",
