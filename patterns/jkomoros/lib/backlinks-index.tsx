@@ -1,10 +1,13 @@
 /// <cts-enable />
-import { Writable, computed, lift, NAME, OpaqueRef, recipe, UI } from "commontools";
+import { lift, NAME, pattern, UI, Writable } from "commontools";
 
 export type MentionableCharm = {
   [NAME]?: string;
+  isHidden?: boolean;
+  isMentionable?: boolean;
   mentioned: MentionableCharm[];
   backlinks: MentionableCharm[];
+  mentionable?: MentionableCharm[] | { get?: () => MentionableCharm[] };
 };
 
 export type WriteableBacklinks = {
@@ -56,39 +59,43 @@ const computeIndex = lift<
  * its `[NAME]`). This mirrors how existing note patterns identify notes when
  * computing backlinks locally.
  */
-const BacklinksIndex = recipe<Input, Output>(
-  "BacklinksIndex",
-  ({ allCharms }) => {
-    computeIndex({
-      allCharms: allCharms as unknown as OpaqueRef<WriteableBacklinks[]>,
-    });
+const computeMentionable = lift<
+  { allCharms: MentionableCharm[] },
+  MentionableCharm[]
+>(({ allCharms: charmList }) => {
+  const cs = charmList ?? [];
+  const out: MentionableCharm[] = [];
+  for (const c of cs) {
+    // Skip charms explicitly marked as not mentionable (like note-md viewer charms)
+    // Note: We check isMentionable === false, not isHidden, because notes in
+    // notebooks are hidden but should still be mentionable
+    if (c.isMentionable === false) continue;
+    out.push(c);
+    const exported = c.mentionable;
+    if (Array.isArray(exported)) {
+      for (const m of exported) if (m && m.isMentionable !== false) out.push(m);
+    } else if (exported && typeof (exported as any).get === "function") {
+      const arr = (exported as { get: () => MentionableCharm[] }).get() ??
+        [];
+      for (const m of arr) if (m && m.isMentionable !== false) out.push(m);
+    }
+  }
+  return out;
+});
 
-    // Compute mentionable list from allCharms reactively
-    const mentionable = computed(() => {
-      const cs = allCharms ?? [];
-      const out: MentionableCharm[] = [];
-      for (const c of cs) {
-        out.push(c);
-        const exported = (c as unknown as {
-          mentionable?: MentionableCharm[] | { get?: () => MentionableCharm[] };
-        }).mentionable;
-        if (Array.isArray(exported)) {
-          for (const m of exported) if (m) out.push(m);
-        } else if (exported && typeof (exported as any).get === "function") {
-          const arr = (exported as { get: () => MentionableCharm[] }).get() ??
-            [];
-          for (const m of arr) if (m) out.push(m);
-        }
-      }
-      return out;
-    });
+const BacklinksIndex = pattern<Input, Output>(({ allCharms }) => {
+  computeIndex({
+    allCharms,
+  });
 
-    return {
-      [NAME]: "BacklinksIndex",
-      [UI]: undefined,
-      mentionable,
-    };
-  },
-);
+  // Compute mentionable list from allCharms reactively
+  const mentionable = computeMentionable({ allCharms });
+
+  return {
+    [NAME]: "BacklinksIndex",
+    [UI]: undefined,
+    mentionable,
+  };
+});
 
 export default BacklinksIndex;

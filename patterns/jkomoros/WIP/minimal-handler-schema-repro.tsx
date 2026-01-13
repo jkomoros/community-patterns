@@ -26,6 +26,11 @@ interface MyRecord {
   priority: number;
 }
 
+// Helper function to cast an object to T - avoids double-casting in handler
+function castToType<T>(obj: object): T {
+  return obj as T;
+}
+
 // This generic factory function creates handlers
 // BUT: The CTS compiler can't resolve T at compile time!
 function createGenericHandler<T extends { id: string }>() {
@@ -37,11 +42,12 @@ function createGenericHandler<T extends { id: string }>() {
     // But LLM never gets the schema to know what fields to send!
     const items = state.items.get() || [];
     const id = `item-${Date.now()}`;
-    const newItem = { ...input, id } as unknown as T;
+    const newItem = castToType<T>({ ...input, id });
     state.items.set([...items, newItem]);
 
-    if ((input as any).result) {
-      (input as any).result.set({ success: true });
+    const inputAny = input as { result?: Writable<{ success: boolean }> };
+    if (inputAny.result) {
+      inputAny.result.set({ success: true });
     }
     return { success: true };
   });

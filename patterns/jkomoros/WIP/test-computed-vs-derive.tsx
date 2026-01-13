@@ -115,7 +115,7 @@ const TestPattern = recipe<Input, Output>(
     const resultWithComputed = computed(() => {
       if (useDerive) return null;
 
-      const startTime = performance.now();
+      const startTime = Date.now();
       console.log("[Version A - computed()] Starting computation with closures...");
 
       // This computed() closes over all 14 field cells
@@ -132,7 +132,7 @@ const TestPattern = recipe<Input, Output>(
         },
       });
 
-      const reactiveOverhead = performance.now() - startTime;
+      const reactiveOverhead = Date.now() - startTime;
       console.log(`[Version A - computed()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
 
       return result.result;
@@ -161,7 +161,7 @@ const TestPattern = recipe<Input, Output>(
       (params) => {
         if (!params.shouldCompute) return null;
 
-        const startTime = performance.now();
+        const startTime = Date.now();
         console.log("[Version B - derive()] Starting computation with explicit params...");
 
         // This derive() has explicit dependencies listed
@@ -178,7 +178,7 @@ const TestPattern = recipe<Input, Output>(
           },
         });
 
-        const reactiveOverhead = performance.now() - startTime;
+        const reactiveOverhead = Date.now() - startTime;
         console.log(`[Version B - derive()] Reactive overhead: ${reactiveOverhead.toFixed(2)}ms`);
 
         return result.result;

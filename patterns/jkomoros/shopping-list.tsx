@@ -53,33 +53,33 @@ const updateItem = handler<
   }
 });
 
+// PatternTool implementation (extracted to module scope for compiler compliance)
+const searchItemsImpl = ({ items, query }: { items: ShoppingItem[], query: string }) => {
+  return computed(() =>
+    items.filter((item: ShoppingItem) =>
+      item.title.toLowerCase().includes(query.toLowerCase())
+    )
+  );
+};
+
+// Handler for omnibot to add items (extracted to module scope for compiler compliance)
+const addItemForOmnibot = handler<
+  { itemText: string },
+  { items: Writable<ShoppingItem[]> }
+>(({ itemText }, { items }) => {
+  if (itemText && itemText.trim()) {
+    items.push({ title: itemText.trim(), done: false });
+  }
+});
+
 export default pattern<InputSchema, Output>(
   ({ title, items }) => {
     // Computed values
     const totalCount = computed(() => items.length);
     const doneCount = computed(() => items.filter(item => item.done).length);
 
-    // Create a search tool for omnibot - takes a query parameter
-    const searchItems = patternTool(
-      ({ items, query }: { items: ShoppingItem[], query: string }) => {
-        return computed(() =>
-          items.filter((item: ShoppingItem) =>
-            item.title.toLowerCase().includes(query.toLowerCase())
-          )
-        );
-      },
-      { items }  // Only supply items, query becomes a tool parameter
-    );
-
-    // Create an add item tool for omnibot - takes itemText parameter
-    const addItemForOmnibot = handler<
-      { itemText: string },
-      { items: Writable<ShoppingItem[]> }
-    >(({ itemText }, { items }) => {
-      if (itemText && itemText.trim()) {
-        items.push({ title: itemText.trim(), done: false });
-      }
-    });
+    // Create a search tool for omnibot (implementation at module scope)
+    const searchItems = patternTool(searchItemsImpl, { items });
 
     return {
       [NAME]: title,

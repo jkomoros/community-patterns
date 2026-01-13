@@ -556,6 +556,879 @@ type ScheduleSlotData = {
 };
 
 // ============================================================================
+// MODULE-SCOPE HANDLERS
+// These handlers must be defined at module scope, not inside the pattern.
+// They receive state via the second parameter when invoked.
+// ============================================================================
+
+// Handler to update selected location index (for Import section, uses number)
+const setLocationIndex = handler<
+  { target: { value: string } },
+  { idx: Writable<number> }
+>((event: { target: { value: string } }, state: { idx: Writable<number> }) => {
+  state.idx.set(parseInt(event.target.value, 10));
+});
+
+// Import selected classes - uses stagedClasses cell directly
+// Uses handler pattern to avoid closure issues
+const doImportAll = handler<
+  unknown,
+  { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }
+>((_: unknown, { locIdx, locs, classList, staged, trigger, text, lastText, semester }: { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }) => {
+  const locationIndex = locIdx.get();
+  const locationList = locs.get();
+  if (locationIndex < 0 || locationIndex >= locationList.length) return;
+
+  const location = locationList[locationIndex];
+  const stagedList = staged.get();
+  if (!stagedList || stagedList.length === 0) return;
+
+  // Auto-populate semester dates from imported classes if not already set
+  // Find the earliest start and latest end from all selected classes
+  const currentSemester = semester.get();
+  let earliestStart = currentSemester?.startDate || "";
+  let latestEnd = currentSemester?.endDate || "";
+
+  // Import only classes that are selected
+  for (const cls of stagedList) {
+    if (!cls || !cls.selected) continue; // Skip unselected classes
+
+    // Track session dates for auto-population
+    if (cls.sessionStartDate) {
+      if (!earliestStart || cls.sessionStartDate < earliestStart) {
+        earliestStart = cls.sessionStartDate;
+      }
+    }
+    if (cls.sessionEndDate) {
+      if (!latestEnd || cls.sessionEndDate > latestEnd) {
+        latestEnd = cls.sessionEndDate;
+      }
+    }
+
+    classList.push({
+      name: cls.name || "",
+      description: cls.notes || "",
+      location,
+      timeSlots: [{
+        day: (cls.dayOfWeek || "monday") as DayOfWeek,
+        startTime: cls.startTime || "",
+        endTime: cls.endTime || "",
+      }],
+      cost: cls.cost || 0,
+      gradeMin: cls.gradeMin || "",
+      gradeMax: cls.gradeMax || "",
+      // Preserve session dates from extraction
+      sessionStartDate: cls.sessionStartDate || undefined,
+      sessionEndDate: cls.sessionEndDate || undefined,
+      meetingCount: cls.meetingCount || undefined,
+      pinnedInSets: [],
+      statuses: {
+        registered: false,
+        confirmed: false,
+        waitlisted: false,
+        paid: false,
+        onCalendar: false,
+      },
+    });
+  }
+
+  // Auto-populate semester dates if we found dates and current values are empty
+  if (earliestStart && !currentSemester?.startDate) {
+    semester.key("startDate").set(earliestStart);
+  }
+  if (latestEnd && !currentSemester?.endDate) {
+    semester.key("endDate").set(latestEnd);
+  }
+
+  // Clear import state
+  trigger.set("");
+  text.set("");
+  staged.set([]);  // Clear staged classes
+  lastText.set(""); // Allow re-extraction
+});
+
+// Toggle selection on a staged class
+// WORKAROUND: $checked doesn't work inside Cell.map() because OpaqueRef returns
+// values (not Cells), and CellController.setValue() silently ignores non-Cell values.
+// See: patterns/jkomoros/issues/ISSUE-checked-binding-cellmap-silent-failure.md
+const toggleStagedSelection = handler<
+  unknown,
+  { staged: Writable<StagedClass[]>; idx: number }
+>((_: unknown, { staged, idx }: { staged: Writable<StagedClass[]>; idx: number }) => {
+  const current = staged.get();
+  if (idx < 0 || idx >= current.length) return;
+  // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+  staged.key(idx).key("selected").set(!current[idx].selected);
+});
+
+// Handler to update a class field
+const updateClassField = handler<
+  { target: { value: string } },
+  { classList: Writable<Class[]>; idx: number; field: keyof Class }
+>((event: { target: { value: string } }, { classList, idx, field }: { classList: Writable<Class[]>; idx: number; field: keyof Class }) => {
+  const current = classList.get();
+  if (idx < 0 || idx >= current.length) return;
+  classList.key(idx).key(field).set(event.target.value);
+});
+
+// Handler to update class time slot
+const updateClassTimeSlot = handler<
+  { target: { value: string } },
+  { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
+>((event: { target: { value: string } }, { classList, classIdx, slotIdx, field }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }) => {
+  const current = classList.get();
+  if (classIdx < 0 || classIdx >= current.length) return;
+  const cls = current[classIdx];
+  if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
+  classList.key(classIdx).key("timeSlots").key(slotIdx).key(field).set(event.target.value);
+});
+
+// Handler to add a time slot to a class
+const addClassTimeSlot = handler<
+  unknown,
+  { classList: Writable<Class[]>; idx: number }
+>((_: unknown, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
+  const current = classList.get();
+  if (idx < 0 || idx >= current.length) return;
+  const cls = current[idx];
+  const newSlots = [...(cls.timeSlots || []), { day: "monday" as DayOfWeek, startTime: "15:00", endTime: "16:00" }];
+  classList.key(idx).key("timeSlots").set(newSlots);
+});
+
+// Handler to remove a time slot from a class
+const removeClassTimeSlot = handler<
+  unknown,
+  { classList: Writable<Class[]>; classIdx: number; slotIdx: number }
+>((_: unknown, { classList, classIdx, slotIdx }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number }) => {
+  const current = classList.get();
+  if (classIdx < 0 || classIdx >= current.length) return;
+  const cls = current[classIdx];
+  if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
+  const newSlots = cls.timeSlots.filter((_: TimeSlot, i: number) => i !== slotIdx);
+  classList.key(classIdx).key("timeSlots").set(newSlots);
+});
+
+// Handler to update class location
+const updateClassLocation = handler<
+  { target: { value: string } },
+  { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }
+>((event: { target: { value: string } }, { classList, locs, classIdx }: { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }) => {
+  const locIdx = parseInt(event.target.value, 10);
+  const locList = locs.get();
+  if (locIdx < 0 || locIdx >= locList.length) return;
+  classList.key(classIdx).key("location").set(locList[locIdx]);
+});
+
+// Handler to update class cost
+const updateClassCost = handler<
+  { target: { value: string } },
+  { classList: Writable<Class[]>; idx: number }
+>((event: { target: { value: string } }, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
+  const cost = parseFloat(event.target.value) || 0;
+  classList.key(idx).key("cost").set(cost);
+});
+
+// Handler to update child grade
+const setChildGrade = handler<
+  { target: { value: string } },
+  { childCell: Writable<ChildProfile> }
+>((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+  const current = state.childCell.get();
+  state.childCell.set({ ...current, grade: event.target.value as Grade });
+});
+
+// Handler to update child name
+const setChildName = handler<
+  { target: { value: string } },
+  { childCell: Writable<ChildProfile> }
+>((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+  const current = state.childCell.get();
+  state.childCell.set({ ...current, name: event.target.value });
+});
+
+// Handler to update child birth year
+const setChildBirthYear = handler<
+  { target: { value: string } },
+  { childCell: Writable<ChildProfile> }
+>((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+  const current = state.childCell.get();
+  const year = parseInt(event.target.value, 10);
+  if (!isNaN(year)) {
+    state.childCell.set({ ...current, birthYear: year });
+  }
+});
+
+// Handler to update child birth month
+const setChildBirthMonth = handler<
+  { target: { value: string } },
+  { childCell: Writable<ChildProfile> }
+>((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+  const current = state.childCell.get();
+  const month = parseInt(event.target.value, 10);
+  if (!isNaN(month) && month >= 1 && month <= 12) {
+    state.childCell.set({ ...current, birthMonth: month });
+  }
+});
+
+// Handle unified file upload
+const handleFileUpload = handler<
+  { detail: { files: FileData[] } },
+  {
+    uploadedFile: Writable<FileData | null>;
+    processingStatus: Writable<ProcessingStatus>;
+    extractedText: Writable<string>;
+    extractionError: Writable<string | null>;
+  }
+>(({ detail }: { detail: { files: FileData[] } }, { uploadedFile, processingStatus, extractedText, extractionError }: {
+  uploadedFile: Writable<FileData | null>;
+  processingStatus: Writable<ProcessingStatus>;
+  extractedText: Writable<string>;
+  extractionError: Writable<string | null>;
+}) => {
+  if (!detail?.files || detail.files.length === 0) return;
+
+  const file = detail.files[detail.files.length - 1];  // Take most recent
+  const fileType = detectFileType(file);
+
+  // Reset state
+  extractionError.set(null);
+  extractedText.set("");
+
+  if (fileType === "text") {
+    // Direct text decode
+    try {
+      const base64 = file.data.split(",")[1];
+      const text = atob(base64);
+      extractedText.set(text);
+      processingStatus.set("complete");
+      uploadedFile.set(file);
+    } catch (e) {
+      extractionError.set("Failed to read text file");
+      processingStatus.set("error");
+    }
+  } else if (fileType === "image") {
+    // Trigger OCR (handled by generateObject reactive flow)
+    uploadedFile.set(file);
+    processingStatus.set("processing");
+  } else {
+    extractionError.set("Unsupported file type. Use images or text files.");
+    processingStatus.set("error");
+  }
+});
+
+// Apply extracted text to import field
+const applyExtractedText = handler<
+  unknown,
+  {
+    extractedText: Writable<string>;
+    importText: Writable<string>;
+    uploadedFile: Writable<FileData | null>;
+    processingStatus: Writable<ProcessingStatus>;
+    ocrText: string | null;
+  }
+>((_: unknown, { extractedText, importText, uploadedFile, processingStatus, ocrText }: {
+  extractedText: Writable<string>;
+  importText: Writable<string>;
+  uploadedFile: Writable<FileData | null>;
+  processingStatus: Writable<ProcessingStatus>;
+  ocrText: string | null;
+}) => {
+  // Use extracted text from file, or OCR result from image
+  const text = extractedText.get() || ocrText || "";
+  if (text) {
+    importText.set(text);
+    // Reset upload state
+    uploadedFile.set(null);
+    extractedText.set("");
+    processingStatus.set("idle");
+  }
+});
+
+// Cancel upload and reset state
+const cancelUpload = handler<
+  unknown,
+  {
+    uploadedFile: Writable<FileData | null>;
+    extractedText: Writable<string>;
+    processingStatus: Writable<ProcessingStatus>;
+    extractionError: Writable<string | null>;
+  }
+>((_: unknown, { uploadedFile, extractedText, processingStatus, extractionError }: {
+  uploadedFile: Writable<FileData | null>;
+  extractedText: Writable<string>;
+  processingStatus: Writable<ProcessingStatus>;
+  extractionError: Writable<string | null>;
+}) => {
+  uploadedFile.set(null);
+  extractedText.set("");
+  processingStatus.set("idle");
+  extractionError.set(null);
+});
+
+// Handler to switch active set
+const setActiveSet = handler<
+  { target: { value: string } },
+  { activeCell: Writable<string> }
+>((event: { target: { value: string } }, state: { activeCell: Writable<string> }) => {
+  state.activeCell.set(event.target.value);
+});
+
+// Handler to toggle pin on a class
+const togglePinClass = handler<
+  unknown,
+  { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }
+>((_: unknown, { classList, activeSet, idx }: { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }) => {
+  const current = classList.get();
+  const setName = activeSet.get();
+  if (idx < 0 || idx >= current.length) return;
+
+  const cls = current[idx];
+  const currentPins: string[] = Array.isArray(cls.pinnedInSets) ? cls.pinnedInSets : [];
+  const isPinned = currentPins.includes(setName);
+  const newPins = isPinned
+    ? currentPins.filter((s: string) => s !== setName)
+    : [...currentPins, setName];
+  // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+  classList.key(idx).key("pinnedInSets").set(newPins);
+});
+
+/**
+ * Prepares calendar export - shows confirmation dialog.
+ * This is the "prepare" phase of the two-phase commit pattern.
+ */
+const prepareCalendarExport = handler<
+  unknown,
+  {
+    pinnedClasses: Class[];
+    semesterDates: Writable<SemesterDates>;
+    child: Writable<ChildProfile>;
+    activeSetName: Writable<string>;
+    calendarName: Writable<string>;
+    pendingExport: Writable<PendingCalendarExport>;
+    outbox: Writable<CalendarOutbox>;
+  }
+>((_: unknown, state) => {
+  // Handler receives readonly props from framework, cast to mutable for internal use
+  const { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox } = state as {
+    pinnedClasses: Class[];
+    semesterDates: Writable<SemesterDates>;
+    child: Writable<ChildProfile>;
+    activeSetName: Writable<string>;
+    calendarName: Writable<string>;
+    pendingExport: Writable<PendingCalendarExport>;
+    outbox: Writable<CalendarOutbox>;
+  };
+  // pinnedClasses is a computed cell - handler receives unwrapped value (not cell)
+  const classList = pinnedClasses || [];
+  const semester = semesterDates.get() || { startDate: "", endDate: "" };
+  const childProfile = child.get() || { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
+  const setName = activeSetName.get() || "default";
+  const targetCalendar = calendarNameCell.get() || "Calendar";
+
+  if (!classList || classList.length === 0) return;
+  if (!semester.startDate || !semester.endDate) return;
+
+  // Generate ICS content (for download fallback)
+  const icalResult = classesToICalEvents(classList, semester);
+  const icsCalendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
+  const icsContent = generateICS(icalResult.events, {
+    calendarName: icsCalendarName,
+    prodId: "-//CommonTools//Extracurricular Selector//EN",
+  });
+
+  // Generate outbox events (for apple-sync CLI)
+  const outboxResult = classesToOutboxEvents(classList, semester, targetCalendar);
+
+  // Check for duplicates: events already in outbox with same ID
+  // DEFENSIVE: Filter undefined entries/events during hydration
+  const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+  const existingUIDs = new Set(
+    (currentOutbox.entries || []).filter((entry: CalendarOutboxEntry) => entry != null).flatMap((entry: CalendarOutboxEntry) =>
+      (entry.events || []).filter((e: CalendarOutboxEvent) => e != null).map((e: CalendarOutboxEvent) => e.id)
+    )
+  );
+  const newEvents = outboxResult.events.filter((e: CalendarOutboxEvent) => e != null && !existingUIDs.has(e.id));
+  const duplicateCount = outboxResult.events.length - newEvents.length;
+
+  // Combine skipped items from both conversions (deduplicate)
+  const allSkipped = [...icalResult.skipped];
+  // Only add outbox skipped if not already in list
+  for (const skip of outboxResult.skipped) {
+    if (!allSkipped.some(s => s.className === skip.className && s.reason === skip.reason)) {
+      allSkipped.push(skip);
+    }
+  }
+
+  // Generate exportable events for Google Calendar
+  const exportableResult = classesToExportableEvents(classList);
+
+  // Set pending operation for confirmation dialog
+  pendingExport.set({
+    classes: classList,
+    semester,
+    icsContent,
+    childName: childProfile.name || "Child",
+    setName: setName || "default",
+    eventCount: newEvents.length,
+    calendarName: targetCalendar,
+    outboxEvents: newEvents, // Only non-duplicate events
+    skippedItems: allSkipped,
+    duplicateCount,
+    selectedTarget: null, // User picks in dialog
+    exportableEvents: exportableResult.events,
+  });
+});
+
+/**
+ * Cancels the pending calendar export operation.
+ */
+const cancelCalendarExport = handler<
+  unknown,
+  { pendingExport: Writable<PendingCalendarExport> }
+>((_: unknown, { pendingExport }: { pendingExport: Writable<PendingCalendarExport> }) => {
+  pendingExport.set(null);
+});
+
+/**
+ * Select export target in the dialog.
+ */
+const selectExportTarget = handler<
+  unknown,
+  { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }
+>((_: unknown, { pendingExport, target }: { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }) => {
+  const pending = pendingExport.get();
+  if (!pending) return;
+  pendingExport.set({ ...pending, selectedTarget: target });
+});
+
+/**
+ * Confirms and executes the export based on selected target.
+ * - Google: Direct API with batch operations and progress tracking
+ * - Apple: Add to outbox for apple-sync CLI + download ICS backup
+ * - ICS: Just download the ICS file
+ *
+ * This is the "confirm" phase of the two-phase commit pattern.
+ */
+const confirmCalendarExport = handler<
+  unknown,
+  {
+    pendingExport: Writable<PendingCalendarExport>;
+    processing: Writable<boolean>;
+    progress: Writable<CalendarExportProgress>;
+    result: Writable<CalendarExportResult>;
+    classList: Writable<Class[]>;
+    outbox: Writable<CalendarOutbox>;
+    auth: Writable<GoogleAuthType>;
+  }
+>(async (_: unknown, { pendingExport, processing, progress, result, classList, outbox, auth }: {
+  pendingExport: Writable<PendingCalendarExport>;
+  processing: Writable<boolean>;
+  progress: Writable<CalendarExportProgress>;
+  result: Writable<CalendarExportResult>;
+  classList: Writable<Class[]>;
+  outbox: Writable<CalendarOutbox>;
+  auth: Writable<GoogleAuthType>;
+}) => {
+  const pending = pendingExport.get();
+  if (!pending || !pending.selectedTarget) return;
+
+  processing.set(true);
+  progress.set(null);
+
+  try {
+    const now = new Date().toISOString();
+    const target = pending.selectedTarget;
+    let exportResult: CalendarExportResult;
+
+    if (target === "google") {
+      // Verify we have auth before proceeding
+      const authData = auth.get();
+      if (!authData?.token) {
+        throw new Error("Google authentication required. Please sign in first.");
+      }
+
+      // Google Calendar: Use batch API with progress tracking
+      const googleResult = await exportToGoogle(
+        auth,
+        pending.exportableEvents,
+        {
+          calendarName: "primary", // Always use primary calendar for Google
+          dateRange: pending.semester,
+          exportTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+          sourcePattern: {
+            name: "Extracurricular Selector",
+            path: "patterns/jkomoros/extracurricular.tsx",
+          },
+        },
+        (p) => progress.set(p), // Progress callback
+      );
+
+      exportResult = {
+        success: googleResult.success,
+        message: googleResult.message,
+        timestamp: now,
+        exportedCount: googleResult.exportedCount,
+        target: "google",
+        failedCount: googleResult.failedCount,
+      };
+    } else if (target === "apple") {
+      // Apple Calendar: Add to outbox + download ICS backup
+      const outboxEntry: CalendarOutboxEntry = {
+        id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        events: pending.outboxEvents,
+        confirmation: {
+          timestamp: now,
+          dialogContent: {
+            displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+            displayedCalendar: pending.calendarName,
+            displayedTimeRange: `${pending.semester?.startDate || ""} to ${pending.semester?.endDate || ""}`,
+            displayedEventCount: pending.eventCount,
+            // DEFENSIVE: Filter undefined during hydration
+            displayedClasses: pending.classes.filter((c: Class) => c != null).map((c: Class) => c.name),
+            warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
+          },
+          sourcePattern: {
+            name: "Extracurricular Selector",
+            path: "patterns/jkomoros/extracurricular.tsx",
+          },
+        },
+        execution: {
+          status: "pending",
+        },
+        createdAt: now,
+      };
+
+      // Add to outbox
+      const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+      const updatedOutbox: CalendarOutbox = {
+        entries: [...(currentOutbox.entries || []), outboxEntry],
+        lastUpdated: now,
+        version: "1.0",
+      };
+      outbox.set(updatedOutbox);
+
+      // Prepare ICS file for download via ct-file-download component
+      const dateStr = now.split("T")[0];
+      const childSlug = sanitizeFilename(pending.childName).toLowerCase();
+      const setSlug = sanitizeFilename(pending.setName).toLowerCase();
+      const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
+
+      exportResult = {
+        success: true,
+        message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Click below to download backup ICS.`,
+        timestamp: now,
+        exportedCount: pending.eventCount,
+        target: "apple",
+        addedToOutbox: true,
+        icsContent: pending.icsContent,
+        icsFilename: filename,
+      };
+    } else {
+      // ICS: Prepare file for download via ct-file-download component
+      const dateStr = now.split("T")[0];
+      const childSlug = sanitizeFilename(pending.childName).toLowerCase();
+      const setSlug = sanitizeFilename(pending.setName).toLowerCase();
+      const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
+
+      exportResult = {
+        success: true,
+        message: `Ready to download ${filename}`,
+        timestamp: now,
+        exportedCount: pending.eventCount,
+        target: "ics",
+        icsContent: pending.icsContent,
+        icsFilename: filename,
+      };
+    }
+
+    // Mark classes as exported to calendar (for any successful export)
+    if (exportResult.success) {
+      const currentClasses = classList.get();
+      for (let i = 0; i < currentClasses.length; i++) {
+        const cls = currentClasses[i];
+        const wasExported = pending.classes.some(
+          (exportedCls: Class) => equals(cls, exportedCls)
+        );
+        if (wasExported && !cls.statuses?.onCalendar) {
+          classList.key(i).key("statuses").key("onCalendar").set(true);
+        }
+      }
+    }
+
+    result.set(exportResult);
+
+    // Auto-dismiss success toast after 5 seconds
+    if (exportResult.success) {
+      setTimeout(() => {
+        const currentResult = result.get();
+        if (currentResult?.timestamp === now && currentResult?.success) {
+          result.set(null);
+        }
+      }, 5000);
+    }
+
+    pendingExport.set(null);
+  } catch (error) {
+    result.set({
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+      exportedCount: 0,
+    });
+  } finally {
+    processing.set(false);
+    progress.set(null);
+  }
+});
+
+/**
+ * Dismisses the export result notification.
+ */
+const dismissExportResult = handler<
+  unknown,
+  { result: Writable<CalendarExportResult> }
+>((_: unknown, { result }: { result: Writable<CalendarExportResult> }) => {
+  result.set(null);
+});
+
+// Handler to toggle calendar export section
+const toggleCalendarExport = handler<
+  unknown,
+  { expanded: Writable<boolean> }
+>((_: unknown, { expanded }: { expanded: Writable<boolean> }) => {
+  expanded.set(!expanded.get());
+});
+
+// Handlers for semester date inputs
+const setSemesterStart = handler<
+  { detail: { value: string } },
+  { dates: Writable<SemesterDates> }
+>((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
+  const current = dates.get();
+  dates.set({ ...current, startDate: event.detail.value });
+});
+
+const setSemesterEnd = handler<
+  { detail: { value: string } },
+  { dates: Writable<SemesterDates> }
+>((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
+  const current = dates.get();
+  dates.set({ ...current, endDate: event.detail.value });
+});
+
+// Handler for calendar name input
+const setCalendarName = handler<
+  { detail: { value: string } },
+  { name: Writable<string> }
+>((event: { detail: { value: string } }, { name }: { name: Writable<string> }) => {
+  name.set(event.detail.value);
+});
+
+// Helper to toggle a status - takes classList explicitly to avoid closure issues
+const toggleStatus = (
+  classList: Writable<Class[]>,
+  cls: Class,
+  statusKey: keyof StatusFlags
+): void => {
+  const current = classList.get();
+  const index = current.findIndex((el: Class) => equals(cls, el));
+  if (index >= 0) {
+    // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
+    classList.key(index).key("statuses").key(statusKey).set(
+      !current[index].statuses[statusKey]
+    );
+  }
+};
+
+// Helper: display set name (shows "(default)" for empty string)
+const displaySetName = (name: string): string => name === "" ? "(default)" : name;
+
+// ============================================================================
+// HELPER FUNCTIONS FOR HANDLERS (need to be at module scope for handlers to use)
+// ============================================================================
+
+/**
+ * Result of converting classes to events, including any skipped items.
+ */
+interface ConversionResult<T> {
+  events: T[];
+  skipped: { className: string; reason: string }[];
+}
+
+/**
+ * Converts pinned classes to ICalEvent array for export (ICS download).
+ * Creates one event per time slot with weekly recurrence.
+ *
+ * Edge cases handled (with reporting):
+ * - Classes without name: skipped
+ * - Classes without time slots: skipped
+ * - Time slots starting after semester end: skipped
+ */
+function classesToICalEvents(
+  classList: readonly Class[],
+  semester: SemesterDates
+): ConversionResult<ICalEvent> {
+  const events: ICalEvent[] = [];
+  const skipped: { className: string; reason: string }[] = [];
+
+  for (const cls of classList) {
+    if (!cls || !cls.name) {
+      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      continue;
+    }
+
+    if (!cls.timeSlots || cls.timeSlots.length === 0) {
+      skipped.push({ className: cls.name, reason: "No time slots defined" });
+      continue;
+    }
+
+    for (const slot of cls.timeSlots) {
+      // Find the first occurrence of this weekday within the semester
+      const firstDate = getFirstOccurrenceDate(
+        semester.startDate,
+        slot.day as ICalDayOfWeek
+      );
+
+      // Skip if first occurrence is after semester end
+      if (firstDate > semester.endDate) {
+        skipped.push({
+          className: cls.name,
+          reason: `${slot.day} slot starts after semester ends`,
+        });
+        continue;
+      }
+
+      // Use deterministic UID based on event properties
+      const event: ICalEvent = {
+        uid: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
+        summary: cls.name,
+        location: cls.location?.name
+          ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+          : undefined,
+        description: cls.description || undefined,
+        startDate: firstDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        rrule: {
+          freq: "WEEKLY",
+          byday: dayToICalDay(slot.day as ICalDayOfWeek),
+          until: semester.endDate,
+        },
+      };
+
+      events.push(event);
+    }
+  }
+
+  return { events, skipped };
+}
+
+/**
+ * Converts pinned classes to CalendarOutboxEvent array for apple-sync CLI.
+ * Creates one event per time slot with weekly recurrence.
+ */
+function classesToOutboxEvents(
+  classList: readonly Class[],
+  semester: SemesterDates,
+  targetCalendar: string
+): ConversionResult<CalendarOutboxEvent> {
+  const events: CalendarOutboxEvent[] = [];
+  const skipped: { className: string; reason: string }[] = [];
+
+  for (const cls of classList) {
+    if (!cls || !cls.name) {
+      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      continue;
+    }
+
+    if (!cls.timeSlots || cls.timeSlots.length === 0) {
+      skipped.push({ className: cls.name, reason: "No time slots defined" });
+      continue;
+    }
+
+    for (const slot of cls.timeSlots) {
+      // Find the first occurrence of this weekday within the semester
+      const firstDate = getFirstOccurrenceDate(
+        semester.startDate,
+        slot.day as ICalDayOfWeek
+      );
+
+      // Skip if first occurrence is after semester end
+      if (firstDate > semester.endDate) {
+        skipped.push({
+          className: cls.name,
+          reason: `${slot.day} slot starts after semester ends`,
+        });
+        continue;
+      }
+
+      // Use deterministic UID based on event properties
+      const event: CalendarOutboxEvent = {
+        id: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
+        title: cls.name,
+        calendarName: targetCalendar,
+        startDate: firstDate,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        location: cls.location?.name
+          ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+          : undefined,
+        notes: cls.description || undefined,
+        recurrence: {
+          frequency: "WEEKLY",
+          byDay: dayToICalDay(slot.day as ICalDayOfWeek),
+          until: semester.endDate,
+        },
+      };
+
+      events.push(event);
+    }
+  }
+
+  return { events, skipped };
+}
+
+/**
+ * Convert classes to ExportableEvent format for unified export.
+ */
+function classesToExportableEvents(
+  classList: readonly Class[],
+): ConversionResult<ExportableEvent> {
+  const events: ExportableEvent[] = [];
+  const skipped: { className: string; reason: string }[] = [];
+
+  for (const cls of classList) {
+    if (!cls || !cls.name) {
+      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      continue;
+    }
+
+    if (!cls.timeSlots || cls.timeSlots.length === 0) {
+      skipped.push({ className: cls.name, reason: "No time slots defined" });
+      continue;
+    }
+
+    // Create one ExportableEvent per class (time slots embedded)
+    // DEFENSIVE: Filter undefined slots during hydration
+    const event: ExportableEvent = {
+      id: `class-${cls.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      title: cls.name,
+      location: cls.location?.name,
+      description: cls.description || undefined,
+      timeSlots: cls.timeSlots.filter((slot: TimeSlot) => slot != null).map((slot: TimeSlot) => ({
+        day: slot.day,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+      })),
+    };
+
+    events.push(event);
+  }
+
+  return { events, skipped };
+}
+
+// ============================================================================
 // PATTERN
 // ============================================================================
 
@@ -566,14 +1439,6 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
 
     // Local cell for new location type when adding a location
     const newLocationType = Writable.of<LocationType>("afterschool-onsite");
-
-    // Handler to update selected location index (for Import section, uses number)
-    const setLocationIndex = handler<
-      { target: { value: string } },
-      { idx: Writable<number> }
-    >((event: { target: { value: string } }, state: { idx: Writable<number> }) => {
-      state.idx.set(parseInt(event.target.value, 10));
-    });
 
     // NOTE: Add Class uses inline handler because handler() state parameters
     // get unwrapped to snapshots, not live reactive references. Inline handlers
@@ -738,324 +1603,8 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
       lastProcessedExtractionText.set(triggerText);
     });
 
-    // Import selected classes - uses stagedClasses cell directly
-    // Uses handler pattern to avoid closure issues
-    const doImportAll = handler<
-      unknown,
-      { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }
-    >((_: unknown, { locIdx, locs, classList, staged, trigger, text, lastText, semester }: { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }) => {
-      const locationIndex = locIdx.get();
-      const locationList = locs.get();
-      if (locationIndex < 0 || locationIndex >= locationList.length) return;
-
-      const location = locationList[locationIndex];
-      const stagedList = staged.get();
-      if (!stagedList || stagedList.length === 0) return;
-
-      // Auto-populate semester dates from imported classes if not already set
-      // Find the earliest start and latest end from all selected classes
-      const currentSemester = semester.get();
-      let earliestStart = currentSemester?.startDate || "";
-      let latestEnd = currentSemester?.endDate || "";
-
-      // Import only classes that are selected
-      for (const cls of stagedList) {
-        if (!cls || !cls.selected) continue; // Skip unselected classes
-
-        // Track session dates for auto-population
-        if (cls.sessionStartDate) {
-          if (!earliestStart || cls.sessionStartDate < earliestStart) {
-            earliestStart = cls.sessionStartDate;
-          }
-        }
-        if (cls.sessionEndDate) {
-          if (!latestEnd || cls.sessionEndDate > latestEnd) {
-            latestEnd = cls.sessionEndDate;
-          }
-        }
-
-        classList.push({
-          name: cls.name || "",
-          description: cls.notes || "",
-          location,
-          timeSlots: [{
-            day: (cls.dayOfWeek || "monday") as DayOfWeek,
-            startTime: cls.startTime || "",
-            endTime: cls.endTime || "",
-          }],
-          cost: cls.cost || 0,
-          gradeMin: cls.gradeMin || "",
-          gradeMax: cls.gradeMax || "",
-          // Preserve session dates from extraction
-          sessionStartDate: cls.sessionStartDate || undefined,
-          sessionEndDate: cls.sessionEndDate || undefined,
-          meetingCount: cls.meetingCount || undefined,
-          pinnedInSets: [],
-          statuses: {
-            registered: false,
-            confirmed: false,
-            waitlisted: false,
-            paid: false,
-            onCalendar: false,
-          },
-        });
-      }
-
-      // Auto-populate semester dates if we found dates and current values are empty
-      if (earliestStart && !currentSemester?.startDate) {
-        semester.key("startDate").set(earliestStart);
-      }
-      if (latestEnd && !currentSemester?.endDate) {
-        semester.key("endDate").set(latestEnd);
-      }
-
-      // Clear import state
-      trigger.set("");
-      text.set("");
-      staged.set([]);  // Clear staged classes
-      lastText.set(""); // Allow re-extraction
-    });
-
-    // Toggle selection on a staged class
-    // WORKAROUND: $checked doesn't work inside Cell.map() because OpaqueRef returns
-    // values (not Cells), and CellController.setValue() silently ignores non-Cell values.
-    // See: patterns/jkomoros/issues/ISSUE-checked-binding-cellmap-silent-failure.md
-    const toggleStagedSelection = handler<
-      unknown,
-      { staged: Writable<StagedClass[]>; idx: number }
-    >((_: unknown, { staged, idx }: { staged: Writable<StagedClass[]>; idx: number }) => {
-      const current = staged.get();
-      if (idx < 0 || idx >= current.length) return;
-      // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
-      staged.key(idx).key("selected").set(!current[idx].selected);
-    });
-
-    // Helper to toggle a status - takes classList explicitly to avoid closure issues
-    const toggleStatus = (
-      classList: Writable<Class[]>,
-      cls: Class,
-      statusKey: keyof StatusFlags
-    ) => {
-      const current = classList.get();
-      const index = current.findIndex((el: Class) => equals(cls, el));
-      if (index >= 0) {
-        // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
-        classList.key(index).key("statuses").key(statusKey).set(
-          !current[index].statuses[statusKey]
-        );
-      }
-    };
-
     // Track which class index is being edited (-1 = none)
     const editingClassIndex = Writable.of<number>(-1);
-
-    // Handler to update a class field
-    const updateClassField = handler<
-      { target: { value: string } },
-      { classList: Writable<Class[]>; idx: number; field: keyof Class }
-    >((event: { target: { value: string } }, { classList, idx, field }: { classList: Writable<Class[]>; idx: number; field: keyof Class }) => {
-      const current = classList.get();
-      if (idx < 0 || idx >= current.length) return;
-      classList.key(idx).key(field).set(event.target.value);
-    });
-
-    // Handler to update class time slot
-    const updateClassTimeSlot = handler<
-      { target: { value: string } },
-      { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
-    >((event: { target: { value: string } }, { classList, classIdx, slotIdx, field }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }) => {
-      const current = classList.get();
-      if (classIdx < 0 || classIdx >= current.length) return;
-      const cls = current[classIdx];
-      if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
-      classList.key(classIdx).key("timeSlots").key(slotIdx).key(field).set(event.target.value);
-    });
-
-    // Handler to add a time slot to a class
-    const addClassTimeSlot = handler<
-      unknown,
-      { classList: Writable<Class[]>; idx: number }
-    >((_: unknown, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
-      const current = classList.get();
-      if (idx < 0 || idx >= current.length) return;
-      const cls = current[idx];
-      const newSlots = [...(cls.timeSlots || []), { day: "monday" as DayOfWeek, startTime: "15:00", endTime: "16:00" }];
-      classList.key(idx).key("timeSlots").set(newSlots);
-    });
-
-    // Handler to remove a time slot from a class
-    const removeClassTimeSlot = handler<
-      unknown,
-      { classList: Writable<Class[]>; classIdx: number; slotIdx: number }
-    >((_: unknown, { classList, classIdx, slotIdx }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number }) => {
-      const current = classList.get();
-      if (classIdx < 0 || classIdx >= current.length) return;
-      const cls = current[classIdx];
-      if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
-      const newSlots = cls.timeSlots.filter((_: TimeSlot, i: number) => i !== slotIdx);
-      classList.key(classIdx).key("timeSlots").set(newSlots);
-    });
-
-    // Handler to update class location
-    const updateClassLocation = handler<
-      { target: { value: string } },
-      { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }
-    >((event: { target: { value: string } }, { classList, locs, classIdx }: { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }) => {
-      const locIdx = parseInt(event.target.value, 10);
-      const locList = locs.get();
-      if (locIdx < 0 || locIdx >= locList.length) return;
-      classList.key(classIdx).key("location").set(locList[locIdx]);
-    });
-
-    // Handler to update class cost
-    const updateClassCost = handler<
-      { target: { value: string } },
-      { classList: Writable<Class[]>; idx: number }
-    >((event: { target: { value: string } }, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
-      const cost = parseFloat(event.target.value) || 0;
-      classList.key(idx).key("cost").set(cost);
-    });
-
-    // Handler to update child grade
-    const setChildGrade = handler<
-      { target: { value: string } },
-      { childCell: Writable<ChildProfile> }
-    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
-      const current = state.childCell.get();
-      state.childCell.set({ ...current, grade: event.target.value as Grade });
-    });
-
-    // Handler to update child name
-    const setChildName = handler<
-      { target: { value: string } },
-      { childCell: Writable<ChildProfile> }
-    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
-      const current = state.childCell.get();
-      state.childCell.set({ ...current, name: event.target.value });
-    });
-
-    // Handler to update child birth year
-    const setChildBirthYear = handler<
-      { target: { value: string } },
-      { childCell: Writable<ChildProfile> }
-    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
-      const current = state.childCell.get();
-      const year = parseInt(event.target.value, 10);
-      if (!isNaN(year)) {
-        state.childCell.set({ ...current, birthYear: year });
-      }
-    });
-
-    // Handler to update child birth month
-    const setChildBirthMonth = handler<
-      { target: { value: string } },
-      { childCell: Writable<ChildProfile> }
-    >((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
-      const current = state.childCell.get();
-      const month = parseInt(event.target.value, 10);
-      if (!isNaN(month) && month >= 1 && month <= 12) {
-        state.childCell.set({ ...current, birthMonth: month });
-      }
-    });
-
-    // =========================================================================
-    // PHASE 5.5: FILE/IMAGE UPLOAD HANDLERS
-    // =========================================================================
-
-    // Handle unified file upload
-    const handleFileUpload = handler<
-      { detail: { files: FileData[] } },
-      {
-        uploadedFile: Writable<FileData | null>;
-        processingStatus: Writable<ProcessingStatus>;
-        extractedText: Writable<string>;
-        extractionError: Writable<string | null>;
-      }
-    >(({ detail }: { detail: { files: FileData[] } }, { uploadedFile, processingStatus, extractedText, extractionError }: {
-      uploadedFile: Writable<FileData | null>;
-      processingStatus: Writable<ProcessingStatus>;
-      extractedText: Writable<string>;
-      extractionError: Writable<string | null>;
-    }) => {
-      if (!detail?.files || detail.files.length === 0) return;
-
-      const file = detail.files[detail.files.length - 1];  // Take most recent
-      const fileType = detectFileType(file);
-
-      // Reset state
-      extractionError.set(null);
-      extractedText.set("");
-
-      if (fileType === "text") {
-        // Direct text decode
-        try {
-          const base64 = file.data.split(",")[1];
-          const text = atob(base64);
-          extractedText.set(text);
-          processingStatus.set("complete");
-          uploadedFile.set(file);
-        } catch (e) {
-          extractionError.set("Failed to read text file");
-          processingStatus.set("error");
-        }
-      } else if (fileType === "image") {
-        // Trigger OCR (handled by generateObject reactive flow)
-        uploadedFile.set(file);
-        processingStatus.set("processing");
-      } else {
-        extractionError.set("Unsupported file type. Use images or text files.");
-        processingStatus.set("error");
-      }
-    });
-
-    // Apply extracted text to import field
-    const applyExtractedText = handler<
-      unknown,
-      {
-        extractedText: Writable<string>;
-        importText: Writable<string>;
-        uploadedFile: Writable<FileData | null>;
-        processingStatus: Writable<ProcessingStatus>;
-        ocrText: string | null;
-      }
-    >((_: unknown, { extractedText, importText, uploadedFile, processingStatus, ocrText }: {
-      extractedText: Writable<string>;
-      importText: Writable<string>;
-      uploadedFile: Writable<FileData | null>;
-      processingStatus: Writable<ProcessingStatus>;
-      ocrText: string | null;
-    }) => {
-      // Use extracted text from file, or OCR result from image
-      const text = extractedText.get() || ocrText || "";
-      if (text) {
-        importText.set(text);
-        // Reset upload state
-        uploadedFile.set(null);
-        extractedText.set("");
-        processingStatus.set("idle");
-      }
-    });
-
-    // Cancel upload and reset state
-    const cancelUpload = handler<
-      unknown,
-      {
-        uploadedFile: Writable<FileData | null>;
-        extractedText: Writable<string>;
-        processingStatus: Writable<ProcessingStatus>;
-        extractionError: Writable<string | null>;
-      }
-    >((_: unknown, { uploadedFile, extractedText, processingStatus, extractionError }: {
-      uploadedFile: Writable<FileData | null>;
-      extractedText: Writable<string>;
-      processingStatus: Writable<ProcessingStatus>;
-      extractionError: Writable<string | null>;
-    }) => {
-      uploadedFile.set(null);
-      extractedText.set("");
-      processingStatus.set("idle");
-      extractionError.set(null);
-    });
 
     // Image OCR via generateObject - only fires when image is uploaded
     // CRITICAL: Use derive() for prompt, not computed() - derive handles generateObject reactivity correctly
@@ -1145,9 +1694,6 @@ Return all visible text.`
     // =========================================================================
     // PHASE 5: PINNED SETS
     // =========================================================================
-
-    // Helper: display set name (shows "(default)" for empty string)
-    const displaySetName = (name: string) => name === "" ? "(default)" : name;
 
     // Guard cell to ensure default set initialization only runs once
     // This prevents reactive thrashing from non-idempotent writes
@@ -1320,33 +1866,6 @@ Return all visible text.`
       return byDay;
     });
 
-    // Handler to switch active set
-    const setActiveSet = handler<
-      { target: { value: string } },
-      { activeCell: Writable<string> }
-    >((event: { target: { value: string } }, state: { activeCell: Writable<string> }) => {
-      state.activeCell.set(event.target.value);
-    });
-
-    // Handler to toggle pin on a class
-    const togglePinClass = handler<
-      unknown,
-      { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }
-    >((_: unknown, { classList, activeSet, idx }: { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }) => {
-      const current = classList.get();
-      const setName = activeSet.get();
-      if (idx < 0 || idx >= current.length) return;
-
-      const cls = current[idx];
-      const currentPins: string[] = Array.isArray(cls.pinnedInSets) ? cls.pinnedInSets : [];
-      const isPinned = currentPins.includes(setName);
-      const newPins = isPinned
-        ? currentPins.filter((s: string) => s !== setName)
-        : [...currentPins, setName];
-      // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
-      classList.key(idx).key("pinnedInSets").set(newPins);
-    });
-
     // =========================================================================
     // CALENDAR EXPORT - Trusted UI gate for external system writes
     // =========================================================================
@@ -1371,492 +1890,13 @@ Return all visible text.`
       requiredScopes: ["calendarWrite"],
     });
 
-    /**
-     * Result of converting classes to events, including any skipped items.
-     */
-    interface ConversionResult<T> {
-      events: T[];
-      skipped: { className: string; reason: string }[];
-    }
-
-    /**
-     * Converts pinned classes to ICalEvent array for export (ICS download).
-     * Creates one event per time slot with weekly recurrence.
-     *
-     * Edge cases handled (with reporting):
-     * - Classes without name: skipped
-     * - Classes without time slots: skipped
-     * - Time slots starting after semester end: skipped
-     */
-    function classesToICalEvents(
-      classList: readonly Class[],
-      semester: SemesterDates
-    ): ConversionResult<ICalEvent> {
-      const events: ICalEvent[] = [];
-      const skipped: { className: string; reason: string }[] = [];
-
-      for (const cls of classList) {
-        if (!cls || !cls.name) {
-          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
-          continue;
-        }
-
-        if (!cls.timeSlots || cls.timeSlots.length === 0) {
-          skipped.push({ className: cls.name, reason: "No time slots defined" });
-          continue;
-        }
-
-        for (const slot of cls.timeSlots) {
-          // Find the first occurrence of this weekday within the semester
-          const firstDate = getFirstOccurrenceDate(
-            semester.startDate,
-            slot.day as ICalDayOfWeek
-          );
-
-          // Skip if first occurrence is after semester end
-          if (firstDate > semester.endDate) {
-            skipped.push({
-              className: cls.name,
-              reason: `${slot.day} slot starts after semester ends`,
-            });
-            continue;
-          }
-
-          // Use deterministic UID based on event properties
-          const event: ICalEvent = {
-            uid: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
-            summary: cls.name,
-            location: cls.location?.name
-              ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
-              : undefined,
-            description: cls.description || undefined,
-            startDate: firstDate,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            rrule: {
-              freq: "WEEKLY",
-              byday: dayToICalDay(slot.day as ICalDayOfWeek),
-              until: semester.endDate,
-            },
-          };
-
-          events.push(event);
-        }
-      }
-
-      return { events, skipped };
-    }
-
-    /**
-     * Converts pinned classes to CalendarOutboxEvent array for apple-sync CLI.
-     * Creates one event per time slot with weekly recurrence.
-     */
-    function classesToOutboxEvents(
-      classList: readonly Class[],
-      semester: SemesterDates,
-      targetCalendar: string
-    ): ConversionResult<CalendarOutboxEvent> {
-      const events: CalendarOutboxEvent[] = [];
-      const skipped: { className: string; reason: string }[] = [];
-
-      for (const cls of classList) {
-        if (!cls || !cls.name) {
-          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
-          continue;
-        }
-
-        if (!cls.timeSlots || cls.timeSlots.length === 0) {
-          skipped.push({ className: cls.name, reason: "No time slots defined" });
-          continue;
-        }
-
-        for (const slot of cls.timeSlots) {
-          // Find the first occurrence of this weekday within the semester
-          const firstDate = getFirstOccurrenceDate(
-            semester.startDate,
-            slot.day as ICalDayOfWeek
-          );
-
-          // Skip if first occurrence is after semester end
-          if (firstDate > semester.endDate) {
-            skipped.push({
-              className: cls.name,
-              reason: `${slot.day} slot starts after semester ends`,
-            });
-            continue;
-          }
-
-          // Use deterministic UID based on event properties
-          const event: CalendarOutboxEvent = {
-            id: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
-            title: cls.name,
-            calendarName: targetCalendar,
-            startDate: firstDate,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            location: cls.location?.name
-              ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
-              : undefined,
-            notes: cls.description || undefined,
-            recurrence: {
-              frequency: "WEEKLY",
-              byDay: dayToICalDay(slot.day as ICalDayOfWeek),
-              until: semester.endDate,
-            },
-          };
-
-          events.push(event);
-        }
-      }
-
-      return { events, skipped };
-    }
-
-    /**
-     * Convert classes to ExportableEvent format for unified export.
-     */
-    function classesToExportableEvents(
-      classList: readonly Class[],
-    ): ConversionResult<ExportableEvent> {
-      const events: ExportableEvent[] = [];
-      const skipped: { className: string; reason: string }[] = [];
-
-      for (const cls of classList) {
-        if (!cls || !cls.name) {
-          skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
-          continue;
-        }
-
-        if (!cls.timeSlots || cls.timeSlots.length === 0) {
-          skipped.push({ className: cls.name, reason: "No time slots defined" });
-          continue;
-        }
-
-        // Create one ExportableEvent per class (time slots embedded)
-        // DEFENSIVE: Filter undefined slots during hydration
-        const event: ExportableEvent = {
-          id: `class-${cls.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-          title: cls.name,
-          location: cls.location?.name,
-          description: cls.description || undefined,
-          timeSlots: cls.timeSlots.filter((slot: TimeSlot) => slot != null).map((slot: TimeSlot) => ({
-            day: slot.day,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-          })),
-        };
-
-        events.push(event);
-      }
-
-      return { events, skipped };
-    }
-
-    /**
-     * Prepares calendar export - shows confirmation dialog.
-     * This is the "prepare" phase of the two-phase commit pattern.
-     */
-    const prepareCalendarExport = handler<
-      unknown,
-      {
-        pinnedClasses: Class[];
-        semesterDates: Writable<SemesterDates>;
-        child: Writable<ChildProfile>;
-        activeSetName: Writable<string>;
-        calendarName: Writable<string>;
-        pendingExport: Writable<PendingCalendarExport>;
-        outbox: Writable<CalendarOutbox>;
-      }
-    >((_: unknown, state) => {
-      // Handler receives readonly props from framework, cast to mutable for internal use
-      const { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox } = state as {
-        pinnedClasses: Class[];
-        semesterDates: Writable<SemesterDates>;
-        child: Writable<ChildProfile>;
-        activeSetName: Writable<string>;
-        calendarName: Writable<string>;
-        pendingExport: Writable<PendingCalendarExport>;
-        outbox: Writable<CalendarOutbox>;
-      };
-      // pinnedClasses is a computed cell - handler receives unwrapped value (not cell)
-      const classList = pinnedClasses || [];
-      const semester = semesterDates.get() || { startDate: "", endDate: "" };
-      const childProfile = child.get() || { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
-      const setName = activeSetName.get() || "default";
-      const targetCalendar = calendarNameCell.get() || "Calendar";
-
-      if (!classList || classList.length === 0) return;
-      if (!semester.startDate || !semester.endDate) return;
-
-      // Generate ICS content (for download fallback)
-      const icalResult = classesToICalEvents(classList, semester);
-      const icsCalendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
-      const icsContent = generateICS(icalResult.events, {
-        calendarName: icsCalendarName,
-        prodId: "-//CommonTools//Extracurricular Selector//EN",
-      });
-
-      // Generate outbox events (for apple-sync CLI)
-      const outboxResult = classesToOutboxEvents(classList, semester, targetCalendar);
-
-      // Check for duplicates: events already in outbox with same ID
-      // DEFENSIVE: Filter undefined entries/events during hydration
-      const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
-      const existingUIDs = new Set(
-        (currentOutbox.entries || []).filter((entry: CalendarOutboxEntry) => entry != null).flatMap((entry: CalendarOutboxEntry) =>
-          (entry.events || []).filter((e: CalendarOutboxEvent) => e != null).map((e: CalendarOutboxEvent) => e.id)
-        )
-      );
-      const newEvents = outboxResult.events.filter((e: CalendarOutboxEvent) => e != null && !existingUIDs.has(e.id));
-      const duplicateCount = outboxResult.events.length - newEvents.length;
-
-      // Combine skipped items from both conversions (deduplicate)
-      const allSkipped = [...icalResult.skipped];
-      // Only add outbox skipped if not already in list
-      for (const skip of outboxResult.skipped) {
-        if (!allSkipped.some(s => s.className === skip.className && s.reason === skip.reason)) {
-          allSkipped.push(skip);
-        }
-      }
-
-      // Generate exportable events for Google Calendar
-      const exportableResult = classesToExportableEvents(classList);
-
-      // Set pending operation for confirmation dialog
-      pendingExport.set({
-        classes: classList,
-        semester,
-        icsContent,
-        childName: childProfile.name || "Child",
-        setName: setName || "default",
-        eventCount: newEvents.length,
-        calendarName: targetCalendar,
-        outboxEvents: newEvents, // Only non-duplicate events
-        skippedItems: allSkipped,
-        duplicateCount,
-        selectedTarget: null, // User picks in dialog
-        exportableEvents: exportableResult.events,
-      });
-    });
-
-    /**
-     * Cancels the pending calendar export operation.
-     */
-    const cancelCalendarExport = handler<
-      unknown,
-      { pendingExport: Writable<PendingCalendarExport> }
-    >((_: unknown, { pendingExport }: { pendingExport: Writable<PendingCalendarExport> }) => {
-      pendingExport.set(null);
-    });
-
-    /**
-     * Select export target in the dialog.
-     */
-    const selectExportTarget = handler<
-      unknown,
-      { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }
-    >((_: unknown, { pendingExport, target }: { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }) => {
-      const pending = pendingExport.get();
-      if (!pending) return;
-      pendingExport.set({ ...pending, selectedTarget: target });
-    });
-
-    /**
-     * Confirms and executes the export based on selected target.
-     * - Google: Direct API with batch operations and progress tracking
-     * - Apple: Add to outbox for apple-sync CLI + download ICS backup
-     * - ICS: Just download the ICS file
-     *
-     * This is the "confirm" phase of the two-phase commit pattern.
-     */
-    const confirmCalendarExport = handler<
-      unknown,
-      {
-        pendingExport: Writable<PendingCalendarExport>;
-        processing: Writable<boolean>;
-        progress: Writable<CalendarExportProgress>;
-        result: Writable<CalendarExportResult>;
-        classList: Writable<Class[]>;
-        outbox: Writable<CalendarOutbox>;
-        auth: Writable<GoogleAuthType>;
-      }
-    >(async (_: unknown, { pendingExport, processing, progress, result, classList, outbox, auth }: {
-      pendingExport: Writable<PendingCalendarExport>;
-      processing: Writable<boolean>;
-      progress: Writable<CalendarExportProgress>;
-      result: Writable<CalendarExportResult>;
-      classList: Writable<Class[]>;
-      outbox: Writable<CalendarOutbox>;
-      auth: Writable<GoogleAuthType>;
-    }) => {
-      const pending = pendingExport.get();
-      if (!pending || !pending.selectedTarget) return;
-
-      processing.set(true);
-      progress.set(null);
-
-      try {
-        const now = new Date().toISOString();
-        const target = pending.selectedTarget;
-        let exportResult: CalendarExportResult;
-
-        if (target === "google") {
-          // Verify we have auth before proceeding
-          const authData = auth.get();
-          if (!authData?.token) {
-            throw new Error("Google authentication required. Please sign in first.");
-          }
-
-          // Google Calendar: Use batch API with progress tracking
-          const googleResult = await exportToGoogle(
-            auth,
-            pending.exportableEvents,
-            {
-              calendarName: "primary", // Always use primary calendar for Google
-              dateRange: pending.semester,
-              exportTitle: `${pending.childName}'s ${pending.setName} Schedule`,
-              sourcePattern: {
-                name: "Extracurricular Selector",
-                path: "patterns/jkomoros/extracurricular.tsx",
-              },
-            },
-            (p) => progress.set(p), // Progress callback
-          );
-
-          exportResult = {
-            success: googleResult.success,
-            message: googleResult.message,
-            timestamp: now,
-            exportedCount: googleResult.exportedCount,
-            target: "google",
-            failedCount: googleResult.failedCount,
-          };
-        } else if (target === "apple") {
-          // Apple Calendar: Add to outbox + download ICS backup
-          const outboxEntry: CalendarOutboxEntry = {
-            id: `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            events: pending.outboxEvents,
-            confirmation: {
-              timestamp: now,
-              dialogContent: {
-                displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
-                displayedCalendar: pending.calendarName,
-                displayedTimeRange: `${pending.semester?.startDate || ""} to ${pending.semester?.endDate || ""}`,
-                displayedEventCount: pending.eventCount,
-                // DEFENSIVE: Filter undefined during hydration
-                displayedClasses: pending.classes.filter((c: Class) => c != null).map((c: Class) => c.name),
-                warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
-              },
-              sourcePattern: {
-                name: "Extracurricular Selector",
-                path: "patterns/jkomoros/extracurricular.tsx",
-              },
-            },
-            execution: {
-              status: "pending",
-            },
-            createdAt: now,
-          };
-
-          // Add to outbox
-          const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
-          const updatedOutbox: CalendarOutbox = {
-            entries: [...(currentOutbox.entries || []), outboxEntry],
-            lastUpdated: now,
-            version: "1.0",
-          };
-          outbox.set(updatedOutbox);
-
-          // Prepare ICS file for download via ct-file-download component
-          const dateStr = now.split("T")[0];
-          const childSlug = sanitizeFilename(pending.childName).toLowerCase();
-          const setSlug = sanitizeFilename(pending.setName).toLowerCase();
-          const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
-
-          exportResult = {
-            success: true,
-            message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Click below to download backup ICS.`,
-            timestamp: now,
-            exportedCount: pending.eventCount,
-            target: "apple",
-            addedToOutbox: true,
-            icsContent: pending.icsContent,
-            icsFilename: filename,
-          };
-        } else {
-          // ICS: Prepare file for download via ct-file-download component
-          const dateStr = now.split("T")[0];
-          const childSlug = sanitizeFilename(pending.childName).toLowerCase();
-          const setSlug = sanitizeFilename(pending.setName).toLowerCase();
-          const filename = `${childSlug}-${setSlug}-schedule-${dateStr}.ics`;
-
-          exportResult = {
-            success: true,
-            message: `Ready to download ${filename}`,
-            timestamp: now,
-            exportedCount: pending.eventCount,
-            target: "ics",
-            icsContent: pending.icsContent,
-            icsFilename: filename,
-          };
-        }
-
-        // Mark classes as exported to calendar (for any successful export)
-        if (exportResult.success) {
-          const currentClasses = classList.get();
-          for (let i = 0; i < currentClasses.length; i++) {
-            const cls = currentClasses[i];
-            const wasExported = pending.classes.some(
-              (exportedCls: Class) => equals(cls, exportedCls)
-            );
-            if (wasExported && !cls.statuses?.onCalendar) {
-              classList.key(i).key("statuses").key("onCalendar").set(true);
-            }
-          }
-        }
-
-        result.set(exportResult);
-
-        // Auto-dismiss success toast after 5 seconds
-        if (exportResult.success) {
-          setTimeout(() => {
-            const currentResult = result.get();
-            if (currentResult?.timestamp === now && currentResult?.success) {
-              result.set(null);
-            }
-          }, 5000);
-        }
-
-        pendingExport.set(null);
-      } catch (error) {
-        result.set({
-          success: false,
-          message: error instanceof Error ? error.message : String(error),
-          timestamp: new Date().toISOString(),
-          exportedCount: 0,
-        });
-      } finally {
-        processing.set(false);
-        progress.set(null);
-      }
-    });
-
-    /**
-     * Dismisses the export result notification.
-     */
-    const dismissExportResult = handler<
-      unknown,
-      { result: Writable<CalendarExportResult> }
-    >((_: unknown, { result }: { result: Writable<CalendarExportResult> }) => {
-      result.set(null);
-    });
-
     // Computed: can export (has pinned classes and semester dates)
     // DEFENSIVE: Check semester exists before accessing properties
+    // Use Boolean() to ensure return type is boolean, not boolean | ""
     const canExportCalendar = computed(() => {
       const pinned = pinnedClasses as Class[];
       const semester = semesterDates.get();
-      return (
+      return Boolean(
         pinned &&
         pinned.length > 0 &&
         semester &&
@@ -1864,39 +1904,6 @@ Return all visible text.`
         semester.endDate &&
         semester.startDate <= semester.endDate
       );
-    });
-
-    // Handler to toggle calendar export section
-    const toggleCalendarExport = handler<
-      unknown,
-      { expanded: Writable<boolean> }
-    >((_: unknown, { expanded }: { expanded: Writable<boolean> }) => {
-      expanded.set(!expanded.get());
-    });
-
-    // Handlers for semester date inputs
-    const setSemesterStart = handler<
-      { detail: { value: string } },
-      { dates: Writable<SemesterDates> }
-    >((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
-      const current = dates.get();
-      dates.set({ ...current, startDate: event.detail.value });
-    });
-
-    const setSemesterEnd = handler<
-      { detail: { value: string } },
-      { dates: Writable<SemesterDates> }
-    >((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
-      const current = dates.get();
-      dates.set({ ...current, endDate: event.detail.value });
-    });
-
-    // Handler for calendar name input
-    const setCalendarName = handler<
-      { detail: { value: string } },
-      { name: Writable<string> }
-    >((event: { detail: { value: string } }, { name }: { name: Writable<string> }) => {
-      name.set(event.detail.value);
     });
 
     return {

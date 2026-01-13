@@ -249,9 +249,9 @@ export interface GmailAgenticSearchOutput {
   // Timestamps
   lastScanAt: number;
 
-  // Actions (handlers for embedding patterns to use)
-  startScan: ReturnType<typeof handler>;
-  stopScan: ReturnType<typeof handler>;
+  // Actions (bound handlers for embedding patterns to use)
+  startScan: Stream<unknown>;
+  stopScan: Stream<unknown>;
 
   // ========================================================================
   // SHARED SEARCH STRINGS
@@ -263,13 +263,14 @@ export interface GmailAgenticSearchOutput {
   // Queries pending user review before community submission
   pendingSubmissions: PendingSubmission[];
 
-  // Actions for local query management
+  // Actions for local query management (handler factories)
   rateQuery: ReturnType<typeof handler>;      // Rate a query's effectiveness
   deleteLocalQuery: ReturnType<typeof handler>; // Delete a saved query
 
   // Cell that consuming patterns can increment to signal "found an item"
   // When this value increases, the base pattern marks the most recent query as having found items
-  itemFoundSignal: Writable<number>;
+  // Note: This is an input cell (Default<number, 0>) exposed for external access
+  itemFoundSignal: number;
 }
 
 // ============================================================================
@@ -331,6 +332,561 @@ export interface GmailAgenticSearchOutput {
 //
 // IMPORTANT: The auth cell must be writable for token refresh to work!
 // See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
+
+// ============================================================================
+// MODULE-SCOPE HANDLERS
+// Handlers must be defined at module scope, not inside patterns.
+// ============================================================================
+
+// Handler to create a new GmailSearchRegistry charm
+const createSearchRegistryHandler = handler<unknown, Record<string, never>>(() => {
+  console.log("[GmailAgenticSearch] Creating new search registry charm");
+  const registryCharm = GmailSearchRegistry({
+    queries: [],
+  });
+  return navigateTo(registryCharm);
+});
+
+// Handler to change account type (writes to local writable cell)
+const setAccountTypeHandler = handler<
+  { target: { value: string } },
+  { selectedType: Writable<"default" | "personal" | "work"> }
+>((event, state) => {
+  const newType = event.target.value as "default" | "personal" | "work";
+  console.log("[GmailAgenticSearch] Account type changed to:", newType);
+  state.selectedType.set(newType);
+});
+
+// Handler to stop scan
+const stopScanHandler = handler<
+  unknown,
+  {
+    lastScanAt: Writable<Default<number, 0>>;
+    isScanning: Writable<Default<boolean, false>>;
+  }
+>((_, state) => {
+  state.lastScanAt.set(Date.now());
+  state.isScanning.set(false);
+  console.log("[GmailAgenticSearch] Scan stopped");
+});
+
+// Handler to complete scan
+const completeScanHandler = handler<
+  unknown,
+  {
+    lastScanAt: Writable<Default<number, 0>>;
+    isScanning: Writable<Default<boolean, false>>;
+  }
+>((_, state) => {
+  state.lastScanAt.set(Date.now());
+  state.isScanning.set(false);
+  console.log("[GmailAgenticSearch] Scan completed");
+});
+
+// Handler to toggle debug log expansion
+const toggleDebugHandler = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
+  state.expanded.set(!state.expanded.get());
+});
+
+// Handler to toggle pending submissions expansion
+const togglePendingSubmissionsHandler = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
+  state.expanded.set(!state.expanded.get());
+});
+
+// Helper to add a debug log entry using push (proper array cell mutation)
+// Moved to module scope so handlers can use it
+const addDebugLogEntry = (
+  logCell: Writable<DebugLogEntry[]>,
+  entry: Omit<DebugLogEntry, "timestamp">,
+) => {
+  try {
+    logCell.push({ ...entry, timestamp: Date.now() });
+  } catch (err) {
+    // Log to console but don't let debug logging errors crash the agent
+    console.error("[GmailAgenticSearch] Debug log error:", err);
+  }
+};
+
+// Handler for searching Gmail
+const searchGmailHandler = handler<
+  { query: string; result?: Writable<any> },
+  {
+    auth: Writable<Auth>;
+    // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+    authRefreshStream: RefreshStreamType | null;
+    progress: Writable<SearchProgress>;
+    maxSearches: Writable<Default<number, 0>>;
+    debugLog: Writable<DebugLogEntry[]>;
+    localQueries: Writable<LocalQuery[]>;
+    communityQueryRefs: Writable<CommunityQueryRef[]>;
+    registryWish: Writable<any>;
+    agentTypeUrl: Writable<string>;
+    lastExecutedQueryIdCell: Writable<string | null>;
+  }
+>(async (input, state) => {
+  const authData = state.auth.get();
+  const token = authData?.token as string;
+  const max = state.maxSearches.get();
+  const currentProgress = state.progress.get();
+
+  // Log the search attempt
+  addDebugLogEntry(state.debugLog, {
+    type: "search_start",
+    message: `Searching Gmail: "${input.query}"`,
+    details: { query: input.query, searchCount: currentProgress.searchCount },
+  });
+
+  // Check if we've hit the search limit
+  if (max > 0 && currentProgress.searchCount >= max) {
+    console.log(`[SearchGmail Tool] Search limit reached (${max})`);
+    addDebugLogEntry(state.debugLog, {
+      type: "info",
+      message: `Search limit reached (${max})`,
+    });
+    const limitResult = {
+      success: false,
+      limitReached: true,
+      message: `Search limit of ${max} reached.`,
+      emails: [],
+    };
+    if (input.result) {
+      input.result.set(limitResult);
+    }
+    state.progress.set({
+      ...currentProgress,
+      status: "limit_reached",
+    });
+    return limitResult;
+  }
+
+  // Don't continue if we're in auth error state
+  if (currentProgress.status === "auth_error") {
+    const authErrorResult = {
+      success: false,
+      authError: true,
+      message: currentProgress.authError || "Authentication required",
+      emails: [],
+    };
+    if (input.result) {
+      input.result.set(authErrorResult);
+    }
+    return authErrorResult;
+  }
+
+  // Update progress: starting new search
+  state.progress.set({
+    ...currentProgress,
+    currentQuery: input.query,
+    status: "searching",
+  });
+
+  let resultData: any;
+
+  if (!token) {
+    addDebugLogEntry(state.debugLog, {
+      type: "error",
+      message: "Not authenticated - no token available",
+    });
+    resultData = { error: "Not authenticated", emails: [] };
+  } else {
+    try {
+      console.log(`[SearchGmail Tool] Searching: ${input.query}`);
+
+      // Cross-charm token refresh via Stream<T> handler signature
+      // The framework unwraps the opaque stream, giving us a callable .send()
+      // See: community-docs/blessed/cross-charm.md
+      const refreshStream = state.authRefreshStream;
+      let onRefresh: (() => Promise<void>) | undefined = undefined;
+
+      if (refreshStream?.send) {
+        // Stream.send() supports optional onCommit callback (see labs/packages/runner/src/cell.ts)
+        // The refresh happens in the auth charm's transaction context
+        // Note: TypeScript types don't include onCommit, but runtime supports it
+        onRefresh = async () => {
+          console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
+          await new Promise<void>((resolve, reject) => {
+            // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
+            (refreshStream.send as (event: Record<string, never>, onCommit?: (tx: any) => void) => void)(
+              {},
+              (tx: any) => {
+                // onCommit fires after the handler's transaction commits
+                const status = tx?.status?.();
+                if (status?.status === "error") {
+                  console.error("[SearchGmail Tool] Token refresh failed:", status.error);
+                  reject(new Error(`Token refresh failed: ${status.error}`));
+                } else {
+                  console.log("[SearchGmail Tool] Token refresh transaction committed");
+                  resolve();
+                }
+              }
+            );
+          });
+          console.log("[SearchGmail Tool] Token refresh completed");
+        };
+      }
+
+      // Use GmailClient with the auth cell and onRefresh callback
+      const client = new GmailClient(state.auth, { debugMode: false, onRefresh });
+      const emails = await client.searchEmails(input.query, 30);
+
+      console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
+
+      // Log the search results
+      addDebugLogEntry(state.debugLog, {
+        type: "search_result",
+        message: `Found ${emails.length} emails for "${input.query}"`,
+        details: {
+          emailCount: emails.length,
+          subjects: emails.slice(0, 5).map(e => e.subject),
+        },
+      });
+
+      resultData = {
+        success: true,
+        emailCount: emails.length,
+        emails: emails.map((e) => ({
+          id: e.id,
+          subject: e.subject,
+          from: e.from,
+          date: e.date,
+          snippet: e.snippet,
+          body: e.body,
+        })),
+      };
+
+      // Update progress: search complete
+      const updatedProgress = state.progress.get();
+      state.progress.set({
+        currentQuery: "",
+        completedQueries: [
+          ...updatedProgress.completedQueries,
+          {
+            query: input.query,
+            emailCount: emails.length,
+            timestamp: Date.now(),
+          },
+        ],
+        status: "analyzing",
+        searchCount: updatedProgress.searchCount + 1,
+      });
+
+      // Track query in localQueries for potential sharing
+      const currentLocalQueries = state.localQueries.get() || [];
+      const existingQueryIndex = currentLocalQueries.findIndex(
+        (q) => q && q.query && q.query.toLowerCase() === input.query.toLowerCase()
+      );
+
+      if (existingQueryIndex >= 0) {
+        // Update existing query using .key().key().set() for atomic updates
+        const existing = currentLocalQueries[existingQueryIndex];
+        const itemCell = state.localQueries.key(existingQueryIndex);
+        itemCell.key("lastUsed").set(Date.now());
+        itemCell.key("useCount").set(existing.useCount + 1);
+        // Auto-increase effectiveness if it found results (capped at 5)
+        itemCell.key("effectiveness").set(
+          emails.length > 0
+            ? Math.min(5, existing.effectiveness + 1)
+            : existing.effectiveness
+        );
+        // Track this as the last executed query (for foundItems)
+        state.lastExecutedQueryIdCell.set(existing.id);
+      } else if (emails.length > 0) {
+        // Only add new query if it found results
+        const newQueryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const newQuery: LocalQuery = {
+          id: newQueryId,
+          query: input.query,
+          createdAt: Date.now(),
+          lastUsed: Date.now(),
+          useCount: 1,
+          effectiveness: 1,  // Start at 1 since it found results
+          shareStatus: "private",
+          foundItems: 0,  // Initialize to 0, incremented when consuming pattern signals itemFoundSignal
+        };
+        state.localQueries.push(newQuery);
+        // Track this as the last executed query (for foundItems)
+        state.lastExecutedQueryIdCell.set(newQueryId);
+      }
+
+      // Auto-upvote community queries that found results
+      if (emails.length > 0) {
+        const communityRefs = state.communityQueryRefs.get() || [];
+        const matchingCommunityQuery = communityRefs.find(
+          (ref) => ref && ref.query && ref.query.toLowerCase() === input.query.toLowerCase()
+        );
+        if (matchingCommunityQuery) {
+          // Get the registry to call upvoteQuery
+          const wishResult = state.registryWish.get();
+          const registry = wishResult?.result;
+          if (registry?.upvoteQuery) {
+            const typeUrl = state.agentTypeUrl.get();
+            console.log(`[SearchGmail] Upvoting community query: ${matchingCommunityQuery.query}`);
+            addDebugLogEntry(state.debugLog, {
+              type: "info",
+              message: `Upvoting effective community query: "${matchingCommunityQuery.query}"`,
+            });
+            // Fire and forget the upvote
+            try {
+              registry.upvoteQuery({
+                agentTypeUrl: typeUrl,
+                queryId: matchingCommunityQuery.id,
+              });
+            } catch (upvoteErr) {
+              console.error("[SearchGmail] Upvote failed:", upvoteErr);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[SearchGmail Tool] Error:", err);
+      const errorStr = String(err);
+      addDebugLogEntry(state.debugLog, {
+        type: "error",
+        message: `Search error: ${errorStr}`,
+      });
+      resultData = { error: errorStr, emails: [] };
+
+      // Note: With GmailClient, 401 errors should automatically trigger
+      // token refresh. If we still get here with a 401, the refresh failed
+      // (possibly because auth cell is derived/read-only, or no refresh token)
+      if (errorStr.includes("401")) {
+        const updatedProgress = state.progress.get();
+        state.progress.set({
+          ...updatedProgress,
+          status: "auth_error",
+          authError:
+            "Gmail token expired and refresh failed. Please re-authenticate.",
+        });
+      }
+    }
+  }
+
+  // Write to the result cell if provided
+  if (input.result) {
+    input.result.set(resultData);
+  }
+
+  return resultData;
+});
+
+// Handler to start scan
+const startScanHandler = handler<
+  unknown,
+  {
+    isScanning: Writable<Default<boolean, false>>;
+    isAuthenticated: Writable<boolean>;
+    progress: Writable<SearchProgress>;
+    auth: Writable<Auth>;
+    debugLog: Writable<DebugLogEntry[]>;
+    // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+    authRefreshStream: RefreshStreamType | null;
+  }
+>(async (_, state) => {
+  if (!state.isAuthenticated.get()) return;
+
+  const authData = state.auth.get();
+
+  // Clear debug log and add scan start entry
+  state.debugLog.set([]);
+  addDebugLogEntry(state.debugLog, {
+    type: "info",
+    message: "Starting new scan...",
+    details: { email: authData?.user?.email },
+  });
+
+  // Validate token before starting scan
+  // Cross-charm refresh works via Stream<T> handler signature pattern
+  // See: community-docs/blessed/cross-charm.md
+  console.log("[GmailAgenticSearch] Validating token before scan...");
+  addDebugLogEntry(state.debugLog, {
+    type: "info",
+    message: "Validating Gmail token...",
+  });
+
+  // Stream<T> in handler signature gives us callable .send()
+  const refreshStream = state.authRefreshStream;
+
+  const validation = await validateAndRefreshTokenCrossCharm(
+    state.auth,
+    refreshStream,
+    true
+  );
+
+  if (!validation.valid) {
+    console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
+    addDebugLogEntry(state.debugLog, {
+      type: "error",
+      message: `Token validation failed: ${validation.error}`,
+    });
+    state.progress.set({
+      currentQuery: "",
+      completedQueries: [],
+      status: "auth_error",
+      searchCount: 0,
+      authError: validation.error,
+    });
+    return;
+  }
+
+  if (validation.refreshed) {
+    console.log("[GmailAgenticSearch] Token was refreshed automatically");
+    addDebugLogEntry(state.debugLog, {
+      type: "info",
+      message: "Token was expired - refreshed automatically",
+    });
+  }
+
+  console.log("[GmailAgenticSearch] Token valid, starting scan");
+  addDebugLogEntry(state.debugLog, {
+    type: "info",
+    message: "Token valid - starting agent...",
+  });
+  state.progress.set({
+    currentQuery: "",
+    completedQueries: [],
+    status: "searching",
+    searchCount: 0,
+  });
+  state.isScanning.set(true);
+});
+
+// Handler to rate a query's effectiveness
+const rateQueryHandler = handler<
+  unknown,
+  { queryId: string; rating: number; localQueries: Writable<LocalQuery[]> }
+>((_, state) => {
+  const queries = state.localQueries.get() || [];
+  const index = queries.findIndex((q) => q.id === state.queryId);
+  if (index >= 0) {
+    state.localQueries.key(index).key("effectiveness").set(state.rating);
+  }
+});
+
+// Handler to delete a local query (also removes from pending submissions)
+const deleteLocalQueryHandler = handler<
+  unknown,
+  { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
+>((_, state) => {
+  const queries = state.localQueries.get() || [];
+  state.localQueries.set(queries.filter((q) => q.id !== state.queryId));
+  // Also remove from pending if exists
+  const pending = state.pendingSubmissions.get() || [];
+  state.pendingSubmissions.set(pending.filter((p) => p.localQueryId !== state.queryId));
+});
+
+// Handler to flag a query for sharing (adds to pending submissions)
+const flagForShareHandler = handler<
+  unknown,
+  { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
+>((_, state) => {
+  // Read both cells upfront
+  const queries = state.localQueries.get() || [];
+  const pending = state.pendingSubmissions.get() || [];
+
+  const qry = queries.find((q) => q.id === state.queryId);
+  if (!qry) return;
+
+  // Check if already pending
+  if (pending.some((p) => p.localQueryId === state.queryId)) return;
+
+  // Update localQueries FIRST (mark as pending_review)
+  const idx = queries.findIndex((q) => q.id === state.queryId);
+  if (idx >= 0) {
+    state.localQueries.key(idx).key("shareStatus").set("pending_review");
+  }
+
+  // Then add to pendingSubmissions
+  const newPending: PendingSubmission = {
+    localQueryId: state.queryId,
+    originalQuery: qry.query,
+    sanitizedQuery: qry.query,
+    piiWarnings: [],
+    generalizabilityIssues: [],
+    recommendation: "pending",
+    userApproved: false,
+  };
+  state.pendingSubmissions.push(newPending);
+});
+
+// Handler to flag a query for sharing (runs PII screening)
+const flagQueryForSharingHandler = handler<
+  { queryId: string },
+  {
+    localQueries: Writable<LocalQuery[]>;
+    pendingSubmissions: Writable<PendingSubmission[]>;
+  }
+>(async (input, state) => {
+  const queries = state.localQueries.get() || [];
+  const query = queries.find((q) => q.id === input.queryId);
+  if (!query) return;
+
+  // Check if already pending
+  const pending = state.pendingSubmissions.get() || [];
+  if (pending.some((p) => p.localQueryId === input.queryId)) return;
+
+  // Create pending submission (PII screening happens via generateObject below)
+  const newPending: PendingSubmission = {
+    localQueryId: input.queryId,
+    originalQuery: query.query,
+    sanitizedQuery: query.query, // Will be updated by screening
+    piiWarnings: [],
+    generalizabilityIssues: [],
+    recommendation: "pending",
+    userApproved: false,
+  };
+
+  state.pendingSubmissions.push(newPending);
+
+  // Update the local query status
+  const idx = queries.findIndex((q) => q.id === input.queryId);
+  if (idx >= 0) {
+    state.localQueries.key(idx).key("shareStatus").set("pending_review");
+  }
+});
+
+// Handler to approve a pending submission
+const approvePendingSubmissionHandler = handler<
+  { localQueryId: string },
+  { pendingSubmissions: Writable<PendingSubmission[]> }
+>((input, state) => {
+  const submissions = state.pendingSubmissions.get() || [];
+  const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
+  if (idx >= 0) {
+    state.pendingSubmissions.key(idx).key("userApproved").set(true);
+  }
+});
+
+// Handler to reject/cancel a pending submission
+const rejectPendingSubmissionHandler = handler<
+  { localQueryId: string },
+  {
+    pendingSubmissions: Writable<PendingSubmission[]>;
+    localQueries: Writable<LocalQuery[]>;
+  }
+>((input, state) => {
+  // Remove from pending
+  const submissions = state.pendingSubmissions.get() || [];
+  state.pendingSubmissions.set(submissions.filter((s) => s.localQueryId !== input.localQueryId));
+
+  // Reset local query status to private
+  const queries = state.localQueries.get() || [];
+  const idx = queries.findIndex((q) => q.id === input.localQueryId);
+  if (idx >= 0) {
+    state.localQueries.key(idx).key("shareStatus").set("private");
+  }
+});
+
+// Handler to update the sanitized query manually
+const updateSanitizedQueryHandler = handler<
+  { localQueryId: string; sanitizedQuery: string },
+  { pendingSubmissions: Writable<PendingSubmission[]> }
+>((input, state) => {
+  const submissions = state.pendingSubmissions.get() || [];
+  const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
+  if (idx >= 0) {
+    state.pendingSubmissions.key(idx).key("sanitizedQuery").set(input.sanitizedQuery);
+  }
+});
 
 // ============================================================================
 // PATTERN
@@ -529,27 +1085,9 @@ const GmailAgenticSearch = pattern<
     // Handler to create a new GoogleAuth charm (uses utility's createAuth action)
     const createGoogleAuth = createGoogleAuthAction;
 
-    // Handler to create a new GmailSearchRegistry charm
-    // TODO: Currently creates in the current space. Ideally would create in a
-    // well-known shared space (e.g., "community-patterns-shared") so all users
-    // share the same registry. Framework doesn't yet support cross-space creation.
-    const createSearchRegistry = handler<unknown, Record<string, never>>(() => {
-      console.log("[GmailAgenticSearch] Creating new search registry charm");
-      const registryCharm = GmailSearchRegistry({
-        queries: [],
-      });
-      return navigateTo(registryCharm);
-    });
-
-    // Handler to change account type (writes to local writable cell)
-    const setAccountType = handler<
-      { target: { value: string } },
-      { selectedType: Writable<"default" | "personal" | "work"> }
-    >((event, state) => {
-      const newType = event.target.value as "default" | "personal" | "work";
-      console.log("[GmailAgenticSearch] Account type changed to:", newType);
-      state.selectedType.set(newType);
-    });
+    // Use module-scope handlers
+    const createSearchRegistry = createSearchRegistryHandler;
+    const setAccountType = setAccountTypeHandler;
 
     // ========================================================================
     // PROGRESS TRACKING
@@ -609,288 +1147,6 @@ const GmailAgenticSearch = pattern<
         return Array.from(all);
       }
     );
-
-    // ========================================================================
-    // DEBUG LOG HELPERS
-    // ========================================================================
-
-    // Helper to add a debug log entry using push (proper array cell mutation)
-    const addDebugLogEntry = (
-      logCell: Writable<DebugLogEntry[]>,
-      entry: Omit<DebugLogEntry, "timestamp">,
-    ) => {
-      try {
-        logCell.push({ ...entry, timestamp: Date.now() });
-      } catch (err) {
-        // Log to console but don't let debug logging errors crash the agent
-        console.error("[GmailAgenticSearch] Debug log error:", err);
-      }
-    };
-
-    // ========================================================================
-    // SEARCH GMAIL TOOL
-    // ========================================================================
-
-    const searchGmailHandler = handler<
-      { query: string; result?: Writable<any> },
-      {
-        auth: Writable<Auth>;
-        // Stream<T> in signature lets framework unwrap opaque stream from wished charms
-        authRefreshStream: RefreshStreamType | null;
-        progress: Writable<SearchProgress>;
-        maxSearches: Writable<Default<number, 0>>;
-        debugLog: Writable<DebugLogEntry[]>;
-        localQueries: Writable<LocalQuery[]>;
-        communityQueryRefs: Writable<CommunityQueryRef[]>;
-        registryWish: Writable<any>;
-        agentTypeUrl: Writable<string>;
-        lastExecutedQueryIdCell: Writable<string | null>;
-      }
-    >(async (input, state) => {
-      const authData = state.auth.get();
-      const token = authData?.token as string;
-      const max = state.maxSearches.get();
-      const currentProgress = state.progress.get();
-
-      // Log the search attempt
-      addDebugLogEntry(state.debugLog, {
-        type: "search_start",
-        message: `Searching Gmail: "${input.query}"`,
-        details: { query: input.query, searchCount: currentProgress.searchCount },
-      });
-
-      // Check if we've hit the search limit
-      if (max > 0 && currentProgress.searchCount >= max) {
-        console.log(`[SearchGmail Tool] Search limit reached (${max})`);
-        addDebugLogEntry(state.debugLog, {
-          type: "info",
-          message: `Search limit reached (${max})`,
-        });
-        const limitResult = {
-          success: false,
-          limitReached: true,
-          message: `Search limit of ${max} reached.`,
-          emails: [],
-        };
-        if (input.result) {
-          input.result.set(limitResult);
-        }
-        state.progress.set({
-          ...currentProgress,
-          status: "limit_reached",
-        });
-        return limitResult;
-      }
-
-      // Don't continue if we're in auth error state
-      if (currentProgress.status === "auth_error") {
-        const authErrorResult = {
-          success: false,
-          authError: true,
-          message: currentProgress.authError || "Authentication required",
-          emails: [],
-        };
-        if (input.result) {
-          input.result.set(authErrorResult);
-        }
-        return authErrorResult;
-      }
-
-      // Update progress: starting new search
-      state.progress.set({
-        ...currentProgress,
-        currentQuery: input.query,
-        status: "searching",
-      });
-
-      let resultData: any;
-
-      if (!token) {
-        addDebugLogEntry(state.debugLog, {
-          type: "error",
-          message: "Not authenticated - no token available",
-        });
-        resultData = { error: "Not authenticated", emails: [] };
-      } else {
-        try {
-          console.log(`[SearchGmail Tool] Searching: ${input.query}`);
-
-          // Cross-charm token refresh via Stream<T> handler signature
-          // The framework unwraps the opaque stream, giving us a callable .send()
-          // See: community-docs/blessed/cross-charm.md
-          const refreshStream = state.authRefreshStream;
-          let onRefresh: (() => Promise<void>) | undefined = undefined;
-
-          if (refreshStream?.send) {
-            // Stream.send() supports optional onCommit callback (see labs/packages/runner/src/cell.ts)
-            // The refresh happens in the auth charm's transaction context
-            // Note: TypeScript types don't include onCommit, but runtime supports it
-            onRefresh = async () => {
-              console.log("[SearchGmail Tool] Refreshing token via cross-charm stream...");
-              await new Promise<void>((resolve, reject) => {
-                // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
-                (refreshStream.send as (event: Record<string, never>, onCommit?: (tx: any) => void) => void)(
-                  {},
-                  (tx: any) => {
-                    // onCommit fires after the handler's transaction commits
-                    const status = tx?.status?.();
-                    if (status?.status === "error") {
-                      console.error("[SearchGmail Tool] Token refresh failed:", status.error);
-                      reject(new Error(`Token refresh failed: ${status.error}`));
-                    } else {
-                      console.log("[SearchGmail Tool] Token refresh transaction committed");
-                      resolve();
-                    }
-                  }
-                );
-              });
-              console.log("[SearchGmail Tool] Token refresh completed");
-            };
-          }
-
-          // Use GmailClient with the auth cell and onRefresh callback
-          const client = new GmailClient(state.auth, { debugMode: false, onRefresh });
-          const emails = await client.searchEmails(input.query, 30);
-
-          console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
-
-          // Log the search results
-          addDebugLogEntry(state.debugLog, {
-            type: "search_result",
-            message: `Found ${emails.length} emails for "${input.query}"`,
-            details: {
-              emailCount: emails.length,
-              subjects: emails.slice(0, 5).map(e => e.subject),
-            },
-          });
-
-          resultData = {
-            success: true,
-            emailCount: emails.length,
-            emails: emails.map((e) => ({
-              id: e.id,
-              subject: e.subject,
-              from: e.from,
-              date: e.date,
-              snippet: e.snippet,
-              body: e.body,
-            })),
-          };
-
-          // Update progress: search complete
-          const updatedProgress = state.progress.get();
-          state.progress.set({
-            currentQuery: "",
-            completedQueries: [
-              ...updatedProgress.completedQueries,
-              {
-                query: input.query,
-                emailCount: emails.length,
-                timestamp: Date.now(),
-              },
-            ],
-            status: "analyzing",
-            searchCount: updatedProgress.searchCount + 1,
-          });
-
-          // Track query in localQueries for potential sharing
-          const currentLocalQueries = state.localQueries.get() || [];
-          const existingQueryIndex = currentLocalQueries.findIndex(
-            (q) => q && q.query && q.query.toLowerCase() === input.query.toLowerCase()
-          );
-
-          if (existingQueryIndex >= 0) {
-            // Update existing query using .key().key().set() for atomic updates
-            const existing = currentLocalQueries[existingQueryIndex];
-            const itemCell = state.localQueries.key(existingQueryIndex);
-            itemCell.key("lastUsed").set(Date.now());
-            itemCell.key("useCount").set(existing.useCount + 1);
-            // Auto-increase effectiveness if it found results (capped at 5)
-            itemCell.key("effectiveness").set(
-              emails.length > 0
-                ? Math.min(5, existing.effectiveness + 1)
-                : existing.effectiveness
-            );
-            // Track this as the last executed query (for foundItems)
-            state.lastExecutedQueryIdCell.set(existing.id);
-          } else if (emails.length > 0) {
-            // Only add new query if it found results
-            const newQueryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const newQuery: LocalQuery = {
-              id: newQueryId,
-              query: input.query,
-              createdAt: Date.now(),
-              lastUsed: Date.now(),
-              useCount: 1,
-              effectiveness: 1,  // Start at 1 since it found results
-              shareStatus: "private",
-              foundItems: 0,  // Initialize to 0, incremented when consuming pattern signals itemFoundSignal
-            };
-            state.localQueries.push(newQuery);
-            // Track this as the last executed query (for foundItems)
-            state.lastExecutedQueryIdCell.set(newQueryId);
-          }
-
-          // Auto-upvote community queries that found results
-          if (emails.length > 0) {
-            const communityRefs = state.communityQueryRefs.get() || [];
-            const matchingCommunityQuery = communityRefs.find(
-              (ref) => ref && ref.query && ref.query.toLowerCase() === input.query.toLowerCase()
-            );
-            if (matchingCommunityQuery) {
-              // Get the registry to call upvoteQuery
-              const wishResult = state.registryWish.get();
-              const registry = wishResult?.result;
-              if (registry?.upvoteQuery) {
-                const typeUrl = state.agentTypeUrl.get();
-                console.log(`[SearchGmail] Upvoting community query: ${matchingCommunityQuery.query}`);
-                addDebugLogEntry(state.debugLog, {
-                  type: "info",
-                  message: `Upvoting effective community query: "${matchingCommunityQuery.query}"`,
-                });
-                // Fire and forget the upvote
-                try {
-                  registry.upvoteQuery({
-                    agentTypeUrl: typeUrl,
-                    queryId: matchingCommunityQuery.id,
-                  });
-                } catch (upvoteErr) {
-                  console.error("[SearchGmail] Upvote failed:", upvoteErr);
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[SearchGmail Tool] Error:", err);
-          const errorStr = String(err);
-          addDebugLogEntry(state.debugLog, {
-            type: "error",
-            message: `Search error: ${errorStr}`,
-          });
-          resultData = { error: errorStr, emails: [] };
-
-          // Note: With GmailClient, 401 errors should automatically trigger
-          // token refresh. If we still get here with a 401, the refresh failed
-          // (possibly because auth cell is derived/read-only, or no refresh token)
-          if (errorStr.includes("401")) {
-            const updatedProgress = state.progress.get();
-            state.progress.set({
-              ...updatedProgress,
-              status: "auth_error",
-              authError:
-                "Gmail token expired and refresh failed. Please re-authenticate.",
-            });
-          }
-        }
-      }
-
-      // Write to the result cell if provided
-      if (input.result) {
-        input.result.set(resultData);
-      }
-
-      return resultData;
-    });
 
     // ========================================================================
     // AGENT SETUP
@@ -1015,114 +1271,6 @@ When you're done searching, STOP calling tools and produce your final structured
 
     const { result: agentResult, pending: agentPending } = agent;
 
-    // ========================================================================
-    // SCAN HANDLERS
-    // ========================================================================
-
-    const startScan = handler<
-      unknown,
-      {
-        isScanning: Writable<Default<boolean, false>>;
-        isAuthenticated: Writable<boolean>;
-        progress: Writable<SearchProgress>;
-        auth: Writable<Auth>;
-        debugLog: Writable<DebugLogEntry[]>;
-        // Stream<T> in signature lets framework unwrap opaque stream from wished charms
-        authRefreshStream: RefreshStreamType | null;
-      }
-    >(async (_, state) => {
-      if (!state.isAuthenticated.get()) return;
-
-      const authData = state.auth.get();
-
-      // Clear debug log and add scan start entry
-      state.debugLog.set([]);
-      addDebugLogEntry(state.debugLog, {
-        type: "info",
-        message: "Starting new scan...",
-        details: { email: authData?.user?.email },
-      });
-
-      // Validate token before starting scan
-      // Cross-charm refresh works via Stream<T> handler signature pattern
-      // See: community-docs/blessed/cross-charm.md
-      console.log("[GmailAgenticSearch] Validating token before scan...");
-      addDebugLogEntry(state.debugLog, {
-        type: "info",
-        message: "Validating Gmail token...",
-      });
-
-      // Stream<T> in handler signature gives us callable .send()
-      const refreshStream = state.authRefreshStream;
-
-      const validation = await validateAndRefreshTokenCrossCharm(
-        state.auth,
-        refreshStream,
-        true
-      );
-
-      if (!validation.valid) {
-        console.log(`[GmailAgenticSearch] Token validation failed: ${validation.error}`);
-        addDebugLogEntry(state.debugLog, {
-          type: "error",
-          message: `Token validation failed: ${validation.error}`,
-        });
-        state.progress.set({
-          currentQuery: "",
-          completedQueries: [],
-          status: "auth_error",
-          searchCount: 0,
-          authError: validation.error,
-        });
-        return;
-      }
-
-      if (validation.refreshed) {
-        console.log("[GmailAgenticSearch] Token was refreshed automatically");
-        addDebugLogEntry(state.debugLog, {
-          type: "info",
-          message: "Token was expired - refreshed automatically",
-        });
-      }
-
-      console.log("[GmailAgenticSearch] Token valid, starting scan");
-      addDebugLogEntry(state.debugLog, {
-        type: "info",
-        message: "Token valid - starting agent...",
-      });
-      state.progress.set({
-        currentQuery: "",
-        completedQueries: [],
-        status: "searching",
-        searchCount: 0,
-      });
-      state.isScanning.set(true);
-    });
-
-    const stopScan = handler<
-      unknown,
-      {
-        lastScanAt: Writable<Default<number, 0>>;
-        isScanning: Writable<Default<boolean, false>>;
-      }
-    >((_, state) => {
-      state.lastScanAt.set(Date.now());
-      state.isScanning.set(false);
-      console.log("[GmailAgenticSearch] Scan stopped");
-    });
-
-    const completeScan = handler<
-      unknown,
-      {
-        lastScanAt: Writable<Default<number, 0>>;
-        isScanning: Writable<Default<boolean, false>>;
-      }
-    >((_, state) => {
-      state.lastScanAt.set(Date.now());
-      state.isScanning.set(false);
-      console.log("[GmailAgenticSearch] Scan completed");
-    });
-
     // Detect when agent completes
     const scanCompleted = derive(
       [isScanning, agentPending, agentResult],
@@ -1165,15 +1313,13 @@ When you're done searching, STOP calling tools and produce your final structured
     );
 
     // Pre-bind handlers (important: must be done outside of derive callbacks)
-    const boundStartScan = startScan({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog, authRefreshStream });
-    const boundStopScan = stopScan({ lastScanAt, isScanning });
-    const boundCompleteScan = completeScan({ lastScanAt, isScanning });
+    // Use module-scope handlers (startScanHandler, stopScanHandler, completeScanHandler)
+    const boundStartScan = startScanHandler({ isScanning, isAuthenticated, progress: searchProgress, auth, debugLog, authRefreshStream });
+    const boundStopScan = stopScanHandler({ lastScanAt, isScanning });
+    const boundCompleteScan = completeScanHandler({ lastScanAt, isScanning });
 
     // Track if debug log is expanded (local UI state)
     const debugExpanded = Writable.of(false);
-    const toggleDebug = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
-      state.expanded.set(!state.expanded.get());
-    });
 
     // ========================================================================
     // UI PIECES (extracted for flexible composition)
@@ -1611,7 +1757,7 @@ When you're done searching, STOP calling tools and produce your final structured
             >
               {/* Header - clickable to toggle */}
               <div
-                onClick={toggleDebug({ expanded: debugExpanded })}
+                onClick={toggleDebugHandler({ expanded: debugExpanded })}
                 style={{
                   padding: "8px 12px",
                   background: "#f8fafc",
@@ -1695,72 +1841,8 @@ When you're done searching, STOP calling tools and produce your final structured
     // LOCAL QUERIES MANAGEMENT
     // ========================================================================
 
-    // Handler to rate a query's effectiveness
-    // Uses handler<unknown, State> pattern where State contains both cells AND input values
-    const rateQuery = handler<
-      unknown,
-      { queryId: string; rating: number; localQueries: Writable<LocalQuery[]> }
-    >((_, state) => {
-      const queries = state.localQueries.get() || [];
-      const index = queries.findIndex((q) => q.id === state.queryId);
-      if (index >= 0) {
-        state.localQueries.key(index).key("effectiveness").set(state.rating);
-      }
-    });
-
-    // Handler to delete a local query (also removes from pending submissions)
-    // Uses handler<unknown, State> pattern where State contains both cells AND input values
-    const deleteLocalQuery = handler<
-      unknown,
-      { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
-    >((_, state) => {
-      const queries = state.localQueries.get() || [];
-      state.localQueries.set(queries.filter((q) => q.id !== state.queryId));
-      // Also remove from pending if exists
-      const pending = state.pendingSubmissions.get() || [];
-      state.pendingSubmissions.set(pending.filter((p) => p.localQueryId !== state.queryId));
-    });
-
-    // Handler to flag a query for sharing (adds to pending submissions)
-    // Uses handler<unknown, State> pattern where State contains both cells AND input values
-    //
-    // IMPORTANT: We update localQueries FIRST, then pendingSubmissions in separate order
-    // to avoid transaction conflicts. Both writes happen in the same handler transaction.
-    const flagForShare = handler<
-      unknown,
-      { queryId: string; localQueries: Writable<LocalQuery[]>; pendingSubmissions: Writable<PendingSubmission[]> }
-    >((_, state) => {
-      // Read both cells upfront
-      const queries = state.localQueries.get() || [];
-      const pending = state.pendingSubmissions.get() || [];
-
-      const qry = queries.find((q) => q.id === state.queryId);
-      if (!qry) return;
-
-      // Check if already pending
-      if (pending.some((p) => p.localQueryId === state.queryId)) return;
-
-      // Update localQueries FIRST (mark as pending_review)
-      const idx = queries.findIndex((q) => q.id === state.queryId);
-      if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("pending_review");
-      }
-
-      // Then add to pendingSubmissions
-      const newPending: PendingSubmission = {
-        localQueryId: state.queryId,
-        originalQuery: qry.query,
-        sanitizedQuery: qry.query,
-        piiWarnings: [],
-        generalizabilityIssues: [],
-        recommendation: "pending",
-        userApproved: false,
-      };
-      state.pendingSubmissions.push(newPending);
-    });
-
-    // Note: rateQuery, deleteLocalQuery, flagForShare are called directly with all parameters
-    // in onClick handlers (no pre-binding needed)
+    // Note: rateQueryHandler, deleteLocalQueryHandler, flagForShareHandler are defined at module scope
+    // and called directly with all parameters in onClick handlers (no pre-binding needed)
     // Note: localQueriesExpanded/toggleLocalQueries removed - using native <details>/<summary> instead
 
     // Pre-bind handler for creating registry
@@ -1872,7 +1954,7 @@ When you're done searching, STOP calling tools and produce your final structured
                         <div style={{ display: "flex", gap: "4px" }}>
                           {query.shareStatus === "private" && (
                             <ct-button
-                              onClick={flagForShare({ queryId: query.id, localQueries, pendingSubmissions })}
+                              onClick={flagForShareHandler({ queryId: query.id, localQueries, pendingSubmissions })}
                               variant="ghost"
                               size="sm"
                               style="color: #3b82f6; font-size: 11px;"
@@ -1881,7 +1963,7 @@ When you're done searching, STOP calling tools and produce your final structured
                             </ct-button>
                           )}
                           <ct-button
-                            onClick={deleteLocalQuery({ queryId: query.id, localQueries, pendingSubmissions })}
+                            onClick={deleteLocalQueryHandler({ queryId: query.id, localQueries, pendingSubmissions })}
                             variant="ghost"
                             size="sm"
                             style="color: #dc2626; font-size: 12px;"
@@ -1940,41 +2022,7 @@ When you're done searching, STOP calling tools and produce your final structured
       required: ["hasPII", "piiFound", "isGeneralizable", "generalizabilityIssues", "sanitizedQuery", "confidence", "recommendation"] as const,
     };
 
-    // Handler to flag a query for sharing (runs PII screening)
-    const flagQueryForSharing = handler<
-      { queryId: string },
-      {
-        localQueries: Writable<LocalQuery[]>;
-        pendingSubmissions: Writable<PendingSubmission[]>;
-      }
-    >(async (input, state) => {
-      const queries = state.localQueries.get() || [];
-      const query = queries.find((q) => q.id === input.queryId);
-      if (!query) return;
-
-      // Check if already pending
-      const pending = state.pendingSubmissions.get() || [];
-      if (pending.some((p) => p.localQueryId === input.queryId)) return;
-
-      // Create pending submission (PII screening happens via generateObject below)
-      const newPending: PendingSubmission = {
-        localQueryId: input.queryId,
-        originalQuery: query.query,
-        sanitizedQuery: query.query, // Will be updated by screening
-        piiWarnings: [],
-        generalizabilityIssues: [],
-        recommendation: "pending",
-        userApproved: false,
-      };
-
-      state.pendingSubmissions.push(newPending);
-
-      // Update the local query status
-      const idx = queries.findIndex((q) => q.id === input.queryId);
-      if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("pending_review");
-      }
-    });
+    // Note: flagQueryForSharingHandler is defined at module scope
 
     // Run PII screening on pending submissions
     // Uses derive to reactively screen new submissions
@@ -2080,55 +2128,11 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       (itemCell.key("recommendation") as Writable<"share" | "share_with_edits" | "do_not_share" | "pending">).set(screeningData.recommendation);
     });
 
-    // Handler to approve a pending submission
-    const approvePendingSubmission = handler<
-      { localQueryId: string },
-      { pendingSubmissions: Writable<PendingSubmission[]> }
-    >((input, state) => {
-      const submissions = state.pendingSubmissions.get() || [];
-      const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
-      if (idx >= 0) {
-        state.pendingSubmissions.key(idx).key("userApproved").set(true);
-      }
-    });
-
-    // Handler to reject/cancel a pending submission
-    const rejectPendingSubmission = handler<
-      { localQueryId: string },
-      {
-        pendingSubmissions: Writable<PendingSubmission[]>;
-        localQueries: Writable<LocalQuery[]>;
-      }
-    >((input, state) => {
-      // Remove from pending
-      const submissions = state.pendingSubmissions.get() || [];
-      state.pendingSubmissions.set(submissions.filter((s) => s.localQueryId !== input.localQueryId));
-
-      // Reset local query status to private
-      const queries = state.localQueries.get() || [];
-      const idx = queries.findIndex((q) => q.id === input.localQueryId);
-      if (idx >= 0) {
-        state.localQueries.key(idx).key("shareStatus").set("private");
-      }
-    });
-
-    // Handler to update the sanitized query manually
-    const updateSanitizedQuery = handler<
-      { localQueryId: string; sanitizedQuery: string },
-      { pendingSubmissions: Writable<PendingSubmission[]> }
-    >((input, state) => {
-      const submissions = state.pendingSubmissions.get() || [];
-      const idx = submissions.findIndex((s) => s.localQueryId === input.localQueryId);
-      if (idx >= 0) {
-        state.pendingSubmissions.key(idx).key("sanitizedQuery").set(input.sanitizedQuery);
-      }
-    });
+    // Note: approvePendingSubmissionHandler, rejectPendingSubmissionHandler, updateSanitizedQueryHandler
+    // are defined at module scope
 
     // Track if pending submissions UI is expanded
     const pendingSubmissionsExpanded = Writable.of(false);
-    const togglePendingSubmissions = handler<unknown, { expanded: Writable<boolean> }>((_, state) => {
-      state.expanded.set(!state.expanded.get());
-    });
 
     // Pending Submissions UI
     const pendingSubmissionsUI = (
@@ -2144,7 +2148,7 @@ Be conservative: when in doubt, recommend "do_not_share".`,
             >
               {/* Header */}
               <div
-                onClick={togglePendingSubmissions({ expanded: pendingSubmissionsExpanded })}
+                onClick={togglePendingSubmissionsHandler({ expanded: pendingSubmissionsExpanded })}
                 style={{
                   padding: "8px 12px",
                   background: "#eff6ff",
@@ -2469,8 +2473,8 @@ Be conservative: when in doubt, recommend "do_not_share".`,
       // Local queries (shared search strings support)
       localQueries,
       pendingSubmissions,
-      rateQuery,
-      deleteLocalQuery,
+      rateQuery: rateQueryHandler,
+      deleteLocalQuery: deleteLocalQueryHandler,
       // Cell for consuming patterns to signal "found an item"
       // Increment with searcher.itemFoundSignal.set(current + 1) when your tool finds items
       itemFoundSignal,

@@ -31,9 +31,8 @@ const hideModalHandler = handler<void, { showModal: Writable<boolean> }>(
   }
 );
 
-export default recipe<Props>(({ notes: initialNotes }) => {
+export default recipe<Props>(({ notes }) => {
   const showModal = Writable.of(false);
-  const notes = Writable.of(initialNotes || "");
 
   return {
     [NAME]: "CTAutoLayout TabNames Test",

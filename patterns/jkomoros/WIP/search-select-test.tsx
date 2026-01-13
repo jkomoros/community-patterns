@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, derive, Default, NAME, pattern, UI } from "commontools";
 // TODO: search-select.tsx component doesn't exist yet - create it or remove this test file
 // import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
 
@@ -37,7 +37,9 @@ interface TestInput {
 
 export default pattern<TestInput>(({ initialSelected }) => {
   // Create the selected cell with initial values
-  const selected = Writable.of<string[]>(initialSelected || []);
+  // Default<string[], []> already handles the default value, so we can use it directly
+  // We use derive to create a cell that properly tracks the value
+  const selected = Writable.of<string[]>(derive(initialSelected, (val) => val ?? []));
 
   // Create the search-select instance
   const relationshipSelector = SearchSelect({

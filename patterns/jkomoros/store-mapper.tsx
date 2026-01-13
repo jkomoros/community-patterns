@@ -710,9 +710,20 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     const entranceCount = computed(() => entrances.length);
     const entrancesComplete = Writable.of<boolean>(false);
 
-    // Helper to check if an entrance position is already used
-    const isEntranceUsed = (position: WallPosition) => {
-      return derive(entrances, (ents) => ents.some(e => e.position === position));
+    // Pre-computed derived values for each entrance position (functions inside patterns are not allowed)
+    const entranceUsed = {
+      "front-left": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "front-left")),
+      "front-center": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "front-center")),
+      "front-right": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "front-right")),
+      "back-left": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "back-left")),
+      "back-center": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "back-center")),
+      "back-right": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "back-right")),
+      "left-front": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "left-front")),
+      "left-center": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "left-center")),
+      "left-back": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "left-back")),
+      "right-front": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "right-front")),
+      "right-center": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "right-center")),
+      "right-back": derive(entrances, (ents: Entrance[]) => ents.some(e => e.position === "right-back")),
     };
 
     // Form fields for adding item location corrections
@@ -916,8 +927,10 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
     const unassignedCount = computed(() => unassignedDepartments.get().length);
 
     // Gap detection for numbered aisles
+    // Cast aisles to plain array type (reactive values are auto-unwrapped inside computed)
+    const aislesArray = aisles as StoreAisle[];
     const detectedGaps = computed(() => {
-      const numbered = (aisles as unknown as StoreAisle[])
+      const numbered = aislesArray
         .map((a) => a.name.match(/^(\d+)/)?.[1])  // Extract just leading digits from name like "5" or "5A"
         .filter(Boolean)
         .map((n) => parseInt(n!))
@@ -938,7 +951,7 @@ const StoreMapper = pattern<StoreMapInput, StoreMapOutput>(
 
     // Pre-compute aisle names for LLM prompt (avoid .map() inside derive)
     const aisleNamesForLLM = computed(() =>
-      (aisles as unknown as StoreAisle[]).map((a) => `Aisle ${a.name}`).join("\n") || "(none)"
+      aislesArray.map((a) => `Aisle ${a.name}`).join("\n") || "(none)"
     );
 
     // LLM suggestions for common sections
@@ -977,7 +990,7 @@ What common sections might be missing?`,
     });
 
     const llmSuggestions = computed(() => {
-      const result = commonSectionsLLM.result as unknown as string | null;
+      const result = commonSectionsLLM.result as string | null;
       if (!result || typeof result !== "string") return [];
       return result
         .split("\n")
@@ -987,9 +1000,10 @@ What common sections might be missing?`,
 
     // Pre-compute JSX for detected gaps (cannot .map() over derive results in JSX)
     // Inside computed(), reactive values are auto-unwrapped, so detectedGaps is already a plain array
+    // Cast detectedGaps to get underlying type (computed returns Cell<string[]>)
+    const gapsArray = detectedGaps as string[];
     const detectedGapsButtons = computed(() => {
-      const gaps = detectedGaps as unknown as string[];
-      return gaps.map((gapName: string, index: number) => (
+      return gapsArray.map((gapName: string, index: number) => (
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
           <ct-button
             size="sm"
@@ -1020,9 +1034,10 @@ What common sections might be missing?`,
     // Pre-compute JSX for LLM suggestions (cannot .map() over derive results in JSX)
     // LLM suggestions are perimeter departments (Bakery, Deli, etc.), not numbered aisles.
     // Add them to unassignedDepartments so users can assign them to walls.
+    // Cast llmSuggestions to get underlying type (computed returns Cell<string[]>)
+    const suggestionsArray = llmSuggestions as string[];
     const llmSuggestionsButtons = computed(() => {
-      const suggestions = llmSuggestions as unknown as string[];
-      return suggestions.map((suggestion: string, index: number) => (
+      return suggestionsArray.map((suggestion: string, index: number) => (
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
           <ct-button
             size="sm"
@@ -1086,9 +1101,12 @@ What common sections might be missing?`,
       specialDepartments.filter((dept) => dept.location?.startsWith("right"))
     );
 
+    // Type alias for itemsByPosition result
+    type ItemsByPositionType = Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+
     // Group all items by exact position for the store map visualization
     const itemsByPosition = computed(() => {
-      const byPos: Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }> = {};
+      const byPos: ItemsByPositionType = {};
 
       // Add departments
       for (const dept of specialDepartments) {
@@ -1107,16 +1125,19 @@ What common sections might be missing?`,
       return byPos;
     });
 
+    // Cast to get underlying type (computed returns Cell<T>)
+    const itemsMap = itemsByPosition as ItemsByPositionType;
+
     // Filter unassigned to exclude dismissed departments and those in center aisles
     // Use computed() with explicit .get() for all reactive values
     // unassignedDepartments is our local Cell, notInStore/inCenterAisles are pattern inputs
+    // Cast to get underlying array types (reactive values are auto-unwrapped in computed)
+    const notInStoreArray = notInStore as string[];
+    const inCenterAislesArray = inCenterAisles as string[];
     const visibleUnassigned = computed(() => {
       const unassignedArr = unassignedDepartments.get();
-      // Pattern inputs: cast to get the underlying array (auto-unwrapped in computed)
-      const excludedArr = (notInStore as unknown as string[]);
-      const centerArr = (inCenterAisles as unknown as string[]);
       return unassignedArr.filter(
-        (name: string) => !excludedArr.includes(name) && !centerArr.includes(name)
+        (name: string) => !notInStoreArray.includes(name) && !inCenterAislesArray.includes(name)
       );
     });
 
@@ -1419,7 +1440,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={isEntranceUsed("front-left")}
+                  disabled={entranceUsed["front-left"]}
                   onClick={addEntrance({ entrances, position: "front-left", name: "Front-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1429,7 +1450,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={isEntranceUsed("front-center")}
+                  disabled={entranceUsed["front-center"]}
                   onClick={addEntrance({ entrances, position: "front-center", name: "Front-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1439,7 +1460,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-front"
-                  disabled={isEntranceUsed("front-right")}
+                  disabled={entranceUsed["front-right"]}
                   onClick={addEntrance({ entrances, position: "front-right", name: "Front-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1456,7 +1477,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={isEntranceUsed("back-left")}
+                  disabled={entranceUsed["back-left"]}
                   onClick={addEntrance({ entrances, position: "back-left", name: "Back-Left Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1466,7 +1487,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={isEntranceUsed("back-center")}
+                  disabled={entranceUsed["back-center"]}
                   onClick={addEntrance({ entrances, position: "back-center", name: "Back-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1476,7 +1497,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-back"
-                  disabled={isEntranceUsed("back-right")}
+                  disabled={entranceUsed["back-right"]}
                   onClick={addEntrance({ entrances, position: "back-right", name: "Back-Right Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1493,7 +1514,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={isEntranceUsed("left-front")}
+                  disabled={entranceUsed["left-front"]}
                   onClick={addEntrance({ entrances, position: "left-front", name: "Left-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1503,7 +1524,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={isEntranceUsed("left-center")}
+                  disabled={entranceUsed["left-center"]}
                   onClick={addEntrance({ entrances, position: "left-center", name: "Left-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1513,7 +1534,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-left"
-                  disabled={isEntranceUsed("left-back")}
+                  disabled={entranceUsed["left-back"]}
                   onClick={addEntrance({ entrances, position: "left-back", name: "Left-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1530,7 +1551,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={isEntranceUsed("right-front")}
+                  disabled={entranceUsed["right-front"]}
                   onClick={addEntrance({ entrances, position: "right-front", name: "Right-Front Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1540,7 +1561,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={isEntranceUsed("right-center")}
+                  disabled={entranceUsed["right-center"]}
                   onClick={addEntrance({ entrances, position: "right-center", name: "Right-Center Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -1550,7 +1571,7 @@ What common sections might be missing?`,
                   size="sm"
                   variant="outline"
                   className="wall-btn-right"
-                  disabled={isEntranceUsed("right-back")}
+                  disabled={entranceUsed["right-back"]}
                   onClick={addEntrance({ entrances, position: "right-back", name: "Right-Back Entrance" })}
                   style="font-size: 13px; padding: 6px 12px; min-height: 36px;"
                 >
@@ -2483,7 +2504,7 @@ What common sections might be missing?`,
                 {/* Front wall (bottom - where you enter) */}
                 <div className="store-map-wall store-map-wall-horizontal store-map-wall-front">
                   {computed(() => {
-                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const items = itemsMap;
                     const hasEntranceFL = (items["front-left"]?.entrances || []).length > 0;
                     const hasEntranceFC = (items["front-center"]?.entrances || []).length > 0;
                     const hasEntranceFR = (items["front-right"]?.entrances || []).length > 0;
@@ -2521,7 +2542,7 @@ What common sections might be missing?`,
                 {/* Left wall */}
                 <div className="store-map-wall store-map-wall-vertical store-map-wall-left">
                   {computed(() => {
-                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const items = itemsMap;
                     const hasEntranceLB = (items["left-back"]?.entrances || []).length > 0;
                     const hasEntranceLC = (items["left-center"]?.entrances || []).length > 0;
                     const hasEntranceLF = (items["left-front"]?.entrances || []).length > 0;
@@ -2565,7 +2586,7 @@ What common sections might be missing?`,
                 {/* Right wall */}
                 <div className="store-map-wall store-map-wall-vertical store-map-wall-right">
                   {computed(() => {
-                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const items = itemsMap;
                     const hasEntranceRB = (items["right-back"]?.entrances || []).length > 0;
                     const hasEntranceRC = (items["right-center"]?.entrances || []).length > 0;
                     const hasEntranceRF = (items["right-front"]?.entrances || []).length > 0;
@@ -2603,7 +2624,7 @@ What common sections might be missing?`,
                 {/* Back wall (top - far end of store) */}
                 <div className="store-map-wall store-map-wall-horizontal store-map-wall-back">
                   {computed(() => {
-                    const items = itemsByPosition as unknown as Record<string, { depts: DepartmentRecord[], entrances: Entrance[] }>;
+                    const items = itemsMap;
                     const hasEntranceBL = (items["back-left"]?.entrances || []).length > 0;
                     const hasEntranceBC = (items["back-center"]?.entrances || []).length > 0;
                     const hasEntranceBR = (items["back-right"]?.entrances || []).length > 0;

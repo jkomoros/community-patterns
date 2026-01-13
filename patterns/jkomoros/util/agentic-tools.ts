@@ -136,8 +136,16 @@ export function listTool<Fields extends string>(
 ) {
   const { items, dedupe, idPrefix = "item", timestamp = "savedAt" } = config;
 
+  // Convert TypedSchema to JSONSchema by extracting the relevant properties
+  // TypedSchema is structurally compatible with JSONSchema, just with extra phantom type
+  const jsonSchema: JSONSchema = {
+    type: schema.type,
+    properties: schema.properties,
+    required: schema.required,
+  };
+
   return handler(
-    schema as unknown as JSONSchema,
+    jsonSchema,
     LIST_TOOL_STATE_SCHEMA,
     (input: Record<string, any>, state: {
       items: Writable<any[]>;

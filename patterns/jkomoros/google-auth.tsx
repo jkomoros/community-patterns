@@ -359,6 +359,58 @@ const toggleScope = handler<
   },
 );
 
+// Handler for refreshing OAuth tokens from UI button
+// Must be at module scope, not inside pattern
+const handleRefresh = handler<unknown, { auth: Writable<Auth> }>(
+  async (_event, { auth: authCell }) => {
+    const currentAuth = authCell.get();
+    const refreshToken = currentAuth?.refreshToken;
+
+    if (!refreshToken) {
+      console.error("[google-auth] No refresh token available");
+      throw new Error("No refresh token available");
+    }
+
+    const res = await fetch(
+      new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      },
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[google-auth] Refresh failed:", res.status, errorText);
+      throw new Error(`Token refresh failed: ${res.status}`);
+    }
+
+    const json = await res.json();
+    if (!json.tokenInfo) {
+      console.error("[google-auth] No tokenInfo in response:", json);
+      throw new Error("Invalid refresh response");
+    }
+
+    // Update auth with new token, keeping user info
+    authCell.update({
+      ...json.tokenInfo,
+      user: currentAuth.user,
+    });
+  },
+);
+
+// Helper function to get friendly scope name
+// Must be at module scope, not inside pattern
+const getScopeFriendlyName = (scope: string): string => {
+  const friendly = Object.entries(SCOPE_MAP).find(
+    ([, url]) => url === scope
+  );
+  return friendly
+    ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
+    : scope;
+};
+
 /**
  * Handler for refreshing OAuth tokens.
  *
@@ -463,46 +515,6 @@ export default pattern<Input, Output>(
       return auth.expiresAt < Date.now();
     });
 
-    // Handler to trigger token refresh (same as refreshTokenHandler but bound for UI)
-    const handleRefresh = handler<unknown, { auth: Writable<Auth> }>(
-      async (_event, { auth: authCell }) => {
-        const currentAuth = authCell.get();
-        const refreshToken = currentAuth?.refreshToken;
-
-        if (!refreshToken) {
-          console.error("[google-auth] No refresh token available");
-          throw new Error("No refresh token available");
-        }
-
-        const res = await fetch(
-          new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken }),
-          },
-        );
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error("[google-auth] Refresh failed:", res.status, errorText);
-          throw new Error(`Token refresh failed: ${res.status}`);
-        }
-
-        const json = await res.json();
-        if (!json.tokenInfo) {
-          console.error("[google-auth] No tokenInfo in response:", json);
-          throw new Error("Invalid refresh response");
-        }
-
-        // Update auth with new token, keeping user info
-        authCell.update({
-          ...json.tokenInfo,
-          user: currentAuth.user,
-        });
-      },
-    );
-
     // PERFORMANCE FIX: Pre-compute disabled state (same for all checkboxes)
     // Avoids creating computed() inside .map() loop
     // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
@@ -510,16 +522,6 @@ export default pattern<Input, Output>(
 
     // Pre-compute the scopes string for display
     const scopesDisplay = computed(() => scopes.join(", "));
-
-    // Helper function to get friendly scope name (avoids computed inside map)
-    const getScopeFriendlyName = (scope: string): string => {
-      const friendly = Object.entries(SCOPE_MAP).find(
-        ([, url]) => url === scope
-      );
-      return friendly
-        ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
-        : scope;
-    };
 
     // Compact user chip for display in other patterns
     const userChip = computed(() => {

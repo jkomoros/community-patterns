@@ -26,9 +26,10 @@ type Output = {
   backlinks: MentionableCharm[];
 
   content: Default<string, "">;
-  grep: Stream<{ query: string }>;
-  translate: Stream<{ language: string }>;
-  editContent: Stream<{ detail: { value: string } }>;
+  // patternTool returns PatternToolResult, use unknown for flexibility
+  grep: unknown;
+  translate: unknown;
+  editContent: unknown;
 };
 
 const _updateTitle = handler<
@@ -78,7 +79,8 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionableCharm);
+    // Push the charm directly - Writable<MentionableCharm> should be accepted
+    mentionable.push(detail.charm.get());
   }
 });
 
@@ -98,6 +100,27 @@ const handleCharmLinkClicked = handler<void, { charm: Writable<MentionableCharm>
     return navigateTo(charm);
   },
 );
+
+// Module-scope function for grep patternTool
+function grepFunction({ query, content }: { query: string; content: string }) {
+  return computed(() => {
+    return content.split("\n").filter((c: string) => c.includes(query));
+  });
+}
+
+// Module-scope function for translate patternTool
+function translateFunction({ language, content }: { language: string; content: string }) {
+  const result = generateText({
+    system: str`Translate the content to ${language}.`,
+    prompt: str`<to_translate>${content}</to_translate>`,
+  });
+
+  return computed(() => {
+    if (result?.pending) return undefined;
+    if (result?.result == null) return "Error occured";
+    return result.result;
+  });
+}
 
 const Note = recipe<Input, Output>(
   "Note",
@@ -153,34 +176,8 @@ const Note = recipe<Input, Output>(
       content,
       mentioned,
       backlinks,
-      grep: patternTool(
-        ({ query, content }: { query: string; content: string }) => {
-          return computed(() => {
-            return content.split("\n").filter((c) => c.includes(query));
-          });
-        },
-        { content },
-      ),
-      translate: patternTool(
-        (
-          { language, content }: {
-            language: string;
-            content: string;
-          },
-        ) => {
-          const result = generateText({
-            system: str`Translate the content to ${language}.`,
-            prompt: str`<to_translate>${content}</to_translate>`,
-          });
-
-          return computed(() => {
-            if (result?.pending) return undefined;
-            if (result?.result == null) return "Error occured";
-            return result.result;
-          });
-        },
-        { content },
-      ),
+      grep: patternTool(grepFunction, { content }),
+      translate: patternTool(translateFunction, { content }),
       editContent: handleEditContent({ content }),
     };
   },

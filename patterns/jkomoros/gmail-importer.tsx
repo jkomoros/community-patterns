@@ -672,6 +672,42 @@ const toggleDebugMode = handler<
   },
 );
 
+// Handler to change account type - must be at module scope
+const setAccountType = handler<
+  { target: { value: string } },
+  { selectedType: Writable<AccountType> }
+>((event, state) => {
+  const newType = event.target.value as AccountType;
+  console.log("[GmailImporter] Account type changed to:", newType);
+  state.selectedType.set(newType);
+});
+
+// Pattern tool callbacks - must be defined at module scope
+const searchEmailsCallback = ({ query, emails }: { query: string; emails: Email[] }) => {
+  return derive({ query, emails }, ({ query, emails }) => {
+    if (!query || !emails) return [];
+    const lowerQuery = query.toLowerCase();
+    return emails.filter((email) =>
+      email.subject?.toLowerCase().includes(lowerQuery) ||
+      email.from?.toLowerCase().includes(lowerQuery) ||
+      email.snippet?.toLowerCase().includes(lowerQuery)
+    );
+  });
+};
+
+const getEmailCountCallback = ({ emails }: { emails: Email[] }) => {
+  return derive(emails, (list: Email[]) => list?.length || 0);
+};
+
+const getRecentEmailsCallback = ({ count, emails }: { count: number; emails: Email[] }) => {
+  return derive({ count, emails }, ({ count, emails }) => {
+    if (!emails || emails.length === 0) return "No emails";
+    const recent = emails.slice(0, count || 5);
+    return recent.map((email) =>
+      `From: ${email.from}\nSubject: ${email.subject}\nDate: ${new Date(email.date).toLocaleDateString()}`
+    ).join("\n\n");
+  });
+};
 
 export default pattern<{
   settings: Default<Settings, {
@@ -687,16 +723,6 @@ export default pattern<{
 
     // Local writable cell for account type selection
     const selectedAccountType = Writable.of<AccountType>("default");
-
-    // Handler to change account type
-    const setAccountType = handler<
-      { target: { value: string } },
-      { selectedType: Writable<AccountType> }
-    >((event, state) => {
-      const newType = event.target.value as AccountType;
-      console.log("[GmailImporter] Account type changed to:", newType);
-      state.selectedType.set(newType);
-    });
 
     // Use createGoogleAuth utility with reactive accountType
     const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
@@ -863,39 +889,10 @@ export default pattern<{
       emails,
       emailCount: derive(emails, (list: Email[]) => list?.length || 0),
       bgUpdater: googleUpdater({ emails, auth, settings }),
-      // Pattern tools for omnibot
-      searchEmails: patternTool(
-        ({ query, emails }: { query: string; emails: Email[] }) => {
-          return derive({ query, emails }, ({ query, emails }) => {
-            if (!query || !emails) return [];
-            const lowerQuery = query.toLowerCase();
-            return emails.filter((email) =>
-              email.subject?.toLowerCase().includes(lowerQuery) ||
-              email.from?.toLowerCase().includes(lowerQuery) ||
-              email.snippet?.toLowerCase().includes(lowerQuery)
-            );
-          });
-        },
-        { emails }
-      ),
-      getEmailCount: patternTool(
-        ({ emails }: { emails: Email[] }) => {
-          return derive(emails, (list: Email[]) => list?.length || 0);
-        },
-        { emails }
-      ),
-      getRecentEmails: patternTool(
-        ({ count, emails }: { count: number; emails: Email[] }) => {
-          return derive({ count, emails }, ({ count, emails }) => {
-            if (!emails || emails.length === 0) return "No emails";
-            const recent = emails.slice(0, count || 5);
-            return recent.map((email) =>
-              `From: ${email.from}\nSubject: ${email.subject}\nDate: ${new Date(email.date).toLocaleDateString()}`
-            ).join("\n\n");
-          });
-        },
-        { emails }
-      ),
+      // Pattern tools for omnibot - using module-scope callbacks
+      searchEmails: patternTool(searchEmailsCallback, { emails }),
+      getEmailCount: patternTool(getEmailCountCallback, { emails }),
+      getRecentEmails: patternTool(getRecentEmailsCallback, { emails }),
     };
   },
 );

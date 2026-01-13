@@ -24,6 +24,7 @@ interface Vote {
 }
 
 interface VoterCharmRef {
+  id: string;
   voterName: string;
   charm: any;
 }

@@ -76,6 +76,98 @@ const clearLog = handler<
   testLog.set([]);
 });
 
+// Handler to test stream access
+const testStreamAccess = handler<
+  Record<string, never>,
+  { testLog: Writable<string[]>; wishedCharm: GoogleAuthCharm | null }
+>((_event, { testLog: logCell, wishedCharm }) => {
+  const logs = logCell.get() || [];
+  const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
+
+  const results: string[] = [];
+  results.push(`[${timestamp}] === STREAM ACCESS TEST ===`);
+
+  // Get the current charm value
+  const charm = (wishedCharm as any)?.get ? (wishedCharm as any).get() : wishedCharm;
+
+  results.push(`  charm type: ${typeof charm}`);
+  results.push(`  charm is null: ${charm === null}`);
+
+  if (charm) {
+    results.push(`  charm keys: ${Object.keys(charm).join(", ")}`);
+    results.push(`  charm.refreshToken type: ${typeof charm.refreshToken}`);
+
+    if (charm.refreshToken) {
+      const rt = charm.refreshToken;
+      results.push(`  refreshToken keys: ${Object.keys(rt).join(", ")}`);
+      results.push(`  typeof .send: ${typeof rt.send}`);
+      results.push(`  typeof .get: ${typeof rt.get}`);
+
+      if (typeof rt.get === "function") {
+        try {
+          const streamVal = rt.get();
+          results.push(`  .get() result type: ${typeof streamVal}`);
+          results.push(`  .get() result: ${JSON.stringify(streamVal)?.slice(0, 100)}`);
+          if (streamVal) {
+            results.push(`  .get().send type: ${typeof streamVal.send}`);
+          }
+        } catch (e) {
+          results.push(`  .get() ERROR: ${e}`);
+        }
+      }
+    }
+  }
+
+  console.log(results.join("\n"));
+  logCell.set([...logs, ...results]);
+});
+
+// Handler to attempt refresh via stream
+// KEY INSIGHT from Berni: Pass the stream directly to the handler with Stream<T> type
+// in the handler signature. The framework will give you a callable stream if you
+// declare it properly, analogous to how handlers declare Writable<T> for what they write to.
+const attemptRefresh = handler<
+  Record<string, never>,
+  { testLog: Writable<string[]>; refreshStream: Stream<Record<string, never>> }
+>(async (_event, { testLog: logCell, refreshStream }) => {
+  const logs = logCell.get() || [];
+  const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
+
+  const results: string[] = [];
+  results.push(`[${timestamp}] === ATTEMPTING REFRESH ===`);
+  results.push(`  refreshStream type: ${typeof refreshStream}`);
+  results.push(`  refreshStream keys: ${refreshStream ? Object.keys(refreshStream).join(", ") : "null"}`);
+  results.push(`  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`);
+
+  if (!refreshStream) {
+    results.push(`  ERROR: No stream provided`);
+    logCell.set([...logs, ...results]);
+    return;
+  }
+
+  if (typeof refreshStream.send !== "function") {
+    results.push(`  ERROR: refreshStream.send is not a function`);
+    results.push(`  stream value: ${JSON.stringify(refreshStream)?.slice(0, 200)}`);
+    logCell.set([...logs, ...results]);
+    return;
+  }
+
+  results.push(`  Found stream with .send() - calling it...`);
+  logCell.set([...logs, ...results]);
+
+  // Attempt to call the stream
+  // Note: Stream.send() only takes event, no onCommit callback
+  try {
+    refreshStream.send({});
+    const successLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] refreshStream.send({}) called successfully`];
+    logCell.set([...logCell.get(), ...successLog]);
+  } catch (e) {
+    const errorLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] Refresh ERROR: ${e}`];
+    console.error("[TEST-CONSUMER] Refresh error:", e);
+    logCell.set([...logCell.get(), ...errorLog]);
+  }
+});
+
 export default pattern<Input, Output>(
   ({ testLog }) => {
     // Wish for the short-TTL auth charm
@@ -130,98 +222,6 @@ export default pattern<Input, Output>(
         }
       }
       return { available: false, reason: `stream is ${typeof stream}, no .send() or .get()` };
-    });
-
-    // Handler to test stream access - defined inside pattern to access wishedCharm
-    const testStreamAccess = handler<
-      Record<string, never>,
-      { testLog: Writable<string[]> }
-    >((_event, { testLog: logCell }) => {
-      const logs = logCell.get() || [];
-      const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
-
-      const results: string[] = [];
-      results.push(`[${timestamp}] === STREAM ACCESS TEST ===`);
-
-      // Get the current charm value
-      const charm = wishedCharm.get ? wishedCharm.get() : wishedCharm;
-
-      results.push(`  charm type: ${typeof charm}`);
-      results.push(`  charm is null: ${charm === null}`);
-
-      if (charm) {
-        results.push(`  charm keys: ${Object.keys(charm).join(", ")}`);
-        results.push(`  charm.refreshToken type: ${typeof charm.refreshToken}`);
-
-        if (charm.refreshToken) {
-          const rt = charm.refreshToken;
-          results.push(`  refreshToken keys: ${Object.keys(rt).join(", ")}`);
-          results.push(`  typeof .send: ${typeof rt.send}`);
-          results.push(`  typeof .get: ${typeof rt.get}`);
-
-          if (typeof rt.get === "function") {
-            try {
-              const streamVal = rt.get();
-              results.push(`  .get() result type: ${typeof streamVal}`);
-              results.push(`  .get() result: ${JSON.stringify(streamVal)?.slice(0, 100)}`);
-              if (streamVal) {
-                results.push(`  .get().send type: ${typeof streamVal.send}`);
-              }
-            } catch (e) {
-              results.push(`  .get() ERROR: ${e}`);
-            }
-          }
-        }
-      }
-
-      console.log(results.join("\n"));
-      logCell.set([...logs, ...results]);
-    });
-
-    // Handler to attempt refresh via stream
-    // KEY INSIGHT from Berni: Pass the stream directly to the handler with Stream<T> type
-    // in the handler signature. The framework will give you a callable stream if you
-    // declare it properly, analogous to how handlers declare Writable<T> for what they write to.
-    const attemptRefresh = handler<
-      Record<string, never>,
-      { testLog: Writable<string[]>; refreshStream: Stream<Record<string, never>> }
-    >(async (_event, { testLog: logCell, refreshStream }) => {
-      const logs = logCell.get() || [];
-      const timestamp = new Date().toISOString().split("T")[1].slice(0, 12);
-
-      const results: string[] = [];
-      results.push(`[${timestamp}] === ATTEMPTING REFRESH ===`);
-      results.push(`  refreshStream type: ${typeof refreshStream}`);
-      results.push(`  refreshStream keys: ${refreshStream ? Object.keys(refreshStream).join(", ") : "null"}`);
-      results.push(`  typeof refreshStream.send: ${typeof (refreshStream as any)?.send}`);
-
-      if (!refreshStream) {
-        results.push(`  ERROR: No stream provided`);
-        logCell.set([...logs, ...results]);
-        return;
-      }
-
-      if (typeof refreshStream.send !== "function") {
-        results.push(`  ERROR: refreshStream.send is not a function`);
-        results.push(`  stream value: ${JSON.stringify(refreshStream)?.slice(0, 200)}`);
-        logCell.set([...logs, ...results]);
-        return;
-      }
-
-      results.push(`  Found stream with .send() - calling it...`);
-      logCell.set([...logs, ...results]);
-
-      // Attempt to call the stream
-      // Note: Stream.send() only takes event, no onCommit callback
-      try {
-        refreshStream.send({});
-        const successLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] refreshStream.send({}) called successfully`];
-        logCell.set([...logCell.get(), ...successLog]);
-      } catch (e) {
-        const errorLog = [`[${new Date().toISOString().split("T")[1].slice(0, 12)}] Refresh ERROR: ${e}`];
-        console.error("[TEST-CONSUMER] Refresh error:", e);
-        logCell.set([...logCell.get(), ...errorLog]);
-      }
     });
 
     return {
@@ -309,7 +309,7 @@ export default pattern<Input, Output>(
           {/* Test Buttons */}
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
-              onClick={testStreamAccess({ testLog })}
+              onClick={testStreamAccess({ testLog, wishedCharm })}
               style={{
                 padding: "10px 16px",
                 backgroundColor: "#3b82f6",

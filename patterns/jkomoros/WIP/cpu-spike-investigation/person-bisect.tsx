@@ -378,7 +378,8 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionableCharm);
+    // The charm is already the correct type from the event detail
+    mentionable.push(detail.charm);
   }
 });
 
@@ -677,6 +678,42 @@ const applyExtractedData = handler<
     extractedData.set(null);
   },
 );
+
+// Pattern tool callbacks - must be at module scope (not created inside recipe)
+const getContactInfoCallback = (
+  { displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }
+) => {
+  return computed(() => {
+    const parts = [`Name: ${displayName || "Not provided"}`];
+    if (emails && emails.length > 0) {
+      parts.push(`Email: ${emails[0].value}`);
+    }
+    if (phones && phones.length > 0) {
+      parts.push(`Phone: ${phones[0].value}`);
+    }
+    return parts.join("\n");
+  });
+};
+
+const searchNotesCallback = (
+  { query, notes }: { query: string; notes: string }
+) => {
+  return computed(() => {
+    if (!query || !notes) return [];
+    return notes.split("\n").filter((line) =>
+      line.toLowerCase().includes(query.toLowerCase())
+    );
+  });
+};
+
+const getSocialLinksCallback = (
+  { socialLinks }: { socialLinks: SocialLink[] }
+) => {
+  return computed(() => {
+    if (!socialLinks || socialLinks.length === 0) return "No social media links";
+    return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join("\n");
+  });
+};
 
 const Person = recipe<Input, Output>(
   "Person",
@@ -1257,9 +1294,10 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
                           <ct-button
                             size="sm"
-                            variant={computed(() =>
-                              (origins as unknown as Origin[]).includes(origin as Origin) ? "primary" : "secondary"
-                            )}
+                            variant={computed(() => {
+                              const originsList = origins as Origin[];
+                              return originsList.includes(origin as Origin) ? "primary" : "secondary";
+                            })}
                             onClick={toggleOrigin({
                               origins,
                               origin: origin as Origin,
@@ -1395,40 +1433,17 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
         professionalReference,
       },
       triggerExtraction: triggerExtraction({ notes, extractTrigger }),
-      // Pattern tools for omnibot
+      // Pattern tools for omnibot - callbacks defined at module scope
       getContactInfo: patternTool(
-        ({ displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }) => {
-          return computed(() => {
-            const parts = [`Name: ${displayName || "Not provided"}`];
-            if (emails && emails.length > 0) {
-              parts.push(`Email: ${emails[0].value}`);
-            }
-            if (phones && phones.length > 0) {
-              parts.push(`Phone: ${phones[0].value}`);
-            }
-            return parts.join("\n");
-          });
-        },
+        getContactInfoCallback,
         { displayName: effectiveDisplayName, emails, phones }
       ),
       searchNotes: patternTool(
-        ({ query, notes }: { query: string; notes: string }) => {
-          return computed(() => {
-            if (!query || !notes) return [];
-            return notes.split("\n").filter((line) =>
-              line.toLowerCase().includes(query.toLowerCase())
-            );
-          });
-        },
+        searchNotesCallback,
         { notes }
       ),
       getSocialLinks: patternTool(
-        ({ socialLinks }: { socialLinks: SocialLink[] }) => {
-          return computed(() => {
-            if (!socialLinks || socialLinks.length === 0) return "No social media links";
-            return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join("\n");
-          });
-        },
+        getSocialLinksCallback,
         { socialLinks }
       ),
     };

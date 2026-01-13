@@ -145,7 +145,7 @@ const prepareOperation = handler<
     labelsToAdd: Writable<string[]>;
     labelsToRemove: Writable<string[]>;
     availableLabels: Writable<GmailLabel[]>;
-    pendingOp: Writable<LabelOperation>;
+    pendingOp: Writable<LabelOperation | null>;
   }
 >(
   (

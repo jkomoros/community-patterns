@@ -51,6 +51,123 @@ interface NormalizedItem {
 }
 
 // =============================================================================
+// Handlers (module scope)
+// =============================================================================
+
+// Add item to selected (value passed as state, not closure)
+const addItem = handler<
+  Record<string, never>,
+  {
+    selected: Writable<string[]>;
+    isOpen: Writable<boolean>;
+    searchQuery: Writable<string>;
+    highlightedIndex: Writable<number>;
+    value: string;
+  }
+>((_, state) => {
+  const current = state.selected.get();
+  if (!current.includes(state.value)) {
+    state.selected.set([...current, state.value]);
+  }
+  // Clear search, close dropdown, and reset highlight after selection
+  state.searchQuery.set("");
+  state.isOpen.set(false);
+  state.highlightedIndex.set(0);
+});
+
+// Remove item from selected (value passed as state, not closure)
+const removeItem = handler<
+  Record<string, never>,
+  { selected: Writable<string[]>; value: string }
+>((_, { selected, value }) => {
+  const current = selected.get();
+  selected.set(current.filter((v) => v !== value));
+});
+
+// Toggle dropdown
+const toggleDropdown = handler<
+  Record<string, never>,
+  {
+    isOpen: Writable<boolean>;
+    searchQuery: Writable<string>;
+    highlightedIndex: Writable<number>;
+  }
+>((_, state) => {
+  const wasOpen = state.isOpen.get();
+  state.isOpen.set(!wasOpen);
+  if (wasOpen) {
+    state.searchQuery.set("");
+    state.highlightedIndex.set(0);
+  }
+});
+
+// Close dropdown (for backdrop click or Escape)
+const closeDropdown = handler<
+  Record<string, never>,
+  {
+    isOpen: Writable<boolean>;
+    searchQuery: Writable<string>;
+    highlightedIndex: Writable<number>;
+  }
+>((_, state) => {
+  state.isOpen.set(false);
+  state.searchQuery.set("");
+  state.highlightedIndex.set(0);
+});
+
+// Move highlight up (for ArrowUp key)
+const moveUp = handler<
+  Record<string, never>,
+  { isOpen: Writable<boolean>; highlightedIndex: Writable<number> }
+>((_, state) => {
+  if (!state.isOpen.get()) return;
+  const current = state.highlightedIndex.get();
+  if (current > 0) {
+    state.highlightedIndex.set(current - 1);
+  }
+});
+
+// Move highlight down (for ArrowDown key)
+// Note: We pass maxItems as state since we can't access filteredItems.length in handler
+const moveDown = handler<
+  Record<string, never>,
+  {
+    isOpen: Writable<boolean>;
+    highlightedIndex: Writable<number>;
+    maxItems: number;
+  }
+>((_, state) => {
+  if (!state.isOpen.get()) return;
+  const current = state.highlightedIndex.get();
+  if (current < state.maxItems - 1) {
+    state.highlightedIndex.set(current + 1);
+  }
+});
+
+// Select highlighted item (for Enter key)
+const selectHighlighted = handler<
+  Record<string, never>,
+  {
+    isOpen: Writable<boolean>;
+    selected: Writable<string[]>;
+    searchQuery: Writable<string>;
+    highlightedIndex: Writable<number>;
+    highlightedValue: string | null;
+  }
+>((_, state) => {
+  if (!state.isOpen.get()) return;
+  if (!state.highlightedValue) return;
+
+  const current = state.selected.get();
+  if (!current.includes(state.highlightedValue)) {
+    state.selected.set([...current, state.highlightedValue]);
+  }
+  state.searchQuery.set("");
+  state.isOpen.set(false);
+  state.highlightedIndex.set(0);
+});
+
+// =============================================================================
 // Input/Output Schema
 // =============================================================================
 
@@ -158,123 +275,6 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
         group: item.group ?? "",
         highlightBg: i === idxVal ? "#e2e8f0" : "transparent",
       }));
-    });
-
-    // -------------------------------------------------------------------------
-    // Handlers
-    // -------------------------------------------------------------------------
-
-    // Add item to selected (value passed as state, not closure)
-    const addItem = handler<
-      Record<string, never>,
-      {
-        selected: Writable<string[]>;
-        isOpen: Writable<boolean>;
-        searchQuery: Writable<string>;
-        highlightedIndex: Writable<number>;
-        value: string;
-      }
-    >((_, state) => {
-      const current = state.selected.get();
-      if (!current.includes(state.value)) {
-        state.selected.set([...current, state.value]);
-      }
-      // Clear search, close dropdown, and reset highlight after selection
-      state.searchQuery.set("");
-      state.isOpen.set(false);
-      state.highlightedIndex.set(0);
-    });
-
-    // Remove item from selected (value passed as state, not closure)
-    const removeItem = handler<
-      Record<string, never>,
-      { selected: Writable<string[]>; value: string }
-    >((_, { selected, value }) => {
-      const current = selected.get();
-      selected.set(current.filter((v) => v !== value));
-    });
-
-    // Toggle dropdown
-    const toggleDropdown = handler<
-      Record<string, never>,
-      {
-        isOpen: Writable<boolean>;
-        searchQuery: Writable<string>;
-        highlightedIndex: Writable<number>;
-      }
-    >((_, state) => {
-      const wasOpen = state.isOpen.get();
-      state.isOpen.set(!wasOpen);
-      if (wasOpen) {
-        state.searchQuery.set("");
-        state.highlightedIndex.set(0);
-      }
-    });
-
-    // Close dropdown (for backdrop click or Escape)
-    const closeDropdown = handler<
-      Record<string, never>,
-      {
-        isOpen: Writable<boolean>;
-        searchQuery: Writable<string>;
-        highlightedIndex: Writable<number>;
-      }
-    >((_, state) => {
-      state.isOpen.set(false);
-      state.searchQuery.set("");
-      state.highlightedIndex.set(0);
-    });
-
-    // Move highlight up (for ArrowUp key)
-    const moveUp = handler<
-      Record<string, never>,
-      { isOpen: Writable<boolean>; highlightedIndex: Writable<number> }
-    >((_, state) => {
-      if (!state.isOpen.get()) return;
-      const current = state.highlightedIndex.get();
-      if (current > 0) {
-        state.highlightedIndex.set(current - 1);
-      }
-    });
-
-    // Move highlight down (for ArrowDown key)
-    // Note: We pass maxItems as state since we can't access filteredItems.length in handler
-    const moveDown = handler<
-      Record<string, never>,
-      {
-        isOpen: Writable<boolean>;
-        highlightedIndex: Writable<number>;
-        maxItems: number;
-      }
-    >((_, state) => {
-      if (!state.isOpen.get()) return;
-      const current = state.highlightedIndex.get();
-      if (current < state.maxItems - 1) {
-        state.highlightedIndex.set(current + 1);
-      }
-    });
-
-    // Select highlighted item (for Enter key)
-    const selectHighlighted = handler<
-      Record<string, never>,
-      {
-        isOpen: Writable<boolean>;
-        selected: Writable<string[]>;
-        searchQuery: Writable<string>;
-        highlightedIndex: Writable<number>;
-        highlightedValue: string | null;
-      }
-    >((_, state) => {
-      if (!state.isOpen.get()) return;
-      if (!state.highlightedValue) return;
-
-      const current = state.selected.get();
-      if (!current.includes(state.highlightedValue)) {
-        state.selected.set([...current, state.highlightedValue]);
-      }
-      state.searchQuery.set("");
-      state.isOpen.set(false);
-      state.highlightedIndex.set(0);
     });
 
     // -------------------------------------------------------------------------

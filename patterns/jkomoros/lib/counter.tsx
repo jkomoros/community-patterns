@@ -8,8 +8,8 @@ interface RecipeState {
 
 interface RecipeOutput {
   value: Default<number, 0>;
-  increment: Stream<void>;
-  decrement: Stream<void>;
+  increment: Stream<unknown>;
+  decrement: Stream<unknown>;
 }
 
 const Counter = recipe<RecipeState, RecipeOutput>((state) => {

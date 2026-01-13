@@ -183,6 +183,21 @@ function calculateMomentum(weeks: CommitActivityWeek[] | null | undefined): Mome
 }
 
 // =============================================================================
+// HELPER FUNCTIONS (module scope)
+// =============================================================================
+
+// Helper function to create star sample URL for a given slot index
+// Note: Returns a derive() call since samplePages is reactive
+function makeSlotUrl(
+  samplePages: { owner: string; repo: string; pages: number[] },
+  slotIndex: number
+): string {
+  if (!samplePages.owner || !samplePages.repo || slotIndex >= samplePages.pages.length) return "";
+  const page = samplePages.pages[slotIndex];
+  return `https://api.github.com/repos/${samplePages.owner}/${samplePages.repo}/stargazers?per_page=1&page=${page}`;
+}
+
+// =============================================================================
 // PATTERN
 // =============================================================================
 
@@ -256,61 +271,54 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
     }
   );
 
-  const makeSlotUrl = (slotIndex: number) =>
-    derive(samplePages, (sp) => {
-      if (!sp.owner || !sp.repo || slotIndex >= sp.pages.length) return "";
-      const page = sp.pages[slotIndex];
-      return `https://api.github.com/repos/${sp.owner}/${sp.repo}/stargazers?per_page=1&page=${page}`;
-    });
-
   // 10 explicit fetchData slots for star samples
   const starSample0 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(0),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 0)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample1 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(1),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 1)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample2 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(2),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 2)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample3 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(3),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 3)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample4 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(4),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 4)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample5 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(5),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 5)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample6 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(6),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 6)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample7 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(7),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 7)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample8 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(8),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 8)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });
   const starSample9 = fetchData<StargazerWithDate[]>({
-    url: makeSlotUrl(9),
+    url: derive(samplePages, (sp) => makeSlotUrl(sp, 9)),
     mode: "json",
     options: { method: "GET", headers: derive(token, (t) => makeStargazerHeaders(t)) },
   });

@@ -314,6 +314,21 @@ function extractDocText(doc: any): string {
   return parts.join("");
 }
 
+// Format date helper (extracted to module scope for compiler compliance)
+function formatCommentDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
 // Helper to extract file ID from Google Docs URL
 function extractFileId(url: string): string | null {
   // Handle various Google Docs URL formats:
@@ -644,21 +659,6 @@ export default pattern<Input, Output>(
 
     // Auth status values come from authInfo computed (single source of truth)
 
-    // Format date helper (pure function, no reactive deps)
-    const formatDate = (dateStr: string) => {
-      try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch {
-        return dateStr;
-      }
-    };
-
     // Pre-compute all comment data with expansion and state info
     // This creates a single reactive computation that updates when inputs change
     // CRITICAL: Deep-copy all nested data to plain values to avoid $alias issues in render
@@ -695,7 +695,7 @@ export default pattern<Input, Output>(
         // Computed fields
         isExpanded: expandedId === comment.id,
         state: states[comment.id] ?? null,
-        formattedDate: formatDate(comment.createdTime),
+        formattedDate: formatCommentDate(comment.createdTime),
         replyCount: (comment.replies ?? []).length,
       }));
     });
@@ -1279,8 +1279,8 @@ export default pattern<Input, Output>(
           </ct-vstack>
         </ct-screen>
       ),
-      docUrl: docUrl ?? "",
-      comments: comments ?? [],
+      docUrl,
+      comments,
       openCommentCount,
     };
   }

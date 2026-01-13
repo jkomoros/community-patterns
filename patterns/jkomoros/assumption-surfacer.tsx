@@ -241,6 +241,34 @@ const selectAlternative = handler<
 });
 
 // ============================================================================
+// Helper Functions (module scope)
+// ============================================================================
+
+// Helper function to find unanalyzed message index
+function findUnanalyzedIndex(msgList: readonly BuiltInLLMMessage[], analyzed: readonly MessageAssumptions[]): number {
+  const analyzedIndices = new Set(analyzed.map(a => a.messageIndex));
+  for (let i = msgList.length - 1; i >= 0; i--) {
+    if (msgList[i]?.role === "assistant" && !analyzedIndices.has(i)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Helper function to extract message text
+function getMessageText(msg: BuiltInLLMMessage): string {
+  if (!msg) return "";
+  if (typeof msg.content === "string") return msg.content;
+  if (Array.isArray(msg.content)) {
+    return msg.content
+      .filter((c) => c.type === "text")
+      .map((c) => ("text" in c ? c.text : ""))
+      .join(" ");
+  }
+  return "";
+}
+
+// ============================================================================
 // Pattern
 // ============================================================================
 
@@ -259,30 +287,6 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
 
     // Analyzer model (Haiku for speed/cost)
     const analyzerModel = "anthropic:claude-haiku-4-5";
-
-    // Helper function to find unanalyzed message index
-    const findUnanalyzedIndex = (msgList: readonly BuiltInLLMMessage[], analyzed: readonly MessageAssumptions[]): number => {
-      const analyzedIndices = new Set(analyzed.map(a => a.messageIndex));
-      for (let i = msgList.length - 1; i >= 0; i--) {
-        if (msgList[i]?.role === "assistant" && !analyzedIndices.has(i)) {
-          return i;
-        }
-      }
-      return -1;
-    };
-
-    // Helper function to extract message text
-    const getMessageText = (msg: BuiltInLLMMessage): string => {
-      if (!msg) return "";
-      if (typeof msg.content === "string") return msg.content;
-      if (Array.isArray(msg.content)) {
-        return msg.content
-          .filter((c) => c.type === "text")
-          .map((c) => ("text" in c ? c.text : ""))
-          .join(" ");
-      }
-      return "";
-    };
 
     // Build analysis prompt - returns empty string if nothing to analyze
     const analysisPrompt = computed(() => {

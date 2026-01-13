@@ -237,7 +237,8 @@ export default pattern(() => {
 
   // Derive a boolean for whether we have results
   const hasExtractionResults = computed(() => {
-    const has = (changesPreview as unknown as Array<{field: string; from: string; to: string}>).length > 0;
+    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
+    const has = preview.length > 0;
     console.log(`[PERF-TABS] hasExtractionResults: ${has}`);
     return has;
   });
@@ -245,7 +246,7 @@ export default pattern(() => {
   // Pre-compute word diff for Notes field
   const notesDiffChunks = computed(() => {
     const t0 = Date.now();
-    const preview = changesPreview as unknown as Array<{field: string; from: string; to: string}>;
+    const preview = changesPreview as Array<{field: string; from: string; to: string}>;
     const notesChange = preview.find((c) => c.field === "Notes");
     if (!notesChange || !notesChange.from || !notesChange.to ||
         notesChange.from === "(empty)" || notesChange.to === "(empty)") {
@@ -272,7 +273,7 @@ export default pattern(() => {
 
   // Separate computed for display to avoid null .get() issues
   const timingDisplay = computed(() => {
-    const elapsed = timingCheck as unknown as number | null;
+    const elapsed = timingCheck as number | null;
     if (elapsed === null) return null;
     return `Total time: ${elapsed}ms (${(elapsed / 1000).toFixed(1)}s)`;
   });

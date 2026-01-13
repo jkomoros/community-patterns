@@ -238,6 +238,26 @@ const handlePhotoUpload = handler<
   uploadedImages.set(detail.images);
 });
 
+// Handler to add extracted items to shopping list (extracted to module scope for compiler compliance)
+const addExtractedItems = handler<
+  unknown,
+  { items: Writable<ShoppingItem[]>; extractedItems: string[]; uploadedImages: Writable<ImageData[]> }
+>((_event, { items, extractedItems, uploadedImages }) => {
+  extractedItems.forEach((itemText: string) => {
+    if (itemText && itemText.trim()) {
+      const currentItems = items.get();
+      const exists = currentItems.some((existingItem: ShoppingItem) =>
+        existingItem.title.toLowerCase() === itemText.trim().toLowerCase()
+      );
+      if (!exists) {
+        items.push({ title: itemText.trim(), done: false });
+      }
+    }
+  });
+  // Clear images after adding
+  uploadedImages.set([]);
+});
+
 // Correction state for tracking which item is being corrected
 interface CorrectionState {
   item: Writable<ShoppingItem>;
@@ -347,26 +367,6 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
       });
     });
 
-    // Handler to add extracted items to shopping list
-    const addExtractedItems = handler<
-      unknown,
-      { items: Writable<ShoppingItem[]>; extractedItems: string[]; uploadedImages: Writable<ImageData[]> }
-    >((_event, { items, extractedItems, uploadedImages }) => {
-      extractedItems.forEach((itemText: string) => {
-        if (itemText && itemText.trim()) {
-          const currentItems = items.get();
-          const exists = currentItems.some((item: ShoppingItem) =>
-            item.title.toLowerCase() === itemText.trim().toLowerCase()
-          );
-          if (!exists) {
-            items.push({ title: itemText.trim(), done: false });
-          }
-        }
-      });
-      // Clear images after adding
-      uploadedImages.set([]);
-    });
-
     // Demo: Mock community mapping for "Andronico's on Shattuck"
     const hasCommunityMapping = derive(
       { storeName, storeData: mutableStoreData },
@@ -385,10 +385,12 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
 
     // Categorize each item into an aisle using LLM (per-item for better caching)
     const itemsWithAisles = items.map((item) => {
+      // Wrap aisleSeed access in computed for reactive context compliance
+      const itemSeed = computed(() => item.aisleSeed || 0);
       const assignment = generateObject({
         model: "anthropic:claude-sonnet-4-5",
         prompt: derive(
-          { title: item.title, storeData: mutableStoreData, seed: item.aisleSeed || 0 },
+          { title: item.title, storeData: mutableStoreData, seed: itemSeed },
           ({ title, storeData, seed }: { title: string; storeData: StoreData | null; seed: number }) => {
             // Include seed to force re-evaluation on retry (even though we don't use it)
             const storeMarkdown = storeData ? storeDataToMarkdown(storeData) : ANDRONICOS_OUTLINE;
@@ -550,7 +552,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     });
 
     return {
-      [NAME]: str`${storeName || "Andronico's on Shattuck"} Shopping List`,
+      [NAME]: str`${storeName} Shopping List`,
       addItem: addItem({ items }),
       addItems: addItems({ items }),
       [UI]: (

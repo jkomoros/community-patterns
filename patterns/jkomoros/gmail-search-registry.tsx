@@ -71,11 +71,114 @@ export interface GmailSearchRegistryOutput {
   queries: SharedQuery[];
   registries: Record<string, AgentTypeRegistry>;  // Computed grouped view
 
-  // Actions for external patterns to use
-  submitQuery: ReturnType<typeof handler>;
-  upvoteQuery: ReturnType<typeof handler>;
-  downvoteQuery: ReturnType<typeof handler>;
-  getQueriesForAgent: (agentTypeUrl: string) => SharedQuery[];
+  // Actions for external patterns to use - using unknown to match bound handler return type
+  submitQuery: unknown;
+  upvoteQuery: unknown;
+  downvoteQuery: unknown;
+}
+
+// ============================================================================
+// HANDLERS (defined at module scope)
+// ============================================================================
+
+// Handler to submit a new query
+const submitQuery = handler<
+  {
+    agentTypeUrl: string;
+    query: string;
+    description?: string;
+    submittedBy?: string;
+  },
+  { queries: Writable<SharedQuery[]> }
+>((input, state) => {
+  const allQueries = state.queries.get() || [];
+
+  // Check for duplicate queries (case-insensitive, same agent type)
+  const normalizedQuery = input.query.toLowerCase().trim();
+  if (allQueries.some((q: SharedQuery) =>
+    q.agentTypeUrl === input.agentTypeUrl &&
+    q.query.toLowerCase().trim() === normalizedQuery
+  )) {
+    return { success: false, error: "Query already exists" };
+  }
+
+  // Create new query entry and push to array
+  const queryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  state.queries.push({
+    id: queryId,
+    agentTypeUrl: input.agentTypeUrl,
+    query: input.query,
+    description: input.description || "",
+    submittedBy: input.submittedBy || "",
+    submittedAt: Date.now(),
+    upvotes: 0,
+    downvotes: 0,
+    lastValidated: 0,
+  });
+  return { success: true, queryId };
+});
+
+// Handler to upvote a query
+const upvoteQuery = handler<
+  { agentTypeUrl: string; queryId: string },
+  { queries: Writable<SharedQuery[]> }
+>((input, state) => {
+  const allQueries = state.queries.get() || [];
+  const queryIdx = allQueries.findIndex((q: SharedQuery) => q.id === input.queryId);
+  if (queryIdx < 0) return { success: false, error: "Query not found" };
+
+  const updatedQuery = {
+    ...allQueries[queryIdx],
+    upvotes: allQueries[queryIdx].upvotes + 1,
+    lastValidated: Date.now(),
+  };
+
+  state.queries.set([
+    ...allQueries.slice(0, queryIdx),
+    updatedQuery,
+    ...allQueries.slice(queryIdx + 1),
+  ]);
+
+  return { success: true };
+});
+
+// Handler to downvote a query
+const downvoteQuery = handler<
+  { agentTypeUrl: string; queryId: string },
+  { queries: Writable<SharedQuery[]> }
+>((input, state) => {
+  const allQueries = state.queries.get() || [];
+  const queryIdx = allQueries.findIndex((q: SharedQuery) => q.id === input.queryId);
+  if (queryIdx < 0) return { success: false, error: "Query not found" };
+
+  const updatedQuery = {
+    ...allQueries[queryIdx],
+    downvotes: allQueries[queryIdx].downvotes + 1,
+  };
+
+  state.queries.set([
+    ...allQueries.slice(0, queryIdx),
+    updatedQuery,
+    ...allQueries.slice(queryIdx + 1),
+  ]);
+
+  return { success: true };
+});
+
+// Helper to extract a readable name from the agent type URL
+function extractAgentName(url: string | undefined | null): string {
+  if (!url || typeof url !== "string") return "Unknown Agent";
+  // Extract filename from URL like:
+  // https://raw.githubusercontent.com/.../patterns/jkomoros/hotel-membership-gmail-agent.tsx
+  const match = url.match(/\/([^/]+)\.tsx$/);
+  if (match) {
+    return match[1]
+      .replace(/-/g, " ")
+      .replace(/gmail agent/i, "")
+      .trim()
+      .replace(/\b\w/g, (c: string) => c.toUpperCase());
+  }
+  return url;
 }
 
 // ============================================================================
@@ -103,109 +206,10 @@ const GmailSearchRegistry = pattern<
     return grouped;
   });
 
-  // Handler to submit a new query
-  const submitQuery = handler<
-    {
-      agentTypeUrl: string;
-      query: string;
-      description?: string;
-      submittedBy?: string;
-    },
-    { queries: Writable<SharedQuery[]> }
-  >((input, state) => {
-    const allQueries = state.queries.get() || [];
-
-    // Check for duplicate queries (case-insensitive, same agent type)
-    const normalizedQuery = input.query.toLowerCase().trim();
-    if (allQueries.some((q) =>
-      q.agentTypeUrl === input.agentTypeUrl &&
-      q.query.toLowerCase().trim() === normalizedQuery
-    )) {
-      return { success: false, error: "Query already exists" };
-    }
-
-    // Create new query entry and push to array
-    const queryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    state.queries.push({
-      id: queryId,
-      agentTypeUrl: input.agentTypeUrl,
-      query: input.query,
-      description: input.description || "",
-      submittedBy: input.submittedBy || "",
-      submittedAt: Date.now(),
-      upvotes: 0,
-      downvotes: 0,
-      lastValidated: 0,
-    });
-    return { success: true, queryId };
-  });
-
-  // Handler to upvote a query
-  const upvoteQuery = handler<
-    { agentTypeUrl: string; queryId: string },
-    { queries: Writable<SharedQuery[]> }
-  >((input, state) => {
-    const allQueries = state.queries.get() || [];
-    const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);
-    if (queryIdx < 0) return { success: false, error: "Query not found" };
-
-    const updatedQuery = {
-      ...allQueries[queryIdx],
-      upvotes: allQueries[queryIdx].upvotes + 1,
-      lastValidated: Date.now(),
-    };
-
-    state.queries.set([
-      ...allQueries.slice(0, queryIdx),
-      updatedQuery,
-      ...allQueries.slice(queryIdx + 1),
-    ]);
-
-    return { success: true };
-  });
-
-  // Handler to downvote a query
-  const downvoteQuery = handler<
-    { agentTypeUrl: string; queryId: string },
-    { queries: Writable<SharedQuery[]> }
-  >((input, state) => {
-    const allQueries = state.queries.get() || [];
-    const queryIdx = allQueries.findIndex((q) => q.id === input.queryId);
-    if (queryIdx < 0) return { success: false, error: "Query not found" };
-
-    const updatedQuery = {
-      ...allQueries[queryIdx],
-      downvotes: allQueries[queryIdx].downvotes + 1,
-    };
-
-    state.queries.set([
-      ...allQueries.slice(0, queryIdx),
-      updatedQuery,
-      ...allQueries.slice(queryIdx + 1),
-    ]);
-
-    return { success: true };
-  });
-
   // Pre-bound handlers
   const boundSubmitQuery = submitQuery({ queries });
   const boundUpvoteQuery = upvoteQuery({ queries });
   const boundDownvoteQuery = downvoteQuery({ queries });
-
-  // Helper to get queries for a specific agent type
-  // Note: queries is an input cell - use it directly without .get()
-  const getQueriesForAgent = (agentTypeUrl: string): SharedQuery[] => {
-    const allQueries: SharedQuery[] = (queries as SharedQuery[]) || [];
-    // Filter to this agent type and sort by score
-    return allQueries
-      .filter((q: SharedQuery) => q && q.agentTypeUrl === agentTypeUrl)
-      .sort((a: SharedQuery, b: SharedQuery) => {
-        const scoreA = a.upvotes - a.downvotes;
-        const scoreB = b.upvotes - b.downvotes;
-        if (scoreB !== scoreA) return scoreB - scoreA;
-        return b.submittedAt - a.submittedAt;
-      });
-  };
 
   // Stats
   const stats = computed(() => {
@@ -236,7 +240,6 @@ const GmailSearchRegistry = pattern<
     submitQuery: boundSubmitQuery,
     upvoteQuery: boundUpvoteQuery,
     downvoteQuery: boundDownvoteQuery,
-    getQueriesForAgent,
 
     [UI]: (
       <ct-screen>
@@ -419,21 +422,5 @@ const GmailSearchRegistry = pattern<
     ),
   };
 });
-
-// Helper to extract a readable name from the agent type URL
-function extractAgentName(url: string | undefined | null): string {
-  if (!url || typeof url !== "string") return "Unknown Agent";
-  // Extract filename from URL like:
-  // https://raw.githubusercontent.com/.../patterns/jkomoros/hotel-membership-gmail-agent.tsx
-  const match = url.match(/\/([^/]+)\.tsx$/);
-  if (match) {
-    return match[1]
-      .replace(/-/g, " ")
-      .replace(/gmail agent/i, "")
-      .trim()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  return url;
-}
 
 export default GmailSearchRegistry;

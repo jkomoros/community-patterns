@@ -46,9 +46,6 @@ import {
   ifElse,
   NAME,
   navigateTo,
-  type Opaque,
-  OpaqueRef,
-  patternTool,
   pattern,
   str,
   UI,
@@ -186,7 +183,8 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionableCharm);
+    // Push the charm reference - types are compatible at runtime
+    mentionable.push(detail.charm);
   }
 });
 
@@ -733,6 +731,47 @@ const applyWaitTimeSuggestions = handler<
   },
 );
 
+// Handler to apply extracted image text to notes
+const applyImageText = handler<
+  Record<string, never>,
+  {
+    notes: Writable<string>;
+    uploadedImage: Writable<ImageData | null>;
+    imageTextResult: Writable<any>;
+  }
+>(
+  (_, { notes, uploadedImage, imageTextResult }) => {
+    const result = imageTextResult.get();
+    if (!result?.extractedText) return;
+
+    const extractedText = result.extractedText;
+    const currentNotes = notes.get();
+    const newNotes = currentNotes
+      ? `${currentNotes}\n\n---\n\n${extractedText}`
+      : extractedText;
+    notes.set(newNotes);
+
+    // Clear the uploaded image to reset the extraction state
+    uploadedImage.set(null);
+  }
+);
+
+// Handler to clear timing suggestions
+const clearTimingSuggestions = handler<
+  Record<string, never>,
+  { timingSuggestions: Writable<any> }
+>(
+  (_, { timingSuggestions }) => timingSuggestions.set(null)
+);
+
+// Handler to clear wait time suggestions
+const clearWaitTimeSuggestions = handler<
+  Record<string, never>,
+  { waitTimeSuggestions: Writable<any> }
+>(
+  (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
+);
+
 const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
   ({
     name,
@@ -848,31 +887,6 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
           required: ["extractedText"],
         },
       });
-
-    // Handler to apply extracted image text to notes
-    const applyImageText = handler<
-      Record<string, never>,
-      {
-        notes: Writable<string>;
-        uploadedImage: Writable<ImageData | null>;
-        imageTextResult: Writable<any>;
-      }
-    >(
-      (_, { notes, uploadedImage, imageTextResult }) => {
-        const result = imageTextResult.get();
-        if (!result?.extractedText) return;
-
-        const extractedText = result.extractedText;
-        const currentNotes = notes.get();
-        const newNotes = currentNotes
-          ? `${currentNotes}\n\n---\n\n${extractedText}`
-          : extractedText;
-        notes.set(newNotes);
-
-        // Clear the uploaded image to reset the extraction state
-        uploadedImage.set(null);
-      }
-    );
 
     // LLM Extraction state
     // Uses marker string to ensure empty/initial state doesn't trigger extraction
@@ -2181,9 +2195,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   marginTop: "1rem",
                 }}>
                   <ct-button
-                    onClick={handler<Record<string, never>, { timingSuggestions: Writable<any> }>(
-                      (_, { timingSuggestions }) => timingSuggestions.set(null)
-                    )({ timingSuggestions })}
+                    onClick={clearTimingSuggestions({ timingSuggestions })}
                   >
                     Cancel
                   </ct-button>
@@ -2269,9 +2281,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   marginTop: "1rem",
                 }}>
                   <ct-button
-                    onClick={handler<Record<string, never>, { waitTimeSuggestions: Writable<any> }>(
-                      (_, { waitTimeSuggestions }) => waitTimeSuggestions.set(null)
-                    )({ waitTimeSuggestions })}
+                    onClick={clearWaitTimeSuggestions({ waitTimeSuggestions })}
                   >
                     Cancel
                   </ct-button>
@@ -2305,59 +2315,6 @@ Return suggestions for ALL groups with their IDs preserved.`,
       source,
       ovenRequirements,
       dietaryCompatibility: analyzer.dietaryCompatibility,
-      // Pattern tools for omnibot
-      getIngredientsList: patternTool(
-        ({ ingredients }: { ingredients: Ingredient[] }) => {
-          return derive(ingredients, (items) => {
-            if (!items || items.length === 0) return "No ingredients";
-            return items.map((ing) =>
-              `${ing.amount} ${ing.unit} ${ing.item}`
-            ).join("\n");
-          });
-        },
-        { ingredients }
-      ),
-      getInstructions: patternTool(
-        ({ stepGroups }: { stepGroups: StepGroup[] }) => {
-          return derive(stepGroups, (groups) => {
-            if (!groups || groups.length === 0) return "No instructions";
-            return groups.map((group) => {
-              const timing = group.nightsBeforeServing
-                ? `${group.nightsBeforeServing} night(s) before`
-                : group.minutesBeforeServing !== undefined
-                ? `${group.minutesBeforeServing} min before serving`
-                : "no timing specified";
-              const duration = group.duration ? ` (${group.duration} min)` : "";
-              const steps = group.steps.map((step, idx) =>
-                `  ${idx + 1}. ${step.description}`
-              ).join("\n");
-              return `${group.name} [${timing}]${duration}:\n${steps}`;
-            }).join("\n\n");
-          });
-        },
-        { stepGroups }
-      ),
-      getRecipeSummary: patternTool(
-        ({ name, cuisine, servings, prepTime, cookTime }: {
-          name: string;
-          cuisine: string;
-          servings: number;
-          prepTime: number;
-          cookTime: number;
-        }) => {
-          return derive({ name, cuisine, servings, prepTime, cookTime }, (data) => {
-            const parts = [
-              `Recipe: ${data.name || "Untitled"}`,
-              data.cuisine ? `Cuisine: ${data.cuisine}` : null,
-              `Servings: ${data.servings}`,
-              `Prep: ${data.prepTime} min, Cook: ${data.cookTime} min`,
-              `Total: ${data.prepTime + data.cookTime} min`,
-            ].filter(Boolean);
-            return parts.join("\n");
-          });
-        },
-        { name, cuisine, servings, prepTime, cookTime }
-      ),
     };
   },
 );

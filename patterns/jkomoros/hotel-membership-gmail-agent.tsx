@@ -133,6 +133,32 @@ const getRecentDateFilter = (): string => {
 // All hotel brands we search for
 const ALL_BRANDS = ["Marriott", "Hilton", "Hyatt", "IHG", "Accor"];
 
+// Module-scope handler for starting a scan with mode configuration
+const startScan = handler<
+  unknown,
+  {
+    mode: ScanMode;
+    searchLimit: number;  // 0 = unlimited, >0 = limit
+    currentScanMode: Writable<Default<ScanMode, "full">>;
+    maxSearches: Writable<Default<number, 0>>;
+    isScanning: Writable<Default<boolean, false>>;
+    searchProgress: Writable<SearchProgress>;
+  }
+>((_, state) => {
+  const mode = state.mode;
+  console.log(`[HotelMembership] Starting scan in ${mode} mode with limit ${state.searchLimit}`);
+  state.currentScanMode.set(mode);
+  state.maxSearches.set(state.searchLimit);
+  // Initialize progress to trigger progressUI display
+  state.searchProgress.set({
+    currentQuery: "",
+    completedQueries: [],
+    status: "searching",
+    searchCount: 0,
+  });
+  state.isScanning.set(true);
+});
+
 const HotelMembershipExtractorV2 = pattern<HotelMembershipInput, HotelMembershipOutput>(
   ({ memberships, lastScanAt, isScanning, maxSearches, currentScanMode, accountType, searchProgress }) => {
     // ========================================================================
@@ -355,35 +381,7 @@ Report memberships as you find them. Don't wait until the end.`,
     // CUSTOM SCAN HANDLERS (with mode support)
     // ========================================================================
 
-    // Custom startScan that sets the mode and search limit before triggering scan.
-    // Since we pass searchProgress to the base pattern, it's the SAME CELL -
-    // when we set it here, the base pattern's progressUI sees the change.
-    const startScan = handler<
-      unknown,
-      {
-        mode: ScanMode;
-        searchLimit: number;  // 0 = unlimited, >0 = limit
-        currentScanMode: Writable<Default<ScanMode, "full">>;
-        maxSearches: Writable<Default<number, 0>>;
-        isScanning: Writable<Default<boolean, false>>;
-        searchProgress: Writable<SearchProgress>;
-      }
-    >((_, state) => {
-      const mode = state.mode;
-      console.log(`[HotelMembership] Starting scan in ${mode} mode with limit ${state.searchLimit}`);
-      state.currentScanMode.set(mode);
-      state.maxSearches.set(state.searchLimit);
-      // Initialize progress to trigger progressUI display
-      state.searchProgress.set({
-        currentQuery: "",
-        completedQueries: [],
-        status: "searching",
-        searchCount: 0,
-      });
-      state.isScanning.set(true);
-    });
-
-    // Bind handlers for each mode
+    // Bind handlers for each mode (startScan is defined at module scope)
     // Full Scan: all time, unlimited searches
     const startFullScan = startScan({
       mode: "full",

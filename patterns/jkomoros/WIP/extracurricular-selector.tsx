@@ -490,6 +490,26 @@ const removeClassFromSet = handler<
   );
 });
 
+// Delete the active pinned set (gets activeId from state)
+const deleteActiveSet = handler<
+  unknown,
+  { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string> }
+>((_, { pinnedSets, activePinnedSetId }) => {
+  const activeId = activePinnedSetId.get();
+  if (!activeId) return;
+
+  const sets = pinnedSets.get();
+  const newSets = sets.filter((s) => s.id !== activeId);
+  pinnedSets.set(newSets);
+
+  // Switch to first remaining set
+  if (newSets.length > 0) {
+    activePinnedSetId.set(newSets[0].id);
+  } else {
+    activePinnedSetId.set("");
+  }
+});
+
 // Switch active pinned set
 const switchActiveSet = handler<
   unknown,
@@ -2024,26 +2044,8 @@ Return the complete extracted text.`
     // These are bound at pattern evaluation time, not inside derive
     const boundCreatePinnedSet = createPinnedSet({ pinnedSets, activePinnedSetId });
 
-    // Delete active set - need to get activeSetId at click time, so we create a wrapper handler
-    const deleteActiveSetHandler = handler<
-      unknown,
-      { pinnedSets: Writable<PinnedSet[]>; activePinnedSetId: Writable<string> }
-    >((_, { pinnedSets, activePinnedSetId }) => {
-      const activeId = activePinnedSetId.get();
-      if (!activeId) return;
-
-      const sets = pinnedSets.get();
-      const newSets = sets.filter((s) => s.id !== activeId);
-      pinnedSets.set(newSets);
-
-      // Switch to first remaining set
-      if (newSets.length > 0) {
-        activePinnedSetId.set(newSets[0].id);
-      } else {
-        activePinnedSetId.set("");
-      }
-    });
-    const boundDeleteActiveSet = deleteActiveSetHandler({ pinnedSets, activePinnedSetId });
+    // Delete active set - uses module-scope deleteActiveSet handler
+    const boundDeleteActiveSet = deleteActiveSet({ pinnedSets, activePinnedSetId });
 
     // ========================================================================
     // RENDER

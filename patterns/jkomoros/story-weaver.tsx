@@ -1062,6 +1062,45 @@ const closeOptionPicker = handler<unknown, { showOptionPicker: Writable<boolean>
   }
 );
 
+// Decrement edit branch factor
+const decrementEditBranchFactor = handler<unknown, { editBranchFactor: Writable<number> }>(
+  (_, { editBranchFactor }) => {
+    const current = editBranchFactor.get();
+    if (current > 1) editBranchFactor.set(current - 1);
+  }
+);
+
+// Increment edit branch factor
+const incrementEditBranchFactor = handler<unknown, { editBranchFactor: Writable<number> }>(
+  (_, { editBranchFactor }) => {
+    const current = editBranchFactor.get();
+    if (current < 10) editBranchFactor.set(current + 1);
+  }
+);
+
+// Decrement picker preview index (wrapping)
+const decrementPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; count: number }>(
+  (_, { pickerPreviewIndex, count }) => {
+    const current = pickerPreviewIndex.get();
+    pickerPreviewIndex.set((current - 1 + count) % count);
+  }
+);
+
+// Set picker preview index
+const setPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; index: number }>(
+  (_, { pickerPreviewIndex, index }) => {
+    pickerPreviewIndex.set(index);
+  }
+);
+
+// Increment picker preview index (wrapping)
+const incrementPickerPreviewIndex = handler<unknown, { pickerPreviewIndex: Writable<number>; count: number }>(
+  (_, { pickerPreviewIndex, count }) => {
+    const current = pickerPreviewIndex.get();
+    pickerPreviewIndex.set((current + 1) % count);
+  }
+);
+
 // Pin from picker (pins the previewed option and closes)
 // Uses .key().set() for O(1) updates when possible, array replacement only when adding children
 const pinFromPicker = handler<
@@ -1270,7 +1309,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: string; result?: GenerationResult };
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
           if (!deps.shouldGenerate) return null;
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
@@ -1282,7 +1321,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: string; result?: GenerationResult };
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
           if (!deps.shouldGenerate) return null;
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
@@ -1294,7 +1333,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: string; result?: GenerationResult };
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
           if (!deps.shouldGenerate) return null;
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
@@ -1306,7 +1345,7 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
         { shouldGenerate, generation },
         (deps: {
           shouldGenerate: boolean;
-          generation: { pending: boolean; error?: string; result?: GenerationResult };
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
           if (!deps.shouldGenerate) return null;
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
@@ -3553,12 +3592,7 @@ Make them diverse in genre and tone:
                   <div style={{ marginBottom: "16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <button
-                        onClick={handler<unknown, { editBranchFactor: Writable<number> }>(
-                          (_, { editBranchFactor }) => {
-                            const current = editBranchFactor.get();
-                            if (current > 1) editBranchFactor.set(current - 1);
-                          }
-                        )({ editBranchFactor })}
+                        onClick={decrementEditBranchFactor({ editBranchFactor })}
                         style={{
                           width: "36px",
                           height: "36px",
@@ -3575,12 +3609,7 @@ Make them diverse in genre and tone:
                         {derive(editBranchFactor, (v: number) => String(v))}
                       </span>
                       <button
-                        onClick={handler<unknown, { editBranchFactor: Writable<number> }>(
-                          (_, { editBranchFactor }) => {
-                            const current = editBranchFactor.get();
-                            if (current < 10) editBranchFactor.set(current + 1);
-                          }
-                        )({ editBranchFactor })}
+                        onClick={incrementEditBranchFactor({ editBranchFactor })}
                         style={{
                           width: "36px",
                           height: "36px",
@@ -3762,12 +3791,7 @@ Make them diverse in genre and tone:
                 }}
               >
                 <button
-                  onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
-                    (_, { pickerPreviewIndex }) => {
-                      const current = pickerPreviewIndex.get();
-                      pickerPreviewIndex.set((current - 1 + 4) % 4);
-                    }
-                  )({ pickerPreviewIndex })}
+                  onClick={decrementPickerPreviewIndex({ pickerPreviewIndex, count: 4 })}
                   style={{
                     padding: "12px 24px",
                     background: "#f3f4f6",
@@ -3794,22 +3818,13 @@ Make them diverse in genre and tone:
                         ),
                         cursor: "pointer",
                       }}
-                      onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
-                        (_, { pickerPreviewIndex }) => {
-                          pickerPreviewIndex.set(i);
-                        }
-                      )({ pickerPreviewIndex })}
+                      onClick={setPickerPreviewIndex({ pickerPreviewIndex, index: i })}
                     />
                   ))}
                 </div>
 
                 <button
-                  onClick={handler<unknown, { pickerPreviewIndex: Writable<number> }>(
-                    (_, { pickerPreviewIndex }) => {
-                      const current = pickerPreviewIndex.get();
-                      pickerPreviewIndex.set((current + 1) % 4);
-                    }
-                  )({ pickerPreviewIndex })}
+                  onClick={incrementPickerPreviewIndex({ pickerPreviewIndex, count: 4 })}
                   style={{
                     padding: "12px 24px",
                     background: "#f3f4f6",

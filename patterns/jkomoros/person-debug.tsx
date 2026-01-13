@@ -7,8 +7,6 @@ import {
   ifElse,
   NAME,
   navigateTo,
-  type Opaque,
-  patternTool,
   recipe,
   str,
   UI,
@@ -300,7 +298,8 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionableCharm);
+    // Push the charm reference - types are compatible at runtime
+    mentionable.push(detail.charm);
   }
 });
 
@@ -1179,9 +1178,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                         {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
                           <ct-button
                             size="sm"
-                            variant={computed(() =>
-                              (origins as unknown as Origin[]).includes(origin as Origin) ? "primary" : "secondary"
-                            )}
+                            variant={origins.find((o) => o === origin) ? "primary" : "secondary"}
                             onClick={toggleOrigin({
                               origins,
                               origin: origin as Origin,
@@ -1317,42 +1314,6 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
         professionalReference,
       },
       triggerExtraction: triggerExtraction({ notes, extractTrigger }),
-      // Pattern tools for omnibot
-      getContactInfo: patternTool(
-        ({ displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }) => {
-          return computed(() => {
-            const parts = [`Name: ${displayName || "Not provided"}`];
-            if (emails && emails.length > 0) {
-              parts.push(`Email: ${emails[0].value}`);
-            }
-            if (phones && phones.length > 0) {
-              parts.push(`Phone: ${phones[0].value}`);
-            }
-            return parts.join("\n");
-          });
-        },
-        { displayName: effectiveDisplayName, emails, phones }
-      ),
-      searchNotes: patternTool(
-        ({ query, notes }: { query: string; notes: string }) => {
-          return computed(() => {
-            if (!query || !notes) return [];
-            return notes.split("\n").filter((line) =>
-              line.toLowerCase().includes(query.toLowerCase())
-            );
-          });
-        },
-        { notes }
-      ),
-      getSocialLinks: patternTool(
-        ({ socialLinks }: { socialLinks: SocialLink[] }) => {
-          return computed(() => {
-            if (!socialLinks || socialLinks.length === 0) return "No social media links";
-            return socialLinks.map((link) => `${link.platform}: ${link.handle}`).join("\n");
-          });
-        },
-        { socialLinks }
-      ),
     };
   },
 );

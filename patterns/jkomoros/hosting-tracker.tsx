@@ -295,19 +295,23 @@ const addRule = handler<
   {
     rules: Writable<ClassificationRule[]>;
     newRule: Writable<Partial<ClassificationRule>>;
+    newRuleName: Writable<string>;
+    newRulePattern: Writable<string>;
   }
->((_, { rules, newRule }) => {
+>((_, { rules, newRule, newRuleName, newRulePattern }) => {
   const rule = newRule.get();
-  if (!rule.name?.trim() || !rule.pattern?.trim()) {
+  const name = newRuleName.get();
+  const patternVal = newRulePattern.get();
+  if (!name?.trim() || !patternVal?.trim()) {
     console.warn("Missing required fields for rule");
     return;
   }
 
   const fullRule: ClassificationRule = {
     id: generateId(),
-    name: rule.name.trim(),
+    name: name.trim(),
     type: rule.type || "location_exact",
-    pattern: rule.pattern.trim(),
+    pattern: patternVal.trim(),
     familyId: rule.familyId,
     category: rule.category || "they-hosted",
     isNegative: rule.isNegative || false,
@@ -323,6 +327,8 @@ const addRule = handler<
 
   // Reset form
   newRule.set({});
+  newRuleName.set("");
+  newRulePattern.set("");
 });
 
 // Handler to toggle rule enabled state
@@ -833,8 +839,16 @@ const HostingTracker = pattern<HostingTrackerInput>(
       notes: "",
     });
 
-    // Form state for new rule
-    const newRuleForm = Writable.of<Partial<ClassificationRule>>({});
+    // Form state for new rule - using separate cells for ct-input compatibility
+    const newRuleForm = Writable.of<Partial<ClassificationRule>>({
+      name: "",
+      pattern: "",
+      type: "location_exact",
+      category: "they-hosted",
+    });
+    // Separate writable cells for ct-input binding (avoids undefined type issue)
+    const newRuleName = Writable.of<string>("");
+    const newRulePattern = Writable.of<string>("");
 
     // Selected family for event assignment
     const selectedFamilyId = Writable.of("");
@@ -980,7 +994,7 @@ const HostingTracker = pattern<HostingTrackerInput>(
           name: string;
           addresses: Address[];
           primaryAddress: Address | null;
-          members: FamilyMember[];
+          members: { name: string; role: string }[];
         }>;
       }) => {
         const suggestions: Record<string, EventSuggestion> = {};
@@ -2026,7 +2040,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <label style={{ flex: 1 }}>
                           Name
                           <ct-input
-                            $value={newRuleForm.key("name")}
+                            $value={newRuleName}
                             placeholder="Rule name"
                           />
                         </label>
@@ -2054,7 +2068,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       <label>
                         Pattern
                         <ct-input
-                          $value={newRuleForm.key("pattern")}
+                          $value={newRulePattern}
                           placeholder="Pattern to match"
                         />
                       </label>
@@ -2078,7 +2092,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                           </select>
                         </label>
                         <ct-button
-                          onClick={addRule({ rules, newRule: newRuleForm })}
+                          onClick={addRule({ rules, newRule: newRuleForm, newRuleName, newRulePattern })}
                           style={{ alignSelf: "flex-end" }}
                         >
                           Add Rule

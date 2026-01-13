@@ -235,7 +235,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                 question,
                 options,
                 votes,
-                voterCharms: voterCharms as unknown as OpaqueRef<VoterCharmRef[]>,
+                voterCharms,
               })}
               style="background-color: #3b82f6; color: white; font-weight: 600; font-size: 1rem; padding: 0.75rem 1.5rem;"
             >

@@ -50,10 +50,20 @@ export default pattern<Input, Output>(({ auth, selectedScopes }) => {
   const baseAuth = GoogleAuth({ auth, selectedScopes });
 
   // Enhanced preview with PERSONAL badge using shared helper
+  // Build scopes record manually (same pattern as google-auth.tsx to avoid type casting)
   const previewUI = computed(() =>
     createPreviewUI(
       baseAuth.auth,
-      selectedScopes as unknown as Record<string, boolean>,
+      {
+        gmail: selectedScopes.gmail,
+        gmailSend: selectedScopes.gmailSend,
+        gmailModify: selectedScopes.gmailModify,
+        calendar: selectedScopes.calendar,
+        calendarWrite: selectedScopes.calendarWrite,
+        drive: selectedScopes.drive,
+        docs: selectedScopes.docs,
+        contacts: selectedScopes.contacts,
+      },
       { text: "PERSONAL", color: "#3b82f6" },
     )
   );

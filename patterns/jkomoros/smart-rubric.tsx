@@ -72,12 +72,12 @@ interface RubricInput {
 }
 
 interface RubricOutput {
-  title: Writable<string>;
-  options: Writable<Array<Writable<RubricOption>>>;  // Auto-boxed by framework
-  dimensions: Writable<Dimension[]>;
-  selection: Writable<SelectionState>;
-  quickAddPrompt: Writable<string>;
-  quickAddSubmitted: Writable<string>;
+  title: string;
+  options: RubricOption[];  // Framework handles boxing
+  dimensions: Dimension[];
+  selection: SelectionState;
+  quickAddPrompt: string;
+  quickAddSubmitted: string;
 }
 
 // LLM Response type for Quick Add - must be object at root (not array)
@@ -90,6 +90,273 @@ interface QuickAddResponse {
   }>;
   reasoning: string;
 }
+
+// ============================================================================
+// Module-Scope Helper Functions
+// ============================================================================
+
+function calculateScore(option: RubricOption, dimensionsArray: Dimension[]): number {
+  let totalScore = 0;
+  dimensionsArray.forEach(dim => {
+    const valueRecord = option.values.find(v => v.dimensionName === dim.name);
+    if (!valueRecord) return;
+
+    let dimensionScore = 0;
+    if (dim.type === "categorical") {
+      const category = dim.categories.find(c => c.label === valueRecord.value);
+      dimensionScore = category?.score || 0;
+    } else {
+      dimensionScore = Number(valueRecord.value) || 0;
+    }
+
+    totalScore += dimensionScore * dim.multiplier;
+  });
+  return totalScore;
+}
+
+function getOptionValueForDimension(
+  option: RubricOption,
+  dimensionName: string
+): string | number {
+  const valueRecord = option.values.find(v => v.dimensionName === dimensionName);
+  return valueRecord?.value ?? "";
+}
+
+// ============================================================================
+// Module-Scope Handlers
+// ============================================================================
+
+const addTestOption = handler<unknown, { options: Writable<Array<Writable<RubricOption>>> }>(
+  (_, { options }) => {
+    options.push({
+      name: `Option ${options.get().length + 1}`,
+      values: [],
+      manualRank: null,
+    });
+  }
+);
+
+const acceptQuickAddFromResult = handler<
+  unknown,
+  {
+    resultCell: Writable<QuickAddResponse | undefined>,
+    optionsCell: Writable<Array<Writable<RubricOption>>>,
+    promptCell: Writable<string>,
+    submittedCell: Writable<string>,
+  }
+>(
+  (_, { resultCell, optionsCell, promptCell, submittedCell }) => {
+    const result = resultCell.get();
+    if (!result) return;
+
+    const values: OptionValue[] = (result.extractedValues || [])
+      .filter((ev: { dimensionName?: string }) => ev && ev.dimensionName)
+      .map((ev: { dimensionName: string; value: string | number }) => ({
+        dimensionName: ev.dimensionName,
+        value: ev.value,
+      }));
+
+    optionsCell.push({
+      name: result.optionName,
+      values,
+      manualRank: null,
+    });
+
+    promptCell.set("");
+    submittedCell.set("");
+  }
+);
+
+const submitQuickAdd = handler<
+  unknown,
+  { promptCell: Writable<string>, submittedCell: Writable<string> }
+>(
+  (_, { promptCell, submittedCell }) => {
+    const prompt = promptCell.get();
+    if (prompt && prompt.trim() !== "") {
+      submittedCell.set(prompt);
+    }
+  }
+);
+
+const clearQuickAdd = handler<
+  unknown,
+  { promptCell: Writable<string>, submittedCell: Writable<string> }
+>(
+  (_, { promptCell, submittedCell }) => {
+    promptCell.set("");
+    submittedCell.set("");
+  }
+);
+
+const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>(
+  (_, { dimensions }) => {
+    const count = [...dimensions.get()].length + 1;
+    const isEven = count % 2 === 0;
+
+    if (isEven) {
+      dimensions.push({
+        name: `Category ${count}`,
+        type: "categorical",
+        multiplier: 1,
+        categories: [
+          { label: "Excellent", score: 10 },
+          { label: "Good", score: 7 },
+          { label: "Fair", score: 4 },
+          { label: "Poor", score: 1 },
+        ],
+        numericMin: 0,
+        numericMax: 10,
+      });
+    } else {
+      dimensions.push({
+        name: `Number ${count}`,
+        type: "numeric",
+        multiplier: 1,
+        categories: [],
+        numericMin: 0,
+        numericMax: 100,
+      });
+    }
+  }
+);
+
+const changeDimensionMultiplier = handler<
+  unknown,
+  { dimensionsCell: Writable<Dimension[]>, dimensionName: string, delta: number }
+>(
+  (_, { dimensionsCell, dimensionName, delta }) => {
+    const dims = [...dimensionsCell.get()];
+    const index = dims.findIndex((d: Dimension) => d.name === dimensionName);
+    if (index < 0) return;
+    const current = dims[index].multiplier;
+    const updated = { ...dims[index], multiplier: Math.max(0.1, current + delta) };
+    dimensionsCell.set(dims.toSpliced(index, 1, updated));
+  }
+);
+
+const selectOption = handler<unknown, { name: string, selectionCell: Writable<SelectionState> }>(
+  (_, { name, selectionCell }) => {
+    selectionCell.set({ value: name });
+  }
+);
+
+const changeCategoricalValue = handler<
+  unknown,
+  { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, categoryValue: string }
+>(
+  (_, { optionName, optionsCell, dimensionName, categoryValue }) => {
+    const opts = optionsCell.get();
+    const optionCell = opts.find((opt: Writable<RubricOption>) => opt.get().name === optionName);
+    if (!optionCell) return;
+
+    const opt = optionCell.get();
+    const existingIndex = opt.values.findIndex(
+      (v: OptionValue) => v.dimensionName === dimensionName
+    );
+
+    let newValues;
+    if (existingIndex >= 0) {
+      newValues = opt.values.toSpliced(existingIndex, 1, {
+        dimensionName,
+        value: categoryValue,
+      });
+    } else {
+      newValues = [...opt.values, {
+        dimensionName,
+        value: categoryValue,
+      }];
+    }
+
+    optionCell.key("values").set(newValues);
+  }
+);
+
+const changeNumericValue = handler<
+  unknown,
+  { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, delta: number, min: number, max: number }
+>(
+  (_, { optionName, optionsCell, dimensionName, delta, min, max }) => {
+    const opts = optionsCell.get();
+    const optionCell = opts.find((opt: Writable<RubricOption>) => opt.get().name === optionName);
+    if (!optionCell) return;
+
+    const opt = optionCell.get();
+    const existingIndex = opt.values.findIndex(
+      (v: OptionValue) => v.dimensionName === dimensionName
+    );
+
+    const currentValue = existingIndex >= 0 ? (opt.values[existingIndex].value as number) : min;
+    const newValue = Math.max(min, Math.min(max, currentValue + delta));
+
+    let newValues;
+    if (existingIndex >= 0) {
+      newValues = opt.values.toSpliced(existingIndex, 1, {
+        dimensionName,
+        value: newValue,
+      });
+    } else {
+      newValues = [...opt.values, {
+        dimensionName,
+        value: newValue,
+      }];
+    }
+
+    optionCell.key("values").set(newValues);
+  }
+);
+
+const moveOptionUp = handler<
+  unknown,
+  { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
+>(
+  (_, { optionCell, optionsCell }) => {
+    const opts = optionsCell.get();
+    const index = opts.findIndex((opt: Writable<RubricOption>) => equals(opt, optionCell));
+
+    if (index <= 0) return;
+
+    const newOpts = [...opts];
+    [newOpts[index - 1], newOpts[index]] = [newOpts[index], newOpts[index - 1]];
+
+    newOpts[index - 1].key("manualRank").set(index);
+    newOpts[index].key("manualRank").set(index + 1);
+
+    optionsCell.set(newOpts);
+  }
+);
+
+const moveOptionDown = handler<
+  unknown,
+  { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
+>(
+  (_, { optionCell, optionsCell }) => {
+    const opts = optionsCell.get();
+    const index = opts.findIndex((opt: Writable<RubricOption>) => equals(opt, optionCell));
+
+    if (index < 0 || index >= opts.length - 1) return;
+
+    const newOpts = [...opts];
+    [newOpts[index], newOpts[index + 1]] = [newOpts[index + 1], newOpts[index]];
+
+    newOpts[index].key("manualRank").set(index + 1);
+    newOpts[index + 1].key("manualRank").set(index + 2);
+
+    optionsCell.set(newOpts);
+  }
+);
+
+const resetManualRanks = handler<
+  unknown,
+  { optionsCell: Writable<Array<Writable<RubricOption>>> }
+>(
+  (_, { optionsCell }) => {
+    const opts = optionsCell.get();
+    opts.forEach((opt: Writable<RubricOption>) => {
+      opt.key("manualRank").set(null);
+    });
+  }
+);
 
 // ============================================================================
 // Pattern
@@ -152,310 +419,6 @@ Be precise with categorical values - use exact label matches.`;
       prompt: quickAddSubmitted,
       schema: toSchema<QuickAddResponse>(),
     });
-
-    // ========================================================================
-    // Score Calculation Helper (Per-Option)
-    // ========================================================================
-
-    // SIMPLIFIED APPROACH: Compute score for individual option
-    // Instead of one big computed array, we compute per-option in JSX
-    const calculateScore = (option: RubricOption) => {
-      let totalScore = 0;
-
-      // Cell arrays are iterable - spread to get array value
-      const dimensionsArray = [...dimensions];
-
-      dimensionsArray.forEach(dim => {
-        const valueRecord = option.values.find(v => v.dimensionName === dim.name);
-        if (!valueRecord) return;
-
-        let dimensionScore = 0;
-
-        if (dim.type === "categorical") {
-          const category = dim.categories.find(c => c.label === valueRecord.value);
-          dimensionScore = category?.score || 0;
-        } else {
-          dimensionScore = Number(valueRecord.value) || 0;
-        }
-
-        totalScore += dimensionScore * dim.multiplier;
-      });
-
-      return totalScore;
-    };
-
-    // Note: We don't use computed() to get selected option Cell
-    // Instead, we'll look it up directly in the detail pane derive block
-
-    // ========================================================================
-    // Handlers
-    // ========================================================================
-
-    const addTestOption = handler<unknown, { options: Writable<Array<Writable<RubricOption>>> }>(
-      (_, { options }) => {
-        // Framework auto-boxes - just push plain object
-        options.push({
-          name: `Option ${options.get().length + 1}`,
-          values: [],
-          manualRank: null,
-        });
-      }
-    );
-
-    // Accept LLM-extracted option from result Cell (called from OUTSIDE derive)
-    // This handler reads from the result Cell and clears prompts
-    const acceptQuickAddFromResult = handler<
-      unknown,
-      {
-        resultCell: Writable<QuickAddResponse | undefined>,
-        optionsCell: Writable<Array<Writable<RubricOption>>>,
-        promptCell: Writable<string>,
-        submittedCell: Writable<string>,
-      }
-    >(
-      (_, { resultCell, optionsCell, promptCell, submittedCell }) => {
-        const result = resultCell.get();
-        if (!result) return;  // No result to accept
-
-        // Convert to OptionValue format
-        const values: OptionValue[] = (result.extractedValues || [])
-          .filter(ev => ev && ev.dimensionName)
-          .map(ev => ({
-            dimensionName: ev.dimensionName,
-            value: ev.value,
-          }));
-
-        // Add the new option
-        optionsCell.push({
-          name: result.optionName,
-          values,
-          manualRank: null,
-        });
-
-        // Clear both prompts (this works because we're OUTSIDE derive context)
-        promptCell.set("");
-        submittedCell.set("");
-      }
-    );
-
-    // Submit prompt to trigger LLM analysis
-    const submitQuickAdd = handler<
-      unknown,
-      { promptCell: Writable<string>, submittedCell: Writable<string> }
-    >(
-      (_, { promptCell, submittedCell }) => {
-        const prompt = promptCell.get();
-        if (prompt && prompt.trim() !== "") {
-          submittedCell.set(prompt);
-        }
-      }
-    );
-
-    // Clear Quick Add prompt without accepting
-    const clearQuickAdd = handler<
-      unknown,
-      { promptCell: Writable<string>, submittedCell: Writable<string> }
-    >(
-      (_, { promptCell, submittedCell }) => {
-        promptCell.set("");
-        submittedCell.set("");
-      }
-    );
-
-    const addTestDimension = handler<unknown, { dimensions: Writable<Dimension[]> }>(
-      (_, { dimensions }) => {
-        const count = [...dimensions.get()].length + 1;
-        const isEven = count % 2 === 0;
-
-        if (isEven) {
-          // Add categorical dimension
-          dimensions.push({
-            name: `Category ${count}`,
-            type: "categorical",
-            multiplier: 1,
-            categories: [
-              { label: "Excellent", score: 10 },
-              { label: "Good", score: 7 },
-              { label: "Fair", score: 4 },
-              { label: "Poor", score: 1 },
-            ],
-            numericMin: 0,
-            numericMax: 10,
-          });
-        } else {
-          // Add numeric dimension
-          dimensions.push({
-            name: `Number ${count}`,
-            type: "numeric",
-            multiplier: 1,
-            categories: [],
-            numericMin: 0,
-            numericMax: 100,
-          });
-        }
-      }
-    );
-
-    const changeDimensionMultiplier = handler<
-      unknown,
-      { dimensionsCell: Writable<Dimension[]>, dimensionName: string, delta: number }
-    >(
-      (_, { dimensionsCell, dimensionName, delta }) => {
-        const dims = [...dimensionsCell.get()];
-        const index = dims.findIndex((d: Dimension) => d.name === dimensionName);
-        if (index < 0) return;
-        const current = dims[index].multiplier;
-        const updated = { ...dims[index], multiplier: Math.max(0.1, current + delta) };
-        dimensionsCell.set(dims.toSpliced(index, 1, updated));
-      }
-    );
-
-    const selectOption = handler<unknown, { name: string, selectionCell: Writable<SelectionState> }>(
-      (_, { name, selectionCell }) => {
-        selectionCell.set({ value: name });
-      }
-    );
-
-    const changeCategoricalValue = handler<
-      unknown,
-      { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, categoryValue: string }
-    >(
-      (_, { optionName, optionsCell, dimensionName, categoryValue }) => {
-        // Look up option by name and mutate using .key()
-        const opts = optionsCell.get();
-        const optionCell = opts.find(opt => opt.get().name === optionName);
-        if (!optionCell) return;
-
-        const opt = optionCell.get();
-        const existingIndex = opt.values.findIndex(
-          (v: OptionValue) => v.dimensionName === dimensionName
-        );
-
-        let newValues;
-        if (existingIndex >= 0) {
-          newValues = opt.values.toSpliced(existingIndex, 1, {
-            dimensionName,
-            value: categoryValue,
-          });
-        } else {
-          newValues = [...opt.values, {
-            dimensionName,
-            value: categoryValue,
-          }];
-        }
-
-        optionCell.key("values").set(newValues);
-      }
-    );
-
-    const changeNumericValue = handler<
-      unknown,
-      { optionName: string, optionsCell: Writable<Array<Writable<RubricOption>>>, dimensionName: string, delta: number, min: number, max: number }
-    >(
-      (_, { optionName, optionsCell, dimensionName, delta, min, max }) => {
-        // Look up option by name and mutate using .key()
-        const opts = optionsCell.get();
-        const optionCell = opts.find(opt => opt.get().name === optionName);
-        if (!optionCell) return;
-
-        const opt = optionCell.get();
-        const existingIndex = opt.values.findIndex(
-          (v: OptionValue) => v.dimensionName === dimensionName
-        );
-
-        const currentValue = existingIndex >= 0 ? (opt.values[existingIndex].value as number) : min;
-        const newValue = Math.max(min, Math.min(max, currentValue + delta));
-
-        let newValues;
-        if (existingIndex >= 0) {
-          newValues = opt.values.toSpliced(existingIndex, 1, {
-            dimensionName,
-            value: newValue,
-          });
-        } else {
-          newValues = [...opt.values, {
-            dimensionName,
-            value: newValue,
-          }];
-        }
-
-        optionCell.key("values").set(newValues);
-      }
-    );
-
-    // ========================================================================
-    // Manual Ranking Handlers - Using equals() for comparison
-    // ========================================================================
-
-    const moveOptionUp = handler<
-      unknown,
-      { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
-    >(
-      (_, { optionCell, optionsCell }) => {
-        const opts = optionsCell.get();
-        // Use equals() for proper Cell comparison
-        const index = opts.findIndex(opt => equals(opt, optionCell));
-
-        if (index <= 0) return; // Already at top or not found
-
-        // Swap the Cell references in the array
-        const newOpts = [...opts];
-        [newOpts[index - 1], newOpts[index]] = [newOpts[index], newOpts[index - 1]];
-
-        // Update manualRank on the individual Cells
-        newOpts[index - 1].key("manualRank").set(index);
-        newOpts[index].key("manualRank").set(index + 1);
-
-        optionsCell.set(newOpts);
-      }
-    );
-
-    const moveOptionDown = handler<
-      unknown,
-      { optionCell: Writable<RubricOption>, optionsCell: Writable<Array<Writable<RubricOption>>> }
-    >(
-      (_, { optionCell, optionsCell }) => {
-        const opts = optionsCell.get();
-        // Use equals() for proper Cell comparison
-        const index = opts.findIndex(opt => equals(opt, optionCell));
-
-        if (index < 0 || index >= opts.length - 1) return; // Already at bottom or not found
-
-        // Swap the Cell references in the array
-        const newOpts = [...opts];
-        [newOpts[index], newOpts[index + 1]] = [newOpts[index + 1], newOpts[index]];
-
-        // Update manualRank on the individual Cells
-        newOpts[index].key("manualRank").set(index + 1);
-        newOpts[index + 1].key("manualRank").set(index + 2);
-
-        optionsCell.set(newOpts);
-      }
-    );
-
-    const resetManualRanks = handler<
-      unknown,
-      { optionsCell: Writable<Array<Writable<RubricOption>>> }
-    >(
-      (_, { optionsCell }) => {
-        const opts = optionsCell.get();
-        opts.forEach(opt => {
-          opt.key("manualRank").set(null);
-        });
-      }
-    );
-
-    // ========================================================================
-    // Helper: Get option value for dimension
-    // ========================================================================
-
-    const getOptionValueForDimension = (
-      option: RubricOption,
-      dimensionName: string
-    ): string | number => {
-      const valueRecord = option.values.find(v => v.dimensionName === dimensionName);
-      return valueRecord?.value ?? "";
-    };
 
     // ========================================================================
     // UI

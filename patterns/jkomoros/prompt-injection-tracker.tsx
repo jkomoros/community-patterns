@@ -487,37 +487,214 @@ interface TrackerInput {
 }
 
 interface TrackerOutput {
-  articles: Article[];
+  // Note: articles is the internal extraction structure, not raw Article[]
+  articles: unknown;
   extractedLinks: string[];
 }
 
-const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles }) => {
-  // ==========================================================================
-  // DEBUG: Pipeline Instrumentation (for caching investigation)
-  // Remove this section once caching issues are resolved
-  // ==========================================================================
-  const DEBUG_LOGGING = false; // Set to false to disable logging
+// ==========================================================================
+// DEBUG: Pipeline Instrumentation (for caching investigation)
+// Remove this section once caching issues are resolved
+// ==========================================================================
+const DEBUG_LOGGING = false; // Set to false to disable logging
 
-  const debugLog = (stage: string, data: any) => {
-    if (DEBUG_LOGGING) {
-      console.log(`[PIPELINE:${stage}]`, JSON.stringify(data, null, 2));
+function debugLog(stage: string, data: unknown): void {
+  if (DEBUG_LOGGING) {
+    console.log(`[PIPELINE:${stage}]`, JSON.stringify(data, null, 2));
+  }
+}
+
+function debugCellStructure(name: string, cell: unknown): void {
+  if (!DEBUG_LOGGING) return;
+  const c = cell as { pending?: unknown; result?: unknown; error?: unknown } | null;
+  const structure = {
+    hasPending: c ? "pending" in c : false,
+    hasResult: c ? "result" in c : false,
+    hasError: c ? "error" in c : false,
+    pendingValue: c?.pending,
+    resultType: c?.result === undefined ? "undefined" : c?.result === null ? "null" : typeof c?.result,
+    errorValue: c?.error,
+    keys: c ? Object.keys(c) : [],
+  };
+  console.log(`[CELL:${name}]`, JSON.stringify(structure, null, 2));
+}
+
+// ==========================================================================
+// URL PROCESSING HELPERS (module-scope for compiler compatibility)
+// ==========================================================================
+
+// Helper: Process a single URL slot through L2→L3→L4→L5
+// Returns null for all fields if url is null
+// deno-lint-ignore no-explicit-any
+function processUrlSlot(url: any): {
+  sourceUrl: unknown;
+  webContent: unknown;
+  classification: unknown;
+  originalReportUrl: unknown;
+  originalContent: unknown;
+  isOriginal: unknown;
+  summary: unknown;
+} {
+  // L2: Fetch web content
+  // deno-lint-ignore no-explicit-any
+  const webContentBody = derive(url, (u: any) => ({ url: u as string, max_tokens: 4000, include_code: false }));
+  const webContent = ifElse(
+    url,
+    fetchData<{ content: string; title?: string }>({
+      url: "/api/agent-tools/web-read",
+      mode: "json",
+      options: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: webContentBody,
+      },
+    }),
+    null
+  );
+
+  // L3: Classify content
+  const classificationPrompt = derive(
+    { url, content: webContent },
+    ({ url, content }: { url: unknown; content: unknown }) => {
+      const c = content as { result?: { content?: string } } | null;
+      const pageContent = c?.result?.content;
+      if (pageContent) {
+        return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
+      }
+      return `URL: ${url}\n\nClassify based on URL pattern only.`;
     }
-  };
+  );
+  const classification = ifElse(
+    url,
+    generateObject<{
+      isOriginalReport: boolean;
+      originalReportUrl: string | null;
+      confidence: "high" | "medium" | "low";
+      briefDescription: string;
+    }>({
+      system: CONTENT_CLASSIFICATION_SYSTEM,
+      prompt: classificationPrompt,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: CONTENT_CLASSIFICATION_SCHEMA,
+    }),
+    null
+  );
 
-  const debugCellStructure = (name: string, cell: any) => {
-    if (!DEBUG_LOGGING) return;
-    const structure = {
-      hasPending: "pending" in cell,
-      hasResult: "result" in cell,
-      hasError: "error" in cell,
-      pendingValue: cell?.pending,
-      resultType: cell?.result === undefined ? "undefined" : cell?.result === null ? "null" : typeof cell?.result,
-      errorValue: cell?.error,
-      keys: cell ? Object.keys(cell) : [],
-    };
-    console.log(`[CELL:${name}]`, JSON.stringify(structure, null, 2));
-  };
+  // L4: Fetch original report if this is a news article pointing to one
+  const needsOriginalFetch = derive(classification, (c: unknown) => {
+    const cls = c as { result?: { isOriginalReport: boolean; originalReportUrl?: string } } | null;
+    return cls?.result && !cls.result.isOriginalReport && isValidUrl(cls.result.originalReportUrl);
+  });
+  const originalReportUrl = derive(classification, (c: unknown) => {
+    const cls = c as { result?: { originalReportUrl?: string } } | null;
+    return cls?.result?.originalReportUrl;
+  });
 
+  // deno-lint-ignore no-explicit-any
+  const originalContentBody = derive(originalReportUrl, (u: any) => ({ url: u as string, max_tokens: 4000, include_code: false }));
+  const originalContent = ifElse(
+    needsOriginalFetch,
+    fetchData<{ content: string; title?: string }>({
+      url: "/api/agent-tools/web-read",
+      mode: "json",
+      options: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: originalContentBody,
+      },
+    }),
+    null
+  );
+
+  // L5: Summarize the final report content
+  const isOriginal = derive(classification, (c: unknown) => {
+    const cls = c as { result?: { isOriginalReport: boolean } } | null;
+    return cls?.result?.isOriginalReport;
+  });
+  const reportContent = ifElse(
+    isOriginal,
+    webContent,
+    originalContent
+  );
+
+  const summaryPrompt = derive(
+    { url, originalReportUrl, content: reportContent, isOriginal },
+    ({ url, originalReportUrl, content, isOriginal }: { url: unknown; originalReportUrl: unknown; content: unknown; isOriginal: unknown }) => {
+      const targetUrl = isOriginal ? url : (originalReportUrl || url);
+      const c = content as { result?: { content?: string } } | null;
+      const pageContent = c?.result?.content;
+      if (pageContent) {
+        return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
+      }
+      return `URL: ${targetUrl}\n\nSummarize based on URL pattern.`;
+    }
+  );
+  const summary = ifElse(
+    url,
+    generateObject<{
+      title: string;
+      summary: string;
+      severity: "low" | "medium" | "high" | "critical";
+      isLLMSpecific: boolean;
+      discoveryDate: string;
+      canonicalId: string;
+    }>({
+      system: REPORT_SUMMARY_SYSTEM,
+      prompt: summaryPrompt,
+      model: "anthropic:claude-sonnet-4-5",
+      schema: REPORT_SUMMARY_SCHEMA,
+    }),
+    null
+  );
+
+  return {
+    sourceUrl: url,
+    webContent,
+    classification,
+    originalReportUrl,
+    originalContent,
+    isOriginal,
+    summary,
+  };
+}
+
+// Helper: Process an article's URLs through L2-L5 using fixed slots
+// This is applied via .map() to both manual and email extractions
+function processArticleUrls(article: { articleId: unknown; articleTitle: unknown; extraction: unknown }): {
+  articleId: unknown;
+  articleTitle: unknown;
+  extraction: unknown;
+  slots: ReturnType<typeof processUrlSlot>[];
+} {
+  // Extract up to MAX_URLS_PER_ARTICLE URLs as fixed slots
+  const url0 = derive(article.extraction, (ext: unknown) => {
+    const e = ext as { result?: { urls?: string[] } } | null;
+    return e?.result?.urls?.[0] || null;
+  });
+  const url1 = derive(article.extraction, (ext: unknown) => {
+    const e = ext as { result?: { urls?: string[] } } | null;
+    return e?.result?.urls?.[1] || null;
+  });
+  const url2 = derive(article.extraction, (ext: unknown) => {
+    const e = ext as { result?: { urls?: string[] } } | null;
+    return e?.result?.urls?.[2] || null;
+  });
+
+  // Process each slot through the full pipeline
+  const slot0 = processUrlSlot(url0);
+  const slot1 = processUrlSlot(url1);
+  const slot2 = processUrlSlot(url2);
+
+  return {
+    articleId: article.articleId,
+    articleTitle: article.articleTitle,
+    extraction: article.extraction,
+    // Return all 3 slots
+    slots: [slot0, slot1, slot2],
+  };
+}
+
+const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilterQuery, limit, articles }) => {
   // ==========================================================================
   // Gmail Integration
   // ==========================================================================
@@ -567,17 +744,21 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   }));
 
   // Process email articles (maps over GmailImporter output cell - reactive!)
-  const emailArticleExtractions = importer.emails.map((email: any) => ({
-    articleId: email.id,
-    articleTitle: email.subject || "No Subject",
-    articleSource: email.from || "Unknown",
-    extraction: generateObject<ExtractedLinks>({
-      system: LINK_EXTRACTION_SYSTEM,
-      prompt: email.markdownContent || email.snippet || "",
-      model: "anthropic:claude-sonnet-4-5",
-      schema: LINK_EXTRACTION_SCHEMA,
-    }),
-  }));
+  // Using derive for property extraction to satisfy framework requirements
+  const emailArticleExtractions = importer.emails.map((email: any) => {
+    const id = email.id;
+    return {
+      articleId: id,
+      articleTitle: derive(email, (e: any) => e?.subject || "No Subject"),
+      articleSource: derive(email, (e: any) => e?.from || "Unknown"),
+      extraction: generateObject<ExtractedLinks>({
+        system: LINK_EXTRACTION_SYSTEM,
+        prompt: derive(email, (e: any) => e?.markdownContent || e?.snippet || ""),
+        model: "anthropic:claude-sonnet-4-5",
+        schema: LINK_EXTRACTION_SCHEMA,
+      }),
+    };
+  });
 
   // Combine extractions from both sources for aggregation (derive is fine for read-only)
   // Note: Added defensive array checks for when email/manual might not be arrays during hydration
@@ -669,143 +850,6 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // ==========================================================================
 
   const MAX_URLS_PER_ARTICLE = 3;
-
-  // Helper: Process a single URL slot through L2→L3→L4→L5
-  // Returns null for all fields if url is null
-  const processUrlSlot = (url: any) => {
-    // L2: Fetch web content
-    const webContentBody = derive(url, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
-    const webContent = ifElse(
-      url,
-      fetchData<{ content: string; title?: string }>({
-        url: "/api/agent-tools/web-read",
-        mode: "json",
-        options: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: webContentBody,
-        },
-      }),
-      null
-    );
-
-    // L3: Classify content
-    const classificationPrompt = derive(
-      { url, content: webContent },
-      ({ url, content }: any) => {
-        const pageContent = content?.result?.content;
-        if (pageContent) {
-          return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
-        }
-        return `URL: ${url}\n\nClassify based on URL pattern only.`;
-      }
-    );
-    const classification = ifElse(
-      url,
-      generateObject<{
-        isOriginalReport: boolean;
-        originalReportUrl: string | null;
-        confidence: "high" | "medium" | "low";
-        briefDescription: string;
-      }>({
-        system: CONTENT_CLASSIFICATION_SYSTEM,
-        prompt: classificationPrompt,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: CONTENT_CLASSIFICATION_SCHEMA,
-      }),
-      null
-    );
-
-    // L4: Fetch original report if this is a news article pointing to one
-    const needsOriginalFetch = derive(classification, (c: any) =>
-      c?.result && !c.result.isOriginalReport && isValidUrl(c.result.originalReportUrl)
-    );
-    const originalReportUrl = derive(classification, (c: any) => c?.result?.originalReportUrl);
-
-    const originalContentBody = derive(originalReportUrl, (u: any) => ({ url: u, max_tokens: 4000, include_code: false }));
-    const originalContent = ifElse(
-      needsOriginalFetch,
-      fetchData<{ content: string; title?: string }>({
-        url: "/api/agent-tools/web-read",
-        mode: "json",
-        options: {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: originalContentBody,
-        },
-      }),
-      null
-    );
-
-    // L5: Summarize the final report content
-    const isOriginal = derive(classification, (c: any) => c?.result?.isOriginalReport);
-    const reportContent = ifElse(
-      isOriginal,
-      webContent,
-      originalContent
-    );
-
-    const summaryPrompt = derive(
-      { url, originalReportUrl, content: reportContent, isOriginal },
-      ({ url, originalReportUrl, content, isOriginal }: any) => {
-        const targetUrl = isOriginal ? url : (originalReportUrl || url);
-        const pageContent = content?.result?.content;
-        if (pageContent) {
-          return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
-        }
-        return `URL: ${targetUrl}\n\nSummarize based on URL pattern.`;
-      }
-    );
-    const summary = ifElse(
-      url,
-      generateObject<{
-        title: string;
-        summary: string;
-        severity: "low" | "medium" | "high" | "critical";
-        isLLMSpecific: boolean;
-        discoveryDate: string;
-        canonicalId: string;
-      }>({
-        system: REPORT_SUMMARY_SYSTEM,
-        prompt: summaryPrompt,
-        model: "anthropic:claude-sonnet-4-5",
-        schema: REPORT_SUMMARY_SCHEMA,
-      }),
-      null
-    );
-
-    return {
-      sourceUrl: url,
-      webContent,
-      classification,
-      originalReportUrl,
-      originalContent,
-      isOriginal,
-      summary,
-    };
-  };
-
-  // Helper: Process an article's URLs through L2-L5 using fixed slots
-  // This is applied via .map() to both manual and email extractions
-  const processArticleUrls = (article: any) => {
-    // Extract up to MAX_URLS_PER_ARTICLE URLs as fixed slots
-    const url0 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[0] || null);
-    const url1 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[1] || null);
-    const url2 = derive(article.extraction, (ext: any) => ext?.result?.urls?.[2] || null);
-
-    // Process each slot through the full pipeline
-    const slot0 = processUrlSlot(url0);
-    const slot1 = processUrlSlot(url1);
-    const slot2 = processUrlSlot(url2);
-
-    return {
-      articleId: article.articleId,
-      articleTitle: article.articleTitle,
-      extraction: article.extraction,
-      // Return all 3 slots
-      slots: [slot0, slot1, slot2],
-    };
-  };
 
   // Process manual articles through L2-L5 (maps over cell - reactive!)
   // Now processes up to 3 URLs per article using fixed slots

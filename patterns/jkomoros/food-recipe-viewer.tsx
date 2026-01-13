@@ -125,6 +125,29 @@ const toggleGroupCompletion = handler<
   }
 });
 
+// ============================================================================
+// Helper Functions (module scope)
+// ============================================================================
+
+// Format timing display
+function formatTiming(group: StepGroup): string {
+  if (group.nightsBeforeServing !== undefined && group.nightsBeforeServing > 0) {
+    return `${group.nightsBeforeServing} night(s) before serving`;
+  } else if (group.minutesBeforeServing !== undefined) {
+    if (group.minutesBeforeServing === 0) return "Serve immediately";
+    const hours = Math.floor(group.minutesBeforeServing / 60);
+    const mins = group.minutesBeforeServing % 60;
+    if (hours > 0 && mins > 0) return `${hours}h ${mins}m before serving`;
+    if (hours > 0) return `${hours}h before serving`;
+    return `${mins}m before serving`;
+  }
+  return "No timing specified";
+}
+
+// ============================================================================
+// Pattern
+// ============================================================================
+
 export default pattern<ViewerInput, ViewerOutput>(
   ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
     // Recipe data is passed in directly as cells from the source recipe
@@ -132,35 +155,6 @@ export default pattern<ViewerInput, ViewerOutput>(
     const displayName = computed(() =>
       recipeName.trim() || "Untitled Recipe"
     );
-
-    // Helper to check if a step is completed
-    const isStepCompleted = (groupId: string, stepIndex: number) => {
-      return computed(() =>
-        completedSteps.some((s) => s.groupId === groupId && s.stepIndex === stepIndex)
-      );
-    };
-
-    // Helper to check if a group is completed
-    const isGroupCompleted = (groupId: string) => {
-      return computed(() =>
-        completedGroups.some((g) => g.groupId === groupId)
-      );
-    };
-
-    // Format timing display
-    const formatTiming = (group: StepGroup) => {
-      if (group.nightsBeforeServing !== undefined && group.nightsBeforeServing > 0) {
-        return `${group.nightsBeforeServing} night(s) before serving`;
-      } else if (group.minutesBeforeServing !== undefined) {
-        if (group.minutesBeforeServing === 0) return "Serve immediately";
-        const hours = Math.floor(group.minutesBeforeServing / 60);
-        const mins = group.minutesBeforeServing % 60;
-        if (hours > 0 && mins > 0) return `${hours}h ${mins}m before serving`;
-        if (hours > 0) return `${hours}h before serving`;
-        return `${mins}m before serving`;
-      }
-      return "No timing specified";
-    };
 
     return {
       [NAME]: str`👨‍🍳 ${displayName} - Cooking View`,
@@ -228,7 +222,9 @@ export default pattern<ViewerInput, ViewerOutput>(
             {computed(() =>
               recipeStepGroups.length > 0
                 ? recipeStepGroups.map((group) => {
-                    const groupCompleted = isGroupCompleted(group.id);
+                    const groupCompleted = computed(() =>
+                      completedGroups.some((g) => g.groupId === group.id)
+                    );
 
                     return (
                       <ct-card>
@@ -299,9 +295,8 @@ export default pattern<ViewerInput, ViewerOutput>(
                           {/* Steps with individual checkboxes */}
                           <ct-vstack gap={0}>
                             {group.steps.map((step, stepIndex) => {
-                              const stepCompleted = isStepCompleted(
-                                group.id,
-                                stepIndex
+                              const stepCompleted = computed(() =>
+                                completedSteps.some((s) => s.groupId === group.id && s.stepIndex === stepIndex)
                               );
 
                               return (
