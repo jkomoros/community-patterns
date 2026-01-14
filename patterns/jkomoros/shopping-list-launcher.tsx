@@ -461,8 +461,10 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
     });
 
     // BERNI'S BOXING APPROACH: Wrap items before sorting to preserve cell references
-    // 1. Box the items
-    const boxedItems = itemsWithAisles.map(assignment => ({ assignment }));
+    // 1. Box the items to preserve cell references during sorting
+    const boxedItems = itemsWithAisles.map(assignment => ({
+      assignment,
+    }));
 
     // 2. Sort boxed items by aisle (cells accessed inside derive auto-materialize)
     const sortedBoxedItems = derive(boxedItems, (boxed) => {
@@ -748,7 +750,7 @@ const ShoppingListLauncher = pattern<LauncherInput, LauncherOutput>(
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}>
-                          {assignment.item.title}
+                          {derive(assignment.item.title, (t) => t)}
                           {derive(
                             { storeData: mutableStoreData, itemTitle: assignment.item.title },
                             (values: { storeData: Writable<StoreData | null>; itemTitle: string }) => {
