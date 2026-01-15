@@ -96,6 +96,8 @@ type Settings = {
   historyId: Default<string, "">;
   // Enable verbose console logging for debugging
   debugMode: Default<boolean, false>;
+  // Automatically fetch emails when auth becomes valid (opt-in)
+  autoFetchOnAuth: Default<boolean, false>;
 };
 
 /** Gmail email importer for fetching and viewing emails. #gmailEmails */
@@ -672,6 +674,16 @@ const toggleDebugMode = handler<
   },
 );
 
+const toggleAutoFetch = handler<
+  { target: { checked: boolean } },
+  { settings: Writable<Settings> }
+>(
+  ({ target }, { settings }) => {
+    const current = settings.get();
+    settings.set({ ...current, autoFetchOnAuth: target.checked });
+  },
+);
+
 // Handler to change account type - must be at module scope
 const setAccountType = handler<
   { target: { value: string } },
@@ -715,6 +727,7 @@ export default pattern<{
     limit: 100;
     historyId: "";
     debugMode: false;
+    autoFetchOnAuth: false;
   }>;
 }, Output>(
   ({ settings }) => {
@@ -733,6 +746,39 @@ export default pattern<{
     computed(() => {
       if (settings.debugMode) {
         console.log("emails", emails.get().length);
+      }
+    });
+
+    // Auto-fetch when auth becomes valid (opt-in feature)
+    // Track whether we've already triggered auto-fetch to prevent loops
+    const hasAutoFetched = Writable.of(false);
+
+    computed(() => {
+      const ready = isReady;
+      const autoFetch = settings.autoFetchOnAuth;
+      const alreadyFetched = hasAutoFetched.get();
+      const currentlyFetching = fetching.get();
+      const hasEmails = emails.get().length > 0;
+      const hasHistoryId = !!settings.historyId;
+
+      // Only auto-fetch once when:
+      // - Auth is ready
+      // - autoFetchOnAuth is enabled
+      // - We haven't already auto-fetched this session
+      // - Not currently fetching
+      // - No emails loaded yet (first load)
+      if (ready && autoFetch && !alreadyFetched && !currentlyFetching && !hasEmails && !hasHistoryId) {
+        if (settings.debugMode) {
+          console.log("[GmailImporter] Auto-fetching emails on auth ready");
+        }
+        hasAutoFetched.set(true);
+        // Trigger the fetch handler
+        googleUpdater({
+          emails,
+          auth,
+          settings,
+          fetching,
+        }).send({});
       }
     });
 
@@ -801,6 +847,17 @@ export default pattern<{
                 $value={settings.gmailFilterQuery}
                 placeholder="in:INBOX"
               />
+            </div>
+
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
+                <input
+                  type="checkbox"
+                  checked={settings.autoFetchOnAuth}
+                  onChange={toggleAutoFetch({ settings })}
+                />
+                Auto-fetch on auth (fetch emails automatically when connected)
+              </label>
             </div>
 
             <div>

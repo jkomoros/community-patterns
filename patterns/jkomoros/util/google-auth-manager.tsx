@@ -54,6 +54,7 @@
  */
 
 import {
+  OpaqueRef,
   Writable,
   computed,
   derive,
@@ -160,6 +161,40 @@ export interface CreateGoogleAuthOptions {
    * Can be a static string or a reactive Writable for dynamic account switching.
    */
   accountType?: AccountType | Writable<AccountType>;
+}
+
+/**
+ * Return type for createGoogleAuth - explicitly typed to avoid TS inference issues
+ * with internal Cell types (CELL_BRAND, CELL_INNER_TYPE) that cannot be named in exports.
+ *
+ * Note: Most fields use 'any' to avoid exposing internal cell wrapper types.
+ * Consumers should use the specific property types documented in JSDoc comments.
+ */
+export interface GoogleAuthResult {
+  /** Core auth cell - WRITABLE for token refresh. Type: Writable<Auth> | null */
+  auth: any;
+  /** Single computed with all state - use authInfo.state for state checks */
+  authInfo: any;
+  /** Boolean for state === "ready" */
+  isReady: any;
+  /** String of signed-in email */
+  currentEmail: any;
+  /** Current AuthState value */
+  currentState: any;
+  /** Handler to create a new Google Auth charm */
+  createAuth: any;
+  /** Handler to navigate to existing auth charm */
+  goToAuth: any;
+  /** Picker UI when multiple auth matches */
+  pickerUI: any;
+  /** Minimal status indicator */
+  statusUI: any;
+  /** Full state-aware management UI */
+  fullUI: any;
+  /** Protected content wrapper - use ifElse(isReady, children, null) if serialization issues */
+  protectedContent: (children: JSX.Element) => any;
+  /** Raw wish result for advanced use cases */
+  wishResult: any;
 }
 
 /** Type for the Google Auth charm returned by wish */
@@ -290,7 +325,7 @@ function formatTimeRemaining(ms: number | null): string {
  * 3. Single computed() for all derived state to prevent thrashing
  * 4. Token refresh is currently broken - we detect but don't auto-refresh
  */
-export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
+export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleAuthResult {
   const requiredScopes = options.requiredScopes || [];
   const accountType = options.accountType || "default";
 
