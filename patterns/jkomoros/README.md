@@ -60,6 +60,7 @@ Import emails from Gmail using authenticated queries.
 - Gmail API integration with search queries
 - Email content extraction (subject, body, attachments)
 - Incremental sync support
+- CID inline image resolution for embedded images (e.g., USPS Informed Delivery scans)
 
 #### `google-docs-comment-orchestrator.tsx`
 AI-powered assistant for managing Google Docs comments. Fetches unresolved comments and generates contextual reply suggestions.
@@ -473,6 +474,17 @@ View Apple Notes synced via apple-sync CLI.
 
 #### `WIP/reminders-viewer.tsx`
 View Apple Reminders synced via apple-sync CLI.
+
+#### `WIP/usps-informed-delivery.tsx`
+Analyze USPS Informed Delivery emails to extract mail piece images and classify incoming mail.
+
+**Interesting features:**
+- Links to gmail-importer to receive USPS emails with resolved inline images
+- LLM vision analysis of mail piece scans using `generateObject` with image type
+- Extracts recipient names, sender information, and mail content summaries
+- Spam detection with configurable thresholds
+- Household member learning from analyzed mail
+- Real-time analysis progress display
 
 #### `WIP/map-test-100-items.tsx`
 Performance testing pattern for mapping over large arrays.
