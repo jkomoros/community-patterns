@@ -199,6 +199,61 @@ const STATUS_MESSAGES: Record<AuthState, string> = {
 // Token expiry warning threshold (10 minutes)
 const TOKEN_WARNING_THRESHOLD_MS = 10 * 60 * 1000;
 
+// =============================================================================
+// MODULE-SCOPE HANDLERS
+// Handlers MUST be at module scope to work in JSX. Handlers defined inside
+// functions fail with "X is not a function" errors at runtime.
+// =============================================================================
+
+/**
+ * Handler to create new Google Auth charm with pre-selected scopes.
+ */
+const createAuthHandler = handler<unknown, { scopes: ScopeKey[] }>(
+  (_event, { scopes }) => {
+    const selectedScopes: Record<ScopeKey, boolean> = {
+      gmail: false,
+      gmailSend: false,
+      gmailModify: false,
+      calendar: false,
+      calendarWrite: false,
+      drive: false,
+      docs: false,
+      contacts: false,
+    };
+
+    for (const scope of scopes) {
+      if (scope in selectedScopes) {
+        selectedScopes[scope] = true;
+      }
+    }
+
+    const authCharm = GoogleAuth({
+      selectedScopes,
+      auth: {
+        token: "",
+        tokenType: "",
+        scope: [],
+        expiresIn: 0,
+        expiresAt: 0,
+        refreshToken: "",
+        user: { email: "", name: "", picture: "" },
+      },
+    });
+
+    return navigateTo(authCharm);
+  },
+);
+
+/**
+ * Handler to navigate to existing auth charm.
+ */
+const goToAuthHandler = handler<unknown, { charm: Writable<GoogleAuthCharm | null> }>(
+  (_event, { charm }) => {
+    const c = charm.get();
+    if (c) return navigateTo(c);
+  },
+);
+
 /**
  * Format time remaining in a human-readable way
  */
@@ -361,57 +416,18 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   });
 
   // ==========================================================================
-  // HANDLERS
+  // PRE-BOUND HANDLERS
+  // Handlers are defined at module scope. Here we bind them with the required
+  // state so they can be used in JSX. These bound handlers work in direct JSX
+  // but NOT inside derive() callbacks.
   // ==========================================================================
 
-  // Handler to create new Google Auth charm with pre-selected scopes
-  const createAuth = handler<unknown, { scopes: ScopeKey[] }>(
-    (_event, { scopes }) => {
-      // Build selectedScopes object with required scopes enabled
-      const selectedScopes: Record<ScopeKey, boolean> = {
-        gmail: false,
-        gmailSend: false,
-        gmailModify: false,
-        calendar: false,
-        calendarWrite: false,
-        drive: false,
-        docs: false,
-        contacts: false,
-      };
-
-      for (const scope of scopes) {
-        if (scope in selectedScopes) {
-          selectedScopes[scope] = true;
-        }
-      }
-
-      const authCharm = GoogleAuth({
-        selectedScopes,
-        auth: {
-          token: "",
-          tokenType: "",
-          scope: [],
-          expiresIn: 0,
-          expiresAt: 0,
-          refreshToken: "",
-          user: { email: "", name: "", picture: "" },
-        },
-      });
-
-      return navigateTo(authCharm);
-    },
-  );
-
-  // Handler to navigate to existing auth charm
-  const goToAuth = handler<unknown, { charm: Writable<GoogleAuthCharm | null> }>(
-    (_event, { charm }) => {
-      const c = charm.get();
-      if (c) return navigateTo(c);
-    },
-  );
-
-  // Pre-create charm cell for goToAuth binding (needed by UI components)
+  // Pre-create charm cell for goToAuth binding
   const charmCell = derive(authInfo, (info) => info.charm);
+
+  // Bind handlers with their required state
+  const boundCreateAuth = createAuthHandler({ scopes: requiredScopes });
+  const boundGoToAuth = goToAuthHandler({ charm: charmCell });
 
   // ==========================================================================
   // UI COMPONENTS
@@ -491,215 +507,295 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
   const formatScopesList = (scopes: ScopeKey[]) =>
     scopes.map((k) => SCOPE_DESCRIPTIONS[k]).join(", ");
 
-  // Full state-aware management UI
-  const fullUI = derive(authInfo, (info) => {
-    // Loading or not-found - show "Connect" UI immediately (optimistic approach)
-    // If auth IS found, will transition to ready state
-    if (info.state === "loading" || info.state === "not-found") {
-      return (
+  // ==========================================================================
+  // UI PIECES (with handlers)
+  // These use pre-bound handlers and are defined OUTSIDE derive() callbacks.
+  // Handlers don't work inside derive() - they fail with "X is not a function".
+  // ==========================================================================
+
+  // Scope list for display (static content, safe in derive)
+  const scopeListItems = requiredScopes.map((scope, i) => (
+    <li key={i} style={{ marginBottom: "4px" }}>
+      {SCOPE_DESCRIPTIONS[scope]}
+    </li>
+  ));
+
+  // "Connect" button - uses pre-bound handler, defined outside derive
+  const connectButton = (
+    <button
+      onClick={boundCreateAuth}
+      style={{
+        padding: "10px 20px",
+        backgroundColor: "#3b82f6",
+        color: "white",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer",
+        fontWeight: "500",
+        fontSize: "14px",
+      }}
+    >
+      Connect Google Account
+    </button>
+  );
+
+  // "Add new account" button (outline style)
+  const addAccountButton = (
+    <button
+      onClick={boundCreateAuth}
+      style={{
+        marginTop: "12px",
+        padding: "8px 16px",
+        backgroundColor: "transparent",
+        color: "#1e40af",
+        border: "1px solid #3b82f6",
+        borderRadius: "6px",
+        cursor: "pointer",
+        fontSize: "13px",
+      }}
+    >
+      + Add new account
+    </button>
+  );
+
+  // "Manage this account" button
+  const manageAccountButton = (
+    <button
+      onClick={boundGoToAuth}
+      style={{
+        padding: "6px 12px",
+        backgroundColor: "transparent",
+        color: "#4b5563",
+        border: "1px solid #d1d5db",
+        borderRadius: "4px",
+        cursor: "pointer",
+        fontSize: "13px",
+      }}
+    >
+      Manage this account
+    </button>
+  );
+
+  // "Use different account" button
+  const useDifferentAccountButton = (
+    <button
+      onClick={boundCreateAuth}
+      style={{
+        padding: "6px 12px",
+        backgroundColor: "transparent",
+        color: "#3b82f6",
+        border: "1px solid #3b82f6",
+        borderRadius: "4px",
+        cursor: "pointer",
+        fontSize: "13px",
+      }}
+    >
+      + Use different account
+    </button>
+  );
+
+  // "Switch" button for ready state
+  const switchButton = (
+    <button
+      onClick={boundGoToAuth}
+      style={{
+        background: "none",
+        border: "none",
+        color: "#047857",
+        cursor: "pointer",
+        fontSize: "12px",
+        padding: "2px 6px",
+        borderRadius: "4px",
+      }}
+    >
+      Switch
+    </button>
+  );
+
+  // "+ Add" button for ready state
+  const addButton = (
+    <button
+      onClick={boundCreateAuth}
+      style={{
+        background: "none",
+        border: "none",
+        color: "#047857",
+        cursor: "pointer",
+        fontSize: "12px",
+        padding: "2px 6px",
+        borderRadius: "4px",
+      }}
+    >
+      + Add
+    </button>
+  );
+
+  // Action buttons row for error states
+  const actionButtonsRow = (
+    <div
+      style={{
+        padding: "12px 16px",
+        backgroundColor: "#f9fafb",
+        display: "flex",
+        gap: "12px",
+        alignItems: "center",
+      }}
+    >
+      <span style={{ fontSize: "13px", color: "#6b7280" }}>Or:</span>
+      {manageAccountButton}
+      {useDifferentAccountButton}
+    </div>
+  );
+
+  // ==========================================================================
+  // FULL UI (using ifElse for state-based rendering)
+  // The buttons with handlers are defined above, outside any derive context.
+  // ==========================================================================
+
+  // State checks for conditional rendering
+  const isLoadingOrNotFound = derive(authInfo, (info) =>
+    info.state === "loading" || info.state === "not-found"
+  );
+  const isSelecting = derive(authInfo, (info) => info.state === "selecting");
+  const needsAction = derive(authInfo, (info) =>
+    info.state === "needs-login" || info.state === "missing-scopes" || info.state === "token-expired"
+  );
+  const isAuthReady = derive(authInfo, (info) => info.state === "ready");
+
+  // Loading/Not-found UI
+  const loadingUI = (
+    <div
+      style={{
+        padding: "16px",
+        backgroundColor: "#f3f4f6",
+        borderRadius: "8px",
+        border: "1px solid #d1d5db",
+      }}
+    >
+      <h4 style={{ margin: "0 0 8px 0", color: "#374151" }}>
+        Connect Your Google Account
+      </h4>
+      <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#4b5563" }}>
+        To use this feature, connect a Google account with these permissions:
+      </p>
+      {requiredScopes.length > 0 && (
+        <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", fontSize: "13px", color: "#6b7280" }}>
+          {scopeListItems}
+        </ul>
+      )}
+      {connectButton}
+    </div>
+  );
+
+  // Selecting UI (multiple matches)
+  const selectingUI = (
+    <div
+      style={{
+        padding: "16px",
+        backgroundColor: "#dbeafe",
+        borderRadius: "8px",
+      }}
+    >
+      <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>
+        Select a Google Account
+      </h4>
+      {requiredScopes.length > 0 && (
+        <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
+          This feature needs access to: {formatScopesList(requiredScopes)}
+        </p>
+      )}
+      {pickerUI}
+      {addAccountButton}
+    </div>
+  );
+
+  // Needs-action UI (needs-login, missing-scopes, token-expired)
+  // This one needs dynamic content from authInfo, so we use derive for the content
+  // but the buttons are still the pre-bound ones from above
+  const needsActionUI = derive(authInfo, (info) => {
+    if (info.state !== "needs-login" && info.state !== "missing-scopes" && info.state !== "token-expired") {
+      return null;
+    }
+
+    // Build missing scopes message
+    const missingScopesMessage = info.state === "missing-scopes" ? (
+      <div>
+        <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#4b5563" }}>
+          Connected as <strong>{info.email}</strong>, but this feature needs additional permissions:
+        </p>
+        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+          {Array.from(info.missingScopes).map((scope, i) => (
+            <li key={i} style={{ color: "#c2410c", marginBottom: "2px" }}>
+              {SCOPE_DESCRIPTIONS[scope as ScopeKey]}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+
+    const stateConfig = {
+      "needs-login": {
+        title: "Sign In Required",
+        message: <span>Please sign in with your Google account to continue.</span>,
+        bgColor: "#fee2e2",
+        borderColor: "#ef4444",
+        titleColor: "#dc2626",
+      },
+      "missing-scopes": {
+        title: "Additional Permissions Needed",
+        message: missingScopesMessage,
+        bgColor: "#ffedd5",
+        borderColor: "#f97316",
+        titleColor: "#c2410c",
+      },
+      "token-expired": {
+        title: "Session Expired",
+        message: <span>Your Google session has expired. Please sign in again to continue.</span>,
+        bgColor: "#fee2e2",
+        borderColor: "#ef4444",
+        titleColor: "#dc2626",
+      },
+    };
+
+    const config = stateConfig[info.state as "needs-login" | "missing-scopes" | "token-expired"];
+
+    return (
+      <div
+        style={{
+          borderRadius: "8px",
+          border: `1px solid ${config.borderColor}`,
+          overflow: "hidden",
+        }}
+      >
         <div
           style={{
-            padding: "16px",
-            backgroundColor: "#f3f4f6",
-            borderRadius: "8px",
-            border: "1px solid #d1d5db",
+            padding: "12px 16px",
+            backgroundColor: config.bgColor,
+            borderBottom: `1px solid ${config.borderColor}`,
           }}
         >
-          <h4 style={{ margin: "0 0 8px 0", color: "#374151" }}>
-            Connect Your Google Account
+          <h4 style={{ margin: "0 0 4px 0", color: config.titleColor, fontSize: "14px" }}>
+            {config.title}
           </h4>
-          <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#4b5563" }}>
-            To use this feature, connect a Google account with these permissions:
-          </p>
-          {requiredScopes.length > 0 && (
-            <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", fontSize: "13px", color: "#6b7280" }}>
-              {requiredScopes.map((scope, i) => (
-                <li key={i} style={{ marginBottom: "4px" }}>
-                  {SCOPE_DESCRIPTIONS[scope]}
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            onClick={createAuth({ scopes: requiredScopes })}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#3b82f6",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "500",
-              fontSize: "14px",
-            }}
-          >
-            Connect Google Account
-          </button>
-        </div>
-      );
-    }
-
-    // Selecting state (multiple matches) - show picker with context
-    if (info.state === "selecting") {
-      return (
-        <div
-          style={{
-            padding: "16px",
-            backgroundColor: "#dbeafe",
-            borderRadius: "8px",
-          }}
-        >
-          <h4 style={{ margin: "0 0 8px 0", color: "#1e40af" }}>
-            Select a Google Account
-          </h4>
-          {requiredScopes.length > 0 && (
-            <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
-              This feature needs access to: {formatScopesList(requiredScopes)}
-            </p>
-          )}
-          {pickerUI}
-          {/* Always show option to create new auth */}
-          <button
-            onClick={createAuth({ scopes: requiredScopes })}
-            style={{
-              marginTop: "12px",
-              padding: "8px 16px",
-              backgroundColor: "transparent",
-              color: "#1e40af",
-              border: "1px solid #3b82f6",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontSize: "13px",
-            }}
-          >
-            + Add new account
-          </button>
-        </div>
-      );
-    }
-
-    // States where auth exists but needs user action - render charm UI inline
-    // This lets users fix auth issues without navigating away from the current pattern
-    if (info.state === "needs-login" || info.state === "missing-scopes" || info.state === "token-expired") {
-      // Build missing scopes message with list format for better readability
-      const missingScopesMessage = info.state === "missing-scopes" ? (
-        <div>
-          <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#4b5563" }}>
-            Connected as <strong>{info.email}</strong>, but this feature needs additional permissions:
-          </p>
-          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
-            {info.missingScopes.map((scope, i) => (
-              <li key={i} style={{ color: "#c2410c", marginBottom: "2px" }}>
-                {SCOPE_DESCRIPTIONS[scope as ScopeKey]}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null;
-
-      // Warning messages and colors per state
-      const stateConfig = {
-        "needs-login": {
-          title: "Sign In Required",
-          message: <span>Please sign in with your Google account to continue.</span>,
-          bgColor: "#fee2e2",
-          borderColor: "#ef4444",
-          titleColor: "#dc2626",
-        },
-        "missing-scopes": {
-          title: "Additional Permissions Needed",
-          message: missingScopesMessage,
-          bgColor: "#ffedd5",
-          borderColor: "#f97316",
-          titleColor: "#c2410c",
-        },
-        "token-expired": {
-          title: "Session Expired",
-          message: <span>Your Google session has expired. Please sign in again to continue.</span>,
-          bgColor: "#fee2e2",
-          borderColor: "#ef4444",
-          titleColor: "#dc2626",
-        },
-      };
-
-      const config = stateConfig[info.state as "needs-login" | "missing-scopes" | "token-expired"];
-
-      return (
-        <div
-          style={{
-            borderRadius: "8px",
-            border: `1px solid ${config.borderColor}`,
-            overflow: "hidden",
-          }}
-        >
-          {/* Warning banner */}
-          <div
-            style={{
-              padding: "12px 16px",
-              backgroundColor: config.bgColor,
-              borderBottom: `1px solid ${config.borderColor}`,
-            }}
-          >
-            <h4 style={{ margin: "0 0 4px 0", color: config.titleColor, fontSize: "14px" }}>
-              {config.title}
-            </h4>
-            <div style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
-              {config.message || ""}
-            </div>
-          </div>
-          {/* Inline auth charm UI - use info.charmUI (unwrapped in authInfo derive) */}
-          <div style={{ backgroundColor: "white" }}>
-            {info.charmUI}
-          </div>
-          {/* Option to use a different account */}
-          <div
-            style={{
-              padding: "12px 16px",
-              backgroundColor: "#f9fafb",
-              borderTop: `1px solid ${config.borderColor}`,
-              display: "flex",
-              gap: "12px",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ fontSize: "13px", color: "#6b7280" }}>Or:</span>
-            <button
-              onClick={goToAuth({ charm: charmCell })}
-              style={{
-                padding: "6px 12px",
-                backgroundColor: "transparent",
-                color: "#4b5563",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "13px",
-              }}
-            >
-              Manage this account
-            </button>
-            <button
-              onClick={createAuth({ scopes: requiredScopes })}
-              style={{
-                padding: "6px 12px",
-                backgroundColor: "transparent",
-                color: "#3b82f6",
-                border: "1px solid #3b82f6",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "13px",
-              }}
-            >
-              + Use different account
-            </button>
+          <div style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
+            {config.message || ""}
           </div>
         </div>
-      );
-    }
+        <div style={{ backgroundColor: "white" }}>
+          {info.charmUI}
+        </div>
+        {actionButtonsRow}
+      </div>
+    );
+  });
 
-    // Ready state - green indicator with userChip, switch account, optional expiry warning
+  // Ready state UI
+  // Uses derive for dynamic content but buttons are pre-bound
+  const readyUI = derive(authInfo, (info) => {
+    if (info.state !== "ready") return null;
+
     return (
       <div>
-        {/* Main status */}
         <div
           style={{
             display: "flex",
@@ -712,46 +808,17 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
             borderBottom: info.tokenExpiryWarning === "warning" ? "none" : "1px solid #10b981",
           }}
         >
-          {/* User chip from google-auth - shows avatar + name + email */}
           {info.userChip}
-          {/* Token expiry and switch account */}
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
             {info.tokenExpiryDisplay && (
               <span style={{ fontSize: "12px", color: "#059669" }}>
                 {info.tokenExpiryDisplay}
               </span>
             )}
-            <button
-              onClick={goToAuth({ charm: charmCell })}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#047857",
-                cursor: "pointer",
-                fontSize: "12px",
-                padding: "2px 6px",
-                borderRadius: "4px",
-              }}
-            >
-              Switch
-            </button>
-            <button
-              onClick={createAuth({ scopes: requiredScopes })}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#047857",
-                cursor: "pointer",
-                fontSize: "12px",
-                padding: "2px 6px",
-                borderRadius: "4px",
-              }}
-            >
-              + Add
-            </button>
+            {switchButton}
+            {addButton}
           </div>
         </div>
-        {/* Proactive expiry warning */}
         {info.tokenExpiryWarning === "warning" && (
           <div
             style={{
@@ -770,6 +837,21 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
       </div>
     );
   });
+
+  // Compose fullUI using ifElse chains
+  const fullUI = ifElse(
+    isLoadingOrNotFound,
+    loadingUI,
+    ifElse(
+      isSelecting,
+      selectingUI,
+      ifElse(
+        needsAction,
+        needsActionUI,
+        ifElse(isAuthReady, readyUI, null)
+      )
+    )
+  );
 
   // ==========================================================================
   // RETURN
@@ -797,9 +879,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}) {
     currentEmail,
     currentState,
 
-    // Actions
-    createAuth: createAuth({ scopes: requiredScopes }),
-    goToAuth: goToAuth({ charm: charmCell }),
+    // Actions (pre-bound handlers)
+    createAuth: boundCreateAuth,
+    goToAuth: boundGoToAuth,
 
     // UI Components
     pickerUI,

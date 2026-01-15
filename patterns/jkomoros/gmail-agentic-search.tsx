@@ -1087,7 +1087,8 @@ const GmailAgenticSearch = pattern<
 
     // Use module-scope handlers
     const createSearchRegistry = createSearchRegistryHandler;
-    const setAccountType = setAccountTypeHandler;
+    // Pre-bind handler with required state - bound handlers work in JSX but not in derive callbacks
+    const boundSetAccountType = setAccountTypeHandler({ selectedType: selectedAccountType });
 
     // ========================================================================
     // PROGRESS TRACKING
@@ -1325,52 +1326,56 @@ When you're done searching, STOP calling tools and produce your final structured
     // UI PIECES (extracted for flexible composition)
     // ========================================================================
 
+    // Account type selector - built OUTSIDE derive so handler works
+    // Handlers don't work inside derive() callbacks
+    const accountTypeSelector = (
+      <div
+        style={{
+          marginBottom: "12px",
+          padding: "8px 12px",
+          background: "#f8fafc",
+          borderRadius: "6px",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "13px",
+        }}
+      >
+        <span style={{ color: "#64748b" }}>Account:</span>
+        <select
+          onChange={boundSetAccountType}
+          style={{
+            padding: "4px 8px",
+            borderRadius: "4px",
+            border: "1px solid #e2e8f0",
+            background: "white",
+            fontSize: "13px",
+            cursor: "pointer",
+          }}
+        >
+          <option value="default" selected={derive(selectedAccountType, (t: string) => t === "default")}>
+            Any Google Account
+          </option>
+          <option value="personal" selected={derive(selectedAccountType, (t: string) => t === "personal")}>
+            Personal Account
+          </option>
+          <option value="work" selected={derive(selectedAccountType, (t: string) => t === "work")}>
+            Work Account
+          </option>
+        </select>
+        {derive(selectedAccountType, (type: string) => type !== "default" ? (
+          <span style={{ color: "#94a3b8", fontSize: "11px" }}>
+            (using #{type === "personal" ? "googleAuthPersonal" : "googleAuthWork"})
+          </span>
+        ) : null)}
+      </div>
+    );
+
     // Auth UI - shows auth status, login buttons, or connect Gmail prompt
     const authUI = (
       <div>
         {/* Account Type Selector (only shown if not using direct auth) */}
-        {derive(hasDirectAuth, (hasDirect: boolean) => !hasDirect ? (
-          <div
-            style={{
-              marginBottom: "12px",
-              padding: "8px 12px",
-              background: "#f8fafc",
-              borderRadius: "6px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              fontSize: "13px",
-            }}
-          >
-            <span style={{ color: "#64748b" }}>Account:</span>
-            <select
-              onChange={setAccountType({ selectedType: selectedAccountType })}
-              style={{
-                padding: "4px 8px",
-                borderRadius: "4px",
-                border: "1px solid #e2e8f0",
-                background: "white",
-                fontSize: "13px",
-                cursor: "pointer",
-              }}
-            >
-              <option value="default" selected={derive(selectedAccountType, (t: string) => t === "default")}>
-                Any Google Account
-              </option>
-              <option value="personal" selected={derive(selectedAccountType, (t: string) => t === "personal")}>
-                Personal Account
-              </option>
-              <option value="work" selected={derive(selectedAccountType, (t: string) => t === "work")}>
-                Work Account
-              </option>
-            </select>
-            {derive(selectedAccountType, (type: string) => type !== "default" ? (
-              <span style={{ color: "#94a3b8", fontSize: "11px" }}>
-                (using #{type === "personal" ? "googleAuthPersonal" : "googleAuthWork"})
-              </span>
-            ) : null)}
-          </div>
-        ) : null)}
+        {ifElse(hasDirectAuth, null, accountTypeSelector)}
 
         {/* Auth Status - use nested ifElse to avoid Cell-in-Cell problem */}
         {/* Only show custom error UIs for specific warning states;
