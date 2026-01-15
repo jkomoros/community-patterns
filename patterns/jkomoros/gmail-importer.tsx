@@ -91,13 +91,17 @@ type Settings = {
   // Gmail filter query to use for fetching emails
   gmailFilterQuery: Default<string, "in:INBOX">;
   // Maximum number of emails to fetch
-  limit: Default<number, 100>;
+  limit: Default<number, 10>;
   // Gmail history ID for incremental sync
   historyId: Default<string, "">;
   // Enable verbose console logging for debugging
   debugMode: Default<boolean, false>;
   // Automatically fetch emails when auth becomes valid (opt-in)
   autoFetchOnAuth: Default<boolean, false>;
+  // Resolve inline image attachments (cid: references) to base64 data URLs
+  // Enable this for emails with embedded images (e.g., USPS Informed Delivery)
+  // Note: This fetches additional attachment data which may be slower
+  resolveInlineImages: Default<boolean, false>;
 };
 
 /** Gmail email importer for fetching and viewing emails. #gmailEmails */
@@ -136,6 +140,8 @@ const googleUpdater = handler<unknown, {
     limit: number;
     historyId: string;
     debugMode: boolean;
+    autoFetchOnAuth: boolean;
+    resolveInlineImages: boolean;
   }>;
   fetching?: Writable<boolean>;
 }>(
@@ -233,11 +239,93 @@ function getHeader(headers: any[], name: string): string {
   return header ? header.value : "";
 }
 
-function messageToEmail(
+// Helper to escape special regex characters
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Resolve cid: references in HTML by fetching inline image attachments.
+ * Returns HTML with cid: URLs replaced by base64 data URLs.
+ *
+ * CID (Content-ID) references are used in emails to embed images directly
+ * in the message body as MIME attachments. Example:
+ *   <img src="cid:1019388469-033.jpg" alt="Mailpiece Image">
+ *
+ * This is common in USPS Informed Delivery emails where mail piece scans
+ * are embedded as inline attachments rather than external URLs.
+ */
+async function resolveCidReferences(
+  messageId: string,
+  parts: any[],
+  htmlContent: string,
+  client: GmailClient,
+  debugMode: boolean,
+): Promise<string> {
+  // Build map of Content-ID -> attachmentId
+  const cidMap = new Map<string, { attachmentId: string; mimeType: string }>();
+
+  function collectCidParts(parts: any[]) {
+    for (const part of parts) {
+      if (part.body?.attachmentId && part.headers) {
+        const contentId = getHeader(part.headers, "Content-ID");
+        if (contentId) {
+          // Content-ID is typically <id> - strip angle brackets
+          const cid = contentId.replace(/^<|>$/g, "");
+          cidMap.set(cid, {
+            attachmentId: part.body.attachmentId,
+            mimeType: part.mimeType || "image/jpeg",
+          });
+          debugLog(debugMode, `[CID] Found inline attachment: cid:${cid} -> ${part.body.attachmentId}`);
+        }
+      }
+      // Recurse into nested parts
+      if (part.parts) {
+        collectCidParts(part.parts);
+      }
+    }
+  }
+
+  collectCidParts(parts);
+
+  if (cidMap.size === 0) {
+    debugLog(debugMode, "[CID] No inline attachments found");
+    return htmlContent;
+  }
+
+  debugLog(debugMode, `[CID] Found ${cidMap.size} inline attachments to resolve`);
+
+  // Fetch each attachment and replace in HTML
+  let resolvedHtml = htmlContent;
+  for (const [cid, { attachmentId, mimeType }] of cidMap) {
+    try {
+      debugLog(debugMode, `[CID] Fetching attachment for cid:${cid}`);
+      const data = await client.getAttachment(messageId, attachmentId);
+      // Convert base64url to standard base64
+      const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      // Replace all occurrences of this cid: reference
+      resolvedHtml = resolvedHtml.replace(
+        new RegExp(`cid:${escapeRegExp(cid)}`, "gi"),
+        dataUrl,
+      );
+      debugLog(debugMode, `[CID] Resolved cid:${cid} (${data.length} chars of base64 data)`);
+    } catch (error) {
+      debugWarn(debugMode, `[CID] Failed to fetch attachment for cid:${cid}:`, error);
+      // Leave cid: reference as-is on failure
+    }
+  }
+
+  return resolvedHtml;
+}
+
+async function messageToEmail(
   parts: any[],
   debugMode: boolean = false,
-): Email[] {
-  return parts.map((messageData, index) => {
+  client?: GmailClient,
+  resolveInlineImages: boolean = false,
+): Promise<Email[]> {
+  const results = await Promise.all(parts.map(async (messageData, index) => {
     try {
       // DEBUG: Log raw message structure
       debugLog(debugMode, `\n[messageToEmail] Processing message ${index + 1}/${parts.length}`);
@@ -339,6 +427,20 @@ function messageToEmail(
         debugLog(debugMode, `[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`);
       }
 
+      // Resolve inline image attachments (cid: references) if enabled
+      if (resolveInlineImages && client && htmlContent) {
+        debugLog(debugMode, `[messageToEmail] Resolving CID references...`);
+        const allParts = messageData.payload.parts || [messageData.payload];
+        htmlContent = await resolveCidReferences(
+          messageData.id,
+          allParts,
+          htmlContent,
+          client,
+          debugMode,
+        );
+        debugLog(debugMode, `[messageToEmail] CID resolution complete, htmlContent length: ${htmlContent.length}`);
+      }
+
       // Generate markdown content from HTML or plainText
       let markdownContent = "";
       debugLog(debugMode, `[messageToEmail] Converting to markdown...`);
@@ -393,7 +495,8 @@ function messageToEmail(
       }
       return null;
     }
-  }).filter((message): message is Email => message !== null);
+  }));
+  return results.filter((message): message is Email => message !== null);
 }
 
 export async function process(
@@ -403,7 +506,7 @@ export async function process(
   state: {
     emails: Writable<Email[]>;
     settings: Writable<
-      { gmailFilterQuery: string; limit: number; historyId: string }
+      { gmailFilterQuery: string; limit: number; historyId: string; resolveInlineImages?: boolean }
     >;
   },
   debugMode: boolean = false,
@@ -627,7 +730,11 @@ export async function process(
       try {
         await sleep(1000);
         const fetched = await client.fetchMessagesByIds(batchIds);
-        const emails = messageToEmail(fetched, debugMode);
+        const currentSettings = state.settings.get();
+        const resolveInlineImages = currentSettings.resolveInlineImages || false;
+        debugLog(debugMode, `[process] resolveInlineImages setting: ${resolveInlineImages}`);
+        debugLog(debugMode, `[process] Full settings:`, JSON.stringify(currentSettings));
+        const emails = await messageToEmail(fetched, debugMode, client, resolveInlineImages);
 
         if (emails.length > 0) {
           debugLog(debugMode, `Adding ${emails.length} new emails`);
@@ -684,6 +791,16 @@ const toggleAutoFetch = handler<
   },
 );
 
+const toggleResolveInlineImages = handler<
+  { target: { checked: boolean } },
+  { settings: Writable<Settings> }
+>(
+  ({ target }, { settings }) => {
+    const current = settings.get();
+    settings.set({ ...current, resolveInlineImages: target.checked });
+  },
+);
+
 // Handler to change account type - must be at module scope
 const setAccountType = handler<
   { target: { value: string } },
@@ -724,13 +841,17 @@ const getRecentEmailsCallback = ({ count, emails }: { count: number; emails: Ema
 export default pattern<{
   settings: Default<Settings, {
     gmailFilterQuery: "in:INBOX";
-    limit: 100;
+    limit: 10;
     historyId: "";
     debugMode: false;
     autoFetchOnAuth: false;
+    resolveInlineImages: false;
   }>;
+  // Optional: Link auth directly from a Google Auth charm when wish() is unavailable
+  // Use: ct charm link googleAuthCharm/auth gmailImporterCharm/linkedAuth
+  linkedAuth?: Auth;
 }, Output>(
-  ({ settings }) => {
+  ({ settings, linkedAuth }) => {
     const emails = Writable.of<Confidential<Email[]>>([]);
     const fetching = Writable.of(false);
 
@@ -738,10 +859,29 @@ export default pattern<{
     const selectedAccountType = Writable.of<AccountType>("default");
 
     // Use createGoogleAuth utility with reactive accountType
-    const { auth, fullUI, isReady, currentEmail } = createGoogleAuth({
+    const { auth: wishedAuth, fullUI, isReady: wishedIsReady, currentEmail: wishedCurrentEmail } = createGoogleAuth({
       requiredScopes: ["gmail"] as ScopeKey[],
       accountType: selectedAccountType,
     });
+
+    // Check if linkedAuth is provided (for manual linking when wish() is unavailable)
+    const hasLinkedAuth = derive({ linkedAuth }, ({ linkedAuth: la }) => !!(la?.token));
+    const linkedAuthEmail = derive({ linkedAuth }, ({ linkedAuth: la }) => la?.user?.email || "");
+
+    // Use linkedAuth if provided, otherwise use wished auth
+    // This allows manual linking via CLI when wish() is unavailable (e.g., favorites disabled)
+    // Note: We wrap linkedAuth in Writable.of outside of reactive context
+    const linkedAuthCell = Writable.of<Auth | null>(null);
+    computed(() => {
+      if (linkedAuth?.token) {
+        linkedAuthCell.set(linkedAuth as any);
+      }
+    });
+
+    // Choose auth source based on linkedAuth availability
+    const auth = ifElse(hasLinkedAuth, linkedAuthCell, wishedAuth) as any;
+    const isReady = ifElse(hasLinkedAuth, hasLinkedAuth, wishedIsReady);
+    const currentEmail = ifElse(hasLinkedAuth, linkedAuthEmail, wishedCurrentEmail);
 
     computed(() => {
       if (settings.debugMode) {
@@ -857,6 +997,17 @@ export default pattern<{
                   onChange={toggleAutoFetch({ settings })}
                 />
                 Auto-fetch on auth (fetch emails automatically when connected)
+              </label>
+            </div>
+
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}>
+                <input
+                  type="checkbox"
+                  checked={settings.resolveInlineImages}
+                  onChange={toggleResolveInlineImages({ settings })}
+                />
+                Resolve inline images (for USPS, etc. - slower)
               </label>
             </div>
 

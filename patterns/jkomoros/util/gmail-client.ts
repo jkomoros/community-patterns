@@ -332,6 +332,20 @@ Accept: application/json
   }
 
   /**
+   * Fetch a message attachment by ID.
+   * Used to resolve inline image attachments (cid: references in HTML).
+   * Returns base64url-encoded attachment data.
+   */
+  async getAttachment(messageId: string, attachmentId: string): Promise<string> {
+    const url = new URL(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
+    );
+    const res = await this.googleRequest(url);
+    const json = await res.json();
+    return json.data; // base64url encoded
+  }
+
+  /**
    * Fetch Gmail history for incremental sync.
    */
   async fetchHistory(
