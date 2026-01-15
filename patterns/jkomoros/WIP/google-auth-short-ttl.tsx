@@ -128,7 +128,69 @@ const toggleScope = handler<
 );
 
 /**
- * Handler for refreshing OAuth tokens.
+ * Handler for manual refresh button click (UI-triggered).
+ * Same logic as refreshTokenHandler but for direct button clicks.
+ */
+const handleManualRefresh = handler<unknown, { auth: Writable<Auth> }>(
+  async (_event, { auth }) => {
+    console.log('[SHORT-TTL] handleManualRefresh called (button click)');
+    const currentAuth = auth.get();
+    const refreshToken = currentAuth?.refreshToken;
+
+    console.log('[SHORT-TTL] Current expiresAt:', currentAuth?.expiresAt);
+    console.log('[SHORT-TTL] Current token (first 20 chars):', currentAuth?.token?.slice(0, 20));
+    console.log('[SHORT-TTL] Has refreshToken:', !!refreshToken);
+
+    if (!refreshToken) {
+      console.error("[SHORT-TTL] No refresh token available");
+      throw new Error("No refresh token available");
+    }
+
+    console.log("[SHORT-TTL] Calling refresh endpoint...");
+
+    const res = await fetch(
+      new URL("/api/integrations/google-oauth/refresh", env.apiUrl),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      },
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("[SHORT-TTL] Refresh failed:", res.status, errorText);
+      throw new Error(`Token refresh failed: ${res.status}`);
+    }
+
+    const json = await res.json();
+    console.log('[SHORT-TTL] Server response received');
+    console.log('[SHORT-TTL] New token from server (first 20 chars):', json.tokenInfo?.token?.slice(0, 20));
+    console.log('[SHORT-TTL] Server expiresAt:', json.tokenInfo?.expiresAt);
+
+    if (!json.tokenInfo) {
+      console.error("[SHORT-TTL] No tokenInfo in response:", json);
+      throw new Error("Invalid refresh response");
+    }
+
+    // OVERRIDE: Set short TTL instead of real expiration
+    const shortExpiresAt = Date.now() + (SHORT_TTL_SECONDS * 1000);
+    console.log(`[SHORT-TTL] OVERRIDING expiresAt to ${SHORT_TTL_SECONDS}s from now: ${shortExpiresAt}`);
+
+    auth.update({
+      ...json.tokenInfo,
+      expiresIn: SHORT_TTL_SECONDS,
+      expiresAt: shortExpiresAt,
+      user: currentAuth.user,
+    });
+
+    console.log('[SHORT-TTL] auth.update() completed');
+    console.log('[SHORT-TTL] New expiresAt after update:', auth.get()?.expiresAt);
+  },
+);
+
+/**
+ * Handler for refreshing OAuth tokens (stream-based for cross-charm calls).
  * Same as google-auth.tsx but with SHORT TTL on the result.
  */
 const refreshTokenHandler = handler<
@@ -310,6 +372,52 @@ export default pattern<Input, Output>(
               </div>
               <div style={{ fontFamily: "monospace", fontSize: "12px", color: "#666", marginTop: "4px" }}>
                 expiresAt: {derive(auth, (a) => a?.expiresAt || "N/A")}
+              </div>
+            </div>
+          )}
+
+          {/* Manual Refresh Button - ALWAYS visible when authenticated */}
+          {auth?.user?.email && (
+            <div
+              style={{
+                padding: "16px",
+                backgroundColor: "#f0f9ff",
+                borderRadius: "8px",
+                border: "1px solid #0ea5e9",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", color: "#0369a1" }}>
+                    Manual Token Refresh
+                  </h4>
+                  <p style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
+                    Click to refresh token before it expires (for testing/demos)
+                  </p>
+                </div>
+                <button
+                  onClick={handleManualRefresh({ auth })}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "#0ea5e9",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                    fontSize: "14px",
+                  }}
+                >
+                  Refresh Now
+                </button>
               </div>
             </div>
           )}

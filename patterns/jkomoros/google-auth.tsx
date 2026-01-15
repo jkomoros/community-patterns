@@ -515,6 +515,23 @@ export default pattern<Input, Output>(
       return auth.expiresAt < Date.now();
     });
 
+    // Format time remaining until token expiry
+    const tokenExpiryDisplay = computed(() => {
+      if (!auth?.expiresAt || auth.expiresAt === 0) return null;
+      const now = Date.now();
+      const remaining = auth.expiresAt - now;
+      if (remaining <= 0) return "Expired";
+
+      const minutes = Math.floor(remaining / (60 * 1000));
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${mins}m`;
+      }
+      return `${mins}m`;
+    });
+
     // PERFORMANCE FIX: Pre-compute disabled state (same for all checkboxes)
     // Avoids creating computed() inside .map() loop
     // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
@@ -781,6 +798,52 @@ export default pattern<Input, Output>(
               </ul>
             </div>
           )}
+
+          {/* Manual token refresh section - visible when authenticated and NOT expired */}
+          {computed(() => auth?.user?.email && !isTokenExpired ? (
+            <div
+              style={{
+                padding: "16px",
+                backgroundColor: "#f0f9ff",
+                borderRadius: "8px",
+                border: "1px solid #0ea5e9",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", color: "#0369a1" }}>
+                    Token Status
+                  </h4>
+                  <p style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
+                    Expires in: <strong>{tokenExpiryDisplay}</strong>
+                  </p>
+                </div>
+                <button
+                  onClick={handleRefresh({ auth })}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#0ea5e9",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "500",
+                    fontSize: "13px",
+                  }}
+                >
+                  Refresh Now
+                </button>
+              </div>
+            </div>
+          ) : null)}
 
           <div
             style={{
