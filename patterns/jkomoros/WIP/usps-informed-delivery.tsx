@@ -33,8 +33,20 @@ import {
   Writable,
 } from "commontools";
 
-// Import Email type from gmail-importer for type safety
-import type { Email } from "../gmail-importer.tsx";
+// Email type - inlined to avoid import chain issues when deploying from WIP/
+interface Email {
+  id: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  threadId: string;
+  labels: string[];
+  htmlContent: string;
+  textContent: string;
+  markdownContent: string;
+}
 
 // =============================================================================
 // TYPES
@@ -148,30 +160,39 @@ const MAIL_ANALYSIS_SCHEMA = {
 // =============================================================================
 
 /**
- * Extract image URLs from USPS Informed Delivery email HTML content.
- * USPS emails typically include scanned images of mail pieces.
+ * Extract image URLs/CIDs from USPS Informed Delivery email HTML content.
+ *
+ * USPS Informed Delivery emails embed mail piece images as inline MIME attachments
+ * referenced by Content-ID (cid:). The images are NOT external URLs.
+ *
+ * Format in HTML: <img src="cid:1019388469-033.jpg" alt="Mailpiece Image">
+ *
+ * To use these images:
+ * 1. gmail-importer needs to fetch attachments and resolve CID references
+ * 2. Replace cid: URLs with base64 data URLs
+ * 3. Then the LLM can analyze them
+ *
+ * For now, we extract cid: references to show what images exist, and also
+ * accept base64 data URLs (if gmail-importer resolves them).
  */
 function extractMailPieceImages(htmlContent: string): string[] {
   const images: string[] = [];
 
-  // Look for img tags with mail piece images
-  // USPS typically uses specific patterns for mail piece images
+  // Look for img tags
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let match;
 
   while ((match = imgRegex.exec(htmlContent)) !== null) {
     const src = match[1];
-    // Filter for likely mail piece images (not logos, icons, etc.)
-    // USPS mail piece images are usually larger and have specific patterns
-    if (
-      src.includes("mailpiece") ||
-      src.includes("informed") ||
-      src.includes("usps") ||
-      // Also look for data URIs (base64 images)
-      src.startsWith("data:image") ||
-      // Or large CDN-hosted images
-      (src.includes("http") && !src.includes("logo") && !src.includes("icon"))
-    ) {
+
+    // USPS mail piece images are inline attachments referenced by cid:
+    // Example: cid:1019388469-033.jpg
+    // Filter for mailpiece images (numeric ID pattern, not logos like "mailer-" or "content-")
+    if (src.startsWith("cid:") && /^cid:\d+/.test(src)) {
+      images.push(src);
+    }
+    // Accept base64 encoded images (resolved from cid: by gmail-importer)
+    else if (src.startsWith("data:image")) {
       images.push(src);
     }
   }
@@ -236,132 +257,9 @@ const deleteMember = handler<
   householdMembers.remove(member);
 });
 
-// Handler to manually trigger analysis
-const triggerAnalysis = handler<
-  unknown,
-  {
-    mailPieces: Writable<MailPiece[]>;
-    householdMembers: Writable<HouseholdMember[]>;
-    settings: Writable<Settings>;
-    processing: Writable<boolean>;
-    uspsEmails: Email[];
-  }
->(async (_event, state) => {
-  // Inside handler, OpaqueRef is unwrapped to plain array
-  const emails = state.uspsEmails;
-  if (!emails || emails.length === 0) return;
-
-  state.processing.set(true);
-
-  try {
-    const existingIds = new Set(state.mailPieces.get().map((p) => p.emailId));
-
-    for (const email of emails) {
-      // Skip already processed emails
-      if (existingIds.has(email.id)) continue;
-
-      // Extract images from email
-      const imageUrls = extractMailPieceImages(email.htmlContent);
-
-      for (let i = 0; i < imageUrls.length; i++) {
-        const imageUrl = imageUrls[i];
-
-        try {
-          // Analyze image with LLM vision
-          // Note: generateObject prompt must be an array with image and text parts
-          const analysis = await generateObject({
-            prompt: [
-              { type: "image" as const, image: imageUrl },
-              {
-                type: "text" as const,
-                text: `Analyze this scanned mail piece image. Extract the recipient name, sender/company, classify the mail type, and determine if it's likely spam or junk mail.
-
-If you cannot read the image clearly, make your best guess based on what you can see.`,
-              },
-            ],
-            schema: MAIL_ANALYSIS_SCHEMA,
-          });
-
-          const result = analysis.result as {
-            recipient: string;
-            sender: string;
-            mailType: MailType;
-            isLikelySpam: boolean;
-            spamConfidence: number;
-            summary: string;
-          };
-
-          // Create mail piece record
-          const mailPiece: MailPiece = {
-            id: `${email.id}-${i}`,
-            emailId: email.id,
-            emailDate: email.date,
-            imageUrl,
-            recipient: result.recipient,
-            sender: result.sender,
-            mailType: result.mailType,
-            isLikelySpam: result.isLikelySpam,
-            spamConfidence: result.spamConfidence,
-            summary: result.summary,
-            processedAt: Date.now(),
-          };
-
-          // Add to mail pieces
-          state.mailPieces.push(mailPiece);
-
-          // Update household members
-          if (result.recipient) {
-            const members = state.householdMembers.get();
-            // Find existing member by name match
-            let found = false;
-            for (let i = 0; i < members.length; i++) {
-              const m = members[i];
-              // Get the cell value if it's a cell, otherwise use as-is
-              const memberData = (m as any).get ? (m as any).get() : m;
-              if (
-                namesMatch(memberData.name, result.recipient) ||
-                memberData.aliases?.some((a: string) => namesMatch(a, result.recipient))
-              ) {
-                // Update existing member using cell if available
-                if ((m as any).set) {
-                  (m as any).set({
-                    ...memberData,
-                    mailCount: memberData.mailCount + 1,
-                    aliases: memberData.aliases.includes(result.recipient) ||
-                             memberData.name === result.recipient
-                      ? memberData.aliases
-                      : [...memberData.aliases, result.recipient],
-                  });
-                }
-                found = true;
-                break;
-              }
-            }
-
-            if (!found) {
-              // Add new unconfirmed member using .push() which auto-wraps in cell
-              state.householdMembers.push({
-                name: result.recipient,
-                aliases: [],
-                mailCount: 1,
-                firstSeen: Date.now(),
-                isConfirmed: false,
-              });
-            }
-          }
-        } catch (err) {
-          console.error("[USPSInformedDelivery] Error analyzing image:", err);
-        }
-      }
-
-      // Update last processed email ID
-      const current = state.settings.get();
-      state.settings.set({ ...current, lastProcessedEmailId: email.id });
-    }
-  } finally {
-    state.processing.set(false);
-  }
-});
+// NOTE: No triggerAnalysis handler needed!
+// generateObject must be called at pattern level (reactive), not inside handlers.
+// The pattern uses .map() to process emails reactively - see mailPieceAnalyses in pattern body.
 
 // =============================================================================
 // PATTERN
@@ -376,6 +274,9 @@ interface PatternInput {
   >;
   mailPieces: Default<MailPiece[], []>;
   householdMembers: Default<HouseholdMember[], []>;
+  // Optional: Link emails directly from a Gmail Importer charm when wish() is unavailable
+  // Use: ct charm link gmailImporterCharm/emails uspsCharm/linkedEmails
+  linkedEmails?: Email[];
 }
 
 /** USPS Informed Delivery mail analyzer. #uspsInformedDelivery */
@@ -387,19 +288,33 @@ interface PatternOutput {
 }
 
 export default pattern<PatternInput, PatternOutput>(
-  ({ settings, mailPieces, householdMembers }) => {
+  ({ settings, mailPieces, householdMembers, linkedEmails }) => {
     // Local state
     const processing = Writable.of(false);
 
-    // Wish for a gmail-importer instance
+    // Check if linkedEmails is provided (manual linking via CT CLI)
+    const hasLinkedEmails = derive({ linkedEmails }, ({ linkedEmails: le }) =>
+      !!(le && Array.isArray(le) && le.length > 0)
+    );
+
+    // Wish for a gmail-importer instance (fallback when linkedEmails not provided)
     const gmailImporter = wish<GmailImporterOutput>({
       query: "#gmailEmails",
     });
 
+    // Get emails from either linkedEmails or wish result
+    const allEmails = derive({ linkedEmails, gmailImporter }, ({ linkedEmails: le, gmailImporter: gi }) => {
+      // Prefer linkedEmails if available
+      if (le && Array.isArray(le) && le.length > 0) {
+        return le;
+      }
+      // Fallback to wish result
+      return gi?.result?.emails || [];
+    });
+
     // Filter for USPS emails
-    const uspsEmails = derive(gmailImporter, (result) => {
-      const emails = result?.result?.emails || [];
-      return emails.filter((e: Email) =>
+    const uspsEmails = derive(allEmails, (emails: Email[]) => {
+      return (emails || []).filter((e: Email) =>
         e.from?.toLowerCase().includes(USPS_SENDER)
       );
     });
@@ -409,13 +324,108 @@ export default pattern<PatternInput, PatternOutput>(
       emails?.length || 0
     );
 
-    // Check if gmail-importer is connected
-    const isConnected = derive(
-      gmailImporter,
-      (result) => !!result?.result?.emails,
+    // Check if we have emails (either from linkedEmails or wish)
+    const isConnected = derive({ hasLinkedEmails, gmailImporter }, ({ hasLinkedEmails: hle, gmailImporter: gi }) =>
+      hle || !!gi?.result?.emails
     );
 
-    // Derived counts
+    // ==========================================================================
+    // REACTIVE LLM ANALYSIS
+    // Extract images from emails and analyze them with generateObject at pattern level
+    // This is the correct approach - generateObject must be called reactively, not in handlers
+    // ==========================================================================
+
+    // First, extract all mail piece images from all emails
+    // Returns array of { emailId, emailDate, imageUrl } objects
+    const mailPieceImages = derive(uspsEmails, (emails: Email[]) => {
+      const images: { emailId: string; emailDate: string; imageUrl: string; imageIndex: number }[] = [];
+      for (const email of emails || []) {
+        const urls = extractMailPieceImages(email.htmlContent);
+        // DEBUG: Log extracted URLs
+        console.log(`[USPS] Email ${email.id.slice(0, 8)}... extracted ${urls.length} images:`, urls.slice(0, 3));
+        urls.forEach((url, idx) => {
+          images.push({
+            emailId: email.id,
+            emailDate: email.date,
+            imageUrl: url,
+            imageIndex: idx,
+          });
+        });
+      }
+      // DEBUG: Log total images
+      console.log(`[USPS] Total images extracted: ${images.length}`);
+      // Limit to first 10 images for now to avoid overwhelming LLM calls
+      return images.slice(0, 10);
+    });
+
+    // Count of images to analyze
+    const imageCount = derive(mailPieceImages, (imgs) => imgs?.length || 0);
+
+    // Analyze each image with generateObject - this is called at pattern level (reactive)
+    // Uses .map() over the derived array to create per-item LLM calls with automatic caching
+    // NOTE: Per store-mapper pattern, generateObject prompt should use derive() with the cell
+    const mailPieceAnalyses = mailPieceImages.map((imageInfo) => {
+      // Get the image URL from the cell - need to derive to get actual value
+      const imageUrl = derive(imageInfo, (info) => info?.imageUrl || "");
+
+      const analysis = generateObject({
+        // Prompt must be derived to access cell values properly
+        prompt: derive(imageUrl, (url) => {
+          // DEBUG: Log the URL being sent to LLM
+          console.log(`[USPS LLM] Processing image URL (first 100 chars):`, url?.slice(0, 100));
+
+          if (!url) {
+            console.log(`[USPS LLM] Empty URL, returning text-only prompt`);
+            return "No image URL available - please return default values";
+          }
+
+          // Check if it's a base64 data URL vs external URL
+          const isBase64 = url.startsWith("data:");
+          console.log(`[USPS LLM] Image type: ${isBase64 ? "base64" : "external URL"}`);
+
+          // NOTE: External URLs from USPS require authentication and may fail.
+          // The LLM server cannot fetch authenticated URLs.
+          // For now, we still try and display an error if it fails.
+          return [
+            { type: "image" as const, image: url },
+            {
+              type: "text" as const,
+              text: `Analyze this scanned mail piece image from USPS Informed Delivery. Extract:
+1. The recipient name (who the mail is addressed to)
+2. The sender or company name (from return address if visible)
+3. The type of mail (bill, advertisement, personal, package notification, government, subscription, charity, or other)
+4. Whether it appears to be spam/junk mail
+
+If you cannot read the image clearly, make your best guess based on what you can see.`,
+            },
+          ];
+        }),
+        schema: MAIL_ANALYSIS_SCHEMA,
+        // IMPORTANT: Must specify model explicitly for generateObject with images
+        model: "anthropic:claude-sonnet-4-5",
+      });
+
+      return {
+        imageInfo,
+        imageUrl,
+        analysis,
+        pending: analysis.pending,
+        error: analysis.error,
+        result: analysis.result,
+      };
+    });
+
+    // Count pending analyses
+    const pendingCount = derive(mailPieceAnalyses, (analyses) =>
+      analyses?.filter((a: any) => a.pending)?.length || 0
+    );
+
+    // Count completed analyses
+    const completedCount = derive(mailPieceAnalyses, (analyses) =>
+      analyses?.filter((a: any) => !a.pending && a.result)?.length || 0
+    );
+
+    // Derived counts from stored mailPieces (persisted results)
     const mailCount = derive(
       mailPieces,
       (pieces: MailPiece[]) => pieces?.length || 0,
@@ -530,31 +540,31 @@ export default pattern<PatternInput, PatternOutput>(
                 </div>,
               )}
 
-              {/* Analysis Controls */}
+              {/* Analysis Status - reactive, no button needed */}
               {ifElse(
                 isConnected,
-                <div>
-                  <ct-button
-                    onClick={triggerAnalysis({
-                      mailPieces,
-                      householdMembers,
-                      settings,
-                      processing,
-                      uspsEmails: uspsEmails as any,
-                    })}
-                    disabled={processing}
-                  >
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    backgroundColor: "#eff6ff",
+                    borderRadius: "8px",
+                    border: "1px solid #3b82f6",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontWeight: "600" }}>Analysis:</span>
+                    <span>{imageCount} images found</span>
                     {ifElse(
-                      processing,
-                      <span
-                        style={{ display: "flex", alignItems: "center", gap: "8px" }}
-                      >
+                      derive(pendingCount, (c: number) => c > 0),
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#2563eb" }}>
                         <ct-loader size="sm" />
-                        Analyzing...
+                        {pendingCount} analyzing...
                       </span>,
-                      "Analyze Mail Pieces",
+                      <span style={{ color: "#059669" }}>
+                        {completedCount} completed
+                      </span>,
                     )}
-                  </ct-button>
+                  </div>
                 </div>,
                 null,
               )}
@@ -691,7 +701,7 @@ export default pattern<PatternInput, PatternOutput>(
                 </ct-vstack>
               </details>
 
-              {/* Mail Pieces by Date */}
+              {/* Reactive Mail Piece Analysis Results */}
               <details open style={{ marginTop: "8px" }}>
                 <summary
                   style={{
@@ -701,71 +711,65 @@ export default pattern<PatternInput, PatternOutput>(
                     marginBottom: "8px",
                   }}
                 >
-                  Mail Pieces
+                  Mail Pieces (Live Analysis)
                 </summary>
 
-                {derive(mailByDate, (groups: Record<string, MailPiece[]>) => {
-                  const dates = Object.keys(groups).sort(
-                    (a, b) => new Date(b).getTime() - new Date(a).getTime(),
-                  );
-
-                  if (dates.length === 0) {
-                    return (
-                      <div style={{ color: "#666", fontSize: "14px" }}>
-                        No mail pieces analyzed yet.
-                      </div>
-                    );
-                  }
-
-                  return dates.map((date) => (
-                    <div style={{ marginBottom: "16px" }}>
-                      <h4
+                <ct-vstack gap="2">
+                  {ifElse(
+                    derive(imageCount, (c: number) => c === 0),
+                    <div style={{ color: "#666", fontSize: "14px" }}>
+                      No mail piece images found in emails. USPS emails may not contain scanned images.
+                    </div>,
+                    null,
+                  )}
+                  {/* Map over reactive analyses */}
+                  {mailPieceAnalyses.map((analysisItem) => (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        padding: "12px",
+                        backgroundColor: "#f9fafb",
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      {/* Image thumbnail */}
+                      <div
                         style={{
-                          margin: "0 0 8px 0",
-                          fontSize: "14px",
-                          color: "#374151",
+                          width: "80px",
+                          height: "60px",
+                          backgroundColor: "#e5e7eb",
+                          borderRadius: "4px",
+                          overflow: "hidden",
+                          flexShrink: 0,
                         }}
                       >
-                        {date}
-                      </h4>
-                      <ct-vstack gap="2">
-                        {groups[date].map((piece: MailPiece) => (
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "12px",
-                              padding: "12px",
-                              backgroundColor: piece.isLikelySpam
-                                ? "#fef2f2"
-                                : "#f9fafb",
-                              borderRadius: "8px",
-                              border: `1px solid ${piece.isLikelySpam ? "#fecaca" : "#e5e7eb"}`,
-                            }}
-                          >
-                            {/* Image thumbnail */}
-                            <div
-                              style={{
-                                width: "80px",
-                                height: "60px",
-                                backgroundColor: "#e5e7eb",
-                                borderRadius: "4px",
-                                overflow: "hidden",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <img
-                                src={piece.imageUrl}
-                                alt="Mail piece"
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            </div>
+                        <img
+                          src={derive(analysisItem, (a: any) => a.imageUrl || "")}
+                          alt="Mail piece"
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </div>
 
-                            {/* Details */}
-                            <div style={{ flex: 1 }}>
+                      {/* Details */}
+                      <div style={{ flex: 1 }}>
+                        {ifElse(
+                          derive(analysisItem, (a: any) => a.pending),
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <ct-loader size="sm" />
+                            <span style={{ color: "#6b7280" }}>Analyzing...</span>
+                          </div>,
+                          ifElse(
+                            derive(analysisItem, (a: any) => !!a.error),
+                            <div style={{ color: "#dc2626", fontSize: "12px" }}>
+                              LLM Error (image may be inaccessible)
+                            </div>,
+                            <div>
                               <div
                                 style={{
                                   display: "flex",
@@ -774,9 +778,10 @@ export default pattern<PatternInput, PatternOutput>(
                                 }}
                               >
                                 <span style={{ fontWeight: "600" }}>
-                                  {piece.recipient}
+                                  {derive(analysisItem, (a: any) => a.result?.recipient || "Unknown")}
                                 </span>
-                                {piece.isLikelySpam && (
+                                {ifElse(
+                                  derive(analysisItem, (a: any) => a.result?.isLikelySpam),
                                   <span
                                     style={{
                                       padding: "2px 6px",
@@ -788,11 +793,12 @@ export default pattern<PatternInput, PatternOutput>(
                                     }}
                                   >
                                     SPAM
-                                  </span>
+                                  </span>,
+                                  null,
                                 )}
                               </div>
                               <div style={{ fontSize: "13px", color: "#4b5563" }}>
-                                From: {piece.sender}
+                                From: {derive(analysisItem, (a: any) => a.result?.sender || "Unknown")}
                               </div>
                               <div
                                 style={{
@@ -801,7 +807,7 @@ export default pattern<PatternInput, PatternOutput>(
                                   marginTop: "4px",
                                 }}
                               >
-                                {piece.summary}
+                                {derive(analysisItem, (a: any) => a.result?.summary || "")}
                               </div>
                               <div
                                 style={{
@@ -810,16 +816,16 @@ export default pattern<PatternInput, PatternOutput>(
                                   marginTop: "4px",
                                 }}
                               >
-                                Type: {piece.mailType} • Spam confidence:{" "}
-                                {piece.spamConfidence}%
+                                Type: {derive(analysisItem, (a: any) => a.result?.mailType || "unknown")} •
+                                Spam: {derive(analysisItem, (a: any) => a.result?.spamConfidence || 0)}%
                               </div>
-                            </div>
-                          </div>
-                        ))}
-                      </ct-vstack>
+                            </div>,
+                          ),
+                        )}
+                      </div>
                     </div>
-                  ));
-                })}
+                  ))}
+                </ct-vstack>
               </details>
             </ct-vstack>
           </ct-vscroll>
