@@ -117,7 +117,7 @@ import {
   UI,
   Writable,
 } from "commontools";
-import GmailImporter from "./gmail-importer.tsx";
+import GmailImporter from "./lib/gmail-importer.tsx";
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -705,6 +705,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       limit,
       historyId: "",
       debugMode: DEBUG_LOGGING, // Use same flag as pattern debug logging
+      autoFetchOnAuth: false,
+      resolveInlineImages: false,
     },
     // Note: GmailImporter now manages auth internally via createGoogleAuth()
   });

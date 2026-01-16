@@ -54,20 +54,19 @@
  */
 
 import {
-  OpaqueRef,
-  Writable,
   computed,
   derive,
   handler,
   ifElse,
   navigateTo,
+  OpaqueRef,
   UI,
   wish,
+  Writable,
 } from "commontools";
 
 // Import GoogleAuth pattern for creating new auth charms
-// Note: Path is relative from util/ directory (go up to jkomoros/, then find google-auth.tsx)
-import GoogleAuth, { type Auth } from "../google-auth.tsx";
+import GoogleAuth, { type Auth } from "./google-auth.tsx";
 
 // Re-export Auth type for consumers
 export type { Auth };
@@ -107,13 +106,13 @@ export type ScopeKey = keyof typeof SCOPE_MAP;
  * Each state maps to specific UI and behavior.
  */
 export type AuthState =
-  | "loading"        // Wish in progress
-  | "selecting"      // Multiple matches, showing picker (wishResult has [UI])
-  | "not-found"      // No matching auth favorited
-  | "needs-login"    // Auth charm found but user not signed in
+  | "loading" // Wish in progress
+  | "selecting" // Multiple matches, showing picker (wishResult has [UI])
+  | "not-found" // No matching auth favorited
+  | "needs-login" // Auth charm found but user not signed in
   | "missing-scopes" // Authenticated but missing required scopes
-  | "token-expired"  // Token has expired (expiresAt < now)
-  | "ready";         // All good - auth is usable
+  | "token-expired" // Token has expired (expiresAt < now)
+  | "ready"; // All good - auth is usable
 
 /**
  * Token expiry warning level
@@ -205,7 +204,10 @@ export interface GoogleAuthCharm {
   /** Compact user display with avatar, name, and email */
   userChip?: unknown;
   refreshToken?: {
-    send: (event: Record<string, never>, onCommit?: (tx: unknown) => void) => void;
+    send: (
+      event: Record<string, never>,
+      onCommit?: (tx: unknown) => void,
+    ) => void;
   };
 }
 
@@ -282,7 +284,10 @@ const createAuthHandler = handler<unknown, { scopes: ScopeKey[] }>(
 /**
  * Handler to navigate to existing auth charm.
  */
-const goToAuthHandler = handler<unknown, { charm: Writable<GoogleAuthCharm | null> }>(
+const goToAuthHandler = handler<
+  unknown,
+  { charm: Writable<GoogleAuthCharm | null> }
+>(
   (_event, { charm }) => {
     const c = charm.get();
     if (c) return navigateTo(c);
@@ -325,7 +330,9 @@ function formatTimeRemaining(ms: number | null): string {
  * 3. Single computed() for all derived state to prevent thrashing
  * 4. Token refresh is currently broken - we detect but don't auto-refresh
  */
-export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleAuthResult {
+export function createGoogleAuth(
+  options: CreateGoogleAuthOptions = {},
+): GoogleAuthResult {
   const requiredScopes = options.requiredScopes || [];
   const accountType = options.accountType || "default";
 
@@ -335,10 +342,11 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
   // For static accountType (the common case), compute the string directly.
   // TODO: For reactive account switching (Writable<AccountType>), we need a different
   // approach since wish() doesn't support Cell query values.
-  const tag =
-    accountType === "personal" ? "#googleAuthPersonal" :
-    accountType === "work" ? "#googleAuthWork" :
-    "#googleAuth";
+  const tag = accountType === "personal"
+    ? "#googleAuthPersonal"
+    : accountType === "work"
+    ? "#googleAuthWork"
+    : "#googleAuth";
 
   // CRITICAL: wish() at pattern body level, NOT inside derive
   const wishResult = wish<GoogleAuthCharm>({ query: tag });
@@ -400,13 +408,17 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
     const tokenExpiresAt = authData?.expiresAt || null;
     const now = Date.now();
     const tokenTimeRemaining = tokenExpiresAt ? tokenExpiresAt - now : null;
-    const isTokenExpired = tokenTimeRemaining !== null && tokenTimeRemaining < 0;
+    const isTokenExpired = tokenTimeRemaining !== null &&
+      tokenTimeRemaining < 0;
 
     // Calculate token expiry warning level
-    const tokenExpiryWarning: TokenExpiryWarning =
-      tokenTimeRemaining === null ? "ok" :
-      tokenTimeRemaining < 0 ? "expired" :
-      tokenTimeRemaining < TOKEN_WARNING_THRESHOLD_MS ? "warning" : "ok";
+    const tokenExpiryWarning: TokenExpiryWarning = tokenTimeRemaining === null
+      ? "ok"
+      : tokenTimeRemaining < 0
+      ? "expired"
+      : tokenTimeRemaining < TOKEN_WARNING_THRESHOLD_MS
+      ? "warning"
+      : "ok";
 
     // Format time remaining for display
     const tokenExpiryDisplay = formatTimeRemaining(tokenTimeRemaining);
@@ -424,14 +436,16 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
     if (state === "ready") {
       statusText = `Signed in as ${email}`;
     } else if (state === "missing-scopes") {
-      const missingNames = missingScopes.map((k) => SCOPE_DESCRIPTIONS[k]).join(", ");
+      const missingNames = missingScopes.map((k) => SCOPE_DESCRIPTIONS[k]).join(
+        ", ",
+      );
       statusText = `Missing: ${missingNames}`;
     }
 
     return {
       state,
       auth: authData,
-      authCell: authCell,  // Writable cell for token refresh
+      authCell: authCell, // Writable cell for token refresh
       email,
       hasRequiredScopes,
       grantedScopes,
@@ -471,10 +485,11 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
   // Minimal status indicator (avatar + dot + text + token expiry)
   const statusUI = derive(authInfo, (info) => {
     // Determine background color based on state and token warning
-    const bgColor =
-      info.state !== "ready" ? "#fef3c7" :
-      info.tokenExpiryWarning === "warning" ? "#fef3c7" :
-      "#d1fae5";
+    const bgColor = info.state !== "ready"
+      ? "#fef3c7"
+      : info.tokenExpiryWarning === "warning"
+      ? "#fef3c7"
+      : "#d1fae5";
 
     const avatarUrl = info.auth?.user?.picture;
 
@@ -521,7 +536,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
               marginLeft: "4px",
               fontSize: "12px",
               color: info.tokenExpiryWarning === "warning" ? "#b45309" : "#666",
-              fontWeight: info.tokenExpiryWarning === "warning" ? "500" : "normal",
+              fontWeight: info.tokenExpiryWarning === "warning"
+                ? "500"
+                : "normal",
             }}
           >
             • {info.tokenExpiryDisplay}
@@ -688,12 +705,16 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
   // ==========================================================================
 
   // State checks for conditional rendering
-  const isLoadingOrNotFound = derive(authInfo, (info) =>
-    info.state === "loading" || info.state === "not-found"
+  const isLoadingOrNotFound = derive(
+    authInfo,
+    (info) => info.state === "loading" || info.state === "not-found",
   );
   const isSelecting = derive(authInfo, (info) => info.state === "selecting");
-  const needsAction = derive(authInfo, (info) =>
-    info.state === "needs-login" || info.state === "missing-scopes" || info.state === "token-expired"
+  const needsAction = derive(
+    authInfo,
+    (info) =>
+      info.state === "needs-login" || info.state === "missing-scopes" ||
+      info.state === "token-expired",
   );
   const isAuthReady = derive(authInfo, (info) => info.state === "ready");
 
@@ -714,7 +735,14 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
         To use this feature, connect a Google account with these permissions:
       </p>
       {requiredScopes.length > 0 && (
-        <ul style={{ margin: "0 0 16px 0", paddingLeft: "20px", fontSize: "13px", color: "#6b7280" }}>
+        <ul
+          style={{
+            margin: "0 0 16px 0",
+            paddingLeft: "20px",
+            fontSize: "13px",
+            color: "#6b7280",
+          }}
+        >
           {scopeListItems}
         </ul>
       )}
@@ -748,30 +776,41 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
   // This one needs dynamic content from authInfo, so we use derive for the content
   // but the buttons are still the pre-bound ones from above
   const needsActionUI = derive(authInfo, (info) => {
-    if (info.state !== "needs-login" && info.state !== "missing-scopes" && info.state !== "token-expired") {
+    if (
+      info.state !== "needs-login" && info.state !== "missing-scopes" &&
+      info.state !== "token-expired"
+    ) {
       return null;
     }
 
     // Build missing scopes message
-    const missingScopesMessage = info.state === "missing-scopes" ? (
-      <div>
-        <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#4b5563" }}>
-          Connected as <strong>{info.email}</strong>, but this feature needs additional permissions:
-        </p>
-        <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
-          {Array.from(info.missingScopes).map((scope, i) => (
-            <li key={i} style={{ color: "#c2410c", marginBottom: "2px" }}>
-              {SCOPE_DESCRIPTIONS[scope as ScopeKey]}
-            </li>
-          ))}
-        </ul>
-      </div>
-    ) : null;
+    const missingScopesMessage = info.state === "missing-scopes"
+      ? (
+        <div>
+          <p
+            style={{ margin: "0 0 8px 0", fontSize: "13px", color: "#4b5563" }}
+          >
+            Connected as{" "}
+            <strong>{info.email}</strong>, but this feature needs additional
+            permissions:
+          </p>
+          <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px" }}>
+            {Array.from(info.missingScopes).map((scope, i) => (
+              <li key={i} style={{ color: "#c2410c", marginBottom: "2px" }}>
+                {SCOPE_DESCRIPTIONS[scope as ScopeKey]}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+      : null;
 
     const stateConfig = {
       "needs-login": {
         title: "Sign In Required",
-        message: <span>Please sign in with your Google account to continue.</span>,
+        message: (
+          <span>Please sign in with your Google account to continue.</span>
+        ),
         bgColor: "#fee2e2",
         borderColor: "#ef4444",
         titleColor: "#dc2626",
@@ -785,14 +824,20 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
       },
       "token-expired": {
         title: "Session Expired",
-        message: <span>Your Google session has expired. Please sign in again to continue.</span>,
+        message: (
+          <span>
+            Your Google session has expired. Please sign in again to continue.
+          </span>
+        ),
         bgColor: "#fee2e2",
         borderColor: "#ef4444",
         titleColor: "#dc2626",
       },
     };
 
-    const config = stateConfig[info.state as "needs-login" | "missing-scopes" | "token-expired"];
+    const config = stateConfig[
+      info.state as "needs-login" | "missing-scopes" | "token-expired"
+    ];
 
     return (
       <div
@@ -809,7 +854,13 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
             borderBottom: `1px solid ${config.borderColor}`,
           }}
         >
-          <h4 style={{ margin: "0 0 4px 0", color: config.titleColor, fontSize: "14px" }}>
+          <h4
+            style={{
+              margin: "0 0 4px 0",
+              color: config.titleColor,
+              fontSize: "14px",
+            }}
+          >
             {config.title}
           </h4>
           <div style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
@@ -838,13 +889,24 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
             gap: "8px",
             padding: "12px 16px",
             backgroundColor: "#d1fae5",
-            borderRadius: info.tokenExpiryWarning === "warning" ? "8px 8px 0 0" : "8px",
+            borderRadius: info.tokenExpiryWarning === "warning"
+              ? "8px 8px 0 0"
+              : "8px",
             border: "1px solid #10b981",
-            borderBottom: info.tokenExpiryWarning === "warning" ? "none" : "1px solid #10b981",
+            borderBottom: info.tokenExpiryWarning === "warning"
+              ? "none"
+              : "1px solid #10b981",
           }}
         >
           {info.userChip}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+            }}
+          >
             {info.tokenExpiryDisplay && (
               <span style={{ fontSize: "12px", color: "#059669" }}>
                 {info.tokenExpiryDisplay}
@@ -883,9 +945,9 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
       ifElse(
         needsAction,
         needsActionUI,
-        ifElse(isAuthReady, readyUI, null)
-      )
-    )
+        ifElse(isAuthReady, readyUI, null),
+      ),
+    ),
   );
 
   // ==========================================================================
@@ -930,7 +992,8 @@ export function createGoogleAuth(options: CreateGoogleAuthOptions = {}): GoogleA
     // action system. If you get "TypeError: protectedContent is not a function",
     // use ifElse(isReady, children, null) directly instead.
     // See: community-docs/superstitions/2025-11-29-cells-must-be-json-serializable.md
-    protectedContent: (children: JSX.Element) => ifElse(isReady, children, null),
+    protectedContent: (children: JSX.Element) =>
+      ifElse(isReady, children, null),
 
     // Raw wish result for advanced use cases
     wishResult,

@@ -70,7 +70,7 @@ function getRelativeLabel(dateStr: string): string {
     eventDate.setHours(0, 0, 0, 0);
 
     const diffDays = Math.round(
-      (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     if (diffDays === 0) return "Today";
@@ -108,31 +108,46 @@ const toggleCalendar = handler<
   }
 });
 
-
 export default pattern<{
   events: Default<Confidential<CalendarEvent[]>, []>;
 }>(({ events }) => {
   const hiddenCalendars = Writable.of<string[]>([]);
 
-  const eventCount = derive(events, (evts: CalendarEvent[]) => evts?.length ?? 0);
+  const eventCount = derive(
+    events,
+    (evts: CalendarEvent[]) => evts?.length ?? 0,
+  );
 
   // Extract unique calendar names for the filter bar
   // Refactored to use filter/map after CT-1102 fix
-  const uniqueCalendars = derive(events, (evts: CalendarEvent[]) =>
-    [...new Set((evts || []).filter(evt => evt?.calendarName).map(evt => evt.calendarName))].sort()
+  const uniqueCalendars = derive(
+    events,
+    (evts: CalendarEvent[]) =>
+      [
+        ...new Set(
+          (evts || []).filter((evt) => evt?.calendarName).map((evt) =>
+            evt.calendarName
+          ),
+        ),
+      ].sort(),
   );
 
   // Upcoming events (sorted by start date)
   const upcomingEvents = derive(events, (evts: CalendarEvent[]) => {
     const now = new Date();
     return [...(evts || [])]
-      .filter((e: CalendarEvent) => e?.startDate && new Date(e.startDate) >= now)
+      .filter((e: CalendarEvent) =>
+        e?.startDate && new Date(e.startDate) >= now
+      )
       .sort((a: CalendarEvent, b: CalendarEvent) =>
         new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
       );
   });
 
-  const totalUpcoming = derive(upcomingEvents, (evts: CalendarEvent[]) => evts.length);
+  const totalUpcoming = derive(
+    upcomingEvents,
+    (evts: CalendarEvent[]) => evts.length,
+  );
 
   return {
     [NAME]: derive(eventCount, (count: number) => `Calendar (${count} events)`),
@@ -186,7 +201,10 @@ export default pattern<{
                   return (
                     <button
                       // Pass the Cell from outer scope, not the destructured value
-                      onClick={toggleCalendar({ calendarName: name, hiddenCalendars })}
+                      onClick={toggleCalendar({
+                        calendarName: name,
+                        hiddenCalendars,
+                      })}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -211,10 +229,10 @@ export default pattern<{
                       {name}
                     </button>
                   );
-                })
+                }),
             )}
           </div>,
-          <></>
+          <></>,
         )}
 
         {/* Content */}
@@ -238,7 +256,11 @@ export default pattern<{
                 Calendar
               </div>
               <div
-                style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "8px" }}
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  marginBottom: "8px",
+                }}
               >
                 No Events Yet
               </div>
@@ -272,13 +294,21 @@ export default pattern<{
              * other patterns to access via linking.
              */
             <div style={{ padding: "20px" }}>
-              <div style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "8px" }}>
+              <div
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  marginBottom: "8px",
+                }}
+              >
                 Upcoming Events ({totalUpcoming} total)
               </div>
 
               {derive(upcomingEvents, (evts: CalendarEvent[]) => {
                 if (!evts || evts.length === 0) {
-                  return <div style={{ color: "#999" }}>No upcoming events</div>;
+                  return (
+                    <div style={{ color: "#999" }}>No upcoming events</div>
+                  );
                 }
 
                 // Show first 10 events (simplified - no pagination)
@@ -308,19 +338,24 @@ export default pattern<{
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: "600" }}>{evt.title}</div>
                           <div style={{ fontSize: "14px", color: "#666" }}>
-                            {getRelativeLabel(evt.startDate)} {evt.isAllDay ? "(All day)" : formatTime(evt.startDate)}
+                            {getRelativeLabel(evt.startDate)} {evt.isAllDay
+                              ? "(All day)"
+                              : formatTime(evt.startDate)}
                           </div>
-                          {evt.location ? (
-                            <div style={{ fontSize: "13px", color: "#999" }}>{evt.location}</div>
-                          ) : <></>}
+                          {evt.location
+                            ? (
+                              <div style={{ fontSize: "13px", color: "#999" }}>
+                                {evt.location}
+                              </div>
+                            )
+                            : <></>}
                         </div>
                       </div>
                     ))}
                   </div>
                 );
               })}
-
-            </div>
+            </div>,
           )}
         </div>
       </ct-screen>

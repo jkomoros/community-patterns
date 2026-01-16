@@ -21,11 +21,11 @@
  */
 
 import type { Writable } from "commontools";
-import type { Auth } from "./google-auth-manager.tsx";
+import type { Auth } from "../lib/google-auth-manager.tsx";
 import {
   CalendarWriteClient,
   type BatchProgress,
-} from "./calendar-write-client.ts";
+} from "../lib/calendar-write-client.ts";
 import {
   generateICS,
   dayToICalDay,
@@ -45,7 +45,7 @@ import type {
   DayOfWeek,
   ExportProgress,
   ExportProgressCallback,
-} from "./calendar-export-types.ts";
+} from "../lib/calendar-export-types.ts";
 
 // Re-export types for convenience
 export type {
@@ -57,7 +57,7 @@ export type {
   CalendarOutboxEvent,
   ExportProgress,
   ExportProgressCallback,
-} from "./calendar-export-types.ts";
+} from "../lib/calendar-export-types.ts";
 
 // ============================================================================
 // CONSTANTS

@@ -21,7 +21,7 @@ import {
 } from "commontools";
 
 // Import GoogleAuth pattern for creating new auth charms
-import GoogleAuth from "./google-auth.tsx";
+import GoogleAuth from "./lib/google-auth.tsx";
 
 // =============================================================================
 // Types - Auth (from google-auth pattern)

@@ -26,8 +26,8 @@ import {
   Writable,
 } from "commontools";
 import Family from "./family.tsx";
-import CalendarViewer from "./calendar-viewer.tsx";
-import GoogleCalendarImporter from "./google-calendar-importer.tsx";
+import CalendarViewer from "./lib/calendar-viewer.tsx";
+import GoogleCalendarImporter from "./lib/google-calendar-importer.tsx";
 import {
   Address,
   ClassificationRule,

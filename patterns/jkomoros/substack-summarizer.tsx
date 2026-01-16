@@ -1,6 +1,6 @@
 /// <cts-enable />
 import { computed, Default, NAME, pattern, UI } from "commontools";
-import GmailImporter from "./gmail-importer.tsx";
+import GmailImporter from "./lib/gmail-importer.tsx";
 
 interface SubstackInput {
   gmailFilterQuery?: Default<string, "label:demo">;
@@ -25,6 +25,8 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
       limit,
       historyId: "",
       debugMode: false,
+      autoFetchOnAuth: false,
+      resolveInlineImages: false,
     },
   });
 

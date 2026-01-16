@@ -19,13 +19,13 @@
  * TODO: Future framework enhancement will support wish() without requiring favorites
  */
 import {
-  Writable,
   computed,
   Default,
   handler,
   NAME,
   pattern,
   UI,
+  Writable,
 } from "commontools";
 
 // ============================================================================
@@ -69,7 +69,7 @@ export interface GmailSearchRegistryOutput {
 
   // Data - flat array storage, computed registries view
   queries: SharedQuery[];
-  registries: Record<string, AgentTypeRegistry>;  // Computed grouped view
+  registries: Record<string, AgentTypeRegistry>; // Computed grouped view
 
   // Actions for external patterns to use - using unknown to match bound handler return type
   submitQuery: unknown;
@@ -95,15 +95,19 @@ const submitQuery = handler<
 
   // Check for duplicate queries (case-insensitive, same agent type)
   const normalizedQuery = input.query.toLowerCase().trim();
-  if (allQueries.some((q: SharedQuery) =>
-    q.agentTypeUrl === input.agentTypeUrl &&
-    q.query.toLowerCase().trim() === normalizedQuery
-  )) {
+  if (
+    allQueries.some((q: SharedQuery) =>
+      q.agentTypeUrl === input.agentTypeUrl &&
+      q.query.toLowerCase().trim() === normalizedQuery
+    )
+  ) {
     return { success: false, error: "Query already exists" };
   }
 
   // Create new query entry and push to array
-  const queryId = `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const queryId = `query-${Date.now()}-${
+    Math.random().toString(36).slice(2, 8)
+  }`;
   state.queries.push({
     id: queryId,
     agentTypeUrl: input.agentTypeUrl,
@@ -124,7 +128,9 @@ const upvoteQuery = handler<
   { queries: Writable<SharedQuery[]> }
 >((input, state) => {
   const allQueries = state.queries.get() || [];
-  const queryIdx = allQueries.findIndex((q: SharedQuery) => q.id === input.queryId);
+  const queryIdx = allQueries.findIndex((q: SharedQuery) =>
+    q.id === input.queryId
+  );
   if (queryIdx < 0) return { success: false, error: "Query not found" };
 
   const updatedQuery = {
@@ -148,7 +154,9 @@ const downvoteQuery = handler<
   { queries: Writable<SharedQuery[]> }
 >((input, state) => {
   const allQueries = state.queries.get() || [];
-  const queryIdx = allQueries.findIndex((q: SharedQuery) => q.id === input.queryId);
+  const queryIdx = allQueries.findIndex((q: SharedQuery) =>
+    q.id === input.queryId
+  );
   if (queryIdx < 0) return { success: false, error: "Query not found" };
 
   const updatedQuery = {
@@ -217,7 +225,7 @@ const GmailSearchRegistry = pattern<
     const agentTypes = Object.keys(regs || {});
     const totalQueries = agentTypes.reduce(
       (sum, key) => sum + (regs[key]?.queries?.length || 0),
-      0
+      0,
     );
     return { agentTypeCount: agentTypes.length, totalQueries };
   });
@@ -244,7 +252,9 @@ const GmailSearchRegistry = pattern<
     [UI]: (
       <ct-screen>
         <div slot="header">
-          <h2 style={{ margin: "0", fontSize: "18px" }}>Gmail Search Registry</h2>
+          <h2 style={{ margin: "0", fontSize: "18px" }}>
+            Gmail Search Registry
+          </h2>
         </div>
 
         <ct-vscroll flex showScrollbar>
@@ -264,8 +274,9 @@ const GmailSearchRegistry = pattern<
                 Community Query Registry
               </div>
               <div style={{ fontSize: "12px", color: "#3b82f6" }}>
-                This registry collects effective Gmail search queries shared by users.
-                Other gmail-agent patterns can discover this via wish() to get community suggestions.
+                This registry collects effective Gmail search queries shared by
+                users. Other gmail-agent patterns can discover this via wish()
+                to get community suggestions.
               </div>
             </div>
 
@@ -280,16 +291,32 @@ const GmailSearchRegistry = pattern<
               }}
             >
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "24px", fontWeight: "600", color: "#1e293b" }}>
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                  }}
+                >
                   {computed(() => stats.agentTypeCount)}
                 </div>
-                <div style={{ fontSize: "11px", color: "#64748b" }}>Agent Types</div>
+                <div style={{ fontSize: "11px", color: "#64748b" }}>
+                  Agent Types
+                </div>
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "24px", fontWeight: "600", color: "#1e293b" }}>
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                  }}
+                >
                   {computed(() => stats.totalQueries)}
                 </div>
-                <div style={{ fontSize: "11px", color: "#64748b" }}>Total Queries</div>
+                <div style={{ fontSize: "11px", color: "#64748b" }}>
+                  Total Queries
+                </div>
               </div>
             </div>
 
@@ -297,18 +324,21 @@ const GmailSearchRegistry = pattern<
             <div>
               {/* Empty state */}
               {computed(() =>
-                registryEntries.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "24px",
-                      textAlign: "center",
-                      color: "#64748b",
-                      fontSize: "13px",
-                    }}
-                  >
-                    No queries registered yet. Gmail-agent patterns will submit queries here.
-                  </div>
-                ) : null
+                registryEntries.length === 0
+                  ? (
+                    <div
+                      style={{
+                        padding: "24px",
+                        textAlign: "center",
+                        color: "#64748b",
+                        fontSize: "13px",
+                      }}
+                    >
+                      No queries registered yet. Gmail-agent patterns will
+                      submit queries here.
+                    </div>
+                  )
+                  : null
               )}
 
               {/* Registry entries - using native details/summary for expand/collapse */}
@@ -329,11 +359,24 @@ const GmailSearchRegistry = pattern<
                       listStyle: "none",
                     }}
                   >
-                    <div style={{ fontWeight: "500", fontSize: "13px", color: "#1e293b" }}>
+                    <div
+                      style={{
+                        fontWeight: "500",
+                        fontSize: "13px",
+                        color: "#1e293b",
+                      }}
+                    >
                       {registry.agentTypeName || extractAgentName(registry.url)}
                     </div>
-                    <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
-                      {registry.queries.length} {registry.queries.length === 1 ? "query" : "queries"}
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        color: "#64748b",
+                        marginTop: "2px",
+                      }}
+                    >
+                      {registry.queries.length}{" "}
+                      {registry.queries.length === 1 ? "query" : "queries"}
                     </div>
                   </summary>
 
@@ -345,7 +388,10 @@ const GmailSearchRegistry = pattern<
                       if (!Array.isArray(queriesArray)) return null;
                       return queriesArray
                         .filter((q) => q && q.query) // Filter out null/undefined during hydration
-                        .sort((a, b) => ((b.upvotes || 0) - (b.downvotes || 0)) - ((a.upvotes || 0) - (a.downvotes || 0)))
+                        .sort((a, b) =>
+                          ((b.upvotes || 0) - (b.downvotes || 0)) -
+                          ((a.upvotes || 0) - (a.downvotes || 0))
+                        )
                         .map((query) => (
                           <div
                             style={{
@@ -367,7 +413,13 @@ const GmailSearchRegistry = pattern<
                               {query.query}
                             </div>
                             {query.description && (
-                              <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#64748b",
+                                  marginBottom: "4px",
+                                }}
+                              >
                                 {query.description}
                               </div>
                             )}
@@ -381,13 +433,22 @@ const GmailSearchRegistry = pattern<
                               }}
                             >
                               <div>
-                                <span style={{ color: "#22c55e" }}>+{query.upvotes || 0}</span>
+                                <span style={{ color: "#22c55e" }}>
+                                  +{query.upvotes || 0}
+                                </span>
                                 {" / "}
-                                <span style={{ color: "#ef4444" }}>-{query.downvotes || 0}</span>
-                                {query.submittedBy ? ` · by ${query.submittedBy}` : ""}
+                                <span style={{ color: "#ef4444" }}>
+                                  -{query.downvotes || 0}
+                                </span>
+                                {query.submittedBy
+                                  ? ` · by ${query.submittedBy}`
+                                  : ""}
                               </div>
                               <div>
-                                {query.submittedAt ? new Date(query.submittedAt).toLocaleDateString() : ""}
+                                {query.submittedAt
+                                  ? new Date(query.submittedAt)
+                                    .toLocaleDateString()
+                                  : ""}
                               </div>
                             </div>
                           </div>
@@ -409,11 +470,21 @@ const GmailSearchRegistry = pattern<
                 color: "#854d0e",
               }}
             >
-              <div style={{ fontWeight: "500", marginBottom: "4px" }}>Setup Notes</div>
+              <div style={{ fontWeight: "500", marginBottom: "4px" }}>
+                Setup Notes
+              </div>
               <ul style={{ margin: "0", paddingLeft: "16px" }}>
-                <li>This charm should be in space: <code>community-patterns-shared</code></li>
-                <li>Favorite with tag: <code>#gmailSearchRegistry</code></li>
-                <li>Gmail agents discover this via: <code>wish(&#123; query: "#gmailSearchRegistry" &#125;)</code></li>
+                <li>
+                  This charm should be in space:{" "}
+                  <code>community-patterns-shared</code>
+                </li>
+                <li>
+                  Favorite with tag: <code>#gmailSearchRegistry</code>
+                </li>
+                <li>
+                  Gmail agents discover this via:{" "}
+                  <code>wish(&#123; query: "#gmailSearchRegistry" &#125;)</code>
+                </li>
               </ul>
             </div>
           </ct-vstack>

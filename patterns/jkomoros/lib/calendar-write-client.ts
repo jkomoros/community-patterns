@@ -31,7 +31,7 @@
  * });
  * ```
  */
-import { Writable, getRecipeEnvironment } from "commontools";
+import { getRecipeEnvironment, Writable } from "commontools";
 
 const env = getRecipeEnvironment();
 
@@ -277,7 +277,10 @@ export class CalendarWriteClient {
    * @returns The created event
    * @throws Error if creation fails or auth is invalid
    */
-  async createEvent(params: CreateEventParams, retryCount = 0): Promise<CalendarEventResult> {
+  async createEvent(
+    params: CreateEventParams,
+    retryCount = 0,
+  ): Promise<CalendarEventResult> {
     const token = this.auth.get()?.token;
     if (!token) {
       throw new Error("No authorization token. Please authenticate first.");
@@ -313,7 +316,9 @@ export class CalendarWriteClient {
 
     // Build URL with query params
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(params.calendarId)}/events`,
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(params.calendarId)
+      }/events`,
     );
     if (params.sendUpdates) {
       url.searchParams.set("sendUpdates", params.sendUpdates);
@@ -331,7 +336,9 @@ export class CalendarWriteClient {
     // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
       if (retryCount >= 2) {
-        throw new Error("Authentication failed after retries. Please re-authenticate.");
+        throw new Error(
+          "Authentication failed after retries. Please re-authenticate.",
+        );
       }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
@@ -400,7 +407,9 @@ export class CalendarWriteClient {
     }
 
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
     url.searchParams.set("sendUpdates", sendUpdates);
 
@@ -416,11 +425,19 @@ export class CalendarWriteClient {
     // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
       if (retryCount >= 2) {
-        throw new Error("Authentication failed after retries. Please re-authenticate.");
+        throw new Error(
+          "Authentication failed after retries. Please re-authenticate.",
+        );
       }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
-      return this.updateEvent(calendarId, eventId, params, sendUpdates, retryCount + 1);
+      return this.updateEvent(
+        calendarId,
+        eventId,
+        params,
+        sendUpdates,
+        retryCount + 1,
+      );
     }
 
     if (!res.ok) {
@@ -460,7 +477,9 @@ export class CalendarWriteClient {
     debugLog(this.debugMode, "Deleting event:", eventId);
 
     const url = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
     url.searchParams.set("sendUpdates", sendUpdates);
 
@@ -474,7 +493,9 @@ export class CalendarWriteClient {
     // Handle 401 (token expired) - try to refresh and retry (max 2 retries)
     if (res.status === 401) {
       if (retryCount >= 2) {
-        throw new Error("Authentication failed after retries. Please re-authenticate.");
+        throw new Error(
+          "Authentication failed after retries. Please re-authenticate.",
+        );
       }
       debugLog(this.debugMode, "Token expired, attempting refresh...");
       await this.refreshAuth();
@@ -525,7 +546,9 @@ export class CalendarWriteClient {
 
     // First, get the current event to find attendee list
     const getUrl = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
 
     const getRes = await fetch(getUrl.toString(), {
@@ -546,7 +569,9 @@ export class CalendarWriteClient {
       const errorMessage =
         (error as { error?: { message?: string } }).error?.message ||
         getRes.statusText;
-      throw new Error(`Failed to fetch event: ${getRes.status} ${errorMessage}`);
+      throw new Error(
+        `Failed to fetch event: ${getRes.status} ${errorMessage}`,
+      );
     }
 
     const event = (await getRes.json()) as CalendarEventResult;
@@ -574,7 +599,9 @@ export class CalendarWriteClient {
 
     // Patch the event with updated attendee status
     const patchUrl = new URL(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${
+        encodeURIComponent(calendarId)
+      }/events/${encodeURIComponent(eventId)}`,
     );
     patchUrl.searchParams.set("sendUpdates", "all");
 
@@ -686,8 +713,9 @@ export class CalendarWriteClient {
             created.id,
           );
         } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
+          const errorMessage = error instanceof Error
+            ? error.message
+            : String(error);
           results.push({
             clientId: event.clientId,
             success: false,

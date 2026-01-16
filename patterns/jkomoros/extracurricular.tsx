@@ -25,13 +25,13 @@ import {
   type ICalEvent,
   type DayOfWeek as ICalDayOfWeek,
 } from "./util/ical-generator.ts";
-import { createGoogleAuth, type Auth as GoogleAuthType } from "./util/google-auth-manager.tsx";
+import { createGoogleAuth, type Auth as GoogleAuthType } from "./lib/google-auth-manager.tsx";
 import {
   exportToGoogle,
   type ExportTarget,
   type ExportableEvent,
 } from "./util/calendar-export.tsx";
-import { type ExportProgress } from "./util/calendar-export-types.ts";
+import { type ExportProgress } from "./lib/calendar-export-types.ts";
 
 // ============================================================================
 // TYPES

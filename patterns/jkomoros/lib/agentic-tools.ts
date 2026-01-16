@@ -34,7 +34,7 @@
  * }
  * ```
  */
-import { Writable, handler, JSONSchema } from "commontools";
+import { handler, JSONSchema, Writable } from "commontools";
 
 // =============================================================================
 // SCHEMA UTILITIES
@@ -100,7 +100,7 @@ export function defineItemSchema<T extends Record<string, PropertyDef>>(
  */
 export interface ListToolConfig<Fields extends string> {
   /** Cell containing the list of items */
-  items: any;  // Accepts pattern input cells (OpaqueCell, etc.)
+  items: any; // Accepts pattern input cells (OpaqueCell, etc.)
   /** Fields that make up the dedup key - MUST be valid field names from schema */
   dedupe: Fields[];
   /** Prefix for generated IDs (default: "item") */
@@ -173,10 +173,14 @@ export function listTool<Fields extends string>(
       let resultMessage: string;
 
       if (existingKeys.has(dedupeKey)) {
-        console.log(`[listTool:${state.idPrefix}] Duplicate skipped: ${dedupeKey}`);
+        console.log(
+          `[listTool:${state.idPrefix}] Duplicate skipped: ${dedupeKey}`,
+        );
         resultMessage = `Duplicate: ${dedupeKey} already saved`;
       } else {
-        const id = `${state.idPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const id = `${state.idPrefix}-${Date.now()}-${
+          Math.random().toString(36).slice(2, 8)
+        }`;
         const newRecord = {
           ...input,
           id,

@@ -1,6 +1,5 @@
 /// <cts-enable />
 import {
-  Writable,
   computed,
   Default,
   getRecipeEnvironment,
@@ -9,6 +8,7 @@ import {
   pattern,
   Stream,
   UI,
+  Writable,
 } from "commontools";
 
 const env = getRecipeEnvironment();
@@ -128,8 +128,7 @@ export function createPreviewUI(
   const now = Date.now();
   const expiresAt = auth?.expiresAt || 0;
   const isExpired = isAuthenticated && expiresAt > 0 && expiresAt < now;
-  const isWarning =
-    isAuthenticated && !isExpired && expiresAt > 0 &&
+  const isWarning = isAuthenticated && !isExpired && expiresAt > 0 &&
     expiresAt - now < 10 * 60 * 1000;
 
   const status: AuthStatus = !isAuthenticated
@@ -404,7 +403,7 @@ const handleRefresh = handler<unknown, { auth: Writable<Auth> }>(
 // Must be at module scope, not inside pattern
 const getScopeFriendlyName = (scope: string): string => {
   const friendly = Object.entries(SCOPE_MAP).find(
-    ([, url]) => url === scope
+    ([, url]) => url === scope,
   );
   return friendly
     ? SCOPE_DESCRIPTIONS[friendly[0] as keyof typeof SCOPE_DESCRIPTIONS]
@@ -426,12 +425,15 @@ const refreshTokenHandler = handler<
   Record<string, never>,
   { auth: Writable<Auth> }
 >(async (_event, { auth }) => {
-  authDebugLog('refreshTokenHandler called');
+  authDebugLog("refreshTokenHandler called");
   const currentAuth = auth.get();
   const refreshToken = currentAuth?.refreshToken;
 
-  authDebugLog('Current token (first 20 chars):', currentAuth?.token?.slice(0, 20));
-  authDebugLog('Has refreshToken:', !!refreshToken);
+  authDebugLog(
+    "Current token (first 20 chars):",
+    currentAuth?.token?.slice(0, 20),
+  );
+  authDebugLog("Has refreshToken:", !!refreshToken);
 
   if (!refreshToken) {
     console.error("[google-auth] No refresh token available");
@@ -456,9 +458,12 @@ const refreshTokenHandler = handler<
   }
 
   const json = await res.json();
-  authDebugLog('Server response received');
-  authDebugLog('New token (first 20 chars):', json.tokenInfo?.token?.slice(0, 20));
-  authDebugLog('New expiresAt:', json.tokenInfo?.expiresAt);
+  authDebugLog("Server response received");
+  authDebugLog(
+    "New token (first 20 chars):",
+    json.tokenInfo?.token?.slice(0, 20),
+  );
+  authDebugLog("New expiresAt:", json.tokenInfo?.expiresAt);
 
   if (!json.tokenInfo) {
     console.error("[google-auth] No tokenInfo in response:", json);
@@ -469,13 +474,16 @@ const refreshTokenHandler = handler<
 
   // Update the auth cell with new token data
   // Keep existing user info since refresh doesn't return it
-  authDebugLog('Calling auth.update()...');
+  authDebugLog("Calling auth.update()...");
   auth.update({
     ...json.tokenInfo,
     user: currentAuth.user,
   });
-  authDebugLog('auth.update() completed');
-  authDebugLog('Verifying - token now (first 20 chars):', auth.get()?.token?.slice(0, 20));
+  authDebugLog("auth.update() completed");
+  authDebugLog(
+    "Verifying - token now (first 20 chars):",
+    auth.get()?.token?.slice(0, 20),
+  );
 });
 
 export default pattern<Input, Output>(
@@ -560,23 +568,25 @@ export default pattern<Input, Output>(
       }
       return (
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {auth.user.picture ? (
-            <img
-              src={auth.user.picture}
-              alt=""
-              style={{ width: "24px", height: "24px", borderRadius: "50%" }}
-            />
-          ) : (
-            <span
-              style={{
-                width: "24px",
-                height: "24px",
-                borderRadius: "50%",
-                backgroundColor: "#10b981",
-                display: "inline-block",
-              }}
-            />
-          )}
+          {auth.user.picture
+            ? (
+              <img
+                src={auth.user.picture}
+                alt=""
+                style={{ width: "24px", height: "24px", borderRadius: "50%" }}
+              />
+            )
+            : (
+              <span
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "50%",
+                  backgroundColor: "#10b981",
+                  display: "inline-block",
+                }}
+              />
+            )}
           <div>
             <div style={{ fontWeight: 500, fontSize: "14px" }}>
               {auth.user.name || auth.user.email}
@@ -670,12 +680,21 @@ export default pattern<Input, Output>(
             <h4 style={{ marginTop: "0", marginBottom: "12px" }}>
               Permissions
               {auth?.user?.email && (
-                <span style={{ fontWeight: "normal", fontSize: "12px", color: "#6b7280", marginLeft: "8px" }}>
+                <span
+                  style={{
+                    fontWeight: "normal",
+                    fontSize: "12px",
+                    color: "#6b7280",
+                    marginLeft: "8px",
+                  }}
+                >
                   (locked while authenticated)
                 </span>
               )}
             </h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            >
               {/* PERFORMANCE FIX: Reference pre-computed cells, no computed() inside .map() */}
               {Object.entries(SCOPE_DESCRIPTIONS).map(([key, description]) => (
                 <label
@@ -700,20 +719,25 @@ export default pattern<Input, Output>(
           </div>
 
           {/* Re-auth warning */}
-          {computed(() => needsReauth ? (
-            <div
-              style={{
-                padding: "12px",
-                backgroundColor: "#fff3cd",
-                borderRadius: "8px",
-                border: "1px solid #ffc107",
-                fontSize: "14px",
-              }}
-            >
-              <strong>Note:</strong> You've selected new permissions.
-              Click "Sign in with Google" below to grant access.
-            </div>
-          ) : null)}
+          {computed(() =>
+            needsReauth
+              ? (
+                <div
+                  style={{
+                    padding: "12px",
+                    backgroundColor: "#fff3cd",
+                    borderRadius: "8px",
+                    border: "1px solid #ffc107",
+                    fontSize: "14px",
+                  }}
+                >
+                  <strong>Note:</strong>{" "}
+                  You've selected new permissions. Click "Sign in with Google"
+                  below to grant access.
+                </div>
+              )
+              : null
+          )}
 
           {/* Favorite reminder */}
           {auth?.user?.email && (
@@ -726,54 +750,76 @@ export default pattern<Input, Output>(
                 fontSize: "14px",
               }}
             >
-              <strong>Tip:</strong> Favorite this charm (click ⭐) to share your
-              Google auth across all your patterns. Any pattern using{" "}
-              <code>wish("#googleAuth")</code> will automatically find and use
-              it.
+              <strong>Tip:</strong>{" "}
+              Favorite this charm (click ⭐) to share your Google auth across
+              all your patterns. Any pattern using{" "}
+              <code>wish("#googleAuth")</code>{" "}
+              will automatically find and use it.
             </div>
           )}
 
           {/* Show selected scopes if no auth yet */}
-          {computed(() => !auth?.user?.email && hasSelectedScopes ? (
-            <div style={{ fontSize: "14px", color: "#666" }}>
-              Will request: {scopesDisplay}
-            </div>
-          ) : null)}
+          {computed(() =>
+            !auth?.user?.email && hasSelectedScopes
+              ? (
+                <div style={{ fontSize: "14px", color: "#666" }}>
+                  Will request: {scopesDisplay}
+                </div>
+              )
+              : null
+          )}
 
           {/* Token expired warning with refresh button */}
-          {computed(() => isTokenExpired ? (
-            <div
-              style={{
-                padding: "16px",
-                backgroundColor: "#fee2e2",
-                borderRadius: "8px",
-                border: "1px solid #ef4444",
-                marginBottom: "15px",
-              }}
-            >
-              <h4 style={{ margin: "0 0 8px 0", color: "#dc2626", fontSize: "14px" }}>
-                Session Expired
-              </h4>
-              <p style={{ margin: "0 0 12px 0", fontSize: "13px", color: "#4b5563" }}>
-                Your Google token has expired. Click below to refresh it automatically.
-              </p>
-              <button
-                onClick={handleRefresh({ auth })}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                  fontSize: "14px",
-                }}
-              >
-                Refresh Token
-              </button>
-            </div>
-          ) : null)}
+          {computed(() =>
+            isTokenExpired
+              ? (
+                <div
+                  style={{
+                    padding: "16px",
+                    backgroundColor: "#fee2e2",
+                    borderRadius: "8px",
+                    border: "1px solid #ef4444",
+                    marginBottom: "15px",
+                  }}
+                >
+                  <h4
+                    style={{
+                      margin: "0 0 8px 0",
+                      color: "#dc2626",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Session Expired
+                  </h4>
+                  <p
+                    style={{
+                      margin: "0 0 12px 0",
+                      fontSize: "13px",
+                      color: "#4b5563",
+                    }}
+                  >
+                    Your Google token has expired. Click below to refresh it
+                    automatically.
+                  </p>
+                  <button
+                    onClick={handleRefresh({ auth })}
+                    style={{
+                      padding: "10px 20px",
+                      backgroundColor: "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontWeight: "500",
+                      fontSize: "14px",
+                    }}
+                  >
+                    Refresh Token
+                  </button>
+                </div>
+              )
+              : null
+          )}
 
           <ct-google-oauth
             $auth={auth}
@@ -800,50 +846,66 @@ export default pattern<Input, Output>(
           )}
 
           {/* Manual token refresh section - visible when authenticated and NOT expired */}
-          {computed(() => auth?.user?.email && !isTokenExpired ? (
-            <div
-              style={{
-                padding: "16px",
-                backgroundColor: "#f0f9ff",
-                borderRadius: "8px",
-                border: "1px solid #0ea5e9",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "12px",
-                }}
-              >
-                <div>
-                  <h4 style={{ margin: "0 0 4px 0", fontSize: "14px", color: "#0369a1" }}>
-                    Token Status
-                  </h4>
-                  <p style={{ margin: "0", fontSize: "13px", color: "#4b5563" }}>
-                    Expires in: <strong>{tokenExpiryDisplay}</strong>
-                  </p>
-                </div>
-                <button
-                  onClick={handleRefresh({ auth })}
+          {computed(() =>
+            auth?.user?.email && !isTokenExpired
+              ? (
+                <div
                   style={{
-                    padding: "8px 16px",
-                    backgroundColor: "#0ea5e9",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontWeight: "500",
-                    fontSize: "13px",
+                    padding: "16px",
+                    backgroundColor: "#f0f9ff",
+                    borderRadius: "8px",
+                    border: "1px solid #0ea5e9",
                   }}
                 >
-                  Refresh Now
-                </button>
-              </div>
-            </div>
-          ) : null)}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "12px",
+                    }}
+                  >
+                    <div>
+                      <h4
+                        style={{
+                          margin: "0 0 4px 0",
+                          fontSize: "14px",
+                          color: "#0369a1",
+                        }}
+                      >
+                        Token Status
+                      </h4>
+                      <p
+                        style={{
+                          margin: "0",
+                          fontSize: "13px",
+                          color: "#4b5563",
+                        }}
+                      >
+                        Expires in: <strong>{tokenExpiryDisplay}</strong>
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleRefresh({ auth })}
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "#0ea5e9",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                        fontSize: "13px",
+                      }}
+                    >
+                      Refresh Now
+                    </button>
+                  </div>
+                </div>
+              )
+              : null
+          )}
 
           <div
             style={{
@@ -854,7 +916,8 @@ export default pattern<Input, Output>(
             }}
           >
             <strong>Usage:</strong>{" "}
-            This charm provides unified Google OAuth authentication. Link its{" "}
+            This charm provides unified Google OAuth authentication. Link its
+            {" "}
             <code>auth</code> output to any Google importer charm's{" "}
             <code>auth</code> input, or favorite it for automatic discovery.
           </div>

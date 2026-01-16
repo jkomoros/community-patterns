@@ -15,13 +15,13 @@
  * const emails = await client.searchEmails("from:amazon.com", 20);
  * ```
  */
-import { Writable, getRecipeEnvironment } from "commontools";
+import { getRecipeEnvironment, Writable } from "commontools";
 
 const env = getRecipeEnvironment();
 
 // Re-export the Auth type for convenience
-export type { Auth } from "../gmail-importer.tsx";
-import type { Auth } from "../gmail-importer.tsx";
+export type { Auth } from "./gmail-importer.tsx";
+import type { Auth } from "./gmail-importer.tsx";
 
 // ============================================================================
 // TYPES
@@ -134,7 +134,10 @@ export class GmailClient {
     // If an external refresh callback was provided, use it
     // (for cross-charm refresh via streams)
     if (this.onRefresh) {
-      debugLog(this.debugMode, "Refreshing auth token via external callback...");
+      debugLog(
+        this.debugMode,
+        "Refreshing auth token via external callback...",
+      );
       await this.onRefresh();
       debugLog(this.debugMode, "Auth token refreshed via external callback");
       return;
@@ -196,13 +199,18 @@ export class GmailClient {
       return [];
     }
 
-    debugLog(this.debugMode, `Found ${messages.length} messages for query: ${query}`);
+    debugLog(
+      this.debugMode,
+      `Found ${messages.length} messages for query: ${query}`,
+    );
 
     // Step 2: Fetch full message content
     const fullMessages = await this.fetchBatch(messages);
 
     // Step 3: Parse into SimpleEmail format
-    return fullMessages.map((msg) => this.parseMessage(msg)).filter(Boolean) as SimpleEmail[];
+    return fullMessages.map((msg) => this.parseMessage(msg)).filter(
+      Boolean,
+    ) as SimpleEmail[];
   }
 
   /**
@@ -249,10 +257,9 @@ export class GmailClient {
     const boundary = `batch_${Math.random().toString(36).substring(2)}`;
     debugLog(this.debugMode, `Processing batch of ${messages.length} messages`);
 
-    const batchBody =
-      messages
-        .map(
-          (message, index) => `
+    const batchBody = messages
+      .map(
+        (message, index) => `
 --${boundary}
 Content-Type: application/http
 Content-ID: <batch-${index}+${message.id}>
@@ -262,8 +269,8 @@ Authorization: Bearer $PLACEHOLDER
 Accept: application/json
 
 `,
-        )
-        .join("") + `--${boundary}--`;
+      )
+      .join("") + `--${boundary}--`;
 
     const batchResponse = await this.googleRequest(
       new URL("https://gmail.googleapis.com/batch/gmail/v1"),
@@ -277,7 +284,10 @@ Accept: application/json
     );
 
     const responseText = await batchResponse.text();
-    debugLog(this.debugMode, `Received batch response of length: ${responseText.length}`);
+    debugLog(
+      this.debugMode,
+      `Received batch response of length: ${responseText.length}`,
+    );
 
     // Parse batch response
     const HTTP_RES_REGEX = /HTTP\/\d\.\d (\d\d\d) ([^\n]*)/;
@@ -287,12 +297,12 @@ Accept: application/json
       .map((part) => {
         const httpResIndex = part.search(HTTP_RES_REGEX);
         const httpResMatch = part.match(HTTP_RES_REGEX);
-        let httpStatus =
-          httpResMatch && httpResMatch.length >= 2
-            ? Number(httpResMatch[1])
-            : 0;
-        const httpMessage =
-          httpResMatch && httpResMatch.length >= 3 ? httpResMatch[2] : "";
+        let httpStatus = httpResMatch && httpResMatch.length >= 2
+          ? Number(httpResMatch[1])
+          : 0;
+        const httpMessage = httpResMatch && httpResMatch.length >= 3
+          ? httpResMatch[2]
+          : "";
 
         try {
           const jsonStart = part.indexOf(`\n{`);
@@ -336,7 +346,10 @@ Accept: application/json
    * Used to resolve inline image attachments (cid: references in HTML).
    * Returns base64url-encoded attachment data.
    */
-  async getAttachment(messageId: string, attachmentId: string): Promise<string> {
+  async getAttachment(
+    messageId: string,
+    attachmentId: string,
+  ): Promise<string> {
     const url = new URL(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
     );
@@ -523,7 +536,10 @@ Accept: application/json
       await this.refreshAuth();
     } else if (status === 429) {
       this.delay += this.delayIncrement;
-      debugLog(this.debugMode, `Rate limited, incrementing delay to ${this.delay}`);
+      debugLog(
+        this.debugMode,
+        `Rate limited, incrementing delay to ${this.delay}`,
+      );
       await sleep(this.delay);
     }
 
@@ -603,11 +619,21 @@ export async function validateAndRefreshToken(
     const refreshToken = authData?.refreshToken;
 
     if (!refreshToken) {
-      if (debugMode) console.log("[GmailClient] Token expired but no refresh token available");
-      return { valid: false, error: "Token expired and no refresh token available. Please re-authenticate." };
+      if (debugMode) {
+        console.log(
+          "[GmailClient] Token expired but no refresh token available",
+        );
+      }
+      return {
+        valid: false,
+        error:
+          "Token expired and no refresh token available. Please re-authenticate.",
+      };
     }
 
-    if (debugMode) console.log("[GmailClient] Token expired, attempting refresh...");
+    if (debugMode) {
+      console.log("[GmailClient] Token expired, attempting refresh...");
+    }
 
     try {
       const res = await fetch(
@@ -620,7 +646,10 @@ export async function validateAndRefreshToken(
 
       if (!res.ok) {
         if (debugMode) console.log("[GmailClient] Refresh failed:", res.status);
-        return { valid: false, error: "Token refresh failed. Please re-authenticate." };
+        return {
+          valid: false,
+          error: "Token refresh failed. Please re-authenticate.",
+        };
       }
 
       const json = await res.json();
@@ -633,7 +662,10 @@ export async function validateAndRefreshToken(
       // Validate the new token
       const newToken = newAuthData?.token;
       if (!newToken) {
-        return { valid: false, error: "Refresh succeeded but no token returned" };
+        return {
+          valid: false,
+          error: "Refresh succeeded but no token returned",
+        };
       }
 
       const refreshedValidation = await validateGmailToken(newToken);
@@ -641,7 +673,10 @@ export async function validateAndRefreshToken(
         return { valid: true, refreshed: true };
       }
 
-      return { valid: false, error: "Token refresh succeeded but new token is invalid" };
+      return {
+        valid: false,
+        error: "Token refresh succeeded but new token is invalid",
+      };
     } catch (err) {
       if (debugMode) console.log("[GmailClient] Refresh error:", err);
       return { valid: false, error: `Token refresh error: ${err}` };
@@ -667,19 +702,35 @@ export async function validateAndRefreshToken(
  */
 export async function validateAndRefreshTokenCrossCharm(
   auth: Writable<Auth>,
-  refreshStream: { send: (event: Record<string, never>, onCommit?: (tx: any) => void) => void } | null | undefined,
+  refreshStream:
+    | {
+      send: (
+        event: Record<string, never>,
+        onCommit?: (tx: any) => void,
+      ) => void;
+    }
+    | null
+    | undefined,
   debugMode: boolean = false,
 ): Promise<{ valid: boolean; refreshed?: boolean; error?: string }> {
   // DEBUG: Log entry point and initial state
-  console.log('[DEBUG-REFRESH] validateAndRefreshTokenCrossCharm called');
-  console.log('[DEBUG-REFRESH] Has refresh stream:', !!refreshStream?.send);
+  console.log("[DEBUG-REFRESH] validateAndRefreshTokenCrossCharm called");
+  console.log("[DEBUG-REFRESH] Has refresh stream:", !!refreshStream?.send);
 
   const authData = auth.get();
   const token = authData?.token;
 
-  console.log('[DEBUG-REFRESH] Current token (first 20 chars):', token?.slice(0, 20));
-  console.log('[DEBUG-REFRESH] Token expiresAt:', authData?.expiresAt, 'now:', Date.now());
-  console.log('[DEBUG-REFRESH] Has refreshToken:', !!authData?.refreshToken);
+  console.log(
+    "[DEBUG-REFRESH] Current token (first 20 chars):",
+    token?.slice(0, 20),
+  );
+  console.log(
+    "[DEBUG-REFRESH] Token expiresAt:",
+    authData?.expiresAt,
+    "now:",
+    Date.now(),
+  );
+  console.log("[DEBUG-REFRESH] Has refreshToken:", !!authData?.refreshToken);
 
   if (!token) {
     return { valid: false, error: "No token provided" };
@@ -687,7 +738,7 @@ export async function validateAndRefreshTokenCrossCharm(
 
   // First, try validating the current token
   const initialValidation = await validateGmailToken(token);
-  console.log('[DEBUG-REFRESH] Initial validation result:', initialValidation);
+  console.log("[DEBUG-REFRESH] Initial validation result:", initialValidation);
 
   if (initialValidation.valid) {
     return { valid: true };
@@ -696,18 +747,32 @@ export async function validateAndRefreshTokenCrossCharm(
   // If token expired (401), try to refresh via the stream
   if (initialValidation.error?.includes("Token expired")) {
     if (!refreshStream?.send) {
-      if (debugMode) console.log("[GmailClient] Token expired but no refresh stream available");
+      if (debugMode) {
+        console.log(
+          "[GmailClient] Token expired but no refresh stream available",
+        );
+      }
       // Fall back to direct refresh attempt (will fail with cross-charm write isolation)
       return validateAndRefreshToken(auth, debugMode);
     }
 
     const refreshToken = authData?.refreshToken;
     if (!refreshToken) {
-      if (debugMode) console.log("[GmailClient] Token expired but no refresh token in auth data");
-      return { valid: false, error: "Token expired and no refresh token available. Please re-authenticate." };
+      if (debugMode) {
+        console.log(
+          "[GmailClient] Token expired but no refresh token in auth data",
+        );
+      }
+      return {
+        valid: false,
+        error:
+          "Token expired and no refresh token available. Please re-authenticate.",
+      };
     }
 
-    if (debugMode) console.log("[GmailClient] Token expired, calling refresh stream...");
+    if (debugMode) {
+      console.log("[GmailClient] Token expired, calling refresh stream...");
+    }
 
     try {
       // Call the refresh stream and wait for the handler's transaction to commit
@@ -716,43 +781,76 @@ export async function validateAndRefreshTokenCrossCharm(
           // onCommit is called after the handler's transaction commits (success or failure)
           const status = tx?.status?.();
           if (status?.status === "done") {
-            if (debugMode) console.log("[GmailClient] Refresh stream handler committed successfully");
+            if (debugMode) {
+              console.log(
+                "[GmailClient] Refresh stream handler committed successfully",
+              );
+            }
             resolve();
           } else if (status?.status === "error") {
-            if (debugMode) console.log("[GmailClient] Refresh stream handler failed:", status.error);
+            if (debugMode) {
+              console.log(
+                "[GmailClient] Refresh stream handler failed:",
+                status.error,
+              );
+            }
             reject(new Error(`Refresh handler failed: ${status.error}`));
           } else {
             // Unknown status, but callback was called so transaction finished
-            if (debugMode) console.log("[GmailClient] Refresh stream handler finished with status:", status?.status);
+            if (debugMode) {
+              console.log(
+                "[GmailClient] Refresh stream handler finished with status:",
+                status?.status,
+              );
+            }
             resolve();
           }
         });
       });
 
       // Re-read auth cell to get the refreshed token
-      console.log('[DEBUG-REFRESH] onCommit fired, re-reading auth cell...');
+      console.log("[DEBUG-REFRESH] onCommit fired, re-reading auth cell...");
       const refreshedAuth = auth.get();
       const newToken = refreshedAuth?.token;
 
-      console.log('[DEBUG-REFRESH] New token (first 20 chars):', newToken?.slice(0, 20));
-      console.log('[DEBUG-REFRESH] Token changed:', newToken !== authData?.token);
-      console.log('[DEBUG-REFRESH] New expiresAt:', refreshedAuth?.expiresAt);
+      console.log(
+        "[DEBUG-REFRESH] New token (first 20 chars):",
+        newToken?.slice(0, 20),
+      );
+      console.log(
+        "[DEBUG-REFRESH] Token changed:",
+        newToken !== authData?.token,
+      );
+      console.log("[DEBUG-REFRESH] New expiresAt:", refreshedAuth?.expiresAt);
 
       if (!newToken) {
-        return { valid: false, error: "Refresh completed but no token in auth cell" };
+        return {
+          valid: false,
+          error: "Refresh completed but no token in auth cell",
+        };
       }
 
-      if (debugMode) console.log("[GmailClient] Token refreshed via stream, validating new token...");
+      if (debugMode) {
+        console.log(
+          "[GmailClient] Token refreshed via stream, validating new token...",
+        );
+      }
 
       // Validate the new token
-      console.log('[DEBUG-REFRESH] Validating new token...');
+      console.log("[DEBUG-REFRESH] Validating new token...");
       const refreshedValidation = await validateGmailToken(newToken);
-      console.log('[DEBUG-REFRESH] New token validation result:', refreshedValidation);
+      console.log(
+        "[DEBUG-REFRESH] New token validation result:",
+        refreshedValidation,
+      );
       if (refreshedValidation.valid) {
         return { valid: true, refreshed: true };
       }
 
-      return { valid: false, error: "Token refresh succeeded but new token is invalid" };
+      return {
+        valid: false,
+        error: "Token refresh succeeded but new token is invalid",
+      };
     } catch (err) {
       if (debugMode) console.log("[GmailClient] Refresh stream error:", err);
       return { valid: false, error: `Token refresh error: ${err}` };

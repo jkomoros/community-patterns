@@ -4,7 +4,7 @@
  * Links directly to a google-auth charm to bypass wish picker.
  */
 import { NAME, pattern, UI } from "commontools";
-import { createGoogleAuth, type ScopeKey } from "./util/google-auth-manager.tsx";
+import { createGoogleAuth, type ScopeKey } from "./lib/google-auth-manager.tsx";
 
 interface Input {}
 interface Output {}
