@@ -12,7 +12,7 @@
 const REPO_ROOT = new URL("..", import.meta.url).pathname;
 const CONFIG_FILE = `${REPO_ROOT}.launcher-history`;
 const DEFAULT_LABS_DIR = `${REPO_ROOT}../labs`;
-const IDENTITY_PATH = `${REPO_ROOT}claude.key`;
+const IDENTITY_PATH = `${DEFAULT_LABS_DIR}/claude.key`;
 
 interface PatternRecord {
   path: string;
