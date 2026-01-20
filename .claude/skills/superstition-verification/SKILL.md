@@ -96,7 +96,7 @@ Deploy the repro to a test space:
 ```bash
 cd ~/Code/labs && deno task ct charm new [path-to-repro.tsx] \
   --api-url http://localhost:8000 \
-  --identity [path-to-claude.key] \
+  --identity ~/Code/labs/claude.key \
   --space claude-superstition-verify-[unique]
 ```
 

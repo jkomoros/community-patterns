@@ -233,7 +233,7 @@ Use `./scripts/ct` commands when you need precise control:
 ```bash
 ./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space test-space-1 \
   patterns/YOUR-USERNAME/pattern.tsx
 ```
@@ -254,7 +254,7 @@ After making changes to your pattern:
 ```bash
 ./scripts/ct charm setsrc \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space test-space-1 \
   --charm CHARM-ID \
   patterns/YOUR-USERNAME/pattern.tsx
@@ -269,7 +269,7 @@ See pattern details:
 ```bash
 ./scripts/ct charm inspect \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space test-space-1 \
   --charm CHARM-ID
 ```
@@ -280,7 +280,7 @@ You can set these to avoid repeating flags:
 
 ```bash
 export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=./claude.key
+export CT_IDENTITY=../labs/claude.key
 
 # Then just:
 ./scripts/ct charm new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
@@ -329,12 +329,12 @@ cd ~/Code/labs/packages/shell && deno task dev-local &
 
 **Identity key missing?**
 ```bash
-# Check it exists at repo root
-ls ~/Code/community-patterns/claude.key
+# Check it exists in labs directory
+ls ~/Code/labs/claude.key
 
 # If missing, recreate it
-cd ~/Code/community-patterns
-deno task -c ../labs/deno.json ct id new > claude.key
+cd ~/Code/labs
+deno task ct id new > claude.key
 chmod 600 claude.key
 ```
 
@@ -359,7 +359,7 @@ patterns/YOUR-USERNAME/
 ├── notes-app.tsx
 └── image-gallery.tsx
 
-Note: claude.key is at repo root, not in your pattern directory
+Note: claude.key is in ../labs, not in the community-patterns directory
 ```
 
 **Folder conventions:**
@@ -926,13 +926,13 @@ cd ~/Code/community-patterns
 ./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 
 # Deploy
-./scripts/ct charm new --api-url http://localhost:8000 --identity ./claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct charm new --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
 
 # Update
-./scripts/ct charm setsrc --api-url http://localhost:8000 --identity ./claude.key --space my-space --charm CHARM-ID patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct charm setsrc --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --charm CHARM-ID patterns/YOUR-USERNAME/pattern.tsx
 
 # Inspect
-./scripts/ct charm inspect --api-url http://localhost:8000 --identity ./claude.key --space my-space --charm CHARM-ID
+./scripts/ct charm inspect --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --charm CHARM-ID
 ```
 
 ### Git Commands

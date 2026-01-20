@@ -53,14 +53,14 @@ Deploy a new pattern instance:
 ```bash
 ./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
   patterns/$GITHUB_USER/pattern.tsx
 ```
 
 **⚠️ ALL THREE PARAMETERS ARE REQUIRED:**
 - `--api-url http://localhost:8000` - MUST be 8000 (toolshed), NOT 5173 (shell)
-- `--identity ./claude.key` - Path to identity key at repo root
+- `--identity ../labs/claude.key` - Path to identity key in labs directory
 - `--space claude-<pattern>-<MMDD>-<N>` - Use descriptive space names (see naming convention below)
 
 **Space Naming Convention:**
@@ -100,7 +100,7 @@ There is a known framework bug that causes conflicts when using `charm setsrc`.
 # ✅ DO THIS INSTEAD - deploy a new instance
 ./scripts/ct charm new \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
   patterns/$GITHUB_USER/pattern.tsx
 ```
@@ -122,7 +122,7 @@ See pattern details:
 ```bash
 ./scripts/ct charm inspect \
   --api-url http://localhost:8000 \
-  --identity ./claude.key \
+  --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
   --charm CHARM-ID
 ```
@@ -133,7 +133,7 @@ You can set these to avoid repeating flags:
 
 ```bash
 export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=./claude.key
+export CT_IDENTITY=../labs/claude.key
 
 # Then just:
 ./scripts/ct charm new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
@@ -178,12 +178,11 @@ lsof -ti:5173  # Shell (frontend) - REQUIRED
 
 **Identity key missing?**
 ```bash
-# Check it exists at repo root
-ls ./claude.key
+# Check it exists in labs directory
+ls ../labs/claude.key
 
 # If missing, recreate it
-./scripts/ct id new > claude.key
-chmod 600 claude.key
+cd ../labs && deno task ct id new > claude.key && chmod 600 claude.key && cd -
 ```
 
 ## Related Skills

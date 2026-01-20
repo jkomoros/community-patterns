@@ -38,7 +38,6 @@ test -f .claude-workspace && echo "Setup complete" || echo "First-time setup nee
   - .env file with API keys
   - upstream remote
   - user's workspace
-  - identity key (claude.key at repo root)
   - workspace config file (.claude-workspace)
   - first pattern
 
@@ -104,7 +103,6 @@ Still stuck? → Ask user for help
 ```
 community-patterns/        # THIS REPO (user's fork or direct)
 ├── .claude-workspace      # Workspace config: username, is_fork, setup status (gitignored)
-├── claude.key             # Identity key for deploying patterns (gitignored)
 ├── CLAUDE.md              # This file - Claude's instructions
 ├── GETTING_STARTED.md     # First-time setup guide (Claude-guided)
 ├── DEVELOPMENT.md         # Normal development workflows
@@ -202,7 +200,7 @@ patterns/alice/
 ❌ **Never modify other users' patterns** (`patterns/alice/`, etc.)
 ❌ **Never modify example patterns** (`patterns/examples/`)
 ❌ **Never modify root docs** (CLAUDE.md, etc.) unless user explicitly asks
-❌ **Never commit identity keys** (claude.key, .claude-workspace - both gitignored)
+❌ **Never commit identity keys** (../labs/claude.key - gitignored in labs)
 ❌ **Never work outside user's namespace** without permission
 
 ### Working with labs Repository
@@ -353,7 +351,8 @@ Working on photo gallery pattern in WIP/photo-gallery.tsx
 | Purpose | Path |
 |---------|------|
 | Workspace config | `.claude-workspace` |
-| Identity key | `claude.key` |
+| Identity key | `../labs/claude.key` |
+| Passphrase | `../labs/.passphrase` |
 | User's workspace | `patterns/$GITHUB_USER/` |
 | TODO files | `patterns/$GITHUB_USER/design/todo/` |
 | Framework issues | `patterns/$GITHUB_USER/issues/` |

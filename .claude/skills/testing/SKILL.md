@@ -67,7 +67,7 @@ Use descriptive space names with the `claude-` prefix:
 
 **After deploying a new pattern:**
 ```
-1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space claude-my-pattern-1130-1 pattern.tsx
+1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../labs/claude.key --space claude-my-pattern-1130-1 pattern.tsx
 2. Note the charm ID from output
 3. Use Playwright to navigate to: http://localhost:8000/claude-my-pattern-1130-1/CHARM-ID
    ⚠️ MUST be port 8000, MUST include space name

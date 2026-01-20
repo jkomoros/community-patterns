@@ -10,7 +10,7 @@ Currently linking charms requires:
 ```bash
 cd ../labs && deno task ct charm link \
   --api-url http://localhost:8000 \
-  --identity ../community-patterns/claude.key \
+  --identity ../labs/claude.key \
   --space my-space \
   baedrxxx.../outputField \
   baedryyyy.../inputField

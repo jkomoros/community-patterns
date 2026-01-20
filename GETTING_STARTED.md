@@ -166,14 +166,19 @@ git push origin main
 
 ---
 
-## Step 5: Create Identity Key and Workspace Config
+## Step 5: Create Identity Key (in labs) and Workspace Config
 
 ```bash
 cd "$COMMUNITY_PATTERNS_DIR"
 
-# Create identity key (at repo root)
-deno task -c "$LABS_DIR/deno.json" ct id new > claude.key
-chmod 600 claude.key
+# Create identity key in labs directory (shared across all community-patterns repos)
+if [ ! -f "$LABS_DIR/claude.key" ]; then
+  deno task -c "$LABS_DIR/deno.json" ct id new > "$LABS_DIR/claude.key"
+  chmod 600 "$LABS_DIR/claude.key"
+  echo "Created identity key at $LABS_DIR/claude.key"
+else
+  echo "Identity key already exists at $LABS_DIR/claude.key"
+fi
 
 # Get username
 GITHUB_USER=$(git remote get-url origin | sed -E 's/.*[:/]([^/]+)\/community-patterns.*/\1/')
@@ -260,10 +265,8 @@ Open the test space in Playwright to register the user.
 **After receiving passphrase, save it:**
 
 ```bash
-cd "$COMMUNITY_PATTERNS_DIR"
-
-# Save passphrase to file (will be gitignored)
-cat > .passphrase << EOF
+# Save passphrase to labs directory (shared across all community-patterns repos)
+cat > "$LABS_DIR/.passphrase" << EOF
 # User Passphrase
 # Keep this safe - you'll need it to access your spaces
 # Generated: $(date)
@@ -271,9 +274,9 @@ cat > .passphrase << EOF
 PASSPHRASE_GOES_HERE
 EOF
 
-chmod 600 .passphrase
+chmod 600 "$LABS_DIR/.passphrase"
 
-echo "Passphrase saved to .passphrase (this file is gitignored)"
+echo "Passphrase saved to $LABS_DIR/.passphrase (this file is gitignored in labs)"
 ```
 
 ---
@@ -307,7 +310,7 @@ deno task ct dev "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx" --n
 # Deploy (if syntax check passes)
 deno task ct charm new \
   --api-url http://localhost:8000 \
-  --identity "$COMMUNITY_PATTERNS_DIR/claude.key" \
+  --identity "$LABS_DIR/claude.key" \
   --space test-$GITHUB_USER-1 \
   "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx"
 
