@@ -200,17 +200,6 @@ A fun prize spinner for kids with adjustable odds.
 - Spin history tracking with timestamp and generosity level
 - Weighted random selection with configurable probabilities
 
-#### `shopping-list.tsx`
-Simple shopping list pattern. Basic item management.
-
-#### `shopping-list-launcher.tsx`
-Shopping list with grocery store integration. Creates and links to store maps for optimized shopping routes.
-
-**Interesting features:**
-- LLM-powered item categorization by store aisle
-- Store map integration for visual shopping optimization
-- Cross-off items as you shop
-
 #### `simple-pii-vault.tsx`
 Secure storage for sensitive personal information.
 
@@ -233,18 +222,6 @@ A reward calendar for children learning daily habits. Shows a rolling 30-day tim
 - Streak protection for "off" days
 - Parent correction mode for fixing mistakes
 - Debug mode with linkable date picker for testing
-
-#### `store-mapper.tsx`
-Map and memorize grocery store layouts. Configure aisles, departments, and entrances.
-
-![store-mapper](screenshots/store-mapper.png)
-
-**Interesting features:**
-- Visual store map with draggable departments
-- Aisle naming and organization
-- LLM-powered suggestions for aisle contents
-- Multiple entrance support
-- Learning from corrections (item location feedback improves future suggestions)
 
 #### `story-weaver.tsx` (formerly spindle-board)
 Brainstorm and weave story ideas using AI prompts. Generate options, pin favorites, and vote on directions.

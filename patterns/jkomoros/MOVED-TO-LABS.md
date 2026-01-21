@@ -36,6 +36,11 @@ making them easier to discover and maintain.
 - google-docs-comment-orchestrator.tsx
 - google-docs-comment-confirm.ts
 
+### Shopping
+- shopping-list.tsx
+- shopping-list-launcher.tsx
+- store-mapper.tsx
+
 ### Utilities (util/)
 - google-auth-manager.tsx
 - gmail-client.ts
