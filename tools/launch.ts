@@ -24,44 +24,44 @@ interface RecentCharm {
   charmId: string;
   name?: string;
   recipeName?: string;
-  patternPath?: string;  // Original pattern file path
-  deployedAt: string;    // ISO timestamp
+  patternPath?: string; // Original pattern file path
+  deployedAt: string; // ISO timestamp
   apiUrl: string;
 }
 
 interface LinkHistoryEntry {
-  sourceField: string;           // e.g., "count" or "users/0/email"
-  targetField: string;           // e.g., "value" or "items"
-  count: number;                 // How many times this combo was linked
-  lastUsed: string;              // ISO timestamp
+  sourceField: string; // e.g., "count" or "users/0/email"
+  targetField: string; // e.g., "value" or "items"
+  count: number; // How many times this combo was linked
+  lastUsed: string; // ISO timestamp
 }
 
 interface Config {
-  lastSpaceLocal?: string;       // Last space for localhost deployments
-  lastSpaceStaging?: string;     // Last space for toolshed (staging) deployments
-  lastSpaceProd?: string;        // Last space for estuary (production) deployments
-  lastDeploymentTarget?: "local" | "staging" | "prod";  // Last deployment target chosen
-  labsDir?: string;              // Optional: override default labs location
+  lastSpaceLocal?: string; // Last space for localhost deployments
+  lastSpaceStaging?: string; // Last space for toolshed (staging) deployments
+  lastSpaceProd?: string; // Last space for estuary (production) deployments
+  lastDeploymentTarget?: "local" | "staging" | "prod"; // Last deployment target chosen
+  labsDir?: string; // Optional: override default labs location
   patterns: PatternRecord[];
-  recentCharms: RecentCharm[];   // Recently deployed charms for linking
+  recentCharms: RecentCharm[]; // Recently deployed charms for linking
   linkHistory: LinkHistoryEntry[]; // Track which field combos have been linked
 }
 
 // ===== CHARM LINKING TYPES =====
 
 interface CharmField {
-  path: string[];           // e.g., ["users", "0", "email"]
-  fullPath: string;         // e.g., "users/0/email"
-  type: string;             // e.g., "string", "number", "object", "array"
-  value?: unknown;          // Current value (for display)
-  schema?: ObjectSchema;    // For objects/arrays, the structural schema
+  path: string[]; // e.g., ["users", "0", "email"]
+  fullPath: string; // e.g., "users/0/email"
+  type: string; // e.g., "string", "number", "object", "array"
+  value?: unknown; // Current value (for display)
+  schema?: ObjectSchema; // For objects/arrays, the structural schema
 }
 
 interface ObjectSchema {
   type: "object" | "array" | "primitive";
-  fields?: Record<string, ObjectSchema>;  // For objects: field name → schema
-  elementSchema?: ObjectSchema;           // For arrays: element schema
-  primitiveType?: string;                 // For primitives: "string", "number", etc.
+  fields?: Record<string, ObjectSchema>; // For objects: field name → schema
+  elementSchema?: ObjectSchema; // For arrays: element schema
+  primitiveType?: string; // For primitives: "string", "number", etc.
 }
 
 interface CharmSchema {
@@ -69,8 +69,8 @@ interface CharmSchema {
   name?: string;
   space: string;
   apiUrl: string;
-  inputs: CharmField[];     // Flattened input fields (from "source")
-  outputs: CharmField[];    // Flattened output fields (from "result")
+  inputs: CharmField[]; // Flattened input fields (from "source")
+  outputs: CharmField[]; // Flattened output fields (from "result")
 }
 
 interface LinkSuggestion {
@@ -83,7 +83,7 @@ interface LinkSuggestion {
     field: CharmField;
   };
   compatibility: "compatible" | "maybe" | "incompatible";
-  score: number;            // Higher = better suggestion
+  score: number; // Higher = better suggestion
 }
 
 // ===== UTILITY FUNCTIONS =====
@@ -123,7 +123,7 @@ async function loadConfig(): Promise<Config> {
 async function saveConfig(config: Config): Promise<void> {
   await Deno.writeTextFile(
     CONFIG_FILE,
-    JSON.stringify(config, null, 2)
+    JSON.stringify(config, null, 2),
   );
 }
 
@@ -226,14 +226,14 @@ interface MultiSelectOption {
   label: string;
   value: string;
   icon?: string;
-  selected?: boolean;  // Initial selection state (defaults to false)
+  selected?: boolean; // Initial selection state (defaults to false)
 }
 
 // Multi-select interactive UI (checkbox-style)
 // Returns array of selected values, or null on cancel
 async function interactiveMultiSelect(
   options: MultiSelectOption[],
-  title?: string
+  title?: string,
 ): Promise<string[] | null> {
   if (options.length === 0) {
     return null;
@@ -246,7 +246,9 @@ async function interactiveMultiSelect(
   let selectedIndex = 0;
   // Track which options are selected (start with whatever was passed in)
   const selections = new Set<number>(
-    options.map((opt, idx) => opt.selected ? idx : -1).filter(idx => idx >= 0)
+    options.map((opt, idx) => opt.selected ? idx : -1).filter((idx) =>
+      idx >= 0
+    ),
   );
   let lastRenderedLineCount = 0;
 
@@ -261,7 +263,9 @@ async function interactiveMultiSelect(
     const lines: string[] = [];
 
     // Show help text
-    lines.push("\x1b[90m(Space to toggle, 'a' to toggle all, Enter to confirm, Q to cancel)\x1b[0m");
+    lines.push(
+      "\x1b[90m(Space to toggle, 'a' to toggle all, Enter to confirm, Q to cancel)\x1b[0m",
+    );
 
     // Options with checkboxes
     for (let i = 0; i < options.length; i++) {
@@ -291,7 +295,7 @@ async function interactiveMultiSelect(
     // Clear all previous lines
     for (let i = 0; i < lastRenderedLineCount; i++) {
       await Deno.stdout.write(
-        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START)
+        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START),
       );
       if (i < lastRenderedLineCount - 1) {
         await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
@@ -355,7 +359,7 @@ async function interactiveMultiSelect(
       Deno.stdin.setRaw(false);
       await Deno.stdout.write(new TextEncoder().encode(SHOW_CURSOR + "\n"));
       // Return selected values
-      return Array.from(selections).sort().map(idx => options[idx].value);
+      return Array.from(selections).sort().map((idx) => options[idx].value);
     } else if (input[0] === 0x03) {
       // Ctrl-C
       Deno.stdin.setRaw(false);
@@ -443,7 +447,7 @@ function formatLabsName(labsPath: string): string {
 
 async function interactiveSelect(
   options: SelectOption[],
-  title?: string
+  title?: string,
 ): Promise<string | null> {
   if (options.length === 0) {
     return null;
@@ -516,7 +520,7 @@ async function interactiveSelect(
     // Clear all previous lines
     for (let i = 0; i < lastRenderedLineCount; i++) {
       await Deno.stdout.write(
-        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START)
+        new TextEncoder().encode(CLEAR_LINE + CURSOR_TO_START),
       );
       if (i < lastRenderedLineCount - 1) {
         await Deno.stdout.write(new TextEncoder().encode(CURSOR_DOWN));
@@ -561,8 +565,7 @@ async function interactiveSelect(
       if (input[2] === 0x41) {
         // Up arrow
         if (filteredOptions.length > 0) {
-          selectedIndex =
-            (selectedIndex - 1 + filteredOptions.length) %
+          selectedIndex = (selectedIndex - 1 + filteredOptions.length) %
             filteredOptions.length;
           await rerender();
         }
@@ -640,7 +643,10 @@ function inferSchema(value: unknown): ObjectSchema {
 
   if (Array.isArray(value)) {
     if (value.length === 0) {
-      return { type: "array", elementSchema: { type: "primitive", primitiveType: "any" } };
+      return {
+        type: "array",
+        elementSchema: { type: "primitive", primitiveType: "any" },
+      };
     }
     return { type: "array", elementSchema: inferSchema(value[0]) };
   }
@@ -663,7 +669,9 @@ function schemaToTypeString(schema: ObjectSchema): string {
     return schema.primitiveType || "any";
   }
   if (schema.type === "array") {
-    const elementType = schema.elementSchema ? schemaToTypeString(schema.elementSchema) : "any";
+    const elementType = schema.elementSchema
+      ? schemaToTypeString(schema.elementSchema)
+      : "any";
     return `${elementType}[]`;
   }
   if (schema.type === "object") {
@@ -685,7 +693,7 @@ function inferType(value: unknown): string {
 function flattenObject(
   obj: unknown,
   basePath: string[] = [],
-  maxDepth: number = 3
+  maxDepth: number = 3,
 ): CharmField[] {
   const fields: CharmField[] = [];
 
@@ -733,7 +741,11 @@ function flattenObject(
       path: currentPath,
       fullPath: currentPath.join("/"),
       type,
-      value: schema.type === "object" ? "{...}" : schema.type === "array" ? `[${(value as unknown[]).length}]` : value,
+      value: schema.type === "object"
+        ? "{...}"
+        : schema.type === "array"
+        ? `[${(value as unknown[]).length}]`
+        : value,
       schema,
     });
 
@@ -753,7 +765,7 @@ function flattenObject(
 // Returns "incompatible" if types don't match
 function checkSchemaCompatibility(
   source: ObjectSchema | undefined,
-  target: ObjectSchema | undefined
+  target: ObjectSchema | undefined,
 ): "compatible" | "maybe" | "incompatible" {
   // If either is missing, can't determine
   if (!source || !target) return "maybe";
@@ -761,15 +773,21 @@ function checkSchemaCompatibility(
   // Primitives: must match exactly (or any)
   if (source.type === "primitive" && target.type === "primitive") {
     if (source.primitiveType === target.primitiveType) return "compatible";
-    if (source.primitiveType === "any" || target.primitiveType === "any") return "maybe";
+    if (source.primitiveType === "any" || target.primitiveType === "any") {
+      return "maybe";
+    }
     return "incompatible";
   }
 
   // Mixed types (primitive vs object/array)
   if (source.type !== target.type) {
     // Any can match anything
-    if (source.type === "primitive" && source.primitiveType === "any") return "maybe";
-    if (target.type === "primitive" && target.primitiveType === "any") return "maybe";
+    if (source.type === "primitive" && source.primitiveType === "any") {
+      return "maybe";
+    }
+    if (target.type === "primitive" && target.primitiveType === "any") {
+      return "maybe";
+    }
     return "incompatible";
   }
 
@@ -799,7 +817,10 @@ function checkSchemaCompatibility(
 
       // Look for exact key match first
       if (sourceFields[targetKey]) {
-        const compat = checkSchemaCompatibility(sourceFields[targetKey], targetFieldSchema);
+        const compat = checkSchemaCompatibility(
+          sourceFields[targetKey],
+          targetFieldSchema,
+        );
         if (compat === "compatible") {
           anyMatch = true;
         } else if (compat === "incompatible") {
@@ -812,14 +833,17 @@ function checkSchemaCompatibility(
       }
 
       // Look for similar key names (fuzzy match)
-      const similarKey = sourceKeys.find(sk =>
+      const similarKey = sourceKeys.find((sk) =>
         sk.toLowerCase() === targetKey.toLowerCase() ||
         sk.toLowerCase().includes(targetKey.toLowerCase()) ||
         targetKey.toLowerCase().includes(sk.toLowerCase())
       );
 
       if (similarKey) {
-        const compat = checkSchemaCompatibility(sourceFields[similarKey], targetFieldSchema);
+        const compat = checkSchemaCompatibility(
+          sourceFields[similarKey],
+          targetFieldSchema,
+        );
         if (compat !== "incompatible") {
           anyMatch = true;
         }
@@ -841,7 +865,7 @@ function checkTypeCompatibility(
   sourceType: string,
   targetType: string,
   sourceSchema?: ObjectSchema,
-  targetSchema?: ObjectSchema
+  targetSchema?: ObjectSchema,
 ): "compatible" | "maybe" | "incompatible" {
   // If we have schemas, use structural comparison
   if (sourceSchema && targetSchema) {
@@ -854,7 +878,9 @@ function checkTypeCompatibility(
 
   // Any matches anything
   if (sourceType === "any" || targetType === "any") return "maybe";
-  if (sourceType.startsWith("any") || targetType.startsWith("any")) return "maybe";
+  if (sourceType.startsWith("any") || targetType.startsWith("any")) {
+    return "maybe";
+  }
 
   // Array compatibility (check element types)
   if (sourceType.endsWith("[]") && targetType.endsWith("[]")) {
@@ -872,7 +898,7 @@ function checkTypeCompatibility(
 
 async function fetchCharmSchema(
   charm: RecentCharm,
-  labsDir: string
+  labsDir: string,
 ): Promise<CharmSchema | null> {
   try {
     const command = new Deno.Command("deno", {
@@ -881,10 +907,14 @@ async function fetchCharmSchema(
         "ct",
         "piece",
         "inspect",
-        "--space", charm.space,
-        "--piece", charm.charmId,
-        "--api-url", charm.apiUrl,
-        "--identity", IDENTITY_PATH,
+        "--space",
+        charm.space,
+        "--piece",
+        charm.charmId,
+        "--api-url",
+        charm.apiUrl,
+        "--identity",
+        IDENTITY_PATH,
         "--json",
       ],
       cwd: labsDir,
@@ -924,7 +954,7 @@ async function generateFieldSuggestions(
   targetCharm: RecentCharm,
   labsDir: string,
   linkHistory: LinkHistoryEntry[],
-  maxSuggestions: number = 20
+  maxSuggestions: number = 20,
 ): Promise<LinkSuggestion[]> {
   const suggestions: LinkSuggestion[] = [];
 
@@ -935,13 +965,21 @@ async function generateFieldSuggestions(
   const targetSchema = await fetchCharmSchema(targetCharm, labsDir);
 
   if (!sourceSchema) {
-    console.log(`  ⚠️  Could not fetch schema for source charm: ${sourceCharm.name || "unnamed"}`);
+    console.log(
+      `  ⚠️  Could not fetch schema for source charm: ${
+        sourceCharm.name || "unnamed"
+      }`,
+    );
     console.log(`     (charm may no longer exist at ${sourceCharm.apiUrl})`);
     return [];
   }
 
   if (!targetSchema) {
-    console.log(`  ⚠️  Could not fetch schema for target charm: ${targetCharm.name || "unnamed"}`);
+    console.log(
+      `  ⚠️  Could not fetch schema for target charm: ${
+        targetCharm.name || "unnamed"
+      }`,
+    );
     console.log(`     (charm may no longer exist at ${targetCharm.apiUrl})`);
     return [];
   }
@@ -963,7 +1001,7 @@ async function generateFieldSuggestions(
         outputField.type,
         inputField.type,
         outputField.schema,
-        inputField.schema
+        inputField.schema,
       );
 
       // Calculate score
@@ -975,10 +1013,14 @@ async function generateFieldSuggestions(
       // Include incompatible with low score so user can still see all options
 
       // Name similarity bonus
-      const outputName = outputField.path[outputField.path.length - 1]?.toLowerCase() || "";
-      const inputName = inputField.path[inputField.path.length - 1]?.toLowerCase() || "";
+      const outputName =
+        outputField.path[outputField.path.length - 1]?.toLowerCase() || "";
+      const inputName =
+        inputField.path[inputField.path.length - 1]?.toLowerCase() || "";
       if (outputName === inputName) score += 75;
-      else if (outputName.includes(inputName) || inputName.includes(outputName)) score += 40;
+      else if (
+        outputName.includes(inputName) || inputName.includes(outputName)
+      ) score += 40;
 
       // Top-level field bonus
       if (outputField.path.length === 1) score += 15;
@@ -986,7 +1028,9 @@ async function generateFieldSuggestions(
 
       // Link history bonus - boost fields that have been linked before
       const historyMatch = linkHistory.find(
-        h => h.sourceField === outputField.fullPath && h.targetField === inputField.fullPath
+        (h) =>
+          h.sourceField === outputField.fullPath &&
+          h.targetField === inputField.fullPath,
       );
       if (historyMatch) {
         score += 200 + (historyMatch.count * 50); // Big bonus for previous links
@@ -1009,15 +1053,23 @@ async function generateFieldSuggestions(
 // Import charms from a space into recentCharms
 async function importCharmsFromSpace(
   config: Config,
-  labsDir: string
+  labsDir: string,
 ): Promise<Config> {
   console.log("\n📦 Import Charms from Space\n");
 
   // Select API URL
   const apiOptions: SelectOption[] = [
     { label: "localhost:8000", value: "http://localhost:8000", icon: "💻 " },
-    { label: "toolshed (staging)", value: "https://toolshed.saga-castor.ts.net", icon: "🔧 " },
-    { label: "estuary (production)", value: "https://estuary.saga-castor.ts.net", icon: "🌐 " },
+    {
+      label: "toolshed (staging)",
+      value: "https://toolshed.saga-castor.ts.net",
+      icon: "🔧 ",
+    },
+    {
+      label: "estuary (production)",
+      value: "https://estuary.saga-castor.ts.net",
+      icon: "🌐 ",
+    },
   ];
 
   const apiUrl = await interactiveSelect(apiOptions, "Select server:");
@@ -1030,8 +1082,8 @@ async function importCharmsFromSpace(
   const defaultSpace = apiUrl.includes("estuary")
     ? config.lastSpaceProd
     : apiUrl.includes("toolshed")
-      ? config.lastSpaceStaging
-      : config.lastSpaceLocal;
+    ? config.lastSpaceStaging
+    : config.lastSpaceLocal;
 
   const space = await prompt("Enter space name", defaultSpace || "");
   if (!space) {
@@ -1049,9 +1101,12 @@ async function importCharmsFromSpace(
         "ct",
         "piece",
         "ls",
-        "--space", space,
-        "--api-url", apiUrl,
-        "--identity", IDENTITY_PATH,
+        "--space",
+        space,
+        "--api-url",
+        apiUrl,
+        "--identity",
+        IDENTITY_PATH,
       ],
       cwd: labsDir,
       stdout: "piped",
@@ -1071,7 +1126,7 @@ async function importCharmsFromSpace(
 
     // Skip header line, parse charm entries
     // Format: ID NAME RECIPE
-    const charmLines = lines.slice(1).filter(line => line.trim());
+    const charmLines = lines.slice(1).filter((line) => line.trim());
 
     if (charmLines.length === 0) {
       console.log("\n⚠️  No charms found in space.\n");
@@ -1093,7 +1148,7 @@ async function importCharmsFromSpace(
       const name = parts.slice(1, -1).join(" ") || "unnamed";
 
       // Check if already in recentCharms
-      if (config.recentCharms.some(c => c.charmId === charmId)) {
+      if (config.recentCharms.some((c) => c.charmId === charmId)) {
         skipped++;
         continue;
       }
@@ -1128,7 +1183,7 @@ async function importCharmsFromSpace(
 // View existing links for a charm
 async function viewCharmLinks(
   config: Config,
-  labsDir: string
+  labsDir: string,
 ): Promise<void> {
   console.log("\n📊 View Charm Links\n");
 
@@ -1138,7 +1193,7 @@ async function viewCharmLinks(
   }
 
   // Select charm to view
-  const charmOptions: SelectOption[] = config.recentCharms.map(charm => {
+  const charmOptions: SelectOption[] = config.recentCharms.map((charm) => {
     const shortId = formatCharmId(charm.charmId);
     const name = charm.name || charm.recipeName || "unnamed";
     return {
@@ -1150,14 +1205,14 @@ async function viewCharmLinks(
 
   const selectedCharmId = await interactiveSelect(
     charmOptions,
-    "Select a charm to view its links:"
+    "Select a charm to view its links:",
   );
 
   if (!selectedCharmId) {
     return;
   }
 
-  const charm = config.recentCharms.find(c => c.charmId === selectedCharmId)!;
+  const charm = config.recentCharms.find((c) => c.charmId === selectedCharmId)!;
   const charmName = charm.name || charm.recipeName || "unnamed";
   const shortId = charm.charmId.slice(-4);
 
@@ -1171,10 +1226,14 @@ async function viewCharmLinks(
         "ct",
         "piece",
         "inspect",
-        "--space", charm.space,
-        "--piece", charm.charmId,
-        "--api-url", charm.apiUrl,
-        "--identity", IDENTITY_PATH,
+        "--space",
+        charm.space,
+        "--piece",
+        charm.charmId,
+        "--api-url",
+        charm.apiUrl,
+        "--identity",
+        IDENTITY_PATH,
         "--json",
       ],
       cwd: labsDir,
@@ -1193,7 +1252,8 @@ async function viewCharmLinks(
     const output = new TextDecoder().decode(stdout);
     const data = JSON.parse(output);
 
-    const readingFrom: Array<{ id: string; name?: string }> = data.readingFrom || [];
+    const readingFrom: Array<{ id: string; name?: string }> =
+      data.readingFrom || [];
     const readBy: Array<{ id: string; name?: string }> = data.readBy || [];
 
     console.log(`\n📊 Links for ${charmName}(${shortId})`);
@@ -1229,14 +1289,17 @@ async function viewCharmLinks(
     // Summary
     const totalLinks = readingFrom.length + readBy.length;
     if (totalLinks === 0) {
-      console.log("💡 This charm has no links. Use the link feature to connect it to other charms.\n");
+      console.log(
+        "💡 This charm has no links. Use the link feature to connect it to other charms.\n",
+      );
     } else {
-      console.log(`📈 Total: ${readingFrom.length} incoming, ${readBy.length} outgoing\n`);
+      console.log(
+        `📈 Total: ${readingFrom.length} incoming, ${readBy.length} outgoing\n`,
+      );
     }
 
     // Wait for user to acknowledge
     await prompt("Press Enter to continue...");
-
   } catch (e) {
     console.error("Error viewing charm links:", e);
   }
@@ -1246,11 +1309,11 @@ async function viewCharmLinks(
 function recordLinkHistory(
   config: Config,
   sourceField: string,
-  targetField: string
+  targetField: string,
 ): Config {
   // Find existing entry
   const existingIndex = config.linkHistory.findIndex(
-    h => h.sourceField === sourceField && h.targetField === targetField
+    (h) => h.sourceField === sourceField && h.targetField === targetField,
   );
 
   if (existingIndex >= 0) {
@@ -1269,7 +1332,9 @@ function recordLinkHistory(
 
   // Keep only last 200 link history entries
   config.linkHistory = config.linkHistory
-    .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())
+    .sort((a, b) =>
+      new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+    )
     .slice(0, 200);
 
   return config;
@@ -1282,13 +1347,15 @@ async function createCharmLink(
   targetPath: string[],
   space: string,
   apiUrl: string,
-  labsDir: string
+  labsDir: string,
 ): Promise<boolean> {
   const sourceRef = `${sourceCharmId}/${sourcePath.join("/")}`;
   const targetRef = `${targetCharmId}/${targetPath.join("/")}`;
 
   // Debug: print what we're running
-  console.log(`   Running: deno task ct piece link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`);
+  console.log(
+    `   Running: deno task ct piece link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`,
+  );
   console.log(`   CWD: ${labsDir}`);
   console.log(`   API: ${apiUrl}`);
   console.log(`   Identity: ${IDENTITY_PATH}\n`);
@@ -1299,9 +1366,12 @@ async function createCharmLink(
       "ct",
       "piece",
       "link",
-      "--space", space,
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
+      "--space",
+      space,
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
       sourceRef,
       targetRef,
     ],
@@ -1319,7 +1389,10 @@ async function createCharmLink(
   if (output.trim()) {
     console.log("   stdout:", output.trim());
   }
-  if (errorOutput.trim() && !errorOutput.includes("Warning experimentalDecorators")) {
+  if (
+    errorOutput.trim() &&
+    !errorOutput.includes("Warning experimentalDecorators")
+  ) {
     console.log("   stderr:", errorOutput.trim());
   }
 
@@ -1354,7 +1427,7 @@ async function handleOtherActions(labsDir: string): Promise<boolean> {
 
   const selection = await interactiveSelect(
     options,
-    "⚙️  Other Actions\n\n(↑/↓ to move, Enter to select, Q to cancel):"
+    "⚙️  Other Actions\n\n(↑/↓ to move, Enter to select, Q to cancel):",
   );
 
   if (selection === "back" || selection === null) {
@@ -1372,13 +1445,18 @@ async function handleOtherActions(labsDir: string): Promise<boolean> {
   return false;
 }
 
-async function handleLinkCharms(config: Config, labsDir: string): Promise<Config> {
+async function handleLinkCharms(
+  config: Config,
+  labsDir: string,
+): Promise<Config> {
   console.log("\n🔗 Charm Linker\n");
 
   if (config.recentCharms.length === 0) {
     console.log("No recently deployed charms found.\n");
     console.log("💡 Options:");
-    console.log("   • Deploy patterns using this launcher to track them automatically");
+    console.log(
+      "   • Deploy patterns using this launcher to track them automatically",
+    );
     console.log("   • Import charms from an existing space\n");
 
     // Offer to import
@@ -1387,7 +1465,10 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
       { label: "Go back", value: "back", icon: "⬅️  " },
     ];
 
-    const choice = await interactiveSelect(importOptions, "What would you like to do?");
+    const choice = await interactiveSelect(
+      importOptions,
+      "What would you like to do?",
+    );
     if (choice === "import") {
       config = await importCharmsFromSpace(config, labsDir);
       await saveConfig(config);
@@ -1401,7 +1482,7 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
 
   // Step 1: Select SOURCE charm (or view links)
   console.log("Step 1: Select SOURCE charm (provides data)\n");
-  const sourceOptions: SelectOption[] = config.recentCharms.map(charm => {
+  const sourceOptions: SelectOption[] = config.recentCharms.map((charm) => {
     const timeAgo = formatTimeSince(charm.deployedAt);
     const shortId = formatCharmId(charm.charmId);
     const name = charm.name || charm.recipeName || "unnamed";
@@ -1426,7 +1507,7 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
 
   const sourceCharmId = await interactiveSelect(
     sourceOptions,
-    "📤 Select SOURCE charm (↑/↓ to move, Enter to select, Q to quit):"
+    "📤 Select SOURCE charm (↑/↓ to move, Enter to select, Q to quit):",
   );
 
   // Handle view links
@@ -1449,12 +1530,14 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     return config;
   }
 
-  const sourceCharm = config.recentCharms.find(c => c.charmId === sourceCharmId)!;
+  const sourceCharm = config.recentCharms.find((c) =>
+    c.charmId === sourceCharmId
+  )!;
 
   // Step 2: Select TARGET charm
   console.log("\nStep 2: Select TARGET charm (receives data)\n");
   const targetOptions: SelectOption[] = config.recentCharms
-    .map(charm => {
+    .map((charm) => {
       const timeAgo = formatTimeSince(charm.deployedAt);
       const shortId = formatCharmId(charm.charmId);
       const name = charm.name || charm.recipeName || "unnamed";
@@ -1463,7 +1546,8 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
       const crossSpace = charm.space !== sourceCharm.space ? " 🌐" : "";
       const selfIndicator = isSelf ? " (self)" : "";
       return {
-        label: `${name} | ${charm.space}${crossSpace}${selfIndicator} | ${shortId} (${timeAgo})`,
+        label:
+          `${name} | ${charm.space}${crossSpace}${selfIndicator} | ${shortId} (${timeAgo})`,
         value: charm.charmId,
         icon: isSelf ? "🔄 " : "📥 ",
       };
@@ -1478,7 +1562,7 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
 
   const targetCharmId = await interactiveSelect(
     targetOptions,
-    "📥 Select TARGET charm (↑/↓ to move, Enter to select, Q to quit):"
+    "📥 Select TARGET charm (↑/↓ to move, Enter to select, Q to quit):",
   );
 
   // Handle import (go back to source selection after import)
@@ -1494,7 +1578,9 @@ async function handleLinkCharms(config: Config, labsDir: string): Promise<Config
     return config;
   }
 
-  const targetCharm = config.recentCharms.find(c => c.charmId === targetCharmId)!;
+  const targetCharm = config.recentCharms.find((c) =>
+    c.charmId === targetCharmId
+  )!;
 
   // Step 3: Show field suggestions (with ability to swap source/target)
   return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir);
@@ -1513,17 +1599,25 @@ async function showFieldSuggestions(
   sourceCharm: RecentCharm,
   targetCharm: RecentCharm,
   labsDir: string,
-  filterCompatibleOnly: boolean = false
+  filterCompatibleOnly: boolean = false,
 ): Promise<Config> {
   console.log(`\n🔍 Finding linkable fields between:`);
-  console.log(`   Source: ${sourceCharm.name || "unnamed"}(${sourceCharm.charmId.slice(-4)})`);
-  console.log(`   Target: ${targetCharm.name || "unnamed"}(${targetCharm.charmId.slice(-4)})\n`);
+  console.log(
+    `   Source: ${sourceCharm.name || "unnamed"}(${
+      sourceCharm.charmId.slice(-4)
+    })`,
+  );
+  console.log(
+    `   Target: ${targetCharm.name || "unnamed"}(${
+      targetCharm.charmId.slice(-4)
+    })\n`,
+  );
 
   const suggestions = await generateFieldSuggestions(
     sourceCharm,
     targetCharm,
     labsDir,
-    config.linkHistory
+    config.linkHistory,
   );
 
   if (suggestions.length === 0) {
@@ -1536,21 +1630,28 @@ async function showFieldSuggestions(
   }
 
   // Show summary of suggestions
-  const compatCount = suggestions.filter(s => s.compatibility === "compatible").length;
-  const maybeCount = suggestions.filter(s => s.compatibility === "maybe").length;
-  const incompatCount = suggestions.filter(s => s.compatibility === "incompatible").length;
+  const compatCount =
+    suggestions.filter((s) => s.compatibility === "compatible").length;
+  const maybeCount =
+    suggestions.filter((s) => s.compatibility === "maybe").length;
+  const incompatCount =
+    suggestions.filter((s) => s.compatibility === "incompatible").length;
 
   // Apply filter if requested
   const displaySuggestions = filterCompatibleOnly
-    ? suggestions.filter(s => s.compatibility === "compatible")
+    ? suggestions.filter((s) => s.compatibility === "compatible")
     : suggestions;
 
   if (filterCompatibleOnly) {
-    console.log(`  Showing ${compatCount} compatible field combinations (filtered)`);
+    console.log(
+      `  Showing ${compatCount} compatible field combinations (filtered)`,
+    );
   } else {
     console.log(`  Found ${suggestions.length} field combinations:`);
     if (compatCount > 0) console.log(`    ✅ ${compatCount} compatible`);
-    if (maybeCount > 0) console.log(`    ⚠️  ${maybeCount} possibly compatible`);
+    if (maybeCount > 0) {
+      console.log(`    ⚠️  ${maybeCount} possibly compatible`);
+    }
     if (incompatCount > 0) console.log(`    ❌ ${incompatCount} incompatible`);
   }
   console.log("");
@@ -1560,7 +1661,9 @@ async function showFieldSuggestions(
 
   // Add utility options first
   fieldOptions.push({
-    label: `Swap source/target (${targetCharm.name || "unnamed"} → ${sourceCharm.name || "unnamed"})`,
+    label: `Swap source/target (${targetCharm.name || "unnamed"} → ${
+      sourceCharm.name || "unnamed"
+    })`,
     value: "__swap__",
     icon: "🔄 ",
   });
@@ -1583,8 +1686,10 @@ async function showFieldSuggestions(
   }
 
   for (const suggestion of displaySuggestions) {
-    const compatIcon = suggestion.compatibility === "compatible" ? "✅"
-      : suggestion.compatibility === "maybe" ? "⚠️"
+    const compatIcon = suggestion.compatibility === "compatible"
+      ? "✅"
+      : suggestion.compatibility === "maybe"
+      ? "⚠️"
       : "❌";
 
     const sourceFieldPath = suggestion.source.field.fullPath;
@@ -1598,12 +1703,14 @@ async function showFieldSuggestions(
 
     // Check if this was previously linked (show star)
     const historyMatch = config.linkHistory.find(
-      h => h.sourceField === sourceFieldPath && h.targetField === targetFieldPath
+      (h) =>
+        h.sourceField === sourceFieldPath && h.targetField === targetFieldPath,
     );
     const historyIndicator = historyMatch ? " ⭐" : "";
 
     fieldOptions.push({
-      label: `${sourceRef} → ${targetRef} (${sourceType} → ${targetType})${historyIndicator}`,
+      label:
+        `${sourceRef} → ${targetRef} (${sourceType} → ${targetType})${historyIndicator}`,
       value: JSON.stringify({
         sourceCharmId: sourceCharm.charmId,
         sourcePath: suggestion.source.field.path,
@@ -1624,7 +1731,7 @@ async function showFieldSuggestions(
     : "✅ = compatible  |  ⚠️ = maybe  |  ❌ = incompatible  |  ⭐ = previously linked";
   const selection = await interactiveSelect(
     fieldOptions,
-    `🔗 Select field link (↑/↓ to move, Enter to select, Q to quit):\n${legend}`
+    `🔗 Select field link (↑/↓ to move, Enter to select, Q to quit):\n${legend}`,
   );
 
   if (!selection) {
@@ -1634,15 +1741,33 @@ async function showFieldSuggestions(
 
   // Handle swap
   if (selection === "__swap__") {
-    return await showFieldSuggestions(config, targetCharm, sourceCharm, labsDir, filterCompatibleOnly);
+    return await showFieldSuggestions(
+      config,
+      targetCharm,
+      sourceCharm,
+      labsDir,
+      filterCompatibleOnly,
+    );
   }
 
   // Handle filter toggle
   if (selection === "__filter_compatible__") {
-    return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, true);
+    return await showFieldSuggestions(
+      config,
+      sourceCharm,
+      targetCharm,
+      labsDir,
+      true,
+    );
   }
   if (selection === "__filter_all__") {
-    return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, false);
+    return await showFieldSuggestions(
+      config,
+      sourceCharm,
+      targetCharm,
+      labsDir,
+      false,
+    );
   }
 
   // Parse selection and create link
@@ -1653,8 +1778,16 @@ async function showFieldSuggestions(
     const targetName = targetCharm.name || "unnamed";
 
     console.log("\n🔗 Creating link...");
-    console.log(`   ${sourceName}(${sourceCharm.charmId.slice(-4)}).${linkData.sourcePath.join("/")}`);
-    console.log(`   → ${targetName}(${targetCharm.charmId.slice(-4)}).${linkData.targetPath.join("/")}`);
+    console.log(
+      `   ${sourceName}(${sourceCharm.charmId.slice(-4)}).${
+        linkData.sourcePath.join("/")
+      }`,
+    );
+    console.log(
+      `   → ${targetName}(${targetCharm.charmId.slice(-4)}).${
+        linkData.targetPath.join("/")
+      }`,
+    );
     console.log(`   Space: ${linkData.space}\n`);
 
     const success = await createCharmLink(
@@ -1664,21 +1797,31 @@ async function showFieldSuggestions(
       linkData.targetPath,
       linkData.space,
       linkData.apiUrl,
-      labsDir
+      labsDir,
     );
 
     if (success) {
       console.log("\n✅ Link created successfully!\n");
 
       // Record in link history
-      config = recordLinkHistory(config, linkData.sourceField, linkData.targetField);
+      config = recordLinkHistory(
+        config,
+        linkData.sourceField,
+        linkData.targetField,
+      );
       await saveConfig(config);
 
       // Ask if user wants to link more
       const nextAction = await promptLinkAnother();
       if (nextAction === "same") {
         // Link another field between same charms (preserve filter state)
-        return await showFieldSuggestions(config, sourceCharm, targetCharm, labsDir, filterCompatibleOnly);
+        return await showFieldSuggestions(
+          config,
+          sourceCharm,
+          targetCharm,
+          labsDir,
+          filterCompatibleOnly,
+        );
       } else if (nextAction === "different") {
         // Go back to charm selection
         return await handleLinkCharms(config, labsDir);
@@ -1697,7 +1840,11 @@ async function showFieldSuggestions(
 // Prompt for what to do after creating a link
 async function promptLinkAnother(): Promise<"same" | "different" | "done"> {
   const options: SelectOption[] = [
-    { label: "Link another field between these charms", value: "same", icon: "🔗 " },
+    {
+      label: "Link another field between these charms",
+      value: "same",
+      icon: "🔗 ",
+    },
     { label: "Link different charms", value: "different", icon: "🔀 " },
     { label: "Done linking", value: "done", icon: "✅ " },
   ];
@@ -1710,7 +1857,7 @@ async function promptLinkAnother(): Promise<"same" | "different" | "done"> {
 // Returns array of selected labs directories, or null on cancel
 async function selectLabsDirectories(
   allLabsDirs: string[],
-  operationName: string
+  operationName: string,
 ): Promise<string[] | null> {
   // If only one labs, no selection needed
   if (allLabsDirs.length === 1) {
@@ -1736,7 +1883,7 @@ async function selectLabsDirectories(
 
   const strategy = await interactiveSelect(
     strategyOptions,
-    `${operationName}\n\nChoose scope:`
+    `${operationName}\n\nChoose scope:`,
   );
 
   if (strategy === null) {
@@ -1748,16 +1895,16 @@ async function selectLabsDirectories(
   }
 
   // Individual selection - show multi-select with nothing pre-selected
-  const labsOptions: MultiSelectOption[] = allLabsDirs.map(labsPath => ({
+  const labsOptions: MultiSelectOption[] = allLabsDirs.map((labsPath) => ({
     label: formatLabsName(labsPath),
     value: labsPath,
     icon: "📦 ",
-    selected: false,  // Nothing pre-selected for safety
+    selected: false, // Nothing pre-selected for safety
   }));
 
   const selectedLabs = await interactiveMultiSelect(
     labsOptions,
-    "Select which labs instances to clear:\n(Nothing is pre-selected for safety)"
+    "Select which labs instances to clear:\n(Nothing is pre-selected for safety)",
   );
 
   if (selectedLabs === null || selectedLabs.length === 0) {
@@ -1780,7 +1927,10 @@ async function clearLLMCache(labsDir: string): Promise<boolean> {
   }
 
   // Select which labs to clear
-  const selectedLabs = await selectLabsDirectories(allLabsDirs, "Clear LLM Cache");
+  const selectedLabs = await selectLabsDirectories(
+    allLabsDirs,
+    "Clear LLM Cache",
+  );
   if (selectedLabs === null) {
     console.log("❌ Cancelled\n");
     return false;
@@ -1809,7 +1959,8 @@ async function clearLLMCache(labsDir: string): Promise<boolean> {
 
     try {
       // Clear LLM cache by removing files from cache/llm-api-cache
-      const llmCacheDir = `${currentLabsDir}/packages/toolshed/cache/llm-api-cache`;
+      const llmCacheDir =
+        `${currentLabsDir}/packages/toolshed/cache/llm-api-cache`;
 
       let deletedCount = 0;
       try {
@@ -1852,7 +2003,10 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   }
 
   // Select which labs to clear
-  const selectedLabs = await selectLabsDirectories(allLabsDirs, "Clear SQLite Database");
+  const selectedLabs = await selectLabsDirectories(
+    allLabsDirs,
+    "Clear SQLite Database",
+  );
   if (selectedLabs === null) {
     console.log("❌ Cancelled - no data was deleted\n");
     return false;
@@ -1871,7 +2025,9 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   console.log("║                                                           ║");
   console.log("║  THIS CANNOT BE UNDONE!                                   ║");
   console.log("║                                                           ║");
-  console.log("╚═══════════════════════════════════════════════════════════╝\n");
+  console.log(
+    "╚═══════════════════════════════════════════════════════════╝\n",
+  );
 
   console.log("Affected labs instances:");
   for (const lab of selectedLabs) {
@@ -1887,7 +2043,9 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   }
 
   console.log("\n⚠️  Final confirmation required\n");
-  const confirm2 = await prompt("Type 'I understand this is permanent' to confirm");
+  const confirm2 = await prompt(
+    "Type 'I understand this is permanent' to confirm",
+  );
 
   if (confirm2 !== "I understand this is permanent") {
     console.log("❌ Cancelled - no data was deleted\n");
@@ -1916,7 +2074,11 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
         }
         totalDeleted += deletedCount;
         if (deletedCount > 0) {
-          console.log(`   ✅ Deleted ${deletedCount} SQLite database file${deletedCount > 1 ? 's' : ''}`);
+          console.log(
+            `   ✅ Deleted ${deletedCount} SQLite database file${
+              deletedCount > 1 ? "s" : ""
+            }`,
+          );
         } else {
           console.log(`   ⚠️  No SQLite database files found`);
         }
@@ -1931,7 +2093,11 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   }
 
   if (totalDeleted > 0) {
-    console.log(`\n✅ Deleted ${totalDeleted} total SQLite database file${totalDeleted > 1 ? 's' : ''}`);
+    console.log(
+      `\n✅ Deleted ${totalDeleted} total SQLite database file${
+        totalDeleted > 1 ? "s" : ""
+      }`,
+    );
     console.log("   Restart your dev server to initialize fresh databases.\n");
   } else {
     console.log("\n⚠️  No SQLite database files found in any selected labs\n");
@@ -1941,7 +2107,9 @@ async function clearSQLiteDatabase(labsDir: string): Promise<boolean> {
   return allSuccess;
 }
 
-async function promptForDeploymentTarget(config: Config): Promise<"local" | "staging" | "prod" | "link" | "other"> {
+async function promptForDeploymentTarget(
+  config: Config,
+): Promise<"local" | "staging" | "prod" | "link" | "other"> {
   const options: SelectOption[] = [];
 
   // Get last used target
@@ -1967,8 +2135,8 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "sta
   ];
 
   // Add targets with last used first
-  const lastUsedTarget = targets.find(t => t.value === lastTarget);
-  const otherTargets = targets.filter(t => t.value !== lastTarget);
+  const lastUsedTarget = targets.find((t) => t.value === lastTarget);
+  const otherTargets = targets.filter((t) => t.value !== lastTarget);
 
   if (lastUsedTarget) {
     options.push({
@@ -2000,22 +2168,30 @@ async function promptForDeploymentTarget(config: Config): Promise<"local" | "sta
 
   const selection = await interactiveSelect(
     options,
-    "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):"
+    "🚀 Pattern Launcher\n\nSelect deployment target (↑/↓ to move, Enter to select):",
   );
 
-  return (selection as "local" | "staging" | "prod" | "link" | "other") || lastTarget;
+  return (selection as "local" | "staging" | "prod" | "link" | "other") ||
+    lastTarget;
 }
 
-async function promptForSpace(config: Config, target: "local" | "staging" | "prod"): Promise<string> {
+async function promptForSpace(
+  config: Config,
+  target: "local" | "staging" | "prod",
+): Promise<string> {
   const options: SelectOption[] = [];
 
   // Get the appropriate last space based on deployment target
   const lastSpace = target === "prod"
     ? config.lastSpaceProd
     : target === "staging"
-      ? config.lastSpaceStaging
-      : config.lastSpaceLocal;
-  const defaultSpace = target === "prod" ? "prod-space" : target === "staging" ? "staging-space" : "test-space";
+    ? config.lastSpaceStaging
+    : config.lastSpaceLocal;
+  const defaultSpace = target === "prod"
+    ? "prod-space"
+    : target === "staging"
+    ? "staging-space"
+    : "test-space";
 
   // Add last used space if available
   if (lastSpace) {
@@ -2053,7 +2229,7 @@ async function promptForSpace(config: Config, target: "local" | "staging" | "pro
 
   const selection = await interactiveSelect(
     options,
-    "Select space (↑/↓ to move, Enter to select):"
+    "Select space (↑/↓ to move, Enter to select):",
   );
 
   if (selection === "__new__") {
@@ -2113,7 +2289,8 @@ function getTodayDateSpace(lastSpace: string): string | null {
   }
 
   // Format today's date as MMDD
-  const todayMMDD = String(todayMonth).padStart(2, '0') + String(todayDay).padStart(2, '0');
+  const todayMMDD = String(todayMonth).padStart(2, "0") +
+    String(todayDay).padStart(2, "0");
 
   // Return new space name with today's date, counter reset to 1
   return `${prefix}-${todayMMDD}-1`;
@@ -2143,7 +2320,7 @@ async function selectPattern(config: Config): Promise<string | null> {
 
   const selection = await interactiveSelect(
     options,
-    "📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):"
+    "📋 Select a pattern (↑/↓ to move, Enter to select, Q to quit):",
   );
 
   if (selection === "__browse__") {
@@ -2191,7 +2368,7 @@ async function browseForPattern(config: Config): Promise<string | null> {
 
   const selection = await interactiveSelect(
     options,
-    "📂 Quick navigate to a recent folder, or browse:\n(↑/↓ to move, Enter to select, Q to cancel)"
+    "📂 Quick navigate to a recent folder, or browse:\n(↑/↓ to move, Enter to select, Q to cancel)",
   );
 
   if (selection === "__browse__") {
@@ -2263,7 +2440,8 @@ async function navigateDirectory(currentPath: string): Promise<string | null> {
     icon: "✏️  ",
   });
 
-  const title = `📁 ${currentPath}\n(↑/↓ to move, Enter to select, Q to cancel)`;
+  const title =
+    `📁 ${currentPath}\n(↑/↓ to move, Enter to select, Q to cancel)`;
   const selection = await interactiveSelect(options, title);
 
   if (selection === null) {
@@ -2405,8 +2583,14 @@ async function promptOpenBrowser(url: string): Promise<void> {
     secondsLeft--;
     if (secondsLeft > 0) {
       // Move cursor up one line, clear it, and rewrite the countdown
-      Deno.stdout.writeSync(new TextEncoder().encode(CURSOR_UP + CLEAR_LINE + CURSOR_TO_START));
-      console.log(`(Auto-closing in ${secondsLeft} second${secondsLeft !== 1 ? 's' : ''})`);
+      Deno.stdout.writeSync(
+        new TextEncoder().encode(CURSOR_UP + CLEAR_LINE + CURSOR_TO_START),
+      );
+      console.log(
+        `(Auto-closing in ${secondsLeft} second${
+          secondsLeft !== 1 ? "s" : ""
+        })`,
+      );
     }
   }, 1000);
 
@@ -2468,7 +2652,7 @@ async function deployPattern(
   patternPath: string,
   space: string,
   apiUrl: string,
-  labsDir: string
+  labsDir: string,
 ): Promise<string | null> {
   const isRemote = !apiUrl.includes("localhost");
 
@@ -2556,22 +2740,24 @@ async function deployPattern(
     if (isRemote) {
       const combinedOutput = (output + errorOutput).toLowerCase();
       const networkErrorPatterns = [
-        'connect',
-        'econnrefused',
-        'network',
-        'timeout',
-        'enotfound',
-        'getaddrinfo',
-        'fetch failed',
-        'failed to fetch',
+        "connect",
+        "econnrefused",
+        "network",
+        "timeout",
+        "enotfound",
+        "getaddrinfo",
+        "fetch failed",
+        "failed to fetch",
       ];
 
-      const hasNetworkError = networkErrorPatterns.some(pattern =>
+      const hasNetworkError = networkErrorPatterns.some((pattern) =>
         combinedOutput.includes(pattern)
       );
 
       if (hasNetworkError) {
-        console.log("\n💡 Tip: Production deployments require Tailscale to be running.");
+        console.log(
+          "\n💡 Tip: Production deployments require Tailscale to be running.",
+        );
         console.log("   Check if Tailscale is connected and try again.\n");
       }
     }
@@ -2601,7 +2787,7 @@ function recordRecentCharm(
   charmId: string,
   space: string,
   apiUrl: string,
-  patternPath: string
+  patternPath: string,
 ): Config {
   // Derive a name from the pattern filename
   const filename = patternPath.split("/").pop() || "";
@@ -2658,7 +2844,11 @@ async function main() {
   // Save cleaned config if anything was removed
   if (removedCount > 0) {
     await saveConfig(config);
-    console.log(`🧹 Cleaned up ${removedCount} invalid pattern${removedCount > 1 ? 's' : ''} from history\n`);
+    console.log(
+      `🧹 Cleaned up ${removedCount} invalid pattern${
+        removedCount > 1 ? "s" : ""
+      } from history\n`,
+    );
   }
 
   // Get labs directory (may prompt user if not configured)
@@ -2719,8 +2909,8 @@ async function main() {
   const apiUrl = deploymentTarget === "prod"
     ? "https://estuary.saga-castor.ts.net"
     : deploymentTarget === "staging"
-      ? "https://toolshed.saga-castor.ts.net"
-      : "http://localhost:8000";
+    ? "https://toolshed.saga-castor.ts.net"
+    : "http://localhost:8000";
   const result = await deployPattern(patternPath, space, apiUrl, labsDir);
 
   if (!result) {
