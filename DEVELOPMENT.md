@@ -57,7 +57,7 @@ cd ~/Code/community-patterns
 2. **Test Syntax**: `./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
 3. **Deploy**: Use launcher tool or ask Claude (see [Deploying Patterns](#deploying-patterns))
 4. **Test in Browser**: Open `http://localhost:8000/space/charm-id`
-5. **Iterate**: Update with `charm setsrc` or re-deploy
+5. **Iterate**: Update with `piece setsrc` or re-deploy
 6. **Commit**: `git add`, `git commit`, `git push`
 
 ### End of Day
@@ -231,14 +231,14 @@ Use `./scripts/ct` commands when you need precise control:
 #### Deploy New Pattern
 
 ```bash
-./scripts/ct charm new \
+./scripts/ct piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
   patterns/YOUR-USERNAME/pattern.tsx
 ```
 
-This outputs a charm ID like `baedreicqpqie6td...`
+This outputs a piece ID like `baedreicqpqie6td...`
 
 **View in browser:**
 ```
@@ -252,11 +252,11 @@ http://localhost:8000/test-space-1/CHARM-ID
 After making changes to your pattern:
 
 ```bash
-./scripts/ct charm setsrc \
+./scripts/ct piece setsrc \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
-  --charm CHARM-ID \
+  --piece PIECE-ID \
   patterns/YOUR-USERNAME/pattern.tsx
 ```
 
@@ -267,11 +267,11 @@ Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on 
 See pattern details:
 
 ```bash
-./scripts/ct charm inspect \
+./scripts/ct piece inspect \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
-  --charm CHARM-ID
+  --piece PIECE-ID
 ```
 
 #### Environment Variables
@@ -283,7 +283,7 @@ export CT_API_URL=http://localhost:8000
 export CT_IDENTITY=../labs/claude.key
 
 # Then just:
-./scripts/ct charm new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct piece new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
 ```
 
 **Pros:**
@@ -323,9 +323,9 @@ cd ~/Code/labs/packages/shell && deno task dev-local &
 - ❌ Wrong: `http://localhost:8000/charm/charm-id`
 
 **Pattern not updating?**
-1. Use `charm setsrc` to update (not `charm new` again)
+1. Use `piece setsrc` to update (not `piece new` again)
 2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
-3. Check you're using the correct charm ID
+3. Check you're using the correct piece ID
 
 **Identity key missing?**
 ```bash
@@ -707,7 +707,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Changes Not Showing
 
 **Solutions**:
-1. Did you run `charm setsrc` after changes?
+1. Did you run `piece setsrc` after changes?
 2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 3. Check you're at right URL: `http://localhost:8000/space/charm-id`
 
@@ -897,7 +897,7 @@ patterns/YOUR-USERNAME/
 
 ```bash
 # Deploy with --root to allow parent imports
-./scripts/ct charm new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
+./scripts/ct piece new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
 ```
 
 This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports from `../shared/`.
@@ -926,13 +926,13 @@ cd ~/Code/community-patterns
 ./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 
 # Deploy
-./scripts/ct charm new --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct piece new --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
 
 # Update
-./scripts/ct charm setsrc --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --charm CHARM-ID patterns/YOUR-USERNAME/pattern.tsx
+./scripts/ct piece setsrc --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID patterns/YOUR-USERNAME/pattern.tsx
 
 # Inspect
-./scripts/ct charm inspect --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --charm CHARM-ID
+./scripts/ct piece inspect --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID
 ```
 
 ### Git Commands

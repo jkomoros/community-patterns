@@ -879,10 +879,10 @@ async function fetchCharmSchema(
       args: [
         "task",
         "ct",
-        "charm",
+        "piece",
         "inspect",
         "--space", charm.space,
-        "--charm", charm.charmId,
+        "--piece", charm.charmId,
         "--api-url", charm.apiUrl,
         "--identity", IDENTITY_PATH,
         "--json",
@@ -1042,12 +1042,12 @@ async function importCharmsFromSpace(
   console.log(`\n🔍 Fetching charms from ${space}...`);
 
   try {
-    // Run ct charm ls to get charms in the space
+    // Run ct piece ls to get charms in the space
     const command = new Deno.Command("deno", {
       args: [
         "task",
         "ct",
-        "charm",
+        "piece",
         "ls",
         "--space", space,
         "--api-url", apiUrl,
@@ -1164,15 +1164,15 @@ async function viewCharmLinks(
   console.log(`\n🔍 Fetching links for ${charmName}(${shortId})...`);
 
   try {
-    // Run ct charm inspect to get link info
+    // Run ct piece inspect to get link info
     const command = new Deno.Command("deno", {
       args: [
         "task",
         "ct",
-        "charm",
+        "piece",
         "inspect",
         "--space", charm.space,
-        "--charm", charm.charmId,
+        "--piece", charm.charmId,
         "--api-url", charm.apiUrl,
         "--identity", IDENTITY_PATH,
         "--json",
@@ -1288,7 +1288,7 @@ async function createCharmLink(
   const targetRef = `${targetCharmId}/${targetPath.join("/")}`;
 
   // Debug: print what we're running
-  console.log(`   Running: deno task ct charm link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`);
+  console.log(`   Running: deno task ct piece link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`);
   console.log(`   CWD: ${labsDir}`);
   console.log(`   API: ${apiUrl}`);
   console.log(`   Identity: ${IDENTITY_PATH}\n`);
@@ -1297,7 +1297,7 @@ async function createCharmLink(
     args: [
       "task",
       "ct",
-      "charm",
+      "piece",
       "link",
       "--space", space,
       "--api-url", apiUrl,
@@ -2487,7 +2487,7 @@ async function deployPattern(
     args: [
       "task",
       "ct",
-      "charm",
+      "piece",
       "new",
       "--space",
       space,

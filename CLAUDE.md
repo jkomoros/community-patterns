@@ -381,8 +381,8 @@ Common mistakes when deploying without reading the skill:
 
 Use the deployment skill to learn:
 - Testing syntax before deployment
-- Deploying new patterns with `charm new`
-- Updating deployed patterns (DON'T use `charm setsrc`)
+- Deploying new patterns with `piece new`
+- Updating deployed patterns (DON'T use `piece setsrc`)
 - All required parameters and correct URLs
 - Deployment troubleshooting
 

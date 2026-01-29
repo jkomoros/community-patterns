@@ -21,16 +21,16 @@ description: >
 
 **If you violate these rules, the pattern will not work. No exceptions.**
 
-## 🚨 NEVER USE `charm setsrc` - ALWAYS USE `charm new`
+## 🚨 NEVER USE `piece setsrc` - ALWAYS USE `piece new`
 
-**This is the #1 cause of broken charm instances.**
+**This is the #1 cause of broken piece instances.**
 
-`charm setsrc` has a known framework bug that corrupts charm state. Symptoms include:
-- Charm shows blank when navigated to directly
+`piece setsrc` has a known framework bug that corrupts piece state. Symptoms include:
+- Piece shows blank when navigated to directly
 - Conflict errors during updates
-- Charm data exists but UI won't render
+- Piece data exists but UI won't render
 
-**ALWAYS deploy fresh instances with `charm new` instead.** Each deployment gets a new charm ID - this is expected and correct. See the "Update Deployed Pattern" section below.
+**ALWAYS deploy fresh instances with `piece new` instead.** Each deployment gets a new piece ID - this is expected and correct. See the "Update Deployed Pattern" section below.
 
 ## Test Syntax
 
@@ -51,7 +51,7 @@ This verifies:
 Deploy a new pattern instance:
 
 ```bash
-./scripts/ct charm new \
+./scripts/ct piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
@@ -69,7 +69,7 @@ claude-<pattern-name>-<MMDD>-<counter>
 ```
 Examples: `claude-counter-1130-1`, `claude-gmail-importer-1201-2`
 
-This outputs a charm ID like `baedreicqpqie6td...`
+This outputs a piece ID like `baedreicqpqie6td...`
 
 **View in browser:**
 ```
@@ -88,30 +88,30 @@ When a user successfully deploys their first custom pattern (one they created or
 
 ## Update Deployed Pattern
 
-**⚠️ DO NOT USE `charm setsrc` - Known Framework Bug**
+**⚠️ DO NOT USE `piece setsrc` - Known Framework Bug**
 
-There is a known framework bug that causes conflicts when using `charm setsrc`.
-**Instead, always deploy a fresh instance with `charm new`:**
+There is a known framework bug that causes conflicts when using `piece setsrc`.
+**Instead, always deploy a fresh instance with `piece new`:**
 
 ```bash
 # ❌ DON'T DO THIS - has conflicts due to framework bug
-# ./scripts/ct charm setsrc ...
+# ./scripts/ct piece setsrc ...
 
 # ✅ DO THIS INSTEAD - deploy a new instance
-./scripts/ct charm new \
+./scripts/ct piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
   patterns/$GITHUB_USER/pattern.tsx
 ```
 
-**This gives you a new charm ID.** Use the new charm ID going forward.
+**This gives you a new piece ID.** Use the new piece ID going forward.
 
 **Why not setsrc?**
 - Known framework bug causes conflict errors
 - Updates frequently fail
 - Cryptic error messages about state conflicts
-- `charm new` is reliable and always works
+- `piece new` is reliable and always works
 
 **See superstition:** `community-docs/superstitions/2025-11-22-deployment-setsrc-conflicts-use-new-instead.md`
 
@@ -120,11 +120,11 @@ There is a known framework bug that causes conflicts when using `charm setsrc`.
 See pattern details:
 
 ```bash
-./scripts/ct charm inspect \
+./scripts/ct piece inspect \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
-  --charm CHARM-ID
+  --piece PIECE-ID
 ```
 
 ## Environment Variables
@@ -136,7 +136,7 @@ export CT_API_URL=http://localhost:8000
 export CT_IDENTITY=../labs/claude.key
 
 # Then just:
-./scripts/ct charm new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
+./scripts/ct piece new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
 ```
 
 ## Deployment Troubleshooting
@@ -157,9 +157,9 @@ Check these in order:
    - ALL THREE REQUIRED: `--api-url`, `--identity`, `--space`
    - Check your command includes all three
 
-4. **Used `charm setsrc`?**
+4. **Used `piece setsrc`?**
    - DON'T use setsrc (framework bug)
-   - Use `charm new` instead
+   - Use `piece new` instead
 
 **Servers not running?**
 ```bash
@@ -172,7 +172,7 @@ lsof -ti:5173  # Shell (frontend) - REQUIRED
 ```
 
 **Pattern not updating after changes?**
-1. **Deploy a NEW instance** with `charm new` (DON'T use setsrc)
+1. **Deploy a NEW instance** with `piece new` (DON'T use setsrc)
 2. You'll get a new charm ID - use that one
 3. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 

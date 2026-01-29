@@ -176,7 +176,7 @@ Hold **Alt** and hover over a cell context region to see the debugging toolbar:
 - Don't use for trivial or obviously-accessible values
 - If a value is already easy to inspect via the UI, you probably don't need this
 
-**Note:** Every `[UI]` render is automatically wrapped in `ct-cell-context`, so you get top-level charm debugging for free.
+**Note:** Every `[UI]` render is automatically wrapped in `ct-cell-context`, so you get top-level piece debugging for free.
 
 ## Working with labs Repository
 

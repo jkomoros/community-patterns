@@ -67,8 +67,8 @@ Use descriptive space names with the `claude-` prefix:
 
 **After deploying a new pattern:**
 ```
-1. Deploy with: deno task ct charm new --api-url http://localhost:8000 --identity ../labs/claude.key --space claude-my-pattern-1130-1 pattern.tsx
-2. Note the charm ID from output
+1. Deploy with: deno task ct piece new --api-url http://localhost:8000 --identity ../labs/claude.key --space claude-my-pattern-1130-1 pattern.tsx
+2. Note the piece ID from output
 3. Use Playwright to navigate to: http://localhost:8000/claude-my-pattern-1130-1/CHARM-ID
    ⚠️ MUST be port 8000, MUST include space name
 4. Verify all functionality works
@@ -77,15 +77,15 @@ Use descriptive space names with the `claude-` prefix:
 
 **After updating a pattern:**
 ```
-1. Deploy NEW instance with `charm new` (see warning below)
-2. Note the NEW charm ID
+1. Deploy NEW instance with `piece new` (see warning below)
+2. Note the NEW piece ID
 3. Use Playwright to test at http://localhost:8000/SPACE-NAME/NEW-CHARM-ID
 4. Test that changes work as expected
 ```
 
-**🚨 NEVER use `charm setsrc` to update patterns!**
+**🚨 NEVER use `piece setsrc` to update patterns!**
 
-`charm setsrc` corrupts charm state and causes charms to render blank on direct navigation. ALWAYS use `charm new` to deploy a fresh instance instead. Getting a new charm ID each time is expected and correct.
+`piece setsrc` corrupts piece state and causes pieces to render blank on direct navigation. ALWAYS use `piece new` to deploy a fresh instance instead. Getting a new piece ID each time is expected and correct.
 
 **When Playwright unavailable:**
 - Suggest user test manually in browser

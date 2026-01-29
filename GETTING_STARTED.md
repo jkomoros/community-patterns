@@ -308,13 +308,13 @@ cd "$LABS_DIR"
 deno task ct dev "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx" --no-run
 
 # Deploy (if syntax check passes)
-deno task ct charm new \
+deno task ct piece new \
   --api-url http://localhost:8000 \
   --identity "$LABS_DIR/claude.key" \
   --space test-$GITHUB_USER-1 \
   "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx"
 
-# Note the charm ID from output
+# Note the piece ID from output
 ```
 
 **Open in Playwright to verify it works:**

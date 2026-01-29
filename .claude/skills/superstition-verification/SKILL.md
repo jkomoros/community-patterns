@@ -94,7 +94,7 @@ The repro should:
 
 Deploy the repro to a test space:
 ```bash
-cd ~/Code/labs && deno task ct charm new [path-to-repro.tsx] \
+cd ~/Code/labs && deno task ct piece new [path-to-repro.tsx] \
   --api-url http://localhost:8000 \
   --identity ~/Code/labs/claude.key \
   --space claude-superstition-verify-[unique]
