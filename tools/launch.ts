@@ -2244,10 +2244,24 @@ function getNextSpaceName(lastSpace: string): string {
   const match = lastSpace.match(/^(.+)-(\d+)$/);
 
   if (match) {
-    // Has a trailing number, increment it
-    // e.g., "alex-1119-1" → "alex-1119-2"
     const base = match[1];
-    const num = parseInt(match[2], 10);
+    const trailing = match[2];
+
+    // If the trailing digits look like a date (not a counter), treat
+    // the whole name as the base and append "-2" instead of incrementing
+    // the date as a number. e.g., "alex-25" → "alex-25-2" (not "alex-26")
+    // But if the base already has a date-like suffix (e.g., "alex-0205-25"),
+    // then the trailing digits are a counter, not a date.
+    if (tryParseAsDate(trailing)) {
+      const baseDigits = base.match(/-(\d+)$/);
+      if (!baseDigits || !tryParseAsDate(baseDigits[1])) {
+        return `${lastSpace}-2`;
+      }
+    }
+
+    // Has a trailing counter, increment it
+    // e.g., "alex-1119-1" → "alex-1119-2"
+    const num = parseInt(trailing, 10);
     return `${base}-${num + 1}`;
   } else {
     // No trailing number, append "-1"
@@ -2256,44 +2270,106 @@ function getNextSpaceName(lastSpace: string): string {
   }
 }
 
+// Try to interpret a digit string as a date.
+// Handles 2-digit (MD: "25" = Feb 5), 3-digit (MDD: "205" = Feb 05,
+// or MMD: "123" = Dec 3), and 4-digit (MMDD: "0205" = Feb 05) formats.
+function tryParseAsDate(
+  digits: string,
+): { month: number; day: number } | null {
+  const len = digits.length;
+  if (len === 4) {
+    // MMDD: "0205" → month=2, day=5
+    const month = parseInt(digits.substring(0, 2), 10);
+    const day = parseInt(digits.substring(2, 4), 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { month, day };
+    }
+  } else if (len === 3) {
+    // Try MDD first: "205" → month=2, day=05
+    const m1 = parseInt(digits.substring(0, 1), 10);
+    const d1 = parseInt(digits.substring(1, 3), 10);
+    if (m1 >= 1 && m1 <= 9 && d1 >= 1 && d1 <= 31) {
+      return { month: m1, day: d1 };
+    }
+    // Try MMD: "123" → month=12, day=3
+    const m2 = parseInt(digits.substring(0, 2), 10);
+    const d2 = parseInt(digits.substring(2, 3), 10);
+    if (m2 >= 1 && m2 <= 12 && d2 >= 1 && d2 <= 9) {
+      return { month: m2, day: d2 };
+    }
+  } else if (len === 2) {
+    // MD: "25" → month=2, day=5
+    const month = parseInt(digits.substring(0, 1), 10);
+    const day = parseInt(digits.substring(1, 2), 10);
+    if (month >= 1 && month <= 9 && day >= 1 && day <= 9) {
+      return { month, day };
+    }
+  }
+  return null;
+}
+
+// Format a date using the same digit style as the original suffix.
+// Preserves the user's convention: 2-digit "25", 3-digit "205", 4-digit "0205".
+function formatDateLike(
+  month: number,
+  day: number,
+  originalLen: number,
+): string {
+  if (originalLen === 4) {
+    return String(month).padStart(2, "0") + String(day).padStart(2, "0");
+  }
+  // Compact: concatenate without zero-padding
+  return String(month) + String(day);
+}
+
 function getTodayDateSpace(lastSpace: string): string | null {
-  // Try to detect date pattern (MMDD format): prefix-MMDD-counter
-  // Example: alex-1119-1 → alex-1120-1 (if today is Nov 20)
-  const pattern = /^(.+)-(\d{4})-(\d+)$/;
-  const match = lastSpace.match(pattern);
-
-  if (!match) {
-    return null; // No date pattern detected
-  }
-
-  const prefix = match[1];
-  const dateStr = match[2];
-
-  // Try to parse as MMDD
-  const month = parseInt(dateStr.substring(0, 2), 10);
-  const day = parseInt(dateStr.substring(2, 4), 10);
-
-  // Validate it's a reasonable date
-  if (month < 1 || month > 12 || day < 1 || day > 31) {
-    return null; // Not a valid date
-  }
-
   // Get today's date
   const today = new Date();
   const todayMonth = today.getMonth() + 1; // 0-indexed
   const todayDay = today.getDate();
 
-  // Check if it's a different day
-  if (month === todayMonth && day === todayDay) {
-    return null; // Same day, don't suggest
+  // First try: prefix-MMDD-counter format (e.g., "alex-1119-1")
+  const withCounter = lastSpace.match(/^(.+)-(\d{2,4})-(\d+)$/);
+  if (withCounter) {
+    const prefix = withCounter[1];
+    const dateStr = withCounter[2];
+    const parsed = tryParseAsDate(dateStr);
+
+    if (parsed) {
+      // Check if it's a different day
+      if (parsed.month === todayMonth && parsed.day === todayDay) {
+        return null; // Same day, don't suggest
+      }
+      const todayDate = formatDateLike(
+        todayMonth,
+        todayDay,
+        dateStr.length,
+      );
+      return `${prefix}-${todayDate}-1`;
+    }
   }
 
-  // Format today's date as MMDD
-  const todayMMDD = String(todayMonth).padStart(2, "0") +
-    String(todayDay).padStart(2, "0");
+  // Second try: prefix-DATE format without counter (e.g., "alex-25", "alex-0205")
+  const withoutCounter = lastSpace.match(/^(.+)-(\d{2,4})$/);
+  if (withoutCounter) {
+    const prefix = withoutCounter[1];
+    const dateStr = withoutCounter[2];
+    const parsed = tryParseAsDate(dateStr);
 
-  // Return new space name with today's date, counter reset to 1
-  return `${prefix}-${todayMMDD}-1`;
+    if (parsed) {
+      if (parsed.month === todayMonth && parsed.day === todayDay) {
+        return null; // Same day, don't suggest
+      }
+      const todayDate = formatDateLike(
+        todayMonth,
+        todayDay,
+        dateStr.length,
+      );
+      return `${prefix}-${todayDate}`;
+    }
+  }
+
+  return null;
 }
 
 async function selectPattern(config: Config): Promise<string | null> {
