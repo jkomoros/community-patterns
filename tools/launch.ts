@@ -2743,12 +2743,26 @@ async function deployPattern(
   Deno.env.set("CT_API_URL", apiUrl);
 
   // Run deployment command - capture output to extract charm ID
+  // Pass --root so patterns with ../ imports (e.g., extractors importing
+  // from ../core/) resolve correctly. Root is the repo containing the pattern.
+  let root: string;
+  try {
+    const resolvedPattern = await Deno.realPath(patternPath);
+    const resolvedLabs = await Deno.realPath(labsDir);
+    root = resolvedPattern.startsWith(resolvedLabs + "/")
+      ? resolvedLabs
+      : REPO_ROOT.replace(/\/$/, "");
+  } catch {
+    root = REPO_ROOT.replace(/\/$/, "");
+  }
   const command = new Deno.Command("deno", {
     args: [
       "task",
       "ct",
       "piece",
       "new",
+      "--root",
+      root,
       "--space",
       space,
       patternPath,
