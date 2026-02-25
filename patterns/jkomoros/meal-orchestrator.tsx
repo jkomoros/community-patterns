@@ -2,7 +2,6 @@
 import {
   computed,
   Default,
-  derive,
   generateObject,
   handler,
   ifElse,
@@ -514,25 +513,24 @@ Return all items found in the planning notes, matched or unmatched.`,
     });
 
     // Derive a flag for showing the modal
-    const hasLinkingResult = derive(
-      linkingResult,
-      (result) => result && result.matches && result.matches.length > 0,
+    const hasLinkingResult = computed(
+      () => linkingResult && linkingResult.matches && linkingResult.matches.length > 0,
     );
 
-    const displayName = derive(
-      mealName,
-      (name) => name.trim() || "Untitled Meal",
+    const displayName = computed(
+      () => mealName.trim() || "Untitled Meal",
     );
 
-    const ovenCount = derive(ovens, (list) => list.length);
-    const profileCount = derive(dietaryProfiles, (list) => list.length);
+    const ovenCount = computed(() => ovens.length);
+    const profileCount = computed(() => dietaryProfiles.length);
     const recipeCount = computed(() => recipeMentioned.get().length);
     const preparedFoodCount = computed(() => preparedFoodMentioned.get().length);
 
     // Meal Balance Analysis
-    const analysisPrompt = derive(
-      { guestCount, dietaryProfiles },
-      ({ guestCount: guests, dietaryProfiles: profiles }) => {
+    const analysisPrompt = computed(
+      () => {
+        const guests = guestCount;
+        const profiles = dietaryProfiles;
         const recipeList = recipeMentioned.get();
         const preparedList = preparedFoodMentioned.get();
 
@@ -616,10 +614,9 @@ Be concise and practical in your analysis.`,
       },
     });
 
-    const analysisResult = derive(
-      mealAnalysis,
-      (result) =>
-        result || {
+    const analysisResult = computed(
+      () =>
+        mealAnalysis || {
           categoryBreakdown: {},
           servingsAnalysis: "",
           dietaryWarnings: [],
@@ -628,7 +625,8 @@ Be concise and practical in your analysis.`,
     );
 
     // Oven Timeline Calculation
-    const ovenTimeline = derive(mealTime, (servingTime) => {
+    const ovenTimeline = computed(() => {
+      const servingTime = mealTime;
       const recipeList = recipeMentioned.get();
 
       if (!recipeList || recipeList.length === 0 || !servingTime) {
@@ -997,13 +995,13 @@ Be concise and practical in your analysis.`,
                       }}
                     >
                       <div>
-                        {/* Use derive to unwrap the Cell and get display name */}
+                        {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {derive(itemCell, (item: any) => item?.name || item?.[NAME] || "Untitled Recipe")}
+                          {computed(() => itemCell?.name || itemCell?.[NAME] || "Untitled Recipe")}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {derive(itemCell, (item: any) =>
-                            item?.category ? `${item.category} • ${item.servings} servings` : "Recipe"
+                          {computed(() =>
+                            itemCell?.category ? `${itemCell.category} • ${itemCell.servings} servings` : "Recipe"
                           )}
                         </div>
                       </div>
@@ -1058,14 +1056,14 @@ Be concise and practical in your analysis.`,
                       }}
                     >
                       <div>
-                        {/* Use derive to unwrap the Cell and get display name */}
+                        {/* Use computed to unwrap the Cell and get display name */}
                         <div style={{ fontWeight: "600", fontSize: "14px" }}>
-                          {derive(itemCell, (item: any) => item?.name || item?.[NAME] || "Untitled Item")}
+                          {computed(() => itemCell?.name || itemCell?.[NAME] || "Untitled Item")}
                         </div>
                         <div style={{ fontSize: "12px", color: "#666" }}>
-                          {derive(itemCell, (item: any) =>
-                            item?.category
-                              ? `${item.category} • ${item.servings} servings${item.source ? ` • ${item.source}` : ""}`
+                          {computed(() =>
+                            itemCell?.category
+                              ? `${itemCell.category} • ${itemCell.servings} servings${itemCell.source ? ` • ${itemCell.source}` : ""}`
                               : "Prepared Food"
                           )}
                         </div>
@@ -1086,7 +1084,7 @@ Be concise and practical in your analysis.`,
 
           {/* Meal Balance Analysis */}
           {ifElse(
-            derive({ recipes, preparedFoods }, ({ recipes: r, preparedFoods: p }) => (r.length + p.length) > 0),
+            computed(() => (recipes.length + preparedFoods.length) > 0),
             <ct-card>
               <ct-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
@@ -1106,8 +1104,8 @@ Be concise and practical in your analysis.`,
                         Categories:
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                        {derive(analysisResult, (r) => {
-                          return Object.entries(r.categoryBreakdown).map(([category, count]) => (
+                        {computed(() => {
+                          return Object.entries(analysisResult.categoryBreakdown).map(([category, count]) => (
                             <div
                               style={{
                                 padding: "4px 10px",
@@ -1129,22 +1127,21 @@ Be concise and practical in your analysis.`,
                         Portions:
                       </div>
                       <div style={{ fontSize: "14px", color: "#444" }}>
-                        {derive(analysisResult, (r) => r.servingsAnalysis)}
+                        {computed(() => analysisResult.servingsAnalysis)}
                       </div>
                     </div>
 
                     {/* Dietary Warnings */}
                     {ifElse(
-                      derive(
-                        analysisResult,
-                        (r) => r.dietaryWarnings && r.dietaryWarnings.length > 0,
+                      computed(
+                        () => analysisResult.dietaryWarnings && analysisResult.dietaryWarnings.length > 0,
                       ),
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#dc2626" }}>
                           ⚠️ Dietary Warnings:
                         </div>
                         <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#dc2626" }}>
-                          {derive(analysisResult, (r) => r.dietaryWarnings).map(
+                          {computed(() => analysisResult.dietaryWarnings).map(
                             (warning: string) => (
                               <li>{warning}</li>
                             ),
@@ -1156,16 +1153,15 @@ Be concise and practical in your analysis.`,
 
                     {/* Suggestions */}
                     {ifElse(
-                      derive(
-                        analysisResult,
-                        (r) => r.suggestions && r.suggestions.length > 0,
+                      computed(
+                        () => analysisResult.suggestions && analysisResult.suggestions.length > 0,
                       ),
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px", color: "#059669" }}>
                           💡 Suggestions:
                         </div>
                         <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "13px", color: "#059669" }}>
-                          {derive(analysisResult, (r) => r.suggestions).map(
+                          {computed(() => analysisResult.suggestions).map(
                             (suggestion: string) => (
                               <li>{suggestion}</li>
                             ),
@@ -1183,7 +1179,7 @@ Be concise and practical in your analysis.`,
 
           {/* Oven Timeline Visualization */}
           {ifElse(
-            derive(ovenTimeline, (timeline) => timeline.hasData),
+            computed(() => ovenTimeline.hasData),
             <ct-card>
               <ct-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
@@ -1192,7 +1188,7 @@ Be concise and practical in your analysis.`,
 
                 {/* Conflicts Warning */}
                 {ifElse(
-                  derive(ovenTimeline, (timeline) => timeline.conflicts.length > 0),
+                  computed(() => ovenTimeline.conflicts.length > 0),
                   <div
                     style={{
                       padding: "8px",
@@ -1206,7 +1202,7 @@ Be concise and practical in your analysis.`,
                       ⚠️ Conflicts Detected
                     </div>
                     <ul style={{ margin: "0", paddingLeft: "20px", fontSize: "12px", color: "#dc2626" }}>
-                      {derive(ovenTimeline, (timeline) => timeline.conflicts).map(
+                      {computed(() => ovenTimeline.conflicts).map(
                         (conflict: any) => (
                           <li>
                             {conflict.reason} ({conflict.affectedRecipes.join(", ")})
@@ -1221,7 +1217,8 @@ Be concise and practical in your analysis.`,
                 {/* Timeline visualization */}
                 <div style={{ position: "relative", marginTop: "8px" }}>
                   {/* Helper function to format time */}
-                  {derive(ovenTimeline, (timeline) => {
+                  {computed(() => {
+                    const timeline = ovenTimeline;
                     if (!timeline.hasData) return null;
 
                     // Find the time range
@@ -1436,7 +1433,8 @@ Be concise and practical in your analysis.`,
 
                 {/* Display each match with checkbox */}
                 <ct-vstack gap={1}>
-                  {derive(linkingResult, (result) => {
+                  {computed(() => {
+                    const result = linkingResult;
                     if (!result || !result.matches) return [];
                     return result.matches.map((matchResult: MatchResult, index: number) => {
                       const item = matchResult.item;
