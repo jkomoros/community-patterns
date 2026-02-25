@@ -105,8 +105,8 @@
  * - Cross-space auth access is a separate known issue
  */
 import {
+  computed,
   Default,
-  derive,
   fetchData,
   generateObject,
   handler,
@@ -537,7 +537,7 @@ function processUrlSlot(url: any): {
 } {
   // L2: Fetch web content
   // deno-lint-ignore no-explicit-any
-  const webContentBody = derive(url, (u: any) => ({ url: u as string, max_tokens: 4000, include_code: false }));
+  const webContentBody = computed(() => ({ url: url as string, max_tokens: 4000, include_code: false }));
   const webContent = ifElse(
     url,
     fetchData<{ content: string; title?: string }>({
@@ -553,10 +553,8 @@ function processUrlSlot(url: any): {
   );
 
   // L3: Classify content
-  const classificationPrompt = derive(
-    { url, content: webContent },
-    ({ url, content }: { url: unknown; content: unknown }) => {
-      const c = content as { result?: { content?: string } } | null;
+  const classificationPrompt = computed(() => {
+      const c = webContent as { result?: { content?: string } } | null;
       const pageContent = c?.result?.content;
       if (pageContent) {
         return `URL: ${url}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nClassify this content and extract original report URL if applicable.`;
@@ -581,17 +579,17 @@ function processUrlSlot(url: any): {
   );
 
   // L4: Fetch original report if this is a news article pointing to one
-  const needsOriginalFetch = derive(classification, (c: unknown) => {
-    const cls = c as { result?: { isOriginalReport: boolean; originalReportUrl?: string } } | null;
+  const needsOriginalFetch = computed(() => {
+    const cls = classification as { result?: { isOriginalReport: boolean; originalReportUrl?: string } } | null;
     return cls?.result && !cls.result.isOriginalReport && isValidUrl(cls.result.originalReportUrl);
   });
-  const originalReportUrl = derive(classification, (c: unknown) => {
-    const cls = c as { result?: { originalReportUrl?: string } } | null;
+  const originalReportUrl = computed(() => {
+    const cls = classification as { result?: { originalReportUrl?: string } } | null;
     return cls?.result?.originalReportUrl;
   });
 
   // deno-lint-ignore no-explicit-any
-  const originalContentBody = derive(originalReportUrl, (u: any) => ({ url: u as string, max_tokens: 4000, include_code: false }));
+  const originalContentBody = computed(() => ({ url: originalReportUrl as string, max_tokens: 4000, include_code: false }));
   const originalContent = ifElse(
     needsOriginalFetch,
     fetchData<{ content: string; title?: string }>({
@@ -607,8 +605,8 @@ function processUrlSlot(url: any): {
   );
 
   // L5: Summarize the final report content
-  const isOriginal = derive(classification, (c: unknown) => {
-    const cls = c as { result?: { isOriginalReport: boolean } } | null;
+  const isOriginal = computed(() => {
+    const cls = classification as { result?: { isOriginalReport: boolean } } | null;
     return cls?.result?.isOriginalReport;
   });
   const reportContent = ifElse(
@@ -617,11 +615,9 @@ function processUrlSlot(url: any): {
     originalContent
   );
 
-  const summaryPrompt = derive(
-    { url, originalReportUrl, content: reportContent, isOriginal },
-    ({ url, originalReportUrl, content, isOriginal }: { url: unknown; originalReportUrl: unknown; content: unknown; isOriginal: unknown }) => {
+  const summaryPrompt = computed(() => {
       const targetUrl = isOriginal ? url : (originalReportUrl || url);
-      const c = content as { result?: { content?: string } } | null;
+      const c = reportContent as { result?: { content?: string } } | null;
       const pageContent = c?.result?.content;
       if (pageContent) {
         return `URL: ${targetUrl}\n\nPage Content:\n${pageContent.slice(0, 8000)}\n\nSummarize this security report.`;
@@ -667,16 +663,16 @@ function processArticleUrls(article: { articleId: unknown; articleTitle: unknown
   slots: ReturnType<typeof processUrlSlot>[];
 } {
   // Extract up to MAX_URLS_PER_ARTICLE URLs as fixed slots
-  const url0 = derive(article.extraction, (ext: unknown) => {
-    const e = ext as { result?: { urls?: string[] } } | null;
+  const url0 = computed(() => {
+    const e = article.extraction as { result?: { urls?: string[] } } | null;
     return e?.result?.urls?.[0] || null;
   });
-  const url1 = derive(article.extraction, (ext: unknown) => {
-    const e = ext as { result?: { urls?: string[] } } | null;
+  const url1 = computed(() => {
+    const e = article.extraction as { result?: { urls?: string[] } } | null;
     return e?.result?.urls?.[1] || null;
   });
-  const url2 = derive(article.extraction, (ext: unknown) => {
-    const e = ext as { result?: { urls?: string[] } } | null;
+  const url2 = computed(() => {
+    const e = article.extraction as { result?: { urls?: string[] } } | null;
     return e?.result?.urls?.[2] || null;
   });
 
@@ -712,12 +708,9 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   });
 
   // Count for display (emails counted directly from importer)
-  const emailCount = derive(importer.emails, (list: any[]) => list.length);
-  const manualCount = derive(articles, (list) => list.length);
-  const articleCount = derive(
-    { emails: importer.emails, manual: articles },
-    ({ emails, manual }) => emails.length + manual.length
-  );
+  const emailCount = computed(() => (importer.emails as any[]).length);
+  const manualCount = computed(() => (articles as any[]).length);
+  const articleCount = computed(() => (importer.emails as any[]).length + (articles as any[]).length);
 
   // ==========================================================================
   // Reports storage and read state
@@ -751,11 +744,11 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     const id = email.id;
     return {
       articleId: id,
-      articleTitle: derive(email, (e: any) => e?.subject || "No Subject"),
-      articleSource: derive(email, (e: any) => e?.from || "Unknown"),
+      articleTitle: computed(() => (email as any)?.subject || "No Subject"),
+      articleSource: computed(() => (email as any)?.from || "Unknown"),
       extraction: generateObject<ExtractedLinks>({
         system: LINK_EXTRACTION_SYSTEM,
-        prompt: derive(email, (e: any) => e?.markdownContent || e?.snippet || ""),
+        prompt: computed(() => (email as any)?.markdownContent || (email as any)?.snippet || ""),
         model: "anthropic:claude-sonnet-4-5",
         schema: LINK_EXTRACTION_SCHEMA,
       }),
@@ -764,11 +757,9 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // Combine extractions from both sources for aggregation (derive is fine for read-only)
   // Note: Added defensive array checks for when email/manual might not be arrays during hydration
-  const articleExtractions = derive(
-    { manual: manualArticleExtractions, email: emailArticleExtractions },
-    ({ manual, email }) => [
-      ...(Array.isArray(manual) ? manual : []),
-      ...(Array.isArray(email) ? email : [])
+  const articleExtractions = computed(() => [
+      ...(Array.isArray(manualArticleExtractions) ? manualArticleExtractions : []),
+      ...(Array.isArray(emailArticleExtractions) ? emailArticleExtractions : [])
     ]
   );
 
@@ -776,7 +767,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // Progress tracking
   // ==========================================================================
   // DEBUG: Log L1 cell structure
-  const _debugL1CellStructure = derive(articleExtractions, (list) => {
+  const _debugL1CellStructure = computed(() => {
+    const list = articleExtractions as any[];
     if (!DEBUG_LOGGING) return null;
     const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const ext = item.extraction;
@@ -799,19 +791,20 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     return sample;
   });
 
-  const pendingCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e && e.extraction?.pending).length
+  const pendingCount = computed(() =>
+    (articleExtractions as any[]).filter((e: any) => e && e.extraction?.pending).length
   );
 
   // Completed = not pending (matches what the UI checkmarks show)
   // NOTE: L1 uses !pending (like L3), not !pending && result (like L2)
-  const completedCount = derive(articleExtractions, (list) =>
-    list.filter((e: any) => e && !e.extraction?.pending).length
+  const completedCount = computed(() =>
+    (articleExtractions as any[]).filter((e: any) => e && !e.extraction?.pending).length
   );
 
   // Collect all extracted links for counting (derive is fine for read-only aggregation)
   // Refactored to use filter/flatMap after CT-1102 fix
-  const allExtractedLinks = derive(articleExtractions, (list) => {
+  const allExtractedLinks = computed(() => {
+    const list = articleExtractions as any[];
     const seen = new Set<string>();
     return list
       .filter((item: any) => item?.extraction?.result?.urls)
@@ -824,13 +817,13 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       });
   });
 
-  const linkCount = derive(allExtractedLinks, (links) => links.length);
-  const reportCount = derive(reports, (list: PromptInjectionReport[]) => list.length);
+  const linkCount = computed(() => (allExtractedLinks as any[]).length);
+  const reportCount = computed(() => (reports as PromptInjectionReport[]).length);
 
   // Count by classification
   // Refactored to use reduce after CT-1102 fix
-  const classificationCounts = derive(articleExtractions, (list) =>
-    list
+  const classificationCounts = computed(() =>
+    (articleExtractions as any[])
       .filter((item: any) => item?.extraction?.result?.classification)
       .reduce(
         (counts: Record<string, number>, item: any) => {
@@ -862,19 +855,17 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // Combine for aggregation (derive is fine for read-only operations)
   // Note: Added defensive array checks for when email/manual might not be arrays during hydration
-  const articleUrlProcessing = derive(
-    { manual: manualUrlProcessing, email: emailUrlProcessing },
-    ({ manual, email }) => [
-      ...(Array.isArray(manual) ? manual : []),
-      ...(Array.isArray(email) ? email : [])
+  const articleUrlProcessing = computed(() => [
+      ...(Array.isArray(manualUrlProcessing) ? manualUrlProcessing : []),
+      ...(Array.isArray(emailUrlProcessing) ? emailUrlProcessing : [])
     ]
   );
 
   // Flatten all URL slots from all articles into a single list for aggregation
   // Each article has up to 3 slots, each slot has the full L2-L5 pipeline results
   // Refactored to use filter/flatMap after CT-1102 fix
-  const contentClassifications = derive(articleUrlProcessing, (articles: any[]) =>
-    articles
+  const contentClassifications = computed(() =>
+    (articleUrlProcessing as any[])
       .filter((article: any) => article?.slots)
       .flatMap((article: any) =>
         article.slots
@@ -895,13 +886,14 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // Count total URL slots being processed (for L2/L3 metrics)
   // Now that we process up to 3 URLs per article, we count total slots with non-null URLs
-  const urlSlotsCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.sourceUrl).length
+  const urlSlotsCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.sourceUrl).length
   );
 
   // L2: Count web fetch progress (from contentClassifications - the flattened list)
   // DEBUG: Log cell structure for first 3 items to understand caching behavior
-  const _debugL2CellStructure = derive(contentClassifications, (list) => {
+  const _debugL2CellStructure = computed(() => {
+    const list = contentClassifications as any[];
     if (!DEBUG_LOGGING) return null;
     const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const wc = item.webContent;
@@ -930,27 +922,26 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // L2 Counters: Fixed to properly detect success vs error
   // Now counts across all URL slots from all articles
   // Note: Added null checks for page refresh hydration safety
-  const fetchPendingCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.sourceUrl && item.webContent?.pending).length
+  const fetchPendingCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.sourceUrl && item.webContent?.pending).length
   );
   // Success = not pending AND has actual result content
-  const fetchSuccessCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
+  const fetchSuccessCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && item.webContent?.result).length
   );
   // Error = not pending AND no result (either .error is set OR .result is undefined)
   // deno-lint-ignore no-explicit-any
-  const fetchErrorCount = derive(contentClassifications, (list: any[]) =>
-    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
+  const fetchErrorCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.sourceUrl && !item.webContent?.pending && !item.webContent?.result).length
   );
   // Total done = success + error (for backward compatibility, kept as fetchCompletedCount)
-  const fetchCompletedCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.sourceUrl && !item.webContent?.pending).length
+  const fetchCompletedCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.sourceUrl && !item.webContent?.pending).length
   );
 
   // DEBUG: Log L2 counts
-  const _debugL2Counts = derive(
-    { pending: fetchPendingCount, success: fetchSuccessCount, error: fetchErrorCount, done: fetchCompletedCount },
-    (counts) => {
+  const _debugL2Counts = computed(() => {
+      const counts = { pending: fetchPendingCount, success: fetchSuccessCount, error: fetchErrorCount, done: fetchCompletedCount };
       if (DEBUG_LOGGING) {
         console.log("[DEBUG:L2-COUNTS]", JSON.stringify(counts, null, 2));
       }
@@ -960,7 +951,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // Count classification progress
   // DEBUG: Log L3 cell structure to compare with L2
-  const _debugL3CellStructure = derive(contentClassifications, (list) => {
+  const _debugL3CellStructure = computed(() => {
+    const list = contentClassifications as any[];
     if (!DEBUG_LOGGING) return null;
     const sample = list.slice(0, 3).filter((item: any) => item).map((item: any, idx: number) => {
       const cl = item.classification;
@@ -984,10 +976,11 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     return sample;
   });
 
-  const classifyPendingCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c && c.classification?.pending).length
+  const classifyPendingCount = computed(() =>
+    (contentClassifications as any[]).filter((c: any) => c && c.classification?.pending).length
   );
-  const classifyCompletedCount = derive(contentClassifications, (list) => {
+  const classifyCompletedCount = computed(() => {
+    const list = contentClassifications as any[];
     const completed = list.filter((c: any) => c && !c.classification?.pending);
     // DEBUG: Log L3 completion check
     if (DEBUG_LOGGING && list.length > 0) {
@@ -1001,11 +994,11 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   });
 
   // Count originals vs news articles
-  const originalCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c && c.classification?.result?.isOriginalReport).length
+  const originalCount = computed(() =>
+    (contentClassifications as any[]).filter((c: any) => c && c.classification?.result?.isOriginalReport).length
   );
-  const newsArticleCount = derive(contentClassifications, (list) =>
-    list.filter((c: any) => c && c.classification?.result && !c.classification.result.isOriginalReport).length
+  const newsArticleCount = computed(() =>
+    (contentClassifications as any[]).filter((c: any) => c && c.classification?.result && !c.classification.result.isOriginalReport).length
   );
 
   // ==========================================================================
@@ -1015,7 +1008,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   // Framework caching handles the rest - same URL = same cached fetch
   // ==========================================================================
 
-  const originalReportUrls = derive(contentClassifications, (items) => {
+  const originalReportUrls = computed(() => {
+    const items = contentClassifications as any[];
     const seen = new Set<string>();
     const urls: Array<{ url: string; sourceUrl: string; isDirectOriginal: boolean }> = [];
 
@@ -1048,7 +1042,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
     return urls;
   });
 
-  const uniqueOriginalCount = derive(originalReportUrls, (urls) => urls.length);
+  const uniqueOriginalCount = computed(() => (originalReportUrls as any[]).length);
 
   // ==========================================================================
   // L4/L5 Progress Counters (now derived from contentClassifications)
@@ -1056,8 +1050,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // L4: Count original fetches in progress (for news articles pointing to originals)
   // Note: Added `item &&` null checks for page refresh hydration safety
-  const l4PendingCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => {
+  const l4PendingCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => {
       if (!item) return false; // Skip undefined items during hydration
       const needsFetch = item.classification?.result &&
         !item.classification.result.isOriginalReport &&
@@ -1065,8 +1059,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       return needsFetch && item.originalContent?.pending;
     }).length
   );
-  const l4CompletedCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => {
+  const l4CompletedCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => {
       if (!item) return false; // Skip undefined items during hydration
       const result = item.classification?.result;
       if (!result) return false;
@@ -1080,20 +1074,21 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
 
   // L5: Count summaries in progress (per article)
   // Note: Added `item &&` null checks for page refresh hydration safety
-  const summaryPendingCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.summary?.pending).length
+  const summaryPendingCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.summary?.pending).length
   );
 
   // Count LLM-specific reports
-  const llmSpecificCount = derive(contentClassifications, (list) =>
-    list.filter((item: any) => item && item.summary?.result?.isLLMSpecific).length
+  const llmSpecificCount = computed(() =>
+    (contentClassifications as any[]).filter((item: any) => item && item.summary?.result?.isLLMSpecific).length
   );
 
   // ==========================================================================
   // Deduplicated Final Reports (for display)
   // Group by original URL, show each unique report once with all sources
   // ==========================================================================
-  const finalReportsWithSources = derive(contentClassifications, (items) => {
+  const finalReportsWithSources = computed(() => {
+    const items = contentClassifications as any[];
     const byOriginalUrl = new Map<string, {
       url: string;
       summary: any;
@@ -1148,33 +1143,30 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   });
 
   // Add isRead flag to reports (computed once, not in render loop!)
-  const finalReportsWithReadState = derive(
-    { reports: finalReportsWithSources, read: readUrls },
-    ({ reports, read }: { reports: any[]; read: string[] }) => {
-      return reports.map((r: any) => ({
+  const finalReportsWithReadState = computed(() => {
+      return (finalReportsWithSources as any[]).map((r: any) => ({
         ...r,
-        isRead: read.includes(normalizeURL(r.url)),
+        isRead: (readUrls as string[]).includes(normalizeURL(r.url)),
       }));
     }
   );
 
   // Count unread reports (reports not in readUrls array)
   // Note: Added `r &&` null checks for page refresh hydration safety
-  const unreadCount = derive(finalReportsWithReadState, (reports) =>
-    reports.filter((r: any) => r && !r.isRead).length
+  const unreadCount = computed(() =>
+    (finalReportsWithReadState as any[]).filter((r: any) => r && !r.isRead).length
   );
 
-  const totalReportCount = derive(finalReportsWithSources, (reports) => reports.length);
+  const totalReportCount = computed(() => (finalReportsWithSources as any[]).length);
 
   // DEBUG: Log finalReportsWithSources vs uniqueOriginalCount (controlled by flag)
-  const _debugFinalReportsVerbose = derive(
-    { reports: finalReportsWithSources, uniqueCount: uniqueOriginalCount, origUrls: originalReportUrls },
-    ({ reports, uniqueCount, origUrls }) => {
+  const _debugFinalReportsVerbose = computed(() => {
       if (DEBUG_LOGGING) {
+        const reports = finalReportsWithSources as any[];
         console.log("[DEBUG:FINAL-REPORTS]", JSON.stringify({
           finalReportsCount: reports.length,
-          uniqueOriginalCount: uniqueCount,
-          originalReportUrlsCount: origUrls.length,
+          uniqueOriginalCount: uniqueOriginalCount,
+          originalReportUrlsCount: (originalReportUrls as any[]).length,
           sampleReport: reports[0] ? {
             url: reports[0].url?.slice?.(0, 50),
             hasSummary: !!reports[0].summary,
@@ -1188,8 +1180,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   );
 
   // L5: Count unique reports with completed summaries (deduplicated)
-  const reportsWithSummaryCount = derive(finalReportsWithSources, (reports) =>
-    reports.filter((r: any) => r && r.summary?.result && !r.summary.pending).length
+  const reportsWithSummaryCount = computed(() =>
+    (finalReportsWithSources as any[]).filter((r: any) => r && r.summary?.result && !r.summary.pending).length
   );
 
   // ==========================================================================
