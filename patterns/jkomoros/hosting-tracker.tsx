@@ -999,10 +999,10 @@ const HostingTracker = pattern<HostingTrackerInput>(
     // Connection status for setup UI
     const hasFamilies = computed(() => trackedFamilies.length > 0);
     const hasGoogleCalendar = computed(() =>
-      googleCalendarCharm?.events && googleCalendarCharm.events.length > 0
+      googleCalendarCharm?.result?.events && googleCalendarCharm.result.events.length > 0
     );
     const hasAppleCalendar = computed(() =>
-      appleCalendarCharm?.events && appleCalendarCharm.events.length > 0
+      appleCalendarCharm?.result?.events && appleCalendarCharm.result.events.length > 0
     );
 
     // LLM Rule Suggestions - generateObject call
