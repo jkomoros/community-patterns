@@ -7,7 +7,7 @@ import {
   ifElse,
   NAME,
   navigateTo,
-  recipe,
+  pattern,
   str,
   UI,
   wish,
@@ -599,7 +599,7 @@ const applyExtractedData = handler<
   },
 );
 
-const Person = recipe<Input, Output>(
+const Person = pattern<Input, Output>(
   "Person",
   ({
     displayName,
@@ -753,7 +753,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     });
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during recipe discovery when map items change.
+    // This prevents N² re-evaluation during pattern discovery when map items change.
     // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
     const notesDiffChunks = computed(() => {
       const t0 = PERF_MEASURE ? Date.now() : 0;

@@ -8,7 +8,7 @@ import {
   NAME,
   type Opaque,
   OpaqueRef,
-  recipe,
+  pattern,
   str,
   UI,
   wish,
@@ -63,7 +63,7 @@ const triggerAnalysis = handler<
   },
 );
 
-const MetaAnalyzer = recipe<Input, Output>(
+const MetaAnalyzer = pattern<Input, Output>(
   "Meta Analyzer",
   () => {
     // Get all charms from the space via wish
