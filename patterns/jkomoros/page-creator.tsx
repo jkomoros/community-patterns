@@ -6,7 +6,7 @@ import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";
 
 // Import patterns directly - optional defaults make {} work for all fields
 import Person from "./person.tsx";
-import Counter from "./lib/counter.tsx";
+import Counter from "../../../labs/packages/patterns/counter/counter.tsx";
 import ShoppingListLauncher from "./shopping-list-launcher.tsx";
 import { createStoreMapper } from "./store-mapper.tsx";
 import MetaAnalyzer from "./meta-analyzer.tsx";
@@ -18,8 +18,8 @@ import RewardSpinner from "./reward-spinner.tsx";
 import CheeseboardSchedule from "./cheeseboard-schedule.tsx";
 import MealOrchestrator from "./meal-orchestrator.tsx";
 import PreparedFood from "./prepared-food.tsx";
-import HotelMembershipExtractor from "./lib/hotel-membership-gmail-agent.tsx";
-import GoogleCalendarImporter from "./lib/google-calendar-importer.tsx";
+import HotelMembershipExtractor from "../../../labs/packages/patterns/google/extractors/hotel-membership-gmail-agent.tsx";
+import GoogleCalendarImporter from "../../../labs/packages/patterns/google/core/google-calendar-importer.tsx";
 import SmartRubric from "./smart-rubric.tsx";
 import FavoritesViewer from "./favorites-viewer.tsx";
 import StarChart from "./star-chart.tsx";

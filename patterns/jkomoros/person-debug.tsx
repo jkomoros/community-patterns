@@ -13,7 +13,7 @@ import {
   wish,
   Writable,
 } from "commontools";
-import { type MentionableCharm } from "./lib/backlinks-index.tsx";
+import { type MentionableCharm } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
 
 // Performance measurement - set to true to see timing in console

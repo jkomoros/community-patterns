@@ -28,7 +28,7 @@ import {
 } from "commontools";
 
 // Import actual GoogleAuth pattern
-import GoogleAuth from "./lib/google-auth.tsx";
+import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.tsx";
 
 // =============================================================================
 // Level 1: Simple Pattern (WORKS - confirmed in Round 1)

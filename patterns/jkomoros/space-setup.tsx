@@ -14,7 +14,7 @@ import {
 } from "commontools";
 
 // Import patterns directly - optional defaults make {} work for all fields
-import Note from "./lib/note.tsx";
+import Note from "../../../labs/packages/patterns/notes/note.tsx";
 import Person from "./person.tsx";
 import PageCreator from "./page-creator.tsx";
 import StoreMapper from "./store-mapper.tsx";

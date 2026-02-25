@@ -13,8 +13,15 @@ if [ ! -d "$LABS_DIR" ]; then
   exit 1
 fi
 
-# Run ct from labs directory, preserving original working directory
-# INIT_CWD tells the ct task where to resolve relative paths from
+# Auto-inject --root for commands that need cross-repo import resolution
+PARENT_DIR="$REPO_ROOT/.."
 export INIT_CWD="$REPO_ROOT"
 cd "$LABS_DIR"
-exec deno task ct "$@"
+
+if [[ "${1:-}" == "piece" && "${2:-}" == "new" ]]; then
+  exec deno task ct piece new --root "$PARENT_DIR" "${@:3}"
+elif [[ "${1:-}" == "dev" || "${1:-}" == "check" ]]; then
+  exec deno task ct "$1" --root "$PARENT_DIR" "${@:2}"
+else
+  exec deno task ct "$@"
+fi

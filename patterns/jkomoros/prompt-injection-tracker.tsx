@@ -117,7 +117,7 @@ import {
   UI,
   Writable,
 } from "commontools";
-import GmailImporter from "./lib/gmail-importer.tsx";
+import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
 
 // =============================================================================
 // UTILITY FUNCTIONS

@@ -141,7 +141,6 @@ community-patterns/
     │   └── todo-list.tsx
     └── YOUR-USERNAME/     # Your patterns
         ├── WIP/           # Work in progress
-        ├── lib/           # Reference patterns (unchanged)
         └── *.tsx          # Stable patterns
 ```
 
@@ -179,7 +178,7 @@ community-patterns/
 
 - Work only in your `patterns/USERNAME/` directory
 - Don't modify other users' patterns
-- Keep `lib/` folder for reference patterns (unchanged)
+- Import from labs directly (no need to copy files)
 - Use `WIP/` folder for work in progress
 - Share your best patterns via PR!
 

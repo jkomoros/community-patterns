@@ -51,7 +51,7 @@ import {
   UI,
   wish,
 } from "commontools";
-import { type MentionableCharm } from "./lib/backlinks-index.tsx";
+import { type MentionableCharm } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
 import RecipeAnalyzer from "./recipe-analyzer.tsx";
 import FoodRecipeViewer from "./food-recipe-viewer.tsx";

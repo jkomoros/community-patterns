@@ -1,6 +1,6 @@
 /// <cts-enable />
 import { computed, Default, NAME, pattern, UI } from "commontools";
-import GmailImporter from "./lib/gmail-importer.tsx";
+import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
 
 interface SubstackInput {
   gmailFilterQuery?: Default<string, "label:demo">;

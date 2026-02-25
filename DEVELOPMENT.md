@@ -352,9 +352,6 @@ patterns/YOUR-USERNAME/
 ├── WIP/                   # Work-in-progress patterns
 │   ├── feature-x.tsx      # Actively developing
 │   └── experiment-y.tsx   # Testing ideas
-├── lib/                   # Copied reference patterns (NO MODIFICATIONS!)
-│   ├── counter.tsx        # From examples/ (unchanged)
-│   └── shopping.tsx       # From labs (unchanged)
 ├── todo-list.tsx          # Your stable patterns
 ├── notes-app.tsx
 └── image-gallery.tsx
@@ -371,13 +368,11 @@ Note: claude.key is in ../labs, not in the community-patterns directory
 - Can be incomplete/messy
 - Move to root when stable
 
-**`lib/`** - Reference patterns (NO MODIFICATIONS) - *Legacy approach*
-- **CRITICAL**: Files in lib/ should NEVER be modified
-- Copy patterns from `patterns/examples/` or `labs/packages/patterns/` here
-- Used for reference and learning
-- If you want to modify, copy to `WIP/` or root first
-- Helps you distinguish your work from upstream patterns
-- **Note:** As of 2025-12-22, the `--root` flag makes this pattern optional. You can now import directly from shared directories. See `patterns/jkomoros/lib/README.md` for details.
+**Importing from labs** - Direct cross-repo imports
+- Import patterns directly from `../../../labs/packages/patterns/...`
+- The `--root` flag is auto-injected by `scripts/ct` for cross-repo resolution
+- No need to copy files locally — always use the canonical version in labs
+- Everyone has labs cloned (required by `scripts/ct`)
 
 **Root level** - Stable/production patterns
 - Completed and tested
@@ -387,25 +382,19 @@ Note: claude.key is in ../labs, not in the community-patterns directory
 
 **Why this structure?**
 - Clear separation of work-in-progress vs stable
-- `lib/` keeps upstream patterns pristine for reference
 - Easy to see what you're actively working on
 - Matches the structure used in the main patterns repo
 
 **Example workflow:**
 ```bash
-# 1. Copy example to study
-cp patterns/examples/counter.tsx patterns/YOUR-USERNAME/lib/counter.tsx
+# 1. Start building in WIP/ — import from labs directly
+# In your .tsx file: import Counter from "../../../labs/packages/patterns/counter/counter.tsx";
 
-# 2. Start building your own version
-cp patterns/YOUR-USERNAME/lib/counter.tsx patterns/YOUR-USERNAME/WIP/my-counter.tsx
-
-# 3. Develop and test in WIP/
+# 2. Develop and test in WIP/
 # ... make changes, test, iterate ...
 
-# 4. When stable, move to root
+# 3. When stable, move to root
 mv patterns/YOUR-USERNAME/WIP/my-counter.tsx patterns/YOUR-USERNAME/my-counter.tsx
-
-# 5. lib/counter.tsx remains unchanged for reference
 ```
 
 **Alternative structures:**
@@ -416,7 +405,6 @@ Organize however works for you! Some ideas:
 # By category
 patterns/YOUR-USERNAME/
 ├── WIP/
-├── lib/
 ├── lists/
 │   ├── todo.tsx
 │   └── shopping.tsx
@@ -429,7 +417,6 @@ patterns/YOUR-USERNAME/
 # By complexity
 patterns/YOUR-USERNAME/
 ├── WIP/
-├── lib/
 ├── simple/
 │   └── counter.tsx
 ├── intermediate/

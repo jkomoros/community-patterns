@@ -115,8 +115,6 @@ community-patterns/        # THIS REPO (user's fork or direct)
         ├── README.md      # Optional: user's notes
         ├── WIP/           # Work-in-progress patterns
         │   └── *.tsx      # Patterns under active development
-        ├── lib/           # Copied upstream patterns (NO MODIFICATIONS)
-        │   └── *.tsx      # Reference patterns from labs
         └── *.tsx          # Stable/production patterns
 
 ~/Code/labs/               # Framework repo (separate, READ-ONLY)
@@ -134,11 +132,10 @@ community-patterns/        # THIS REPO (user's fork or direct)
 - Can be messy/incomplete
 - Keep working here until pattern is stable and tested
 
-**lib/** - Copied reference patterns
-- **CRITICAL**: NO MODIFICATIONS to files in lib/
-- Copy patterns from labs or examples here for reference
-- If you want to modify them, copy to WIP/ or root
-- Helps differentiate your work from upstream patterns
+**Importing from labs** - Direct cross-repo imports
+- Import patterns directly from `../../../labs/packages/patterns/...`
+- The `--root` flag is auto-injected by `scripts/ct` for cross-repo resolution
+- No need to copy files locally — always use the canonical version in labs
 
 **Root level** - Stable patterns
 - Only move patterns here when fully tested and working
@@ -173,9 +170,6 @@ patterns/alice/
 ├── WIP/
 │   ├── experimental-ai-chat.tsx
 │   └── testing-new-feature.tsx
-├── lib/
-│   ├── counter.tsx              # Copied from examples (unchanged)
-│   └── shopping-list.tsx        # Copied from labs (unchanged)
 ├── my-todo-list.tsx             # Alice's stable pattern
 └── my-notes-app.tsx             # Alice's stable pattern
 ```
