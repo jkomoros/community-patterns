@@ -791,7 +791,8 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     source,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionableCharm[]>("#mentionable");
+    const mentionableWish = wish<MentionableCharm[]>({ query: "#mentionable" });
+    const mentionable = computed(() => mentionableWish?.result ?? []);
     const mentioned = Writable.of<MentionableCharm[]>([]);
 
     // Computed values

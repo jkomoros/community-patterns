@@ -416,7 +416,8 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     notes,
   }) => {
     // Get mentionable charms for @ references
-    const mentionable = wish<any[]>("#mentionable");
+    const mentionableWish = wish<any[]>({ query: "#mentionable" });
+    const mentionable = computed(() => mentionableWish?.result ?? []);
 
     // Track charms created by this meal orchestrator
     // These will be exported as mentionable so they become discoverable

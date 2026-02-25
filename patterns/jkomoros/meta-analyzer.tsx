@@ -66,8 +66,8 @@ const triggerAnalysis = handler<
 const MetaAnalyzer = pattern<Input, Output>(
   () => {
     // Get all charms from the space via wish
-    const allCharmsWish = wish<any[]>("#allCharms");
-    const allCharms = computed(() => allCharmsWish ?? []);
+    const allCharmsWish = wish<any[]>({ query: "#allCharms" });
+    const allCharms = computed(() => allCharmsWish?.result ?? []);
 
     // Filter for Person charms (those with profile property)
     const personCharms = computed(() =>

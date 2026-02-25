@@ -916,21 +916,21 @@ const HostingTracker = pattern<HostingTrackerInput>(
     );
 
     // Wish for Google Calendar events
-    const googleCalendarCharm = wish<{ events: GoogleCalendarEvent[] }>("#googleCalendar");
-    const appleCalendarCharm = wish<{ events: AppleCalendarEvent[] }>("#appleCalendar");
+    const googleCalendarCharm = wish<{ events: GoogleCalendarEvent[] }>({ query: "#googleCalendar" });
+    const appleCalendarCharm = wish<{ events: AppleCalendarEvent[] }>({ query: "#appleCalendar" });
 
     // Combine and normalize calendar events
     const allCalendarEvents = computed(() => {
       const events: NormalizedCalendarEvent[] = [];
 
       // Add Google events
-      const googleEvents = googleCalendarCharm?.events || [];
+      const googleEvents = googleCalendarCharm?.result?.events || [];
       for (const evt of googleEvents) {
         events.push(normalizeGoogleEvent(evt));
       }
 
       // Add Apple events
-      const appleEvents = appleCalendarCharm?.events || [];
+      const appleEvents = appleCalendarCharm?.result?.events || [];
       for (const evt of appleEvents) {
         events.push(normalizeAppleEvent(evt));
       }
