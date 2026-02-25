@@ -600,7 +600,6 @@ const applyExtractedData = handler<
 );
 
 const Person = pattern<Input, Output>(
-  "Person",
   ({
     displayName,
     givenName,

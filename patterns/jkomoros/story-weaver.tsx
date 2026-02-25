@@ -15,7 +15,7 @@
 import {
   Writable,
   Default,
-  computed,
+  derive,
   generateObject,
   handler,
   ifElse,
@@ -1230,38 +1230,43 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // NOTE: spindleIndex is the array index, used for identity instead of string IDs
     const spindleResults = spindles.map((config, spindleIndex) => {
       // Get level config
-      const levelConfig = computed(() => {
-          if (!config) return null;
-          return levels[config.levelIndex] || null;
-      });
+      const levelConfig = derive(
+        { config, levels },
+        (deps: { config: SpindleConfig; levels: LevelConfig[] }) => {
+          if (!deps.config) return null;
+          return deps.levels[deps.config.levelIndex] || null;
+        }
+      );
 
       // Check if this is root level
-      const isRoot = computed(() => levelConfig?.isRoot || false);
+      const isRoot = derive(levelConfig, (lc: LevelConfig | null) => lc?.isRoot || false);
 
       // Build full prompt
-      const fullPrompt = computed(() => {
-          if (!levelConfig || levelConfig.isRoot) return "";
+      const fullPrompt = derive(
+        { config, levelConfig },
+        (deps: { config: SpindleConfig; levelConfig: LevelConfig | null }) => {
+          if (!deps.levelConfig || deps.levelConfig.isRoot) return "";
 
           const parts: string[] = [];
 
           // Parent's output
-          if (config.composedInput) {
-            parts.push(config.composedInput);
+          if (deps.config.composedInput) {
+            parts.push(deps.config.composedInput);
           }
 
           // Level's default prompt
-          if (levelConfig.defaultPrompt) {
-            parts.push(levelConfig.defaultPrompt);
+          if (deps.levelConfig.defaultPrompt) {
+            parts.push(deps.levelConfig.defaultPrompt);
           }
 
           // Extra prompt
-          if (config.extraPrompt) {
-            parts.push(config.extraPrompt);
+          if (deps.config.extraPrompt) {
+            parts.push(deps.config.extraPrompt);
           }
 
           // Position suffix - only include if multiple siblings (branch factor > 1)
-          if (config.siblingCount > 1) {
-            const siblingPos = `Peer ${config.siblingIndex + 1} of ${config.siblingCount}`;
+          if (deps.config.siblingCount > 1) {
+            const siblingPos = `Peer ${deps.config.siblingIndex + 1} of ${deps.config.siblingCount}`;
             parts.push(siblingPos);
           }
 
@@ -1269,23 +1274,28 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           parts.push(`\n\nGenerate exactly ${NUM_OPTIONS} distinct options for the above.`);
 
           // Cache-busting nonce (only added when respin is used)
-          if (config.respinNonce) {
-            parts.push(`[Generation attempt: ${config.respinNonce}]`);
+          if (deps.config.respinNonce) {
+            parts.push(`[Generation attempt: ${deps.config.respinNonce}]`);
           }
 
           return parts.join("\n\n");
-      });
+        }
+      );
 
       // Should generate?
       // Don't generate if: root spindle, empty prompt, or deferGeneration flag is set
-      const shouldGenerate = computed(() =>
-          !isRoot && fullPrompt.trim() !== "" && !config?.deferGeneration
+      const shouldGenerate = derive(
+        { isRoot, fullPrompt, config },
+        (deps: { isRoot: boolean; fullPrompt: string; config: SpindleConfig }) =>
+          !deps.isRoot && deps.fullPrompt.trim() !== "" && !deps.config?.deferGeneration
       );
 
       // Generate options - conditional prompt prevents LLM call when shouldGenerate is false
       // (empty string prompt causes generateObject to return immediately without API call)
-      const conditionalPrompt = computed(() =>
-          shouldGenerate ? fullPrompt : ""
+      const conditionalPrompt = derive(
+        { shouldGenerate, fullPrompt },
+        (deps: { shouldGenerate: boolean; fullPrompt: string }) =>
+          deps.shouldGenerate ? deps.fullPrompt : ""
       );
 
       const generation = generateObject<GenerationResult>({
@@ -1295,101 +1305,138 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
       });
 
       // Extract options (fixed slots)
-      const option0 = computed(() => {
-          if (!shouldGenerate) return null;
-          if (generation.pending || generation.error || !generation.result)
+      const option0 = derive(
+        { shouldGenerate, generation },
+        (deps: {
+          shouldGenerate: boolean;
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+        }) => {
+          if (!deps.shouldGenerate) return null;
+          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
             return null;
-          return generation.result.options?.[0]?.content || null;
-      });
-      const option1 = computed(() => {
-          if (!shouldGenerate) return null;
-          if (generation.pending || generation.error || !generation.result)
+          return deps.generation.result.options?.[0]?.content || null;
+        }
+      );
+      const option1 = derive(
+        { shouldGenerate, generation },
+        (deps: {
+          shouldGenerate: boolean;
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+        }) => {
+          if (!deps.shouldGenerate) return null;
+          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
             return null;
-          return generation.result.options?.[1]?.content || null;
-      });
-      const option2 = computed(() => {
-          if (!shouldGenerate) return null;
-          if (generation.pending || generation.error || !generation.result)
+          return deps.generation.result.options?.[1]?.content || null;
+        }
+      );
+      const option2 = derive(
+        { shouldGenerate, generation },
+        (deps: {
+          shouldGenerate: boolean;
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+        }) => {
+          if (!deps.shouldGenerate) return null;
+          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
             return null;
-          return generation.result.options?.[2]?.content || null;
-      });
-      const option3 = computed(() => {
-          if (!shouldGenerate) return null;
-          if (generation.pending || generation.error || !generation.result)
+          return deps.generation.result.options?.[2]?.content || null;
+        }
+      );
+      const option3 = derive(
+        { shouldGenerate, generation },
+        (deps: {
+          shouldGenerate: boolean;
+          generation: { pending: boolean; error?: unknown; result?: GenerationResult };
+        }) => {
+          if (!deps.shouldGenerate) return null;
+          if (deps.generation.pending || deps.generation.error || !deps.generation.result)
             return null;
-          return generation.result.options?.[3]?.content || null;
-      });
+          return deps.generation.result.options?.[3]?.content || null;
+        }
+      );
 
       // Is generating?
-      const isGenerating = computed(() =>
-          shouldGenerate && generation.pending
+      const isGenerating = derive(
+        { shouldGenerate, generation },
+        (deps: { shouldGenerate: boolean; generation: { pending: boolean } }) =>
+          deps.shouldGenerate && deps.generation.pending
       );
 
       // Is deferred generation? (waiting for user to click Generate Options)
-      const isDeferredGeneration = computed(() => config ? !!(config as SpindleConfig).deferGeneration : false);
+      const isDeferredGeneration = derive(
+        config,
+        (c) => c ? !!(c as SpindleConfig).deferGeneration : false
+      );
 
       // Is pinned?
-      const isPinned = computed(() => config ? (config as SpindleConfig).pinnedOptionIndex >= 0 : false);
+      const isPinned = derive(config, (c) => c ? (c as SpindleConfig).pinnedOptionIndex >= 0 : false);
 
       // Pinned output
-      const pinnedOutput = computed(() => config ? (config as SpindleConfig).pinnedOutput || null : null);
+      const pinnedOutput = derive(config, (c) => c ? (c as SpindleConfig).pinnedOutput || null : null);
 
       // UI-needed derived values (computed here to avoid derives-inside-map thrashing)
       // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
       // Note: Use explicit null checks because config can be undefined during reactive passes
       // spindleId REMOVED - now using array index instead
-      const levelIndex = computed(() => (config as SpindleConfig)?.levelIndex ?? 0);
-      const siblingIndex = computed(() => (config as SpindleConfig)?.siblingIndex ?? 0);
-      const siblingCount = computed(() => (config as SpindleConfig)?.siblingCount ?? 1);
-      const levelTitle = computed(() => (levelConfig as LevelConfig)?.title || "Level");
-      const levelPrompt = computed(() => (levelConfig as LevelConfig)?.defaultPrompt || "");
-      const extraPromptValue = computed(() => (config as SpindleConfig)?.extraPrompt || "");
-      const hasExtraPrompt = computed(() => !!extraPromptValue && extraPromptValue.trim() !== "");
-      const pinnedIdx = computed(() => (config as SpindleConfig)?.pinnedOptionIndex ?? -1);
+      const levelIndex = derive(config, (c) => (c as SpindleConfig)?.levelIndex ?? 0);
+      const siblingIndex = derive(config, (c) => (c as SpindleConfig)?.siblingIndex ?? 0);
+      const siblingCount = derive(config, (c) => (c as SpindleConfig)?.siblingCount ?? 1);
+      const levelTitle = derive(levelConfig, (lc) => (lc as LevelConfig)?.title || "Level");
+      const levelPrompt = derive(levelConfig, (lc) => (lc as LevelConfig)?.defaultPrompt || "");
+      const extraPromptValue = derive(config, (c) => (c as SpindleConfig)?.extraPrompt || "");
+      const hasExtraPrompt = derive(extraPromptValue, (p: string) => !!p && p.trim() !== "");
+      const pinnedIdx = derive(config, (c) => (c as SpindleConfig)?.pinnedOptionIndex ?? -1);
 
       // Per-option pinned state
-      const isPinned0 = computed(() => pinnedIdx === 0);
-      const isPinned1 = computed(() => pinnedIdx === 1);
-      const isPinned2 = computed(() => pinnedIdx === 2);
-      const isPinned3 = computed(() => pinnedIdx === 3);
+      const isPinned0 = derive(pinnedIdx, (p) => p === 0);
+      const isPinned1 = derive(pinnedIdx, (p) => p === 1);
+      const isPinned2 = derive(pinnedIdx, (p) => p === 2);
+      const isPinned3 = derive(pinnedIdx, (p) => p === 3);
 
       // Has option checks
-      const hasOption0 = computed(() => option0 !== null && option0 !== undefined);
-      const hasOption1 = computed(() => option1 !== null && option1 !== undefined);
-      const hasOption2 = computed(() => option2 !== null && option2 !== undefined);
-      const hasOption3 = computed(() => option3 !== null && option3 !== undefined);
+      const hasOption0 = derive(option0, (o) => o !== null && o !== undefined);
+      const hasOption1 = derive(option1, (o) => o !== null && o !== undefined);
+      const hasOption2 = derive(option2, (o) => o !== null && o !== undefined);
+      const hasOption3 = derive(option3, (o) => o !== null && o !== undefined);
 
       // Is stale?
-      const isStale = computed(() => {
-        if (!config) return false;
-        if ((config as SpindleConfig).pinnedOptionIndex < 0) return false;
-        if (!config.parentHashWhenPinned) return false;
-        const currentHash = simpleHash(config.composedInput);
-        return currentHash !== config.parentHashWhenPinned;
+      const isStale = derive(config, (c) => {
+        if (!c) return false;
+        if ((c as SpindleConfig).pinnedOptionIndex < 0) return false;
+        if (!c.parentHashWhenPinned) return false;
+        const currentHash = simpleHash(c.composedInput);
+        return currentHash !== c.parentHashWhenPinned;
       });
 
       // Summary - only generate when pinned
       // (empty string prompt causes generateObject to return immediately without API call)
-      const hasPinnedOutput = computed(() => !!pinnedOutput && pinnedOutput.trim() !== "");
-      const summaryPrompt = computed(() =>
-          pinnedOutput ? `${pinnedOutput}\n\n---\n\nSummarize the above in 2-3 concise sentences.` : ""
+      const hasPinnedOutput = derive(pinnedOutput, (o: string | null) => !!o && o.trim() !== "");
+      const summaryPrompt = derive(
+        pinnedOutput,
+        (o: string | null) =>
+          o ? `${o}\n\n---\n\nSummarize the above in 2-3 concise sentences.` : ""
       );
       const summaryGen = generateObject<SummaryResult>({
         model: "anthropic:claude-sonnet-4-5",
         system: "You are a concise summarizer.",
         prompt: summaryPrompt,
       });
-      const summary = computed(() => {
-          if (!pinnedOutput || summaryGen.pending || !summaryGen.result)
+      const summary = derive(
+        { pinnedOutput, summaryGen },
+        (deps: {
+          pinnedOutput: string | null;
+          summaryGen: { pending: boolean; result?: SummaryResult };
+        }) => {
+          if (!deps.pinnedOutput || deps.summaryGen.pending || !deps.summaryGen.result)
             return null;
-          return summaryGen.result.summary;
-      });
+          return deps.summaryGen.result.summary;
+        }
+      );
 
       // Has summary check - also check for empty string
-      const hasSummary = computed(() => !!summary && summary.trim() !== "");
+      const hasSummary = derive(summary, (s: string | null) => !!s && s.trim() !== "");
 
       // Is this the first peer in its sibling group?
-      const isFirstPeer = computed(() => siblingIndex === 0);
+      const isFirstPeer = derive(siblingIndex, (idx: number) => idx === 0);
 
       return {
         config,
@@ -1435,37 +1482,49 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
     // =========================================================================
 
     // Group spindles by level for display
-    const spindlesByLevel = computed(() => {
+    const spindlesByLevel = derive(
+      { spindleResults, levels },
+      (deps: { spindleResults: typeof spindleResults; levels: LevelConfig[] }) => {
         // This returns grouped data for display
-        const grouped: Record<number, typeof spindleResults> = {};
+        const grouped: Record<number, typeof deps.spindleResults> = {};
         // Note: We can't actually iterate spindleResults here since it's a cell array
         // We'll handle grouping in the UI via filtering
-        return levels.length;
-    });
+        return deps.levels.length;
+      }
+    );
 
     // Identify levels that have no spindles yet (orphan levels)
     // Computed at top level to avoid derive-inside-map thrashing issues
     // See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
-    const orphanLevels = computed(() => {
-        if (!levels || !spindles) return [];
+    const orphanLevels = derive(
+      { levels, spindles },
+      (deps: { levels: LevelConfig[]; spindles: SpindleConfig[] }) => {
+        if (!deps.levels || !deps.spindles) return [];
         // Use array with .includes() instead of Set - Sets don't serialize properly
         // See: community-docs/superstitions/2025-11-29-cells-must-be-json-serializable.md
-        const levelIndicesWithSpindles = spindles.filter((s) => s).map((s) => s.levelIndex);
-        return levels
+        const levelIndicesWithSpindles = deps.spindles.filter((s) => s).map((s) => s.levelIndex);
+        return deps.levels
           .filter((level) => level && !level.isRoot && !levelIndicesWithSpindles.includes(level.index))
           .map((level) => ({ index: level.index, title: level.title }));
-    });
+      }
+    );
 
     // Get prompt details for the selected spindle (for View Prompt modal)
     // Computed at top level with labeled sections for display
-    const viewPromptDetails = computed(() => {
-        if (!spindles || !levels || viewPromptSpindleIndex >= NO_SPINDLE_SELECTED) return null;
-        if (viewPromptSpindleIndex >= spindles.length) return null;
+    const viewPromptDetails = derive(
+      { spindles, levels, viewPromptSpindleIndex },
+      (deps: {
+        spindles: SpindleConfig[];
+        levels: LevelConfig[];
+        viewPromptSpindleIndex: number;
+      }) => {
+        if (!deps.spindles || !deps.levels || deps.viewPromptSpindleIndex >= NO_SPINDLE_SELECTED) return null;
+        if (deps.viewPromptSpindleIndex >= deps.spindles.length) return null;
 
-        const spindle = spindles[viewPromptSpindleIndex];
+        const spindle = deps.spindles[deps.viewPromptSpindleIndex];
         if (!spindle) return null;
 
-        const level = levels[spindle.levelIndex];
+        const level = deps.levels[spindle.levelIndex];
         if (!level || level.isRoot) return null;
 
         return {
@@ -1481,21 +1540,30 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
             : null,
           generationInstruction: `Generate exactly ${NUM_OPTIONS} distinct options for the above.`,
         };
-    });
+      }
+    );
 
     // =========================================================================
     // SYNOPSIS IDEAS GENERATION
     // =========================================================================
 
     // Generate synopsis ideas when nonce > 0
-    const shouldGenerateIdeas = computed(() => synopsisIdeasNonce > 0);
+    const shouldGenerateIdeas = derive(
+      synopsisIdeasNonce,
+      (nonce: number) => nonce > 0
+    );
 
     // Check if story has been started (has children spindles)
-    const hasStartedStory = computed(() => spindles.some((sp) => sp.levelIndex > 0));
+    const hasStartedStory = derive(
+      spindles,
+      (s: SpindleConfig[]) => s.some((sp) => sp.levelIndex > 0)
+    );
 
     // Conditional prompt - empty string prevents LLM call when shouldGenerateIdeas is false
-    const synopsisIdeasPrompt = computed(() =>
-        shouldGenerateIdeas
+    const synopsisIdeasPrompt = derive(
+      { shouldGenerateIdeas, synopsisIdeasNonce },
+      (deps: { shouldGenerateIdeas: boolean; synopsisIdeasNonce: number }) =>
+        deps.shouldGenerateIdeas
           ? `Generate 4 creative story synopsis ideas. Each should be a compelling premise for a novel or screenplay.
 
 Make them diverse in genre and tone:
@@ -1504,7 +1572,7 @@ Make them diverse in genre and tone:
 - One could be fantasy/sci-fi
 - One could be contemporary/realistic
 
-[Generation attempt: ${synopsisIdeasNonce}]`
+[Generation attempt: ${deps.synopsisIdeasNonce}]`
           : ""
     );
 
@@ -1516,20 +1584,23 @@ Make them diverse in genre and tone:
 
     // Pre-compute ideas data for use outside derive callbacks
     // This allows the onClick to work because it's not inside a derive callback
-    const ideasList = computed(() => {
-        if (!synopsisIdeasGeneration.result?.ideas) return [];
-        return synopsisIdeasGeneration.result.ideas.map((idea) => ({
+    const ideasList = derive(
+      synopsisIdeasGeneration,
+      (gen: { pending: boolean; result?: SynopsisIdeasResult }) => {
+        if (!gen.result?.ideas) return [];
+        return gen.result.ideas.map((idea) => ({
           title: idea.title,
           synopsis: idea.synopsis,
         }));
-    });
+      }
+    );
 
     // =========================================================================
     // UI
     // =========================================================================
 
     return {
-      [NAME]: computed(() => `Board: ${boardTitle}`),
+      [NAME]: derive(boardTitle, (t: string) => `Board: ${t}`),
       [UI]: (
         <div
           style={{
@@ -1569,7 +1640,7 @@ Make them diverse in genre and tone:
                   }}
                 />
                 {ifElse(
-                  computed(() => boardDescription && boardDescription.trim() !== ""),
+                  derive(boardDescription, (d: string) => d && d.trim() !== ""),
                   <p style={{ margin: 0, color: "#666" }}>{boardDescription}</p>,
                   null
                 )}
@@ -1600,18 +1671,18 @@ Make them diverse in genre and tone:
               <button
                 onClick={setSynopsis({ spindles, synopsisText, levels })}
                 disabled={hasStartedStory}
-                style={computed(() => ({
+                style={derive(hasStartedStory, (started: boolean) => ({
                   padding: "10px 20px",
-                  background: hasStartedStory ? "#9ca3af" : "#eab308",
+                  background: started ? "#9ca3af" : "#eab308",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
-                  cursor: hasStartedStory ? "not-allowed" : "pointer",
+                  cursor: started ? "not-allowed" : "pointer",
                   fontSize: "14px",
                   fontWeight: "600",
                 }))}
               >
-                {computed(() => hasStartedStory ? "Story Started ✓" : "Start Story →")}
+                {derive(hasStartedStory, (started: boolean) => started ? "Story Started ✓" : "Start Story →")}
               </button>
               <button
                 onClick={generateSynopsisIdeas({ synopsisIdeasNonce })}
@@ -1648,7 +1719,10 @@ Make them diverse in genre and tone:
                   ✨ Story Ideas
                 </div>
                 {ifElse(
-                  computed(() => synopsisIdeasGeneration.pending),
+                  derive(
+                    synopsisIdeasGeneration,
+                    (gen: { pending: boolean }) => gen.pending
+                  ),
                   <div style={{ color: "#6b7280", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
                     <ct-loader size="sm" show-elapsed></ct-loader>
                     Generating ideas...
@@ -1682,7 +1756,7 @@ Make them diverse in genre and tone:
               null
             )}
             {ifElse(
-              computed(() => !levels || levels.length <= 1),
+              derive(levels, (lvls: LevelConfig[]) => !lvls || lvls.length <= 1),
               <div
                 style={{
                   marginTop: "8px",
@@ -1720,13 +1794,16 @@ Make them diverse in genre and tone:
                 <div>
                   {/* Level Group Header - shown only for first peer when multiple peers */}
                   {ifElse(
-                    computed(() => result.isFirstPeer && result.siblingCount > 1),
+                    derive(
+                      { isFirstPeer: result.isFirstPeer, siblingCount: result.siblingCount },
+                      (d: { isFirstPeer: boolean; siblingCount: number }) => d.isFirstPeer && d.siblingCount > 1
+                    ),
                     <div
                       style={{
                         marginTop: "8px",
                         marginBottom: "8px",
-                        background: computed(() => levelColors[(result.levelIndex - 1) % levelColors.length]?.headerBg || "#f3f4f6"),
-                        borderLeft: computed(() => `4px solid ${levelColors[(result.levelIndex - 1) % levelColors.length]?.border || "#6b7280"}`),
+                        background: derive(result.levelIndex, (idx: number) => levelColors[(idx - 1) % levelColors.length]?.headerBg || "#f3f4f6"),
+                        borderLeft: derive(result.levelIndex, (idx: number) => `4px solid ${levelColors[(idx - 1) % levelColors.length]?.border || "#6b7280"}`),
                         borderRadius: "4px",
                         overflow: "hidden",
                       }}
@@ -1764,7 +1841,7 @@ Make them diverse in genre and tone:
                             }}
                             title="Edit branch factor"
                           >
-                            {computed(() => `${result.siblingCount} peer${result.siblingCount !== 1 ? "s" : ""}`)}
+                            {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
                           </button>
                         </span>
                         <button
@@ -1824,12 +1901,12 @@ Make them diverse in genre and tone:
                       border: ifElse(
                         result.isStale,
                         "2px solid #f59e0b",
-                        computed(() => `1px solid ${levelColors[(result.levelIndex - 1) % levelColors.length]?.border || "#e5e7eb"}`)
+                        derive(result.levelIndex, (idx: number) => `1px solid ${levelColors[(idx - 1) % levelColors.length]?.border || "#e5e7eb"}`)
                       ),
                       borderRadius: "8px",
                       background: "#fff",
                       overflow: "hidden",
-                      marginLeft: computed(() => result.siblingCount > 1 ? "16px" : "0"),
+                      marginLeft: derive(result.siblingCount, (count: number) => count > 1 ? "16px" : "0"),
                     }}
                   >
                     {/* Stale indicator */}
@@ -1854,7 +1931,7 @@ Make them diverse in genre and tone:
                       style={{
                         padding: "12px 16px",
                         borderBottom: "1px solid #e5e7eb",
-                        background: computed(() => levelColors[(result.levelIndex - 1) % levelColors.length]?.bg || "#f9fafb"),
+                        background: derive(result.levelIndex, (idx: number) => levelColors[(idx - 1) % levelColors.length]?.bg || "#f9fafb"),
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
@@ -1864,15 +1941,17 @@ Make them diverse in genre and tone:
                         <div style={{ fontWeight: "600", fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
                           <span>
                             {result.levelTitle}{" "}
-                            {computed(() =>
-                                result.siblingCount > 1
-                                  ? `- Peer ${result.siblingIndex + 1} of ${result.siblingCount}`
+                            {derive(
+                              { siblingIndex: result.siblingIndex, siblingCount: result.siblingCount },
+                              (d: { siblingIndex: number; siblingCount: number }) =>
+                                d.siblingCount > 1
+                                  ? `- Peer ${d.siblingIndex + 1} of ${d.siblingCount}`
                                   : ""
                             )}
                           </span>
                           {/* Branch factor edit button - show for first peer or when siblingCount is 1 */}
                           {ifElse(
-                            computed(() => result.siblingIndex === 0),
+                            derive(result.siblingIndex, (idx: number) => idx === 0),
                             <button
                               onClick={openEditBranchModal({
                                 showEditBranchModal,
@@ -1893,7 +1972,7 @@ Make them diverse in genre and tone:
                               }}
                               title="Edit branch factor (number of parallel peers)"
                             >
-                              {computed(() => `${result.siblingCount} peer${result.siblingCount !== 1 ? "s" : ""}`)}
+                              {derive(result.siblingCount, (count: number) => `${count} peer${count !== 1 ? "s" : ""}`)}
                             </button>,
                             null
                           )}
@@ -1907,7 +1986,7 @@ Make them diverse in genre and tone:
                             </span>,
                             ifElse(
                               result.isPinned,
-                              computed(() => `Option ${result.pinnedIdx + 1} selected`),
+                              derive(result.pinnedIdx, (i: number) => `Option ${i + 1} selected`),
                               "Select an option"
                             )
                           )}
@@ -1968,8 +2047,10 @@ Make them diverse in genre and tone:
                       </button>
                       {/* Remove Level button - only for last level */}
                       {ifElse(
-                        computed(() =>
-                            result.levelIndex === (levels?.length || 0) - 1
+                        derive(
+                          { levelIndex: result.levelIndex, levels },
+                          (d: { levelIndex: number; levels: LevelConfig[] }) =>
+                            d.levelIndex === (d.levels?.length || 0) - 1
                         ),
                         <button
                           onClick={removeLevel({ levels, spindles, levelIndex: result.levelIndex })}
@@ -1993,7 +2074,7 @@ Make them diverse in genre and tone:
 
                   {/* Level Prompt Display - only when siblingCount === 1 (otherwise shown in group header) */}
                   {ifElse(
-                    computed(() => result.siblingCount === 1),
+                    derive(result.siblingCount, (count: number) => count === 1),
                     <div
                       style={{
                         padding: "12px 16px",
@@ -2240,7 +2321,7 @@ Make them diverse in genre and tone:
                               "none"
                             ),
                             opacity: ifElse(
-                              computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 0),
+                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 0),
                               "0.15",
                               "1"
                             ),
@@ -2291,7 +2372,7 @@ Make them diverse in genre and tone:
                               Option 1
                             </div>
                             {ifElse(
-                              computed(() => result.pinnedIdx < 0),
+                              derive(result.pinnedIdx, (p: number) => p < 0),
                               <button
                                 onClick={pinOption({
                                   spindles,
@@ -2322,7 +2403,7 @@ Make them diverse in genre and tone:
                               maxHeight: ifElse(result.isPinned0, "none", "150px"),
                               overflow: ifElse(result.isPinned0, "visible", "auto"),
                               color: ifElse(
-                                computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 0),
+                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 0),
                                 "#9ca3af",
                                 "#374151"
                               ),
@@ -2352,7 +2433,7 @@ Make them diverse in genre and tone:
                               "none"
                             ),
                             opacity: ifElse(
-                              computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 1),
+                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 1),
                               "0.15",
                               "1"
                             ),
@@ -2403,7 +2484,7 @@ Make them diverse in genre and tone:
                               Option 2
                             </div>
                             {ifElse(
-                              computed(() => result.pinnedIdx < 0),
+                              derive(result.pinnedIdx, (p: number) => p < 0),
                               <button
                                 onClick={pinOption({
                                   spindles,
@@ -2434,7 +2515,7 @@ Make them diverse in genre and tone:
                               maxHeight: ifElse(result.isPinned1, "none", "150px"),
                               overflow: ifElse(result.isPinned1, "visible", "auto"),
                               color: ifElse(
-                                computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 1),
+                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 1),
                                 "#9ca3af",
                                 "#374151"
                               ),
@@ -2464,7 +2545,7 @@ Make them diverse in genre and tone:
                               "none"
                             ),
                             opacity: ifElse(
-                              computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 2),
+                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 2),
                               "0.15",
                               "1"
                             ),
@@ -2515,7 +2596,7 @@ Make them diverse in genre and tone:
                               Option 3
                             </div>
                             {ifElse(
-                              computed(() => result.pinnedIdx < 0),
+                              derive(result.pinnedIdx, (p: number) => p < 0),
                               <button
                                 onClick={pinOption({
                                   spindles,
@@ -2546,7 +2627,7 @@ Make them diverse in genre and tone:
                               maxHeight: ifElse(result.isPinned2, "none", "150px"),
                               overflow: ifElse(result.isPinned2, "visible", "auto"),
                               color: ifElse(
-                                computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 2),
+                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 2),
                                 "#9ca3af",
                                 "#374151"
                               ),
@@ -2576,7 +2657,7 @@ Make them diverse in genre and tone:
                               "none"
                             ),
                             opacity: ifElse(
-                              computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 3),
+                              derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 3),
                               "0.15",
                               "1"
                             ),
@@ -2627,7 +2708,7 @@ Make them diverse in genre and tone:
                               Option 4
                             </div>
                             {ifElse(
-                              computed(() => result.pinnedIdx < 0),
+                              derive(result.pinnedIdx, (p: number) => p < 0),
                               <button
                                 onClick={pinOption({
                                   spindles,
@@ -2658,7 +2739,7 @@ Make them diverse in genre and tone:
                               maxHeight: ifElse(result.isPinned3, "none", "150px"),
                               overflow: ifElse(result.isPinned3, "visible", "auto"),
                               color: ifElse(
-                                computed(() => result.pinnedIdx >= 0 && result.pinnedIdx !== 3),
+                                derive(result.pinnedIdx, (p: number) => p >= 0 && p !== 3),
                                 "#9ca3af",
                                 "#374151"
                               ),
@@ -2731,9 +2812,11 @@ Make them diverse in genre and tone:
             Cannot map over derive results, so we render JSX inside the derive callback.
             See: community-docs/superstitions/2025-11-29-derive-inside-map-causes-thrashing.md
           */}
-          {computed(() => {
-              const orphans = orphanLevels;
-              const totalLevels = levels?.length || 0;
+          {derive(
+            { orphanLevels, levels },
+            (deps: { orphanLevels: Array<{ index: number; title: string }>; levels: LevelConfig[] }) => {
+              const orphans = deps.orphanLevels;
+              const totalLevels = deps.levels?.length || 0;
               if (!orphans || orphans.length === 0) return null;
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
@@ -3119,7 +3202,7 @@ Make them diverse in genre and tone:
                 </div>
 
                 {ifElse(
-                  computed(() => viewPromptDetails !== null),
+                  derive(viewPromptDetails, (d) => d !== null),
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     {/* Header info */}
                     <div
@@ -3131,11 +3214,11 @@ Make them diverse in genre and tone:
                         color: "#0369a1",
                       }}
                     >
-                      {computed(() =>
-                        viewPromptDetails
-                          ? viewPromptDetails.positionSuffix
-                            ? `${viewPromptDetails.levelTitle} - ${viewPromptDetails.positionSuffix}`
-                            : viewPromptDetails.levelTitle
+                      {derive(viewPromptDetails, (d) =>
+                        d
+                          ? d.positionSuffix
+                            ? `${d.levelTitle} - ${d.positionSuffix}`
+                            : d.levelTitle
                           : ""
                       )}
                     </div>
@@ -3166,7 +3249,7 @@ Make them diverse in genre and tone:
                           border: "1px solid #fcd34d",
                         }}
                       >
-                        {computed(() => viewPromptDetails?.parentOutput || "")}
+                        {derive(viewPromptDetails, (d) => d?.parentOutput || "")}
                       </div>
                     </div>
 
@@ -3194,13 +3277,13 @@ Make them diverse in genre and tone:
                           border: "1px solid #93c5fd",
                         }}
                       >
-                        {computed(() => viewPromptDetails?.levelPrompt || "")}
+                        {derive(viewPromptDetails, (d) => d?.levelPrompt || "")}
                       </div>
                     </div>
 
                     {/* Section 3: Extra Prompt (conditional) */}
                     {ifElse(
-                      computed(() => !!viewPromptDetails?.extraPrompt),
+                      derive(viewPromptDetails, (d) => !!d?.extraPrompt),
                       <div>
                         <div
                           style={{
@@ -3224,7 +3307,7 @@ Make them diverse in genre and tone:
                             border: "1px solid #f9a8d4",
                           }}
                         >
-                          {computed(() => viewPromptDetails?.extraPrompt || "")}
+                          {derive(viewPromptDetails, (d) => d?.extraPrompt || "")}
                         </div>
                       </div>,
                       null
@@ -3232,7 +3315,7 @@ Make them diverse in genre and tone:
 
                     {/* Section 4: Position Suffix - only shown when multiple siblings */}
                     {ifElse(
-                      computed(() => !!viewPromptDetails?.positionSuffix),
+                      derive(viewPromptDetails, (d) => !!d?.positionSuffix),
                       <div>
                         <div
                           style={{
@@ -3244,8 +3327,8 @@ Make them diverse in genre and tone:
                             letterSpacing: "0.5px",
                           }}
                         >
-                          {computed(() =>
-                            viewPromptDetails?.extraPrompt ? "4. Position Suffix" : "3. Position Suffix"
+                          {derive(viewPromptDetails, (d) =>
+                            d?.extraPrompt ? "4. Position Suffix" : "3. Position Suffix"
                           )}
                         </div>
                         <div
@@ -3257,7 +3340,7 @@ Make them diverse in genre and tone:
                             border: "1px solid #86efac",
                           }}
                         >
-                          {computed(() => viewPromptDetails?.positionSuffix || "")}
+                          {derive(viewPromptDetails, (d) => d?.positionSuffix || "")}
                         </div>
                       </div>,
                       null
@@ -3275,12 +3358,12 @@ Make them diverse in genre and tone:
                           letterSpacing: "0.5px",
                         }}
                       >
-                        {computed(() => {
-                          if (!viewPromptDetails) return "Generation Instruction";
+                        {derive(viewPromptDetails, (d) => {
+                          if (!d) return "Generation Instruction";
                           // Base: Parent Output (1), Level Prompt (2)
                           let num = 3;
-                          if (viewPromptDetails.extraPrompt) num++;
-                          if (viewPromptDetails.positionSuffix) num++;
+                          if (d.extraPrompt) num++;
+                          if (d.positionSuffix) num++;
                           return `${num}. Generation Instruction`;
                         })}
                       </div>
@@ -3294,7 +3377,7 @@ Make them diverse in genre and tone:
                           border: "1px solid #d8b4fe",
                         }}
                       >
-                        {computed(() => viewPromptDetails?.generationInstruction || "")}
+                        {derive(viewPromptDetails, (d) => d?.generationInstruction || "")}
                       </div>
                     </div>
                   </div>,
@@ -3523,7 +3606,7 @@ Make them diverse in genre and tone:
                         -
                       </button>
                       <span style={{ fontSize: "24px", fontWeight: "600", minWidth: "40px", textAlign: "center" }}>
-                        {computed(() => String(editBranchFactor))}
+                        {derive(editBranchFactor, (v: number) => String(v))}
                       </span>
                       <button
                         onClick={incrementEditBranchFactor({ editBranchFactor })}
@@ -3631,7 +3714,7 @@ Make them diverse in genre and tone:
                 </button>
 
                 <div style={{ fontWeight: "600", fontSize: "16px" }}>
-                  Option {computed(() => pickerPreviewIndex + 1)} of 4
+                  Option {derive(pickerPreviewIndex, (i: number) => i + 1)} of 4
                 </div>
 
                 <button
@@ -3641,10 +3724,13 @@ Make them diverse in genre and tone:
                     pickerSpindleIndex,
                     pickerPreviewIndex,
                     showOptionPicker,
-                    optionContent: computed(() => {
+                    optionContent: derive(
+                      { pickerSpindleIndex, pickerPreviewIndex, spindleResults },
+                      (deps: { pickerSpindleIndex: number; pickerPreviewIndex: number; spindleResults: typeof spindleResults }) => {
                         // This is a simplified approach - would need proper lookup
                         return "";
-                    }),
+                      }
+                    ),
                   })}
                   style={{
                     padding: "8px 16px",
@@ -3726,7 +3812,10 @@ Make them diverse in genre and tone:
                         width: "10px",
                         height: "10px",
                         borderRadius: "50%",
-                        background: computed(() => pickerPreviewIndex === i ? "#2563eb" : "#d1d5db"),
+                        background: derive(
+                          pickerPreviewIndex,
+                          (idx: number) => idx === i ? "#2563eb" : "#d1d5db"
+                        ),
                         cursor: "pointer",
                       }}
                       onClick={setPickerPreviewIndex({ pickerPreviewIndex, index: i })}

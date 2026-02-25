@@ -64,7 +64,6 @@ const triggerAnalysis = handler<
 );
 
 const MetaAnalyzer = pattern<Input, Output>(
-  "Meta Analyzer",
   () => {
     // Get all charms from the space via wish
     const allCharmsWish = wish<any[]>("#allCharms");
