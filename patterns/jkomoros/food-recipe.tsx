@@ -40,7 +40,6 @@ import {
   Writable,
   computed,
   Default,
-  derive,
   equals,
   generateObject,
   handler,
@@ -796,29 +795,28 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     const mentioned = Writable.of<MentionableCharm[]>([]);
 
     // Computed values
-    const totalTime = derive(
-      [prepTime, cookTime, restTime],
-      ([prep, cook, rest]) => prep + cook + rest,
+    const totalTime = computed(
+      () => prepTime + cookTime + restTime,
     );
 
-    const ingredientCount = derive(ingredients, (list) => list.length);
-    const stepGroupCount = derive(stepGroups, (list) => list.length);
-    const hasIngredients = derive(ingredientCount, (count) => count > 0);
-    const hasStepGroups = derive(stepGroupCount, (count) => count > 0);
-    const hasTags = derive(tags, (list) => list.length > 0);
+    const ingredientCount = computed(() => ingredients.length);
+    const stepGroupCount = computed(() => stepGroups.length);
+    const hasIngredients = computed(() => ingredientCount > 0);
+    const hasStepGroups = computed(() => stepGroupCount > 0);
+    const hasTags = computed(() => tags.length > 0);
 
-    const displayName = derive(
-      name,
-      (n) => n.trim() || "Untitled Recipe",
+    const displayName = computed(
+      () => name.trim() || "Untitled Recipe",
     );
 
-    // Derive ingredient list text for copying
-    const ingredientListText = derive(ingredients, (list) =>
-      list.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join("\n"),
+    // Computed ingredient list text for copying
+    const ingredientListText = computed(() =>
+      ingredients.map((ing) => `${ing.amount} ${ing.unit} ${ing.item}`).join("\n"),
     );
 
-    // Derive oven requirements for meal planning
-    const ovenRequirements = derive(stepGroups, (groups) => {
+    // Computed oven requirements for meal planning
+    const ovenRequirements = computed(() => {
+      const groups = stepGroups;
       const temps: number[] = [];
       let needsOven = false;
 
@@ -865,8 +863,8 @@ Your job is to extract the complete recipe text from the image, preserving:
 - Any notes, tips, or variations
 
 Return the extracted text as faithfully as possible. Preserve line breaks and structure.`,
-        prompt: derive(uploadedImage, (img: ImageData | null) => {
-          // derive() unwraps the Cell, so img is ImageData | null here
+        prompt: computed(() => {
+          const img = uploadedImage.get();
           if (!img || !img.data) {
             return "";  // Return empty string instead of text to prevent unnecessary API call
           }
@@ -1010,55 +1008,27 @@ Return only the fields you can confidently extract. Be thorough with ingredients
         },
       });
 
-    // Derive changes preview comparing extracted data to current values
-    const changesPreview = derive(
-      {
-        extractionResult,
-        name,
-        cuisine,
-        servings,
-        difficulty,
-        prepTime,
-        cookTime,
-        restTime,
-        holdTime,
-        category,
-        source,
-        notes,
-      },
-      ({
-        extractionResult: result,
-        name: currentName,
-        cuisine: currentCuisine,
-        servings: currentServings,
-        difficulty: currentDifficulty,
-        prepTime: currentPrepTime,
-        cookTime: currentCookTime,
-        restTime: currentRestTime,
-        holdTime: currentHoldTime,
-        category: currentCategory,
-        source: currentSource,
-        notes: currentNotes,
-      }) => {
-        return compareFields(result, {
-          name: { current: currentName, label: "Recipe Name" },
-          cuisine: { current: currentCuisine, label: "Cuisine" },
-          servings: { current: String(currentServings), label: "Servings" },
-          difficulty: { current: currentDifficulty, label: "Difficulty" },
-          prepTime: { current: String(currentPrepTime), label: "Prep Time (min)" },
-          cookTime: { current: String(currentCookTime), label: "Cook Time (min)" },
-          restTime: { current: String(currentRestTime), label: "Rest Time (min)" },
-          holdTime: { current: String(currentHoldTime), label: "Hold Time (min)" },
-          category: { current: currentCategory, label: "Category" },
-          source: { current: currentSource, label: "Source" },
-          remainingNotes: { current: currentNotes, label: "Notes" },
+    // Computed changes preview comparing extracted data to current values
+    const changesPreview = computed(
+      () => {
+        return compareFields(extractionResult, {
+          name: { current: name, label: "Recipe Name" },
+          cuisine: { current: cuisine, label: "Cuisine" },
+          servings: { current: String(servings), label: "Servings" },
+          difficulty: { current: difficulty, label: "Difficulty" },
+          prepTime: { current: String(prepTime), label: "Prep Time (min)" },
+          cookTime: { current: String(cookTime), label: "Cook Time (min)" },
+          restTime: { current: String(restTime), label: "Rest Time (min)" },
+          holdTime: { current: String(holdTime), label: "Hold Time (min)" },
+          category: { current: category, label: "Category" },
+          source: { current: source, label: "Source" },
+          remainingNotes: { current: notes, label: "Notes" },
         });
       },
     );
 
-    const hasExtractionResult = derive(
-      changesPreview,
-      (changes) => changes.length > 0,
+    const hasExtractionResult = computed(
+      () => changesPreview.length > 0,
     );
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
@@ -1486,9 +1456,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
           <ct-card>
             <div>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
-              {derive(
-                { pending: analyzer.analysisPending, dc: analyzer.dietaryCompatibility },
-                ({ pending, dc }) => {
+              {computed(
+                () => {
+                  const pending = analyzer.analysisPending;
+                  const dc = analyzer.dietaryCompatibility;
                   if (pending) {
                     return <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
                       <ct-loader size="sm"></ct-loader>
@@ -1562,7 +1533,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 <div style={{ display: "flex", gap: "8px" }}>
                   <ct-button
                     onClick={triggerTimingSuggestion({ stepGroups, timingSuggestionTrigger })}
-                    disabled={derive(stepGroups, (groups) => groups.length === 0) || timingSuggestionPending}
+                    disabled={computed(() => stepGroups.length === 0) || timingSuggestionPending}
                     variant="secondary"
                   >
                     {ifElse(
@@ -1576,7 +1547,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   </ct-button>
                   <ct-button
                     onClick={triggerWaitTimeSuggestion({ stepGroups, waitTimeSuggestionTrigger })}
-                    disabled={derive(stepGroups, (groups) => groups.length === 0) || waitTimeSuggestionPending}
+                    disabled={computed(() => stepGroups.length === 0) || waitTimeSuggestionPending}
                     variant="secondary"
                   >
                     {ifElse(
@@ -1609,7 +1580,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           </ct-button>
                           <ct-button
                             onClick={moveGroupDown({ stepGroups, stepGroup })}
-                            disabled={derive(stepGroups, (groups) => groupIndex >= groups.length - 1)}
+                            disabled={computed(() => groupIndex >= stepGroups.length - 1)}
                             style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                           >
                             ↓
@@ -1709,7 +1680,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           </label>
                           <ct-input
                             type="number"
-                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.temperature ?? "")}`}
+                            $value={str`${computed(() => stepGroup.requiresOven?.temperature ?? "")}`}
                             onct-change={updateOvenTemp({ stepGroup })}
                             min="0"
                             placeholder="350"
@@ -1723,7 +1694,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           </label>
                           <ct-input
                             type="number"
-                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.duration ?? "")}`}
+                            $value={str`${computed(() => stepGroup.requiresOven?.duration ?? "")}`}
                             onct-change={updateOvenDuration({ stepGroup })}
                             min="0"
                             placeholder="30"
@@ -1737,7 +1708,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           </label>
                           <ct-input
                             type="number"
-                            $value={str`${derive(stepGroup, (g) => g.requiresOven?.racksNeeded?.heightSlots ?? "")}`}
+                            $value={str`${computed(() => stepGroup.requiresOven?.racksNeeded?.heightSlots ?? "")}`}
                             onct-change={updateOvenHeightSlots({ stepGroup })}
                             min="1"
                             placeholder="1-5"
@@ -1750,7 +1721,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                             Rack Width
                           </label>
                           <ct-select
-                            $value={derive(stepGroup, (g) => g.requiresOven?.racksNeeded?.width ?? "")}
+                            $value={computed(() => stepGroup.requiresOven?.racksNeeded?.width ?? "")}
                             onct-change={updateOvenRackWidth({ stepGroup })}
                             items={[
                               { label: "---", value: "" },
@@ -1778,7 +1749,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               </ct-button>
                               <ct-button
                                 onClick={moveStepDown({ stepGroup, stepIndex: index })}
-                                disabled={derive(stepGroup, (g) => index >= g.steps.length - 1)}
+                                disabled={computed(() => index >= stepGroup.steps.length - 1)}
                                 style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                               >
                                 ↓
@@ -1977,7 +1948,8 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   ))}
 
                   {/* Show detailed info about complex fields if extracted */}
-                  {derive(extractionResult, (result) => {
+                  {computed(() => {
+                    const result = extractionResult;
                     if (!result) return null;
 
                     return (
@@ -2094,7 +2066,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Timing Suggestions Modal */}
           {ifElse(
-            derive(timingSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            computed(() => timingSuggestions && Array.isArray(timingSuggestions.stepGroups)),
             <ct-card style={{
               position: "fixed",
               top: "50%",
@@ -2114,9 +2086,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </p>
 
                 <ct-vstack gap={2}>
-                  {derive({ timingSuggestions, stepGroups }, ({ timingSuggestions: result, stepGroups: groups }) =>
-                    result?.stepGroups?.map((suggestion: any) => {
-                      const currentGroupCell = groups.find((g: any) => {
+                  {computed(() =>
+                    timingSuggestions?.stepGroups?.map((suggestion: any) => {
+                      const currentGroupCell = stepGroups.find((g: any) => {
                         const groupData = (g.get ? g.get() : g) as StepGroup;
                         return groupData.id === suggestion.id;
                       });
@@ -2214,7 +2186,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
 
           {/* Wait Time Suggestions Modal */}
           {ifElse(
-            derive(waitTimeSuggestions, (result) => result && Array.isArray(result.stepGroups)),
+            computed(() => waitTimeSuggestions && Array.isArray(waitTimeSuggestions.stepGroups)),
             <ct-card style={{
               position: "fixed",
               top: "50%",
@@ -2234,9 +2206,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 </p>
 
                 <ct-vstack gap={2}>
-                  {derive({ waitTimeSuggestions, stepGroups }, ({ waitTimeSuggestions: result, stepGroups: groups }) =>
-                    result?.stepGroups?.map((suggestion: any) => {
-                      const currentGroupCell = groups.find((g: any) => {
+                  {computed(() =>
+                    waitTimeSuggestions?.stepGroups?.map((suggestion: any) => {
+                      const currentGroupCell = stepGroups.find((g: any) => {
                         const groupData = (g.get ? g.get() : g) as StepGroup;
                         return groupData.id === suggestion.id;
                       });
