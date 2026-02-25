@@ -41,6 +41,7 @@ import {
   computed,
   Default,
   derive,
+  equals,
   generateObject,
   handler,
   ifElse,
@@ -249,7 +250,7 @@ const moveGroupUp = handler<
   }
 >((_event, { stepGroups, stepGroup }) => {
   const currentGroups = stepGroups.get();
-  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
+  const index = currentGroups.findIndex((el) => equals(stepGroup, el));
   if (index <= 0) return; // Can't move first group up
 
   // Swap with previous group
@@ -266,7 +267,7 @@ const moveGroupDown = handler<
   }
 >((_event, { stepGroups, stepGroup }) => {
   const currentGroups = stepGroups.get();
-  const index = currentGroups.findIndex((el) => stepGroup.equals(el));
+  const index = currentGroups.findIndex((el) => equals(stepGroup, el));
   if (index < 0 || index >= currentGroups.length - 1) return; // Can't move last group down
 
   // Swap with next group
