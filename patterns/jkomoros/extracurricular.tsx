@@ -2022,8 +2022,8 @@ Return all visible text.`
 
             {/* Pinned classes in active set */}
             {computed(() => {
-              const pinned: Class[] = pinnedClasses.get();
-              const displayName: string = displayActiveSetName.get();
+              const pinned: Class[] = pinnedClasses;
+              const displayName: string = displayActiveSetName;
               // DEFENSIVE: Filter out undefined entries that may appear during hydration
               const list = pinned.filter((cls: Class) => cls != null);
               if (!list || list.length === 0) {
@@ -2060,7 +2060,7 @@ Return all visible text.`
 
             {/* Phase 6: Conflict warnings */}
             {computed(() => {
-              const conflicts: TimeConflict[] = pinnedSetConflicts.get();
+              const conflicts: TimeConflict[] = pinnedSetConflicts;
               if (!conflicts || conflicts.length === 0) return null;
               return (
                 <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#ffebee", border: "1px solid #ef5350", borderRadius: "4px" }}>
@@ -2091,7 +2091,7 @@ Return all visible text.`
 
             {/* Weekly Schedule View - uses precomputed scheduleData */}
             {computed(() => {
-              const data: Record<DayOfWeek, ScheduleSlotData[]> | null = scheduleData.get();
+              const data: Record<DayOfWeek, ScheduleSlotData[]> | null = scheduleData;
               if (!data) return null;
 
               const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
@@ -2267,9 +2267,9 @@ Return all visible text.`
                   {/* Export button */}
                   <ct-button
                     variant="primary"
-                    disabled={computed(() => !canExportCalendar.get())}
+                    disabled={computed(() => !canExportCalendar)}
                     style={{
-                      opacity: computed(() => canExportCalendar.get() ? 1 : 0.5),
+                      opacity: computed(() => canExportCalendar ? 1 : 0.5),
                     }}
                     onClick={prepareCalendarExport({
                       pinnedClasses: pinnedClasses as Class[],
@@ -2286,10 +2286,10 @@ Return all visible text.`
 
                   {/* Validation message */}
                   {ifElse(
-                    computed(() => !canExportCalendar.get()),
+                    computed(() => !canExportCalendar),
                     <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
                       {computed(() => {
-                        const pinned: Class[] = pinnedClasses.get();
+                        const pinned: Class[] = pinnedClasses;
                         const semester: SemesterDates = semesterDates.get();
                         if (!pinned || pinned.length === 0) return "Pin some classes to export";
                         if (!semester.startDate) return "Set semester start date";
@@ -2779,14 +2779,14 @@ Return all visible text.`
                     disabled={exportButtonDisabled}
                     style={{
                       padding: "10px 20px",
-                      background: computed(() => exportButtonDisabled.get() ? "#d1d5db" : "#f59e0b"),
+                      background: computed(() => exportButtonDisabled ? "#d1d5db" : "#f59e0b"),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: computed(() => exportButtonDisabled.get() ? "not-allowed" : "pointer"),
-                      opacity: computed(() => exportButtonDisabled.get() ? 0.7 : 1),
+                      cursor: computed(() => exportButtonDisabled ? "not-allowed" : "pointer"),
+                      opacity: computed(() => exportButtonDisabled ? 0.7 : 1),
                     }}
                   >
                     {ifElse(
