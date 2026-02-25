@@ -3,7 +3,7 @@ import {
   computed,
   Default,
   derive,
-  getRecipeEnvironment,
+  getPatternEnvironment,
   handler,
   ifElse,
   NAME,
@@ -55,7 +55,7 @@ const turndown = new TurndownService({
   emDelimiter: "*",
 });
 
-const env = getRecipeEnvironment();
+const env = getPatternEnvironment();
 
 turndown.addRule("removeStyleTags", {
   filter: ["style"],

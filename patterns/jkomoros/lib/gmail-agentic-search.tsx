@@ -27,7 +27,7 @@ import {
   Default,
   derive,
   generateObject,
-  getRecipeEnvironment,
+  getPatternEnvironment,
   handler,
   ifElse,
   NAME,
@@ -57,7 +57,7 @@ import type {
 export type { Auth } from "./gmail-importer.tsx";
 import type { Auth } from "./gmail-importer.tsx";
 
-const env = getRecipeEnvironment();
+const env = getPatternEnvironment();
 
 // ============================================================================
 // TYPES
