@@ -817,8 +817,8 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
       });
   });
 
-  const linkCount = computed(() => (allExtractedLinks as any[]).length);
-  const reportCount = computed(() => (reports as PromptInjectionReport[]).length);
+  const linkCount = computed(() => allExtractedLinks.length);
+  const reportCount = computed(() => reports.get().length);
 
   // Count by classification
   // Refactored to use reduce after CT-1102 fix
@@ -1146,7 +1146,7 @@ const PromptInjectionTracker = pattern<TrackerInput, TrackerOutput>(({ gmailFilt
   const finalReportsWithReadState = computed(() => {
       return (finalReportsWithSources as any[]).map((r: any) => ({
         ...r,
-        isRead: (readUrls as string[]).includes(normalizeURL(r.url)),
+        isRead: readUrls.get().includes(normalizeURL(r.url)),
       }));
     }
   );

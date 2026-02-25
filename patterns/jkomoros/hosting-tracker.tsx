@@ -2005,7 +2005,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <label style={{ flex: 1 }}>
                           Type
                           <select
-                            value={computed(() => newRuleForm.type || "location_exact")}
+                            value={computed(() => newRuleForm.get().type || "location_exact")}
                             onChange={updateRuleType({ newRuleForm })}
                             style={{
                               width: "100%",
@@ -2034,7 +2034,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <label style={{ flex: 1 }}>
                           Category
                           <select
-                            value={computed(() => newRuleForm.category || "they-hosted")}
+                            value={computed(() => newRuleForm.get().category || "they-hosted")}
                             onChange={updateRuleCategory({ newRuleForm })}
                             style={{
                               width: "100%",
@@ -2061,7 +2061,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                   {/* LLM Rule Suggestions */}
                   {ifElse(
-                    computed(() => ruleSuggestionPrompt.length > 0),
+                    computed(() => ruleSuggestionPrompt.get().length > 0),
                     <div
                       style={{
                         marginTop: "12px",
