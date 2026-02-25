@@ -12,8 +12,8 @@
  * - LLM-assisted rule suggestions
  */
 import {
+  computed,
   Default,
-  derive,
   generateObject,
   handler,
   ifElse,
@@ -863,8 +863,8 @@ const HostingTracker = pattern<HostingTrackerInput>(
     // Derive list of tracked families from wish result
     // Note: wish({ query }) returns a single match, not an array
     // We wrap it in an array for now; later could iterate over multiple favorites
-    const trackedFamilies = derive(familyWishResult, (wr) => {
-      const charm = wr?.result;
+    const trackedFamilies = computed(() => {
+      const charm = familyWishResult?.result;
       if (!charm) return [];
       // Single family from wish
       return [{
@@ -877,9 +877,9 @@ const HostingTracker = pattern<HostingTrackerInput>(
     });
 
     // Build family addresses map
-    const familyAddressesMap = derive(trackedFamilies, (families) => {
+    const familyAddressesMap = computed(() => {
       const map = new Map<string, Address[]>();
-      for (const family of families) {
+      for (const family of trackedFamilies) {
         if (family.addresses.length > 0) {
           map.set(family.id, family.addresses);
         }
@@ -888,33 +888,31 @@ const HostingTracker = pattern<HostingTrackerInput>(
     });
 
     // Compute family stats
-    const familyStats = derive(
-      { hostingEvents, trackedFamilies, overdueThresholdDays },
-      ({ hostingEvents, trackedFamilies, overdueThresholdDays }) =>
-        computeAllFamilyStats(
-          hostingEvents,
-          trackedFamilies.map((f) => ({ id: f.id, name: f.name })),
-          overdueThresholdDays
-        )
+    const familyStats = computed(() =>
+      computeAllFamilyStats(
+        hostingEvents,
+        trackedFamilies.map((f) => ({ id: f.id, name: f.name })),
+        overdueThresholdDays
+      )
     );
 
     // Filter stats by status
-    const overdueStats = derive(familyStats, (stats) =>
-      stats.filter((s) => s.status === "overdue")
+    const overdueStats = computed(() =>
+      familyStats.filter((s) => s.status === "overdue")
     );
-    const balancedStats = derive(familyStats, (stats) =>
-      stats.filter((s) => s.status === "balanced")
+    const balancedStats = computed(() =>
+      familyStats.filter((s) => s.status === "balanced")
     );
-    const weOweStats = derive(familyStats, (stats) =>
-      stats.filter((s) => s.status === "we-owe")
+    const weOweStats = computed(() =>
+      familyStats.filter((s) => s.status === "we-owe")
     );
-    const theyOweStats = derive(familyStats, (stats) =>
-      stats.filter((s) => s.status === "they-owe")
+    const theyOweStats = computed(() =>
+      familyStats.filter((s) => s.status === "they-owe")
     );
 
     // Recent events (last 10)
-    const recentEvents = derive(hostingEvents, (events) =>
-      [...events].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10)
+    const recentEvents = computed(() =>
+      [...hostingEvents].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10)
     );
 
     // Wish for Google Calendar events
@@ -922,121 +920,89 @@ const HostingTracker = pattern<HostingTrackerInput>(
     const appleCalendarCharm = wish<{ events: AppleCalendarEvent[] }>("#appleCalendar");
 
     // Combine and normalize calendar events
-    const allCalendarEvents = derive(
-      { googleCalendarCharm, appleCalendarCharm },
-      ({ googleCalendarCharm, appleCalendarCharm }) => {
-        const events: NormalizedCalendarEvent[] = [];
+    const allCalendarEvents = computed(() => {
+      const events: NormalizedCalendarEvent[] = [];
 
-        // Add Google events
-        const googleEvents = googleCalendarCharm?.events || [];
-        for (const evt of googleEvents) {
-          events.push(normalizeGoogleEvent(evt));
-        }
-
-        // Add Apple events
-        const appleEvents = appleCalendarCharm?.events || [];
-        for (const evt of appleEvents) {
-          events.push(normalizeAppleEvent(evt));
-        }
-
-        // Sort by date
-        events.sort((a, b) => a.startDate.localeCompare(b.startDate));
-        return events;
+      // Add Google events
+      const googleEvents = googleCalendarCharm?.events || [];
+      for (const evt of googleEvents) {
+        events.push(normalizeGoogleEvent(evt));
       }
-    );
+
+      // Add Apple events
+      const appleEvents = appleCalendarCharm?.events || [];
+      for (const evt of appleEvents) {
+        events.push(normalizeAppleEvent(evt));
+      }
+
+      // Sort by date
+      events.sort((a, b) => a.startDate.localeCompare(b.startDate));
+      return events;
+    });
 
     // Filter to unclassified events (not yet in hostingEvents)
-    const unclassifiedEvents = derive(
-      { allCalendarEvents, hostingEvents },
-      ({ allCalendarEvents, hostingEvents }) => {
-        // Extract calendarEventIds from hosting events that have them
-        const classifiedIds = new Set<string>();
-        for (const e of hostingEvents) {
-          if (e.calendarEventId) {
-            classifiedIds.add(e.calendarEventId);
-          }
+    const unclassifiedEvents = computed(() => {
+      // Extract calendarEventIds from hosting events that have them
+      const classifiedIds = new Set<string>();
+      for (const e of hostingEvents) {
+        if (e.calendarEventId) {
+          classifiedIds.add(e.calendarEventId);
         }
-        // Filter calendar events that aren't already classified
-        const result: NormalizedCalendarEvent[] = [];
-        for (const evt of allCalendarEvents) {
-          if (!classifiedIds.has(evt.id)) {
-            result.push(evt);
-          }
-        }
-        return result;
       }
-    );
+      // Filter calendar events that aren't already classified
+      const result: NormalizedCalendarEvent[] = [];
+      for (const evt of allCalendarEvents) {
+        if (!classifiedIds.has(evt.id)) {
+          result.push(evt);
+        }
+      }
+      return result;
+    });
 
     // Count unclassified
-    const unclassifiedCount = derive(
-      unclassifiedEvents,
-      (events) => events.length
-    );
+    const unclassifiedCount = computed(() => unclassifiedEvents.length);
 
     // Compute classification suggestions for unclassified events
-    const eventSuggestions = derive(
-      { unclassifiedEvents, rules, myAddresses, familyAddressesMap, neutralPatterns, trackedFamilies },
-      ({
-        unclassifiedEvents,
-        rules,
-        myAddresses,
-        familyAddressesMap,
-        neutralPatterns,
-        trackedFamilies,
-      }: {
-        unclassifiedEvents: NormalizedCalendarEvent[];
-        rules: ClassificationRule[];
-        myAddresses: Address[];
-        familyAddressesMap: Map<string, Address[]>;
-        neutralPatterns: string[];
-        trackedFamilies: Array<{
-          id: string;
-          name: string;
-          addresses: Address[];
-          primaryAddress: Address | null;
-          members: { name: string; role: string }[];
-        }>;
-      }) => {
-        const suggestions: Record<string, EventSuggestion> = {};
+    const eventSuggestions = computed(() => {
+      const suggestions: Record<string, EventSuggestion> = {};
 
-        for (const event of unclassifiedEvents) {
-          const result = classifyEventWithRules(
-            event,
-            rules,
-            myAddresses,
-            familyAddressesMap,
-            neutralPatterns
-          );
+      for (const event of unclassifiedEvents) {
+        const result = classifyEventWithRules(
+          event,
+          rules,
+          myAddresses,
+          familyAddressesMap,
+          neutralPatterns
+        );
 
-          // Look up family name if we have a familyId
-          let familyName: string | null = null;
-          if (result.familyId) {
-            const family = trackedFamilies.find((f) => f.id === result.familyId);
-            if (family) {
-              familyName = family.name;
-            }
+        // Look up family name if we have a familyId
+        let familyName: string | null = null;
+        if (result.familyId) {
+          const family = trackedFamilies.find((f) => f.id === result.familyId);
+          if (family) {
+            familyName = family.name;
           }
-
-          suggestions[event.id] = { ...result, familyName };
         }
 
-        return suggestions;
+        suggestions[event.id] = { ...result, familyName };
       }
-    );
+
+      return suggestions;
+    });
 
     // Total families count
-    const familyCount = derive(trackedFamilies, (f) => f.length);
+    const familyCount = computed(() => trackedFamilies.length);
 
     // Total events count
-    const eventCount = derive(hostingEvents, (e) => e.length);
+    const eventCount = computed(() => hostingEvents.length);
 
     // Connection status for setup UI
-    const hasFamilies = derive(trackedFamilies, (f) => f.length > 0);
-    const hasGoogleCalendar = derive(googleCalendarCharm, (charm) =>
-      charm?.events && charm.events.length > 0
+    const hasFamilies = computed(() => trackedFamilies.length > 0);
+    const hasGoogleCalendar = computed(() =>
+      googleCalendarCharm?.events && googleCalendarCharm.events.length > 0
     );
-    const hasAppleCalendar = derive(appleCalendarCharm, (charm) =>
-      charm?.events && charm.events.length > 0
+    const hasAppleCalendar = computed(() =>
+      appleCalendarCharm?.events && appleCalendarCharm.events.length > 0
     );
 
     // LLM Rule Suggestions - generateObject call
@@ -1248,7 +1214,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         color: STATUS_COLORS.overdue.text,
                       }}
                     >
-                      {derive(overdueStats, (s) => s.length)}
+                      {computed(() => overdueStats.length)}
                     </div>
                     <div style={{ fontSize: "12px", color: "#666" }}>Overdue</div>
                   </div>
@@ -1256,7 +1222,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                 {/* Overdue Families */}
                 {ifElse(
-                  derive(overdueStats, (s) => s.length > 0),
+                  computed(() => overdueStats.length > 0),
                   <ct-vstack style="gap: 8px;">
                     <h3
                       style={{
@@ -1311,7 +1277,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                 {/* We Owe Families */}
                 {ifElse(
-                  derive(weOweStats, (s) => s.length > 0),
+                  computed(() => weOweStats.length > 0),
                   <ct-vstack style="gap: 8px;">
                     <h3
                       style={{
@@ -1352,7 +1318,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                 {/* Balanced Families */}
                 {ifElse(
-                  derive(balancedStats, (s) => s.length > 0),
+                  computed(() => balancedStats.length > 0),
                   <ct-vstack style="gap: 8px;">
                     <h3
                       style={{
@@ -1395,7 +1361,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                 <ct-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">Recent Events</h3>
                   {ifElse(
-                    derive(recentEvents, (e) => e.length === 0),
+                    computed(() => recentEvents.length === 0),
                     <div style="color: #666; font-size: 13px;">
                       No events recorded yet
                     </div>,
@@ -1407,7 +1373,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             gap: "8px",
                             alignItems: "center",
                             padding: "8px 12px",
-                            backgroundColor: derive(event.category, (cat) => CATEGORY_COLORS[cat].bg),
+                            backgroundColor: computed(() => CATEGORY_COLORS[event.category].bg),
                             borderRadius: "6px",
                             fontSize: "13px",
                           }}
@@ -1418,7 +1384,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                           <span style={{ flex: 1 }}>{event.title}</span>
                           <span
                             style={{
-                              color: derive(event.category, (cat) => CATEGORY_COLORS[cat].text),
+                              color: computed(() => CATEGORY_COLORS[event.category].text),
                               fontWeight: 500,
                             }}
                           >
@@ -1469,26 +1435,26 @@ Include reasoning for each suggestion and potential false positives to watch for
                 </h3>
 
                 {ifElse(
-                  derive(familyCount, (c) => c === 0),
+                  computed(() => familyCount === 0),
                   <div style="color: #666; font-size: 13px; padding: 20px; text-align: center;">
                     No families found. Create a Family charm and favorite it.
                   </div>,
                   <ct-vstack style="gap: 8px;">
                     {trackedFamilies.map((family) => {
-                      const stat = derive(familyStats, (stats) =>
-                        stats.find((s) => s.familyId === family.id)
+                      const stat = computed(() =>
+                        familyStats.find((s) => s.familyId === family.id)
                       );
                       return (
                         <div
                           style={{
                             padding: "12px",
-                            backgroundColor: derive(stat, (s) =>
-                              s ? STATUS_COLORS[s.status].bg : "#f9fafb"
+                            backgroundColor: computed(() =>
+                              stat ? STATUS_COLORS[stat.status].bg : "#f9fafb"
                             ),
                             borderRadius: "8px",
-                            border: derive(stat, (s) =>
-                              s
-                                ? `1px solid ${STATUS_COLORS[s.status].border}`
+                            border: computed(() =>
+                              stat
+                                ? `1px solid ${STATUS_COLORS[stat.status].border}`
                                 : "1px solid #e5e7eb"
                             ),
                           }}
@@ -1499,33 +1465,33 @@ Include reasoning for each suggestion and potential false positives to watch for
                                 {family.name}
                               </strong>
                               <div style={{ fontSize: "12px", color: "#666" }}>
-                                {derive(family.members, (m: { name: string; role: string }[]) =>
-                                  m.length > 0
-                                    ? m.map((mem: { name: string; role: string }) => mem.name).join(", ")
+                                {computed(() =>
+                                  family.members.length > 0
+                                    ? family.members.map((mem: { name: string; role: string }) => mem.name).join(", ")
                                     : "No members"
                                 )}
                               </div>
                               <div style={{ fontSize: "12px", color: "#666" }}>
-                                {derive(family.primaryAddress, (addr) =>
-                                  addr ? addr.fullAddress : "No address"
+                                {computed(() =>
+                                  family.primaryAddress ? family.primaryAddress.fullAddress : "No address"
                                 )}
                               </div>
                             </div>
                             <div style={{ textAlign: "right" }}>
-                              {derive(stat, (s) =>
-                                s ? (
+                              {computed(() =>
+                                stat ? (
                                   <div>
                                     <div
                                       style={{
                                         fontWeight: "bold",
-                                        color: STATUS_COLORS[s.status].text,
+                                        color: STATUS_COLORS[stat.status].text,
                                       }}
                                     >
-                                      {s.status.toUpperCase()}
+                                      {stat.status.toUpperCase()}
                                     </div>
                                     <div style={{ fontSize: "12px" }}>
-                                      They: {s.theyHostedCount} / We:{" "}
-                                      {s.weHostedCount}
+                                      They: {stat.theyHostedCount} / We:{" "}
+                                      {stat.weHostedCount}
                                     </div>
                                   </div>
                                 ) : (
@@ -1554,21 +1520,13 @@ Include reasoning for each suggestion and potential false positives to watch for
                   </h3>
 
                   {ifElse(
-                    derive(unclassifiedCount, (c) => c === 0),
+                    computed(() => unclassifiedCount === 0),
                     <div style="color: #666; font-size: 13px;">
                       No unclassified calendar events. Connect a calendar or add
                       events manually.
                     </div>,
                     <ct-vstack style="gap: 6px;">
-                      {derive(
-                        { unclassifiedEvents, eventSuggestions },
-                        ({
-                          unclassifiedEvents,
-                          eventSuggestions,
-                        }: {
-                          unclassifiedEvents: NormalizedCalendarEvent[];
-                          eventSuggestions: Record<string, EventSuggestion>;
-                        }) =>
+                      {computed(() =>
                           unclassifiedEvents.slice(0, 10).map((event) => {
                             const suggestion = eventSuggestions[event.id];
                             const hasSuggestion = suggestion && suggestion.category;
@@ -1655,8 +1613,8 @@ Include reasoning for each suggestion and potential false positives to watch for
                                   )}
 
                                   {/* Manual classification buttons */}
-                                  {derive(trackedFamilies, (families) =>
-                                    families.map((family) => (
+                                  {computed(() =>
+                                    trackedFamilies.map((family) => (
                                       <button
                                         onClick={classifyEvent({
                                           hostingEvents,
@@ -1825,7 +1783,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                     Event History ({eventCount})
                   </h3>
                   {ifElse(
-                    derive(eventCount, (c) => c === 0),
+                    computed(() => eventCount === 0),
                     <div style="color: #666; font-size: 13px;">
                       No events recorded yet
                     </div>,
@@ -1837,7 +1795,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             gap: "8px",
                             alignItems: "center",
                             padding: "8px 12px",
-                            backgroundColor: derive(event.category, (cat) => CATEGORY_COLORS[cat].bg),
+                            backgroundColor: computed(() => CATEGORY_COLORS[event.category].bg),
                             borderRadius: "6px",
                             fontSize: "13px",
                           }}
@@ -1891,7 +1849,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                   </p>
 
                   {ifElse(
-                    derive(myAddresses, (a) => a.length === 0),
+                    computed(() => myAddresses.length === 0),
                     <div style="color: #666; font-size: 13px;">
                       No addresses added yet
                     </div>,
@@ -1964,11 +1922,11 @@ Include reasoning for each suggestion and potential false positives to watch for
                 {/* Classification Rules */}
                 <ct-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">
-                    Classification Rules ({derive(rules, (r) => r.length)})
+                    Classification Rules ({computed(() => rules.length)})
                   </h3>
 
                   {ifElse(
-                    derive(rules, (r) => r.length === 0),
+                    computed(() => rules.length === 0),
                     <div style="color: #666; font-size: 13px;">
                       No rules configured yet
                     </div>,
@@ -2000,8 +1958,8 @@ Include reasoning for each suggestion and potential false positives to watch for
                           <span
                             style={{
                               padding: "2px 8px",
-                              backgroundColor: derive(rule.category, (cat) => CATEGORY_COLORS[cat].bg),
-                              color: derive(rule.category, (cat) => CATEGORY_COLORS[cat].text),
+                              backgroundColor: computed(() => CATEGORY_COLORS[rule.category].bg),
+                              color: computed(() => CATEGORY_COLORS[rule.category].text),
                               borderRadius: "4px",
                               fontSize: "11px",
                             }}
@@ -2047,7 +2005,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <label style={{ flex: 1 }}>
                           Type
                           <select
-                            value={derive(newRuleForm, (r: Partial<ClassificationRule>) => r.type || "location_exact")}
+                            value={computed(() => newRuleForm.type || "location_exact")}
                             onChange={updateRuleType({ newRuleForm })}
                             style={{
                               width: "100%",
@@ -2076,7 +2034,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <label style={{ flex: 1 }}>
                           Category
                           <select
-                            value={derive(newRuleForm, (r: Partial<ClassificationRule>) => r.category || "they-hosted")}
+                            value={computed(() => newRuleForm.category || "they-hosted")}
                             onChange={updateRuleCategory({ newRuleForm })}
                             style={{
                               width: "100%",
@@ -2103,7 +2061,7 @@ Include reasoning for each suggestion and potential false positives to watch for
 
                   {/* LLM Rule Suggestions */}
                   {ifElse(
-                    derive(ruleSuggestionPrompt, (p: string) => p.length > 0),
+                    computed(() => ruleSuggestionPrompt.length > 0),
                     <div
                       style={{
                         marginTop: "12px",
@@ -2137,7 +2095,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             Error: {llmSuggestions.error}
                           </div>,
                           <ct-vstack style="gap: 8px;">
-                            {derive(llmSuggestions, (s) => s.result?.suggestions || []).map((suggestion) => (
+                            {computed(() => llmSuggestions.result?.suggestions || []).map((suggestion) => (
                               <div
                                 style={{
                                   padding: "10px",
@@ -2156,9 +2114,9 @@ Include reasoning for each suggestion and potential false positives to watch for
                                       {suggestion.reasoning}
                                     </span>
                                     {ifElse(
-                                      derive(suggestion.potentialFalsePositives, (fp) => fp && fp.length > 0),
+                                      computed(() => suggestion.potentialFalsePositives && suggestion.potentialFalsePositives.length > 0),
                                       <span style="font-size: 11px; color: #dc2626;">
-                                        Watch for: {derive(suggestion.potentialFalsePositives, (fp) => fp?.join(", ") || "")}
+                                        Watch for: {computed(() => suggestion.potentialFalsePositives?.join(", ") || "")}
                                       </span>,
                                       <></>
                                     )}
