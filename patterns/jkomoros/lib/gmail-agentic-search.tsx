@@ -39,13 +39,14 @@ import {
   Writable,
 } from "commontools";
 import {
-  type AccountType,
+  type AccountType as _AccountType,
   createGoogleAuth as createGoogleAuthUtil,
   type ScopeKey,
 } from "./google-auth-manager.tsx";
+import GoogleAuth from "./google-auth.tsx";
 import {
   GmailClient,
-  validateAndRefreshTokenCrossCharm,
+  validateAndRefreshTokenCrossPiece,
 } from "./gmail-client.ts";
 import GmailSearchRegistry from "./gmail-search-registry.tsx";
 import type {
@@ -57,7 +58,10 @@ import type {
 export type { Auth } from "./gmail-importer.tsx";
 import type { Auth } from "./gmail-importer.tsx";
 
-const env = getPatternEnvironment();
+const _env = getPatternEnvironment();
+
+// Debug flag for development - disable in production
+const DEBUG_AGENT = false;
 
 // ============================================================================
 // TYPES
@@ -97,7 +101,7 @@ type RefreshStreamType = Stream<Record<string, never>>;
 // Tool definition for additional tools
 export interface ToolDefinition {
   description: string;
-  handler: ReturnType<typeof handler>;
+  handler: Stream<any>;
 }
 
 // ============================================================================
@@ -150,14 +154,17 @@ export interface GmailAgenticSearchInput {
   suggestedQueries?: Default<string[], []>;
 
   // JSON schema for agent's structured output
-  resultSchema?: Default<object, {}>;
+  resultSchema?: Default<object, Record<string, never>>;
 
   // Account type for multi-account support
   // "default" = any #googleAuth, "personal" = #googleAuthPersonal, "work" = #googleAuthWork
   accountType?: Default<"default" | "personal" | "work", "default">;
 
   // Additional tools beyond searchGmail
-  additionalTools?: Default<Record<string, ToolDefinition>, {}>;
+  additionalTools?: Default<
+    Record<string, ToolDefinition>,
+    Record<string, never>
+  >;
 
   // UI customization
   title?: Default<string, "Gmail Agentic Search">;
@@ -348,14 +355,16 @@ export interface GmailAgenticSearchOutput {
 // Handlers must be defined at module scope, not inside patterns.
 // ============================================================================
 
-// Handler to create a new GmailSearchRegistry charm
+// Handler to create a new GmailSearchRegistry piece
 const createSearchRegistryHandler = handler<unknown, Record<string, never>>(
   () => {
-    console.log("[GmailAgenticSearch] Creating new search registry charm");
-    const registryCharm = GmailSearchRegistry({
+    if (DEBUG_AGENT) {
+      console.log("[GmailAgenticSearch] Creating new search registry piece");
+    }
+    const registryPiece = GmailSearchRegistry({
       queries: [],
     });
-    return navigateTo(registryCharm);
+    return navigateTo(registryPiece);
   },
 );
 
@@ -365,7 +374,9 @@ const setAccountTypeHandler = handler<
   { selectedType: Writable<"default" | "personal" | "work"> }
 >((event, state) => {
   const newType = event.target.value as "default" | "personal" | "work";
-  console.log("[GmailAgenticSearch] Account type changed to:", newType);
+  if (DEBUG_AGENT) {
+    console.log("[GmailAgenticSearch] Account type changed to:", newType);
+  }
   state.selectedType.set(newType);
 });
 
@@ -379,7 +390,9 @@ const stopScanHandler = handler<
 >((_, state) => {
   state.lastScanAt.set(Date.now());
   state.isScanning.set(false);
-  console.log("[GmailAgenticSearch] Scan stopped");
+  if (DEBUG_AGENT) {
+    console.log("[GmailAgenticSearch] Scan stopped");
+  }
 });
 
 // Handler to complete scan
@@ -392,7 +405,9 @@ const completeScanHandler = handler<
 >((_, state) => {
   state.lastScanAt.set(Date.now());
   state.isScanning.set(false);
-  console.log("[GmailAgenticSearch] Scan completed");
+  if (DEBUG_AGENT) {
+    console.log("[GmailAgenticSearch] Scan completed");
+  }
 });
 
 // Handler to toggle debug log expansion
@@ -429,7 +444,7 @@ const searchGmailHandler = handler<
   { query: string; result?: Writable<any> },
   {
     auth: Writable<Auth>;
-    // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+    // Stream<T> in signature lets framework unwrap opaque stream from wished pieces
     authRefreshStream: RefreshStreamType | null;
     progress: Writable<SearchProgress>;
     maxSearches: Writable<Default<number, 0>>;
@@ -455,7 +470,9 @@ const searchGmailHandler = handler<
 
   // Check if we've hit the search limit
   if (max > 0 && currentProgress.searchCount >= max) {
-    console.log(`[SearchGmail Tool] Search limit reached (${max})`);
+    if (DEBUG_AGENT) {
+      console.log(`[SearchGmail Tool] Search limit reached (${max})`);
+    }
     addDebugLogEntry(state.debugLog, {
       type: "info",
       message: `Search limit reached (${max})`,
@@ -507,22 +524,26 @@ const searchGmailHandler = handler<
     resultData = { error: "Not authenticated", emails: [] };
   } else {
     try {
-      console.log(`[SearchGmail Tool] Searching: ${input.query}`);
+      if (DEBUG_AGENT) {
+        console.log(`[SearchGmail Tool] Searching: ${input.query}`);
+      }
 
-      // Cross-charm token refresh via Stream<T> handler signature
+      // Cross-piece token refresh via Stream<T> handler signature
       // The framework unwraps the opaque stream, giving us a callable .send()
-      // See: community-docs/blessed/cross-charm.md
+      // See: community-docs/blessed/cross-piece.md
       const refreshStream = state.authRefreshStream;
       let onRefresh: (() => Promise<void>) | undefined = undefined;
 
       if (refreshStream?.send) {
         // Stream.send() supports optional onCommit callback (see labs/packages/runner/src/cell.ts)
-        // The refresh happens in the auth charm's transaction context
+        // The refresh happens in the auth piece's transaction context
         // Note: TypeScript types don't include onCommit, but runtime supports it
         onRefresh = async () => {
-          console.log(
-            "[SearchGmail Tool] Refreshing token via cross-charm stream...",
-          );
+          if (DEBUG_AGENT) {
+            console.log(
+              "[SearchGmail Tool] Refreshing token via cross-piece stream...",
+            );
+          }
           await new Promise<void>((resolve, reject) => {
             // Cast to bypass TS types - runtime supports onCommit (verified in cell.ts:105-108)
             (refreshStream.send as (
@@ -540,15 +561,19 @@ const searchGmailHandler = handler<
                   );
                   reject(new Error(`Token refresh failed: ${status.error}`));
                 } else {
-                  console.log(
-                    "[SearchGmail Tool] Token refresh transaction committed",
-                  );
+                  if (DEBUG_AGENT) {
+                    console.log(
+                      "[SearchGmail Tool] Token refresh transaction committed",
+                    );
+                  }
                   resolve();
                 }
               },
             );
           });
-          console.log("[SearchGmail Tool] Token refresh completed");
+          if (DEBUG_AGENT) {
+            console.log("[SearchGmail Tool] Token refresh completed");
+          }
         };
       }
 
@@ -559,7 +584,9 @@ const searchGmailHandler = handler<
       });
       const emails = await client.searchEmails(input.query, 30);
 
-      console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
+      if (DEBUG_AGENT) {
+        console.log(`[SearchGmail Tool] Found ${emails.length} emails`);
+      }
 
       // Log the search results
       addDebugLogEntry(state.debugLog, {
@@ -655,9 +682,11 @@ const searchGmailHandler = handler<
           const registry = wishResult?.result;
           if (registry?.upvoteQuery) {
             const typeUrl = state.agentTypeUrl.get();
-            console.log(
-              `[SearchGmail] Upvoting community query: ${matchingCommunityQuery.query}`,
-            );
+            if (DEBUG_AGENT) {
+              console.log(
+                `[SearchGmail] Upvoting community query: ${matchingCommunityQuery.query}`,
+              );
+            }
             addDebugLogEntry(state.debugLog, {
               type: "info",
               message:
@@ -716,7 +745,7 @@ const startScanHandler = handler<
     progress: Writable<SearchProgress>;
     auth: Writable<Auth>;
     debugLog: Writable<DebugLogEntry[]>;
-    // Stream<T> in signature lets framework unwrap opaque stream from wished charms
+    // Stream<T> in signature lets framework unwrap opaque stream from wished pieces
     authRefreshStream: RefreshStreamType | null;
   }
 >(async (_, state) => {
@@ -733,9 +762,11 @@ const startScanHandler = handler<
   });
 
   // Validate token before starting scan
-  // Cross-charm refresh works via Stream<T> handler signature pattern
-  // See: community-docs/blessed/cross-charm.md
-  console.log("[GmailAgenticSearch] Validating token before scan...");
+  // Cross-piece refresh works via Stream<T> handler signature pattern
+  // See: community-docs/blessed/cross-piece.md
+  if (DEBUG_AGENT) {
+    console.log("[GmailAgenticSearch] Validating token before scan...");
+  }
   addDebugLogEntry(state.debugLog, {
     type: "info",
     message: "Validating Gmail token...",
@@ -744,16 +775,18 @@ const startScanHandler = handler<
   // Stream<T> in handler signature gives us callable .send()
   const refreshStream = state.authRefreshStream;
 
-  const validation = await validateAndRefreshTokenCrossCharm(
+  const validation = await validateAndRefreshTokenCrossPiece(
     state.auth,
     refreshStream,
     true,
   );
 
   if (!validation.valid) {
-    console.log(
-      `[GmailAgenticSearch] Token validation failed: ${validation.error}`,
-    );
+    if (DEBUG_AGENT) {
+      console.log(
+        `[GmailAgenticSearch] Token validation failed: ${validation.error}`,
+      );
+    }
     addDebugLogEntry(state.debugLog, {
       type: "error",
       message: `Token validation failed: ${validation.error}`,
@@ -769,14 +802,18 @@ const startScanHandler = handler<
   }
 
   if (validation.refreshed) {
-    console.log("[GmailAgenticSearch] Token was refreshed automatically");
+    if (DEBUG_AGENT) {
+      console.log("[GmailAgenticSearch] Token was refreshed automatically");
+    }
     addDebugLogEntry(state.debugLog, {
       type: "info",
       message: "Token was expired - refreshed automatically",
     });
   }
 
-  console.log("[GmailAgenticSearch] Token valid, starting scan");
+  if (DEBUG_AGENT) {
+    console.log("[GmailAgenticSearch] Token valid, starting scan");
+  }
   addDebugLogEntry(state.debugLog, {
     type: "info",
     message: "Token valid - starting agent...",
@@ -859,13 +896,14 @@ const flagForShareHandler = handler<
 });
 
 // Handler to flag a query for sharing (runs PII screening)
-const flagQueryForSharingHandler = handler<
+// Prefixed with _ as not currently used in pattern body - preserved for future use
+const _flagQueryForSharingHandler = handler<
   { queryId: string },
   {
     localQueries: Writable<LocalQuery[]>;
     pendingSubmissions: Writable<PendingSubmission[]>;
   }
->(async (input, state) => {
+>((input, state) => {
   const queries = state.localQueries.get() || [];
   const query = queries.find((q) => q.id === input.queryId);
   if (!query) return;
@@ -895,7 +933,8 @@ const flagQueryForSharingHandler = handler<
 });
 
 // Handler to approve a pending submission
-const approvePendingSubmissionHandler = handler<
+// Prefixed with _ as not currently used in pattern body - preserved for future use
+const _approvePendingSubmissionHandler = handler<
   { localQueryId: string },
   { pendingSubmissions: Writable<PendingSubmission[]> }
 >((input, state) => {
@@ -909,7 +948,8 @@ const approvePendingSubmissionHandler = handler<
 });
 
 // Handler to reject/cancel a pending submission
-const rejectPendingSubmissionHandler = handler<
+// Prefixed with _ as not currently used in pattern body - preserved for future use
+const _rejectPendingSubmissionHandler = handler<
   { localQueryId: string },
   {
     pendingSubmissions: Writable<PendingSubmission[]>;
@@ -931,7 +971,8 @@ const rejectPendingSubmissionHandler = handler<
 });
 
 // Handler to update the sanitized query manually
-const updateSanitizedQueryHandler = handler<
+// Prefixed with _ as not currently used in pattern body - preserved for future use
+const _updateSanitizedQueryHandler = handler<
   { localQueryId: string; sanitizedQuery: string },
   { pendingSubmissions: Writable<PendingSubmission[]> }
 >((input, state) => {
@@ -944,6 +985,32 @@ const updateSanitizedQueryHandler = handler<
       input.sanitizedQuery,
     );
   }
+});
+
+// Handler to create a new GoogleAuth piece (module scope)
+const createGoogleAuthHandler = handler(() => {
+  const authPiece = GoogleAuth({
+    selectedScopes: {
+      gmail: true,
+      gmailSend: false,
+      gmailModify: false,
+      calendar: false,
+      calendarWrite: false,
+      drive: false,
+      docs: false,
+      contacts: false,
+    },
+    auth: {
+      token: "",
+      tokenType: "",
+      scope: [],
+      expiresIn: 0,
+      expiresAt: 0,
+      refreshToken: "",
+      user: { email: "", name: "", picture: "" },
+    },
+  });
+  return navigateTo(authPiece);
 });
 
 // ============================================================================
@@ -968,7 +1035,7 @@ const GmailAgenticSearch = pattern<
     searchProgress, // Can be passed in for parent coordination
     debugLog, // Debug log for tracking agent activity
     auth: inputAuth, // CT-1085 workaround: direct auth input
-    accountType, // Multi-account support: "default" | "personal" | "work"
+    accountType: _accountType, // Multi-account support: "default" | "personal" | "work" (prefixed with _ as read-only input, using selectedAccountType instead)
     // Shared search strings support
     agentTypeUrl,
     localQueries: localQueriesInput, // Renamed: input may be read-only
@@ -1033,9 +1100,11 @@ const GmailAgenticSearch = pattern<
         const signalVal = signalValue || 0;
         const lastSignalVal = lastSignalValue || 0;
 
-        console.log(
-          `[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalVal}, lastSignalValue=${lastSignalVal}, queryId=${queryId}`,
-        );
+        if (DEBUG_AGENT) {
+          console.log(
+            `[GmailAgenticSearch] itemFoundSignal derive triggered: signalValue=${signalVal}, lastSignalValue=${lastSignalVal}, queryId=${queryId}`,
+          );
+        }
 
         if (signalVal > lastSignalVal) {
           if (queryId) {
@@ -1048,13 +1117,17 @@ const GmailAgenticSearch = pattern<
               [queryId]: newCount,
             });
 
-            console.log(
-              `[GmailAgenticSearch] Marked query ${queryId} as found item (now ${newCount})`,
-            );
+            if (DEBUG_AGENT) {
+              console.log(
+                `[GmailAgenticSearch] Marked query ${queryId} as found item (now ${newCount})`,
+              );
+            }
           } else {
-            console.warn(
-              "[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark",
-            );
+            if (DEBUG_AGENT) {
+              console.warn(
+                "[GmailAgenticSearch] itemFoundSignal increased but no recent query to mark",
+              );
+            }
           }
           lastSignalValueCell.set(signalVal);
         }
@@ -1077,18 +1150,20 @@ const GmailAgenticSearch = pattern<
     // Passes reactive selectedAccountType for dynamic account switching
     const {
       auth: wishedAuth,
+      authInfo,
       fullUI: authFullUI,
       isReady: wishedAuthReady,
-      currentEmail: wishedEmail,
-      wishResult,
-      createAuth: createGoogleAuthAction,
+      currentEmail: _wishedEmail, // Prefixed with _ as not currently used directly
     } = createGoogleAuthUtil({
       requiredScopes: ["gmail"] as ScopeKey[],
       accountType: selectedAccountType,
     });
 
-    // For compatibility with existing code
-    const wishedAuthCharm = derive(wishResult, (wr: any) => wr?.result || null);
+    // For compatibility with existing code - derive piece from authInfo
+    const wishedAuthPiece = derive(
+      authInfo,
+      (info: any) => info?.piece || null,
+    );
     const hasWishedAuth = wishedAuthReady;
 
     // Access auth via property path to maintain writability
@@ -1105,11 +1180,11 @@ const GmailAgenticSearch = pattern<
     // ========================================================================
     // CROSS-CHARM TOKEN REFRESH
     // ========================================================================
-    // The google-auth charm exports a `refreshToken` Stream that allows
-    // other charms to trigger token refresh in google-auth's transaction context.
+    // The google-auth piece exports a `refreshToken` Stream that allows
+    // other pieces to trigger token refresh in google-auth's transaction context.
     //
     // KEY INSIGHT (from Berni, verified 2024-12-10):
-    // - Streams from wished charms appear as opaque objects with `$stream` marker at derive time
+    // - Streams from wished pieces appear as opaque objects with `$stream` marker at derive time
     // - To call .send(), you must pass the stream to a handler with `Stream<T>` in its type signature
     // - The framework "unwraps" the opaque stream into a callable one inside the handler
     //
@@ -1118,13 +1193,13 @@ const GmailAgenticSearch = pattern<
     // 2. Pass to handler with Stream<T> declared in signature
     // 3. Call .send() inside handler
     //
-    // See: community-docs/blessed/cross-charm.md
+    // See: community-docs/blessed/cross-piece.md
     // See: patterns/jkomoros/issues/ISSUE-Token-Refresh-Blocked-By-Storage-Transaction.md
     //
-    // Extract refresh stream from wished charm (will be opaque at derive time)
+    // Extract refresh stream from wished piece (will be opaque at derive time)
     const authRefreshStream = derive(
-      wishedAuthCharm,
-      (charm: any) => charm?.refreshToken || null,
+      wishedAuthPiece,
+      (piece: any) => piece?.refreshToken || null,
     );
 
     // Track where auth came from
@@ -1157,8 +1232,8 @@ const GmailAgenticSearch = pattern<
 
     // Note: Scope warnings are handled by authFullUI via createGoogleAuth utility
 
-    // Handler to create a new GoogleAuth charm (uses utility's createAuth action)
-    const createGoogleAuth = createGoogleAuthAction;
+    // Use module-scope handler for creating GoogleAuth
+    const createGoogleAuth = createGoogleAuthHandler;
 
     // Use module-scope handlers
     const createSearchRegistry = createSearchRegistryHandler;
@@ -1527,11 +1602,11 @@ When you're done searching, STOP calling tools and produce your final structured
               ⚠️ {authErrorMessage}
             </div>
             <div style={{ textAlign: "center" }}>
-              {derive(wishedAuthCharm, (charm: any) =>
-                charm
+              {derive(wishedAuthPiece, (piece: any) =>
+                piece
                   ? (
                     <ct-button
-                      onClick={() => navigateTo(charm)}
+                      onClick={() => navigateTo(piece)}
                       size="sm"
                       variant="secondary"
                     >
@@ -1576,11 +1651,11 @@ When you're done searching, STOP calling tools and produce your final structured
                 ⚠️ Gmail token may have expired - will verify on scan
               </div>
               <div style={{ textAlign: "center" }}>
-                {derive(wishedAuthCharm, (charm: any) =>
-                  charm
+                {derive(wishedAuthPiece, (piece: any) =>
+                  piece
                     ? (
                       <ct-button
-                        onClick={() => navigateTo(charm)}
+                        onClick={() => navigateTo(piece)}
                         size="sm"
                         variant="secondary"
                       >
@@ -1714,159 +1789,163 @@ When you're done searching, STOP calling tools and produce your final structured
     // is false during tool execution (only true during initial prompt processing)
     const progressUI = (
       <div>
-        {/* Progress during scanning */}
-        {derive(
-          [isScanning, searchProgress],
-          ([scanning, progress]: [boolean, SearchProgress]) =>
-            scanning && progress.status !== "idle" &&
-              progress.status !== "auth_error"
-              ? (
-                <div
-                  style={{
-                    padding: "16px",
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "8px",
-                  }}
-                >
+        {/* Progress during scanning - hide when scan is complete */}
+        {ifElse(
+          scanCompleted,
+          null,
+          derive(
+            [isScanning, searchProgress],
+            ([scanning, progress]: [boolean, SearchProgress]) =>
+              scanning && progress.status !== "idle" &&
+                progress.status !== "auth_error"
+                ? (
                   <div
                     style={{
-                      fontWeight: "600",
-                      marginBottom: "12px",
-                      textAlign: "center",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "12px",
-                      color: "#475569",
+                      padding: "16px",
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
                     }}
                   >
-                    <ct-loader show-elapsed></ct-loader>
-                    Scanning emails...
-                  </div>
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        marginBottom: "12px",
+                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "12px",
+                        color: "#475569",
+                      }}
+                    >
+                      <ct-loader show-elapsed></ct-loader>
+                      Scanning emails...
+                    </div>
 
-                  {/* Current Activity */}
-                  {derive(searchProgress, (progress: SearchProgress) =>
-                    progress.currentQuery
-                      ? (
-                        <div
-                          style={{
-                            padding: "8px",
-                            background: "#f1f5f9",
-                            borderRadius: "4px",
-                            marginBottom: "12px",
-                          }}
-                        >
+                    {/* Current Activity */}
+                    {derive(searchProgress, (progress: SearchProgress) =>
+                      progress.currentQuery
+                        ? (
                           <div
                             style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              fontWeight: "600",
+                              padding: "8px",
+                              background: "#f1f5f9",
+                              borderRadius: "4px",
+                              marginBottom: "12px",
                             }}
                           >
-                            🔍 Currently searching:
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#475569",
+                                fontWeight: "600",
+                              }}
+                            >
+                              🔍 Currently searching:
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                color: "#334155",
+                                fontFamily: "monospace",
+                                wordBreak: "break-all",
+                              }}
+                            >
+                              {progress.currentQuery}
+                            </div>
                           </div>
+                        )
+                        : (
                           <div
                             style={{
-                              fontSize: "13px",
-                              color: "#334155",
-                              fontFamily: "monospace",
-                              wordBreak: "break-all",
+                              padding: "8px",
+                              background: "#f1f5f9",
+                              borderRadius: "4px",
+                              marginBottom: "12px",
                             }}
                           >
-                            {progress.currentQuery}
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#475569",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <ct-loader size="sm"></ct-loader>
+                              Analyzing emails...
+                            </div>
                           </div>
-                        </div>
-                      )
-                      : (
-                        <div
-                          style={{
-                            padding: "8px",
-                            background: "#f1f5f9",
-                            borderRadius: "4px",
-                            marginBottom: "12px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                            }}
-                          >
-                            <ct-loader size="sm"></ct-loader>
-                            Analyzing emails...
-                          </div>
-                        </div>
-                      ))}
+                        ))}
 
-                  {/* Completed Searches */}
-                  {derive(searchProgress, (progress: SearchProgress) =>
-                    progress.completedQueries.length > 0
-                      ? (
-                        <div style={{ marginTop: "8px" }}>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "#475569",
-                              fontWeight: "600",
-                              marginBottom: "4px",
-                            }}
-                          >
-                            ✅ Completed searches ({progress.completedQueries
-                              .length}
-                            ):
-                          </div>
-                          <div
-                            style={{
-                              maxHeight: "120px",
-                              overflowY: "auto",
-                              fontSize: "11px",
-                              color: "#3b82f6",
-                            }}
-                          >
-                            {[...progress.completedQueries]
-                              .reverse()
-                              .slice(0, 5)
-                              .map(
-                                (
-                                  q: { query: string; emailCount: number },
-                                  i: number,
-                                ) => (
-                                  <div
-                                    key={i}
-                                    style={{
-                                      padding: "2px 0",
-                                      borderBottom: "1px solid #dbeafe",
-                                    }}
-                                  >
-                                    <span style={{ fontFamily: "monospace" }}>
-                                      {q?.query
-                                        ? q.query.length > 50
-                                          ? q.query.substring(0, 50) + "..."
-                                          : q.query
-                                        : "unknown"}
-                                    </span>
-                                    <span
+                    {/* Completed Searches */}
+                    {derive(searchProgress, (progress: SearchProgress) =>
+                      progress.completedQueries.length > 0
+                        ? (
+                          <div style={{ marginTop: "8px" }}>
+                            <div
+                              style={{
+                                fontSize: "12px",
+                                color: "#475569",
+                                fontWeight: "600",
+                                marginBottom: "4px",
+                              }}
+                            >
+                              ✅ Completed searches ({progress.completedQueries
+                                .length}
+                              ):
+                            </div>
+                            <div
+                              style={{
+                                maxHeight: "120px",
+                                overflowY: "auto",
+                                fontSize: "11px",
+                                color: "#3b82f6",
+                              }}
+                            >
+                              {[...progress.completedQueries]
+                                .reverse()
+                                .slice(0, 5)
+                                .map(
+                                  (
+                                    q: { query: string; emailCount: number },
+                                    i: number,
+                                  ) => (
+                                    <div
+                                      key={i}
                                       style={{
-                                        marginLeft: "8px",
-                                        color: "#059669",
+                                        padding: "2px 0",
+                                        borderBottom: "1px solid #dbeafe",
                                       }}
                                     >
-                                      ({q?.emailCount ?? 0} emails)
-                                    </span>
-                                  </div>
-                                ),
-                              )}
+                                      <span style={{ fontFamily: "monospace" }}>
+                                        {q?.query
+                                          ? q.query.length > 50
+                                            ? q.query.substring(0, 50) + "..."
+                                            : q.query
+                                          : "unknown"}
+                                      </span>
+                                      <span
+                                        style={{
+                                          marginLeft: "8px",
+                                          color: "#059669",
+                                        }}
+                                      >
+                                        ({q?.emailCount ?? 0} emails)
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
+                            </div>
                           </div>
-                        </div>
-                      )
-                      : null)}
-                </div>
-              )
-              : null,
+                        )
+                        : null)}
+                  </div>
+                )
+                : null,
+          ),
         )}
 
         {/* Scan Complete */}
@@ -1897,10 +1976,11 @@ When you're done searching, STOP calling tools and produce your final structured
                     fontSize: "12px",
                     color: "#059669",
                     textAlign: "center",
-                    fontStyle: "italic",
                   }}
                 >
-                  {derive(agentResult, (r: any) => r?.summary || "")}
+                  <ct-markdown>
+                    {derive(agentResult, (r: any) => r?.summary || "")}
+                  </ct-markdown>
                 </div>
                 <ct-button
                   onClick={boundCompleteScan}

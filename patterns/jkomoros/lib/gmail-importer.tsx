@@ -9,28 +9,36 @@ import {
   NAME,
   pattern,
   patternTool,
+  PatternToolResult as _PatternToolResult,
   str,
+  Stream,
   UI,
+  VNode,
   Writable,
 } from "commontools";
-import {
-  type AccountType,
-  createGoogleAuth,
-  type ScopeKey,
-} from "./google-auth-manager.tsx";
 import TurndownService from "turndown";
 import { GmailClient } from "./gmail-client.ts";
+import { GoogleAuthManagerMinimal } from "./google-auth-manager-minimal.tsx";
 
 type CFC<T, C extends string> = T;
 type Secret<T> = CFC<T, "secret">;
 type Confidential<T> = CFC<T, "confidential">;
 
 /**
+ * Writable cell with sync method.
+ * The sync() method is added by the runner via module augmentation,
+ * but isn't visible in the base Cell type from the api package.
+ */
+type SyncableWritable<T> = Writable<T> & {
+  sync(): Promise<Writable<T>> | Writable<T>;
+};
+
+/**
  * Auth data structure for Google OAuth tokens.
  *
  * ⚠️ CRITICAL: When consuming this auth, DO NOT use derive()!
  * derive() creates read-only projections - token refresh will silently fail.
- * Use property access (charm.auth) or ifElse() instead.
+ * Use property access (piece.auth) or ifElse() instead.
  *
  * See: community-docs/superstitions/2025-12-03-derive-creates-readonly-cells-use-property-access.md
  */
@@ -41,11 +49,14 @@ export type Auth = {
   expiresIn: Default<number, 0>;
   expiresAt: Default<number, 0>;
   refreshToken: Default<Secret<string>, "">;
-  user: Default<{
-    email: string;
-    name: string;
-    picture: string;
-  }, { email: ""; name: ""; picture: "" }>;
+  user: Default<
+    {
+      email: string;
+      name: string;
+      picture: string;
+    },
+    { email: ""; name: ""; picture: "" }
+  >;
 };
 
 // Initialize turndown service
@@ -55,7 +66,7 @@ const turndown = new TurndownService({
   emDelimiter: "*",
 });
 
-const env = getPatternEnvironment();
+const _env = getPatternEnvironment();
 
 turndown.addRule("removeStyleTags", {
   filter: ["style"],
@@ -66,6 +77,7 @@ turndown.addRule("removeStyleTags", {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** An #email */
 export type Email = {
   // Unique identifier for the email
   id: string;
@@ -77,11 +89,11 @@ export type Email = {
   snippet: string;
   // Email subject line
   subject: string;
-  // Sender's email address
+  // Sender's #email-address
   from: string;
   // Date and time when the email was sent
   date: string;
-  // Recipient's email address
+  // Recipient's #email-address
   to: string;
   // Email content in plain text format (often empty)
   plainText: string;
@@ -89,6 +101,8 @@ export type Email = {
   htmlContent: string;
   // Email content converted to Markdown format. Often best for processing email contents.
   markdownContent: string;
+  // Summary for search indexing
+  summary: Default<string, "">;
 };
 
 type Settings = {
@@ -96,8 +110,6 @@ type Settings = {
   gmailFilterQuery: Default<string, "in:INBOX">;
   // Maximum number of emails to fetch
   limit: Default<number, 10>;
-  // Gmail history ID for incremental sync
-  historyId: Default<string, "">;
   // Enable verbose console logging for debugging
   debugMode: Default<boolean, false>;
   // Automatically fetch emails when auth becomes valid (opt-in)
@@ -110,9 +122,28 @@ type Settings = {
 
 /** Gmail email importer for fetching and viewing emails. #gmailEmails */
 interface Output {
+  [NAME]: string;
+  [UI]: VNode;
+  /** Array of imported emails */
   emails: Email[];
+  /** Mentionables — email cards with NAME and summary for search indexing */
+  mentionable: { [NAME]: string; summary: string; [UI]: VNode }[];
   /** Number of emails imported */
   emailCount: number;
+  /** Summary of container-level emails for hierarchical indexing */
+  summary: string;
+  /** Auth UI component for managing Google OAuth connection */
+  authUI: VNode;
+  /** Handler to trigger email fetch from external patterns */
+  bgUpdater: Stream<unknown>;
+  /** Whether auth is ready (has valid token) */
+  isReady: boolean;
+  // /** Search emails by query string (searches subject, from, snippet) */
+  // searchEmails: PatternToolResult<{ query: string }>;
+  // /** Get count of imported emails */
+  // getEmailCount: PatternToolResult<void>;
+  // /** Get recent emails as formatted string */
+  // getRecentEmails: PatternToolResult<{ count: number }>;
 }
 
 // Debug logging helpers - pass debugMode explicitly to avoid module-level state issues
@@ -123,118 +154,139 @@ function debugWarn(debugMode: boolean, ...args: unknown[]) {
   if (debugMode) console.warn("[GmailImporter]", ...args);
 }
 
-const updateLimit = handler<
+// Prefixed with _ as not currently used - preserved for potential future UI binding
+const _updateLimit = handler<
   { detail: { value: string } },
   { limit: Writable<number> }
->(
-  ({ detail }, state) => {
-    state.limit.set(parseInt(detail?.value ?? "100") || 0);
-  },
-);
+>(({ detail }, state) => {
+  state.limit.set(parseInt(detail?.value ?? "100") || 0);
+});
 
 // GmailClient is now imported from ./util/gmail-client.ts
 // This enables code reuse with gmail-agentic-search and ensures
 // consistent token refresh behavior across all Gmail patterns.
 
-const googleUpdater = handler<unknown, {
-  emails: Writable<Email[]>;
-  auth: Writable<Auth>;
-  settings: Writable<{
-    gmailFilterQuery: string;
-    limit: number;
-    historyId: string;
-    debugMode: boolean;
-    autoFetchOnAuth: boolean;
-    resolveInlineImages: boolean;
-  }>;
-  fetching?: Writable<boolean>;
-}>(
-  async (_event, state) => {
-    // Set fetching state if available
-    if (state.fetching) {
-      state.fetching.set(true);
-    }
-    const debugMode = state.settings.get().debugMode || false;
+const googleUpdater = handler<
+  unknown,
+  {
+    emails: SyncableWritable<Array<Writable<Email>>>;
+    auth: SyncableWritable<Auth>;
+    settings: SyncableWritable<
+      Default<
+        Settings,
+        {
+          gmailFilterQuery: "in:INBOX";
+          limit: 10;
+          debugMode: false;
+          autoFetchOnAuth: false;
+          resolveInlineImages: false;
+        }
+      >
+    >;
+    historyId: SyncableWritable<string>;
+    fetching?: Writable<boolean>;
+  }
+>(async (_event, state) => {
+  // Set fetching state if available
+  if (state.fetching) {
+    state.fetching.set(true);
+  }
 
-    debugLog(debugMode, "googleUpdater!");
+  // Ensure all cells are synced before proceeding,
+  // otherwise we may end up conflicting.
+  await Promise.all([
+    state.emails.sync(),
+    state.auth.sync(),
+    state.settings.sync(),
+    state.historyId.sync(),
+  ]);
 
-    if (!state.auth.get().token) {
-      debugWarn(debugMode, "no token found in auth cell");
-      if (state.fetching) state.fetching.set(false);
-      return;
-    }
+  const settings = state.settings.get() || {};
 
-    const settings = state.settings.get();
-    const gmailFilterQuery = settings.gmailFilterQuery;
+  const debugMode = settings.debugMode || false;
 
-    debugLog(debugMode, "gmailFilterQuery", gmailFilterQuery);
+  debugLog(debugMode, "googleUpdater!");
 
-    let result;
-    try {
-      result = await process(
-        state.auth,
-        settings.limit,
-        gmailFilterQuery,
-        { emails: state.emails, settings: state.settings },
-        debugMode,
-      );
-    } finally {
-      // Clear fetching state
-      if (state.fetching) state.fetching.set(false);
-    }
+  if (!state.auth.get()?.token) {
+    debugWarn(debugMode, "no token found in auth cell");
+    if (state.fetching) state.fetching.set(false);
+    return;
+  }
 
-    if (!result) return;
+  const gmailFilterQuery = settings.gmailFilterQuery;
 
-    // Handle deleted emails
-    if (result.deletedEmailIds && result.deletedEmailIds.length > 0) {
-      debugLog(
-        debugMode,
-        `Removing ${result.deletedEmailIds.length} deleted messages`,
-      );
-      const deleteSet = new Set(result.deletedEmailIds);
-      const currentEmails = state.emails.get();
-      const remainingEmails = currentEmails.filter((email) =>
-        !deleteSet.has(email.id)
-      );
-      state.emails.set(remainingEmails);
-    }
+  debugLog(debugMode, "gmailFilterQuery", gmailFilterQuery);
 
-    // Add new emails
-    if (result.newEmails && result.newEmails.length > 0) {
-      debugLog(debugMode, `Adding ${result.newEmails.length} new emails`);
-      state.emails.push(...result.newEmails);
-    }
+  let result;
+  try {
+    result = await process(
+      state.auth,
+      settings.limit,
+      gmailFilterQuery,
+      {
+        emails: state.emails,
+        historyId: state.historyId,
+        resolveInlineImages: settings.resolveInlineImages,
+      },
+      debugMode,
+    );
+  } finally {
+    // Clear fetching state
+    if (state.fetching) state.fetching.set(false);
+  }
 
-    // Update historyId
-    if (result.newHistoryId) {
-      const currentSettings = state.settings.get();
-      debugLog(debugMode, "=== UPDATING HISTORY ID ===");
-      debugLog(
-        debugMode,
-        "Previous historyId:",
-        currentSettings.historyId || "none",
-      );
-      debugLog(debugMode, "New historyId:", result.newHistoryId);
-      state.settings.set({
-        ...currentSettings,
-        historyId: result.newHistoryId,
-      });
-      debugLog(debugMode, "HistoryId updated successfully");
-      debugLog(debugMode, "==========================");
-    }
-  },
-);
+  if (!result) return;
 
-// Helper function to decode base64 encoded email parts
-function decodeBase64(data: string) {
+  // Handle deleted emails
+  if (result.deletedEmailIds && result.deletedEmailIds.length > 0) {
+    debugLog(
+      debugMode,
+      `Removing ${result.deletedEmailIds.length} deleted messages`,
+    );
+    const deleteSet = new Set(result.deletedEmailIds);
+    const currentEmails = state.emails.get();
+    const remainingEmails = currentEmails.filter(
+      (email) => !deleteSet.has(email.key("id").get()),
+    );
+    state.emails.set(remainingEmails);
+  }
+
+  // Add new emails
+  if (result.newEmails && result.newEmails.length > 0) {
+    debugLog(debugMode, `Adding ${result.newEmails.length} new emails`);
+    state.emails.push(...result.newEmails);
+  }
+
+  // Update historyId
+  if (result.newHistoryId) {
+    const previousHistoryId = state.historyId.get();
+    debugLog(debugMode, "=== UPDATING HISTORY ID ===");
+    debugLog(debugMode, "Previous historyId:", previousHistoryId || "none");
+    debugLog(debugMode, "New historyId:", result.newHistoryId);
+    state.historyId.set(result.newHistoryId);
+    debugLog(debugMode, "HistoryId updated successfully");
+    debugLog(debugMode, "==========================");
+  }
+});
+
+// Helper function to decode base64 encoded email parts with proper UTF-8 handling
+function decodeBase64(data: string): string {
   // Replace URL-safe characters back to their original form
   const sanitized = data.replace(/-/g, "+").replace(/_/g, "/");
-  // Decode the base64 string
-  return atob(sanitized);
+  // Decode the base64 string to binary
+  const binaryString = atob(sanitized);
+  // Convert binary string to Uint8Array for proper UTF-8 decoding
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  // Use TextDecoder to properly decode UTF-8
+  return new TextDecoder("utf-8").decode(bytes);
 }
 
 // Helper function to extract email address from a header value
-function extractEmailAddress(header: string): string {
+function extractEmailAddress(header: string | null | undefined): string {
+  if (!header) return "";
   const emailMatch = header.match(/<([^>]*)>/);
   if (emailMatch && emailMatch[1]) {
     return emailMatch[1];
@@ -243,11 +295,12 @@ function extractEmailAddress(header: string): string {
 }
 
 // Helper function to extract header value from message headers
-function getHeader(headers: any[], name: string): string {
-  const header = headers.find((h) =>
-    h.name.toLowerCase() === name.toLowerCase()
+function getHeader(headers: any[] | null | undefined, name: string): string {
+  if (!headers || !Array.isArray(headers)) return "";
+  const header = headers.find(
+    (h) => h?.name?.toLowerCase() === name.toLowerCase(),
   );
-  return header ? header.value : "";
+  return header?.value ?? "";
 }
 
 // Helper to escape special regex characters
@@ -265,6 +318,10 @@ function escapeRegExp(string: string): string {
  *
  * This is common in USPS Informed Delivery emails where mail piece scans
  * are embedded as inline attachments rather than external URLs.
+ *
+ * PERFORMANCE: Uses Promise.all() for parallel attachment fetching instead
+ * of sequential fetching, significantly reducing latency for emails with
+ * multiple inline images (e.g., USPS Informed Delivery with 5-10 mail scans).
  */
 async function resolveCidReferences(
   messageId: string,
@@ -309,36 +366,53 @@ async function resolveCidReferences(
 
   debugLog(
     debugMode,
-    `[CID] Found ${cidMap.size} inline attachments to resolve`,
+    `[CID] Found ${cidMap.size} inline attachments to resolve (fetching in parallel)`,
   );
 
-  // Fetch each attachment and replace in HTML
+  // Fetch all attachments in parallel using Promise.all for better performance
+  const cidEntries = Array.from(cidMap.entries());
+  const fetchResults = await Promise.all(
+    cidEntries.map(async ([cid, { attachmentId, mimeType }]) => {
+      try {
+        debugLog(debugMode, `[CID] Fetching attachment for cid:${cid}`);
+        const data = await client.getAttachment(messageId, attachmentId);
+        // Convert base64url to standard base64
+        const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        debugLog(
+          debugMode,
+          `[CID] Resolved cid:${cid} (${data.length} chars of base64 data)`,
+        );
+        return { cid, dataUrl, success: true as const };
+      } catch (error) {
+        debugWarn(
+          debugMode,
+          `[CID] Failed to fetch attachment for cid:${cid}:`,
+          error,
+        );
+        return { cid, dataUrl: null, success: false as const };
+      }
+    }),
+  );
+
+  // Apply all successful replacements to HTML
   let resolvedHtml = htmlContent;
-  for (const [cid, { attachmentId, mimeType }] of cidMap) {
-    try {
-      debugLog(debugMode, `[CID] Fetching attachment for cid:${cid}`);
-      const data = await client.getAttachment(messageId, attachmentId);
-      // Convert base64url to standard base64
-      const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
-      const dataUrl = `data:${mimeType};base64,${base64}`;
+  for (const result of fetchResults) {
+    if (result.success && result.dataUrl) {
       // Replace all occurrences of this cid: reference
       resolvedHtml = resolvedHtml.replace(
-        new RegExp(`cid:${escapeRegExp(cid)}`, "gi"),
-        dataUrl,
+        new RegExp(`cid:${escapeRegExp(result.cid)}`, "gi"),
+        result.dataUrl,
       );
-      debugLog(
-        debugMode,
-        `[CID] Resolved cid:${cid} (${data.length} chars of base64 data)`,
-      );
-    } catch (error) {
-      debugWarn(
-        debugMode,
-        `[CID] Failed to fetch attachment for cid:${cid}:`,
-        error,
-      );
-      // Leave cid: reference as-is on failure
     }
   }
+
+  debugLog(
+    debugMode,
+    `[CID] Batch resolution complete: ${
+      fetchResults.filter((r) => r.success).length
+    }/${cidEntries.length} successful`,
+  );
 
   return resolvedHtml;
 }
@@ -349,285 +423,294 @@ async function messageToEmail(
   client?: GmailClient,
   resolveInlineImages: boolean = false,
 ): Promise<Email[]> {
-  const results = await Promise.all(parts.map(async (messageData, index) => {
-    try {
-      // DEBUG: Log raw message structure
-      debugLog(
-        debugMode,
-        `\n[messageToEmail] Processing message ${index + 1}/${parts.length}`,
-      );
-      debugLog(debugMode, `[messageToEmail] Message ID: ${messageData.id}`);
-      debugLog(
-        debugMode,
-        `[messageToEmail] Has payload: ${!!messageData.payload}`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] Payload.parts length: ${
-          messageData.payload?.parts?.length || 0
-        }`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body
-          ?.data}`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`,
-      );
-
-      if (!messageData.payload?.headers) {
+  const results = await Promise.all(
+    parts.map(async (messageData, index) => {
+      try {
+        // DEBUG: Log raw message structure
         debugLog(
           debugMode,
-          "[messageToEmail] ERROR: Missing required message data:",
-          messageData,
+          `\n[messageToEmail] Processing message ${index + 1}/${parts.length}`,
         );
-        return null;
-      }
-
-      const messageHeaders = messageData.payload.headers;
-      const subject = getHeader(messageHeaders, "Subject");
-      const from = getHeader(messageHeaders, "From");
-      const to = getHeader(messageHeaders, "To");
-      const date = getHeader(messageHeaders, "Date");
-
-      debugLog(debugMode, `[messageToEmail] Subject: ${subject}`);
-      debugLog(debugMode, `[messageToEmail] From: ${from}`);
-
-      let plainText = "";
-      let htmlContent = "";
-
-      if (
-        messageData.payload.parts && Array.isArray(messageData.payload.parts)
-      ) {
+        debugLog(debugMode, `[messageToEmail] Message ID: ${messageData.id}`);
         debugLog(
           debugMode,
-          `[messageToEmail] Processing ${messageData.payload.parts.length} parts`,
-        );
-
-        // Log structure of each part
-        messageData.payload.parts.forEach((part: any, partIndex: number) => {
-          debugLog(debugMode, `[messageToEmail] Part ${partIndex + 1}:`);
-          debugLog(debugMode, `  - mimeType: ${part.mimeType}`);
-          debugLog(debugMode, `  - Has body: ${!!part.body}`);
-          debugLog(debugMode, `  - Has body.data: ${!!part.body?.data}`);
-          debugLog(debugMode, `  - body.size: ${part.body?.size || 0}`);
-          debugLog(debugMode, `  - Has nested parts: ${!!part.parts}`);
-          debugLog(
-            debugMode,
-            `  - Nested parts length: ${part.parts?.length || 0}`,
-          );
-        });
-
-        // Look for plainText part
-        const textPart = messageData.payload.parts.find(
-          (part: any) => part.mimeType === "text/plain",
+          `[messageToEmail] Has payload: ${!!messageData.payload}`,
         );
         debugLog(
           debugMode,
-          `[messageToEmail] Found text/plain part: ${!!textPart}`,
+          `[messageToEmail] Has payload.parts: ${!!messageData.payload?.parts}`,
         );
-        if (textPart?.body?.data) {
-          plainText = decodeBase64(textPart.body.data);
+        debugLog(
+          debugMode,
+          `[messageToEmail] Payload.parts length: ${
+            messageData.payload?.parts?.length || 0
+          }`,
+        );
+        debugLog(
+          debugMode,
+          `[messageToEmail] Has payload.body: ${!!messageData.payload?.body}`,
+        );
+        debugLog(
+          debugMode,
+          `[messageToEmail] Has payload.body.data: ${!!messageData.payload?.body
+            ?.data}`,
+        );
+        debugLog(
+          debugMode,
+          `[messageToEmail] Payload.mimeType: ${messageData.payload?.mimeType}`,
+        );
+
+        if (!messageData.payload?.headers) {
           debugLog(
             debugMode,
-            `[messageToEmail] Decoded plainText length: ${plainText.length}`,
+            "[messageToEmail] ERROR: Missing required message data:",
+            messageData,
           );
-        } else {
-          debugLog(
-            debugMode,
-            `[messageToEmail] text/plain part has no body.data`,
-          );
+          return null;
         }
 
-        // Look for HTML part
-        const htmlPart = messageData.payload.parts.find(
-          (part: any) => part.mimeType === "text/html",
-        );
-        debugLog(
-          debugMode,
-          `[messageToEmail] Found text/html part: ${!!htmlPart}`,
-        );
-        if (htmlPart?.body?.data) {
-          htmlContent = decodeBase64(htmlPart.body.data);
-          debugLog(
-            debugMode,
-            `[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`,
-          );
-        } else {
-          debugLog(
-            debugMode,
-            `[messageToEmail] text/html part has no body.data`,
-          );
-        }
+        const messageHeaders = messageData.payload.headers;
+        const subject = getHeader(messageHeaders, "Subject");
+        const from = getHeader(messageHeaders, "From");
+        const to = getHeader(messageHeaders, "To");
+        const date = getHeader(messageHeaders, "Date");
 
-        // Handle multipart messages - check for nested parts
-        if (htmlContent === "") {
+        debugLog(debugMode, `[messageToEmail] Subject: ${subject}`);
+        debugLog(debugMode, `[messageToEmail] From: ${from}`);
+
+        let plainText = "";
+        let htmlContent = "";
+
+        if (
+          messageData.payload.parts &&
+          Array.isArray(messageData.payload.parts)
+        ) {
           debugLog(
             debugMode,
-            `[messageToEmail] No HTML found in top-level parts, checking nested parts...`,
+            `[messageToEmail] Processing ${messageData.payload.parts.length} parts`,
           );
-          for (const part of messageData.payload.parts) {
-            if (part.parts && Array.isArray(part.parts)) {
-              debugLog(
-                debugMode,
-                `[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`,
-              );
-              const nestedHtmlPart = part.parts.find(
-                (nestedPart: any) => nestedPart.mimeType === "text/html",
-              );
-              if (nestedHtmlPart?.body?.data) {
-                htmlContent = decodeBase64(nestedHtmlPart.body.data);
+
+          // Log structure of each part
+          messageData.payload.parts.forEach((part: any, partIndex: number) => {
+            debugLog(debugMode, `[messageToEmail] Part ${partIndex + 1}:`);
+            debugLog(debugMode, `  - mimeType: ${part.mimeType}`);
+            debugLog(debugMode, `  - Has body: ${!!part.body}`);
+            debugLog(debugMode, `  - Has body.data: ${!!part.body?.data}`);
+            debugLog(debugMode, `  - body.size: ${part.body?.size || 0}`);
+            debugLog(debugMode, `  - Has nested parts: ${!!part.parts}`);
+            debugLog(
+              debugMode,
+              `  - Nested parts length: ${part.parts?.length || 0}`,
+            );
+          });
+
+          // Look for plainText part
+          const textPart = messageData.payload.parts.find(
+            (part: any) => part.mimeType === "text/plain",
+          );
+          debugLog(
+            debugMode,
+            `[messageToEmail] Found text/plain part: ${!!textPart}`,
+          );
+          if (textPart?.body?.data) {
+            plainText = decodeBase64(textPart.body.data);
+            debugLog(
+              debugMode,
+              `[messageToEmail] Decoded plainText length: ${plainText.length}`,
+            );
+          } else {
+            debugLog(
+              debugMode,
+              `[messageToEmail] text/plain part has no body.data`,
+            );
+          }
+
+          // Look for HTML part
+          const htmlPart = messageData.payload.parts.find(
+            (part: any) => part.mimeType === "text/html",
+          );
+          debugLog(
+            debugMode,
+            `[messageToEmail] Found text/html part: ${!!htmlPart}`,
+          );
+          if (htmlPart?.body?.data) {
+            htmlContent = decodeBase64(htmlPart.body.data);
+            debugLog(
+              debugMode,
+              `[messageToEmail] Decoded htmlContent length: ${htmlContent.length}`,
+            );
+          } else {
+            debugLog(
+              debugMode,
+              `[messageToEmail] text/html part has no body.data`,
+            );
+          }
+
+          // Handle multipart messages - check for nested parts
+          if (htmlContent === "") {
+            debugLog(
+              debugMode,
+              `[messageToEmail] No HTML found in top-level parts, checking nested parts...`,
+            );
+            for (const part of messageData.payload.parts) {
+              if (part.parts && Array.isArray(part.parts)) {
                 debugLog(
                   debugMode,
-                  `[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`,
+                  `[messageToEmail] Found nested parts container with ${part.parts.length} nested parts`,
                 );
-                break;
+                const nestedHtmlPart = part.parts.find(
+                  (nestedPart: any) => nestedPart.mimeType === "text/html",
+                );
+                if (nestedHtmlPart?.body?.data) {
+                  htmlContent = decodeBase64(nestedHtmlPart.body.data);
+                  debugLog(
+                    debugMode,
+                    `[messageToEmail] Found HTML in nested part, length: ${htmlContent.length}`,
+                  );
+                  break;
+                }
               }
             }
           }
-        }
-      } else if (messageData.payload.body?.data) {
-        debugLog(debugMode, `[messageToEmail] Single part message`);
-        debugLog(
-          debugMode,
-          `[messageToEmail] body.size: ${messageData.payload.body.size}`,
-        );
-        const bodyData = decodeBase64(messageData.payload.body.data);
-        debugLog(
-          debugMode,
-          `[messageToEmail] Decoded body length: ${bodyData.length}`,
-        );
-        if (messageData.payload.mimeType === "text/html") {
-          htmlContent = bodyData;
-          debugLog(debugMode, `[messageToEmail] Set as htmlContent`);
-        } else {
-          plainText = bodyData;
-          debugLog(debugMode, `[messageToEmail] Set as plainText`);
-        }
-      } else {
-        debugLog(
-          debugMode,
-          `[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`,
-        );
-      }
-
-      // Resolve inline image attachments (cid: references) if enabled
-      if (resolveInlineImages && client && htmlContent) {
-        debugLog(debugMode, `[messageToEmail] Resolving CID references...`);
-        const allParts = messageData.payload.parts || [messageData.payload];
-        htmlContent = await resolveCidReferences(
-          messageData.id,
-          allParts,
-          htmlContent,
-          client,
-          debugMode,
-        );
-        debugLog(
-          debugMode,
-          `[messageToEmail] CID resolution complete, htmlContent length: ${htmlContent.length}`,
-        );
-      }
-
-      // Generate markdown content from HTML or plainText
-      let markdownContent = "";
-      debugLog(debugMode, `[messageToEmail] Converting to markdown...`);
-      debugLog(
-        debugMode,
-        `[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`,
-      );
-
-      if (htmlContent) {
-        debugLog(debugMode, `[messageToEmail] Converting HTML to markdown...`);
-        try {
-          // Convert HTML to markdown using our custom converter
-          markdownContent = turndown.turndown(htmlContent);
+        } else if (messageData.payload.body?.data) {
+          debugLog(debugMode, `[messageToEmail] Single part message`);
           debugLog(
             debugMode,
-            `[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`,
+            `[messageToEmail] body.size: ${messageData.payload.body.size}`,
           );
-        } catch (error) {
-          if (debugMode) {
-            console.error(
-              "[messageToEmail] Error converting HTML to markdown:",
-              error,
+          const bodyData = decodeBase64(messageData.payload.body.data);
+          debugLog(
+            debugMode,
+            `[messageToEmail] Decoded body length: ${bodyData.length}`,
+          );
+          if (messageData.payload.mimeType === "text/html") {
+            htmlContent = bodyData;
+            debugLog(debugMode, `[messageToEmail] Set as htmlContent`);
+          } else {
+            plainText = bodyData;
+            debugLog(debugMode, `[messageToEmail] Set as plainText`);
+          }
+        } else {
+          debugLog(
+            debugMode,
+            `[messageToEmail] ERROR: No payload.parts and no payload.body.data - message has NO CONTENT SOURCE!`,
+          );
+        }
+
+        // Resolve inline image attachments (cid: references) if enabled
+        if (resolveInlineImages && client && htmlContent) {
+          debugLog(debugMode, `[messageToEmail] Resolving CID references...`);
+          const allParts = messageData.payload.parts || [messageData.payload];
+          htmlContent = await resolveCidReferences(
+            messageData.id,
+            allParts,
+            htmlContent,
+            client,
+            debugMode,
+          );
+          debugLog(
+            debugMode,
+            `[messageToEmail] CID resolution complete, htmlContent length: ${htmlContent.length}`,
+          );
+        }
+
+        // Generate markdown content from HTML or plainText
+        let markdownContent = "";
+        debugLog(debugMode, `[messageToEmail] Converting to markdown...`);
+        debugLog(
+          debugMode,
+          `[messageToEmail] - Has htmlContent: ${!!htmlContent}, length: ${htmlContent.length}`,
+        );
+        debugLog(
+          debugMode,
+          `[messageToEmail] - Has plainText: ${!!plainText}, length: ${plainText.length}`,
+        );
+
+        if (htmlContent) {
+          debugLog(
+            debugMode,
+            `[messageToEmail] Converting HTML to markdown...`,
+          );
+          try {
+            // Convert HTML to markdown using our custom converter
+            markdownContent = turndown.turndown(htmlContent);
+            debugLog(
+              debugMode,
+              `[messageToEmail] Markdown conversion successful, length: ${markdownContent.length}`,
+            );
+          } catch (error) {
+            if (debugMode) {
+              console.error(
+                "[messageToEmail] Error converting HTML to markdown:",
+                error,
+              );
+            }
+            // Fallback to plainText if HTML conversion fails
+            markdownContent = plainText;
+            debugLog(
+              debugMode,
+              `[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`,
             );
           }
-          // Fallback to plainText if HTML conversion fails
+        } else {
+          // Use plainText as fallback if no HTML content
+          debugLog(
+            debugMode,
+            `[messageToEmail] No HTML, using plainText as markdown`,
+          );
           markdownContent = plainText;
           debugLog(
             debugMode,
-            `[messageToEmail] Fell back to plainText, length: ${markdownContent.length}`,
+            `[messageToEmail] Final markdown length: ${markdownContent.length}`,
           );
         }
-      } else {
-        // Use plainText as fallback if no HTML content
+
+        debugLog(debugMode, `[messageToEmail] === FINAL EMAIL CONTENT ===`);
         debugLog(
           debugMode,
-          `[messageToEmail] No HTML, using plainText as markdown`,
+          `[messageToEmail] plainText: ${plainText.length} chars`,
         );
-        markdownContent = plainText;
         debugLog(
           debugMode,
-          `[messageToEmail] Final markdown length: ${markdownContent.length}`,
+          `[messageToEmail] htmlContent: ${htmlContent.length} chars`,
         );
-      }
-
-      debugLog(debugMode, `[messageToEmail] === FINAL EMAIL CONTENT ===`);
-      debugLog(
-        debugMode,
-        `[messageToEmail] plainText: ${plainText.length} chars`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] htmlContent: ${htmlContent.length} chars`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] markdownContent: ${markdownContent.length} chars`,
-      );
-      debugLog(
-        debugMode,
-        `[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`,
-      );
-      debugLog(debugMode, `[messageToEmail] ===========================\n`);
-
-      return {
-        id: messageData.id,
-        threadId: messageData.threadId,
-        labelIds: messageData.labelIds || ["INBOX"],
-        snippet: messageData.snippet || "",
-        subject,
-        from: extractEmailAddress(from),
-        date,
-        to: extractEmailAddress(to),
-        plainText,
-        htmlContent,
-        markdownContent,
-      };
-    } catch (error: any) {
-      if (debugMode) {
-        console.error(
-          "Error processing message part:",
-          "message" in error ? error.message : error,
+        debugLog(
+          debugMode,
+          `[messageToEmail] markdownContent: ${markdownContent.length} chars`,
         );
+        debugLog(
+          debugMode,
+          `[messageToEmail] snippet: ${messageData.snippet?.length || 0} chars`,
+        );
+        debugLog(debugMode, `[messageToEmail] ===========================\n`);
+
+        return {
+          id: messageData.id,
+          threadId: messageData.threadId,
+          labelIds: messageData.labelIds || ["INBOX"],
+          snippet: messageData.snippet || "",
+          subject,
+          from: extractEmailAddress(from),
+          date,
+          to: extractEmailAddress(to),
+          plainText,
+          htmlContent,
+          markdownContent,
+          summary: `${subject} from ${extractEmailAddress(from)}: ${
+            messageData.snippet || ""
+          }`,
+        };
+      } catch (error: any) {
+        if (debugMode) {
+          console.error(
+            "Error processing message part:",
+            "message" in error ? error.message : error,
+          );
+        }
+        return null;
       }
-      return null;
-    }
-  }));
+    }),
+  );
   return results.filter((message): message is Email => message !== null);
 }
 
@@ -636,20 +719,17 @@ export async function process(
   maxResults: number = 100,
   gmailFilterQuery: string = "in:INBOX",
   state: {
-    emails: Writable<Email[]>;
-    settings: Writable<
-      {
-        gmailFilterQuery: string;
-        limit: number;
-        historyId: string;
-        resolveInlineImages?: boolean;
-      }
-    >;
+    emails: Writable<Array<Writable<Email>>>;
+    historyId: Writable<string>;
+    resolveInlineImages?: boolean;
   },
   debugMode: boolean = false,
 ): Promise<
-  | { newHistoryId?: string; newEmails?: Email[]; deletedEmailIds?: string[] }
-  | void
+  {
+    newHistoryId?: string;
+    newEmails?: Email[];
+    deletedEmailIds?: string[];
+  } | void
 > {
   if (!auth.get()) {
     debugWarn(debugMode, "no token");
@@ -657,7 +737,7 @@ export async function process(
   }
 
   const client = new GmailClient(auth, { debugMode });
-  const currentHistoryId = state.settings.get().historyId;
+  const currentHistoryId = state.historyId.get();
 
   let newHistoryId: string | null = null;
   let messagesToFetch: string[] = [];
@@ -666,8 +746,11 @@ export async function process(
 
   // Get existing email IDs and create a map for efficient updates
   const existingEmails = state.emails.get();
-  const existingEmailIds = new Set(existingEmails.map((email) => email.id));
-  const emailMap = new Map(existingEmails.map((email) => [email.id, email]));
+  const emailMap = new Map<string, Writable<Email>>();
+  for (const email of existingEmails) {
+    emailMap.set(email.key("id").get(), email);
+  }
+  const existingEmailIds = new Set(emailMap.keys());
 
   // Try incremental sync if we have a historyId
   if (currentHistoryId) {
@@ -776,9 +859,10 @@ export async function process(
                   item.labelIds,
                 );
                 // Add new labels
-                const newLabels = new Set(email.labelIds);
+                const labelCell = email.key("labelIds");
+                const newLabels = new Set(labelCell.get());
                 item.labelIds.forEach((label) => newLabels.add(label));
-                email.labelIds = Array.from(newLabels);
+                labelCell.set(Array.from(newLabels));
               }
             }
           }
@@ -797,9 +881,10 @@ export async function process(
                   item.labelIds,
                 );
                 // Remove labels
-                const labelSet = new Set(email.labelIds);
+                const labelCell = email.key("labelIds");
+                const labelSet = new Set(labelCell.get());
                 item.labelIds.forEach((label) => labelSet.delete(label));
-                email.labelIds = Array.from(labelSet);
+                labelCell.set(Array.from(labelSet));
               }
             }
           }
@@ -881,24 +966,19 @@ export async function process(
       debugLog(
         debugMode,
         `Processing batch ${i / batchSize + 1} of ${
-          Math.ceil(messagesToFetch.length / batchSize)
+          Math.ceil(
+            messagesToFetch.length / batchSize,
+          )
         }`,
       );
 
       try {
         await sleep(1000);
         const fetched = await client.fetchMessagesByIds(batchIds);
-        const currentSettings = state.settings.get();
-        const resolveInlineImages = currentSettings.resolveInlineImages ||
-          false;
+        const resolveInlineImages = state.resolveInlineImages || false;
         debugLog(
           debugMode,
           `[process] resolveInlineImages setting: ${resolveInlineImages}`,
-        );
-        debugLog(
-          debugMode,
-          `[process] Full settings:`,
-          JSON.stringify(currentSettings),
         );
         const emails = await messageToEmail(
           fetched,
@@ -932,446 +1012,414 @@ export async function process(
   };
 }
 
-const updateGmailFilterQuery = handler<
+// Prefixed with _ as not currently used - preserved for potential future UI binding
+const _updateGmailFilterQuery = handler<
   { detail: { value: string } },
   { gmailFilterQuery: Writable<string> }
->(
-  ({ detail }, state) => {
-    state.gmailFilterQuery.set(detail?.value ?? "in:INBOX");
-  },
-);
+>(({ detail }, state) => {
+  state.gmailFilterQuery.set(detail?.value ?? "in:INBOX");
+});
 
 const toggleDebugMode = handler<
   { target: { checked: boolean } },
   { settings: Writable<Settings> }
->(
-  ({ target }, { settings }) => {
-    const current = settings.get();
-    settings.set({ ...current, debugMode: target.checked });
-  },
-);
+>(({ target }, { settings }) => {
+  const current = settings.get();
+  settings.set({ ...current, debugMode: target.checked });
+});
 
 const toggleAutoFetch = handler<
   { target: { checked: boolean } },
   { settings: Writable<Settings> }
->(
-  ({ target }, { settings }) => {
-    const current = settings.get();
-    settings.set({ ...current, autoFetchOnAuth: target.checked });
-  },
-);
+>(({ target }, { settings }) => {
+  const current = settings.get();
+  settings.set({ ...current, autoFetchOnAuth: target.checked });
+});
 
 const toggleResolveInlineImages = handler<
   { target: { checked: boolean } },
   { settings: Writable<Settings> }
->(
-  ({ target }, { settings }) => {
-    const current = settings.get();
-    settings.set({ ...current, resolveInlineImages: target.checked });
-  },
-);
-
-// Handler to change account type - must be at module scope
-const setAccountType = handler<
-  { target: { value: string } },
-  { selectedType: Writable<AccountType> }
->((event, state) => {
-  const newType = event.target.value as AccountType;
-  console.log("[GmailImporter] Account type changed to:", newType);
-  state.selectedType.set(newType);
+>(({ target }, { settings }) => {
+  const current = settings.get();
+  settings.set({ ...current, resolveInlineImages: target.checked });
 });
 
-// Pattern tool callbacks - must be defined at module scope
-const searchEmailsCallback = (
-  { query, emails }: { query: string; emails: Email[] },
-) => {
-  return derive({ query, emails }, ({ query, emails }) => {
-    if (!query || !emails) return [];
-    const lowerQuery = query.toLowerCase();
-    return emails.filter((email) =>
-      email.subject?.toLowerCase().includes(lowerQuery) ||
-      email.from?.toLowerCase().includes(lowerQuery) ||
-      email.snippet?.toLowerCase().includes(lowerQuery)
-    );
-  });
-};
+const EmailCard = pattern<
+  { email: Email },
+  { [NAME]: string; summary: string; [UI]: VNode }
+>(({ email }) => ({
+  [NAME]: computed(() => email.subject),
+  summary: str`${email.subject} from ${email.from}: ${email.snippet}`,
+  [UI]: (
+    <div
+      style={{
+        padding: "12px",
+        border: "1px solid #e0e0e0",
+        borderRadius: "8px",
+        backgroundColor: "#fafafa",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "16px",
+          fontWeight: "bold",
+          marginBottom: "4px",
+          color: "#333",
+        }}
+      >
+        {email.subject}
+      </div>
+      <div
+        style={{
+          fontSize: "14px",
+          color: "#666",
+          marginBottom: "8px",
+        }}
+      >
+        From: {email.from}
+      </div>
+      <div
+        style={{
+          fontSize: "14px",
+          color: "#555",
+          lineHeight: "1.4",
+        }}
+      >
+        {email.snippet}
+      </div>
+    </div>
+  ),
+}));
 
-const getEmailCountCallback = ({ emails }: { emails: Email[] }) => {
-  return derive(emails, (list: Email[]) => list?.length || 0);
-};
-
-const getRecentEmailsCallback = (
-  { count, emails }: { count: number; emails: Email[] },
-) => {
-  return derive({ count, emails }, ({ count, emails }) => {
-    if (!emails || emails.length === 0) return "No emails";
-    const recent = emails.slice(0, count || 5);
-    return recent.map((email) =>
-      `From: ${email.from}\nSubject: ${email.subject}\nDate: ${
-        new Date(email.date).toLocaleDateString()
-      }`
-    ).join("\n\n");
-  });
-};
-
-export default pattern<{
-  settings: Default<Settings, {
-    gmailFilterQuery: "in:INBOX";
-    limit: 10;
-    historyId: "";
-    debugMode: false;
-    autoFetchOnAuth: false;
-    resolveInlineImages: false;
-  }>;
-  // Optional: Link auth directly from a Google Auth charm when wish() is unavailable
-  // Use: ct charm link googleAuthCharm/auth gmailImporterCharm/linkedAuth
-  linkedAuth?: Auth;
-}, Output>(
-  ({ settings, linkedAuth }) => {
-    const emails = Writable.of<Confidential<Email[]>>([]);
-    const fetching = Writable.of(false);
-
-    // Local writable cell for account type selection
-    const selectedAccountType = Writable.of<AccountType>("default");
-
-    // Use createGoogleAuth utility with reactive accountType
-    const {
-      auth: wishedAuth,
-      fullUI,
-      isReady: wishedIsReady,
-      currentEmail: wishedCurrentEmail,
-    } = createGoogleAuth({
-      requiredScopes: ["gmail"] as ScopeKey[],
-      accountType: selectedAccountType,
-    });
-
-    // Check if linkedAuth is provided (for manual linking when wish() is unavailable)
-    const hasLinkedAuth = derive(
-      { linkedAuth },
-      ({ linkedAuth: la }) => !!(la?.token),
-    );
-    const linkedAuthEmail = derive(
-      { linkedAuth },
-      ({ linkedAuth: la }) => la?.user?.email || "",
-    );
-
-    // Use linkedAuth if provided, otherwise use wished auth
-    // This allows manual linking via CLI when wish() is unavailable (e.g., favorites disabled)
-    // Note: We wrap linkedAuth in Writable.of outside of reactive context
-    const linkedAuthCell = Writable.of<Auth | null>(null);
-    computed(() => {
-      if (linkedAuth?.token) {
-        linkedAuthCell.set(linkedAuth as any);
+export default pattern<
+  {
+    settings: Default<
+      Settings,
+      {
+        gmailFilterQuery: "in:INBOX";
+        limit: 10;
+        debugMode: false;
+        autoFetchOnAuth: false;
+        resolveInlineImages: false;
       }
-    });
+    >;
+    // Optional: Link auth directly from a Google Auth piece when wish() is unavailable
+    // Use: ct piece link googleAuthPiece/auth gmailImporterPiece/overrideAuth
+    overrideAuth?: Auth;
+  },
+  Output
+>(({ settings, overrideAuth }) => {
+  const emails = Writable.of<Confidential<Email[]>>([]).for("emails");
+  const historyId = Writable.of("").for("historyId");
+  const fetching = Writable.of(false).for("fetching");
 
-    // Choose auth source based on linkedAuth availability
-    const auth = ifElse(hasLinkedAuth, linkedAuthCell, wishedAuth) as any;
-    const isReady = ifElse(hasLinkedAuth, hasLinkedAuth, wishedIsReady);
-    const currentEmail = ifElse(
-      hasLinkedAuth,
-      linkedAuthEmail,
-      wishedCurrentEmail,
-    );
+  // Use auth manager with required scopes
+  const authManager = GoogleAuthManagerMinimal({
+    requiredScopes: ["gmail"],
+  });
 
-    computed(() => {
+  const wishedAuth = authManager.auth;
+  const authUI = authManager[UI];
+
+  const auth = ifElse(overrideAuth.token, overrideAuth, wishedAuth);
+  const isReady = computed(() => !!auth.token);
+  const currentEmail = computed(() => auth.user?.email ?? "");
+
+  const summary = computed(() => {
+    const emailList = emails.get();
+    return emailList
+      .slice(0, 20)
+      .map((e: any) => e?.summary ?? e?.subject ?? "")
+      .filter((s: string) => s.length > 0)
+      .join(" | ");
+  });
+
+  const googleUpdaterStream = googleUpdater({
+    emails,
+    auth,
+    settings,
+    historyId,
+    fetching,
+  });
+
+  computed(() => {
+    if (settings.debugMode) {
+      console.log("retrieved emails", emails.get().length);
+    }
+  });
+
+  // Auto-fetch when auth becomes valid (opt-in feature)
+  // Track whether we've already triggered auto-fetch to prevent loops
+  const hasAutoFetched = Writable.of(false).for("auto fetched");
+
+  computed(() => {
+    const ready = isReady;
+    const autoFetch = settings.autoFetchOnAuth;
+    const alreadyFetched = hasAutoFetched.get();
+    const currentlyFetching = fetching.get();
+    const hasEmails = emails.get().length > 0;
+    const hasHistoryId = !!historyId.get();
+
+    // Only auto-fetch once when:
+    // - Auth is ready
+    // - autoFetchOnAuth is enabled
+    // - We haven't already auto-fetched this session
+    // - Not currently fetching
+    // - No emails loaded yet (first load)
+    if (
+      ready &&
+      autoFetch &&
+      !alreadyFetched &&
+      !currentlyFetching &&
+      !hasEmails &&
+      !hasHistoryId
+    ) {
       if (settings.debugMode) {
-        console.log("emails", emails.get().length);
+        console.log("[GmailImporter] Auto-fetching emails on auth ready");
       }
-    });
+      hasAutoFetched.set(true);
+      // Trigger the fetch handler
+      googleUpdaterStream.send({});
+    }
+  });
 
-    // Auto-fetch when auth becomes valid (opt-in feature)
-    // Track whether we've already triggered auto-fetch to prevent loops
-    const hasAutoFetched = Writable.of(false);
+  return {
+    [NAME]: str`GMail Importer ${currentEmail}`,
+    [UI]: (
+      <ct-screen>
+        <div slot="header">
+          <ct-heading level={3}>Gmail Importer</ct-heading>
+        </div>
 
-    computed(() => {
-      const ready = isReady;
-      const autoFetch = settings.autoFetchOnAuth;
-      const alreadyFetched = hasAutoFetched.get();
-      const currentlyFetching = fetching.get();
-      const hasEmails = emails.get().length > 0;
-      const hasHistoryId = !!settings.historyId;
+        <ct-vscroll flex showScrollbar>
+          <ct-vstack padding="6" gap="4">
+            {/* Auth management UI */}
+            {authUI}
 
-      // Only auto-fetch once when:
-      // - Auth is ready
-      // - autoFetchOnAuth is enabled
-      // - We haven't already auto-fetched this session
-      // - Not currently fetching
-      // - No emails loaded yet (first load)
-      if (
-        ready && autoFetch && !alreadyFetched && !currentlyFetching &&
-        !hasEmails && !hasHistoryId
-      ) {
-        if (settings.debugMode) {
-          console.log("[GmailImporter] Auto-fetching emails on auth ready");
-        }
-        hasAutoFetched.set(true);
-        // Trigger the fetch handler
-        googleUpdater({
-          emails,
-          auth,
-          settings,
-          fetching,
-        }).send({});
-      }
-    });
+            <h3 style={{ fontSize: "18px", fontWeight: "bold" }}>
+              Imported email count: {computed(() => emails.get().length)}
+            </h3>
 
-    return {
-      [NAME]: str`GMail Importer ${currentEmail}`,
-      [UI]: (
-        <ct-screen>
-          <div slot="header">
-            <ct-hstack align="center" gap="2">
-              <ct-heading level={3}>Gmail Importer</ct-heading>
+            <div style={{ fontSize: "14px", color: "#666" }}>
+              historyId: {historyId || "none"}
+            </div>
 
-              {/* Account type selector for multi-account support */}
-              <select
-                onChange={setAccountType({ selectedType: selectedAccountType })}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: "4px",
-                  border: "1px solid #d1d5db",
-                  fontSize: "12px",
-                  backgroundColor: derive(
-                    selectedAccountType,
-                    (type: AccountType) => {
-                      switch (type) {
-                        case "personal":
-                          return "#dbeafe"; // blue tint
-                        case "work":
-                          return "#fee2e2"; // red tint
-                        default:
-                          return "#fff";
-                      }
-                    },
-                  ),
-                }}
-              >
-                <option
-                  value="default"
-                  selected={derive(
-                    selectedAccountType,
-                    (t: string) => t === "default",
-                  )}
+            <ct-vstack gap="4">
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "4px",
+                    fontSize: "14px",
+                  }}
                 >
-                  Any Account
-                </option>
-                <option
-                  value="personal"
-                  selected={derive(selectedAccountType, (t: string) =>
-                    t === "personal")}
-                >
-                  Personal
-                </option>
-                <option
-                  value="work"
-                  selected={derive(selectedAccountType, (t: string) =>
-                    t === "work")}
-                >
-                  Work
-                </option>
-              </select>
-            </ct-hstack>
-          </div>
-
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack padding="6" gap="4">
-              {/* Auth management UI */}
-              {fullUI}
-
-              <h3 style={{ fontSize: "18px", fontWeight: "bold" }}>
-                Imported email count: {computed(() =>
-                  emails.get().length
-                )}
-              </h3>
-
-              <div style={{ fontSize: "14px", color: "#666" }}>
-                historyId: {settings.historyId || "none"}
+                  Import Limit
+                </label>
+                <ct-input
+                  type="number"
+                  $value={settings.limit}
+                  placeholder="count of emails to import"
+                />
               </div>
-
-              <ct-vstack gap="4">
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "4px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    Import Limit
-                  </label>
-                  <ct-input
-                    type="number"
-                    $value={settings.limit}
-                    placeholder="count of emails to import"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "4px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    Gmail Filter Query
-                  </label>
-                  <ct-input
-                    type="text"
-                    $value={settings.gmailFilterQuery}
-                    placeholder="in:INBOX"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.autoFetchOnAuth}
-                      onChange={toggleAutoFetch({ settings })}
-                    />
-                    Auto-fetch on auth (fetch emails automatically when
-                    connected)
-                  </label>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.resolveInlineImages}
-                      onChange={toggleResolveInlineImages({ settings })}
-                    />
-                    Resolve inline images (for USPS, etc. - slower)
-                  </label>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={settings.debugMode}
-                      onChange={toggleDebugMode({ settings })}
-                    />
-                    Debug Mode (verbose console logging)
-                  </label>
-                </div>
-                {ifElse(
-                  isReady,
-                  <ct-button
-                    type="button"
-                    onClick={googleUpdater({
-                      emails,
-                      auth,
-                      settings,
-                      fetching,
-                    })}
-                    disabled={fetching}
-                  >
-                    {ifElse(
-                      fetching,
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <ct-loader size="sm" show-elapsed></ct-loader>
-                        Fetching...
-                      </span>,
-                      "Fetch Emails",
-                    )}
-                  </ct-button>,
-                  null,
-                )}
-              </ct-vstack>
 
               <div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ padding: "10px" }}>DATE</th>
-                      <th style={{ padding: "10px" }}>SUBJECT</th>
-                      <th style={{ padding: "10px" }}>LABEL</th>
-                      <th style={{ padding: "10px" }}>CONTENT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {emails.map((email) => (
-                      <tr>
-                        <td
-                          style={{ border: "1px solid black", padding: "10px" }}
-                        >
-                          &nbsp;{email.date}&nbsp;
-                        </td>
-                        <td
-                          style={{ border: "1px solid black", padding: "10px" }}
-                        >
-                          &nbsp;{email.subject}&nbsp;
-                        </td>
-                        <td
-                          style={{ border: "1px solid black", padding: "10px" }}
-                        >
-                          &nbsp;{derive(
-                            email,
-                            (email) => email?.labelIds?.join(", "),
-                          )}&nbsp;
-                        </td>
-                        <td
-                          style={{ border: "1px solid black", padding: "10px" }}
-                        >
-                          <details>
-                            <summary>Show Markdown</summary>
-                            <pre
-                              style={{
-                                whiteSpace: "pre-wrap",
-                                maxHeight: "300px",
-                                overflowY: "auto",
-                              }}
-                            >
-                          {email.markdownContent}
-                            </pre>
-                          </details>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "4px",
+                    fontSize: "14px",
+                  }}
+                >
+                  Gmail Filter Query
+                </label>
+                <ct-input
+                  type="text"
+                  $value={settings.gmailFilterQuery}
+                  placeholder="in:INBOX"
+                />
               </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={settings.autoFetchOnAuth}
+                    onChange={toggleAutoFetch({ settings })}
+                  />
+                  Auto-fetch on auth (fetch emails automatically when connected)
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={settings.resolveInlineImages}
+                    onChange={toggleResolveInlineImages({ settings })}
+                  />
+                  Resolve inline images (for USPS, etc. - slower)
+                </label>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={settings.debugMode}
+                    onChange={toggleDebugMode({ settings })}
+                  />
+                  Debug Mode (verbose console logging)
+                </label>
+              </div>
+              {ifElse(
+                isReady,
+                <ct-button
+                  type="button"
+                  onClick={googleUpdaterStream}
+                  disabled={fetching}
+                >
+                  {ifElse(
+                    fetching,
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      Fetching...
+                    </span>,
+                    "Fetch Emails",
+                  )}
+                </ct-button>,
+                null,
+              )}
             </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
-      ),
-      emails,
-      emailCount: derive(emails, (list: Email[]) => list?.length || 0),
-      bgUpdater: googleUpdater({ emails, auth, settings }),
-      // Pattern tools for omnibot - using module-scope callbacks
-      searchEmails: patternTool(searchEmailsCallback, { emails }),
-      getEmailCount: patternTool(getEmailCountCallback, { emails }),
-      getRecentEmails: patternTool(getRecentEmailsCallback, { emails }),
-    };
-  },
-);
+
+            <div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ padding: "10px" }}>DATE</th>
+                    <th style={{ padding: "10px" }}>SUBJECT</th>
+                    <th style={{ padding: "10px" }}>LABEL</th>
+                    <th style={{ padding: "10px" }}>CONTENT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emails.map((email) => (
+                    <tr>
+                      <td
+                        style={{ border: "1px solid black", padding: "10px" }}
+                      >
+                        &nbsp;{email.date}&nbsp;
+                      </td>
+                      <td
+                        style={{ border: "1px solid black", padding: "10px" }}
+                      >
+                        &nbsp;{email.subject}&nbsp;
+                      </td>
+                      <td
+                        style={{ border: "1px solid black", padding: "10px" }}
+                      >
+                        &nbsp;
+                        {derive(email, (email) => email?.labelIds?.join(", "))}
+                        &nbsp;
+                      </td>
+                      <td
+                        style={{ border: "1px solid black", padding: "10px" }}
+                      >
+                        <details>
+                          <summary>Show Markdown</summary>
+                          <pre
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              maxHeight: "300px",
+                              overflowY: "auto",
+                            }}
+                          >
+                            {email.markdownContent}
+                          </pre>
+                        </details>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </ct-vstack>
+        </ct-vscroll>
+      </ct-screen>
+    ),
+    authUI,
+    emails,
+    mentionable: emails.map((e) => <EmailCard email={e} />),
+    emailCount: derive(emails, (list: Email[]) => list?.length || 0),
+    summary,
+    bgUpdater: googleUpdaterStream,
+    isReady,
+    // Pattern tools for omnibot
+    searchEmails: patternTool(
+      ({ query, emails }: { query: string; emails: Email[] }) => {
+        return derive({ query, emails }, ({ query, emails }) => {
+          if (!query || !emails) return [];
+          const lowerQuery = query.toLowerCase();
+          return emails.filter(
+            (email) =>
+              email.subject?.toLowerCase().includes(lowerQuery) ||
+              email.from?.toLowerCase().includes(lowerQuery) ||
+              email.snippet?.toLowerCase().includes(lowerQuery),
+          );
+        });
+      },
+      { emails },
+    ),
+    getEmailCount: patternTool(
+      ({ emails }: { emails: Email[] }) => {
+        return derive(emails, (list: Email[]) => list?.length || 0);
+      },
+      { emails },
+    ),
+    getRecentEmails: patternTool(
+      ({ count, emails }: { count: number; emails: Email[] }) => {
+        return derive({ count, emails }, ({ count, emails }) => {
+          if (!emails || emails.length === 0) return "No emails";
+          const recent = emails.slice(0, count || 5);
+          return recent
+            .map(
+              (email) =>
+                `From: ${email.from}\nSubject: ${email.subject}\nDate: ${
+                  new Date(
+                    email.date,
+                  ).toLocaleDateString()
+                }`,
+            )
+            .join("\n\n");
+        });
+      },
+      { emails },
+    ),
+  };
+});
