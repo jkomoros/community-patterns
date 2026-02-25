@@ -15,7 +15,7 @@
  * via a modal dialog that shows exactly what will be exported. This pattern
  * serves as a declassification gate for future policy-based trust systems.
  */
-import { Writable, computed, Default, derive, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
 import {
   generateICS,
   generateEventUID,
@@ -1607,10 +1607,10 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     const editingClassIndex = Writable.of<number>(-1);
 
     // Image OCR via generateObject - only fires when image is uploaded
-    // CRITICAL: Use derive() for prompt, not computed() - derive handles generateObject reactivity correctly
     const { result: ocrResult, pending: ocrPending } = generateObject({
       model: "anthropic:claude-sonnet-4-5",
-      prompt: derive(uploadedFile, (file: FileData | null) => {
+      prompt: computed(() => {
+        const file: FileData | null = uploadedFile.get();
         // Return empty string to prevent API call when no image
         if (!file || !file.data || detectFileType(file) !== "image") {
           return "";
@@ -1877,12 +1877,12 @@ Return all visible text.`
     const calendarExportProgress = Writable.of<CalendarExportProgress>(null);
     const calendarExportExpanded = Writable.of<boolean>(false);  // Collapsed by default
 
-    // Pre-computed button state to avoid nested derive() calls
-    const exportButtonDisabled = derive(
-      { processing: calendarExportProcessing, pending: pendingCalendarExport },
-      ({ processing, pending }: { processing: boolean; pending: PendingCalendarExport }) =>
-        processing || !pending?.selectedTarget
-    );
+    // Pre-computed button state to avoid nested computed() calls
+    const exportButtonDisabled = computed(() => {
+      const processing = calendarExportProcessing.get();
+      const pending: PendingCalendarExport = pendingCalendarExport.get();
+      return processing || !pending?.selectedTarget;
+    });
 
     // Google auth for calendar export - uses wish() to find existing google-auth charm
     // Requires calendarWrite scope for creating events
@@ -2021,7 +2021,9 @@ Return all visible text.`
             </div>
 
             {/* Pinned classes in active set */}
-            {derive({ pinnedClasses, displayActiveSetName }, ({ pinnedClasses: pinned, displayActiveSetName: displayName }: { pinnedClasses: Class[]; displayActiveSetName: string }) => {
+            {computed(() => {
+              const pinned: Class[] = pinnedClasses.get();
+              const displayName: string = displayActiveSetName.get();
               // DEFENSIVE: Filter out undefined entries that may appear during hydration
               const list = pinned.filter((cls: Class) => cls != null);
               if (!list || list.length === 0) {
@@ -2057,7 +2059,8 @@ Return all visible text.`
             })}
 
             {/* Phase 6: Conflict warnings */}
-            {derive(pinnedSetConflicts, (conflicts: TimeConflict[]) => {
+            {computed(() => {
+              const conflicts: TimeConflict[] = pinnedSetConflicts.get();
               if (!conflicts || conflicts.length === 0) return null;
               return (
                 <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#ffebee", border: "1px solid #ef5350", borderRadius: "4px" }}>
@@ -2087,7 +2090,8 @@ Return all visible text.`
             })}
 
             {/* Weekly Schedule View - uses precomputed scheduleData */}
-            {derive(scheduleData, (data: Record<DayOfWeek, ScheduleSlotData[]> | null) => {
+            {computed(() => {
+              const data: Record<DayOfWeek, ScheduleSlotData[]> | null = scheduleData.get();
               if (!data) return null;
 
               const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
@@ -2208,7 +2212,7 @@ Return all visible text.`
             {/* Export to Calendar Section - Collapsible */}
             <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#fff8e1", border: "1px solid #ffc107", borderRadius: "4px" }}>
               <h4
-                style={{ marginBottom: derive(calendarExportExpanded, (exp: boolean) => exp ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
+                style={{ marginBottom: computed(() => calendarExportExpanded.get() ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
                 onClick={toggleCalendarExport({ expanded: calendarExportExpanded })}
               >
                 {ifElse(calendarExportExpanded, <span>▼</span>, <span>▶</span>)}
@@ -2229,7 +2233,7 @@ Return all visible text.`
                       <ct-input
                         type="date"
                         style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                        value={derive(semesterDates, (s: SemesterDates) => s.startDate || "")}
+                        value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.startDate || ""; })}
                         onct-change={setSemesterStart({ dates: semesterDates })}
                       />
                     </div>
@@ -2238,7 +2242,7 @@ Return all visible text.`
                       <ct-input
                         type="date"
                         style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                        value={derive(semesterDates, (s: SemesterDates) => s.endDate || "")}
+                        value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.endDate || ""; })}
                         onct-change={setSemesterEnd({ dates: semesterDates })}
                       />
                     </div>
@@ -2263,9 +2267,9 @@ Return all visible text.`
                   {/* Export button */}
                   <ct-button
                     variant="primary"
-                    disabled={derive(canExportCalendar, (can: boolean) => !can)}
+                    disabled={computed(() => !canExportCalendar.get())}
                     style={{
-                      opacity: derive(canExportCalendar, (can: boolean) => can ? 1 : 0.5),
+                      opacity: computed(() => canExportCalendar.get() ? 1 : 0.5),
                     }}
                     onClick={prepareCalendarExport({
                       pinnedClasses: pinnedClasses as Class[],
@@ -2282,9 +2286,11 @@ Return all visible text.`
 
                   {/* Validation message */}
                   {ifElse(
-                    derive(canExportCalendar, (can: boolean) => !can),
+                    computed(() => !canExportCalendar.get()),
                     <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
-                      {derive({ pinned: pinnedClasses, semester: semesterDates }, ({ pinned, semester }: { pinned: Class[]; semester: SemesterDates }) => {
+                      {computed(() => {
+                        const pinned: Class[] = pinnedClasses.get();
+                        const semester: SemesterDates = semesterDates.get();
                         if (!pinned || pinned.length === 0) return "Pin some classes to export";
                         if (!semester.startDate) return "Set semester start date";
                         if (!semester.endDate) return "Set semester end date";
@@ -2302,7 +2308,7 @@ Return all visible text.`
 
           {/* Calendar Export Result Toast */}
           {ifElse(
-            derive(calendarExportResult, (r: CalendarExportResult) => r !== null),
+            computed(() => calendarExportResult.get() !== null),
             <div
               style={{
                 position: "fixed",
@@ -2312,12 +2318,14 @@ Return all visible text.`
                 borderRadius: "8px",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                 zIndex: 1000,
-                background: derive(calendarExportResult, (r: CalendarExportResult) =>
-                  r?.success ? "#d1fae5" : "#fee2e2"
-                ),
-                border: derive(calendarExportResult, (r: CalendarExportResult) =>
-                  r?.success ? "1px solid #10b981" : "1px solid #ef4444"
-                ),
+                background: computed(() => {
+                  const r: CalendarExportResult = calendarExportResult.get();
+                  return r?.success ? "#d1fae5" : "#fee2e2";
+                }),
+                border: computed(() => {
+                  const r: CalendarExportResult = calendarExportResult.get();
+                  return r?.success ? "1px solid #10b981" : "1px solid #ef4444";
+                }),
                 display: "flex",
                 alignItems: "center",
                 gap: "1rem",
@@ -2326,29 +2334,32 @@ Return all visible text.`
               <div>
                 <div style={{
                   fontWeight: "bold",
-                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
-                    r?.success ? "#065f46" : "#991b1b"
-                  ),
+                  color: computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.success ? "#065f46" : "#991b1b";
+                  }),
                 }}>
-                  {derive(calendarExportResult, (r: CalendarExportResult) =>
-                    r?.success ? "Export Successful!" : "Export Failed"
-                  )}
+                  {computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.success ? "Export Successful!" : "Export Failed";
+                  })}
                 </div>
                 <div style={{
                   fontSize: "0.85em",
-                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
-                    r?.success ? "#047857" : "#b91c1c"
-                  ),
+                  color: computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.success ? "#047857" : "#b91c1c";
+                  }),
                 }}>
-                  {derive(calendarExportResult, (r: CalendarExportResult) => r?.message)}
+                  {computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.message; })}
                 </div>
               </div>
               {/* Download button for ICS files */}
               {ifElse(
-                derive(calendarExportResult, (r: CalendarExportResult) => !!r?.icsContent),
+                computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return !!r?.icsContent; }),
                 <ct-file-download
-                  $data={derive(calendarExportResult, (r: CalendarExportResult) => r?.icsContent || "")}
-                  $filename={derive(calendarExportResult, (r: CalendarExportResult) => r?.icsFilename || "calendar.ics")}
+                  $data={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsContent || ""; })}
+                  $filename={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsFilename || "calendar.ics"; })}
                   mime-type="text/calendar"
                   variant="primary"
                   size="sm"
@@ -2364,9 +2375,10 @@ Return all visible text.`
                   border: "none",
                   fontSize: "1.2em",
                   cursor: "pointer",
-                  color: derive(calendarExportResult, (r: CalendarExportResult) =>
-                    r?.success ? "#065f46" : "#991b1b"
-                  ),
+                  color: computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.success ? "#065f46" : "#991b1b";
+                  }),
                 }}
               >
                 ×
@@ -2377,7 +2389,7 @@ Return all visible text.`
 
           {/* Calendar Export Confirmation Dialog */}
           {ifElse(
-            derive(pendingCalendarExport, (p: PendingCalendarExport) => p !== null),
+            computed(() => pendingCalendarExport.get() !== null),
             <div
               style={{
                 position: "fixed",
@@ -2431,18 +2443,20 @@ Return all visible text.`
                     }}
                   >
                     <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px" }}>
-                      {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                        `${p?.childName}'s ${p?.setName} Schedule`
-                      )}
+                      {computed(() => {
+                        const p: PendingCalendarExport = pendingCalendarExport.get();
+                        return `${p?.childName}'s ${p?.setName} Schedule`;
+                      })}
                     </div>
 
                     {/* Event count */}
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
                       <span>📝</span>
                       <span>
-                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                          `${p?.eventCount} recurring events from ${p?.classes.length} classes`
-                        )}
+                        {computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          return `${p?.eventCount} recurring events from ${p?.classes.length} classes`;
+                        })}
                       </span>
                     </div>
 
@@ -2450,9 +2464,10 @@ Return all visible text.`
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
                       <span>📆</span>
                       <span>
-                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                          `${p?.semester.startDate} to ${p?.semester.endDate}`
-                        )}
+                        {computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          return `${p?.semester.startDate} to ${p?.semester.endDate}`;
+                        })}
                       </span>
                     </div>
 
@@ -2460,7 +2475,7 @@ Return all visible text.`
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: "#4b5563" }}>
                       <span>📁</span>
                       <span>
-                        Target calendar: <strong>{derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.calendarName || "Calendar")}</strong>
+                        Target calendar: <strong>{computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.calendarName || "Calendar"; })}</strong>
                       </span>
                     </div>
 
@@ -2468,9 +2483,10 @@ Return all visible text.`
                     <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "12px" }}>
                       <div style={{ fontWeight: "500", marginBottom: "8px" }}>Classes to export:</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
+                        {computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport.get();
                           // DEFENSIVE: Filter out undefined during hydration
-                          (p?.classes || []).filter((c: Class) => c != null).map((cls: Class) => (
+                          return (p?.classes || []).filter((c: Class) => c != null).map((cls: Class) => (
                             <span
                               style={{
                                 background: "white",
@@ -2485,19 +2501,20 @@ Return all visible text.`
                                 ({(cls.timeSlots || []).filter((s: TimeSlot) => s != null).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
                               </span>
                             </span>
-                          ))
-                        )}
+                          ));
+                        })}
                       </div>
                     </div>
 
                     {/* Duplicates warning - only show if there are duplicates */}
                     {ifElse(
-                      derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.duplicateCount || 0) > 0),
+                      computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.duplicateCount || 0) > 0; }),
                       <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef3c7", borderRadius: "6px", border: "1px solid #f59e0b" }}>
                         <div style={{ color: "#92400e", fontSize: "13px" }}>
-                          ⚠️ {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            `${p?.duplicateCount} event(s) already in outbox and will be skipped`
-                          )}
+                          ⚠️ {computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return `${p?.duplicateCount} event(s) already in outbox and will be skipped`;
+                          })}
                         </div>
                       </div>,
                       null
@@ -2505,23 +2522,25 @@ Return all visible text.`
 
                     {/* Skipped items - only show if there are skipped items */}
                     {ifElse(
-                      derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.skippedItems || []).length > 0),
+                      computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.skippedItems || []).length > 0; }),
                       <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef2f2", borderRadius: "6px", border: "1px solid #fecaca" }}>
                         <div style={{ color: "#991b1b", fontSize: "13px", fontWeight: "500", marginBottom: "4px" }}>
                           ⚠️ Some items were skipped:
                         </div>
                         <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#7f1d1d" }}>
-                          {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            (p?.skippedItems || []).slice(0, 5).map((item: { className: string; reason: string }) => (
+                          {computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return (p?.skippedItems || []).slice(0, 5).map((item: { className: string; reason: string }) => (
                               <li>{item.className}: {item.reason}</li>
-                            ))
-                          )}
+                            ));
+                          })}
                           {ifElse(
-                            derive(pendingCalendarExport, (p: PendingCalendarExport) => (p?.skippedItems || []).length > 5),
+                            computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.skippedItems || []).length > 5; }),
                             <li style={{ fontStyle: "italic" }}>
-                              {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                                `...and ${(p?.skippedItems || []).length - 5} more`
-                              )}
+                              {computed(() => {
+                                const p: PendingCalendarExport = pendingCalendarExport.get();
+                                return `...and ${(p?.skippedItems || []).length - 5} more`;
+                              })}
                             </li>,
                             null
                           )}
@@ -2549,18 +2568,20 @@ Return all visible text.`
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
-                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "google" ? "2px solid #4285f4" : "1px solid #ddd"
-                          ),
+                          border: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "google" ? "2px solid #4285f4" : "1px solid #ddd";
+                          }),
                           borderRadius: "8px",
-                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "google" ? "#e8f0fe" : "white"
-                          ),
-                          cursor: derive(googleAuthManager.isReady, (ready: boolean) => ready ? "pointer" : "not-allowed"),
+                          background: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "google" ? "#e8f0fe" : "white";
+                          }),
+                          cursor: computed(() => googleAuthManager.isReady.get() ? "pointer" : "not-allowed"),
                           textAlign: "left",
-                          opacity: derive(googleAuthManager.isReady, (ready: boolean) => ready ? 1 : 0.5),
+                          opacity: computed(() => googleAuthManager.isReady.get() ? 1 : 0.5),
                         }}
-                        disabled={derive(googleAuthManager.isReady, (ready: boolean) => !ready)}
+                        disabled={computed(() => !googleAuthManager.isReady.get())}
                       >
                         <span style={{ fontSize: "24px" }}>📅</span>
                         <div style={{ flex: 1 }}>
@@ -2568,15 +2589,17 @@ Return all visible text.`
                           <div style={{ fontSize: "12px", color: "#666" }}>
                             {ifElse(
                               googleAuthManager.isReady,
-                              derive(googleAuthManager.currentEmail, (email: string | null) =>
-                                `Export to ${email || "your Google Calendar"}`
-                              ),
-                              derive(googleAuthManager.currentState, (state: string) =>
-                                state === "loading" ? "Loading..." :
+                              computed(() => {
+                                const email: string | null = googleAuthManager.currentEmail.get();
+                                return `Export to ${email || "your Google Calendar"}`;
+                              }),
+                              computed(() => {
+                                const state: string = googleAuthManager.currentState.get();
+                                return state === "loading" ? "Loading..." :
                                 state === "not-found" ? "Create a Google Auth charm first" :
                                 state === "selecting" ? "Select an account above" :
-                                "Sign in with Google to enable"
-                              )
+                                "Sign in with Google to enable";
+                              })
                             )}
                           </div>
                         </div>
@@ -2590,13 +2613,15 @@ Return all visible text.`
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
-                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "apple" ? "2px solid #4285f4" : "1px solid #ddd"
-                          ),
+                          border: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "apple" ? "2px solid #4285f4" : "1px solid #ddd";
+                          }),
                           borderRadius: "8px",
-                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "apple" ? "#e8f0fe" : "white"
-                          ),
+                          background: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "apple" ? "#e8f0fe" : "white";
+                          }),
                           cursor: "pointer",
                           textAlign: "left",
                         }}
@@ -2618,13 +2643,15 @@ Return all visible text.`
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
-                          border: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "ics" ? "2px solid #4285f4" : "1px solid #ddd"
-                          ),
+                          border: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "ics" ? "2px solid #4285f4" : "1px solid #ddd";
+                          }),
                           borderRadius: "8px",
-                          background: derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                            p?.selectedTarget === "ics" ? "#e8f0fe" : "white"
-                          ),
+                          background: computed(() => {
+                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            return p?.selectedTarget === "ics" ? "#e8f0fe" : "white";
+                          }),
                           cursor: "pointer",
                           textAlign: "left",
                         }}
@@ -2642,7 +2669,7 @@ Return all visible text.`
 
                   {/* Warning - varies by target */}
                   {ifElse(
-                    derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.selectedTarget !== null),
+                    computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.selectedTarget !== null; }),
                     <div
                       style={{
                         padding: "12px 16px",
@@ -2652,12 +2679,14 @@ Return all visible text.`
                       }}
                     >
                       <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
-                        {derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                          `This will add ${p?.eventCount || 0} events to your calendar`
-                        )}
+                        {computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          return `This will add ${p?.eventCount || 0} events to your calendar`;
+                        })}
                       </div>
                       <div style={{ fontSize: "14px", color: "#78350f" }}>
-                        {derive(pendingCalendarExport, (p: PendingCalendarExport) => {
+                        {computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport.get();
                           if (p?.selectedTarget === "google") {
                             return "Events will be created directly in your Google Calendar. Weekly recurring events will be created until the semester end date.";
                           } else if (p?.selectedTarget === "apple") {
@@ -2668,7 +2697,7 @@ Return all visible text.`
                         })}
                       </div>
                       {ifElse(
-                        derive(pendingCalendarExport, (p: PendingCalendarExport) => p?.selectedTarget === "apple"),
+                        computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.selectedTarget === "apple"; }),
                         <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
                           Run <code style={{ background: "#fff3cd", padding: "1px 4px", borderRadius: "2px" }}>apple-sync calendar-write</code> to sync events to Apple Calendar.
                         </div>,
@@ -2680,7 +2709,7 @@ Return all visible text.`
 
                   {/* Progress bar for Google Calendar export */}
                   {ifElse(
-                    derive(calendarExportProgress, (p: CalendarExportProgress) => p !== null),
+                    computed(() => calendarExportProgress.get() !== null),
                     <div style={{ marginTop: "16px" }}>
                       <div style={{
                         height: "8px",
@@ -2692,18 +2721,19 @@ Return all visible text.`
                         <div style={{
                           height: "100%",
                           backgroundColor: "#4285f4",
-                          width: derive(calendarExportProgress, (p: CalendarExportProgress) => `${p?.percentComplete || 0}%`),
+                          width: computed(() => { const p: CalendarExportProgress = calendarExportProgress.get(); return `${p?.percentComplete || 0}%`; }),
                           transition: "width 0.3s",
                         }} />
                       </div>
                       <div style={{ fontSize: "12px", color: "#666" }}>
-                        {derive(calendarExportProgress, (p: CalendarExportProgress) =>
-                          p?.phase === "preparing" ? "Preparing..." :
+                        {computed(() => {
+                          const p: CalendarExportProgress = calendarExportProgress.get();
+                          return p?.phase === "preparing" ? "Preparing..." :
                           p?.phase === "exporting" ? `Exporting ${p.processed}/${p.total}${p.currentEvent ? `: ${p.currentEvent}` : ""}` :
                           p?.phase === "done" ? "Complete!" :
                           p?.phase === "error" ? `Error: ${p.error}` :
-                          "Processing..."
-                        )}
+                          "Processing...";
+                        })}
                       </div>
                     </div>,
                     null
@@ -2749,22 +2779,23 @@ Return all visible text.`
                     disabled={exportButtonDisabled}
                     style={{
                       padding: "10px 20px",
-                      background: derive(exportButtonDisabled, (disabled: boolean) => disabled ? "#d1d5db" : "#f59e0b"),
+                      background: computed(() => exportButtonDisabled.get() ? "#d1d5db" : "#f59e0b"),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: derive(exportButtonDisabled, (disabled: boolean) => disabled ? "not-allowed" : "pointer"),
-                      opacity: derive(exportButtonDisabled, (disabled: boolean) => disabled ? 0.7 : 1),
+                      cursor: computed(() => exportButtonDisabled.get() ? "not-allowed" : "pointer"),
+                      opacity: computed(() => exportButtonDisabled.get() ? 0.7 : 1),
                     }}
                   >
                     {ifElse(
                       calendarExportProcessing,
                       "Exporting...",
-                      derive(pendingCalendarExport, (p: PendingCalendarExport) =>
-                        p?.selectedTarget ? "Export to Calendar" : "Select a destination"
-                      )
+                      computed(() => {
+                        const p: PendingCalendarExport = pendingCalendarExport.get();
+                        return p?.selectedTarget ? "Export to Calendar" : "Select a destination";
+                      })
                     )}
                   </button>
                 </div>
@@ -2781,49 +2812,20 @@ Return all visible text.`
               {classes.map((cls: Class, idx: number) => {
                 // DEFENSIVE: Skip undefined entries during hydration
                 if (!cls) return null;
-                // ALL reactive values in ONE derive call - no nested derive/computed allowed!
-                return derive({
-                  name: cls.name,
-                  description: cls.description,
-                  location: cls.location,
-                  timeSlots: cls.timeSlots,
-                  cost: cls.cost,
-                  gradeMin: cls.gradeMin,
-                  gradeMax: cls.gradeMax,
-                  pinnedInSets: cls.pinnedInSets,
-                  statuses: cls.statuses,
-                  editIdx: editingClassIndex,
-                  activeSet: activeSetName,
-                  locs: locations,
-                }, (props: {
-                  name: string;
-                  description: string;
-                  location: Location;
-                  timeSlots: TimeSlot[];
-                  cost: number;
-                  gradeMin: string;
-                  gradeMax: string;
-                  pinnedInSets: string[];
-                  statuses: StatusFlags;
-                  editIdx: Writable<number>;
-                  activeSet: Writable<string>;
-                  locs: Writable<Location[]>;
-                }) => {
-                  // Destructure with proper types - derive unwraps Cell values for item properties
-                  // Pattern-level Cells (editIdx, activeSet, locs) need .get()
-                  const name = props.name;
-                  const description = props.description;
-                  const location = props.location;
-                  const timeSlots = props.timeSlots;
-                  const cost = props.cost;
-                  const gradeMin = props.gradeMin;
-                  const gradeMax = props.gradeMax;
-                  const pinnedInSets = props.pinnedInSets;
-                  const statuses = props.statuses;
-                  // Pattern-level Cells remain as Cells - use .get()
-                  const editIdx = props.editIdx.get();
-                  const activeSet = props.activeSet.get();
-                  const locs = props.locs.get();
+                // ALL reactive values in ONE computed call - no nested computed allowed!
+                return computed(() => {
+                  const name = cls.name;
+                  const description = cls.description;
+                  const location = cls.location;
+                  const timeSlots = cls.timeSlots;
+                  const cost = cls.cost;
+                  const gradeMin = cls.gradeMin;
+                  const gradeMax = cls.gradeMax;
+                  const pinnedInSets = cls.pinnedInSets;
+                  const statuses = cls.statuses;
+                  const editIdx = editingClassIndex.get();
+                  const activeSet = activeSetName.get();
+                  const locs = locations.get();
 
                   const locColor = getLocationColor(location?.name || "");
                   const isEditing = editIdx === idx;
@@ -3127,7 +3129,8 @@ Return all visible text.`
                 </div>
 
                 {/* Error state - only show when error is truthy */}
-                {derive(uploadExtractionError, (e: string | null) => {
+                {computed(() => {
+                  const e: string | null = uploadExtractionError.get();
                   if (!e) return null;
                   return (
                     <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
@@ -3310,8 +3313,11 @@ Return all visible text.`
               {locations.map((loc: Location) => {
                 // DEFENSIVE: Skip undefined during hydration
                 if (!loc) return null;
-                // Use derive to unwrap reactive location properties
-                return derive({ name: loc.name, type: loc.type, address: loc.address }, ({ name, type, address }: { name: string; type: LocationType; address: string }) => {
+                // Use computed to unwrap reactive location properties
+                return computed(() => {
+                  const name: string = loc.name;
+                  const type: LocationType = loc.type;
+                  const address: string = loc.address;
                   const locColor = getLocationColor(name || "");
                   return (
                     <div
