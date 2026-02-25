@@ -22,9 +22,9 @@ interface Vote {
   voteType: "green" | "yellow" | "red";
 }
 
-interface VoterCharmRef {
+interface VoterPieceRef {
   id: string;
-  charm: any;
+  piece: any;
   voterName: string;
 }
 
@@ -32,7 +32,7 @@ interface PollInput {
   question?: Writable<Default<string, "">>;
   options?: Writable<Default<Option[], []>>;
   votes?: Writable<Default<Vote[], []>>;
-  voterCharms?: Writable<Default<VoterCharmRef[], []>>;
+  voterPieces?: Writable<Default<VoterPieceRef[], []>>;
   nextOptionId?: Writable<Default<number, 1>>;
 }
 
@@ -41,34 +41,34 @@ interface PollOutput {
   question: Writable<Default<string, "">>;
   options: Writable<Default<Option[], []>>;
   votes: Writable<Default<Vote[], []>>;
-  voterCharms: Writable<Default<VoterCharmRef[], []>>;
+  voterPieces: Writable<Default<VoterPieceRef[], []>>;
   nextOptionId: Writable<Default<number, 1>>;
 }
 
-// Handler to create the public viewer charm (poll lobby)
+// Handler to create the public viewer piece (poll lobby)
 const createViewer = handler<
   unknown,
   {
     question: Writable<string>;
     options: Writable<Option[]>;
     votes: Writable<Vote[]>;
-    voterCharms: Writable<VoterCharmRef[]>;
+    voterPieces: Writable<VoterPieceRef[]>;
   }
 >(
-  (_, { question, options, votes, voterCharms }) => {
-    console.log("Creating Viewer charm (public lobby)...");
+  (_, { question, options, votes, voterPieces }) => {
+    console.log("Creating Viewer piece (public lobby)...");
 
     // Create the viewer instance with cell references
     const viewerInstance = CozyPollLobby({
       question: question.get(),  // Pass as plain value
       options,  // Pass as cell reference (shared)
       votes,    // Pass as cell reference (shared)
-      voterCharms,  // Pass as cell reference (shared)
+      voterPieces,  // Pass as cell reference (shared)
     });
 
     console.log("Viewer created, navigating...");
 
-    // Navigate to the viewer charm
+    // Navigate to the viewer piece
     return navigateTo(viewerInstance);
   },
 );
@@ -90,7 +90,7 @@ const startNewSession = handler<
 
     // Create new cells for the fresh session
     const newVotes = Writable.of<Vote[]>([]);
-    const newVoterCharms = Writable.of<VoterCharmRef[]>([]);
+    const newVoterPieces = Writable.of<VoterPieceRef[]>([]);
 
     console.log(`Creating fresh lobby with ${currentOptions.length} options: "${currentQuestion}"`);
 
@@ -100,7 +100,7 @@ const startNewSession = handler<
       question: currentQuestion,
       options,  // Keep the same options cell (admin can still edit)
       votes: newVotes,  // Fresh votes
-      voterCharms: newVoterCharms,  // Fresh voter list
+      voterPieces: newVoterPieces,  // Fresh voter list
     });
 
     console.log("Navigating to fresh lobby...");
@@ -123,7 +123,7 @@ function getInitials(name: string): string {
 }
 
 const CozyPoll = pattern<PollInput, PollOutput>(
-  ({ question, options, votes, voterCharms, nextOptionId }) => {
+  ({ question, options, votes, voterPieces, nextOptionId }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
@@ -235,7 +235,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                 question,
                 options,
                 votes,
-                voterCharms,
+                voterPieces,
               })}
               style="background-color: #3b82f6; color: white; font-weight: 600; font-size: 1rem; padding: 0.75rem 1.5rem;"
             >
@@ -504,7 +504,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
       question,
       options,
       votes,
-      voterCharms,
+      voterPieces,
       nextOptionId,
     };
   }

@@ -8,7 +8,7 @@ import CozyPollBallot from "./cozy-poll-ballot.tsx";
  * This is the PUBLIC URL that the admin shares with the team.
  * - Shows poll question and live results (read-only)
  * - Prompts for name entry
- * - Creates or navigates to voter charm based on name
+ * - Creates or navigates to voter piece based on name
  * - No admin controls visible
  */
 
@@ -23,17 +23,17 @@ interface Vote {
   voteType: "green" | "yellow" | "red";
 }
 
-interface VoterCharmRef {
+interface VoterPieceRef {
   id: string;
   voterName: string;
-  charm: any;
+  piece: any;
 }
 
 interface ViewerInput {
   question: Default<string, "">;
   options: Writable<Default<Option[], []>>;
   votes: Writable<Default<Vote[], []>>;
-  voterCharms: Writable<Default<VoterCharmRef[], []>>;
+  voterPieces: Writable<Default<VoterPieceRef[], []>>;
 }
 
 /** Public poll lobby with live results. #cozyPollLobby */
@@ -41,7 +41,7 @@ interface ViewerOutput {
   question: Default<string, "">;
   options: Writable<Default<Option[], []>>;
   votes: Writable<Default<Vote[], []>>;
-  voterCharms: Writable<Default<VoterCharmRef[], []>>;
+  voterPieces: Writable<Default<VoterPieceRef[], []>>;
 }
 
 // Utility function to get initials from a name
@@ -56,26 +56,26 @@ function getInitials(name: string): string {
     .slice(0, 3); // Max 3 initials
 }
 
-// Handler to create a new voter ballot charm
+// Handler to create a new voter ballot piece
 const createBallot = handler<
   {},
   {
     question: string;
     options: Writable<Option[]>;
     votes: Writable<Vote[]>;
-    voterCharms: Writable<VoterCharmRef[]>;
+    voterPieces: Writable<VoterPieceRef[]>;
   }
 >(
-  (_event, { question, options, votes, voterCharms }) => {
+  (_event, { question, options, votes, voterPieces }) => {
     console.log("[Handler] Creating new voter ballot...");
 
-    // Create new voter charm with empty name
+    // Create new voter piece with empty name
     // Voter will be prompted to enter their name in the ballot
     const voterInstance = CozyPollBallot({
       question: question,
       options,
       votes,
-      voterCharms,
+      voterPieces,
       myName: Writable.of(""),  // Empty name - voter will fill it in
     });
 
@@ -87,7 +87,7 @@ const createBallot = handler<
 );
 
 export default pattern<ViewerInput, ViewerOutput>(
-  ({ question, options, votes, voterCharms }) => {
+  ({ question, options, votes, voterPieces }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
@@ -263,7 +263,7 @@ export default pattern<ViewerInput, ViewerOutput>(
             </div>
             <ct-button
               style="background-color: #3b82f6; color: white; font-weight: 600; padding: 0.75rem 1.5rem; font-size: 1rem; border-radius: 6px;"
-              onClick={createBallot({ question, options, votes, voterCharms })}
+              onClick={createBallot({ question, options, votes, voterPieces })}
             >
               Create My Ballot
             </ct-button>
@@ -277,7 +277,7 @@ export default pattern<ViewerInput, ViewerOutput>(
       question,
       options,
       votes,
-      voterCharms,
+      voterPieces,
     };
   }
 );

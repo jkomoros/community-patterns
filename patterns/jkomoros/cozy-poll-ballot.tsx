@@ -20,9 +20,9 @@ interface Vote {
   voteType: "green" | "yellow" | "red";
 }
 
-interface VoterCharmRef {
+interface VoterPieceRef {
   id: string;
-  charm: any;
+  piece: any;
   voterName: string;
 }
 
@@ -30,7 +30,7 @@ interface VoterInput {
   question: Default<string, "">;            // Read-only from admin
   options: Writable<Default<Option[], []>>;     // Shared from admin
   votes: Writable<Default<Vote[], []>>;         // Shared from admin
-  voterCharms: Writable<Default<VoterCharmRef[], []>>;  // Shared from admin
+  voterPieces: Writable<Default<VoterPieceRef[], []>>;  // Shared from admin
   myName: Writable<Default<string, "">>;        // Local to this voter
 }
 
@@ -52,7 +52,7 @@ function getInitials(name: string): string {
 }
 
 export default pattern<VoterInput, VoterOutput>(
-  ({ question, options, votes, voterCharms, myName }) => {
+  ({ question, options, votes, voterPieces, myName }) => {
 
     // Derived: Organize all votes by option ID and vote type
     const votesByOption = computed(() => {
