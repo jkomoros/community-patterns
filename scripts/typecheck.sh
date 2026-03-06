@@ -22,6 +22,12 @@ is_pattern() {
   grep -q "export default" "$1"
 }
 
+CT_ROOT_ARGS=()
+# Auto-inject --root for cross-repo import resolution (e.g., imports from ../labs/)
+if [ -d "$PROJECT_ROOT/../labs" ]; then
+  CT_ROOT_ARGS=(--root "$PROJECT_ROOT/..")
+fi
+
 check_file() {
   local file="$1"
 
@@ -32,7 +38,7 @@ check_file() {
   fi
 
   echo "Checking $file..."
-  if ! ct dev "$file" --no-run; then
+  if ! ct dev "$file" --no-run "${CT_ROOT_ARGS[@]}"; then
     echo "❌ Error in $file"
     FAILED_FILES+=("$file")
   fi

@@ -44,6 +44,13 @@ jobs:
           # Set tools to path
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
+      - name: 📥 Checkout labs (for cross-repo imports)
+        uses: actions/checkout@v4
+        with:
+          repository: commontoolsinc/labs
+          ref: ${{ env.CT_COMMIT_SHA }}
+          path: labs
+
       - name: 👆 Initialize ct environment
         working-directory: repo
         run: ct init
@@ -51,7 +58,7 @@ jobs:
       - name: 🔡 Type Check
         working-directory: repo
         run: ./scripts/typecheck.sh -f '!WIP'
-   
+
       - name: 🔡 Type Check (WIP, Fallible)
         continue-on-error: true # Don't fail the workflow if tests fail
         working-directory: repo
