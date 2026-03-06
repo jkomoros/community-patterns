@@ -8,7 +8,7 @@ on:
     branches:
       - main
 env:
-  CT_COMMIT_SHA: 973ee72a3f09dc2afdb992de805b59416728e18f
+  CT_COMMIT_SHA: 81e4ad33dd93b380fed0cbfea2e8b8ed29f44e33
 
 jobs:
   check-patterns:
