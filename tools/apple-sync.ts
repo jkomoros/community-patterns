@@ -27,11 +27,11 @@ interface Config {
   space?: string;
   apiUrl?: string;
   labsDir?: string;
-  charms?: {
-    imessage?: string; // Charm ID for iMessage viewer
-    calendar?: string; // Charm ID for calendar viewer
-    reminders?: string; // Charm ID for reminders viewer
-    notes?: string; // Charm ID for notes viewer
+  pieces?: {
+    imessage?: string; // Piece ID for iMessage viewer
+    calendar?: string; // Piece ID for calendar viewer
+    reminders?: string; // Piece ID for reminders viewer
+    notes?: string; // Piece ID for notes viewer
   };
 }
 
@@ -116,7 +116,7 @@ COMMANDS:
 OPTIONS:
   --space <name>    Specify space name (saved for future runs)
   --mock            Use mock/sample data instead of real Apple data
-  --charm <id>      Override charm ID for this sync (optional - charms are auto-created)
+  --piece <id>      Override piece ID for this sync (optional - pieces are auto-created)
   --daemon          Run in background daemon mode (syncs every 5 minutes)
   --interval <min>  Sync interval in minutes for daemon mode (default: 5)
   --days-back <n>   Days of history to sync for calendar (default: 30)
@@ -148,7 +148,7 @@ const PATTERN_PATHS: Record<string, string> = {
   extracurricular: "patterns/jkomoros/extracurricular.tsx",
 };
 
-// Pattern name identifiers (used to find existing charms)
+// Pattern name identifiers (used to find existing pieces)
 const PATTERN_NAMES: Record<string, string> = {
   imessage: "imessage-viewer",
   calendar: "calendar-viewer",
@@ -157,27 +157,27 @@ const PATTERN_NAMES: Record<string, string> = {
   extracurricular: "extracurricular",
 };
 
-interface CharmInfo {
+interface PieceInfo {
   id: string;
   name: string;
   sourceFile?: string;
 }
 
-interface CharmOptions {
+interface PieceOptions {
   apiUrl: string;
   space: string;
-  charmId: string;
+  pieceId: string;
   path: string;
 }
 
-interface WriteToCharmOptions extends CharmOptions {
+interface WriteToPieceOptions extends PieceOptions {
   data: unknown;
 }
 
 /**
- * List all charms in a space
+ * List all pieces in a space
  */
-async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmInfo[]> {
+async function listPiecesInSpace(apiUrl: string, space: string): Promise<PieceInfo[]> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
@@ -185,7 +185,7 @@ async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmIn
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "ls",
+      "ct", "piece", "ls",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
@@ -198,11 +198,11 @@ async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmIn
 
   if (!output.success) {
     const stderr = new TextDecoder().decode(output.stderr);
-    // Empty space or no charms is not an error
-    if (stderr.includes("No charms") || stderr.includes("empty")) {
+    // Empty space or no pieces is not an error
+    if (stderr.includes("No pieces") || stderr.includes("empty")) {
       return [];
     }
-    throw new Error(`Failed to list charms: ${stderr}`);
+    throw new Error(`Failed to list pieces: ${stderr}`);
   }
 
   const stdout = new TextDecoder().decode(output.stdout).trim();
@@ -210,37 +210,37 @@ async function listCharmsInSpace(apiUrl: string, space: string): Promise<CharmIn
     return [];
   }
 
-  // Parse the output - each line is a charm ID
-  const charms: CharmInfo[] = [];
+  // Parse the output - each line is a piece ID
+  const pieces: PieceInfo[] = [];
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (trimmed && trimmed.startsWith("baedrei")) {
-      charms.push({ id: trimmed, name: "" });
+      pieces.push({ id: trimmed, name: "" });
     }
   }
 
-  return charms;
+  return pieces;
 }
 
 /**
- * Check if a charm is valid (has source cell)
- * Returns false only if charm is definitely invalid (missing source cell)
- * Returns true for other errors (assume charm might be valid, let it fail later if not)
+ * Check if a piece is valid (has source cell)
+ * Returns false only if piece is definitely invalid (missing source cell)
+ * Returns true for other errors (assume piece might be valid, let it fail later if not)
  */
-async function isCharmValid(apiUrl: string, space: string, charmId: string): Promise<boolean> {
+async function isPieceValid(apiUrl: string, space: string, pieceId: string): Promise<boolean> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
-  // Try to get the sourceFile - this will fail if charm is invalid
+  // Try to get the sourceFile - this will fail if piece is invalid
   const command = new Deno.Command("deno", {
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "get",
+      "ct", "piece", "get",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
-      "--charm", charmId,
+      "--piece", pieceId,
       "sourceFile",
     ],
     stdout: "piped",
@@ -250,33 +250,33 @@ async function isCharmValid(apiUrl: string, space: string, charmId: string): Pro
   const output = await command.output();
   const stderr = new TextDecoder().decode(output.stderr);
 
-  // Only return false for known "charm is invalid" error patterns
+  // Only return false for known "piece is invalid" error patterns
   if (stderr.includes("missing source cell") || stderr.includes("missing recipe")) {
     return false;
   }
 
-  // For other errors or success, assume charm is valid
+  // For other errors or success, assume piece is valid
   // (will fail later with a proper error message if not)
   return true;
 }
 
 /**
- * Get charm metadata to find its source file name
+ * Get piece metadata to find its source file name
  */
-async function getCharmSourceFile(apiUrl: string, space: string, charmId: string): Promise<string | null> {
+async function getPieceSourceFile(apiUrl: string, space: string, pieceId: string): Promise<string | null> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
-  // Try to get the source file from charm metadata
+  // Try to get the source file from piece metadata
   const command = new Deno.Command("deno", {
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "get",
+      "ct", "piece", "get",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
-      "--charm", charmId,
+      "--piece", pieceId,
       "sourceFile",
     ],
     stdout: "piped",
@@ -299,20 +299,20 @@ async function getCharmSourceFile(apiUrl: string, space: string, charmId: string
 }
 
 /**
- * Find an existing charm by pattern name in a space
+ * Find an existing piece by pattern name in a space
  */
-async function findCharmByPattern(
+async function findPieceByPattern(
   apiUrl: string,
   space: string,
   patternType: keyof typeof PATTERN_NAMES
 ): Promise<string | null> {
   const targetName = PATTERN_NAMES[patternType];
-  const charms = await listCharmsInSpace(apiUrl, space);
+  const pieces = await listPiecesInSpace(apiUrl, space);
 
-  for (const charm of charms) {
-    const sourceFile = await getCharmSourceFile(apiUrl, space, charm.id);
+  for (const piece of pieces) {
+    const sourceFile = await getPieceSourceFile(apiUrl, space, piece.id);
     if (sourceFile && sourceFile.includes(targetName)) {
-      return charm.id;
+      return piece.id;
     }
   }
 
@@ -320,9 +320,9 @@ async function findCharmByPattern(
 }
 
 /**
- * Create a new charm from a pattern file
+ * Create a new piece from a pattern file
  */
-async function createCharm(
+async function createPiece(
   apiUrl: string,
   space: string,
   patternType: keyof typeof PATTERN_PATHS
@@ -331,13 +331,13 @@ async function createCharm(
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
-  console.log(`  Creating new ${patternType} charm...`);
+  console.log(`  Creating new ${patternType} piece...`);
 
   const command = new Deno.Command("deno", {
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "new",
+      "ct", "piece", "new",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
@@ -351,71 +351,71 @@ async function createCharm(
 
   if (!output.success) {
     const stderr = new TextDecoder().decode(output.stderr);
-    throw new Error(`Failed to create charm: ${stderr}`);
+    throw new Error(`Failed to create piece: ${stderr}`);
   }
 
   const stdout = new TextDecoder().decode(output.stdout).trim();
-  // The charm ID is the last line that starts with "baedrei"
+  // The piece ID is the last line that starts with "baedrei"
   const lines = stdout.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
     if (line.startsWith("baedrei")) {
-      console.log(`  ✓ Created charm: ${line.substring(0, 20)}...`);
+      console.log(`  ✓ Created piece: ${line.substring(0, 20)}...`);
       return line;
     }
   }
 
-  throw new Error(`Could not find charm ID in output: ${stdout}`);
+  throw new Error(`Could not find piece ID in output: ${stdout}`);
 }
 
 /**
- * Get or create a charm for a pattern type
+ * Get or create a piece for a pattern type
  * First checks if one exists in the space, if not creates it
  */
-async function getOrCreateCharm(
+async function getOrCreatePiece(
   apiUrl: string,
   space: string,
   patternType: keyof typeof PATTERN_PATHS,
   config: Config
 ): Promise<string> {
   // First check if we have it in config
-  const configCharmId = config.charms?.[patternType as keyof typeof config.charms];
-  if (configCharmId) {
-    // Validate the cached charm is still valid
-    console.log(`  Validating cached ${patternType} charm...`);
-    if (await isCharmValid(apiUrl, space, configCharmId)) {
-      console.log(`  ✓ Cached charm is valid`);
-      return configCharmId;
+  const configPieceId = config.pieces?.[patternType as keyof typeof config.pieces];
+  if (configPieceId) {
+    // Validate the cached piece is still valid
+    console.log(`  Validating cached ${patternType} piece...`);
+    if (await isPieceValid(apiUrl, space, configPieceId)) {
+      console.log(`  ✓ Cached piece is valid`);
+      return configPieceId;
     }
-    // Cached charm is invalid - clear it from config
-    console.log(`  ⚠️  Cached charm is invalid (missing source cell), will create new one`);
-    delete (config.charms as Record<string, string>)[patternType];
+    // Cached piece is invalid - clear it from config
+    console.log(`  ⚠️  Cached piece is invalid (missing source cell), will create new one`);
+    delete (config.pieces as Record<string, string>)[patternType];
     await saveConfig(config);
   }
 
-  // Try to find existing charm in space
-  console.log(`  Looking for existing ${patternType} charm...`);
-  const existingCharmId = await findCharmByPattern(apiUrl, space, patternType);
-  if (existingCharmId) {
-    console.log(`  ✓ Found existing charm: ${existingCharmId.substring(0, 20)}...`);
+  // Try to find existing piece in space
+  console.log(`  Looking for existing ${patternType} piece...`);
+  const existingPieceId = await findPieceByPattern(apiUrl, space, patternType);
+  if (existingPieceId) {
+    console.log(`  ✓ Found existing piece: ${existingPieceId.substring(0, 20)}...`);
     // Save to config for future use
-    config.charms = config.charms || {};
-    (config.charms as Record<string, string>)[patternType] = existingCharmId;
+    config.pieces = config.pieces || {};
+    (config.pieces as Record<string, string>)[patternType] = existingPieceId;
     await saveConfig(config);
-    return existingCharmId;
+    return existingPieceId;
   }
 
-  // Create new charm
-  const newCharmId = await createCharm(apiUrl, space, patternType);
+  // Create new piece
+  const newPieceId = await createPiece(apiUrl, space, patternType);
   // Save to config
-  config.charms = config.charms || {};
-  (config.charms as Record<string, string>)[patternType] = newCharmId;
+  config.pieces = config.pieces || {};
+  (config.pieces as Record<string, string>)[patternType] = newPieceId;
   await saveConfig(config);
-  return newCharmId;
+  return newPieceId;
 }
 
-async function readFromCharm<T>(options: CharmOptions): Promise<T | null> {
-  const { apiUrl, space, charmId, path } = options;
+async function readFromPiece<T>(options: PieceOptions): Promise<T | null> {
+  const { apiUrl, space, pieceId, path } = options;
 
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
@@ -424,11 +424,11 @@ async function readFromCharm<T>(options: CharmOptions): Promise<T | null> {
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "get",
+      "ct", "piece", "get",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
-      "--charm", charmId,
+      "--piece", pieceId,
       "--input",
       path,
     ],
@@ -439,12 +439,12 @@ async function readFromCharm<T>(options: CharmOptions): Promise<T | null> {
   const output = await command.output();
 
   if (!output.success) {
-    // If charm has no data yet, return null instead of error
+    // If piece has no data yet, return null instead of error
     const stderr = new TextDecoder().decode(output.stderr);
     if (stderr.includes("undefined") || stderr.includes("null")) {
       return null;
     }
-    throw new Error(`Failed to read from charm: ${stderr}`);
+    throw new Error(`Failed to read from piece: ${stderr}`);
   }
 
   const stdout = new TextDecoder().decode(output.stdout).trim();
@@ -459,10 +459,10 @@ async function readFromCharm<T>(options: CharmOptions): Promise<T | null> {
   }
 }
 
-async function writeToCharm(options: WriteToCharmOptions): Promise<void> {
-  const { apiUrl, space, charmId, path, data } = options;
+async function writeToPiece(options: WriteToPieceOptions): Promise<void> {
+  const { apiUrl, space, pieceId, path, data } = options;
 
-  // Use deno task ct charm set to write to the charm
+  // Use deno task ct piece set to write to the piece
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
@@ -474,11 +474,11 @@ async function writeToCharm(options: WriteToCharmOptions): Promise<void> {
     args: [
       "task",
       "--config", denoJson,
-      "ct", "charm", "set",
+      "ct", "piece", "set",
       "--api-url", apiUrl,
       "--identity", IDENTITY_PATH,
       "--space", space,
-      "--charm", charmId,
+      "--piece", pieceId,
       "--input",
       path,
     ],
@@ -498,7 +498,7 @@ async function writeToCharm(options: WriteToCharmOptions): Promise<void> {
 
   if (!output.success) {
     const stderr = new TextDecoder().decode(output.stderr);
-    throw new Error(`Failed to write to charm: ${stderr}`);
+    throw new Error(`Failed to write to piece: ${stderr}`);
   }
 }
 
@@ -514,11 +514,11 @@ async function cmdStatus(): Promise<void> {
   console.log(`  Space: ${config.space || "(not set)"}`);
   console.log(`  API URL: ${config.apiUrl || "(not set)"}`);
   console.log(`  Labs Dir: ${config.labsDir || DEFAULT_LABS_DIR}`);
-  console.log("\nCharm IDs:");
-  console.log(`  iMessage: ${config.charms?.imessage || "(not set)"}`);
-  console.log(`  Calendar: ${config.charms?.calendar || "(not set)"}`);
-  console.log(`  Reminders: ${config.charms?.reminders || "(not set)"}`);
-  console.log(`  Notes: ${config.charms?.notes || "(not set)"}`);
+  console.log("\nPiece IDs:");
+  console.log(`  iMessage: ${config.pieces?.imessage || "(not set)"}`);
+  console.log(`  Calendar: ${config.pieces?.calendar || "(not set)"}`);
+  console.log(`  Reminders: ${config.pieces?.reminders || "(not set)"}`);
+  console.log(`  Notes: ${config.pieces?.notes || "(not set)"}`);
 
   console.log("\nSync State:");
   if (state.imessage?.lastSyncTime) {
@@ -586,20 +586,20 @@ async function cmdStatus(): Promise<void> {
   console.log("");
 }
 
-async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
+async function cmdImessage(useMock: boolean = false, overridePieceId?: string): Promise<void> {
   console.log("\n📱 Syncing iMessage...\n");
 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, or validate/create
-  let charmId: string;
-  if (overrideCharmId) {
-    // User explicitly provided a charm ID - use it
-    charmId = overrideCharmId;
+  // Get piece ID from override, or validate/create
+  let pieceId: string;
+  if (overridePieceId) {
+    // User explicitly provided a piece ID - use it
+    pieceId = overridePieceId;
   } else {
-    // Get or create charm (validates cached charms)
-    charmId = await getOrCreateCharm(apiUrl, config.space!, "imessage", config);
+    // Get or create piece (validates cached pieces)
+    pieceId = await getOrCreatePiece(apiUrl, config.space!, "imessage", config);
   }
 
   const state = await loadState();
@@ -610,7 +610,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
   if (useMock) {
     console.log("  Mode: MOCK DATA (for testing)");
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Generating mock messages...");
     messages = generateMockMessages(20);
     console.log(`  Generated ${messages.length} mock messages`);
@@ -632,7 +632,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     console.log(`  Database: ${IMESSAGE_DB}`);
     console.log(`  Last synced row ID: ${lastRowId}`);
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Reading messages...");
 
     try {
@@ -682,7 +682,7 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
 
   // Convert messages to format expected by the pattern
   // The pattern expects Message[] with date as ISO string
-  const newMessagesForCharm = messages.map(msg => ({
+  const newMessagesForPiece = messages.map(msg => ({
     rowId: msg.rowId,
     guid: msg.guid,
     text: msg.text,
@@ -692,16 +692,16 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     handleId: msg.handleId,
   }));
 
-  // Read existing messages from charm and merge
-  console.log("\n  Reading existing messages from charm...");
-  const charmConfig = {
+  // Read existing messages from piece and merge
+  console.log("\n  Reading existing messages from piece...");
+  const pieceConfig = {
     apiUrl: config.apiUrl || "http://localhost:8000",
     space: config.space,
-    charmId: charmId,
+    pieceId: pieceId,
     path: "messages",
   };
 
-  interface CharmMessage {
+  interface PieceMessage {
     rowId: number;
     guid: string;
     text: string | null;
@@ -711,9 +711,9 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
     handleId: string;
   }
 
-  let existingMessages: CharmMessage[] = [];
+  let existingMessages: PieceMessage[] = [];
   try {
-    const existing = await readFromCharm<CharmMessage[]>(charmConfig);
+    const existing = await readFromPiece<PieceMessage[]>(pieceConfig);
     existingMessages = existing || [];
     console.log(`  Found ${existingMessages.length} existing messages`);
   } catch (error) {
@@ -722,13 +722,13 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
   }
 
   // Merge: dedupe by guid, keeping newest version
-  const messagesByGuid = new Map<string, CharmMessage>();
+  const messagesByGuid = new Map<string, PieceMessage>();
   for (const msg of existingMessages) {
     if (msg && msg.guid) {
       messagesByGuid.set(msg.guid, msg);
     }
   }
-  for (const msg of newMessagesForCharm) {
+  for (const msg of newMessagesForPiece) {
     if (msg && msg.guid) {
       messagesByGuid.set(msg.guid, msg);
     }
@@ -741,17 +741,17 @@ async function cmdImessage(useMock: boolean = false, overrideCharmId?: string): 
   const newCount = mergedMessages.length - existingMessages.length;
   console.log(`  Merged: ${newCount} new messages added (${mergedMessages.length} total)`);
 
-  // Write merged messages to charm
-  console.log("\n  Writing to charm...");
+  // Write merged messages to piece
+  console.log("\n  Writing to piece...");
   try {
-    await writeToCharm({
-      ...charmConfig,
+    await writeToPiece({
+      ...pieceConfig,
       data: mergedMessages,
     });
-    console.log("  ✓ Written to charm");
+    console.log("  ✓ Written to piece");
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    console.log(`\n❌ Error writing to piece: ${errorMsg}`);
     Deno.exit(1);
   }
 
@@ -1045,20 +1045,20 @@ function generateMockCalendarEvents(count: number = 15): CalendarEvent[] {
   return events;
 }
 
-async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, daysBack: number = 30): Promise<void> {
+async function cmdCalendar(useMock: boolean = false, overridePieceId?: string, daysBack: number = 30): Promise<void> {
   console.log("\n📅 Syncing Calendar...\n");
 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, or validate/create
-  let charmId: string;
-  if (overrideCharmId) {
-    // User explicitly provided a charm ID - use it
-    charmId = overrideCharmId;
+  // Get piece ID from override, or validate/create
+  let pieceId: string;
+  if (overridePieceId) {
+    // User explicitly provided a piece ID - use it
+    pieceId = overridePieceId;
   } else {
-    // Get or create charm (validates cached charms)
-    charmId = await getOrCreateCharm(apiUrl, config.space!, "calendar", config);
+    // Get or create piece (validates cached pieces)
+    pieceId = await getOrCreatePiece(apiUrl, config.space!, "calendar", config);
   }
 
   let events: CalendarEvent[];
@@ -1066,13 +1066,13 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
   if (useMock) {
     console.log("  Mode: MOCK DATA (for testing)");
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Generating mock events...");
     events = generateMockCalendarEvents(15);
     console.log(`  Generated ${events.length} mock events`);
   } else {
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Reading calendar events via AppleScript...");
 
     try {
@@ -1106,8 +1106,8 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
     console.log(`    ... and ${events.length - 5} more`);
   }
 
-  // Convert events to format for charm
-  const newEventsForCharm = events.map(evt => ({
+  // Convert events to format for piece
+  const newEventsForPiece = events.map(evt => ({
     id: evt.id,
     title: evt.title,
     startDate: evt.startDate.toISOString(),
@@ -1118,16 +1118,16 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
     isAllDay: evt.isAllDay,
   }));
 
-  // Read existing events from charm and merge
-  console.log("\n  Reading existing events from charm...");
-  const charmConfig = {
+  // Read existing events from piece and merge
+  console.log("\n  Reading existing events from piece...");
+  const pieceConfig = {
     apiUrl: config.apiUrl || "http://localhost:8000",
     space: config.space,
-    charmId: charmId,
+    pieceId: pieceId,
     path: "events",
   };
 
-  interface CharmEvent {
+  interface PieceEvent {
     id: string;
     title: string;
     startDate: string;
@@ -1138,9 +1138,9 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
     isAllDay: boolean;
   }
 
-  let existingEvents: CharmEvent[] = [];
+  let existingEvents: PieceEvent[] = [];
   try {
-    const existing = await readFromCharm<CharmEvent[]>(charmConfig);
+    const existing = await readFromPiece<PieceEvent[]>(pieceConfig);
     existingEvents = existing || [];
     console.log(`  Found ${existingEvents.length} existing events`);
   } catch {
@@ -1148,13 +1148,13 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
   }
 
   // Merge: dedupe by id, new events overwrite old (they may be updated)
-  const eventsById = new Map<string, CharmEvent>();
+  const eventsById = new Map<string, PieceEvent>();
   for (const evt of existingEvents) {
     if (evt && evt.id) {
       eventsById.set(evt.id, evt);
     }
   }
-  for (const evt of newEventsForCharm) {
+  for (const evt of newEventsForPiece) {
     if (evt && evt.id) {
       eventsById.set(evt.id, evt);
     }
@@ -1168,17 +1168,17 @@ async function cmdCalendar(useMock: boolean = false, overrideCharmId?: string, d
   const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
   console.log(`  Merged: ${updateInfo} (${mergedEvents.length} total)`);
 
-  // Write merged events to charm
-  console.log("\n  Writing to charm...");
+  // Write merged events to piece
+  console.log("\n  Writing to piece...");
   try {
-    await writeToCharm({
-      ...charmConfig,
+    await writeToPiece({
+      ...pieceConfig,
       data: mergedEvents,
     });
-    console.log("  ✓ Written to charm");
+    console.log("  ✓ Written to piece");
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    console.log(`\n❌ Error writing to piece: ${errorMsg}`);
     Deno.exit(1);
   }
 
@@ -1385,20 +1385,20 @@ function generateMockReminders(count: number = 15): Reminder[] {
   return reminders;
 }
 
-async function cmdReminders(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
+async function cmdReminders(useMock: boolean = false, overridePieceId?: string): Promise<void> {
   console.log("\n✅ Syncing Reminders...\n");
 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, or validate/create
-  let charmId: string;
-  if (overrideCharmId) {
-    // User explicitly provided a charm ID - use it
-    charmId = overrideCharmId;
+  // Get piece ID from override, or validate/create
+  let pieceId: string;
+  if (overridePieceId) {
+    // User explicitly provided a piece ID - use it
+    pieceId = overridePieceId;
   } else {
-    // Get or create charm (validates cached charms)
-    charmId = await getOrCreateCharm(apiUrl, config.space!, "reminders", config);
+    // Get or create piece (validates cached pieces)
+    pieceId = await getOrCreatePiece(apiUrl, config.space!, "reminders", config);
   }
 
   let reminders: Reminder[];
@@ -1406,13 +1406,13 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   if (useMock) {
     console.log("  Mode: MOCK DATA (for testing)");
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Generating mock reminders...");
     reminders = generateMockReminders(15);
     console.log(`  Generated ${reminders.length} mock reminders`);
   } else {
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Reading reminders via AppleScript...");
 
     try {
@@ -1447,8 +1447,8 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
     console.log(`    ... and ${reminders.length - 5} more`);
   }
 
-  // Convert reminders to format for charm
-  const newRemindersForCharm = reminders.map(r => ({
+  // Convert reminders to format for piece
+  const newRemindersForPiece = reminders.map(r => ({
     id: r.id,
     title: r.title,
     notes: r.notes,
@@ -1459,16 +1459,16 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
     listName: r.listName,
   }));
 
-  // Read existing reminders from charm and merge
-  console.log("\n  Reading existing reminders from charm...");
-  const charmConfig = {
+  // Read existing reminders from piece and merge
+  console.log("\n  Reading existing reminders from piece...");
+  const pieceConfig = {
     apiUrl: config.apiUrl || "http://localhost:8000",
     space: config.space,
-    charmId: charmId,
+    pieceId: pieceId,
     path: "reminders",
   };
 
-  interface CharmReminder {
+  interface PieceReminder {
     id: string;
     title: string;
     notes: string | null;
@@ -1479,9 +1479,9 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
     listName: string;
   }
 
-  let existingReminders: CharmReminder[] = [];
+  let existingReminders: PieceReminder[] = [];
   try {
-    const existing = await readFromCharm<CharmReminder[]>(charmConfig);
+    const existing = await readFromPiece<PieceReminder[]>(pieceConfig);
     existingReminders = existing || [];
     console.log(`  Found ${existingReminders.length} existing reminders`);
   } catch {
@@ -1489,13 +1489,13 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   }
 
   // Merge: dedupe by id, new reminders overwrite old (they may be updated/completed)
-  const remindersById = new Map<string, CharmReminder>();
+  const remindersById = new Map<string, PieceReminder>();
   for (const r of existingReminders) {
     if (r && r.id) {
       remindersById.set(r.id, r);
     }
   }
-  for (const r of newRemindersForCharm) {
+  for (const r of newRemindersForPiece) {
     if (r && r.id) {
       remindersById.set(r.id, r);
     }
@@ -1523,17 +1523,17 @@ async function cmdReminders(useMock: boolean = false, overrideCharmId?: string):
   const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
   console.log(`  Merged: ${updateInfo} (${mergedReminders.length} total)`);
 
-  // Write merged reminders to charm
-  console.log("\n  Writing to charm...");
+  // Write merged reminders to piece
+  console.log("\n  Writing to piece...");
   try {
-    await writeToCharm({
-      ...charmConfig,
+    await writeToPiece({
+      ...pieceConfig,
       data: mergedReminders,
     });
-    console.log("  ✓ Written to charm");
+    console.log("  ✓ Written to piece");
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    console.log(`\n❌ Error writing to piece: ${errorMsg}`);
     Deno.exit(1);
   }
 
@@ -1706,20 +1706,20 @@ function generateMockNotes(count: number = 12): Note[] {
   return notes;
 }
 
-async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Promise<void> {
+async function cmdNotes(useMock: boolean = false, overridePieceId?: string): Promise<void> {
   console.log("\n📝 Syncing Notes...\n");
 
   const config = await loadConfig();
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
-  // Get charm ID from override, or validate/create
-  let charmId: string;
-  if (overrideCharmId) {
-    // User explicitly provided a charm ID - use it
-    charmId = overrideCharmId;
+  // Get piece ID from override, or validate/create
+  let pieceId: string;
+  if (overridePieceId) {
+    // User explicitly provided a piece ID - use it
+    pieceId = overridePieceId;
   } else {
-    // Get or create charm (validates cached charms)
-    charmId = await getOrCreateCharm(apiUrl, config.space!, "notes", config);
+    // Get or create piece (validates cached pieces)
+    pieceId = await getOrCreatePiece(apiUrl, config.space!, "notes", config);
   }
 
   let notes: Note[];
@@ -1727,13 +1727,13 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   if (useMock) {
     console.log("  Mode: MOCK DATA (for testing)");
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Generating mock notes...");
     notes = generateMockNotes(12);
     console.log(`  Generated ${notes.length} mock notes`);
   } else {
     console.log(`  Target space: ${config.space}`);
-    console.log(`  Target charm: ${charmId}`);
+    console.log(`  Target piece: ${pieceId}`);
     console.log("\n  Reading notes via AppleScript...");
 
     try {
@@ -1768,8 +1768,8 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
     console.log(`    ... and ${notes.length - 5} more`);
   }
 
-  // Convert notes to format for charm
-  const newNotesForCharm = notes.map(n => ({
+  // Convert notes to format for piece
+  const newNotesForPiece = notes.map(n => ({
     id: n.id,
     title: n.title,
     body: n.body,
@@ -1778,16 +1778,16 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
     folderName: n.folderName,
   }));
 
-  // Read existing notes from charm and merge
-  console.log("\n  Reading existing notes from charm...");
-  const charmConfig = {
+  // Read existing notes from piece and merge
+  console.log("\n  Reading existing notes from piece...");
+  const pieceConfig = {
     apiUrl: config.apiUrl || "http://localhost:8000",
     space: config.space,
-    charmId: charmId,
+    pieceId: pieceId,
     path: "notes",
   };
 
-  interface CharmNote {
+  interface PieceNote {
     id: string;
     title: string;
     body: string;
@@ -1796,9 +1796,9 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
     folderName: string;
   }
 
-  let existingNotes: CharmNote[] = [];
+  let existingNotes: PieceNote[] = [];
   try {
-    const existing = await readFromCharm<CharmNote[]>(charmConfig);
+    const existing = await readFromPiece<PieceNote[]>(pieceConfig);
     existingNotes = existing || [];
     console.log(`  Found ${existingNotes.length} existing notes`);
   } catch {
@@ -1806,13 +1806,13 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   }
 
   // Merge: dedupe by id, keep the one with newer modificationDate
-  const notesById = new Map<string, CharmNote>();
+  const notesById = new Map<string, PieceNote>();
   for (const n of existingNotes) {
     if (n && n.id) {
       notesById.set(n.id, n);
     }
   }
-  for (const n of newNotesForCharm) {
+  for (const n of newNotesForPiece) {
     if (n && n.id) {
       const existing = notesById.get(n.id);
       // Keep newer version based on modificationDate
@@ -1830,17 +1830,17 @@ async function cmdNotes(useMock: boolean = false, overrideCharmId?: string): Pro
   const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
   console.log(`  Merged: ${updateInfo} (${mergedNotes.length} total)`);
 
-  // Write merged notes to charm
-  console.log("\n  Writing to charm...");
+  // Write merged notes to piece
+  console.log("\n  Writing to piece...");
   try {
-    await writeToCharm({
-      ...charmConfig,
+    await writeToPiece({
+      ...pieceConfig,
       data: mergedNotes,
     });
-    console.log("  ✓ Written to charm");
+    console.log("  ✓ Written to piece");
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`\n❌ Error writing to charm: ${errorMsg}`);
+    console.log(`\n❌ Error writing to piece: ${errorMsg}`);
     Deno.exit(1);
   }
 
@@ -1866,7 +1866,7 @@ async function ensureSpace(overrideSpace?: string): Promise<void> {
   if (overrideSpace) {
     config.space = overrideSpace;
     config.apiUrl = config.apiUrl || "http://localhost:8000";
-    config.charms = config.charms || {};
+    config.pieces = config.pieces || {};
     await saveConfig(config);
     console.log(`\n✅ Using space: ${overrideSpace}\n`);
     return;
@@ -1887,7 +1887,7 @@ async function ensureSpace(overrideSpace?: string): Promise<void> {
 
   config.space = space;
   config.apiUrl = "http://localhost:8000";
-  config.charms = {};
+  config.pieces = {};
   await saveConfig(config);
   console.log(`\n✅ Configuration saved. Using space: ${space}\n`);
 }
@@ -2028,7 +2028,7 @@ async function createAppleCalendarEvent(
 /**
  * Process the calendar outbox - read pending entries and create events in Apple Calendar
  */
-async function cmdCalendarWrite(overrideCharmId?: string): Promise<void> {
+async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
   console.log("\n📅 Processing Calendar Outbox...\n");
 
   const config = await loadConfig();
@@ -2039,28 +2039,28 @@ async function cmdCalendarWrite(overrideCharmId?: string): Promise<void> {
     Deno.exit(1);
   }
 
-  // Find extracurricular charm
-  let charmId: string | null = overrideCharmId || null;
+  // Find extracurricular piece
+  let pieceId: string | null = overridePieceId || null;
 
-  if (!charmId) {
-    console.log("  Looking for extracurricular charm...");
-    charmId = await findCharmByPattern(apiUrl, config.space, "extracurricular");
+  if (!pieceId) {
+    console.log("  Looking for extracurricular piece...");
+    pieceId = await findPieceByPattern(apiUrl, config.space, "extracurricular");
 
-    if (!charmId) {
-      console.log("❌ No extracurricular charm found in space.");
+    if (!pieceId) {
+      console.log("❌ No extracurricular piece found in space.");
       console.log("   Deploy the extracurricular pattern first, then export events to the outbox.");
       Deno.exit(1);
     }
   }
 
-  console.log(`  Found charm: ${charmId.substring(0, 20)}...`);
+  console.log(`  Found piece: ${pieceId.substring(0, 20)}...`);
 
-  // Read the outbox from the charm
+  // Read the outbox from the piece
   console.log("  Reading calendar outbox...");
-  const outbox = await readFromCharm<CalendarOutbox>({
+  const outbox = await readFromPiece<CalendarOutbox>({
     apiUrl,
     space: config.space,
-    charmId,
+    pieceId,
     path: "calendarOutbox",
   });
 
@@ -2125,14 +2125,14 @@ async function cmdCalendarWrite(overrideCharmId?: string): Promise<void> {
     }
   }
 
-  // Write updated outbox back to charm
+  // Write updated outbox back to piece
   console.log("\n  Updating outbox status...");
   outbox.lastUpdated = new Date().toISOString();
 
-  await writeToCharm({
+  await writeToPiece({
     apiUrl,
     space: config.space,
-    charmId,
+    pieceId,
     path: "calendarOutbox",
     data: outbox,
   });
@@ -2149,23 +2149,23 @@ async function cmdCalendarWrite(overrideCharmId?: string): Promise<void> {
 async function runSyncCycle(
   sources: string[],
   useMock: boolean,
-  overrideCharmId?: string,
+  overridePieceId?: string,
   daysBack: number = 30
 ): Promise<void> {
   for (const source of sources) {
     try {
       switch (source) {
         case "imessage":
-          await cmdImessage(useMock, overrideCharmId);
+          await cmdImessage(useMock, overridePieceId);
           break;
         case "calendar":
-          await cmdCalendar(useMock, overrideCharmId, daysBack);
+          await cmdCalendar(useMock, overridePieceId, daysBack);
           break;
         case "reminders":
-          await cmdReminders(useMock, overrideCharmId);
+          await cmdReminders(useMock, overridePieceId);
           break;
         case "notes":
-          await cmdNotes(useMock, overrideCharmId);
+          await cmdNotes(useMock, overridePieceId);
           break;
       }
     } catch (error) {
@@ -2183,7 +2183,7 @@ async function runDaemon(
   sources: string[],
   intervalMinutes: number,
   useMock: boolean,
-  overrideCharmId?: string,
+  overridePieceId?: string,
   daysBack: number = 30
 ): Promise<void> {
   console.log(`\n🔄 Starting daemon mode (syncing every ${intervalMinutes} minute${intervalMinutes === 1 ? '' : 's'})`);
@@ -2192,7 +2192,7 @@ async function runDaemon(
 
   // Run initial sync
   console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
-  await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
+  await runSyncCycle(sources, useMock, overridePieceId, daysBack);
 
   // Set up interval
   const intervalMs = intervalMinutes * 60 * 1000;
@@ -2200,7 +2200,7 @@ async function runDaemon(
   // Use setInterval for recurring syncs
   const intervalId = setInterval(async () => {
     console.log(`\n━━━ Sync at ${new Date().toLocaleTimeString()} ━━━`);
-    await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
+    await runSyncCycle(sources, useMock, overridePieceId, daysBack);
   }, intervalMs);
 
   // Handle graceful shutdown
@@ -2229,10 +2229,10 @@ async function main(): Promise<void> {
   const useMock = args.includes("--mock");
   const isDaemon = args.includes("--daemon");
 
-  // Parse --charm argument
-  const charmIndex = args.indexOf("--charm");
-  const overrideCharmId = charmIndex !== -1 && args[charmIndex + 1]
-    ? args[charmIndex + 1]
+  // Parse --piece argument
+  const pieceIndex = args.indexOf("--piece");
+  const overridePieceId = pieceIndex !== -1 && args[pieceIndex + 1]
+    ? args[pieceIndex + 1]
     : undefined;
 
   // Parse --space argument
@@ -2264,7 +2264,7 @@ async function main(): Promise<void> {
 
   // Handle calendar-write command separately (not part of sync cycle)
   if (command === "calendar-write") {
-    await cmdCalendarWrite(overrideCharmId);
+    await cmdCalendarWrite(overridePieceId);
     return;
   }
 
@@ -2297,9 +2297,9 @@ async function main(): Promise<void> {
 
   // Run in daemon mode or single sync
   if (isDaemon) {
-    await runDaemon(sources, intervalMinutes, useMock, overrideCharmId, daysBack);
+    await runDaemon(sources, intervalMinutes, useMock, overridePieceId, daysBack);
   } else {
-    await runSyncCycle(sources, useMock, overrideCharmId, daysBack);
+    await runSyncCycle(sources, useMock, overridePieceId, daysBack);
   }
 }
 
