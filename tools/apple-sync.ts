@@ -19,9 +19,15 @@ const IDENTITY_PATH = `${REPO_ROOT}claude.key`;
 
 // Apple data locations
 const IMESSAGE_DB = `${Deno.env.get("HOME")}/Library/Messages/chat.db`;
-const CALENDAR_DB_LEGACY = `${Deno.env.get("HOME")}/Library/Calendars/Calendar.sqlitedb`;
-const CALENDAR_DB_MODERN = `${Deno.env.get("HOME")}/Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb`;
-const NOTES_DB = `${Deno.env.get("HOME")}/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite`;
+const CALENDAR_DB_LEGACY = `${
+  Deno.env.get("HOME")
+}/Library/Calendars/Calendar.sqlitedb`;
+const CALENDAR_DB_MODERN = `${
+  Deno.env.get("HOME")
+}/Library/Group Containers/group.com.apple.calendar/Calendar.sqlitedb`;
+const NOTES_DB = `${
+  Deno.env.get("HOME")
+}/Library/Group Containers/group.com.apple.notes/NoteStore.sqlite`;
 
 interface Config {
   space?: string;
@@ -177,18 +183,27 @@ interface WriteToPieceOptions extends PieceOptions {
 /**
  * List all pieces in a space
  */
-async function listPiecesInSpace(apiUrl: string, space: string): Promise<PieceInfo[]> {
+async function listPiecesInSpace(
+  apiUrl: string,
+  space: string,
+): Promise<PieceInfo[]> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "ls",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "ls",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
     ],
     stdout: "piped",
     stderr: "piped",
@@ -227,7 +242,11 @@ async function listPiecesInSpace(apiUrl: string, space: string): Promise<PieceIn
  * Returns false only if piece is definitely invalid (missing source cell)
  * Returns true for other errors (assume piece might be valid, let it fail later if not)
  */
-async function isPieceValid(apiUrl: string, space: string, pieceId: string): Promise<boolean> {
+async function isPieceValid(
+  apiUrl: string,
+  space: string,
+  pieceId: string,
+): Promise<boolean> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
@@ -235,12 +254,19 @@ async function isPieceValid(apiUrl: string, space: string, pieceId: string): Pro
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "get",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
-      "--piece", pieceId,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "get",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
+      "--piece",
+      pieceId,
       "sourceFile",
     ],
     stdout: "piped",
@@ -251,7 +277,9 @@ async function isPieceValid(apiUrl: string, space: string, pieceId: string): Pro
   const stderr = new TextDecoder().decode(output.stderr);
 
   // Only return false for known "piece is invalid" error patterns
-  if (stderr.includes("missing source cell") || stderr.includes("missing recipe")) {
+  if (
+    stderr.includes("missing source cell") || stderr.includes("missing recipe")
+  ) {
     return false;
   }
 
@@ -263,7 +291,11 @@ async function isPieceValid(apiUrl: string, space: string, pieceId: string): Pro
 /**
  * Get piece metadata to find its source file name
  */
-async function getPieceSourceFile(apiUrl: string, space: string, pieceId: string): Promise<string | null> {
+async function getPieceSourceFile(
+  apiUrl: string,
+  space: string,
+  pieceId: string,
+): Promise<string | null> {
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
@@ -271,12 +303,19 @@ async function getPieceSourceFile(apiUrl: string, space: string, pieceId: string
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "get",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
-      "--piece", pieceId,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "get",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
+      "--piece",
+      pieceId,
       "sourceFile",
     ],
     stdout: "piped",
@@ -304,7 +343,7 @@ async function getPieceSourceFile(apiUrl: string, space: string, pieceId: string
 async function findPieceByPattern(
   apiUrl: string,
   space: string,
-  patternType: keyof typeof PATTERN_NAMES
+  patternType: keyof typeof PATTERN_NAMES,
 ): Promise<string | null> {
   const targetName = PATTERN_NAMES[patternType];
   const pieces = await listPiecesInSpace(apiUrl, space);
@@ -325,7 +364,7 @@ async function findPieceByPattern(
 async function createPiece(
   apiUrl: string,
   space: string,
-  patternType: keyof typeof PATTERN_PATHS
+  patternType: keyof typeof PATTERN_PATHS,
 ): Promise<string> {
   const patternPath = `${REPO_ROOT}${PATTERN_PATHS[patternType]}`;
   const labsDir = DEFAULT_LABS_DIR;
@@ -336,11 +375,17 @@ async function createPiece(
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "new",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "new",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
       patternPath,
     ],
     stdout: "piped",
@@ -376,10 +421,11 @@ async function getOrCreatePiece(
   apiUrl: string,
   space: string,
   patternType: keyof typeof PATTERN_PATHS,
-  config: Config
+  config: Config,
 ): Promise<string> {
   // First check if we have it in config
-  const configPieceId = config.pieces?.[patternType as keyof typeof config.pieces];
+  const configPieceId = config.pieces
+    ?.[patternType as keyof typeof config.pieces];
   if (configPieceId) {
     // Validate the cached piece is still valid
     console.log(`  Validating cached ${patternType} piece...`);
@@ -388,7 +434,9 @@ async function getOrCreatePiece(
       return configPieceId;
     }
     // Cached piece is invalid - clear it from config
-    console.log(`  ⚠️  Cached piece is invalid (missing source cell), will create new one`);
+    console.log(
+      `  ⚠️  Cached piece is invalid (missing source cell), will create new one`,
+    );
     delete (config.pieces as Record<string, string>)[patternType];
     await saveConfig(config);
   }
@@ -397,7 +445,9 @@ async function getOrCreatePiece(
   console.log(`  Looking for existing ${patternType} piece...`);
   const existingPieceId = await findPieceByPattern(apiUrl, space, patternType);
   if (existingPieceId) {
-    console.log(`  ✓ Found existing piece: ${existingPieceId.substring(0, 20)}...`);
+    console.log(
+      `  ✓ Found existing piece: ${existingPieceId.substring(0, 20)}...`,
+    );
     // Save to config for future use
     config.pieces = config.pieces || {};
     (config.pieces as Record<string, string>)[patternType] = existingPieceId;
@@ -423,12 +473,19 @@ async function readFromPiece<T>(options: PieceOptions): Promise<T | null> {
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "get",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
-      "--piece", pieceId,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "get",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
+      "--piece",
+      pieceId,
       "--input",
       path,
     ],
@@ -473,12 +530,19 @@ async function writeToPiece(options: WriteToPieceOptions): Promise<void> {
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "--config", denoJson,
-      "ct", "piece", "set",
-      "--api-url", apiUrl,
-      "--identity", IDENTITY_PATH,
-      "--space", space,
-      "--piece", pieceId,
+      "--config",
+      denoJson,
+      "ct",
+      "piece",
+      "set",
+      "--api-url",
+      apiUrl,
+      "--identity",
+      IDENTITY_PATH,
+      "--space",
+      space,
+      "--piece",
+      pieceId,
       "--input",
       path,
     ],
@@ -572,7 +636,9 @@ async function cmdStatus(): Promise<void> {
     }
   }
   if (!calendarFound) {
-    console.log(`  ❌ Calendar: Not found (checked both legacy and modern paths)`);
+    console.log(
+      `  ❌ Calendar: Not found (checked both legacy and modern paths)`,
+    );
   }
 
   // Check Notes DB
@@ -586,7 +652,10 @@ async function cmdStatus(): Promise<void> {
   console.log("");
 }
 
-async function cmdImessage(useMock: boolean = false, overridePieceId?: string): Promise<void> {
+async function cmdImessage(
+  useMock: boolean = false,
+  overridePieceId?: string,
+): Promise<void> {
   console.log("\n📱 Syncing iMessage...\n");
 
   const config = await loadConfig();
@@ -623,7 +692,9 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
       console.log("\n💡 Tips:");
       console.log("   1. Make sure iMessage is set up on this Mac");
       console.log("   2. Grant Full Disk Access to your terminal:");
-      console.log("      System Settings > Privacy & Security > Full Disk Access");
+      console.log(
+        "      System Settings > Privacy & Security > Full Disk Access",
+      );
       console.log("   3. Use --mock flag to test with sample data:\n");
       console.log("      ./tools/apple-sync.ts imessage --mock\n");
       Deno.exit(1);
@@ -643,14 +714,19 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
       console.log(`\n❌ Error reading messages: ${errorMsg}`);
 
       // Check for permission error
-      if (errorMsg.includes("Operation not permitted") || errorMsg.includes("os error 1")) {
+      if (
+        errorMsg.includes("Operation not permitted") ||
+        errorMsg.includes("os error 1")
+      ) {
         console.log("\n🔒 This is a macOS permission issue. To fix it:\n");
         console.log("   1. Open System Settings (or System Preferences)");
         console.log("   2. Go to Privacy & Security → Full Disk Access");
         console.log("   3. Click the + button and add your terminal app:");
         console.log("      • Terminal.app (in /Applications/Utilities/)");
         console.log("      • iTerm (if using iTerm)");
-        console.log("      • Visual Studio Code (if running from VS Code terminal)");
+        console.log(
+          "      • Visual Studio Code (if running from VS Code terminal)",
+        );
         console.log("   4. Restart your terminal after granting access");
         console.log("\n   Then run this command again.\n");
       }
@@ -667,7 +743,7 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
   }
 
   // Find the max row ID for next sync
-  const maxRowId = Math.max(...messages.map(m => m.rowId));
+  const maxRowId = Math.max(...messages.map((m) => m.rowId));
 
   // Show sample of messages
   console.log("\n  Sample messages:");
@@ -682,7 +758,7 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
 
   // Convert messages to format expected by the pattern
   // The pattern expects Message[] with date as ISO string
-  const newMessagesForPiece = messages.map(msg => ({
+  const newMessagesForPiece = messages.map((msg) => ({
     rowId: msg.rowId,
     guid: msg.guid,
     text: msg.text,
@@ -736,10 +812,14 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
 
   const mergedMessages = Array.from(messagesByGuid.values());
   // Sort by date
-  mergedMessages.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  mergedMessages.sort((a, b) =>
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
 
   const newCount = mergedMessages.length - existingMessages.length;
-  console.log(`  Merged: ${newCount} new messages added (${mergedMessages.length} total)`);
+  console.log(
+    `  Merged: ${newCount} new messages added (${mergedMessages.length} total)`,
+  );
 
   // Write merged messages to piece
   console.log("\n  Writing to piece...");
@@ -764,7 +844,9 @@ async function cmdImessage(useMock: boolean = false, overridePieceId?: string): 
     await saveState(state);
   }
 
-  console.log(`\n✅ Synced ${newCount} new messages (${mergedMessages.length} total)`);
+  console.log(
+    `\n✅ Synced ${newCount} new messages (${mergedMessages.length} total)`,
+  );
   if (!useMock) {
     console.log(`   New last row ID: ${maxRowId}`);
   }
@@ -807,7 +889,7 @@ async function readIMessages(sinceRowId: number = 0): Promise<IMessage[]> {
 
   const command = new Deno.Command("sqlite3", {
     args: [
-      "-json",  // Output as JSON for easy parsing
+      "-json", // Output as JSON for easy parsing
       IMESSAGE_DB,
       query,
     ],
@@ -856,7 +938,7 @@ async function readIMessages(sinceRowId: number = 0): Promise<IMessage[]> {
 
 function generateMockMessages(count: number = 20): IMessage[] {
   const contacts = [
-    "+15551234567",  // Proper 11-digit phone format
+    "+15551234567", // Proper 11-digit phone format
     "+15559876543",
     "friend@example.com",
     "work@company.com",
@@ -919,7 +1001,10 @@ interface CalendarEvent {
   isAllDay: boolean;
 }
 
-async function readCalendarEvents(daysAhead: number = 30, daysBack: number = 7): Promise<CalendarEvent[]> {
+async function readCalendarEvents(
+  daysAhead: number = 30,
+  daysBack: number = 7,
+): Promise<CalendarEvent[]> {
   // Use AppleScript to read calendar events
   // This is more reliable than parsing the Core Data SQLite format
   const script = `
@@ -972,7 +1057,16 @@ async function readCalendarEvents(daysAhead: number = 30, daysBack: number = 7):
     const parts = line.substring(6).split("|");
     if (parts.length < 8) continue;
 
-    const [id, title, startStr, endStr, location, notes, calendarName, allDayStr] = parts;
+    const [
+      id,
+      title,
+      startStr,
+      endStr,
+      location,
+      notes,
+      calendarName,
+      allDayStr,
+    ] = parts;
 
     events.push({
       id,
@@ -1032,7 +1126,9 @@ function generateMockCalendarEvents(count: number = 15): CalendarEvent[] {
     events.push({
       id: `mock-event-${i}-${Date.now()}`,
       title: titles[Math.floor(Math.random() * titles.length)],
-      startDate: isAllDay ? new Date(startDate.setHours(0, 0, 0, 0)) : startDate,
+      startDate: isAllDay
+        ? new Date(startDate.setHours(0, 0, 0, 0))
+        : startDate,
       endDate: isAllDay ? new Date(endDate.setHours(23, 59, 59, 999)) : endDate,
       location: locations[Math.floor(Math.random() * locations.length)],
       notes: Math.random() < 0.3 ? "Some notes about this event" : null,
@@ -1045,7 +1141,11 @@ function generateMockCalendarEvents(count: number = 15): CalendarEvent[] {
   return events;
 }
 
-async function cmdCalendar(useMock: boolean = false, overridePieceId?: string, daysBack: number = 30): Promise<void> {
+async function cmdCalendar(
+  useMock: boolean = false,
+  overridePieceId?: string,
+  daysBack: number = 30,
+): Promise<void> {
   console.log("\n📅 Syncing Calendar...\n");
 
   const config = await loadConfig();
@@ -1077,7 +1177,9 @@ async function cmdCalendar(useMock: boolean = false, overridePieceId?: string, d
 
     try {
       events = await readCalendarEvents(30, daysBack);
-      console.log(`  Found ${events.length} events (${daysBack} days back, 30 days ahead)`);
+      console.log(
+        `  Found ${events.length} events (${daysBack} days back, 30 days ahead)`,
+      );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.log(`\n❌ Error reading calendar: ${errorMsg}`);
@@ -1107,7 +1209,7 @@ async function cmdCalendar(useMock: boolean = false, overridePieceId?: string, d
   }
 
   // Convert events to format for piece
-  const newEventsForPiece = events.map(evt => ({
+  const newEventsForPiece = events.map((evt) => ({
     id: evt.id,
     title: evt.title,
     startDate: evt.startDate.toISOString(),
@@ -1162,7 +1264,9 @@ async function cmdCalendar(useMock: boolean = false, overridePieceId?: string, d
 
   const mergedEvents = Array.from(eventsById.values());
   // Sort by start date
-  mergedEvents.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  mergedEvents.sort((a, b) =>
+    new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+  );
 
   const newCount = mergedEvents.length - existingEvents.length;
   const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
@@ -1205,7 +1309,9 @@ interface Reminder {
   listName: string;
 }
 
-async function readReminders(includeCompleted: boolean = false): Promise<Reminder[]> {
+async function readReminders(
+  includeCompleted: boolean = false,
+): Promise<Reminder[]> {
   // Use AppleScript to read reminders
   const completedFilter = includeCompleted ? "" : "whose completed is false";
   const script = `
@@ -1271,17 +1377,28 @@ async function readReminders(includeCompleted: boolean = false): Promise<Reminde
     const parts = line.substring(9).split("|");
     if (parts.length < 8) continue;
 
-    const [id, title, notes, dueDateStr, completedStr, completionDateStr, priorityStr, listName] = parts;
+    const [
+      id,
+      title,
+      notes,
+      dueDateStr,
+      completedStr,
+      completionDateStr,
+      priorityStr,
+      listName,
+    ] = parts;
 
     reminders.push({
       id,
       title,
       notes: notes && notes !== "missing value" ? notes : null,
-      dueDate: dueDateStr && dueDateStr !== "null" && dueDateStr !== "missing value"
-        ? new Date(dueDateStr)
-        : null,
+      dueDate:
+        dueDateStr && dueDateStr !== "null" && dueDateStr !== "missing value"
+          ? new Date(dueDateStr)
+          : null,
       isCompleted: completedStr === "true",
-      completionDate: completionDateStr && completionDateStr !== "null" && completionDateStr !== "missing value"
+      completionDate: completionDateStr && completionDateStr !== "null" &&
+          completionDateStr !== "missing value"
         ? new Date(completionDateStr)
         : null,
       priority: parseInt(priorityStr) || 0,
@@ -1345,7 +1462,9 @@ function generateMockReminders(count: number = 15): Reminder[] {
     const hasDueDate = Math.random() > 0.3;
     const daysOffset = Math.floor(Math.random() * 14) - 3; // -3 to +11 days
     const isCompleted = Math.random() < 0.2;
-    const priority = Math.random() < 0.3 ? [1, 5, 9][Math.floor(Math.random() * 3)] : 0;
+    const priority = Math.random() < 0.3
+      ? [1, 5, 9][Math.floor(Math.random() * 3)]
+      : 0;
 
     let dueDate: Date | null = null;
     if (hasDueDate) {
@@ -1359,7 +1478,9 @@ function generateMockReminders(count: number = 15): Reminder[] {
       notes: notes[Math.floor(Math.random() * notes.length)],
       dueDate,
       isCompleted,
-      completionDate: isCompleted ? new Date(now - Math.random() * 7 * 24 * 60 * 60 * 1000) : null,
+      completionDate: isCompleted
+        ? new Date(now - Math.random() * 7 * 24 * 60 * 60 * 1000)
+        : null,
       priority,
       listName: lists[Math.floor(Math.random() * lists.length)],
     });
@@ -1385,7 +1506,10 @@ function generateMockReminders(count: number = 15): Reminder[] {
   return reminders;
 }
 
-async function cmdReminders(useMock: boolean = false, overridePieceId?: string): Promise<void> {
+async function cmdReminders(
+  useMock: boolean = false,
+  overridePieceId?: string,
+): Promise<void> {
   console.log("\n✅ Syncing Reminders...\n");
 
   const config = await loadConfig();
@@ -1398,7 +1522,12 @@ async function cmdReminders(useMock: boolean = false, overridePieceId?: string):
     pieceId = overridePieceId;
   } else {
     // Get or create piece (validates cached pieces)
-    pieceId = await getOrCreatePiece(apiUrl, config.space!, "reminders", config);
+    pieceId = await getOrCreatePiece(
+      apiUrl,
+      config.space!,
+      "reminders",
+      config,
+    );
   }
 
   let reminders: Reminder[];
@@ -1448,7 +1577,7 @@ async function cmdReminders(useMock: boolean = false, overridePieceId?: string):
   }
 
   // Convert reminders to format for piece
-  const newRemindersForPiece = reminders.map(r => ({
+  const newRemindersForPiece = reminders.map((r) => ({
     id: r.id,
     title: r.title,
     notes: r.notes,
@@ -1508,7 +1637,8 @@ async function cmdReminders(useMock: boolean = false, overridePieceId?: string):
     if (a.dueDate && !b.dueDate) return -1;
     if (!a.dueDate && b.dueDate) return 1;
     if (a.dueDate && b.dueDate) {
-      const dateDiff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      const dateDiff = new Date(a.dueDate).getTime() -
+        new Date(b.dueDate).getTime();
       if (dateDiff !== 0) return dateDiff;
     }
     if (a.priority !== b.priority) {
@@ -1651,7 +1781,9 @@ async function readNotes(): Promise<Note[]> {
   }
 
   // Sort by modification date (newest first)
-  notes.sort((a, b) => b.modificationDate.getTime() - a.modificationDate.getTime());
+  notes.sort((a, b) =>
+    b.modificationDate.getTime() - a.modificationDate.getTime()
+  );
 
   return notes;
 }
@@ -1688,7 +1820,9 @@ function generateMockNotes(count: number = 12): Note[] {
   for (let i = 0; i < count; i++) {
     const daysAgo = Math.floor(Math.random() * 60); // Within last 60 days
     const modDate = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
-    const createDate = new Date(modDate.getTime() - Math.random() * 30 * 24 * 60 * 60 * 1000);
+    const createDate = new Date(
+      modDate.getTime() - Math.random() * 30 * 24 * 60 * 60 * 1000,
+    );
 
     notes.push({
       id: `mock-note-${i}-${Date.now()}`,
@@ -1701,12 +1835,17 @@ function generateMockNotes(count: number = 12): Note[] {
   }
 
   // Sort by modification date (newest first)
-  notes.sort((a, b) => b.modificationDate.getTime() - a.modificationDate.getTime());
+  notes.sort((a, b) =>
+    b.modificationDate.getTime() - a.modificationDate.getTime()
+  );
 
   return notes;
 }
 
-async function cmdNotes(useMock: boolean = false, overridePieceId?: string): Promise<void> {
+async function cmdNotes(
+  useMock: boolean = false,
+  overridePieceId?: string,
+): Promise<void> {
   console.log("\n📝 Syncing Notes...\n");
 
   const config = await loadConfig();
@@ -1769,7 +1908,7 @@ async function cmdNotes(useMock: boolean = false, overridePieceId?: string): Pro
   }
 
   // Convert notes to format for piece
-  const newNotesForPiece = notes.map(n => ({
+  const newNotesForPiece = notes.map((n) => ({
     id: n.id,
     title: n.title,
     body: n.body,
@@ -1816,7 +1955,10 @@ async function cmdNotes(useMock: boolean = false, overridePieceId?: string): Pro
     if (n && n.id) {
       const existing = notesById.get(n.id);
       // Keep newer version based on modificationDate
-      if (!existing || new Date(n.modificationDate) >= new Date(existing.modificationDate)) {
+      if (
+        !existing ||
+        new Date(n.modificationDate) >= new Date(existing.modificationDate)
+      ) {
         notesById.set(n.id, n);
       }
     }
@@ -1824,7 +1966,10 @@ async function cmdNotes(useMock: boolean = false, overridePieceId?: string): Pro
 
   const mergedNotes = Array.from(notesById.values());
   // Sort by modification date (newest first)
-  mergedNotes.sort((a, b) => new Date(b.modificationDate).getTime() - new Date(a.modificationDate).getTime());
+  mergedNotes.sort((a, b) =>
+    new Date(b.modificationDate).getTime() -
+    new Date(a.modificationDate).getTime()
+  );
 
   const newCount = mergedNotes.length - existingNotes.length;
   const updateInfo = newCount >= 0 ? `${newCount} new` : `${-newCount} removed`;
@@ -1898,15 +2043,15 @@ interface CalendarOutboxEvent {
   id: string;
   title: string;
   calendarName: string;
-  startDate: string;  // YYYY-MM-DD
-  startTime: string;  // HH:MM
-  endTime: string;    // HH:MM
+  startDate: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
   location?: string;
   notes?: string;
   recurrence?: {
     frequency: "WEEKLY";
-    byDay: string;         // e.g., "MO" or "MO,WE,FR"
-    until?: string;        // YYYY-MM-DD
+    byDay: string; // e.g., "MO" or "MO,WE,FR"
+    until?: string; // YYYY-MM-DD
   };
 }
 
@@ -1941,7 +2086,7 @@ interface CalendarOutbox {
  * Create a calendar event in Apple Calendar via AppleScript
  */
 async function createAppleCalendarEvent(
-  event: CalendarOutboxEvent
+  event: CalendarOutboxEvent,
 ): Promise<{ success: boolean; error?: string; eventId?: string }> {
   // Build AppleScript to create the event
   // Note: AppleScript calendar dates need to be in a specific format
@@ -1962,7 +2107,8 @@ async function createAppleCalendarEvent(
   let recurrenceRule = "";
   if (event.recurrence) {
     // byDay is already in RRULE format (e.g., "MO" or "MO,WE,FR")
-    recurrenceRule = `FREQ=${event.recurrence.frequency};BYDAY=${event.recurrence.byDay}`;
+    recurrenceRule =
+      `FREQ=${event.recurrence.frequency};BYDAY=${event.recurrence.byDay}`;
     if (event.recurrence.until) {
       const until = event.recurrence.until.replace(/-/g, "");
       recurrenceRule += `;UNTIL=${until}T235959Z`;
@@ -1993,9 +2139,15 @@ async function createAppleCalendarEvent(
         set endDate to startDate + (${durationMinutes} * minutes)
 
         -- Create the event
-        set newEvent to make new event with properties {summary:"${title}", start date:startDate, end date:endDate${location ? `, location:"${location}"` : ""}${notes ? `, description:"${notes}"` : ""}}
+        set newEvent to make new event with properties {summary:"${title}", start date:startDate, end date:endDate${
+    location ? `, location:"${location}"` : ""
+  }${notes ? `, description:"${notes}"` : ""}}
 
-        ${recurrenceRule ? `-- Set recurrence\nset recurrence of newEvent to "${recurrenceRule}"` : ""}
+        ${
+    recurrenceRule
+      ? `-- Set recurrence\nset recurrence of newEvent to "${recurrenceRule}"`
+      : ""
+  }
 
         -- Return the event UID
         return uid of newEvent
@@ -2035,7 +2187,9 @@ async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
   const apiUrl = config.apiUrl || "http://localhost:8000";
 
   if (!config.space) {
-    console.log("❌ No space configured. Run 'apple-sync --all' first to configure.");
+    console.log(
+      "❌ No space configured. Run 'apple-sync --all' first to configure.",
+    );
     Deno.exit(1);
   }
 
@@ -2048,7 +2202,9 @@ async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
 
     if (!pieceId) {
       console.log("❌ No extracurricular piece found in space.");
-      console.log("   Deploy the extracurricular pattern first, then export events to the outbox.");
+      console.log(
+        "   Deploy the extracurricular pattern first, then export events to the outbox.",
+      );
       Deno.exit(1);
     }
   }
@@ -2071,11 +2227,13 @@ async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
 
   // Filter for pending entries only
   const pendingEntries = outbox.entries.filter(
-    (entry) => entry.execution.status === "pending"
+    (entry) => entry.execution.status === "pending",
   );
 
   if (pendingEntries.length === 0) {
-    console.log(`\n✅ No pending entries (${outbox.entries.length} total, all processed).\n`);
+    console.log(
+      `\n✅ No pending entries (${outbox.entries.length} total, all processed).\n`,
+    );
     return;
   }
 
@@ -2121,7 +2279,9 @@ async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
       entry.execution.status = "completed";
       entry.execution.completedAt = new Date().toISOString();
       entry.execution.createdEventIds = createdIds;
-      console.log(`    ✓ All ${entry.events.length} events created successfully`);
+      console.log(
+        `    ✓ All ${entry.events.length} events created successfully`,
+      );
     }
   }
 
@@ -2137,8 +2297,10 @@ async function cmdCalendarWrite(overridePieceId?: string): Promise<void> {
     data: outbox,
   });
 
-  const successCount = pendingEntries.filter(e => e.execution.status === "completed").length;
-  const failCount = pendingEntries.filter(e => e.execution.status === "failed").length;
+  const successCount =
+    pendingEntries.filter((e) => e.execution.status === "completed").length;
+  const failCount =
+    pendingEntries.filter((e) => e.execution.status === "failed").length;
 
   console.log(`\n✅ Done: ${successCount} succeeded, ${failCount} failed\n`);
 }
@@ -2150,7 +2312,7 @@ async function runSyncCycle(
   sources: string[],
   useMock: boolean,
   overridePieceId?: string,
-  daysBack: number = 30
+  daysBack: number = 30,
 ): Promise<void> {
   for (const source of sources) {
     try {
@@ -2184,9 +2346,13 @@ async function runDaemon(
   intervalMinutes: number,
   useMock: boolean,
   overridePieceId?: string,
-  daysBack: number = 30
+  daysBack: number = 30,
 ): Promise<void> {
-  console.log(`\n🔄 Starting daemon mode (syncing every ${intervalMinutes} minute${intervalMinutes === 1 ? '' : 's'})`);
+  console.log(
+    `\n🔄 Starting daemon mode (syncing every ${intervalMinutes} minute${
+      intervalMinutes === 1 ? "" : "s"
+    })`,
+  );
   console.log(`   Sources: ${sources.join(", ")}`);
   console.log(`   Press Ctrl+C to stop\n`);
 
@@ -2297,7 +2463,13 @@ async function main(): Promise<void> {
 
   // Run in daemon mode or single sync
   if (isDaemon) {
-    await runDaemon(sources, intervalMinutes, useMock, overridePieceId, daysBack);
+    await runDaemon(
+      sources,
+      intervalMinutes,
+      useMock,
+      overridePieceId,
+      daysBack,
+    );
   } else {
     await runSyncCycle(sources, useMock, overridePieceId, daysBack);
   }
