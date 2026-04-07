@@ -263,7 +263,7 @@ export default pattern<Input, Output>(({ token }) => {
               {" "}(opens GitHub)
             </li>
             <li>Sign in to GitHub if prompted</li>
-            <li>Set a name like "Common Tools GitHub Access"</li>
+            <li>Set a name like "Common Fabric GitHub Access"</li>
             <li>
               <strong style={{ color: "#dc3545" }}>
                 DO NOT check any scope boxes

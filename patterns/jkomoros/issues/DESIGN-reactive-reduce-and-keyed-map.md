@@ -260,7 +260,7 @@ urls.set(["b", "a"]);  // ← Same keys, no re-fetch. Just reorders results.
 
 ## Context
 
-The Common Tools framework provides `Cell.map()` for processing arrays reactively. However, when building streaming pipelines that aggregate results from multiple items (e.g., per-item LLM processing), we encounter two fundamental limitations:
+The Common Fabric framework provides `Cell.map()` for processing arrays reactively. However, when building streaming pipelines that aggregate results from multiple items (e.g., per-item LLM processing), we encounter two fundamental limitations:
 
 1. **No reactive aggregation primitive** - There's no way to combine values from an array of cells while maintaining reactivity
 2. **Index-stability assumption** - `Cell.map()` assumes arrays are append-only; reordering breaks downstream processing
@@ -308,7 +308,7 @@ The `reduce()` primitive would use `asCell: false` (the default) to unwrap value
 
 ```typescript
 // Pattern code
-import { reduce, cell } from "commontools";
+import { reduce, cell } from "commonfabric";
 
 const items: Cell<LLMResult[]> = articles.map(url => generateObject({...}));
 
@@ -575,7 +575,7 @@ Same key → same entity ID → same result cell, regardless of position.
 
 ```typescript
 // Pattern code
-import { mapByKey, cell } from "commontools";
+import { mapByKey, cell } from "commonfabric";
 
 const urls: Cell<string[]> = cell(["url-0", "url-1", "url-2"]);
 
@@ -858,7 +858,7 @@ const fetches = mapByKeyWithPattern(
 ### The Full Pipeline
 
 ```typescript
-import { cell, mapByKey, reduce, derive } from "commontools";
+import { cell, mapByKey, reduce, derive } from "commonfabric";
 
 // Input: list of article URLs
 const articleURLs = cell<string[]>([]);

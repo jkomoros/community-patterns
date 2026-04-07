@@ -35,7 +35,7 @@ Create a dedicated auth pattern (like `google-auth.tsx`) that:
 
 1. Go to github.com → Settings → Developer Settings → Personal Access Tokens → **Tokens (classic)**
 2. Click "Generate new token (classic)"
-3. Name: "Common Tools GitHub Access"
+3. Name: "Common Fabric GitHub Access"
 4. Expiration: Set if desired (or "No expiration" for convenience)
 5. **Scopes: Check NOTHING** - zero scopes = read-only public access
 6. Click "Generate token"

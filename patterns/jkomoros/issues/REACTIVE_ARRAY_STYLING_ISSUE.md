@@ -20,7 +20,7 @@ Here's a simplified version demonstrating the issue:
 
 ```tsx
 /// <cts-enable />
-import { cell, Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { cell, Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 type WordOwner = "red" | "blue" | "neutral" | "unassigned";
 

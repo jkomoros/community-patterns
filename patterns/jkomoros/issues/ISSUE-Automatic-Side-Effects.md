@@ -114,7 +114,7 @@ Here's the complete pattern showing where automatic save is needed:
 
 ```typescript
 /// <cts-enable />
-import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commonfabric";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 

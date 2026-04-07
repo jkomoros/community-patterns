@@ -43,7 +43,7 @@ import {
   pattern,
   Stream,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Nested type structure matching the original
 interface Alternative {
@@ -239,7 +239,7 @@ import {
   pattern,
   Stream,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Same nested type structure
 interface Alternative {

@@ -515,7 +515,7 @@ deno task ct charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-st
 
 ```typescript
 /// <cts-enable />
-import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   items?: Default<string[], []>;

@@ -74,7 +74,7 @@ The reactive chain that causes the thrash:
 
 ## Why This Happens
 
-The Common Tools reactive system tracks dependencies at the granularity of
+The Common Fabric reactive system tracks dependencies at the granularity of
 `.get()` calls. When you call `array.get()`, you subscribe to the **entire array
 value**. The array is a collection of charm references, and when any charm's
 computed properties (like `[NAME]`) update, the array itself is considered

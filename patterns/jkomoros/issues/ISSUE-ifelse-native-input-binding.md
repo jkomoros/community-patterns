@@ -8,7 +8,7 @@ Native HTML `<input>` elements with `value={cell}` binding do not update the cel
 
 ```tsx
 /// <cts-enable />
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   show: Default<boolean, true>;

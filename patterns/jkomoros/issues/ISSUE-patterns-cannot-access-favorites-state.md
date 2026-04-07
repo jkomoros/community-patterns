@@ -91,7 +91,7 @@ Add a new builtin that patterns can call:
 
 ```typescript
 // Option 1: Builtin function
-import { isFavoritedCharm } from "commontools";
+import { isFavoritedCharm } from "commonfabric";
 
 const isFavorited = isFavoritedCharm(); // Returns boolean for current charm
 

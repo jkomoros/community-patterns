@@ -109,7 +109,7 @@ This causes issues when:
 
 ## Why This Happens
 
-The Common Tools reactivity system tracks Cell subscriptions. When you call `.set()`:
+The Common Fabric reactivity system tracks Cell subscriptions. When you call `.set()`:
 
 1. All subscribers are notified
 2. Any `computed()` or `derive()` that reads that Cell re-runs

@@ -438,7 +438,7 @@ spindle.hasPinnedChildren = spindle.children.some(c => c.pinnedOptionIndex >= 0)
 
 ### Framework Pattern: Dynamic Cell Array
 
-Spindle uses the "empty default + handler" pattern from Common Tools:
+Spindle uses the "empty default + handler" pattern from Common Fabric:
 
 ```typescript
 interface Input {

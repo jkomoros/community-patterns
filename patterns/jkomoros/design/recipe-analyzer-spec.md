@@ -130,7 +130,7 @@ import {
   derive,
   generateObject,
   pattern
-} from "commontools";
+} from "commonfabric";
 
 export default pattern<RecipeAnalyzerInput, RecipeAnalyzerOutput>(
   ({ recipeName, ingredients, category, tags }) => {

@@ -8,7 +8,7 @@
  * KEY INSIGHT: MULTI-LEVEL FRAMEWORK CACHING
  * =============================================================================
  *
- * This pattern demonstrates how to leverage Common Tools' automatic caching
+ * This pattern demonstrates how to leverage Common Fabric's automatic caching
  * at MULTIPLE levels. The framework caches results for ANY reactive primitive
  * based on its inputs - not just generateObject, but also fetchData!
  *

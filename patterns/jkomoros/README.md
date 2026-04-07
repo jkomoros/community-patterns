@@ -1,6 +1,6 @@
-# jkomoros Common Tools Patterns
+# jkomoros Common Fabric Patterns
 
-Personal collection of Common Tools patterns demonstrating various framework features and real-world use cases.
+Personal collection of Common Fabric patterns demonstrating various framework features and real-world use cases.
 
 ## Stable Patterns
 

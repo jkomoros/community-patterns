@@ -16,7 +16,7 @@ When `generateObject` extracts data into a complex schema with many fields, ther
 
 ```typescript
 /// <cts-enable />
-import { handler, NAME, navigateTo, pattern, UI } from "commontools";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 import Person from "./person.tsx";
 
 const DEMO_NOTES = `Dr. Maya Rodriguez (she/her)
@@ -297,7 +297,7 @@ Replace `JSON.parse(JSON.stringify())` with structural sharing (Immer-style):
 
 ## Environment
 
-- Framework: Common Tools / Labs (local dev)
+- Framework: Common Fabric / Labs (local dev)
 - Pattern: `patterns/jkomoros/person.tsx` + `person-test-launcher.tsx`
 - Browser: Chrome (tested)
 - OS: macOS Darwin 24.6.0

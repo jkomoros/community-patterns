@@ -80,7 +80,7 @@ const policy = {
 import {
   Cell, cell, Default, derive, handler, ifElse,
   NAME, pattern, UI, wish
-} from "commontools";
+} from "commonfabric";
 import { GmailSendClient } from "./util/gmail-send-client.ts";
 import type { Auth } from "./google-auth.tsx";
 
@@ -329,7 +329,7 @@ export default pattern<Input>(({ draft }) => {
 import {
   Cell, cell, Default, derive, handler, ifElse,
   NAME, pattern, UI, wish
-} from "commontools";
+} from "commonfabric";
 import { CalendarWriteClient } from "./util/calendar-write-client.ts";
 import type { Auth } from "./google-auth.tsx";
 import type { Calendar, CalendarEvent } from "./google-calendar-importer.tsx";
@@ -759,7 +759,7 @@ export default pattern<Input>(({ selectedEvent }) => {
 ```typescript
 // util/gmail-send-client.ts
 
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Cell, getRecipeEnvironment } from "commonfabric";
 import type { Auth } from "../google-auth.tsx";
 
 const env = getRecipeEnvironment();
@@ -890,7 +890,7 @@ export class GmailSendClient {
 ```typescript
 // util/calendar-write-client.ts
 
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Cell, getRecipeEnvironment } from "commonfabric";
 import type { Auth } from "../google-auth.tsx";
 import type { CalendarEvent } from "../google-calendar-importer.tsx";
 

@@ -55,7 +55,7 @@ gh repo clone commontoolsinc/labs
 gh repo clone commontoolsinc/patterns 2>/dev/null || echo "Note: patterns repo not accessible (this is fine)"
 ```
 
-**Tell the user:** "I've cloned the Common Tools framework repository (labs) as
+**Tell the user:** "I've cloned the Common Fabric framework repository (labs) as
 a peer to your community-patterns directory. The patterns repository is optional
 and may not be accessible depending on your permissions."
 

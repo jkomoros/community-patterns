@@ -46,7 +46,7 @@ The framework should either:
 ## Minimal Reproduction
 
 ```typescript
-import { recipe, schema, wish, derive, type Cell, NAME } from "commontools";
+import { recipe, schema, wish, derive, type Cell, NAME } from "commonfabric";
 import { z } from "zod";
 
 const DataSchema = schema({

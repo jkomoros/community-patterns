@@ -37,7 +37,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // ============================================================================
 // Types (from spec's Interface section)

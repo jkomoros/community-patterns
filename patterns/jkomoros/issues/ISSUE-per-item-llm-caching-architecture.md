@@ -1256,7 +1256,7 @@ But it lacks primitives for:
 #### API Design
 
 ```typescript
-import { whenAll } from "commontools";
+import { whenAll } from "commonfabric";
 
 // Input: array of async cells (generateObject, fetchData, etc.)
 const extractions = parsedArticles.map(article =>
@@ -1672,7 +1672,7 @@ Instead of `whenAll()`, consider requesting:
 #### Option A: Export `effect()` to Patterns
 
 ```typescript
-import { effect } from "commontools";
+import { effect } from "commonfabric";
 
 // Patterns can build their own aggregation
 let completed = 0;
@@ -1951,7 +1951,7 @@ A reactive `reduce()` would:
 #### Proposed API
 
 ```typescript
-import { reduce } from "commontools";
+import { reduce } from "commonfabric";
 
 // Basic usage
 const completedLinks = reduce(
