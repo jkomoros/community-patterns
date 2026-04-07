@@ -1,7 +1,4 @@
 /// <cts-enable />
-// @cf-typecheck-skip — cf compiler silent-crashes on this 3000+ line file
-// after the commonfabric port. Owner needs to refactor early-return idioms
-// inside .map() callbacks and rework google-auth state checks.
 /**
  * Extracurricular Selector
  *

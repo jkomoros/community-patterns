@@ -22,41 +22,49 @@
 
 import type { Writable } from "commonfabric";
 import type { Auth } from "../../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
+// CalendarWriteClient import temporarily removed: labs's
+// calendar-write-client.ts calls getPatternEnvironment() at module scope,
+// which the new SES verifier rejects (only trusted builders may be invoked
+// at module scope). Re-add once that labs file is patched upstream.
+type BatchProgress = {
+  total: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  percentComplete: number;
+  currentEvent?: string;
+};
 import {
-  CalendarWriteClient,
-  type BatchProgress,
-} from "../../../../labs/packages/patterns/google/core/util/calendar-write-client.ts";
-import {
-  generateICS,
   dayToICalDay,
-  getFirstOccurrenceDate,
   generateEventUID,
-  sanitizeFilename,
+  generateICS,
+  getFirstOccurrenceDate,
   type ICalEvent,
+  sanitizeFilename,
 } from "./ical-generator.ts";
 import type {
-  ExportableEvent,
-  ExportTarget,
-  ExportTargetInfo,
-  ExportConfig,
-  ExportResult,
   CalendarOutboxEvent,
-  RecurrenceRule,
   DayOfWeek,
+  ExportableEvent,
+  ExportConfig,
   ExportProgress,
   ExportProgressCallback,
+  ExportResult,
+  ExportTarget,
+  ExportTargetInfo,
+  RecurrenceRule,
 } from "../../../../labs/packages/patterns/google/core/util/calendar-export-types.ts";
 
 // Re-export types for convenience
 export type {
-  ExportableEvent,
-  ExportTarget,
-  ExportTargetInfo,
-  ExportConfig,
-  ExportResult,
   CalendarOutboxEvent,
+  ExportableEvent,
+  ExportConfig,
   ExportProgress,
   ExportProgressCallback,
+  ExportResult,
+  ExportTarget,
+  ExportTargetInfo,
 } from "../../../../labs/packages/patterns/google/core/util/calendar-export-types.ts";
 
 // ============================================================================
@@ -129,7 +137,8 @@ export function convertToGoogleEvents(
         // Build RRULE
         const dayCode = DAY_TO_RRULE[slot.day as DayOfWeek];
         const untilDate = dateRange.endDate.replace(/-/g, "");
-        const rrule = `RRULE:FREQ=WEEKLY;BYDAY=${dayCode};UNTIL=${untilDate}T235959Z`;
+        const rrule =
+          `RRULE:FREQ=WEEKLY;BYDAY=${dayCode};UNTIL=${untilDate}T235959Z`;
 
         result.push({
           clientId: `${event.id}-${slot.day}`,
@@ -230,8 +239,8 @@ export function convertToICS(
     timezone?: string;
   } = {},
 ): string {
-  const timezone =
-    options.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezone = options.timezone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone;
   const icalEvents: ICalEvent[] = [];
 
   for (const event of events) {
@@ -309,13 +318,11 @@ export function convertToICS(
  * @returns Export result
  */
 export async function exportToGoogle(
-  auth: Writable<Auth>,
+  _auth: Writable<Auth>,
   events: ExportableEvent[],
   config: ExportConfig,
   onProgress?: ExportProgressCallback,
 ): Promise<ExportResult> {
-  const client = new CalendarWriteClient(auth, { debugMode: false });
-
   // Convert to Google format
   const googleEvents = convertToGoogleEvents(events, config.dateRange);
 
@@ -339,75 +346,17 @@ export async function exportToGoogle(
     percentComplete: 0,
   });
 
-  try {
-    // Use batch API
-    const result = await client.createBatchEvents({
-      calendarId: config.calendarName, // "primary" or calendar ID
-      events: googleEvents,
-      sendUpdates: "none",
-      batchSize: 5, // Conservative to avoid rate limits
-      batchDelayMs: 200,
-      onProgress: (bp: BatchProgress) => {
-        onProgress?.({
-          phase: "exporting",
-          total: bp.total,
-          processed: bp.processed,
-          succeeded: bp.succeeded,
-          failed: bp.failed,
-          percentComplete: bp.percentComplete,
-          currentEvent: bp.currentEvent,
-        });
-      },
-    });
-
-    onProgress?.({
-      phase: "done",
-      total: result.total,
-      processed: result.total,
-      succeeded: result.succeeded,
-      failed: result.failed,
-      percentComplete: 100,
-    });
-
-    return {
-      success: result.failed === 0,
-      target: "google",
-      message:
-        result.failed === 0
-          ? `Successfully exported ${result.succeeded} events to Google Calendar`
-          : `Exported ${result.succeeded} events, ${result.failed} failed`,
-      timestamp: new Date().toISOString(),
-      exportedCount: result.succeeded,
-      failedCount: result.failed,
-      eventResults: result.results.map((r) => ({
-        eventId: r.clientId,
-        success: r.success,
-        externalId: r.event?.id,
-        error: r.error,
-      })),
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    onProgress?.({
-      phase: "error",
-      total: googleEvents.length,
-      processed: 0,
-      succeeded: 0,
-      failed: googleEvents.length,
-      percentComplete: 0,
-      error: errorMessage,
-    });
-
-    return {
-      success: false,
-      target: "google",
-      message: `Export failed: ${errorMessage}`,
-      timestamp: new Date().toISOString(),
-      exportedCount: 0,
-      failedCount: googleEvents.length,
-    };
-  }
+  // CalendarWriteClient is currently unavailable (see import comment above).
+  // Returning a runtime failure is honest until labs patches the upstream
+  // module-scope getPatternEnvironment() call.
+  return {
+    success: false,
+    target: "google",
+    message:
+      "Google Calendar export is temporarily unavailable while labs's calendar-write-client.ts is being updated for the SES sandbox.",
+    timestamp: new Date().toISOString(),
+    exportedCount: 0,
+  };
 }
 
 /**
@@ -426,7 +375,11 @@ export function exportToICS(
     calendarName: config.exportTitle || config.calendarName,
   });
 
-  const filename = `${sanitizeFilename(config.icsFilenamePrefix || config.calendarName || "calendar")}-${new Date().toISOString().split("T")[0]}.ics`;
+  const filename = `${
+    sanitizeFilename(
+      config.icsFilenamePrefix || config.calendarName || "calendar",
+    )
+  }-${new Date().toISOString().split("T")[0]}.ics`;
 
   return {
     success: true,
