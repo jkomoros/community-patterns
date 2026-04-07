@@ -1,5 +1,15 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  computed,
+  Default,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  safeDateNow,
+  UI,
+  Writable,
+} from "commonfabric";
 
 /**
  * Star Chart Pattern
@@ -33,10 +43,10 @@ import { Writable, computed, Default, handler, ifElse, NAME, pattern, UI } from 
  */
 
 interface DayRecord {
-  date: string;      // YYYY-MM-DD
-  earned: boolean;   // Did they earn a star?
+  date: string; // YYYY-MM-DD
+  earned: boolean; // Did they earn a star?
   protected: boolean; // Is this a streak-protected day?
-  rotation: number;  // Random rotation for sticker effect (-15 to 15)
+  rotation: number; // Random rotation for sticker effect (-15 to 15)
 }
 
 // Milestone thresholds and their celebration messages
@@ -48,7 +58,9 @@ const MILESTONES = [
 ] as const;
 
 // Get milestone info if current streak hits a milestone
-function getMilestoneForStreak(streak: number): typeof MILESTONES[number] | null {
+function getMilestoneForStreak(
+  streak: number,
+): typeof MILESTONES[number] | null {
   // Find the highest milestone that matches exactly
   for (let i = MILESTONES.length - 1; i >= 0; i--) {
     if (streak === MILESTONES[i].days) {
@@ -95,9 +107,11 @@ function formatDateLocal(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// Helper to get today's date as YYYY-MM-DD (local timezone)
+// Helper to get today's date as YYYY-MM-DD (local timezone).
+// Uses safeDateNow() because the new SES sandbox blocks `new Date()` with no
+// arguments (the zero-arg form reads the real wall clock which is non-deterministic).
 function getTodayString(): string {
-  return formatDateLocal(new Date());
+  return formatDateLocal(new Date(safeDateNow()));
 }
 
 // Helper to get previous day's date string
@@ -109,7 +123,10 @@ function getPreviousDay(dateStr: string): string {
 
 // Helper to calculate current streak from days array
 // Streak = consecutive days with earned OR protected status, going back from today
-function calculateStreak(daysArray: readonly DayRecord[], todayStr: string): number {
+function calculateStreak(
+  daysArray: readonly DayRecord[],
+  todayStr: string,
+): number {
   let streak = 0;
   let currentDate = todayStr;
 
@@ -127,13 +144,18 @@ function calculateStreak(daysArray: readonly DayRecord[], todayStr: string): num
   return streak;
 }
 
-
 // Handler to place a star for today (single tap)
 // Also handles streak protection: if yesterday is missed but had 3+ streak before,
 // auto-protect yesterday
 const placeStar = handler<
   unknown,
-  { days: Writable<DayRecord[]>; bestStreak: Writable<number>; lastCelebratedMilestone: Writable<number>; sparkleKey: Writable<number>; debugDate: Writable<string> }
+  {
+    days: Writable<DayRecord[]>;
+    bestStreak: Writable<number>;
+    lastCelebratedMilestone: Writable<number>;
+    sparkleKey: Writable<number>;
+    debugDate: Writable<string>;
+  }
 >((_, { days, bestStreak, lastCelebratedMilestone, sparkleKey, debugDate }) => {
   const currentDays = days.get();
   const override = debugDate.get();
@@ -238,7 +260,11 @@ const exitSettings = handler<
 // may not be accessible in CommonTools handlers
 const toggleDayStar = handler<
   unknown,
-  { days: Writable<DayRecord[]>; bestStreak: Writable<number>; dateToToggle: string }
+  {
+    days: Writable<DayRecord[]>;
+    bestStreak: Writable<number>;
+    dateToToggle: string;
+  }
 >((_, { days, bestStreak, dateToToggle }) => {
   const date = dateToToggle;
   if (!date) return;
@@ -258,7 +284,9 @@ const toggleDayStar = handler<
       // Add the star (set earned to true)
       const rotation = Math.random() * 30 - 15;
       updatedDays = currentDays.map((d, i) =>
-        i === existingIndex ? { ...d, earned: true, protected: false, rotation } : d
+        i === existingIndex
+          ? { ...d, earned: true, protected: false, rotation }
+          : d
       );
     }
   } else {
@@ -289,7 +317,7 @@ const toggleDayStar = handler<
 
 // Interface for timeline display
 interface TimelineDay {
-  date: string;      // YYYY-MM-DD
+  date: string; // YYYY-MM-DD
   displayDate: string; // "Nov 30" format
   hasStar: boolean;
   isProtected: boolean; // Protected day (dimmed star, counts toward streak)
@@ -297,7 +325,18 @@ interface TimelineDay {
 }
 
 const StarChart = pattern<StarChartInput, StarChartOutput>(
-  ({ goalName, goalDescription, days, bestStreak, lastCelebratedMilestone, sparkleKey, viewMode, debugDate }) => {
+  (
+    {
+      goalName,
+      goalDescription,
+      days,
+      bestStreak,
+      lastCelebratedMilestone,
+      sparkleKey,
+      viewMode,
+      debugDate,
+    },
+  ) => {
     // Get effective "today" (real or debug override)
     // debugDate is a Cell, so use .get() inside computed
     const effectiveToday = computed(() => {
@@ -342,80 +381,92 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
 
     // Generate list for corrections view (last 30 days)
     const correctionsList = computed(() => {
-        const daysArray = days.get();
-        const override = typeof debugDate === "string" ? debugDate : debugDate?.get?.() ?? "";
-        const todayStr = override || getTodayString();
+      const daysArray = days.get();
+      const override = typeof debugDate === "string"
+        ? debugDate
+        : debugDate?.get?.() ?? "";
+      const todayStr = override || getTodayString();
 
-        const result: { date: string; displayDate: string; hasStar: boolean; isProtected: boolean }[] = [];
-        const baseDate = new Date(todayStr + "T12:00:00");
+      const result: {
+        date: string;
+        displayDate: string;
+        hasStar: boolean;
+        isProtected: boolean;
+      }[] = [];
+      const baseDate = new Date(todayStr + "T12:00:00");
 
-        // Generate last 30 days
-        for (let i = 0; i < 30; i++) {
-          const currentDate = new Date(baseDate);
-          currentDate.setDate(baseDate.getDate() - i);
-          const dateStr = formatDateLocal(currentDate);
-          const displayDate = currentDate.toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-          });
+      // Generate last 30 days
+      for (let i = 0; i < 30; i++) {
+        const currentDate = new Date(baseDate);
+        currentDate.setDate(baseDate.getDate() - i);
+        const dateStr = formatDateLocal(currentDate);
+        const displayDate = currentDate.toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
 
-          const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
-          result.push({
-            date: dateStr,
-            displayDate,
-            hasStar: dayRecord?.earned ?? false,
-            isProtected: dayRecord?.protected ?? false,
-          });
-        }
+        const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
+        result.push({
+          date: dateStr,
+          displayDate,
+          hasStar: dayRecord?.earned ?? false,
+          isProtected: dayRecord?.protected ?? false,
+        });
+      }
 
-        return result;
+      return result;
     });
 
     // Generate timeline: dates from first recorded day to today
     // Using computed to pre-compute to avoid computed() inside map (causes infinite loops)
     const timeline = computed(() => {
-        const daysArray = days.get();
-        const override = typeof debugDate === "string" ? debugDate : debugDate?.get?.() ?? "";
-        const todayStr = override || getTodayString();
+      const daysArray = days.get();
+      const override = typeof debugDate === "string"
+        ? debugDate
+        : debugDate?.get?.() ?? "";
+      const todayStr = override || getTodayString();
 
-        // Find the earliest recorded date (earned or protected)
-        const recordedDates = daysArray
-          .filter((d: DayRecord) => d.earned || d.protected)
-          .map((d: DayRecord) => d.date)
-          .sort();
+      // Find the earliest recorded date (earned or protected)
+      const recordedDates = daysArray
+        .filter((d: DayRecord) => d.earned || d.protected)
+        .map((d: DayRecord) => d.date)
+        .sort();
 
-        // If no records exist, return empty timeline
-        if (recordedDates.length === 0) {
-          return [];
-        }
+      // If no records exist, return empty timeline
+      if (recordedDates.length === 0) {
+        return [];
+      }
 
-        const earliestRecordDate = recordedDates[0];
-        const baseDate = new Date(todayStr + "T12:00:00");
-        const earliestDate = new Date(earliestRecordDate + "T12:00:00");
+      const earliestRecordDate = recordedDates[0];
+      const baseDate = new Date(todayStr + "T12:00:00");
+      const earliestDate = new Date(earliestRecordDate + "T12:00:00");
 
-        const result: TimelineDay[] = [];
-        // Start from today, go back to earliest recorded date
-        let currentDate = new Date(baseDate);
+      const result: TimelineDay[] = [];
+      // Start from today, go back to earliest recorded date
+      let currentDate = new Date(baseDate);
 
-        while (currentDate >= earliestDate) {
-          const dateStr = formatDateLocal(currentDate);
-          const displayDate = currentDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      while (currentDate >= earliestDate) {
+        const dateStr = formatDateLocal(currentDate);
+        const displayDate = currentDate.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        });
 
-          const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
-          result.push({
-            date: dateStr,
-            displayDate,
-            hasStar: dayRecord?.earned ?? false,
-            isProtected: dayRecord?.protected ?? false,
-            rotation: dayRecord?.rotation ?? 0,
-          });
+        const dayRecord = daysArray.find((d: DayRecord) => d.date === dateStr);
+        result.push({
+          date: dateStr,
+          displayDate,
+          hasStar: dayRecord?.earned ?? false,
+          isProtected: dayRecord?.protected ?? false,
+          rotation: dayRecord?.rotation ?? 0,
+        });
 
-          // Move to previous day
-          currentDate.setDate(currentDate.getDate() - 1);
-        }
+        // Move to previous day
+        currentDate.setDate(currentDate.getDate() - 1);
+      }
 
-        return result;
+      return result;
     });
 
     return {
@@ -547,7 +598,8 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                   padding: "16px",
                   fontSize: "18px",
                   fontWeight: "bold",
-                  background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                  background:
+                    "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
                   color: "#78350f",
                   border: "none",
                   borderRadius: "12px",
@@ -561,453 +613,505 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
             ifElse(
               isCorrectionsMode,
               /* Corrections View - Parent Edit Mode */
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                padding: "20px",
-                gap: "16px",
-              }}
-            >
-              {/* Back button */}
-              <button
-                onClick={exitCorrections({ viewMode })}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#92400e",
-                  fontSize: "16px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  padding: "0",
-                }}
-              >
-                ← Back
-              </button>
-
-              {/* Header */}
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "#78350f",
-                  }}
-                >
-                  Edit Past Days
-                </div>
-                <div
-                  style={{
-                    fontSize: "13px",
-                    color: "#92400e",
-                    marginTop: "4px",
-                  }}
-                >
-                  Tap to add or remove stars
-                </div>
-              </div>
-
-              {/* List of days with toggles */}
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "8px",
-                  flex: 1,
-                  overflowY: "auto",
+                  padding: "20px",
+                  gap: "16px",
                 }}
               >
-                {correctionsList.map((day: { date: string; displayDate: string; hasStar: boolean; isProtected: boolean }) => (
+                {/* Back button */}
+                <button
+                  onClick={exitCorrections({ viewMode })}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#92400e",
+                    fontSize: "16px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "0",
+                  }}
+                >
+                  ← Back
+                </button>
+
+                {/* Header */}
+                <div style={{ textAlign: "center" }}>
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px 16px",
-                      background: "rgba(255,255,255,0.8)",
-                      borderRadius: "12px",
-                      border: day.hasStar ? "2px solid #fbbf24" : "2px solid transparent",
+                      fontSize: "20px",
+                      fontWeight: "bold",
+                      color: "#78350f",
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: "15px",
-                        color: "#78350f",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {day.displayDate}
-                    </div>
-                    <button
-                      onClick={toggleDayStar({ days, bestStreak, dateToToggle: day.date })}
-                      style={{
-                        fontSize: "32px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "4px 8px",
-                        borderRadius: "8px",
-                        transition: "transform 0.1s ease",
-                      }}
-                      className="toggle-star-btn"
-                    >
-                      {ifElse(
-                        day.hasStar,
-                        <span style={{ filter: "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))" }}>⭐</span>,
-                        ifElse(
-                          day.isProtected,
-                          <span style={{ opacity: 0.4, filter: "grayscale(50%)" }}>⭐</span>,
-                          <span style={{ opacity: 0.3 }}>○</span>
-                        )
-                      )}
-                    </button>
+                    Edit Past Days
                   </div>
-                ))}
-              </div>
-            </div>,
-            /* Main View - Daily Use */
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                padding: "20px",
-                gap: "16px",
-              }}
-            >
-              {/* Header with goal name - tappable to edit */}
-            <button
-              onClick={enterSettings({ viewMode })}
-              style={{
-                textAlign: "center",
-                paddingTop: "10px",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#92400e",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  marginBottom: "4px",
-                }}
-              >
-                Star Chart
-              </div>
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#78350f",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                }}
-              >
-                {goalName}
-                <span style={{ fontSize: "14px", opacity: 0.5 }}>✏️</span>
-              </div>
-              {/* Show description if set */}
-              {ifElse(
-                goalDescription,
-                <div
-                  style={{
-                    fontSize: "14px",
-                    color: "#92400e",
-                    marginTop: "4px",
-                    fontStyle: "italic",
-                  }}
-                >
-                  {goalDescription}
-                </div>,
-                null
-              )}
-            </button>
-
-            {/* Streak display */}
-            {ifElse(
-              currentStreak,
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "12px",
-                  background: "rgba(251, 191, 36, 0.2)",
-                  borderRadius: "12px",
-                  border: "2px solid #fbbf24",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "32px",
-                    fontWeight: "bold",
-                    color: "#d97706",
-                  }}
-                >
-                  🔥 {currentStreak} day{ifElse(computed(() => currentStreak === 1), "", "s")}!
-                </div>
-                {ifElse(
-                  bestStreak,
                   <div
                     style={{
-                      fontSize: "12px",
+                      fontSize: "13px",
                       color: "#92400e",
                       marginTop: "4px",
                     }}
                   >
-                    Best: {bestStreak} days
-                  </div>,
-                  null
-                )}
-              </div>,
-              null
-            )}
-
-            {/* Today's Section */}
-            <div
-              style={{
-                background: "rgba(255,255,255,0.8)",
-                borderRadius: "16px",
-                padding: "20px",
-                textAlign: "center",
-                border: "3px dashed #fbbf24",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#92400e",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  marginBottom: "12px",
-                }}
-              >
-                Today - {effectiveToday}
-              </div>
-
-              {/* If today already has a star, show with celebration animation */}
-              {ifElse(
-                todayHasStar,
-                <div className="star-container" key={sparkleKey}>
-                  {/* Sparkle particles */}
-                  <div className="sparkle-burst">
-                    <div className="sparkle s1">✦</div>
-                    <div className="sparkle s2">✦</div>
-                    <div className="sparkle s3">✦</div>
-                    <div className="sparkle s4">✦</div>
-                    <div className="sparkle s5">✦</div>
-                    <div className="sparkle s6">✦</div>
-                    <div className="sparkle s7">✦</div>
-                    <div className="sparkle s8">✦</div>
-                  </div>
-                  <div
-                    className="magical-star star-pop"
-                    style={{
-                      fontSize: "100px",
-                      lineHeight: "1",
-                      filter: "drop-shadow(0 0 12px rgba(251, 191, 36, 0.7))",
-                      animation: "shimmer 3s ease-in-out infinite, jiggle 2s ease-in-out infinite",
-                    }}
-                  >
-                    ⭐
-                  </div>
-                  {/* Milestone celebration or regular message */}
-                  {ifElse(
-                    currentMilestone,
-                    <div className="milestone-celebration" key={sparkleKey}>
-                      <div
-                        style={{
-                          fontSize: "24px",
-                          fontWeight: "bold",
-                          color: "#d97706",
-                          marginTop: "12px",
-                          animation: "bounce 0.5s ease-out",
-                        }}
-                      >
-                        {computed(() => currentMilestone?.message || "Great job!")}
-                      </div>
-                      {/* Extra confetti sparkles for milestones */}
-                      <div className="confetti-burst">
-                        <div className="confetti c1">🎊</div>
-                        <div className="confetti c2">✨</div>
-                        <div className="confetti c3">🎊</div>
-                        <div className="confetti c4">✨</div>
-                      </div>
-                    </div>,
-                    <div
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        color: "#d97706",
-                        marginTop: "12px",
-                      }}
-                    >
-                      Great job today!
-                    </div>
-                  )}
-                </div>,
-                <div>
-                  {/* Single tap to add star */}
-                  <button
-                    onClick={placeStar({ days, bestStreak, lastCelebratedMilestone, sparkleKey, debugDate })}
-                    style={{
-                      fontSize: "80px",
-                      background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
-                      border: "none",
-                      borderRadius: "50%",
-                      width: "150px",
-                      height: "150px",
-                      cursor: "pointer",
-                      boxShadow: "0 8px 24px rgba(251, 191, 36, 0.5)",
-                      transition: "all 0.2s ease",
-                    }}
-                    className="tap-star"
-                  >
-                    ⭐
-                  </button>
-                  <div
-                    style={{
-                      fontSize: "14px",
-                      color: "#92400e",
-                      marginTop: "12px",
-                    }}
-                  >
-                    Tap to earn your star!
+                    Tap to add or remove stars
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Horizontal Timeline */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#92400e",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  paddingLeft: "4px",
-                }}
-              >
-                Recent Days
-              </div>
-
-              {/* Horizontal scroll container */}
-              <div
-                style={{
-                  overflowX: "auto",
-                  overflowY: "hidden",
-                  paddingBottom: "8px",
-                }}
-              >
+                {/* List of days with toggles */}
                 <div
                   style={{
                     display: "flex",
-                    gap: "12px",
-                    paddingLeft: "4px",
-                    paddingRight: "4px",
+                    flexDirection: "column",
+                    gap: "8px",
+                    flex: 1,
+                    overflowY: "auto",
                   }}
                 >
-                  {timeline.map((day: { date: string; displayDate: string; hasStar: boolean; isProtected: boolean; rotation: number }) => (
+                  {correctionsList.map((
+                    day: {
+                      date: string;
+                      displayDate: string;
+                      hasStar: boolean;
+                      isProtected: boolean;
+                    },
+                  ) => (
                     <div
                       style={{
                         display: "flex",
-                        flexDirection: "column",
                         alignItems: "center",
-                        gap: "6px",
-                        minWidth: "60px",
-                        padding: "8px 4px",
-                        background: "rgba(255,255,255,0.5)",
+                        justifyContent: "space-between",
+                        padding: "12px 16px",
+                        background: "rgba(255,255,255,0.8)",
                         borderRadius: "12px",
+                        border: day.hasStar
+                          ? "2px solid #fbbf24"
+                          : "2px solid transparent",
                       }}
                     >
-                      {/* Date label */}
                       <div
                         style={{
-                          fontSize: "11px",
+                          fontSize: "15px",
                           color: "#78350f",
                           fontWeight: "500",
-                          whiteSpace: "nowrap",
                         }}
                       >
                         {day.displayDate}
                       </div>
-
-                      {/* Star (earned), protected star (dimmed), or empty circle */}
-                      {ifElse(
-                        day.hasStar,
-                        <div
-                          className="magical-star"
-                          style={{
-                            fontSize: "36px",
-                            lineHeight: "1",
-                            filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.5))",
-                            animation: "shimmer 3s ease-in-out infinite",
-                            transform: `rotate(${day.rotation}deg)`,
-                          }}
-                        >
-                          ⭐
-                        </div>,
-                        ifElse(
-                          day.isProtected,
-                          <div
+                      <button
+                        onClick={toggleDayStar({
+                          days,
+                          bestStreak,
+                          dateToToggle: day.date,
+                        })}
+                        style={{
+                          fontSize: "32px",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 8px",
+                          borderRadius: "8px",
+                          transition: "transform 0.1s ease",
+                        }}
+                        className="toggle-star-btn"
+                      >
+                        {ifElse(
+                          day.hasStar,
+                          <span
                             style={{
-                              fontSize: "36px",
-                              lineHeight: "1",
-                              opacity: 0.4,
-                              filter: "grayscale(50%)",
+                              filter:
+                                "drop-shadow(0 0 4px rgba(251, 191, 36, 0.5))",
                             }}
-                            title="Protected day (streak saved!)"
                           >
                             ⭐
-                          </div>,
-                          <div
-                            style={{
-                              width: "36px",
-                              height: "36px",
-                              borderRadius: "50%",
-                              border: "2px dashed #d4d4d4",
-                              background: "rgba(255,255,255,0.3)",
-                            }}
-                          />
-                        )
-                      )}
+                          </span>,
+                          ifElse(
+                            day.isProtected,
+                            <span
+                              style={{ opacity: 0.4, filter: "grayscale(50%)" }}
+                            >
+                              ⭐
+                            </span>,
+                            <span style={{ opacity: 0.3 }}>○</span>,
+                          ),
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            {/* Link to corrections view */}
-            <div style={{ textAlign: "center", paddingTop: "8px" }}>
-              <button
-                onClick={enterCorrections({ viewMode })}
+              </div>,
+              /* Main View - Daily Use */
+              <div
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "#92400e",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                  opacity: 0.7,
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "20px",
+                  gap: "16px",
                 }}
               >
-                Edit past days...
-              </button>
-            </div>
-            </div>
-            )
+                {/* Header with goal name - tappable to edit */}
+                <button
+                  onClick={enterSettings({ viewMode })}
+                  style={{
+                    textAlign: "center",
+                    paddingTop: "10px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    width: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "#92400e",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Star Chart
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "24px",
+                      fontWeight: "bold",
+                      color: "#78350f",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    {goalName}
+                    <span style={{ fontSize: "14px", opacity: 0.5 }}>✏️</span>
+                  </div>
+                  {/* Show description if set */}
+                  {ifElse(
+                    goalDescription,
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "#92400e",
+                        marginTop: "4px",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      {goalDescription}
+                    </div>,
+                    null,
+                  )}
+                </button>
+
+                {/* Streak display */}
+                {ifElse(
+                  currentStreak,
+                  <div
+                    style={{
+                      textAlign: "center",
+                      padding: "12px",
+                      background: "rgba(251, 191, 36, 0.2)",
+                      borderRadius: "12px",
+                      border: "2px solid #fbbf24",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "32px",
+                        fontWeight: "bold",
+                        color: "#d97706",
+                      }}
+                    >
+                      🔥 {currentStreak}{" "}
+                      day{ifElse(computed(() => currentStreak === 1), "", "s")}!
+                    </div>
+                    {ifElse(
+                      bestStreak,
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#92400e",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Best: {bestStreak} days
+                      </div>,
+                      null,
+                    )}
+                  </div>,
+                  null,
+                )}
+
+                {/* Today's Section */}
+                <div
+                  style={{
+                    background: "rgba(255,255,255,0.8)",
+                    borderRadius: "16px",
+                    padding: "20px",
+                    textAlign: "center",
+                    border: "3px dashed #fbbf24",
+                    position: "relative",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#92400e",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    Today - {effectiveToday}
+                  </div>
+
+                  {/* If today already has a star, show with celebration animation */}
+                  {ifElse(
+                    todayHasStar,
+                    <div className="star-container" key={sparkleKey}>
+                      {/* Sparkle particles */}
+                      <div className="sparkle-burst">
+                        <div className="sparkle s1">✦</div>
+                        <div className="sparkle s2">✦</div>
+                        <div className="sparkle s3">✦</div>
+                        <div className="sparkle s4">✦</div>
+                        <div className="sparkle s5">✦</div>
+                        <div className="sparkle s6">✦</div>
+                        <div className="sparkle s7">✦</div>
+                        <div className="sparkle s8">✦</div>
+                      </div>
+                      <div
+                        className="magical-star star-pop"
+                        style={{
+                          fontSize: "100px",
+                          lineHeight: "1",
+                          filter:
+                            "drop-shadow(0 0 12px rgba(251, 191, 36, 0.7))",
+                          animation:
+                            "shimmer 3s ease-in-out infinite, jiggle 2s ease-in-out infinite",
+                        }}
+                      >
+                        ⭐
+                      </div>
+                      {/* Milestone celebration or regular message */}
+                      {ifElse(
+                        currentMilestone,
+                        <div className="milestone-celebration" key={sparkleKey}>
+                          <div
+                            style={{
+                              fontSize: "24px",
+                              fontWeight: "bold",
+                              color: "#d97706",
+                              marginTop: "12px",
+                              animation: "bounce 0.5s ease-out",
+                            }}
+                          >
+                            {computed(() =>
+                              currentMilestone?.message || "Great job!"
+                            )}
+                          </div>
+                          {/* Extra confetti sparkles for milestones */}
+                          <div className="confetti-burst">
+                            <div className="confetti c1">🎊</div>
+                            <div className="confetti c2">✨</div>
+                            <div className="confetti c3">🎊</div>
+                            <div className="confetti c4">✨</div>
+                          </div>
+                        </div>,
+                        <div
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: "bold",
+                            color: "#d97706",
+                            marginTop: "12px",
+                          }}
+                        >
+                          Great job today!
+                        </div>,
+                      )}
+                    </div>,
+                    <div>
+                      {/* Single tap to add star */}
+                      <button
+                        onClick={placeStar({
+                          days,
+                          bestStreak,
+                          lastCelebratedMilestone,
+                          sparkleKey,
+                          debugDate,
+                        })}
+                        style={{
+                          fontSize: "80px",
+                          background:
+                            "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: "150px",
+                          height: "150px",
+                          cursor: "pointer",
+                          boxShadow: "0 8px 24px rgba(251, 191, 36, 0.5)",
+                          transition: "all 0.2s ease",
+                        }}
+                        className="tap-star"
+                      >
+                        ⭐
+                      </button>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#92400e",
+                          marginTop: "12px",
+                        }}
+                      >
+                        Tap to earn your star!
+                      </div>
+                    </div>,
+                  )}
+                </div>
+
+                {/* Horizontal Timeline */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#92400e",
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                      paddingLeft: "4px",
+                    }}
+                  >
+                    Recent Days
+                  </div>
+
+                  {/* Horizontal scroll container */}
+                  <div
+                    style={{
+                      overflowX: "auto",
+                      overflowY: "hidden",
+                      paddingBottom: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        paddingLeft: "4px",
+                        paddingRight: "4px",
+                      }}
+                    >
+                      {timeline.map((
+                        day: {
+                          date: string;
+                          displayDate: string;
+                          hasStar: boolean;
+                          isProtected: boolean;
+                          rotation: number;
+                        },
+                      ) => (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            gap: "6px",
+                            minWidth: "60px",
+                            padding: "8px 4px",
+                            background: "rgba(255,255,255,0.5)",
+                            borderRadius: "12px",
+                          }}
+                        >
+                          {/* Date label */}
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#78350f",
+                              fontWeight: "500",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {day.displayDate}
+                          </div>
+
+                          {/* Star (earned), protected star (dimmed), or empty circle */}
+                          {ifElse(
+                            day.hasStar,
+                            <div
+                              className="magical-star"
+                              style={{
+                                fontSize: "36px",
+                                lineHeight: "1",
+                                filter:
+                                  "drop-shadow(0 0 6px rgba(251, 191, 36, 0.5))",
+                                animation: "shimmer 3s ease-in-out infinite",
+                                transform: `rotate(${day.rotation}deg)`,
+                              }}
+                            >
+                              ⭐
+                            </div>,
+                            ifElse(
+                              day.isProtected,
+                              <div
+                                style={{
+                                  fontSize: "36px",
+                                  lineHeight: "1",
+                                  opacity: 0.4,
+                                  filter: "grayscale(50%)",
+                                }}
+                                title="Protected day (streak saved!)"
+                              >
+                                ⭐
+                              </div>,
+                              <div
+                                style={{
+                                  width: "36px",
+                                  height: "36px",
+                                  borderRadius: "50%",
+                                  border: "2px dashed #d4d4d4",
+                                  background: "rgba(255,255,255,0.3)",
+                                }}
+                              />,
+                            ),
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Link to corrections view */}
+                <div style={{ textAlign: "center", paddingTop: "8px" }}>
+                  <button
+                    onClick={enterCorrections({ viewMode })}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#92400e",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      opacity: 0.7,
+                    }}
+                  >
+                    Edit past days...
+                  </button>
+                </div>
+              </div>,
+            ),
           )}
 
           {/* CSS Animations for magical stars */}
-          <style>{`
+          <style>
+            {`
             @keyframes shimmer {
               0%, 100% {
                 filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
@@ -1161,7 +1265,8 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
             .toggle-star-btn:active {
               transform: scale(0.9);
             }
-          `}</style>
+          `}
+          </style>
         </cf-screen>
       ),
       goalName,
@@ -1173,7 +1278,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
       viewMode,
       debugDate,
     };
-  }
+  },
 );
 
 export default StarChart;
