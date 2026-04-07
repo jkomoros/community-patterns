@@ -44,11 +44,6 @@ check_file() {
 }
 
 should_check() {
-  # Skip namespaces that haven't been ported to commonfabric yet.
-  # Drop this list as each owner ports their own patterns.
-  case "$1" in
-    patterns/jkomoros/*) return 1 ;;
-  esac
   [ -z "$FILTER" ] && return 0
   [[ "$FILTER" == !* ]] && [[ "$1" != *"${FILTER#!}"* ]] && return 0
   [[ "$FILTER" != !* ]] && [[ "$1" == *"$FILTER"* ]] && return 0
