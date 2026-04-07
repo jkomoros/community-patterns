@@ -33,7 +33,7 @@ interface RecipeAnalyzerOutput {
 
 const SYSTEM_PROMPT = `You are a dietary compatibility analyzer for recipes.
 
-Analyze pattern ingredients and determine which dietary requirements the pattern meets or violates.
+Analyze recipe ingredients and determine which dietary requirements the recipe meets or violates.
 
 DIETARY TAGS TO CHECK:
 Allergies: nut-free, peanut-free, tree-nut-free, shellfish-free, fish-free,
@@ -70,7 +70,7 @@ export default pattern<RecipeAnalyzerInput, RecipeAnalyzerOutput>(
         return "No ingredients to analyze";
       }
 
-      return `Analyze this pattern for dietary compatibility:
+      return `Analyze this recipe for dietary compatibility:
 
 Recipe: ${recipeName || "Untitled"}
 Category: ${category || "other"}
@@ -90,12 +90,12 @@ ${ingredients.map((i) => `- ${i.amount} ${i.unit} ${i.item}`).join("\n")}`;
           compatible: {
             type: "array",
             items: { type: "string" },
-            description: "Dietary tags this pattern IS compatible with",
+            description: "Dietary tags this recipe IS compatible with",
           },
           incompatible: {
             type: "array",
             items: { type: "string" },
-            description: "Dietary tags this pattern is NOT compatible with",
+            description: "Dietary tags this recipe is NOT compatible with",
           },
           warnings: {
             type: "array",

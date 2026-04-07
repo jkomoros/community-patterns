@@ -15,13 +15,13 @@ import {
  * Context-Aware Note Taker
  *
  * Demonstrates wish() for contextual actions.
- * When you're looking at something (a pattern, article, task),
+ * When you're looking at something (a recipe, article, task),
  * this pattern uses wish() to create notes that are contextually
  * linked to what you're viewing.
  */
 
 interface ContextItem {
-  type: "pattern" | "article" | "task" | "idea" | "custom";
+  type: "recipe" | "article" | "task" | "idea" | "custom";
   title: string;
   content: string;
 }
@@ -36,7 +36,7 @@ interface Note {
 
 interface ContextNoterInput {
   currentContext: Default<ContextItem, {
-    type: "pattern";
+    type: "recipe";
     title: "Margherita Pizza";
     content: "A classic Italian pizza with tomatoes, mozzarella, and fresh basil";
   }>;
@@ -101,7 +101,7 @@ const removeNote = handler<
 // Context type icons
 function getContextIcon(type: ContextItem["type"]): string {
   switch (type) {
-    case "pattern": return "🍳";
+    case "recipe": return "🍳";
     case "article": return "📰";
     case "task": return "✅";
     case "idea": return "💡";
@@ -175,7 +175,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
               Type:
             </label>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {(["pattern", "article", "task", "idea", "custom"] as const).map(type => (
+              {(["recipe", "article", "task", "idea", "custom"] as const).map(type => (
                 <button
                   onClick={setContextType({ currentContext, type })}
                   style={{

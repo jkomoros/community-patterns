@@ -17,10 +17,10 @@ import {
  *
  * Demonstrates the new open-ended wish() capability.
  * Takes a food description and user preferences, then wishes for
- * a complementary pattern that pairs well with it.
+ * a complementary recipe that pairs well with it.
  *
  * The wish() call uses AI to:
- * 1. Search the pattern index for food/pattern patterns
+ * 1. Search the pattern index for food/recipe patterns
  * 2. Find and run an appropriate pattern
  * 3. Return the result dynamically
  */
@@ -88,7 +88,7 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
       else if (p.preference === "disliked") disliked.push(p.ingredient);
     }
 
-    let query = `Suggest a pattern that complements: "${food}"`;
+    let query = `Suggest a recipe that complements: "${food}"`;
     if (liked.length > 0) {
       query += `. I especially like: ${liked.join(", ")}`;
     }
@@ -114,7 +114,7 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
       <div style={{ padding: "1rem", maxWidth: "800px" }}>
         <h2>Adaptive Recipe Companion</h2>
         <p style={{ color: "#666", marginBottom: "1rem" }}>
-          Describe what you're eating, and I'll suggest a complementary pattern using AI-powered pattern discovery.
+          Describe what you're eating, and I'll suggest a complementary recipe using AI-powered pattern discovery.
         </p>
 
         {/* Main dish input */}

@@ -15,7 +15,7 @@ import {
   wish,
   Writable,
 } from "commonfabric";
-import { type MentionableCharm } from "../../../../../labs/packages/patterns/system/backlinks-index.tsx";
+import { type MentionablePiece } from "../../../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "../../utils/diff-utils.ts";
 
 // Performance measurement - set to true to see timing in console
@@ -204,7 +204,7 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// Items for cf-autocomplete relationship type picker
+// Items for ct-autocomplete relationship type picker
 const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
   .flatMap(([group, types]) => types.map((type) => ({
     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
@@ -273,7 +273,7 @@ type Output = ProfileData & {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
     };
   },
   Record<string, never>
@@ -287,12 +287,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Writable<MentionableCharm[]>;
+    mentionable: Writable<MentionablePiece[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -300,7 +300,7 @@ const handleNewBacklink = handler<
   if (detail.navigate) {
     return navigateTo(detail.charm);
   } else {
-    mentionable.push(detail.charm as unknown as MentionableCharm);
+    mentionable.push(detail.charm as unknown as MentionablePiece);
   }
 });
 
@@ -624,8 +624,8 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionableCharm[]>("#mentionable");
-    const mentioned = Writable.of<MentionableCharm[]>([]);
+    const mentionable = wish<MentionablePiece[]>("#mentionable");
+    const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
     const pattern = computed(() => JSON.stringify(Person));
@@ -754,7 +754,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     });
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during pattern discovery when map items change.
+    // This prevents N² re-evaluation during recipe discovery when map items change.
     // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
     const notesDiffChunks = computed(() => {
       const t0 = PERF_MEASURE ? Date.now() : 0;
@@ -943,7 +943,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
             ),
             (
               // Show normal profile form with two-pane layout
-              // NOTE: cf-autolayout REMOVED for testing - replaced with div
+              // NOTE: ct-autolayout REMOVED for testing - replaced with div
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 {/* Tab 1: Details - Form fields */}
                 <cf-vscroll flex showScrollbar>

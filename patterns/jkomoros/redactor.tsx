@@ -695,8 +695,7 @@ type WishedVault = { entries: PIIEntry[] };
 
 export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputText, llmResponse, autoDetectEnabled }) => {
   // Wish for a PII vault as fallback if none linked
-  // TODO(CT-1084): Update to wish({ query: "#pii-vault" }) when object syntax bug is fixed
-  const wishedVault = wish<WishedVault>("#pii-vault");
+  const wishedVault = wish<WishedVault>({ query: "#pii-vault" });
 
   // Manual PII entries: use linked entries if present, otherwise use wished vault
   const manualPII = computed(() => {
@@ -705,7 +704,7 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
       return [...piiEntries].map(e => ({ ...e, source: "manual" as DetectionSource })) as PIIEntry[];
     }
     // Otherwise try the wished vault
-    const vault = wishedVault;
+    const vault = wishedVault.result;
     if (vault && vault.entries && vault.entries.length > 0) {
       return [...vault.entries].map(e => ({ ...e, source: "manual" as DetectionSource })) as PIIEntry[];
     }

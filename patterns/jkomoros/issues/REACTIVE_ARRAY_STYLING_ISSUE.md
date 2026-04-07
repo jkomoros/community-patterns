@@ -20,7 +20,7 @@ Here's a simplified version demonstrating the issue:
 
 ```tsx
 /// <cts-enable />
-import { cell, Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import { cell, Cell, Default, derive, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 type WordOwner = "red" | "blue" | "neutral" | "unassigned";
 
@@ -239,7 +239,7 @@ However, I couldn't find an example of `.map()` with **computed style attributes
 
 ## Environment
 
-- Framework: commonfabric from labs
+- Framework: commontools from labs
 - Pattern deployed to local dev server (localhost:8000)
 - Testing in Chrome via Playwright MCP
 

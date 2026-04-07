@@ -26,12 +26,10 @@ function getPrimaryTag(tagStr: string): string {
 }
 
 const FavoritesViewer = pattern<Record<string, never>>((_) => {
-  // TODO(CT-1084): Update to wish({ query: "#favorites" }) when object syntax bug is fixed
-  // Currently using legacy string syntax because object syntax compiles to {}
-  // (see issues/ISSUE-wish-object-syntax-compilation-bug.md)
-  const favorites = wish<Array<Favorite>>("#favorites");
+  const favoritesWish = wish<Array<Favorite>>({ query: "#favorites" });
+  const favorites = computed(() => favoritesWish.result ?? []);
 
-  const favoriteCount = computed(() => favorites?.length ?? 0);
+  const favoriteCount = computed(() => (favoritesWish.result ?? []).length);
 
   return {
     [NAME]: "⭐ Favorites",

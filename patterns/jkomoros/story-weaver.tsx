@@ -1311,10 +1311,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           shouldGenerate: boolean;
           generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
-          if (!deps.shouldGenerate) return null;
+          if (!deps.shouldGenerate) return "";
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
-            return null;
-          return deps.generation.result.options?.[0]?.content || null;
+            return "";
+          return deps.generation.result.options?.[0]?.content || "";
         }
       );
       const option1 = derive(
@@ -1323,10 +1323,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           shouldGenerate: boolean;
           generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
-          if (!deps.shouldGenerate) return null;
+          if (!deps.shouldGenerate) return "";
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
-            return null;
-          return deps.generation.result.options?.[1]?.content || null;
+            return "";
+          return deps.generation.result.options?.[1]?.content || "";
         }
       );
       const option2 = derive(
@@ -1335,10 +1335,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           shouldGenerate: boolean;
           generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
-          if (!deps.shouldGenerate) return null;
+          if (!deps.shouldGenerate) return "";
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
-            return null;
-          return deps.generation.result.options?.[2]?.content || null;
+            return "";
+          return deps.generation.result.options?.[2]?.content || "";
         }
       );
       const option3 = derive(
@@ -1347,10 +1347,10 @@ const StoryWeaver = pattern<StoryWeaverInput, StoryWeaverOutput>(
           shouldGenerate: boolean;
           generation: { pending: boolean; error?: unknown; result?: GenerationResult };
         }) => {
-          if (!deps.shouldGenerate) return null;
+          if (!deps.shouldGenerate) return "";
           if (deps.generation.pending || deps.generation.error || !deps.generation.result)
-            return null;
-          return deps.generation.result.options?.[3]?.content || null;
+            return "";
+          return deps.generation.result.options?.[3]?.content || "";
         }
       );
 
@@ -3748,10 +3748,10 @@ Make them diverse in genre and tone:
               </div>
 
               {/* Content - show current option
-                  TODO: Integrate cf-picker component here to display options.
+                  TODO: Integrate ct-picker component here to display options.
                   Challenge: Need to create Cell array with UI for each option without
-                  causing reactivity loops. See labs/packages/ui/src/v2/components/cf-picker/
-                  and labs/packages/patterns/wish.tsx for examples of cf-picker usage.
+                  causing reactivity loops. See labs/packages/ui/src/v2/components/ct-picker/
+                  and labs/packages/patterns/wish.tsx for examples of ct-picker usage.
               */}
               <div
                 style={{
@@ -3773,7 +3773,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <p style={{ color: "#6b7280", textAlign: "center" }}>
-                    Fullscreen picker coming soon - use cf-picker integration
+                    Fullscreen picker coming soon - use ct-picker integration
                   </p>
                 </div>
               </div>

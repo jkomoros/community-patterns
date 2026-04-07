@@ -16,7 +16,7 @@ import {
   Writable,
 } from "commonfabric";
 // Inline type to avoid import issues during bisection
-type MentionableCharm = {
+type MentionablePiece = {
   displayName?: string;
   charmId?: string;
 };
@@ -282,7 +282,7 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// Items for cf-autocomplete relationship type picker
+// Items for ct-autocomplete relationship type picker
 const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
   .flatMap(([group, types]) => types.map((type) => ({
     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
@@ -351,7 +351,7 @@ type Output = ProfileData & {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
     };
   },
   Record<string, never>
@@ -365,12 +365,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Writable<MentionableCharm[]>;
+    mentionable: Writable<MentionablePiece[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -679,7 +679,7 @@ const applyExtractedData = handler<
   },
 );
 
-// Pattern tool callbacks - must be at module scope (not created inside pattern)
+// Pattern tool callbacks - must be at module scope (not created inside recipe)
 const getContactInfoCallback = (
   { displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }
 ) => {
@@ -739,8 +739,8 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionable = wish<MentionableCharm[]>("#mentionable");
-    const mentioned = Writable.of<MentionableCharm[]>([]);
+    const mentionable = wish<MentionablePiece[]>("#mentionable");
+    const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
     const pattern = computed(() => JSON.stringify(Person));
@@ -869,7 +869,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     });
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during pattern discovery when map items change.
+    // This prevents N² re-evaluation during recipe discovery when map items change.
     // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
     const notesDiffChunks = computed(() => {
       const t0 = PERF_MEASURE ? Date.now() : 0;

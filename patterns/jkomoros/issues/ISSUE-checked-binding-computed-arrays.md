@@ -30,7 +30,7 @@ Computed values are represented as read-only data URIs by design. The framework 
 According to COMPONENTS.md, `$checked` should work for bidirectional checkbox binding:
 
 ```typescript
-<cf-checkbox $checked={item.done} />
+<ct-checkbox $checked={item.done} />
 ```
 
 This should work whether `item` comes from:
@@ -208,12 +208,12 @@ Making computed items writable would require:
 ### Working Example (Direct Cell Map)
 
 ```typescript
-export default pattern(ExampleRecipe, ({ items }) => {
+export default recipe(ExampleRecipe, ({ items }) => {
   // items is Cell<{done: Default<boolean, false>}[]>
   return (
     <div>
       {items.map((item) => (
-        <cf-checkbox $checked={item.done} />  // ✅ Works
+        <ct-checkbox $checked={item.done} />  // ✅ Works
       ))}
     </div>
   );
@@ -223,7 +223,7 @@ export default pattern(ExampleRecipe, ({ items }) => {
 ### Failing Example (Computed Map)
 
 ```typescript
-export default pattern(ExampleRecipe, ({ items, filter }) => {
+export default recipe(ExampleRecipe, ({ items, filter }) => {
   const filtered = computed(() => {
     return items.get().filter((i) => i.active);
   });
@@ -231,7 +231,7 @@ export default pattern(ExampleRecipe, ({ items, filter }) => {
   return (
     <div>
       {filtered.map((item) => (
-        <cf-checkbox $checked={item.done} />  // ❌ ReadOnlyAddressError
+        <ct-checkbox $checked={item.done} />  // ❌ ReadOnlyAddressError
       ))}
     </div>
   );
@@ -252,7 +252,7 @@ const autoKeptClasses = computed(() =>
 
 // Wanted to do this:
 {autoKeptClasses.map((cls) => (
-  <cf-checkbox $checked={cls.selected} />  // ❌ Doesn't work
+  <ct-checkbox $checked={cls.selected} />  // ❌ Doesn't work
 ))}
 ```
 
@@ -282,7 +282,7 @@ const autoKeptClasses = computed(() => {
   { autoKeptClasses, stagedClassSelections },
   ({ autoKeptClasses: classes, stagedClassSelections: selections }) =>
     classes.map((cls) => (
-      <cf-checkbox
+      <ct-checkbox
         checked={cls.selected}
         onClick={() => {
           const current = selections.get();

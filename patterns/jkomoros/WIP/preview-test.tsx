@@ -1,8 +1,8 @@
 /// <cts-enable />
 /**
- * Test pattern for cf-render variant="preview" support.
+ * Test pattern for ct-render variant="preview" support.
  * Exports both [UI] (full) and previewUI (compact) to test that
- * cf-picker correctly uses previewUI when available.
+ * ct-picker correctly uses previewUI when available.
  */
 import { UI, NAME, pattern, Default, str } from "commonfabric";
 
@@ -22,18 +22,18 @@ export default pattern<Input>(
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <h2 style={{ margin: "0 0 8px 0" }}>Full UI View</h2>
-            <p style={{ margin: 0, color: "var(--cf-color-muted)" }}>
+            <p style={{ margin: 0, color: "var(--ct-color-muted)" }}>
               This is the complete UI that shows when viewing the charm directly.
             </p>
           </div>
 
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <label style={{ fontWeight: "bold", display: "block", marginBottom: "8px" }}>Title</label>
@@ -42,7 +42,7 @@ export default pattern<Input>(
 
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <label style={{ fontWeight: "bold", display: "block", marginBottom: "8px" }}>Content</label>
@@ -51,26 +51,26 @@ export default pattern<Input>(
 
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <h3 style={{ margin: "0 0 8px 0" }}>Extra Section</h3>
-            <p style={{ margin: 0, color: "var(--cf-color-muted)" }}>
+            <p style={{ margin: 0, color: "var(--ct-color-muted)" }}>
               This section only appears in the full UI, not in preview.
             </p>
           </div>
         </div>
       ),
 
-      // Preview UI - compact summary for cf-picker
+      // Preview UI - compact summary for ct-picker
       previewUI: (
         <div style={{ padding: "16px", textAlign: "center" }}>
           <h3 style={{ margin: "0 0 8px 0" }}>{title}</h3>
-          <p style={{ margin: "0 0 12px 0", color: "var(--cf-color-muted)", fontSize: "14px" }}>
+          <p style={{ margin: "0 0 12px 0", color: "var(--ct-color-muted)", fontSize: "14px" }}>
             {content}
           </p>
           <span style={{
-            background: "var(--cf-color-primary)",
+            background: "var(--ct-color-primary)",
             color: "white",
             padding: "4px 12px",
             borderRadius: "12px",

@@ -1,6 +1,6 @@
 /// <cts-enable />
 /**
- * @title Extract Target V2 (pattern)
+ * @title Extract Target V2 (recipe)
  * @description Test 1: Uses pattern() wrapper instead of pattern()
  *
  * HYPOTHESIS: The ~90s CPU spike is caused by pattern() wrapper + navigateTo,
@@ -99,7 +99,7 @@ const ExtractTargetV2 = pattern<Input, Output>(
       notes,
       [UI]: (
         <div style={{ padding: "1rem", fontFamily: "monospace" }}>
-          <h1>Extract Target V2 (pattern)</h1>
+          <h1>Extract Target V2 (recipe)</h1>
 
           <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
             <strong>TEST 1:</strong> Using pattern() wrapper instead of pattern()

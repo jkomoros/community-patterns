@@ -201,7 +201,7 @@ Each sub-charm exposes:
 
 6. **Single combined schema**: Given generateObject requires static schemas, is a single combined schema (covering all sub-charm fields) the right approach? Or is there a pattern for triggering separate generateObject calls sequentially/in parallel?
 
-7. **Inactive tab rendering**: In tabbed layout, do sub-charms on inactive tabs still execute their reactive flows? The critique noted `cf-render` is needed to force charm execution — does this apply to composed sub-charms too?
+7. **Inactive tab rendering**: In tabbed layout, do sub-charms on inactive tabs still execute their reactive flows? The critique noted `ct-render` is needed to force charm execution — does this apply to composed sub-charms too?
 
 8. **Entity reconciliation timing**: For Phase 2+ (array-type entities), what's the recommended pattern for stable entity IDs across extractions? Generate UUID on first extraction and store it? Use content-hash via `refer()`?
 
@@ -528,7 +528,7 @@ patterns/jkomoros/
 ### Inline Rendering
 
 Both work:
-- Full sub-charm UI via `<cf-render $cell={subCharm} />`
+- Full sub-charm UI via `<ct-render $cell={subCharm} />`
 - Custom rendering with `derive()` for specific fields
 
 ### Backlinks
@@ -543,4 +543,4 @@ No automatic backlink discovery. Sub-charm stores `parentRecordId` explicitly if
 | Write fields on linked charm | ⚠️ requires Stream handler |
 | Dynamic schema for generateObject | ❌ schemas must be static |
 | Create + link charm | ✅ Pattern({}) then array.push() |
-| Inline rendering | ✅ cf-render or derive() |
+| Inline rendering | ✅ ct-render or derive() |

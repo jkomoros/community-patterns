@@ -46,7 +46,7 @@ The framework should either:
 ## Minimal Reproduction
 
 ```typescript
-import { recipe, schema, wish, derive, type Cell, NAME } from "commonfabric";
+import { recipe, schema, wish, derive, type Cell, NAME } from "commontools";
 import { z } from "zod";
 
 const DataSchema = schema({
@@ -56,7 +56,7 @@ const DataSchema = schema({
 
 type DataOutput = typeof DataSchema.Type;
 
-export default pattern(DataSchema, ({ items }) => {
+export default recipe(DataSchema, ({ items }) => {
   // This wish will match our own export, causing infinite loop
   const wishedData = wish<DataOutput>({ query: "#SelfWishLoop" });
 

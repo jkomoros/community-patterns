@@ -13,7 +13,7 @@ import {
   wish,
   Writable,
 } from "commonfabric";
-import { type MentionableCharm } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
+import { type MentionablePiece } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { computeWordDiff, compareFields } from "./utils/diff-utils.ts";
 
 // Performance measurement - set to true to see timing in console
@@ -202,7 +202,7 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// Items for cf-autocomplete relationship type picker
+// Items for ct-autocomplete relationship type picker
 const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
   .flatMap(([group, types]) => types.map((type) => ({
     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
@@ -271,7 +271,7 @@ type Output = ProfileData & {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
     };
   },
   Record<string, never>
@@ -285,12 +285,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Writable<MentionableCharm[]>;
+    mentionable: Writable<MentionablePiece[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -622,9 +622,9 @@ const Person = pattern<Input, Output>(
     professionalReference,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionableWish = wish<MentionableCharm[]>({ query: "#mentionable" });
+    const mentionableWish = wish<MentionablePiece[]>({ query: "#mentionable" });
     const mentionable = computed(() => mentionableWish?.result ?? []);
-    const mentioned = Writable.of<MentionableCharm[]>([]);
+    const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // The only way to serialize a pattern, apparently?
     const pattern = computed(() => JSON.stringify(Person));
@@ -678,7 +678,7 @@ const Person = pattern<Input, Output>(
       if (trigger && trigger.includes("---EXTRACT-")) {
         return trigger;
       }
-      return undefined;
+      return "";
     });
 
     // LLM extraction for notes - runs when guardedPrompt has content
@@ -839,35 +839,31 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                     // PERFORMANCE FIX: Use pre-computed notesDiffChunks
                                     // instead of inline computeWordDiff call
                                     // This reduces calls from N (one per charm instance) to 1
-                                    notesDiffChunks.map(
-                                      (part) => {
-                                        if (part.type === "removed") {
-                                          return (
-                                            <span
-                                              style={{
-                                                color: "#dc2626",
-                                                textDecoration: "line-through",
-                                                backgroundColor: "#fee",
-                                              }}
-                                            >
-                                              {part.word}
-                                            </span>
-                                          );
-                                        } else if (part.type === "added") {
-                                          return (
-                                            <span
-                                              style={{
-                                                color: "#16a34a",
-                                                backgroundColor: "#efe",
-                                              }}
-                                            >
-                                              {part.word}
-                                            </span>
-                                          );
-                                        } else {
-                                          return <span>{part.word}</span>;
-                                        }
-                                      },
+                                    notesDiffChunks.map((part) =>
+                                      part.type === "removed"
+                                        ? (
+                                          <span
+                                            style={{
+                                              color: "#dc2626",
+                                              textDecoration: "line-through",
+                                              backgroundColor: "#fee",
+                                            }}
+                                          >
+                                            {part.word}
+                                          </span>
+                                        )
+                                        : part.type === "added"
+                                        ? (
+                                          <span
+                                            style={{
+                                              color: "#16a34a",
+                                              backgroundColor: "#efe",
+                                            }}
+                                          >
+                                            {part.word}
+                                          </span>
+                                        )
+                                        : <span>{part.word}</span>
                                     )
                                   )
                                   : (

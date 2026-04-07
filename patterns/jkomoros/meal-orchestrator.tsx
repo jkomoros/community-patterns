@@ -15,7 +15,7 @@ import {
   Writable,
 } from "commonfabric";
 
-import FoodRecipe from "./food-pattern.tsx";
+import FoodRecipe from "./food-recipe.tsx";
 import PreparedFood from "./prepared-food.tsx";
 
 // Oven configuration
@@ -30,7 +30,7 @@ interface GuestDietaryProfile {
   requirements: Default<string[], []>;
 }
 
-// Food pattern interface (from food-pattern.tsx)
+// Food recipe interface (from food-recipe.tsx)
 interface FoodRecipe {
   name: string;
   servings: number;
@@ -193,10 +193,10 @@ const removeRecipe = handler<
   unknown,
   {
     recipes: Writable<Array<Writable<OpaqueRef<FoodRecipe>>>>;
-    pattern: Writable<OpaqueRef<FoodRecipe>>;
+    recipe: Writable<OpaqueRef<FoodRecipe>>;
   }
->((_event, { recipes, pattern }) => {
-  recipes.remove(pattern);
+>((_event, { recipes, recipe }) => {
+  recipes.remove(recipe);
 });
 
 // Handler for removing prepared foods
@@ -214,7 +214,7 @@ const removePreparedFood = handler<
 interface FoodItem {
   originalText: string;
   normalizedName: string;
-  type: "pattern" | "prepared";
+  type: "recipe" | "prepared";
   contextSnippet: string;
   servings?: number;
   category?: string;
@@ -334,7 +334,7 @@ const applyLinking = handler<
       });
 
       if (charm) {
-        if (item.type === "pattern") {
+        if (item.type === "recipe") {
           recipesToAdd.push(charm);
         } else {
           preparedToAdd.push(charm);
@@ -342,7 +342,7 @@ const applyLinking = handler<
       }
     } else {
       // No match - create a new charm with LLM-extracted data
-      const newCharm = item.type === "pattern"
+      const newCharm = item.type === "recipe"
         ? FoodRecipe({
             name: item.normalizedName,
             cuisine: "",
@@ -378,7 +378,7 @@ const applyLinking = handler<
 
       // Add to appropriate array for this meal
       // OpaqueRef properties are now directly accessible after framework fix
-      if (item.type === "pattern") {
+      if (item.type === "recipe") {
         recipesToAdd.push(newCharm);
       } else {
         preparedToAdd.push(newCharm);
@@ -423,8 +423,8 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     // These will be exported as mentionable so they become discoverable
     const createdCharms = Writable.of<any[]>([]);
 
-    // Writables for cf-code-editor inputs and outputs
-    // $mentioned is automatically populated by cf-code-editor with charm references
+    // Writables for ct-code-editor inputs and outputs
+    // $mentioned is automatically populated by ct-code-editor with charm references
     const recipeInputText = Writable.of<string>("");
     const recipeMentioned = Writable.of<any[]>([]);
     const preparedFoodInputText = Writable.of<string>("");
@@ -440,7 +440,7 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
 Your task:
 1. Parse the planning notes to identify all food items mentioned
-2. Classify each item as either "pattern" (homemade) or "prepared" (store-bought, guest-brought, takeout)
+2. Classify each item as either "recipe" (homemade) or "prepared" (store-bought, guest-brought, takeout)
 3. Match each item to existing recipes/prepared foods in the space using fuzzy matching
 4. Extract contextual details from the notes (servings, category, description, source)
 
@@ -473,7 +473,7 @@ Return all items found in the planning notes, matched or unmatched.`,
                   properties: {
                     originalText: { type: "string", description: "Raw text from planning notes" },
                     normalizedName: { type: "string", description: "Cleaned name for the item" },
-                    type: { type: "string", enum: ["pattern", "prepared"], description: "Item classification" },
+                    type: { type: "string", enum: ["recipe", "prepared"], description: "Item classification" },
                     contextSnippet: { type: "string", description: "Surrounding context from notes" },
                     servings: { type: "number", description: "Extracted serving size if found" },
                     category: {
@@ -541,7 +541,7 @@ Return all items found in the planning notes, matched or unmatched.`,
 
       const recipesSummary = (recipeList || [])
         .filter((r: any) => r != null)
-        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [pattern]`)
+        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
         .join("\n");
 
       const preparedSummary = (preparedList || [])
@@ -637,16 +637,16 @@ Be concise and practical in your analysis.`,
       const events: OvenTimelineEvent[] = [];
 
       // Extract all oven events from recipes
-      recipeList.forEach((pattern: any) => {
-        if (pattern.stepGroups) {
-          pattern.stepGroups.forEach((stepGroup: any) => {
+      recipeList.forEach((recipe: any) => {
+        if (recipe.stepGroups) {
+          recipe.stepGroups.forEach((stepGroup: any) => {
               if (stepGroup.requiresOven) {
                 const startMinutes = stepGroup.minutesBeforeServing || 0;
                 const duration = stepGroup.requiresOven.duration || 0;
                 const endMinutes = startMinutes - duration; // Earlier time (more minutes before)
 
                 events.push({
-                  recipeName: pattern.name,
+                  recipeName: recipe.name,
                   stepGroupName: stepGroup.name,
                   startMinutesBeforeServing: startMinutes,
                   endMinutesBeforeServing: endMinutes,
@@ -717,7 +717,7 @@ Be concise and practical in your analysis.`,
               {displayName}
             </h1>
             <div style={{ fontSize: "13px", color: "#666" }}>
-              Plan multi-pattern meals with equipment scheduling and dietary analysis
+              Plan multi-recipe meals with equipment scheduling and dietary analysis
             </div>
           </div>
 
@@ -1007,7 +1007,7 @@ Be concise and practical in your analysis.`,
                         </div>
                       </div>
                       <cf-button
-                        onClick={removeRecipe({ recipes: recipeMentioned, pattern: itemCell })}
+                        onClick={removeRecipe({ recipes: recipeMentioned, recipe: itemCell })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
@@ -1345,7 +1345,7 @@ Be concise and practical in your analysis.`,
                           }}
                         >
                           <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                            Timeline shows when each pattern uses the oven
+                            Timeline shows when each recipe uses the oven
                           </div>
                           <div style={{ display: "flex", gap: "16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1464,12 +1464,12 @@ Be concise and practical in your analysis.`,
                                 </span>
                                 <span style={{
                                   padding: "2px 6px",
-                                  background: item.type === "pattern" ? "#dbeafe" : "#fef3c7",
+                                  background: item.type === "recipe" ? "#dbeafe" : "#fef3c7",
                                   borderRadius: "8px",
                                   fontSize: "11px",
                                   fontWeight: "500",
                                 }}>
-                                  {item.type === "pattern" ? "🍳 Recipe" : "🛒 Prepared"}
+                                  {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared"}
                                 </span>
                               </div>
 
@@ -1485,7 +1485,7 @@ Be concise and practical in your analysis.`,
                                 </div>
                               ) : (
                                 <div style={{ fontSize: "12px", color: "#10b981", marginBottom: "4px" }}>
-                                  ✨ Will create new {item.type === "pattern" ? "pattern" : "prepared food"} charm
+                                  ✨ Will create new {item.type === "recipe" ? "recipe" : "prepared food"} charm
                                 </div>
                               )}
 

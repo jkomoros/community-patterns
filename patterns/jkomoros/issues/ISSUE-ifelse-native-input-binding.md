@@ -2,13 +2,13 @@
 
 ## Summary
 
-Native HTML `<input>` elements with `value={cell}` binding do not update the cell when inside an `ifElse()` conditional. The `<cf-input $value={cell}>` component works correctly in the same context.
+Native HTML `<input>` elements with `value={cell}` binding do not update the cell when inside an `ifElse()` conditional. The `<ct-input $value={cell}>` component works correctly in the same context.
 
 ## Minimal Repro
 
 ```tsx
 /// <cts-enable />
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
 
 interface Input {
   show: Default<boolean, true>;
@@ -21,7 +21,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
     const submit = handler<unknown, { native: Cell<string>; ct: Cell<string> }>(
       (_, { native, ct }) => {
         console.log("Native:", native.get()); // Always ""
-        console.log("cf-input:", ct.get());   // Correct value
+        console.log("ct-input:", ct.get());   // Correct value
       }
     );
 
@@ -36,7 +36,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
               <input type="text" value={nativeValue} placeholder="Native input" />
 
               {/* ✅ WORKS: Cell updates correctly */}
-              <cf-input $value={ctValue} placeholder="cf-input" />
+              <ct-input $value={ctValue} placeholder="ct-input" />
 
               <button onClick={submit({ native: nativeValue, ct: ctValue })}>
                 Submit
@@ -55,7 +55,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 
 1. Deploy the pattern above
 2. Type "hello" in the native `<input>`
-3. Type "hello" in the `<cf-input>`
+3. Type "hello" in the `<ct-input>`
 4. Click Submit
 5. Check console output
 
@@ -64,7 +64,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 Both inputs should update their bound cells:
 ```
 Native: "hello"
-cf-input: "hello"
+ct-input: "hello"
 ```
 
 ## Actual Behavior
@@ -72,7 +72,7 @@ cf-input: "hello"
 Native input cell stays empty:
 ```
 Native: ""
-cf-input: "hello"
+ct-input: "hello"
 ```
 
 ## Test Results
@@ -80,7 +80,7 @@ cf-input: "hello"
 | Input Type | Typed | `cell.get()` | Result |
 |------------|-------|--------------|--------|
 | `<input value={cell}>` | "hello" | `""` | ❌ FAIL |
-| `<cf-input $value={cell}>` | "hello" | `"hello"` | ✅ PASS |
+| `<ct-input $value={cell}>` | "hello" | `"hello"` | ✅ PASS |
 
 ## Notes
 
@@ -90,7 +90,7 @@ cf-input: "hello"
 
 ## Workaround
 
-Use `<cf-input $value={cell}>` instead of native `<input value={cell}>` inside ifElse branches.
+Use `<ct-input $value={cell}>` instead of native `<input value={cell}>` inside ifElse branches.
 
 ## Full Repro Pattern
 

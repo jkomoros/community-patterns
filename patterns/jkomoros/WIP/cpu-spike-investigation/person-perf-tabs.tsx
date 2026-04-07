@@ -1,10 +1,10 @@
 /// <cts-enable />
 /**
  * @title Person Perf Tabs
- * @description Test if cf-autolayout tabs cause the ~60s CPU spike
+ * @description Test if ct-autolayout tabs cause the ~60s CPU spike
  *
  * HYPOTHESIS: The ~60 second CPU spike in person.tsx is caused by
- * the tabbed interface (cf-autolayout with tabNames prop).
+ * the tabbed interface (ct-autolayout with tabNames prop).
  *
  * This pattern takes the autolayout test (~4.6s) and adds tabs
  * similar to person.tsx structure.
@@ -283,7 +283,7 @@ export default pattern(() => {
     [UI]: (
       // ============================================================
       // THIS IS THE KEY CHANGE WE'RE TESTING
-      // cf-autolayout with tabNames prop, similar to person.tsx
+      // ct-autolayout with tabNames prop, similar to person.tsx
       // ============================================================
       <cf-autolayout tabNames={["Details", "Relationship", "Notes"]}>
         {/* Tab 1: Details - Test area with extraction button */}
@@ -298,7 +298,7 @@ export default pattern(() => {
                 marginBottom: "1rem",
               }}
             >
-              <strong>HYPOTHESIS:</strong> Tabbed interface (cf-autolayout with tabNames) causes ~60s spike
+              <strong>HYPOTHESIS:</strong> Tabbed interface (ct-autolayout with tabNames) causes ~60s spike
             </div>
 
             <cf-button
@@ -440,9 +440,9 @@ export default pattern(() => {
 
             <h2>What This Tests</h2>
             <ul>
-              <li><code>cf-autolayout tabNames</code> (THE KEY TEST - 3 tabs)</li>
-              <li><code>cf-vscroll</code> scrollable content</li>
-              <li><code>cf-vstack</code> vertical layout</li>
+              <li><code>ct-autolayout tabNames</code> (THE KEY TEST - 3 tabs)</li>
+              <li><code>ct-vscroll</code> scrollable content</li>
+              <li><code>ct-vstack</code> vertical layout</li>
               <li>Everything from autolayout test (4.6s)</li>
             </ul>
           </cf-vstack>

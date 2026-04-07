@@ -71,7 +71,7 @@ interface CheeseboardScheduleOutput {
 ### Implementation Steps
 
 #### Step 1: Fetch and Parse Data
-- Use `fetchData` from commonfabric (like existing cheeseboard.tsx)
+- Use `fetchData` from commontools (like existing cheeseboard.tsx)
 - Fetch from `/api/agent-tools/web-read` endpoint
 - Parse response using existing `extractPizzas` function as reference
 - Extract date and pizza description pairs

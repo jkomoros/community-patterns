@@ -21,7 +21,7 @@ Test images for store mapping feature development. These photos document the ais
 ### Why JPEG?
 **Production Reality:**
 - iOS Safari automatically converts HEIC → JPEG when using `<input type="file" capture>`
-- cf-image-input component receives JPEG from iPhones (no HEIC handling needed)
+- ct-image-input component receives JPEG from iPhones (no HEIC handling needed)
 - Claude's vision API supports JPEG, PNG, GIF, WebP (NOT HEIC)
 
 **Test Image Preparation:**

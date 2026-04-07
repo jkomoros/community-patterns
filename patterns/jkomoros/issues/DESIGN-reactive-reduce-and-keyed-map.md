@@ -308,7 +308,7 @@ The `reduce()` primitive would use `asCell: false` (the default) to unwrap value
 
 ```typescript
 // Pattern code
-import { reduce, cell } from "commonfabric";
+import { reduce, cell } from "commontools";
 
 const items: Cell<LLMResult[]> = articles.map(url => generateObject({...}));
 
@@ -575,7 +575,7 @@ Same key → same entity ID → same result cell, regardless of position.
 
 ```typescript
 // Pattern code
-import { mapByKey, cell } from "commonfabric";
+import { mapByKey, cell } from "commontools";
 
 const urls: Cell<string[]> = cell(["url-0", "url-1", "url-2"]);
 
@@ -796,7 +796,7 @@ mapByKey(items, item => item.type + ":" + item.id, ...)
 
 // Transformed to:
 mapByKeyWithPattern(items, "keyFn",
-  pattern(({ element }) => element.type + ":" + element.id), ...)
+  recipe(({ element }) => element.type + ":" + element.id), ...)
 ```
 
 ### Key Function Design (Revised)
@@ -846,7 +846,7 @@ const fetches = mapByKey(urls, url => fetchData({ url: prefix + url }));
 // Transformed to:
 const fetches = mapByKeyWithPattern(
   urls,
-  pattern(({ element, params: { prefix } }) => fetchData({ url: prefix + element })),
+  recipe(({ element, params: { prefix } }) => fetchData({ url: prefix + element })),
   { prefix: state.urlPrefix }
 );
 ```
@@ -858,7 +858,7 @@ const fetches = mapByKeyWithPattern(
 ### The Full Pipeline
 
 ```typescript
-import { cell, mapByKey, reduce, derive } from "commonfabric";
+import { cell, mapByKey, reduce, derive } from "commontools";
 
 // Input: list of article URLs
 const articleURLs = cell<string[]>([]);

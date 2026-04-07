@@ -132,11 +132,11 @@ The error occurs when trying to iterate over `emailList` in the parser. The Gmai
 ```bash
 # Compile without running
 cd /Users/alex/Code/labs
-deno task cf dev --no-run ../recipes/recipes/alex/WIP/prompt-injection-tracker.tsx
+deno task ct dev --no-run ../recipes/recipes/alex/WIP/prompt-injection-tracker.tsx
 
 # Deploy to localhost
 cd /Users/alex/Code/labs
-deno task cf charm new --api-url http://localhost:8000 --space claude-alex1114-pit-test \
+deno task ct charm new --api-url http://localhost:8000 --space claude-alex1114-pit-test \
   ../recipes/recipes/alex/WIP/prompt-injection-tracker.tsx
 
 # Check for processes

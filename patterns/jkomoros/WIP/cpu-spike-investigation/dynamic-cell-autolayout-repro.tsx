@@ -1,17 +1,17 @@
 /// <cts-enable />
 /**
- * @title Dynamic Cell + cf-autolayout Repro
- * @description Tests if cf-autolayout triggers the ~35s freeze
+ * @title Dynamic Cell + ct-autolayout Repro
+ * @description Tests if ct-autolayout triggers the ~35s freeze
  *
  * ## Hypothesis
  *
  * The CTAutoLayout.render error during person.tsx freeze suggests
- * cf-autolayout might be involved. This repro adds cf-autolayout
+ * ct-autolayout might be involved. This repro adds ct-autolayout
  * to the dynamic cell creation test.
  *
  * ## What's Different from dynamic-cell-creation-repro.tsx
  *
- * - Uses cf-autolayout with ifElse (like person.tsx)
+ * - Uses ct-autolayout with ifElse (like person.tsx)
  * - Form view vs results view (like person.tsx extraction modal)
  */
 import {
@@ -66,11 +66,11 @@ export default pattern<Props>(() => {
   const innerCount = 60;
 
   return {
-    [NAME]: "Dynamic Cell + cf-autolayout Repro",
+    [NAME]: "Dynamic Cell + ct-autolayout Repro",
     [UI]: (
       <cf-screen>
         <div slot="header">
-          <h2>cf-autolayout Test</h2>
+          <h2>ct-autolayout Test</h2>
         </div>
 
         {ifElse(
@@ -124,7 +124,7 @@ export default pattern<Props>(() => {
                   borderRadius: "4px",
                 }}
               >
-                <strong>⚠️ BUG TEST:</strong> Does cf-autolayout + ifElse + dynamic maps trigger the freeze?
+                <strong>⚠️ BUG TEST:</strong> Does ct-autolayout + ifElse + dynamic maps trigger the freeze?
               </div>
 
               <div>
@@ -139,7 +139,7 @@ export default pattern<Props>(() => {
               <div style={{ marginTop: "1rem" }}>
                 <h3>What This Tests</h3>
                 <ul style={{ fontSize: "0.875rem" }}>
-                  <li>cf-autolayout with ifElse switching</li>
+                  <li>ct-autolayout with ifElse switching</li>
                   <li>Dynamic nested maps in the "results" branch</li>
                   <li>Same structure as person.tsx extraction modal</li>
                 </ul>

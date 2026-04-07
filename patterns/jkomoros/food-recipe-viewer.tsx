@@ -10,7 +10,7 @@ import {
   UI,
 } from "commonfabric";
 
-// Import types from food-pattern (these should match exactly)
+// Import types from food-recipe (these should match exactly)
 interface Ingredient {
   item: string;
   amount: string;
@@ -52,7 +52,7 @@ interface GroupCompletion {
 }
 
 interface ViewerInput {
-  // Recipe data passed in as cells from the source pattern
+  // Recipe data passed in as cells from the source recipe
   recipeName: Default<string, "">;
   recipeServings: Default<number, 4>;
   recipeIngredients: Default<Ingredient[], []>;
@@ -150,7 +150,7 @@ function formatTiming(group: StepGroup): string {
 
 export default pattern<ViewerInput, ViewerOutput>(
   ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
-    // Recipe data is passed in directly as cells from the source pattern
+    // Recipe data is passed in directly as cells from the source recipe
 
     const displayName = computed(() =>
       recipeName.trim() || "Untitled Recipe"
@@ -369,7 +369,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                           textAlign: "center",
                         }}
                       >
-                        No step groups in this pattern
+                        No step groups in this recipe
                       </p>
                     </cf-card>
                   )

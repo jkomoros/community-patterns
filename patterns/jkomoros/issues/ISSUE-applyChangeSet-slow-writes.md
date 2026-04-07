@@ -16,7 +16,7 @@ When `generateObject` extracts data into a complex schema with many fields, ther
 
 ```typescript
 /// <cts-enable />
-import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
+import { handler, NAME, navigateTo, pattern, UI } from "commontools";
 import Person from "./person.tsx";
 
 const DEMO_NOTES = `Dr. Maya Rodriguez (she/her)
@@ -36,7 +36,7 @@ export default pattern(() => ({
   [NAME]: "Person Test Launcher",
   [UI]: (
     <div style={{ padding: "1rem" }}>
-      <cf-button onClick={launchPerson()}>Launch Person (with notes)</cf-button>
+      <ct-button onClick={launchPerson()}>Launch Person (with notes)</ct-button>
     </div>
   ),
 }));
@@ -73,7 +73,7 @@ const { result: extractionResult, pending: extractionPending } = generateObject(
 
 ### Steps to Reproduce
 
-1. Deploy launcher: `deno task cf charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space repro-test ../community-patterns/patterns/jkomoros/person-test-launcher.tsx`
+1. Deploy launcher: `deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space repro-test ../community-patterns/patterns/jkomoros/person-test-launcher.tsx`
 2. Open: `http://localhost:5173/repro-test/`
 3. Click **"Launch Person (with notes)"**
 4. Wait for Person pattern to load
@@ -93,7 +93,7 @@ const { result: extractionResult, pending: extractionPending } = generateObject(
 
 Deploy the Person pattern directly (not via navigateTo):
 ```bash
-deno task cf charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space control-test ../community-patterns/patterns/jkomoros/person.tsx
+deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space control-test ../community-patterns/patterns/jkomoros/person.tsx
 ```
 
 **Result:** Extraction completes in ~2-3 seconds (normal).
@@ -165,7 +165,7 @@ export function applyChangeSet(tx: IExtendedStorageTransaction, changes: ChangeS
 | `normalizeAndDiff` traversal | Completed in 1.8ms (even for 226 changes) |
 | LLM response parsing | `generateObject-idle-wait` completed in <1ms |
 | Schema transformation | `recursivelyAddIDIfNeeded` completed in <5ms |
-| cf-autolayout component | Removed it, still freezes |
+| ct-autolayout component | Removed it, still freezes |
 | Network/async overhead | All time spent in synchronous `applyChangeSet` |
 
 ### Definitive Finding

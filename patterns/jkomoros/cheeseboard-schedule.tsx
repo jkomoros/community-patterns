@@ -1,9 +1,9 @@
 /// <cts-enable />
 import { computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI, Writable } from "commonfabric";
 
-// cf-loader is a Web Component for showing loading spinners
+// ct-loader is a Web Component for showing loading spinners
 // Properties: size="sm"|"md"|"lg", show-elapsed (boolean attr), show-stop (boolean attr)
-// Events: cf-stop (fired when stop button clicked)
+// Events: ct-stop (fired when stop button clicked)
 
 /**
  * Cheeseboard Pizza Schedule with Ingredient Preferences

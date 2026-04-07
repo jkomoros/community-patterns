@@ -63,9 +63,9 @@
 
 **Workaround**: Navigate away and back - debug output disappears
 
-**Root Cause Hypothesis**: The `cf-google-oauth` component is rendering a result object that should be hidden or only shown in debug mode. After OAuth callback, the component shows the raw response.
+**Root Cause Hypothesis**: The `ct-google-oauth` component is rendering a result object that should be hidden or only shown in debug mode. After OAuth callback, the component shows the raw response.
 
-**Location**: Likely in the `<cf-google-oauth>` web component implementation
+**Location**: Likely in the `<ct-google-oauth>` web component implementation
 
 ---
 
@@ -168,12 +168,12 @@ The core functionality (OAuth, wish() discovery, Gmail/Calendar APIs) all work c
 
 ```bash
 # Deploy patterns
-./scripts/cf charm new --api-url http://localhost:8000 --identity ./claude.key \
+./scripts/ct charm new --api-url http://localhost:8000 --identity ./claude.key \
   --space claude-qa-test-1219-1 patterns/jkomoros/google-auth.tsx
 
-./scripts/cf charm new --api-url http://localhost:8000 --identity ./claude.key \
+./scripts/ct charm new --api-url http://localhost:8000 --identity ./claude.key \
   --space claude-qa-test-1219-1 patterns/jkomoros/gmail-importer.tsx
 
-./scripts/cf charm new --api-url http://localhost:8000 --identity ./claude.key \
+./scripts/ct charm new --api-url http://localhost:8000 --identity ./claude.key \
   --space claude-qa-test-1219-1 patterns/jkomoros/google-calendar-importer.tsx
 ```

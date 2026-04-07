@@ -12,10 +12,10 @@ The gmail-importer pattern needs auth from google-auth pattern. Normally this ha
 
 ```bash
 # Deploy google-auth (if not already deployed)
-deno task cf charm new --identity ../labs/claude.key --api-url http://localhost:8000 --space YOUR-SPACE patterns/jkomoros/google-auth.tsx
+deno task ct charm new --identity ../labs/claude.key --api-url http://localhost:8000 --space YOUR-SPACE patterns/jkomoros/google-auth.tsx
 
 # Deploy gmail-importer
-deno task cf charm new --identity ../labs/claude.key --api-url http://localhost:8000 --space YOUR-SPACE patterns/jkomoros/gmail-importer.tsx
+deno task ct charm new --identity ../labs/claude.key --api-url http://localhost:8000 --space YOUR-SPACE patterns/jkomoros/gmail-importer.tsx
 ```
 
 ### 2. Authenticate with Google Auth charm
@@ -26,7 +26,7 @@ Navigate to the google-auth charm in browser and complete OAuth flow.
 
 ```bash
 # Format: source/path target/path
-deno task cf charm link \
+deno task ct charm link \
   --identity ../labs/claude.key \
   --api-url http://localhost:8000 \
   --space YOUR-SPACE \
@@ -42,7 +42,7 @@ deno task cf charm link \
 
 ```bash
 # Check that linkedAuth is populated
-deno task cf charm inspect \
+deno task ct charm inspect \
   --identity ../labs/claude.key \
   --api-url http://localhost:8000 \
   --space YOUR-SPACE \
@@ -54,7 +54,7 @@ You should see `linkedAuth` in the Source (Inputs) with token, user info, etc.
 ### 5. Visualize connections
 
 ```bash
-deno task cf charm map \
+deno task ct charm map \
   --identity ../labs/claude.key \
   --api-url http://localhost:8000 \
   --space YOUR-SPACE

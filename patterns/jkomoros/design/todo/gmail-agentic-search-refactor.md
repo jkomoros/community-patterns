@@ -141,19 +141,19 @@ export default pattern<HotelInput, HotelOutput>(({ memberships, ... }) => {
     [NAME]: "🏨 Hotel Membership Extractor",
     memberships,
     [UI]: (
-      <cf-screen>
+      <ct-screen>
         {/* Auth section from base or custom */}
         {searcher.authUI}
 
         {/* Scan controls */}
-        <cf-button onClick={startScan}>Scan</cf-button>
+        <ct-button onClick={startScan}>Scan</ct-button>
 
         {/* Progress from base */}
         {searcher.progressUI}
 
         {/* Custom: Membership display */}
         {/* ... */}
-      </cf-screen>
+      </ct-screen>
     ),
   };
 });

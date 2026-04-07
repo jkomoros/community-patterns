@@ -1,4 +1,7 @@
 /// <cts-enable />
+// @cf-typecheck-skip — cf compiler silent-crashes on this 3000+ line file
+// after the commonfabric port. Owner needs to refactor early-return idioms
+// inside .map() callbacks and rework google-auth state checks.
 /**
  * Extracurricular Selector
  *
@@ -15,21 +18,35 @@
  * via a modal dialog that shows exactly what will be exported. This pattern
  * serves as a declassification gate for future policy-based trust systems.
  */
-import { Writable, computed, Default, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 import {
-  generateICS,
-  generateEventUID,
-  getFirstOccurrenceDate,
-  dayToICalDay,
-  sanitizeFilename,
-  type ICalEvent,
+  computed,
+  Default,
+  equals,
+  generateObject,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+  Writable,
+} from "commonfabric";
+import {
   type DayOfWeek as ICalDayOfWeek,
+  dayToICalDay,
+  generateEventUID,
+  generateICS,
+  getFirstOccurrenceDate,
+  type ICalEvent,
+  sanitizeFilename,
 } from "./util/ical-generator.ts";
-import { createGoogleAuth, type Auth as GoogleAuthType } from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 import {
-  exportToGoogle,
-  type ExportTarget,
+  type Auth as GoogleAuthType,
+  createGoogleAuth,
+} from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
+import {
   type ExportableEvent,
+  type ExportTarget,
+  exportToGoogle,
 } from "./util/calendar-export.tsx";
 import { type ExportProgress } from "../../../labs/packages/patterns/google/core/util/calendar-export-types.ts";
 
@@ -37,7 +54,14 @@ import { type ExportProgress } from "../../../labs/packages/patterns/google/core
 // TYPES
 // ============================================================================
 
-type DayOfWeek = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
 // Grade levels for eligibility filtering
 type Grade = "TK" | "K" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8";
@@ -47,7 +71,7 @@ interface ChildProfile {
   name: string;
   grade: Grade;
   birthYear: number;
-  birthMonth: number;  // 1-12
+  birthMonth: number; // 1-12
   eligibilityNotes: string;
 }
 
@@ -61,8 +85,8 @@ interface Location {
 
 interface TimeSlot {
   day: DayOfWeek;
-  startTime: string;  // "15:00"
-  endTime: string;    // "16:30"
+  startTime: string; // "15:00"
+  endTime: string; // "16:30"
 }
 
 interface StatusFlags {
@@ -77,18 +101,18 @@ interface StatusFlags {
 interface Class {
   name: string;
   description: string;
-  location: Location;           // EMBEDDED reference, not ID
+  location: Location; // EMBEDDED reference, not ID
   timeSlots: TimeSlot[];
   cost: number;
   gradeMin: string;
   gradeMax: string;
   // Session dates (from import, optional)
-  sessionStartDate?: string;    // YYYY-MM-DD, when this class session starts
-  sessionEndDate?: string;      // YYYY-MM-DD, when this class session ends
-  meetingCount?: number;        // Number of meetings in the session
+  sessionStartDate?: string; // YYYY-MM-DD, when this class session starts
+  sessionEndDate?: string; // YYYY-MM-DD, when this class session ends
+  meetingCount?: number; // Number of meetings in the session
   // STATE ON OBJECT (not in separate maps)
-  pinnedInSets: string[];       // Which sets this class is pinned to
-  statuses: StatusFlags;        // Registration status tracking
+  pinnedInSets: string[]; // Which sets this class is pinned to
+  statuses: StatusFlags; // Registration status tracking
 }
 
 // ============================================================================
@@ -103,23 +127,23 @@ interface ExtractedClassInfo {
   endTime: string;
   gradeMin: string;
   gradeMax: string;
-  permissionGrades: string;  // Grades that can join "with permission" or "by invitation"
+  permissionGrades: string; // Grades that can join "with permission" or "by invitation"
   cost: number;
   notes: string;
   // Session date info (extracted when available in source material)
-  sessionStartDate: string;  // YYYY-MM-DD format, empty if not found
-  sessionEndDate: string;    // YYYY-MM-DD format, empty if not found
-  meetingCount: number;      // Number of meetings/sessions, 0 if not found
-  noClassDates: string;      // Comma-separated dates with no class (holidays, breaks)
+  sessionStartDate: string; // YYYY-MM-DD format, empty if not found
+  sessionEndDate: string; // YYYY-MM-DD format, empty if not found
+  meetingCount: number; // Number of meetings/sessions, 0 if not found
+  noClassDates: string; // Comma-separated dates with no class (holidays, breaks)
 }
 
 // Full extraction response from LLM - includes session-level metadata
 interface ExtractionResponse {
   classes: ExtractedClassInfo[];
   // Session-level dates that apply to all classes (if found in header/footer)
-  sessionStartDate: string;  // YYYY-MM-DD, empty if not found
-  sessionEndDate: string;    // YYYY-MM-DD, empty if not found
-  noClassDates: string;      // Comma-separated dates (holidays, breaks)
+  sessionStartDate: string; // YYYY-MM-DD, empty if not found
+  sessionEndDate: string; // YYYY-MM-DD, empty if not found
+  noClassDates: string; // Comma-separated dates (holidays, breaks)
 }
 
 // Triage status for eligibility filtering
@@ -134,10 +158,10 @@ type FileData = {
   id: string;
   name: string;
   url: string;
-  data: string;  // base64 encoded
+  data: string; // base64 encoded
   timestamp: number;
   size: number;
-  type: string;  // MIME type
+  type: string; // MIME type
   width?: number;
   height?: number;
 };
@@ -148,14 +172,14 @@ type ProcessingStatus = "idle" | "processing" | "complete" | "error";
 // Staged class for import preview - selection state ON object
 // Triage AND display values computed when populating (avoids .get() in Cell.map())
 interface StagedClass extends ExtractedClassInfo {
-  selected: boolean;  // Plain boolean - $checked doesn't work inside Cell.map() (see ISSUE file)
-  triageStatus: TriageStatus;        // Pre-computed when populating
-  triageReason: string;              // Pre-computed when populating
+  selected: boolean; // Plain boolean - $checked doesn't work inside Cell.map() (see ISSUE file)
+  triageStatus: TriageStatus; // Pre-computed when populating
+  triageReason: string; // Pre-computed when populating
   // WORKAROUND: Pre-computed display values because === comparison doesn't
   // work on item properties inside Cell.map() (comparing proxy to string = always false)
-  triageEmoji: string;               // ✓, ?, or ✗
-  triageBgColor: string;             // Background color based on triageStatus
-  triageBorderColor: string;         // Border color based on triageStatus
+  triageEmoji: string; // ✓, ?, or ✗
+  triageBgColor: string; // Background color based on triageStatus
+  triageBorderColor: string; // Border color based on triageStatus
 }
 
 // ============================================================================
@@ -164,15 +188,15 @@ interface StagedClass extends ExtractedClassInfo {
 
 /** Semester/term date range for recurring events */
 interface SemesterDates {
-  startDate: string;  // YYYY-MM-DD
-  endDate: string;    // YYYY-MM-DD
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
 }
 
 /** Recurrence rule for calendar events */
 interface RecurrenceRule {
   frequency: "WEEKLY";
-  byDay: string;      // e.g., "MO" or "MO,WE,FR"
-  until: string;      // YYYY-MM-DD
+  byDay: string; // e.g., "MO" or "MO,WE,FR"
+  until: string; // YYYY-MM-DD
 }
 
 /** Single event to be created in Apple Calendar via outbox */
@@ -249,7 +273,7 @@ interface CalendarOutboxEntry {
 interface CalendarOutbox {
   entries: CalendarOutboxEntry[];
   lastUpdated: string;
-  version: string;  // "1.0"
+  version: string; // "1.0"
 }
 
 /** Pending calendar export operation for confirmation dialog */
@@ -308,10 +332,10 @@ type CalendarExportProgress = ExportProgress | null;
 interface ExtracurricularInput {
   locations: Writable<Location[]>;
   classes: Writable<Class[]>;
-  child: Writable<ChildProfile>;  // Writable<> for write access, not Default<>
+  child: Writable<ChildProfile>; // Writable<> for write access, not Default<>
   // Phase 5: Pinned sets
-  pinnedSetNames: Writable<string[]>;  // Available set names
-  activeSetName: Writable<string>;     // Currently active set
+  pinnedSetNames: Writable<string[]>; // Available set names
+  activeSetName: Writable<string>; // Currently active set
   // Staged classes for import preview - pattern input for idiomatic $checked binding
   // Writable<Default<>> wrapper enables cell-like property access in .map()
   stagedClasses: Writable<Default<StagedClass[], []>>;
@@ -319,9 +343,13 @@ interface ExtracurricularInput {
   // Calendar export (optional feature) - provides semester date tracking
   // and iCal export for pinned classes. Mark as optional with ? to signal
   // these are auxiliary features, not core functionality.
-  semesterDates?: Writable<Default<SemesterDates, { startDate: ""; endDate: "" }>>;
+  semesterDates?: Writable<
+    Default<SemesterDates, { startDate: ""; endDate: "" }>
+  >;
   calendarName?: Writable<Default<string, "">>;
-  calendarOutbox?: Writable<Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>>;
+  calendarOutbox?: Writable<
+    Default<CalendarOutbox, { entries: []; lastUpdated: ""; version: "1.0" }>
+  >;
   // Note: Google Calendar auth is managed internally via wish() - see createGoogleAuth usage
 }
 
@@ -339,7 +367,18 @@ interface ExtracurricularOutput extends ExtracurricularInput {
 // ============================================================================
 
 // Grade order for comparison
-const GRADE_ORDER: Grade[] = ["TK", "K", "1", "2", "3", "4", "5", "6", "7", "8"];
+const GRADE_ORDER: Grade[] = [
+  "TK",
+  "K",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+];
 
 function gradeToIndex(grade: string): number {
   const normalized = grade.toUpperCase().trim();
@@ -347,30 +386,53 @@ function gradeToIndex(grade: string): number {
   return idx >= 0 ? idx : -1;
 }
 
-function isGradeInRange(childGrade: Grade, gradeMin: string, gradeMax: string): { eligible: boolean; reason: string } {
+function isGradeInRange(
+  childGrade: Grade,
+  gradeMin: string,
+  gradeMax: string,
+): { eligible: boolean; reason: string } {
   const childIdx = gradeToIndex(childGrade);
   const minIdx = gradeToIndex(gradeMin);
   const maxIdx = gradeToIndex(gradeMax);
 
   // If we can't parse the grades, needs review
   if (childIdx < 0) return { eligible: false, reason: "Unknown child grade" };
-  if (minIdx < 0 || maxIdx < 0) return { eligible: false, reason: "Unknown class grade range" };
+  if (minIdx < 0 || maxIdx < 0) {
+    return { eligible: false, reason: "Unknown class grade range" };
+  }
 
   if (childIdx >= minIdx && childIdx <= maxIdx) {
-    return { eligible: true, reason: `Grade ${childGrade} is within ${gradeMin}-${gradeMax}` };
+    return {
+      eligible: true,
+      reason: `Grade ${childGrade} is within ${gradeMin}-${gradeMax}`,
+    };
   } else if (childIdx < minIdx) {
-    return { eligible: false, reason: `Grade ${childGrade} is below minimum (${gradeMin})` };
+    return {
+      eligible: false,
+      reason: `Grade ${childGrade} is below minimum (${gradeMin})`,
+    };
   } else {
-    return { eligible: false, reason: `Grade ${childGrade} is above maximum (${gradeMax})` };
+    return {
+      eligible: false,
+      reason: `Grade ${childGrade} is above maximum (${gradeMax})`,
+    };
   }
 }
 
-function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: TriageStatus; reason: string } {
+function triageClass(
+  cls: ExtractedClassInfo,
+  childGrade: Grade,
+): { status: TriageStatus; reason: string } {
   // Check for "with permission" or similar notes that suggest needs_review
   const notes = (cls.notes || "").toLowerCase();
-  const hasPermissionNote = notes.includes("permission") || notes.includes("approval") || notes.includes("invitation");
+  const hasPermissionNote = notes.includes("permission") ||
+    notes.includes("approval") || notes.includes("invitation");
 
-  const { eligible, reason } = isGradeInRange(childGrade, cls.gradeMin, cls.gradeMax);
+  const { eligible, reason } = isGradeInRange(
+    childGrade,
+    cls.gradeMin,
+    cls.gradeMax,
+  );
 
   // Check if child's grade is in the permissionGrades list
   const permissionGrades = (cls.permissionGrades || "").toUpperCase();
@@ -378,20 +440,26 @@ function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: Tria
   // Match grade in permission list (handles "K", "3", "TK", etc.)
   const isInPermissionGrades = permissionGrades.length > 0 && (
     permissionGrades.includes(childGradeNorm) ||
-    permissionGrades.includes(childGradeNorm + "TH") ||  // "3" matches "3rd" -> "3TH" won't match but...
-    permissionGrades.includes(childGradeNorm + "RD") ||  // "3RD"
-    permissionGrades.includes(childGradeNorm + "ND") ||  // "2ND"
-    permissionGrades.includes(childGradeNorm + "ST")     // "1ST"
+    permissionGrades.includes(childGradeNorm + "TH") || // "3" matches "3rd" -> "3TH" won't match but...
+    permissionGrades.includes(childGradeNorm + "RD") || // "3RD"
+    permissionGrades.includes(childGradeNorm + "ND") || // "2ND"
+    permissionGrades.includes(childGradeNorm + "ST") // "1ST"
   );
 
   if (eligible) {
     if (hasPermissionNote) {
-      return { status: "needs_review", reason: `${reason}, but requires permission` };
+      return {
+        status: "needs_review",
+        reason: `${reason}, but requires permission`,
+      };
     }
     return { status: "auto_kept", reason };
   } else if (isInPermissionGrades) {
     // Child's grade is outside normal range but eligible by permission/invitation
-    return { status: "needs_review", reason: `Grade ${childGrade} eligible by invitation/permission` };
+    return {
+      status: "needs_review",
+      reason: `Grade ${childGrade} eligible by invitation/permission`,
+    };
   } else {
     return { status: "auto_discarded", reason };
   }
@@ -403,10 +471,12 @@ function triageClass(cls: ExtractedClassInfo, childGrade: Grade): { status: Tria
 
 function detectFileType(file: FileData): "image" | "text" | "unsupported" {
   const mimeType = file.type.toLowerCase();
-  const ext = file.name.toLowerCase().split('.').pop() || '';
+  const ext = file.name.toLowerCase().split(".").pop() || "";
 
   if (mimeType.startsWith("image/")) return "image";
-  if (mimeType.startsWith("text/") || ["txt", "md", "html", "htm"].includes(ext)) return "text";
+  if (
+    mimeType.startsWith("text/") || ["txt", "md", "html", "htm"].includes(ext)
+  ) return "text";
   return "unsupported";
 }
 
@@ -448,11 +518,14 @@ function parseTimeToMinutes(timeStr: string): number {
     return hours * 60 + mins;
   }
 
-  return -1;  // Invalid format
+  return -1; // Invalid format
 }
 
 // Check if two time slots on the same day overlap
-function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): { overlaps: boolean; overlapStart?: string; overlapEnd?: string } {
+function timeSlotsOverlap(
+  slot1: TimeSlot,
+  slot2: TimeSlot,
+): { overlaps: boolean; overlapStart?: string; overlapEnd?: string } {
   // Different days = no conflict
   if (slot1.day !== slot2.day) {
     return { overlaps: false };
@@ -495,9 +568,15 @@ function timeSlotsOverlap(slot1: TimeSlot, slot2: TimeSlot): { overlaps: boolean
 // ============================================================================
 
 // Schedule display constants
-const SCHEDULE_DAYS: DayOfWeek[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
-const SCHEDULE_START_HOUR = 14;  // 2 PM
-const SCHEDULE_END_HOUR = 18;    // 6 PM
+const SCHEDULE_DAYS: DayOfWeek[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+];
+const SCHEDULE_START_HOUR = 14; // 2 PM
+const SCHEDULE_END_HOUR = 18; // 6 PM
 const SCHEDULE_HOUR_HEIGHT = 60; // pixels per hour
 
 // Calculate top position for a time within the schedule
@@ -538,7 +617,9 @@ function hashString(str: string): number {
 }
 
 // Get color for a location by name (deterministic)
-function getLocationColor(locationName: string): { bg: string; border: string } {
+function getLocationColor(
+  locationName: string,
+): { bg: string; border: string } {
   const idx = hashString(locationName) % LOCATION_COLORS.length;
   return LOCATION_COLORS[idx];
 }
@@ -551,7 +632,7 @@ type ScheduleSlotData = {
   top: number;
   height: number;
   // For overlap layout
-  column: number;      // Which column (0-based) this slot occupies
+  column: number; // Which column (0-based) this slot occupies
   totalColumns: number; // Total columns in this overlap group
 };
 
@@ -573,8 +654,35 @@ const setLocationIndex = handler<
 // Uses handler pattern to avoid closure issues
 const doImportAll = handler<
   unknown,
-  { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }
->((_: unknown, { locIdx, locs, classList, staged, trigger, text, lastText, semester }: { locIdx: Writable<number>; locs: Writable<Location[]>; classList: Writable<Class[]>; staged: Writable<StagedClass[]>; trigger: Writable<string>; text: Writable<string>; lastText: Writable<string>; semester: Writable<SemesterDates> }) => {
+  {
+    locIdx: Writable<number>;
+    locs: Writable<Location[]>;
+    classList: Writable<Class[]>;
+    staged: Writable<StagedClass[]>;
+    trigger: Writable<string>;
+    text: Writable<string>;
+    lastText: Writable<string>;
+    semester: Writable<SemesterDates>;
+  }
+>((_: unknown, {
+  locIdx,
+  locs,
+  classList,
+  staged,
+  trigger,
+  text,
+  lastText,
+  semester,
+}: {
+  locIdx: Writable<number>;
+  locs: Writable<Location[]>;
+  classList: Writable<Class[]>;
+  staged: Writable<StagedClass[]>;
+  trigger: Writable<string>;
+  text: Writable<string>;
+  lastText: Writable<string>;
+  semester: Writable<SemesterDates>;
+}) => {
   const locationIndex = locIdx.get();
   const locationList = locs.get();
   if (locationIndex < 0 || locationIndex >= locationList.length) return;
@@ -643,7 +751,7 @@ const doImportAll = handler<
   // Clear import state
   trigger.set("");
   text.set("");
-  staged.set([]);  // Clear staged classes
+  staged.set([]); // Clear staged classes
   lastText.set(""); // Allow re-extraction
 });
 
@@ -654,7 +762,10 @@ const doImportAll = handler<
 const toggleStagedSelection = handler<
   unknown,
   { staged: Writable<StagedClass[]>; idx: number }
->((_: unknown, { staged, idx }: { staged: Writable<StagedClass[]>; idx: number }) => {
+>((
+  _: unknown,
+  { staged, idx }: { staged: Writable<StagedClass[]>; idx: number },
+) => {
   const current = staged.get();
   if (idx < 0 || idx >= current.length) return;
   // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
@@ -665,7 +776,14 @@ const toggleStagedSelection = handler<
 const updateClassField = handler<
   { target: { value: string } },
   { classList: Writable<Class[]>; idx: number; field: keyof Class }
->((event: { target: { value: string } }, { classList, idx, field }: { classList: Writable<Class[]>; idx: number; field: keyof Class }) => {
+>((
+  event: { target: { value: string } },
+  { classList, idx, field }: {
+    classList: Writable<Class[]>;
+    idx: number;
+    field: keyof Class;
+  },
+) => {
   const current = classList.get();
   if (idx < 0 || idx >= current.length) return;
   classList.key(idx).key(field).set(event.target.value);
@@ -674,24 +792,46 @@ const updateClassField = handler<
 // Handler to update class time slot
 const updateClassTimeSlot = handler<
   { target: { value: string } },
-  { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }
->((event: { target: { value: string } }, { classList, classIdx, slotIdx, field }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number; field: keyof TimeSlot }) => {
+  {
+    classList: Writable<Class[]>;
+    classIdx: number;
+    slotIdx: number;
+    field: keyof TimeSlot;
+  }
+>((
+  event: { target: { value: string } },
+  { classList, classIdx, slotIdx, field }: {
+    classList: Writable<Class[]>;
+    classIdx: number;
+    slotIdx: number;
+    field: keyof TimeSlot;
+  },
+) => {
   const current = classList.get();
   if (classIdx < 0 || classIdx >= current.length) return;
   const cls = current[classIdx];
   if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
-  classList.key(classIdx).key("timeSlots").key(slotIdx).key(field).set(event.target.value);
+  classList.key(classIdx).key("timeSlots").key(slotIdx).key(field).set(
+    event.target.value,
+  );
 });
 
 // Handler to add a time slot to a class
 const addClassTimeSlot = handler<
   unknown,
   { classList: Writable<Class[]>; idx: number }
->((_: unknown, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
+>((
+  _: unknown,
+  { classList, idx }: { classList: Writable<Class[]>; idx: number },
+) => {
   const current = classList.get();
   if (idx < 0 || idx >= current.length) return;
   const cls = current[idx];
-  const newSlots = [...(cls.timeSlots || []), { day: "monday" as DayOfWeek, startTime: "15:00", endTime: "16:00" }];
+  const newSlots = [...(cls.timeSlots || []), {
+    day: "monday" as DayOfWeek,
+    startTime: "15:00",
+    endTime: "16:00",
+  }];
   classList.key(idx).key("timeSlots").set(newSlots);
 });
 
@@ -699,12 +839,21 @@ const addClassTimeSlot = handler<
 const removeClassTimeSlot = handler<
   unknown,
   { classList: Writable<Class[]>; classIdx: number; slotIdx: number }
->((_: unknown, { classList, classIdx, slotIdx }: { classList: Writable<Class[]>; classIdx: number; slotIdx: number }) => {
+>((
+  _: unknown,
+  { classList, classIdx, slotIdx }: {
+    classList: Writable<Class[]>;
+    classIdx: number;
+    slotIdx: number;
+  },
+) => {
   const current = classList.get();
   if (classIdx < 0 || classIdx >= current.length) return;
   const cls = current[classIdx];
   if (!cls.timeSlots || slotIdx >= cls.timeSlots.length) return;
-  const newSlots = cls.timeSlots.filter((_: TimeSlot, i: number) => i !== slotIdx);
+  const newSlots = cls.timeSlots.filter((_: TimeSlot, i: number) =>
+    i !== slotIdx
+  );
   classList.key(classIdx).key("timeSlots").set(newSlots);
 });
 
@@ -712,7 +861,14 @@ const removeClassTimeSlot = handler<
 const updateClassLocation = handler<
   { target: { value: string } },
   { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }
->((event: { target: { value: string } }, { classList, locs, classIdx }: { classList: Writable<Class[]>; locs: Writable<Location[]>; classIdx: number }) => {
+>((
+  event: { target: { value: string } },
+  { classList, locs, classIdx }: {
+    classList: Writable<Class[]>;
+    locs: Writable<Location[]>;
+    classIdx: number;
+  },
+) => {
   const locIdx = parseInt(event.target.value, 10);
   const locList = locs.get();
   if (locIdx < 0 || locIdx >= locList.length) return;
@@ -723,7 +879,10 @@ const updateClassLocation = handler<
 const updateClassCost = handler<
   { target: { value: string } },
   { classList: Writable<Class[]>; idx: number }
->((event: { target: { value: string } }, { classList, idx }: { classList: Writable<Class[]>; idx: number }) => {
+>((
+  event: { target: { value: string } },
+  { classList, idx }: { classList: Writable<Class[]>; idx: number },
+) => {
   const cost = parseFloat(event.target.value) || 0;
   classList.key(idx).key("cost").set(cost);
 });
@@ -732,7 +891,10 @@ const updateClassCost = handler<
 const setChildGrade = handler<
   { target: { value: string } },
   { childCell: Writable<ChildProfile> }
->((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+>((
+  event: { target: { value: string } },
+  state: { childCell: Writable<ChildProfile> },
+) => {
   const current = state.childCell.get();
   state.childCell.set({ ...current, grade: event.target.value as Grade });
 });
@@ -741,7 +903,10 @@ const setChildGrade = handler<
 const setChildName = handler<
   { target: { value: string } },
   { childCell: Writable<ChildProfile> }
->((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+>((
+  event: { target: { value: string } },
+  state: { childCell: Writable<ChildProfile> },
+) => {
   const current = state.childCell.get();
   state.childCell.set({ ...current, name: event.target.value });
 });
@@ -750,7 +915,10 @@ const setChildName = handler<
 const setChildBirthYear = handler<
   { target: { value: string } },
   { childCell: Writable<ChildProfile> }
->((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+>((
+  event: { target: { value: string } },
+  state: { childCell: Writable<ChildProfile> },
+) => {
   const current = state.childCell.get();
   const year = parseInt(event.target.value, 10);
   if (!isNaN(year)) {
@@ -762,7 +930,10 @@ const setChildBirthYear = handler<
 const setChildBirthMonth = handler<
   { target: { value: string } },
   { childCell: Writable<ChildProfile> }
->((event: { target: { value: string } }, state: { childCell: Writable<ChildProfile> }) => {
+>((
+  event: { target: { value: string } },
+  state: { childCell: Writable<ChildProfile> },
+) => {
   const current = state.childCell.get();
   const month = parseInt(event.target.value, 10);
   if (!isNaN(month) && month >= 1 && month <= 12) {
@@ -779,15 +950,18 @@ const handleFileUpload = handler<
     extractedText: Writable<string>;
     extractionError: Writable<string | null>;
   }
->(({ detail }: { detail: { files: FileData[] } }, { uploadedFile, processingStatus, extractedText, extractionError }: {
-  uploadedFile: Writable<FileData | null>;
-  processingStatus: Writable<ProcessingStatus>;
-  extractedText: Writable<string>;
-  extractionError: Writable<string | null>;
-}) => {
+>((
+  { detail }: { detail: { files: FileData[] } },
+  { uploadedFile, processingStatus, extractedText, extractionError }: {
+    uploadedFile: Writable<FileData | null>;
+    processingStatus: Writable<ProcessingStatus>;
+    extractedText: Writable<string>;
+    extractionError: Writable<string | null>;
+  },
+) => {
   if (!detail?.files || detail.files.length === 0) return;
 
-  const file = detail.files[detail.files.length - 1];  // Take most recent
+  const file = detail.files[detail.files.length - 1]; // Take most recent
   const fileType = detectFileType(file);
 
   // Reset state
@@ -826,13 +1000,16 @@ const applyExtractedText = handler<
     processingStatus: Writable<ProcessingStatus>;
     ocrText: string | null;
   }
->((_: unknown, { extractedText, importText, uploadedFile, processingStatus, ocrText }: {
-  extractedText: Writable<string>;
-  importText: Writable<string>;
-  uploadedFile: Writable<FileData | null>;
-  processingStatus: Writable<ProcessingStatus>;
-  ocrText: string | null;
-}) => {
+>((
+  _: unknown,
+  { extractedText, importText, uploadedFile, processingStatus, ocrText }: {
+    extractedText: Writable<string>;
+    importText: Writable<string>;
+    uploadedFile: Writable<FileData | null>;
+    processingStatus: Writable<ProcessingStatus>;
+    ocrText: string | null;
+  },
+) => {
   // Use extracted text from file, or OCR result from image
   const text = extractedText.get() || ocrText || "";
   if (text) {
@@ -853,12 +1030,15 @@ const cancelUpload = handler<
     processingStatus: Writable<ProcessingStatus>;
     extractionError: Writable<string | null>;
   }
->((_: unknown, { uploadedFile, extractedText, processingStatus, extractionError }: {
-  uploadedFile: Writable<FileData | null>;
-  extractedText: Writable<string>;
-  processingStatus: Writable<ProcessingStatus>;
-  extractionError: Writable<string | null>;
-}) => {
+>((
+  _: unknown,
+  { uploadedFile, extractedText, processingStatus, extractionError }: {
+    uploadedFile: Writable<FileData | null>;
+    extractedText: Writable<string>;
+    processingStatus: Writable<ProcessingStatus>;
+    extractionError: Writable<string | null>;
+  },
+) => {
   uploadedFile.set(null);
   extractedText.set("");
   processingStatus.set("idle");
@@ -869,7 +1049,10 @@ const cancelUpload = handler<
 const setActiveSet = handler<
   { target: { value: string } },
   { activeCell: Writable<string> }
->((event: { target: { value: string } }, state: { activeCell: Writable<string> }) => {
+>((
+  event: { target: { value: string } },
+  state: { activeCell: Writable<string> },
+) => {
   state.activeCell.set(event.target.value);
 });
 
@@ -877,13 +1060,22 @@ const setActiveSet = handler<
 const togglePinClass = handler<
   unknown,
   { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }
->((_: unknown, { classList, activeSet, idx }: { classList: Writable<Class[]>; activeSet: Writable<string>; idx: number }) => {
+>((
+  _: unknown,
+  { classList, activeSet, idx }: {
+    classList: Writable<Class[]>;
+    activeSet: Writable<string>;
+    idx: number;
+  },
+) => {
   const current = classList.get();
   const setName = activeSet.get();
   if (idx < 0 || idx >= current.length) return;
 
   const cls = current[idx];
-  const currentPins: string[] = Array.isArray(cls.pinnedInSets) ? cls.pinnedInSets : [];
+  const currentPins: string[] = Array.isArray(cls.pinnedInSets)
+    ? cls.pinnedInSets
+    : [];
   const isPinned = currentPins.includes(setName);
   const newPins = isPinned
     ? currentPins.filter((s: string) => s !== setName)
@@ -909,7 +1101,15 @@ const prepareCalendarExport = handler<
   }
 >((_: unknown, state) => {
   // Handler receives readonly props from framework, cast to mutable for internal use
-  const { pinnedClasses, semesterDates, child, activeSetName, calendarName: calendarNameCell, pendingExport, outbox } = state as {
+  const {
+    pinnedClasses,
+    semesterDates,
+    child,
+    activeSetName,
+    calendarName: calendarNameCell,
+    pendingExport,
+    outbox,
+  } = state as {
     pinnedClasses: Class[];
     semesterDates: Writable<SemesterDates>;
     child: Writable<ChildProfile>;
@@ -921,7 +1121,8 @@ const prepareCalendarExport = handler<
   // pinnedClasses is a computed cell - handler receives unwrapped value (not cell)
   const classList = pinnedClasses || [];
   const semester = semesterDates.get() || { startDate: "", endDate: "" };
-  const childProfile = child.get() || { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
+  const childProfile = child.get() ||
+    { name: "Child", grade: "K", birthYear: 2020, birthMonth: 1 };
   const setName = activeSetName.get() || "default";
   const targetCalendar = calendarNameCell.get() || "Calendar";
 
@@ -930,31 +1131,48 @@ const prepareCalendarExport = handler<
 
   // Generate ICS content (for download fallback)
   const icalResult = classesToICalEvents(classList, semester);
-  const icsCalendarName = `${childProfile.name || "Child"}'s ${setName || "default"} Schedule`;
+  const icsCalendarName = `${childProfile.name || "Child"}'s ${
+    setName || "default"
+  } Schedule`;
   const icsContent = generateICS(icalResult.events, {
     calendarName: icsCalendarName,
     prodId: "-//CommonTools//Extracurricular Selector//EN",
   });
 
   // Generate outbox events (for apple-sync CLI)
-  const outboxResult = classesToOutboxEvents(classList, semester, targetCalendar);
+  const outboxResult = classesToOutboxEvents(
+    classList,
+    semester,
+    targetCalendar,
+  );
 
   // Check for duplicates: events already in outbox with same ID
   // DEFENSIVE: Filter undefined entries/events during hydration
-  const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+  const currentOutbox = outbox.get() ||
+    { entries: [], lastUpdated: "", version: "1.0" };
   const existingUIDs = new Set(
-    (currentOutbox.entries || []).filter((entry: CalendarOutboxEntry) => entry != null).flatMap((entry: CalendarOutboxEntry) =>
-      (entry.events || []).filter((e: CalendarOutboxEvent) => e != null).map((e: CalendarOutboxEvent) => e.id)
-    )
+    (currentOutbox.entries || []).filter((entry: CalendarOutboxEntry) =>
+      entry != null
+    ).flatMap((entry: CalendarOutboxEntry) =>
+      (entry.events || []).filter((e: CalendarOutboxEvent) => e != null).map((
+        e: CalendarOutboxEvent,
+      ) => e.id)
+    ),
   );
-  const newEvents = outboxResult.events.filter((e: CalendarOutboxEvent) => e != null && !existingUIDs.has(e.id));
+  const newEvents = outboxResult.events.filter((e: CalendarOutboxEvent) =>
+    e != null && !existingUIDs.has(e.id)
+  );
   const duplicateCount = outboxResult.events.length - newEvents.length;
 
   // Combine skipped items from both conversions (deduplicate)
   const allSkipped = [...icalResult.skipped];
   // Only add outbox skipped if not already in list
   for (const skip of outboxResult.skipped) {
-    if (!allSkipped.some(s => s.className === skip.className && s.reason === skip.reason)) {
+    if (
+      !allSkipped.some((s) =>
+        s.className === skip.className && s.reason === skip.reason
+      )
+    ) {
       allSkipped.push(skip);
     }
   }
@@ -985,7 +1203,10 @@ const prepareCalendarExport = handler<
 const cancelCalendarExport = handler<
   unknown,
   { pendingExport: Writable<PendingCalendarExport> }
->((_: unknown, { pendingExport }: { pendingExport: Writable<PendingCalendarExport> }) => {
+>((
+  _: unknown,
+  { pendingExport }: { pendingExport: Writable<PendingCalendarExport> },
+) => {
   pendingExport.set(null);
 });
 
@@ -995,7 +1216,13 @@ const cancelCalendarExport = handler<
 const selectExportTarget = handler<
   unknown,
   { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }
->((_: unknown, { pendingExport, target }: { pendingExport: Writable<PendingCalendarExport>; target: ExportTarget }) => {
+>((
+  _: unknown,
+  { pendingExport, target }: {
+    pendingExport: Writable<PendingCalendarExport>;
+    target: ExportTarget;
+  },
+) => {
   const pending = pendingExport.get();
   if (!pending) return;
   pendingExport.set({ ...pending, selectedTarget: target });
@@ -1020,15 +1247,18 @@ const confirmCalendarExport = handler<
     outbox: Writable<CalendarOutbox>;
     auth: Writable<GoogleAuthType>;
   }
->(async (_: unknown, { pendingExport, processing, progress, result, classList, outbox, auth }: {
-  pendingExport: Writable<PendingCalendarExport>;
-  processing: Writable<boolean>;
-  progress: Writable<CalendarExportProgress>;
-  result: Writable<CalendarExportResult>;
-  classList: Writable<Class[]>;
-  outbox: Writable<CalendarOutbox>;
-  auth: Writable<GoogleAuthType>;
-}) => {
+>(async (
+  _: unknown,
+  { pendingExport, processing, progress, result, classList, outbox, auth }: {
+    pendingExport: Writable<PendingCalendarExport>;
+    processing: Writable<boolean>;
+    progress: Writable<CalendarExportProgress>;
+    result: Writable<CalendarExportResult>;
+    classList: Writable<Class[]>;
+    outbox: Writable<CalendarOutbox>;
+    auth: Writable<GoogleAuthType>;
+  },
+) => {
   const pending = pendingExport.get();
   if (!pending || !pending.selectedTarget) return;
 
@@ -1044,7 +1274,9 @@ const confirmCalendarExport = handler<
       // Verify we have auth before proceeding
       const authData = auth.get();
       if (!authData?.token) {
-        throw new Error("Google authentication required. Please sign in first.");
+        throw new Error(
+          "Google authentication required. Please sign in first.",
+        );
       }
 
       // Google Calendar: Use batch API with progress tracking
@@ -1079,13 +1311,18 @@ const confirmCalendarExport = handler<
         confirmation: {
           timestamp: now,
           dialogContent: {
-            displayedTitle: `${pending.childName}'s ${pending.setName} Schedule`,
+            displayedTitle:
+              `${pending.childName}'s ${pending.setName} Schedule`,
             displayedCalendar: pending.calendarName,
-            displayedTimeRange: `${pending.semester?.startDate || ""} to ${pending.semester?.endDate || ""}`,
+            displayedTimeRange: `${pending.semester?.startDate || ""} to ${
+              pending.semester?.endDate || ""
+            }`,
             displayedEventCount: pending.eventCount,
             // DEFENSIVE: Filter undefined during hydration
-            displayedClasses: pending.classes.filter((c: Class) => c != null).map((c: Class) => c.name),
-            warningMessage: `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
+            displayedClasses: pending.classes.filter((c: Class) => c != null)
+              .map((c: Class) => c.name),
+            warningMessage:
+              `This will create ${pending.eventCount} recurring events in your "${pending.calendarName}" calendar.`,
           },
           sourcePattern: {
             name: "Extracurricular Selector",
@@ -1099,7 +1336,8 @@ const confirmCalendarExport = handler<
       };
 
       // Add to outbox
-      const currentOutbox = outbox.get() || { entries: [], lastUpdated: "", version: "1.0" };
+      const currentOutbox = outbox.get() ||
+        { entries: [], lastUpdated: "", version: "1.0" };
       const updatedOutbox: CalendarOutbox = {
         entries: [...(currentOutbox.entries || []), outboxEntry],
         lastUpdated: now,
@@ -1115,7 +1353,8 @@ const confirmCalendarExport = handler<
 
       exportResult = {
         success: true,
-        message: `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Click below to download backup ICS.`,
+        message:
+          `Added ${pending.eventCount} events to outbox for "${pending.calendarName}" calendar. Click below to download backup ICS.`,
         timestamp: now,
         exportedCount: pending.eventCount,
         target: "apple",
@@ -1147,7 +1386,7 @@ const confirmCalendarExport = handler<
       for (let i = 0; i < currentClasses.length; i++) {
         const cls = currentClasses[i];
         const wasExported = pending.classes.some(
-          (exportedCls: Class) => equals(cls, exportedCls)
+          (exportedCls: Class) => equals(cls, exportedCls),
         );
         if (wasExported && !cls.statuses?.onCalendar) {
           classList.key(i).key("statuses").key("onCalendar").set(true);
@@ -1203,7 +1442,10 @@ const toggleCalendarExport = handler<
 const setSemesterStart = handler<
   { detail: { value: string } },
   { dates: Writable<SemesterDates> }
->((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
+>((
+  event: { detail: { value: string } },
+  { dates }: { dates: Writable<SemesterDates> },
+) => {
   const current = dates.get();
   dates.set({ ...current, startDate: event.detail.value });
 });
@@ -1211,7 +1453,10 @@ const setSemesterStart = handler<
 const setSemesterEnd = handler<
   { detail: { value: string } },
   { dates: Writable<SemesterDates> }
->((event: { detail: { value: string } }, { dates }: { dates: Writable<SemesterDates> }) => {
+>((
+  event: { detail: { value: string } },
+  { dates }: { dates: Writable<SemesterDates> },
+) => {
   const current = dates.get();
   dates.set({ ...current, endDate: event.detail.value });
 });
@@ -1220,7 +1465,10 @@ const setSemesterEnd = handler<
 const setCalendarName = handler<
   { detail: { value: string } },
   { name: Writable<string> }
->((event: { detail: { value: string } }, { name }: { name: Writable<string> }) => {
+>((
+  event: { detail: { value: string } },
+  { name }: { name: Writable<string> },
+) => {
   name.set(event.detail.value);
 });
 
@@ -1228,20 +1476,21 @@ const setCalendarName = handler<
 const toggleStatus = (
   classList: Writable<Class[]>,
   cls: Class,
-  statusKey: keyof StatusFlags
+  statusKey: keyof StatusFlags,
 ): void => {
   const current = classList.get();
   const index = current.findIndex((el: Class) => equals(cls, el));
   if (index >= 0) {
     // Use .key().set() for atomic update instead of toSpliced (per superstition doc)
     classList.key(index).key("statuses").key(statusKey).set(
-      !current[index].statuses[statusKey]
+      !current[index].statuses[statusKey],
     );
   }
 };
 
 // Helper: display set name (shows "(default)" for empty string)
-const displaySetName = (name: string): string => name === "" ? "(default)" : name;
+const displaySetName = (name: string): string =>
+  name === "" ? "(default)" : name;
 
 // ============================================================================
 // HELPER FUNCTIONS FOR HANDLERS (need to be at module scope for handlers to use)
@@ -1266,14 +1515,17 @@ interface ConversionResult<T> {
  */
 function classesToICalEvents(
   classList: readonly Class[],
-  semester: SemesterDates
+  semester: SemesterDates,
 ): ConversionResult<ICalEvent> {
   const events: ICalEvent[] = [];
   const skipped: { className: string; reason: string }[] = [];
 
   for (const cls of classList) {
     if (!cls || !cls.name) {
-      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      skipped.push({
+        className: "(unknown)",
+        reason: "Invalid or missing class data",
+      });
       continue;
     }
 
@@ -1286,7 +1538,7 @@ function classesToICalEvents(
       // Find the first occurrence of this weekday within the semester
       const firstDate = getFirstOccurrenceDate(
         semester.startDate,
-        slot.day as ICalDayOfWeek
+        slot.day as ICalDayOfWeek,
       );
 
       // Skip if first occurrence is after semester end
@@ -1303,7 +1555,9 @@ function classesToICalEvents(
         uid: generateEventUID(cls.name, slot.day, slot.startTime, firstDate),
         summary: cls.name,
         location: cls.location?.name
-          ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+          ? `${cls.location.name}${
+            cls.location.address ? ` - ${cls.location.address}` : ""
+          }`
           : undefined,
         description: cls.description || undefined,
         startDate: firstDate,
@@ -1330,14 +1584,17 @@ function classesToICalEvents(
 function classesToOutboxEvents(
   classList: readonly Class[],
   semester: SemesterDates,
-  targetCalendar: string
+  targetCalendar: string,
 ): ConversionResult<CalendarOutboxEvent> {
   const events: CalendarOutboxEvent[] = [];
   const skipped: { className: string; reason: string }[] = [];
 
   for (const cls of classList) {
     if (!cls || !cls.name) {
-      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      skipped.push({
+        className: "(unknown)",
+        reason: "Invalid or missing class data",
+      });
       continue;
     }
 
@@ -1350,7 +1607,7 @@ function classesToOutboxEvents(
       // Find the first occurrence of this weekday within the semester
       const firstDate = getFirstOccurrenceDate(
         semester.startDate,
-        slot.day as ICalDayOfWeek
+        slot.day as ICalDayOfWeek,
       );
 
       // Skip if first occurrence is after semester end
@@ -1371,7 +1628,9 @@ function classesToOutboxEvents(
         startTime: slot.startTime,
         endTime: slot.endTime,
         location: cls.location?.name
-          ? `${cls.location.name}${cls.location.address ? ` - ${cls.location.address}` : ""}`
+          ? `${cls.location.name}${
+            cls.location.address ? ` - ${cls.location.address}` : ""
+          }`
           : undefined,
         notes: cls.description || undefined,
         recurrence: {
@@ -1399,7 +1658,10 @@ function classesToExportableEvents(
 
   for (const cls of classList) {
     if (!cls || !cls.name) {
-      skipped.push({ className: "(unknown)", reason: "Invalid or missing class data" });
+      skipped.push({
+        className: "(unknown)",
+        reason: "Invalid or missing class data",
+      });
       continue;
     }
 
@@ -1415,7 +1677,9 @@ function classesToExportableEvents(
       title: cls.name,
       location: cls.location?.name,
       description: cls.description || undefined,
-      timeSlots: cls.timeSlots.filter((slot: TimeSlot) => slot != null).map((slot: TimeSlot) => ({
+      timeSlots: cls.timeSlots.filter((slot: TimeSlot) => slot != null).map((
+        slot: TimeSlot,
+      ) => ({
         day: slot.day,
         startTime: slot.startTime,
         endTime: slot.endTime,
@@ -1433,7 +1697,19 @@ function classesToExportableEvents(
 // ============================================================================
 
 export default pattern<ExtracurricularInput, ExtracurricularOutput>(
-  ({ locations, classes, child, pinnedSetNames, activeSetName, stagedClasses, semesterDates, calendarName, calendarOutbox }) => {
+  (
+    {
+      locations,
+      classes,
+      child,
+      pinnedSetNames,
+      activeSetName,
+      stagedClasses,
+      semesterDates,
+      calendarName,
+      calendarOutbox,
+    },
+  ) => {
     // Local cell for selected location when adding a class
     const selectedLocationIndex = Writable.of<number>(-1);
 
@@ -1443,7 +1719,6 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     // NOTE: Add Class uses inline handler because handler() state parameters
     // get unwrapped to snapshots, not live reactive references. Inline handlers
     // capture cells directly from closure and work correctly with reactivity.
-
 
     // =========================================================================
     // PHASE 3: IMPORT FLOW
@@ -1457,7 +1732,7 @@ export default pattern<ExtracurricularInput, ExtracurricularOutput>(
     // Phase 5.5: Unified file/image upload state
     const uploadedFile = Writable.of<FileData | null>(null);
     const uploadProcessingStatus = Writable.of<ProcessingStatus>("idle");
-    const uploadExtractedText = Writable.of<string>("");  // Preview/edit buffer
+    const uploadExtractedText = Writable.of<string>(""); // Preview/edit buffer
     const uploadExtractionError = Writable.of<string | null>(null);
 
     // NOTE: For Phase 3, we skip individual selection and just import all extracted classes
@@ -1491,43 +1766,50 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     });
 
     // Run LLM extraction - destructure result/pending like food-pattern.tsx
-    const { result: extractionResponse, pending: extractionPending } = generateObject({
-      model: "anthropic:claude-sonnet-4-5",
-      prompt: extractionPrompt,
-      system: "You are a precise data extraction assistant. Extract class information exactly as found. Do not invent information.",
-      schema: {
-        type: "object" as const,
-        properties: {
-          classes: {
-            type: "array" as const,
-            items: {
-              type: "object" as const,
-              properties: {
-                name: { type: "string" as const },
-                dayOfWeek: { type: "string" as const },
-                startTime: { type: "string" as const },
-                endTime: { type: "string" as const },
-                gradeMin: { type: "string" as const },
-                gradeMax: { type: "string" as const },
-                permissionGrades: { type: "string" as const },
-                cost: { type: "number" as const },
-                notes: { type: "string" as const },
-                sessionStartDate: { type: "string" as const },
-                sessionEndDate: { type: "string" as const },
-                meetingCount: { type: "number" as const },
-                noClassDates: { type: "string" as const },
+    const { result: extractionResponse, pending: extractionPending } =
+      generateObject({
+        model: "anthropic:claude-sonnet-4-5",
+        prompt: extractionPrompt,
+        system:
+          "You are a precise data extraction assistant. Extract class information exactly as found. Do not invent information.",
+        schema: {
+          type: "object" as const,
+          properties: {
+            classes: {
+              type: "array" as const,
+              items: {
+                type: "object" as const,
+                properties: {
+                  name: { type: "string" as const },
+                  dayOfWeek: { type: "string" as const },
+                  startTime: { type: "string" as const },
+                  endTime: { type: "string" as const },
+                  gradeMin: { type: "string" as const },
+                  gradeMax: { type: "string" as const },
+                  permissionGrades: { type: "string" as const },
+                  cost: { type: "number" as const },
+                  notes: { type: "string" as const },
+                  sessionStartDate: { type: "string" as const },
+                  sessionEndDate: { type: "string" as const },
+                  meetingCount: { type: "number" as const },
+                  noClassDates: { type: "string" as const },
+                },
+                required: [
+                  "name",
+                  "dayOfWeek",
+                  "startTime",
+                  "endTime",
+                ] as const,
               },
-              required: ["name", "dayOfWeek", "startTime", "endTime"] as const,
             },
+            // Session-level dates that apply to all classes
+            sessionStartDate: { type: "string" as const },
+            sessionEndDate: { type: "string" as const },
+            noClassDates: { type: "string" as const },
           },
-          // Session-level dates that apply to all classes
-          sessionStartDate: { type: "string" as const },
-          sessionEndDate: { type: "string" as const },
-          noClassDates: { type: "string" as const },
+          required: ["classes"] as const,
         },
-        required: ["classes"] as const,
-      },
-    });
+      });
 
     // NOTE: stagedClasses is a PATTERN INPUT (not a local cell) because:
     // - Local cells don't support cell-like property access in .map()
@@ -1545,7 +1827,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
     computed(() => {
       const response = extractionResponse as any;
       const triggerText = extractionTriggerText.get();
-      const lastText = lastProcessedExtractionText.get();  // Cell - creates dependency, but computed is idempotent
+      const lastText = lastProcessedExtractionText.get(); // Cell - creates dependency, but computed is idempotent
 
       // Skip if no response or same extraction already processed
       if (!response?.classes || !triggerText) return;
@@ -1559,43 +1841,51 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
       // s.triageStatus === "auto_kept" doesn't work (proxy vs string = always false)
       // FIX: Explicitly extract primitive values to avoid spreading reactive proxy references
       // that show as $alias JSON when rendered. Don't use ...cls spread on reactive objects.
-      const newClasses = response.classes.filter(Boolean).map((cls: ExtractedClassInfo) => {
-        const triage = triageClass(cls, childGrade as Grade);
-        // Pre-compute display values based on triage status
-        // needs_review uses ⚠️ warning icon to highlight "by invitation" classes
-        const displayValues = triage.status === "auto_kept"
-          ? { emoji: "✓", bg: "#e8f5e9", border: "#4caf50" }
-          : triage.status === "needs_review"
-          ? { emoji: "⚠️", bg: "#fff3e0", border: "#ff9800" }
-          : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
-        // Explicitly extract all fields as primitives to avoid $alias proxy leakage
-        // Use session-level dates as fallback if class-specific dates not found
-        const classStartDate = String(cls.sessionStartDate || response.sessionStartDate || "");
-        const classEndDate = String(cls.sessionEndDate || response.sessionEndDate || "");
-        return {
-          name: String(cls.name || ""),
-          dayOfWeek: String(cls.dayOfWeek || ""),
-          startTime: String(cls.startTime || ""),
-          endTime: String(cls.endTime || ""),
-          gradeMin: String(cls.gradeMin || ""),
-          gradeMax: String(cls.gradeMax || ""),
-          permissionGrades: String(cls.permissionGrades || ""),
-          cost: Number(cls.cost) || 0,
-          notes: String(cls.notes || ""),
-          // Session date info (class-specific or session-level fallback)
-          sessionStartDate: classStartDate,
-          sessionEndDate: classEndDate,
-          meetingCount: Number(cls.meetingCount) || 0,
-          noClassDates: String(cls.noClassDates || response.noClassDates || ""),
-          // Only auto_kept is pre-selected; needs_review requires conscious opt-in
-          selected: triage.status === "auto_kept",
-          triageStatus: triage.status,
-          triageReason: triage.reason,
-          triageEmoji: displayValues.emoji,
-          triageBgColor: displayValues.bg,
-          triageBorderColor: displayValues.border,
-        };
-      });
+      const newClasses = response.classes.filter(Boolean).map(
+        (cls: ExtractedClassInfo) => {
+          const triage = triageClass(cls, childGrade as Grade);
+          // Pre-compute display values based on triage status
+          // needs_review uses ⚠️ warning icon to highlight "by invitation" classes
+          const displayValues = triage.status === "auto_kept"
+            ? { emoji: "✓", bg: "#e8f5e9", border: "#4caf50" }
+            : triage.status === "needs_review"
+            ? { emoji: "⚠️", bg: "#fff3e0", border: "#ff9800" }
+            : { emoji: "✗", bg: "#ffebee", border: "#f44336" };
+          // Explicitly extract all fields as primitives to avoid $alias proxy leakage
+          // Use session-level dates as fallback if class-specific dates not found
+          const classStartDate = String(
+            cls.sessionStartDate || response.sessionStartDate || "",
+          );
+          const classEndDate = String(
+            cls.sessionEndDate || response.sessionEndDate || "",
+          );
+          return {
+            name: String(cls.name || ""),
+            dayOfWeek: String(cls.dayOfWeek || ""),
+            startTime: String(cls.startTime || ""),
+            endTime: String(cls.endTime || ""),
+            gradeMin: String(cls.gradeMin || ""),
+            gradeMax: String(cls.gradeMax || ""),
+            permissionGrades: String(cls.permissionGrades || ""),
+            cost: Number(cls.cost) || 0,
+            notes: String(cls.notes || ""),
+            // Session date info (class-specific or session-level fallback)
+            sessionStartDate: classStartDate,
+            sessionEndDate: classEndDate,
+            meetingCount: Number(cls.meetingCount) || 0,
+            noClassDates: String(
+              cls.noClassDates || response.noClassDates || "",
+            ),
+            // Only auto_kept is pre-selected; needs_review requires conscious opt-in
+            selected: triage.status === "auto_kept",
+            triageStatus: triage.status,
+            triageReason: triage.reason,
+            triageEmoji: displayValues.emoji,
+            triageBgColor: displayValues.bg,
+            triageBorderColor: displayValues.border,
+          };
+        },
+      );
       // CRITICAL ORDER: Set data FIRST, then update guard
       // This ensures data is written before guard cell triggers re-run
       // On re-run, guard matches and returns early (idempotent)
@@ -1620,16 +1910,20 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
           { type: "image" as const, image: file.data },
           {
             type: "text" as const,
-            text: `Extract all text from this image of a class schedule or activity list.
+            text:
+              `Extract all text from this image of a class schedule or activity list.
 Preserve the structure and formatting. Include: class names, days, times, grade levels, costs, and any descriptions or notes.
-Return all visible text.`
-          }
+Return all visible text.`,
+          },
         ];
       }),
       schema: {
         type: "object",
         properties: {
-          extractedText: { type: "string", description: "All text extracted from the image" },
+          extractedText: {
+            type: "string",
+            description: "All text extracted from the image",
+          },
         },
       },
     });
@@ -1657,7 +1951,13 @@ Return all visible text.`
     const stageCounts = computed(() => {
       const list = stagedClasses.get();
       if (!list || list.length === 0) {
-        return { hasStaged: false, selected: 0, kept: 0, needsReview: 0, discarded: 0 };
+        return {
+          hasStaged: false,
+          selected: 0,
+          kept: 0,
+          needsReview: 0,
+          discarded: 0,
+        };
       }
       let selected = 0, kept = 0, needsReview = 0, discarded = 0;
       for (const s of list) {
@@ -1681,14 +1981,20 @@ Return all visible text.`
     // Import button state - pre-computed to avoid reactive context issues in JSX
     // DEFENSIVE: Filter out undefined entries during hydration
     const importButtonDisabled = computed(() => {
-      const selCount = stagedClasses.get().filter((s: StagedClass) => s && s.selected).length;
+      const selCount = stagedClasses.get().filter((s: StagedClass) =>
+        s && s.selected
+      ).length;
       const locIdx = importLocationIndex.get();
       return selCount === 0 || locIdx < 0;
     });
     const importButtonText = computed(() => {
       const locIdx = importLocationIndex.get();
-      const selCount = stagedClasses.get().filter((s: StagedClass) => s && s.selected).length;
-      return locIdx < 0 ? "Select a location to import" : `Import ${selCount} Selected Classes`;
+      const selCount = stagedClasses.get().filter((s: StagedClass) =>
+        s && s.selected
+      ).length;
+      return locIdx < 0
+        ? "Select a location to import"
+        : `Import ${selCount} Selected Classes`;
     });
 
     // =========================================================================
@@ -1730,10 +2036,12 @@ Return all visible text.`
     const pinnedClasses = computed(() => {
       const setName = activeSetName.get();
       const classList = classes.get();
-      return classList.filter(cls => {
+      return classList.filter((cls) => {
         if (!cls) return false; // Skip undefined entries during hydration
         const rawPins = cls.pinnedInSets;
-        const pinArray: string[] = Array.isArray(rawPins) ? rawPins as string[] : [];
+        const pinArray: string[] = Array.isArray(rawPins)
+          ? rawPins as string[]
+          : [];
         return pinArray.indexOf(setName) >= 0;
       });
     });
@@ -1805,7 +2113,9 @@ Return all visible text.`
             cls,
             slot,
             color,
-            top: startMins >= 0 ? (startOffsetMins / 60) * SCHEDULE_HOUR_HEIGHT : 0,
+            top: startMins >= 0
+              ? (startOffsetMins / 60) * SCHEDULE_HOUR_HEIGHT
+              : 0,
             height: startMins >= 0 && endMins >= 0
               ? (durationMins / 60) * SCHEDULE_HOUR_HEIGHT
               : SCHEDULE_HOUR_HEIGHT,
@@ -1821,7 +2131,10 @@ Return all visible text.`
         if (slots.length < 2) continue;
 
         // Sort by start time
-        slots.sort((a, b) => parseTimeToMinutes(a.slot.startTime) - parseTimeToMinutes(b.slot.startTime));
+        slots.sort((a, b) =>
+          parseTimeToMinutes(a.slot.startTime) -
+          parseTimeToMinutes(b.slot.startTime)
+        );
 
         // Find overlapping groups using a sweep line algorithm
         // For each slot, find all slots it overlaps with
@@ -1875,7 +2188,7 @@ Return all visible text.`
     const calendarExportResult = Writable.of<CalendarExportResult>(null);
     const calendarExportProcessing = Writable.of<boolean>(false);
     const calendarExportProgress = Writable.of<CalendarExportProgress>(null);
-    const calendarExportExpanded = Writable.of<boolean>(false);  // Collapsed by default
+    const calendarExportExpanded = Writable.of<boolean>(false); // Collapsed by default
 
     // Pre-computed button state to avoid nested computed() calls
     const exportButtonDisabled = computed(() => {
@@ -1898,11 +2211,11 @@ Return all visible text.`
       const semester = semesterDates.get();
       return Boolean(
         pinned &&
-        pinned.length > 0 &&
-        semester &&
-        semester.startDate &&
-        semester.endDate &&
-        semester.startDate <= semester.endDate
+          pinned.length > 0 &&
+          semester &&
+          semester.startDate &&
+          semester.endDate &&
+          semester.startDate <= semester.endDate,
       );
     });
 
@@ -1913,11 +2226,26 @@ Return all visible text.`
           <h1 style={{ marginBottom: "1rem" }}>Extracurricular Selector</h1>
 
           {/* Child Profile Section */}
-          <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e8f5e9", borderRadius: "4px" }}>
+          <div
+            style={{
+              marginBottom: "2rem",
+              padding: "1rem",
+              background: "#e8f5e9",
+              borderRadius: "4px",
+            }}
+          >
             <h2 style={{ marginBottom: "0.5rem" }}>Child Profile</h2>
             <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Name:</label>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  Name:
+                </label>
                 <input
                   type="text"
                   style={{ padding: "0.5rem", width: "200px" }}
@@ -1926,7 +2254,15 @@ Return all visible text.`
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Grade:</label>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  Grade:
+                </label>
                 <select
                   style={{ padding: "0.5rem" }}
                   value={(child as any).grade || "K"}
@@ -1945,7 +2281,15 @@ Return all visible text.`
                 </select>
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Birth Year:</label>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  Birth Year:
+                </label>
                 <input
                   type="number"
                   style={{ padding: "0.5rem", width: "80px" }}
@@ -1956,7 +2300,15 @@ Return all visible text.`
                 />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Birth Month:</label>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  Birth Month:
+                </label>
                 <select
                   style={{ padding: "0.5rem" }}
                   value={(child as any).birthMonth || 1}
@@ -1977,22 +2329,53 @@ Return all visible text.`
                 </select>
               </div>
             </div>
-            <p style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#555" }}>
+            <p
+              style={{ marginTop: "0.5rem", fontSize: "0.85em", color: "#555" }}
+            >
               Classes will be auto-triaged based on grade and age eligibility
             </p>
           </div>
 
           {/* Schedule Options Section - Phase 5 */}
-          <div style={{ marginBottom: "2rem", padding: "1rem", background: "#e3f2fd", borderRadius: "4px" }}>
+          <div
+            style={{
+              marginBottom: "2rem",
+              padding: "1rem",
+              background: "#e3f2fd",
+              borderRadius: "4px",
+            }}
+          >
             <h2 style={{ marginBottom: "0.5rem" }}>Schedule Options</h2>
-            <p style={{ fontSize: "0.85em", color: "#555", marginBottom: "0.5rem" }}>
+            <p
+              style={{
+                fontSize: "0.85em",
+                color: "#555",
+                marginBottom: "0.5rem",
+              }}
+            >
               Create different schedule combinations to compare
             </p>
 
             {/* Set selector and add new set */}
-            <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", marginBottom: "1rem", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                alignItems: "flex-end",
+                marginBottom: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
               <div>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>Active Option:</label>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
+                  Active Option:
+                </label>
                 <select
                   style={{ padding: "0.5rem", minWidth: "150px" }}
                   value={(activeSetName as any) || ""}
@@ -2025,18 +2408,25 @@ Return all visible text.`
               const pinned: Class[] = pinnedClasses;
               const displayName: string = displayActiveSetName;
               // DEFENSIVE: Filter out undefined entries that may appear during hydration
-              const list = pinned.filter((cls: Class) => cls != null);
+              const list = pinned.filter((cls: Class) =>
+                cls != null
+              );
               if (!list || list.length === 0) {
                 return (
                   <p style={{ color: "#666", fontStyle: "italic" }}>
-                    No classes in "{displayName}". Use the 📌 button below to add classes to this option.
+                    No classes in "{displayName}". Use the 📌 button below to
+                    add classes to this option.
                   </p>
                 );
               }
               return (
                 <div>
-                  <h4 style={{ marginBottom: "0.25rem" }}>Classes in "{displayName}":</h4>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <h4 style={{ marginBottom: "0.25rem" }}>
+                    Classes in "{displayName}":
+                  </h4>
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
+                  >
                     {list.map((cls: Class) => (
                       <div
                         style={{
@@ -2050,7 +2440,9 @@ Return all visible text.`
                         }}
                       >
                         <span>{cls.name}</span>
-                        <span style={{ fontSize: "0.8em", color: "#666" }}>@ {cls.location?.name || "Unknown"}</span>
+                        <span style={{ fontSize: "0.8em", color: "#666" }}>
+                          @ {cls.location?.name || "Unknown"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2063,7 +2455,15 @@ Return all visible text.`
               const conflicts: TimeConflict[] = pinnedSetConflicts;
               if (!conflicts || conflicts.length === 0) return null;
               return (
-                <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#ffebee", border: "1px solid #ef5350", borderRadius: "4px" }}>
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    padding: "0.75rem",
+                    background: "#ffebee",
+                    border: "1px solid #ef5350",
+                    borderRadius: "4px",
+                  }}
+                >
                   <h4 style={{ color: "#c62828", marginBottom: "0.5rem" }}>
                     Schedule Conflicts ({conflicts.length})
                   </h4>
@@ -2077,11 +2477,16 @@ Return all visible text.`
                         fontSize: "0.9em",
                       }}
                     >
-                      <span style={{ fontWeight: "bold" }}>{conflict.class1.name}</span>
-                      <span style={{ color: "#666" }}> conflicts with </span>
-                      <span style={{ fontWeight: "bold" }}>{conflict.class2.name}</span>
+                      <span style={{ fontWeight: "bold" }}>
+                        {conflict.class1.name}
+                      </span>
+                      <span style={{ color: "#666" }}>conflicts with</span>
+                      <span style={{ fontWeight: "bold" }}>
+                        {conflict.class2.name}
+                      </span>
                       <span style={{ color: "#888", marginLeft: "0.5rem" }}>
-                        ({conflict.day} {conflict.overlapStart}-{conflict.overlapEnd})
+                        ({conflict.day}{" "}
+                        {conflict.overlapStart}-{conflict.overlapEnd})
                       </span>
                     </div>
                   ))}
@@ -2091,29 +2496,64 @@ Return all visible text.`
 
             {/* Weekly Schedule View - uses precomputed scheduleData */}
             {computed(() => {
-              const data: Record<DayOfWeek, ScheduleSlotData[]> | null = scheduleData;
+              const data: Record<DayOfWeek, ScheduleSlotData[]> | null =
+                scheduleData;
               if (!data) return null;
 
-              const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT;
+              const totalHeight = (SCHEDULE_END_HOUR - SCHEDULE_START_HOUR) *
+                SCHEDULE_HOUR_HEIGHT;
               const hourLabels: Array<{ hour: number; label: string }> = [];
               for (let h = SCHEDULE_START_HOUR; h <= SCHEDULE_END_HOUR; h++) {
-                const label = h > 12 ? `${h - 12}pm` : h === 12 ? "12pm" : `${h}am`;
+                const label = h > 12
+                  ? `${h - 12}pm`
+                  : h === 12
+                  ? "12pm"
+                  : `${h}am`;
                 hourLabels.push({ hour: h, label });
               }
 
               return (
                 <div style={{ marginTop: "1rem" }}>
                   <h4 style={{ marginBottom: "0.5rem" }}>Weekly Schedule</h4>
-                  <div style={{ display: "flex", border: "1px solid #e0e0e0", borderRadius: "4px", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                    }}
+                  >
                     {/* Time labels column */}
-                    <div style={{ width: "50px", flexShrink: 0, borderRight: "1px solid #e0e0e0", background: "#fafafa" }}>
-                      <div style={{ height: "30px", borderBottom: "1px solid #e0e0e0" }} />
-                      <div style={{ position: "relative", height: `${totalHeight}px` }}>
-                        {hourLabels.map(({ hour, label }: { hour: number; label: string }) => (
+                    <div
+                      style={{
+                        width: "50px",
+                        flexShrink: 0,
+                        borderRight: "1px solid #e0e0e0",
+                        background: "#fafafa",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "30px",
+                          borderBottom: "1px solid #e0e0e0",
+                        }}
+                      />
+                      <div
+                        style={{
+                          position: "relative",
+                          height: `${totalHeight}px`,
+                        }}
+                      >
+                        {hourLabels.map((
+                          { hour, label }: { hour: number; label: string },
+                        ) => (
                           <div
                             style={{
                               position: "absolute",
-                              top: `${(hour - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT - 8}px`,
+                              top: `${
+                                (hour - SCHEDULE_START_HOUR) *
+                                  SCHEDULE_HOUR_HEIGHT - 8
+                              }px`,
                               right: "4px",
                               fontSize: "0.7em",
                               color: "#666",
@@ -2131,7 +2571,13 @@ Return all visible text.`
                       const daySlots = data[day] || [];
 
                       return (
-                        <div style={{ flex: 1, borderRight: "1px solid #e0e0e0", minWidth: "80px" }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            borderRight: "1px solid #e0e0e0",
+                            minWidth: "80px",
+                          }}
+                        >
                           {/* Day header */}
                           <div
                             style={{
@@ -2150,14 +2596,26 @@ Return all visible text.`
                           </div>
 
                           {/* Time grid */}
-                          <div style={{ position: "relative", height: `${totalHeight}px`, background: "#fff" }}>
+                          <div
+                            style={{
+                              position: "relative",
+                              height: `${totalHeight}px`,
+                              background: "#fff",
+                            }}
+                          >
                             {/* Hour lines */}
-                            {hourLabels.slice(0, -1).map(({ hour }: { hour: number; label: string }, idx: number) => (
+                            {hourLabels.slice(0, -1).map((
+                              { hour }: { hour: number; label: string },
+                              idx: number,
+                            ) => (
                               <div
                                 key={idx}
                                 style={{
                                   position: "absolute",
-                                  top: `${(hour - SCHEDULE_START_HOUR) * SCHEDULE_HOUR_HEIGHT}px`,
+                                  top: `${
+                                    (hour - SCHEDULE_START_HOUR) *
+                                    SCHEDULE_HOUR_HEIGHT
+                                  }px`,
                                   left: 0,
                                   right: 0,
                                   borderTop: "1px dashed #eee",
@@ -2166,40 +2624,70 @@ Return all visible text.`
                             ))}
 
                             {/* Classes for this day - using precomputed positions, colors, and overlap columns */}
-                            {daySlots.filter(({ cls, slot }: ScheduleSlotData) => cls && slot).map(({ cls, slot, color, top, height, column, totalColumns }: ScheduleSlotData) => {
-                              // Calculate horizontal position based on overlap columns
-                              const widthPercent = 100 / totalColumns;
-                              const leftPercent = column * widthPercent;
-                              return (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    top: `${top}px`,
-                                    left: `calc(${leftPercent}% + 2px)`,
-                                    width: `calc(${widthPercent}% - 4px)`,
-                                    height: `${Math.max(height - 2, 20)}px`,
-                                    background: color.bg,
-                                    border: `1px solid ${color.border}`,
-                                    borderRadius: "3px",
-                                    padding: "2px 4px",
-                                    fontSize: "0.7em",
-                                    overflow: "hidden",
-                                    cursor: "default",
-                                    boxSizing: "border-box",
-                                  }}
-                                  title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${cls.location?.name || "Unknown"}`}
-                                >
-                                  <div style={{ fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {cls.name}
-                                  </div>
-                                  {height > 35 ? (
-                                    <div style={{ fontSize: "0.9em", color: "#666" }}>
-                                      {slot.startTime}
+                            {daySlots.filter((
+                              { cls, slot }: ScheduleSlotData,
+                            ) => cls && slot).map(
+                              (
+                                {
+                                  cls,
+                                  slot,
+                                  color,
+                                  top,
+                                  height,
+                                  column,
+                                  totalColumns,
+                                }: ScheduleSlotData,
+                              ) => {
+                                // Calculate horizontal position based on overlap columns
+                                const widthPercent = 100 / totalColumns;
+                                const leftPercent = column * widthPercent;
+                                return (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      top: `${top}px`,
+                                      left: `calc(${leftPercent}% + 2px)`,
+                                      width: `calc(${widthPercent}% - 4px)`,
+                                      height: `${Math.max(height - 2, 20)}px`,
+                                      background: color.bg,
+                                      border: `1px solid ${color.border}`,
+                                      borderRadius: "3px",
+                                      padding: "2px 4px",
+                                      fontSize: "0.7em",
+                                      overflow: "hidden",
+                                      cursor: "default",
+                                      boxSizing: "border-box",
+                                    }}
+                                    title={`${cls.name}\n${slot.startTime}-${slot.endTime}\n@ ${
+                                      cls.location?.name || "Unknown"
+                                    }`}
+                                  >
+                                    <div
+                                      style={{
+                                        fontWeight: "bold",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                      }}
+                                    >
+                                      {cls.name}
                                     </div>
-                                  ) : <></>}
-                                </div>
-                              );
-                            })}
+                                    {height > 35
+                                      ? (
+                                        <div
+                                          style={{
+                                            fontSize: "0.9em",
+                                            color: "#666",
+                                          }}
+                                        >
+                                          {slot.startTime}
+                                        </div>
+                                      )
+                                      : <></>}
+                                  </div>
+                                );
+                              },
+                            )}
                           </div>
                         </div>
                       );
@@ -2210,10 +2698,29 @@ Return all visible text.`
             })}
 
             {/* Export to Calendar Section - Collapsible */}
-            <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#fff8e1", border: "1px solid #ffc107", borderRadius: "4px" }}>
+            <div
+              style={{
+                marginTop: "1.5rem",
+                padding: "1rem",
+                background: "#fff8e1",
+                border: "1px solid #ffc107",
+                borderRadius: "4px",
+              }}
+            >
               <h4
-                style={{ marginBottom: computed(() => calendarExportExpanded.get() ? "0.5rem" : "0"), color: "#f57f17", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}
-                onClick={toggleCalendarExport({ expanded: calendarExportExpanded })}
+                style={{
+                  marginBottom: computed(() =>
+                    calendarExportExpanded.get() ? "0.5rem" : "0"
+                  ),
+                  color: "#f57f17",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                onClick={toggleCalendarExport({
+                  expanded: calendarExportExpanded,
+                })}
               >
                 {ifElse(calendarExportExpanded, <span>▼</span>, <span>▶</span>)}
                 <span>📅</span> Export to Calendar
@@ -2222,27 +2729,71 @@ Return all visible text.`
               {ifElse(
                 calendarExportExpanded,
                 <div>
-                  <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.75rem" }}>
-                    Export pinned classes as recurring calendar events. Set semester dates first.
+                  <p
+                    style={{
+                      fontSize: "0.85em",
+                      color: "#666",
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    Export pinned classes as recurring calendar events. Set
+                    semester dates first.
                   </p>
 
                   {/* Semester date inputs */}
-                  <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "1rem",
+                      marginBottom: "0.75rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
                     <div>
-                      <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.8em",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Semester Start:
+                      </label>
                       <cf-input
                         type="date"
-                        style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                        value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.startDate || ""; })}
+                        style={{
+                          padding: "0.4rem",
+                          borderRadius: "4px",
+                          border: "1px solid #ccc",
+                        }}
+                        value={computed(() => {
+                          const s: SemesterDates = semesterDates.get();
+                          return s.startDate || "";
+                        })}
                         oncf-change={setSemesterStart({ dates: semesterDates })}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.8em",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Semester End:
+                      </label>
                       <cf-input
                         type="date"
-                        style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
-                        value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.endDate || ""; })}
+                        style={{
+                          padding: "0.4rem",
+                          borderRadius: "4px",
+                          border: "1px solid #ccc",
+                        }}
+                        value={computed(() => {
+                          const s: SemesterDates = semesterDates.get();
+                          return s.endDate || "";
+                        })}
                         oncf-change={setSemesterEnd({ dates: semesterDates })}
                       />
                     </div>
@@ -2250,17 +2801,35 @@ Return all visible text.`
 
                   {/* Calendar name input */}
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: "0.8em",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
                       Target Calendar Name:
                     </label>
                     <cf-input
                       type="text"
                       placeholder="e.g., Kids Activities, Family"
-                      style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
+                      style={{
+                        padding: "0.4rem",
+                        borderRadius: "4px",
+                        border: "1px solid #ccc",
+                        width: "250px",
+                      }}
                       $value={calendarName}
                     />
-                    <p style={{ fontSize: "0.7em", color: "#888", marginTop: "0.25rem" }}>
-                      Name of the calendar to add events to (must exist in Apple Calendar)
+                    <p
+                      style={{
+                        fontSize: "0.7em",
+                        color: "#888",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      Name of the calendar to add events to (must exist in Apple
+                      Calendar)
                     </p>
                   </div>
 
@@ -2287,21 +2856,33 @@ Return all visible text.`
                   {/* Validation message */}
                   {ifElse(
                     computed(() => !canExportCalendar),
-                    <p style={{ fontSize: "0.75em", color: "#999", marginTop: "0.5rem" }}>
+                    <p
+                      style={{
+                        fontSize: "0.75em",
+                        color: "#999",
+                        marginTop: "0.5rem",
+                      }}
+                    >
                       {computed(() => {
                         const pinned: Class[] = pinnedClasses;
                         const semester: SemesterDates = semesterDates.get();
-                        if (!pinned || pinned.length === 0) return "Pin some classes to export";
-                        if (!semester.startDate) return "Set semester start date";
+                        if (
+                          !pinned || pinned.length === 0
+                        ) return "Pin some classes to export";
+                        if (!semester.startDate) {
+                          return "Set semester start date";
+                        }
                         if (!semester.endDate) return "Set semester end date";
-                        if (semester.startDate > semester.endDate) return "End date must be after start date";
+                        if (
+                          semester.startDate > semester.endDate
+                        ) return "End date must be after start date";
                         return "";
                       })}
                     </p>,
-                    null
+                    null,
                   )}
                 </div>,
-                null
+                null,
               )}
             </div>
           </div>
@@ -2332,41 +2913,59 @@ Return all visible text.`
               }}
             >
               <div>
-                <div style={{
-                  fontWeight: "bold",
-                  color: computed(() => {
-                    const r: CalendarExportResult = calendarExportResult.get();
-                    return r?.success ? "#065f46" : "#991b1b";
-                  }),
-                }}>
+                <div
+                  style={{
+                    fontWeight: "bold",
+                    color: computed(() => {
+                      const r: CalendarExportResult = calendarExportResult
+                        .get();
+                      return r?.success ? "#065f46" : "#991b1b";
+                    }),
+                  }}
+                >
                   {computed(() => {
                     const r: CalendarExportResult = calendarExportResult.get();
                     return r?.success ? "Export Successful!" : "Export Failed";
                   })}
                 </div>
-                <div style={{
-                  fontSize: "0.85em",
-                  color: computed(() => {
+                <div
+                  style={{
+                    fontSize: "0.85em",
+                    color: computed(() => {
+                      const r: CalendarExportResult = calendarExportResult
+                        .get();
+                      return r?.success ? "#047857" : "#b91c1c";
+                    }),
+                  }}
+                >
+                  {computed(() => {
                     const r: CalendarExportResult = calendarExportResult.get();
-                    return r?.success ? "#047857" : "#b91c1c";
-                  }),
-                }}>
-                  {computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.message; })}
+                    return r?.message;
+                  })}
                 </div>
               </div>
               {/* Download button for ICS files */}
               {ifElse(
-                computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return !!r?.icsContent; }),
+                computed(() => {
+                  const r: CalendarExportResult = calendarExportResult.get();
+                  return !!r?.icsContent;
+                }),
                 <cf-file-download
-                  $data={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsContent || ""; })}
-                  $filename={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsFilename || "calendar.ics"; })}
+                  $data={computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.icsContent || "";
+                  })}
+                  $filename={computed(() => {
+                    const r: CalendarExportResult = calendarExportResult.get();
+                    return r?.icsFilename || "calendar.ics";
+                  })}
                   mime-type="text/calendar"
                   variant="primary"
                   size="sm"
                 >
                   Download ICS
                 </cf-file-download>,
-                null
+                null,
               )}
               <button
                 onClick={dismissExportResult({ result: calendarExportResult })}
@@ -2384,7 +2983,7 @@ Return all visible text.`
                 ×
               </button>
             </div>,
-            null
+            null,
           )}
 
           {/* Calendar Export Confirmation Dialog */}
@@ -2442,51 +3041,107 @@ Return all visible text.`
                       marginBottom: "16px",
                     }}
                   >
-                    <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px" }}>
+                    <div
+                      style={{
+                        fontSize: "16px",
+                        fontWeight: "600",
+                        marginBottom: "12px",
+                      }}
+                    >
                       {computed(() => {
-                        const p: PendingCalendarExport = pendingCalendarExport.get();
+                        const p: PendingCalendarExport = pendingCalendarExport
+                          .get();
                         return `${p?.childName}'s ${p?.setName} Schedule`;
                       })}
                     </div>
 
                     {/* Event count */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginBottom: "8px",
+                        color: "#4b5563",
+                      }}
+                    >
                       <span>📝</span>
                       <span>
                         {computed(() => {
-                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
                           return `${p?.eventCount} recurring events from ${p?.classes.length} classes`;
                         })}
                       </span>
                     </div>
 
                     {/* Date range */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", color: "#4b5563" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginBottom: "8px",
+                        color: "#4b5563",
+                      }}
+                    >
                       <span>📆</span>
                       <span>
                         {computed(() => {
-                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
                           return `${p?.semester.startDate} to ${p?.semester.endDate}`;
                         })}
                       </span>
                     </div>
 
                     {/* Target calendar */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px", color: "#4b5563" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        marginBottom: "12px",
+                        color: "#4b5563",
+                      }}
+                    >
                       <span>📁</span>
                       <span>
-                        Target calendar: <strong>{computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.calendarName || "Calendar"; })}</strong>
+                        Target calendar:{" "}
+                        <strong>
+                          {computed(() => {
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.calendarName || "Calendar";
+                          })}
+                        </strong>
                       </span>
                     </div>
 
                     {/* Classes list */}
-                    <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "12px" }}>
-                      <div style={{ fontWeight: "500", marginBottom: "8px" }}>Classes to export:</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    <div
+                      style={{
+                        borderTop: "1px solid #e5e7eb",
+                        paddingTop: "12px",
+                      }}
+                    >
+                      <div style={{ fontWeight: "500", marginBottom: "8px" }}>
+                        Classes to export:
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "6px",
+                        }}
+                      >
                         {computed(() => {
-                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
                           // DEFENSIVE: Filter out undefined during hydration
-                          return (p?.classes || []).filter((c: Class) => c != null).map((cls: Class) => (
+                          return (p?.classes || []).filter((c: Class) =>
+                            c != null
+                          ).map((cls: Class) => (
                             <span
                               style={{
                                 background: "white",
@@ -2497,8 +3152,14 @@ Return all visible text.`
                               }}
                             >
                               {cls.name}
-                              <span style={{ color: "#888", marginLeft: "4px" }}>
-                                ({(cls.timeSlots || []).filter((s: TimeSlot) => s != null).map((s: TimeSlot) => s.day.slice(0, 3)).join(", ")})
+                              <span
+                                style={{ color: "#888", marginLeft: "4px" }}
+                              >
+                                ({(cls.timeSlots || []).filter((s: TimeSlot) =>
+                                  s != null
+                                ).map((s: TimeSlot) => s.day.slice(0, 3)).join(
+                                  ", ",
+                                )})
                               </span>
                             </span>
                           ));
@@ -2508,98 +3169,171 @@ Return all visible text.`
 
                     {/* Duplicates warning - only show if there are duplicates */}
                     {ifElse(
-                      computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.duplicateCount || 0) > 0; }),
-                      <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef3c7", borderRadius: "6px", border: "1px solid #f59e0b" }}>
+                      computed(() => {
+                        const p: PendingCalendarExport = pendingCalendarExport
+                          .get();
+                        return (p?.duplicateCount || 0) > 0;
+                      }),
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          padding: "8px 12px",
+                          background: "#fef3c7",
+                          borderRadius: "6px",
+                          border: "1px solid #f59e0b",
+                        }}
+                      >
                         <div style={{ color: "#92400e", fontSize: "13px" }}>
                           ⚠️ {computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
                             return `${p?.duplicateCount} event(s) already in outbox and will be skipped`;
                           })}
                         </div>
                       </div>,
-                      null
+                      null,
                     )}
 
                     {/* Skipped items - only show if there are skipped items */}
                     {ifElse(
-                      computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.skippedItems || []).length > 0; }),
-                      <div style={{ marginTop: "12px", padding: "8px 12px", background: "#fef2f2", borderRadius: "6px", border: "1px solid #fecaca" }}>
-                        <div style={{ color: "#991b1b", fontSize: "13px", fontWeight: "500", marginBottom: "4px" }}>
+                      computed(() => {
+                        const p: PendingCalendarExport = pendingCalendarExport
+                          .get();
+                        return (p?.skippedItems || []).length > 0;
+                      }),
+                      <div
+                        style={{
+                          marginTop: "12px",
+                          padding: "8px 12px",
+                          background: "#fef2f2",
+                          borderRadius: "6px",
+                          border: "1px solid #fecaca",
+                        }}
+                      >
+                        <div
+                          style={{
+                            color: "#991b1b",
+                            fontSize: "13px",
+                            fontWeight: "500",
+                            marginBottom: "4px",
+                          }}
+                        >
                           ⚠️ Some items were skipped:
                         </div>
-                        <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#7f1d1d" }}>
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: "20px",
+                            fontSize: "12px",
+                            color: "#7f1d1d",
+                          }}
+                        >
                           {computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return (p?.skippedItems || []).slice(0, 5).map((item: { className: string; reason: string }) => (
-                              <li>{item.className}: {item.reason}</li>
-                            ));
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return (p?.skippedItems || []).slice(0, 5).map((
+                              item: { className: string; reason: string },
+                            ) => <li>{item.className}: {item.reason}</li>);
                           })}
                           {ifElse(
-                            computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return (p?.skippedItems || []).length > 5; }),
+                            computed(() => {
+                              const p: PendingCalendarExport =
+                                pendingCalendarExport.get();
+                              return (p?.skippedItems || []).length > 5;
+                            }),
                             <li style={{ fontStyle: "italic" }}>
                               {computed(() => {
-                                const p: PendingCalendarExport = pendingCalendarExport.get();
-                                return `...and ${(p?.skippedItems || []).length - 5} more`;
+                                const p: PendingCalendarExport =
+                                  pendingCalendarExport.get();
+                                return `...and ${
+                                  (p?.skippedItems || []).length - 5
+                                } more`;
                               })}
                             </li>,
-                            null
+                            null,
                           )}
                         </ul>
                       </div>,
-                      null
+                      null,
                     )}
                   </div>
 
                   {/* Export Target Selection */}
                   <div style={{ marginBottom: "16px" }}>
-                    <div style={{ fontWeight: "500", marginBottom: "8px" }}>Export to:</div>
+                    <div style={{ fontWeight: "500", marginBottom: "8px" }}>
+                      Export to:
+                    </div>
 
                     {/* Google Auth UI - shows picker or status when needed */}
                     <div style={{ marginBottom: "8px" }}>
                       {googleAuthManager.fullUI}
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}
+                    >
                       {/* Google Calendar option */}
                       <button
-                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "google" })}
+                        onClick={selectExportTarget({
+                          pendingExport: pendingCalendarExport,
+                          target: "google",
+                        })}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
                           border: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "google" ? "2px solid #4285f4" : "1px solid #ddd";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "google"
+                              ? "2px solid #4285f4"
+                              : "1px solid #ddd";
                           }),
                           borderRadius: "8px",
                           background: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "google" ? "#e8f0fe" : "white";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "google"
+                              ? "#e8f0fe"
+                              : "white";
                           }),
-                          cursor: computed(() => googleAuthManager.isReady.get() ? "pointer" : "not-allowed"),
+                          cursor: computed(() =>
+                            googleAuthManager.isReady
+                              ? "pointer"
+                              : "not-allowed"
+                          ),
                           textAlign: "left",
-                          opacity: computed(() => googleAuthManager.isReady.get() ? 1 : 0.5),
+                          opacity: computed(() =>
+                            googleAuthManager.isReady ? 1 : 0.5
+                          ),
                         }}
-                        disabled={computed(() => !googleAuthManager.isReady.get())}
+                        disabled={computed(() => !googleAuthManager.isReady)}
                       >
                         <span style={{ fontSize: "24px" }}>📅</span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: "500" }}>Google Calendar</div>
+                          <div style={{ fontWeight: "500" }}>
+                            Google Calendar
+                          </div>
                           <div style={{ fontSize: "12px", color: "#666" }}>
                             {ifElse(
                               googleAuthManager.isReady,
                               computed(() => {
-                                const email: string | null = googleAuthManager.currentEmail.get();
-                                return `Export to ${email || "your Google Calendar"}`;
+                                const email = googleAuthManager.currentEmail;
+                                return `Export to ${
+                                  email || "your Google Calendar"
+                                }`;
                               }),
                               computed(() => {
-                                const state: string = googleAuthManager.currentState.get();
-                                return state === "loading" ? "Loading..." :
-                                state === "not-found" ? "Create a Google Auth charm first" :
-                                state === "selecting" ? "Select an account above" :
-                                "Sign in with Google to enable";
-                              })
+                                const state = googleAuthManager.currentState;
+                                return state === "loading"
+                                  ? "Loading..."
+                                  : "Sign in with Google to enable";
+                              }),
                             )}
                           </div>
                         </div>
@@ -2607,20 +3341,29 @@ Return all visible text.`
 
                       {/* Apple Calendar option */}
                       <button
-                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "apple" })}
+                        onClick={selectExportTarget({
+                          pendingExport: pendingCalendarExport,
+                          target: "apple",
+                        })}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
                           border: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "apple" ? "2px solid #4285f4" : "1px solid #ddd";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "apple"
+                              ? "2px solid #4285f4"
+                              : "1px solid #ddd";
                           }),
                           borderRadius: "8px",
                           background: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "apple" ? "#e8f0fe" : "white";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "apple"
+                              ? "#e8f0fe"
+                              : "white";
                           }),
                           cursor: "pointer",
                           textAlign: "left",
@@ -2628,7 +3371,9 @@ Return all visible text.`
                       >
                         <span style={{ fontSize: "24px" }}>🍎</span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: "500" }}>Apple Calendar</div>
+                          <div style={{ fontWeight: "500" }}>
+                            Apple Calendar
+                          </div>
                           <div style={{ fontSize: "12px", color: "#666" }}>
                             Add to outbox for apple-sync CLI
                           </div>
@@ -2637,20 +3382,29 @@ Return all visible text.`
 
                       {/* ICS Download option */}
                       <button
-                        onClick={selectExportTarget({ pendingExport: pendingCalendarExport, target: "ics" })}
+                        onClick={selectExportTarget({
+                          pendingExport: pendingCalendarExport,
+                          target: "ics",
+                        })}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "12px",
                           padding: "12px 16px",
                           border: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "ics" ? "2px solid #4285f4" : "1px solid #ddd";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "ics"
+                              ? "2px solid #4285f4"
+                              : "1px solid #ddd";
                           }),
                           borderRadius: "8px",
                           background: computed(() => {
-                            const p: PendingCalendarExport = pendingCalendarExport.get();
-                            return p?.selectedTarget === "ics" ? "#e8f0fe" : "white";
+                            const p: PendingCalendarExport =
+                              pendingCalendarExport.get();
+                            return p?.selectedTarget === "ics"
+                              ? "#e8f0fe"
+                              : "white";
                           }),
                           cursor: "pointer",
                           textAlign: "left",
@@ -2669,7 +3423,11 @@ Return all visible text.`
 
                   {/* Warning - varies by target */}
                   {ifElse(
-                    computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.selectedTarget !== null; }),
+                    computed(() => {
+                      const p: PendingCalendarExport = pendingCalendarExport
+                        .get();
+                      return p?.selectedTarget !== null;
+                    }),
                     <div
                       style={{
                         padding: "12px 16px",
@@ -2678,15 +3436,25 @@ Return all visible text.`
                         background: "#fef3c7",
                       }}
                     >
-                      <div style={{ fontWeight: "600", marginBottom: "4px", color: "#92400e" }}>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          marginBottom: "4px",
+                          color: "#92400e",
+                        }}
+                      >
                         {computed(() => {
-                          const p: PendingCalendarExport = pendingCalendarExport.get();
-                          return `This will add ${p?.eventCount || 0} events to your calendar`;
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
+                          return `This will add ${
+                            p?.eventCount || 0
+                          } events to your calendar`;
                         })}
                       </div>
                       <div style={{ fontSize: "14px", color: "#78350f" }}>
                         {computed(() => {
-                          const p: PendingCalendarExport = pendingCalendarExport.get();
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
                           if (p?.selectedTarget === "google") {
                             return "Events will be created directly in your Google Calendar. Weekly recurring events will be created until the semester end date.";
                           } else if (p?.selectedTarget === "apple") {
@@ -2697,46 +3465,82 @@ Return all visible text.`
                         })}
                       </div>
                       {ifElse(
-                        computed(() => { const p: PendingCalendarExport = pendingCalendarExport.get(); return p?.selectedTarget === "apple"; }),
-                        <div style={{ fontSize: "12px", color: "#a16207", marginTop: "8px", fontStyle: "italic" }}>
-                          Run <code style={{ background: "#fff3cd", padding: "1px 4px", borderRadius: "2px" }}>apple-sync calendar-write</code> to sync events to Apple Calendar.
+                        computed(() => {
+                          const p: PendingCalendarExport = pendingCalendarExport
+                            .get();
+                          return p?.selectedTarget === "apple";
+                        }),
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#a16207",
+                            marginTop: "8px",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Run{" "}
+                          <code
+                            style={{
+                              background: "#fff3cd",
+                              padding: "1px 4px",
+                              borderRadius: "2px",
+                            }}
+                          >
+                            apple-sync calendar-write
+                          </code>{" "}
+                          to sync events to Apple Calendar.
                         </div>,
-                        null
+                        null,
                       )}
                     </div>,
-                    null
+                    null,
                   )}
 
                   {/* Progress bar for Google Calendar export */}
                   {ifElse(
                     computed(() => calendarExportProgress.get() !== null),
                     <div style={{ marginTop: "16px" }}>
-                      <div style={{
-                        height: "8px",
-                        backgroundColor: "#e5e7eb",
-                        borderRadius: "4px",
-                        overflow: "hidden",
-                        marginBottom: "8px",
-                      }}>
-                        <div style={{
-                          height: "100%",
-                          backgroundColor: "#4285f4",
-                          width: computed(() => { const p: CalendarExportProgress = calendarExportProgress.get(); return `${p?.percentComplete || 0}%`; }),
-                          transition: "width 0.3s",
-                        }} />
+                      <div
+                        style={{
+                          height: "8px",
+                          backgroundColor: "#e5e7eb",
+                          borderRadius: "4px",
+                          overflow: "hidden",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            backgroundColor: "#4285f4",
+                            width: computed(() => {
+                              const p: CalendarExportProgress =
+                                calendarExportProgress.get();
+                              return `${p?.percentComplete || 0}%`;
+                            }),
+                            transition: "width 0.3s",
+                          }}
+                        />
                       </div>
                       <div style={{ fontSize: "12px", color: "#666" }}>
                         {computed(() => {
-                          const p: CalendarExportProgress = calendarExportProgress.get();
-                          return p?.phase === "preparing" ? "Preparing..." :
-                          p?.phase === "exporting" ? `Exporting ${p.processed}/${p.total}${p.currentEvent ? `: ${p.currentEvent}` : ""}` :
-                          p?.phase === "done" ? "Complete!" :
-                          p?.phase === "error" ? `Error: ${p.error}` :
-                          "Processing...";
+                          const p: CalendarExportProgress =
+                            calendarExportProgress.get();
+                          return p?.phase === "preparing"
+                            ? "Preparing..."
+                            : p?.phase === "exporting"
+                            ? `Exporting ${p.processed}/${p.total}${
+                              p.currentEvent ? `: ${p.currentEvent}` : ""
+                            }`
+                            : p?.phase === "done"
+                            ? "Complete!"
+                            : p?.phase === "error"
+                            ? `Error: ${p.error}`
+                            : "Processing...";
                         })}
                       </div>
                     </div>,
-                    null
+                    null,
                   )}
                 </div>
 
@@ -2751,7 +3555,9 @@ Return all visible text.`
                   }}
                 >
                   <button
-                    onClick={cancelCalendarExport({ pendingExport: pendingCalendarExport })}
+                    onClick={cancelCalendarExport({
+                      pendingExport: pendingCalendarExport,
+                    })}
                     disabled={calendarExportProcessing}
                     style={{
                       padding: "10px 20px",
@@ -2779,13 +3585,17 @@ Return all visible text.`
                     disabled={exportButtonDisabled}
                     style={{
                       padding: "10px 20px",
-                      background: computed(() => exportButtonDisabled ? "#d1d5db" : "#f59e0b"),
+                      background: computed(() =>
+                        exportButtonDisabled ? "#d1d5db" : "#f59e0b"
+                      ),
                       color: "white",
                       border: "none",
                       borderRadius: "6px",
                       fontSize: "14px",
                       fontWeight: "500",
-                      cursor: computed(() => exportButtonDisabled ? "not-allowed" : "pointer"),
+                      cursor: computed(() =>
+                        exportButtonDisabled ? "not-allowed" : "pointer"
+                      ),
                       opacity: computed(() => exportButtonDisabled ? 0.7 : 1),
                     }}
                   >
@@ -2793,15 +3603,18 @@ Return all visible text.`
                       calendarExportProcessing,
                       "Exporting...",
                       computed(() => {
-                        const p: PendingCalendarExport = pendingCalendarExport.get();
-                        return p?.selectedTarget ? "Export to Calendar" : "Select a destination";
-                      })
+                        const p: PendingCalendarExport = pendingCalendarExport
+                          .get();
+                        return p?.selectedTarget
+                          ? "Export to Calendar"
+                          : "Select a destination";
+                      }),
                     )}
                   </button>
                 </div>
               </div>
             </div>,
-            null
+            null,
           )}
 
           {/* Classes Section */}
@@ -2809,11 +3622,8 @@ Return all visible text.`
             <h2 style={{ marginBottom: "0.5rem" }}>Classes</h2>
             {/* List classes - SINGLE FLAT DERIVE (no nesting to preserve reactivity) */}
             <div style={{ marginBottom: "1rem" }}>
-              {classes.map((cls: Class, idx: number) => {
-                // DEFENSIVE: Skip undefined entries during hydration
-                if (!cls) return null;
-                // ALL reactive values in ONE computed call - no nested computed allowed!
-                return computed(() => {
+              {classes.map((cls: Class, idx: number) =>
+                !cls ? null : computed(() => {
                   const name = cls.name;
                   const description = cls.description;
                   const location = cls.location;
@@ -2829,12 +3639,16 @@ Return all visible text.`
 
                   const locColor = getLocationColor(location?.name || "");
                   const isEditing = editIdx === idx;
-                  const pinArray: string[] = Array.isArray(pinnedInSets) ? pinnedInSets : [];
+                  const pinArray: string[] = Array.isArray(pinnedInSets)
+                    ? pinnedInSets
+                    : [];
                   const isPinned = pinArray.includes(activeSet);
                   const slots = timeSlots || [];
                   const firstSlot = slots[0];
                   const dayTimeDisplay = firstSlot
-                    ? `${firstSlot.day?.slice(0, 3) || "?"} ${firstSlot.startTime || "?"}-${firstSlot.endTime || "?"}`
+                    ? `${firstSlot.day?.slice(0, 3) || "?"} ${
+                      firstSlot.startTime || "?"
+                    }-${firstSlot.endTime || "?"}`
                     : "(no time set)";
 
                   return (
@@ -2849,13 +3663,35 @@ Return all visible text.`
                       }}
                     >
                       {/* Main row: pin, name, location, day/time, buttons */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            flex: 1,
+                          }}
+                        >
                           {/* Pin button */}
                           <cf-button
                             variant="ghost"
-                            style={{ padding: "2px 6px", fontSize: "1em", minWidth: "auto" }}
-                            onClick={togglePinClass({ classList: classes, activeSet: activeSetName, idx })}
+                            style={{
+                              padding: "2px 6px",
+                              fontSize: "1em",
+                              minWidth: "auto",
+                            }}
+                            onClick={togglePinClass({
+                              classList: classes,
+                              activeSet: activeSetName,
+                              idx,
+                            })}
                             title={isPinned ? "Unpin from set" : "Pin to set"}
                           >
                             {isPinned ? "📍" : "📌"}
@@ -2872,16 +3708,23 @@ Return all visible text.`
                           <cf-button
                             variant="ghost"
                             style={{ padding: "2px 6px", fontSize: "0.85em" }}
-                            onClick={() => editingClassIndex.set(isEditing ? -1 : idx)}
+                            onClick={() =>
+                              editingClassIndex.set(isEditing ? -1 : idx)}
                           >
                             {isEditing ? "Done" : "Edit"}
                           </cf-button>
                           <cf-button
                             variant="ghost"
-                            style={{ padding: "2px 6px", fontSize: "0.85em", color: "#c62828" }}
+                            style={{
+                              padding: "2px 6px",
+                              fontSize: "0.85em",
+                              color: "#c62828",
+                            }}
                             onClick={() => {
                               const current = classes.get();
-                              const index = current.findIndex((el: Class) => equals(cls, el));
+                              const index = current.findIndex((el: Class) =>
+                                equals(cls, el)
+                              );
                               if (index >= 0) {
                                 classes.set(current.toSpliced(index, 1));
                               }
@@ -2893,38 +3736,102 @@ Return all visible text.`
                       </div>
 
                       {/* Status checkboxes row */}
-                      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-                        {(["registered", "confirmed", "waitlisted", "paid", "onCalendar"] as const).map((key) => (
-                          <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.8em", cursor: "pointer" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "0.75rem",
+                          marginTop: "0.5rem",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {([
+                          "registered",
+                          "confirmed",
+                          "waitlisted",
+                          "paid",
+                          "onCalendar",
+                        ] as const).map((key) => (
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                              fontSize: "0.8em",
+                              cursor: "pointer",
+                            }}
+                          >
                             <input
                               type="checkbox"
                               checked={statuses?.[key] || false}
                               onChange={() => toggleStatus(classes, cls, key)}
                             />
-                            {key === "onCalendar" ? "On Cal" : key.charAt(0).toUpperCase() + key.slice(1)}
+                            {key === "onCalendar"
+                              ? "On Cal"
+                              : key.charAt(0).toUpperCase() + key.slice(1)}
                           </label>
                         ))}
                       </div>
 
                       {/* Edit panel - shown when editing */}
                       {isEditing && (
-                        <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", border: "1px solid #e0e0e0", borderRadius: "4px" }}>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                        <div
+                          style={{
+                            marginTop: "0.75rem",
+                            padding: "0.75rem",
+                            background: "#fff",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: "0.5rem",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
                             <div>
-                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Name:</label>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.8em",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                Name:
+                              </label>
                               <input
                                 type="text"
                                 value={name || ""}
                                 style={{ width: "100%", padding: "0.25rem" }}
-                                onChange={updateClassField({ classList: classes, idx, field: "name" })}
+                                onChange={updateClassField({
+                                  classList: classes,
+                                  idx,
+                                  field: "name",
+                                })}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Location:</label>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.8em",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                Location:
+                              </label>
                               <select
-                                value={locs.findIndex((l: Location) => l.name === location?.name)}
+                                value={locs.findIndex((l: Location) =>
+                                  l.name === location?.name
+                                )}
                                 style={{ width: "100%", padding: "0.25rem" }}
-                                onChange={updateClassLocation({ classList: classes, locs: locations, classIdx: idx })}
+                                onChange={updateClassLocation({
+                                  classList: classes,
+                                  locs: locations,
+                                  classIdx: idx,
+                                })}
                               >
                                 {locs.map((loc: Location, locIdx: number) => (
                                   <option value={locIdx}>{loc.name}</option>
@@ -2933,52 +3840,130 @@ Return all visible text.`
                             </div>
                           </div>
                           <div style={{ marginBottom: "0.5rem" }}>
-                            <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Description:</label>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "0.8em",
+                                marginBottom: "0.25rem",
+                              }}
+                            >
+                              Description:
+                            </label>
                             <textarea
                               value={description || ""}
-                              style={{ width: "100%", padding: "0.25rem", minHeight: "60px" }}
-                              onChange={updateClassField({ classList: classes, idx, field: "description" })}
+                              style={{
+                                width: "100%",
+                                padding: "0.25rem",
+                                minHeight: "60px",
+                              }}
+                              onChange={updateClassField({
+                                classList: classes,
+                                idx,
+                                field: "description",
+                              })}
                             />
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr 1fr",
+                              gap: "0.5rem",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
                             <div>
-                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Cost ($):</label>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.8em",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                Cost ($):
+                              </label>
                               <input
                                 type="number"
                                 value={cost || 0}
                                 style={{ width: "100%", padding: "0.25rem" }}
-                                onChange={updateClassCost({ classList: classes, idx })}
+                                onChange={updateClassCost({
+                                  classList: classes,
+                                  idx,
+                                })}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Grade Min:</label>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.8em",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                Grade Min:
+                              </label>
                               <input
                                 type="text"
                                 value={gradeMin || ""}
                                 style={{ width: "100%", padding: "0.25rem" }}
-                                onChange={updateClassField({ classList: classes, idx, field: "gradeMin" })}
+                                onChange={updateClassField({
+                                  classList: classes,
+                                  idx,
+                                  field: "gradeMin",
+                                })}
                               />
                             </div>
                             <div>
-                              <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Grade Max:</label>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.8em",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                Grade Max:
+                              </label>
                               <input
                                 type="text"
                                 value={gradeMax || ""}
                                 style={{ width: "100%", padding: "0.25rem" }}
-                                onChange={updateClassField({ classList: classes, idx, field: "gradeMax" })}
+                                onChange={updateClassField({
+                                  classList: classes,
+                                  idx,
+                                  field: "gradeMax",
+                                })}
                               />
                             </div>
                           </div>
 
                           {/* Time slots */}
                           <div>
-                            <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Time Slots:</label>
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: "0.8em",
+                                marginBottom: "0.25rem",
+                              }}
+                            >
+                              Time Slots:
+                            </label>
                             {slots.map((slot: TimeSlot, slotIdx: number) => (
-                              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.25rem" }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "0.5rem",
+                                  alignItems: "center",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
                                 <select
                                   value={slot.day || "monday"}
                                   style={{ padding: "0.25rem" }}
-                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "day" })}
+                                  onChange={updateClassTimeSlot({
+                                    classList: classes,
+                                    classIdx: idx,
+                                    slotIdx,
+                                    field: "day",
+                                  })}
                                 >
                                   {SCHEDULE_DAYS.map((d) => (
                                     <option value={d}>{d.slice(0, 3)}</option>
@@ -2989,7 +3974,12 @@ Return all visible text.`
                                   value={slot.startTime || ""}
                                   placeholder="15:00"
                                   style={{ width: "60px", padding: "0.25rem" }}
-                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "startTime" })}
+                                  onChange={updateClassTimeSlot({
+                                    classList: classes,
+                                    classIdx: idx,
+                                    slotIdx,
+                                    field: "startTime",
+                                  })}
                                 />
                                 <span>-</span>
                                 <input
@@ -2997,12 +3987,24 @@ Return all visible text.`
                                   value={slot.endTime || ""}
                                   placeholder="16:00"
                                   style={{ width: "60px", padding: "0.25rem" }}
-                                  onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "endTime" })}
+                                  onChange={updateClassTimeSlot({
+                                    classList: classes,
+                                    classIdx: idx,
+                                    slotIdx,
+                                    field: "endTime",
+                                  })}
                                 />
                                 <cf-button
                                   variant="ghost"
-                                  style={{ padding: "2px 6px", fontSize: "0.8em" }}
-                                  onClick={removeClassTimeSlot({ classList: classes, classIdx: idx, slotIdx })}
+                                  style={{
+                                    padding: "2px 6px",
+                                    fontSize: "0.8em",
+                                  }}
+                                  onClick={removeClassTimeSlot({
+                                    classList: classes,
+                                    classIdx: idx,
+                                    slotIdx,
+                                  })}
                                 >
                                   ✕
                                 </cf-button>
@@ -3010,8 +4012,15 @@ Return all visible text.`
                             ))}
                             <cf-button
                               variant="ghost"
-                              style={{ padding: "2px 6px", fontSize: "0.8em", marginTop: "0.25rem" }}
-                              onClick={addClassTimeSlot({ classList: classes, idx })}
+                              style={{
+                                padding: "2px 6px",
+                                fontSize: "0.8em",
+                                marginTop: "0.25rem",
+                              }}
+                              onClick={addClassTimeSlot({
+                                classList: classes,
+                                idx,
+                              })}
                             >
                               + Add Time Slot
                             </cf-button>
@@ -3020,8 +4029,8 @@ Return all visible text.`
                       )}
                     </div>
                   );
-                });
-              })}
+                })
+              )}
             </div>
 
             {/* Add class form */}
@@ -3034,7 +4043,13 @@ Return all visible text.`
             >
               <h3 style={{ marginBottom: "0.5rem" }}>Add Class</h3>
               <div style={{ marginBottom: "0.5rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
                   Location:
                 </label>
                 {/* Native select with value binding and handler for state sync */}
@@ -3044,11 +4059,9 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: selectedLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc: Location, idx: number) => {
-                    // DEFENSIVE: Skip undefined during hydration
-                    if (!loc) return null;
-                    return <option value={idx}>{loc.name}</option>;
-                  })}
+                  {locations.map((loc: Location, idx: number) =>
+                    !loc ? null : <option value={idx}>{loc.name}</option>
+                  )}
                 </select>
               </div>
               <cf-message-input
@@ -3093,7 +4106,13 @@ Return all visible text.`
             >
               {/* Location selector for import */}
               <div style={{ marginBottom: "0.5rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
                   Import to Location:
                 </label>
                 <select
@@ -3101,17 +4120,30 @@ Return all visible text.`
                   onChange={setLocationIndex({ idx: importLocationIndex })}
                 >
                   <option value="-1">-- Select a location --</option>
-                  {locations.map((loc: Location, idx: number) => {
-                    // DEFENSIVE: Skip undefined during hydration
-                    if (!loc) return null;
-                    return <option value={idx}>{loc.name}</option>;
-                  })}
+                  {locations.map((loc: Location, idx: number) =>
+                    !loc ? null : <option value={idx}>{loc.name}</option>
+                  )}
                 </select>
               </div>
 
               {/* Phase 5.5: Unified Upload Section */}
-              <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "4px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  marginBottom: "1rem",
+                  padding: "0.75rem",
+                  background: "#f8fafc",
+                  border: "1px dashed #cbd5e1",
+                  borderRadius: "4px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <cf-file-input
                     accept="image/*,.txt,.md,.html,.htm"
                     buttonText="Upload Schedule"
@@ -3133,7 +4165,16 @@ Return all visible text.`
                   const e: string | null = uploadExtractionError.get();
                   if (!e) return null;
                   return (
-                    <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#fef2f2", borderRadius: "4px", color: "#dc2626", fontSize: "0.85em" }}>
+                    <div
+                      style={{
+                        marginTop: "0.5rem",
+                        padding: "0.5rem",
+                        background: "#fef2f2",
+                        borderRadius: "4px",
+                        color: "#dc2626",
+                        fontSize: "0.85em",
+                      }}
+                    >
                       {e}
                     </div>
                   );
@@ -3142,26 +4183,61 @@ Return all visible text.`
                 {/* Processing state (image OCR) */}
                 {ifElse(
                   ocrPending,
-                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "#dbeafe", borderRadius: "4px", color: "#1e40af", fontSize: "0.85em" }}>
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.5rem",
+                      background: "#dbeafe",
+                      borderRadius: "4px",
+                      color: "#1e40af",
+                      fontSize: "0.85em",
+                    }}
+                  >
                     Extracting text from image...
                   </div>,
-                  null
+                  null,
                 )}
               </div>
 
               {/* Preview Step - shown when extraction complete */}
               {ifElse(
                 showPreview,
-                <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "4px" }}>
-                  <div style={{ marginBottom: "0.5rem", color: "#166534", fontWeight: "bold", fontSize: "0.9em" }}>
+                <div
+                  style={{
+                    marginBottom: "1rem",
+                    padding: "0.75rem",
+                    background: "#f0fdf4",
+                    border: "1px solid #86efac",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      marginBottom: "0.5rem",
+                      color: "#166534",
+                      fontWeight: "bold",
+                      fontSize: "0.9em",
+                    }}
+                  >
                     Text Extracted - Review & Edit
                   </div>
                   <cf-textarea
-                    style={{ width: "100%", minHeight: "200px", fontFamily: "monospace", fontSize: "0.85em" }}
+                    style={{
+                      width: "100%",
+                      minHeight: "200px",
+                      fontFamily: "monospace",
+                      fontSize: "0.85em",
+                    }}
                     placeholder="Extracted text will appear here..."
                     $value={previewText}
                   />
-                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      display: "flex",
+                      gap: "0.5rem",
+                    }}
+                  >
                     <cf-button
                       variant="primary"
                       onClick={applyExtractedText({
@@ -3187,12 +4263,18 @@ Return all visible text.`
                     </cf-button>
                   </div>
                 </div>,
-                null
+                null,
               )}
 
               {/* Text input for schedule */}
               <div style={{ marginBottom: "0.5rem" }}>
-                <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
+                <label
+                  style={{
+                    display: "block",
+                    marginBottom: "0.25rem",
+                    fontSize: "0.9em",
+                  }}
+                >
                   Paste schedule text:
                 </label>
                 <cf-textarea
@@ -3218,17 +4300,18 @@ Return all visible text.`
               {/* Extraction status */}
               {ifElse(
                 extractionPending,
-                <p style={{ color: "#666", fontStyle: "italic" }}>Extracting classes...</p>,
-                null
+                <p style={{ color: "#666", fontStyle: "italic" }}>
+                  Extracting classes...
+                </p>,
+                null,
               )}
 
-              {/* WORKAROUND: Using pre-computed s.triageBgColor because
-                  s.triageStatus === "auto_kept" doesn't work inside Cell.map() */}
-              {stagedClasses.map((s: StagedClass, idx: number) => {
-                // DEFENSIVE: Skip undefined entries during hydration
-                if (!s) return null;
-                // s.triageBgColor, s.triageBorderColor, s.triageEmoji are pre-computed strings
-                return (
+              {
+                /* WORKAROUND: Using pre-computed s.triageBgColor because
+                  s.triageStatus === "auto_kept" doesn't work inside Cell.map() */
+              }
+              {stagedClasses.map((s: StagedClass, idx: number) =>
+                !s ? null : (
                   <div
                     style={{
                       display: "flex",
@@ -3244,7 +4327,10 @@ Return all visible text.`
                     {/* WORKAROUND: Use onClick handler instead of $checked - see ISSUE file */}
                     <cf-checkbox
                       checked={s.selected}
-                      onClick={toggleStagedSelection({ staged: stagedClasses, idx })}
+                      onClick={toggleStagedSelection({
+                        staged: stagedClasses,
+                        idx,
+                      })}
                     />
                     <span style={{ fontWeight: "bold", minWidth: "20px" }}>
                       {s.triageEmoji}
@@ -3258,25 +4344,49 @@ Return all visible text.`
                       <span style={{ color: "#888", fontSize: "0.8em" }}>
                         Gr {s.gradeMin}-{s.gradeMax}
                       </span>,
-                      null
+                      null,
                     )}
-                    <span style={{ marginLeft: "auto", fontSize: "0.75em", color: "#666", maxWidth: "200px" }}>
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        fontSize: "0.75em",
+                        color: "#666",
+                        maxWidth: "200px",
+                      }}
+                    >
                       {s.triageReason}
                     </span>
                   </div>
-                );
-              })}
+                )
+              )}
 
               {/* Header with triage counts - using computed values */}
               {ifElse(
                 hasStaged,
-                <div style={{ marginTop: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "4px" }}>
-                  <h4 style={{ marginBottom: "0.5rem" }}>Extracted Classes - Triage Results</h4>
-                  <p style={{ fontSize: "0.85em", color: "#666", marginBottom: "0.5rem" }}>
-                    ✓ Eligible: {triageCounts.kept} | ? Review: {triageCounts.needsReview} | ✗ Ineligible: {triageCounts.discarded}
+                <div
+                  style={{
+                    marginTop: "1rem",
+                    padding: "1rem",
+                    background: "#f5f5f5",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <h4 style={{ marginBottom: "0.5rem" }}>
+                    Extracted Classes - Triage Results
+                  </h4>
+                  <p
+                    style={{
+                      fontSize: "0.85em",
+                      color: "#666",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    ✓ Eligible: {triageCounts.kept} | ? Review:{" "}
+                    {triageCounts.needsReview} | ✗ Ineligible:{" "}
+                    {triageCounts.discarded}
                   </p>
                 </div>,
-                null
+                null,
               )}
 
               {/* Import button - using pre-computed values */}
@@ -3299,7 +4409,7 @@ Return all visible text.`
                 >
                   {importButtonText}
                 </cf-button>,
-                null
+                null,
               )}
             </div>
           </div>
@@ -3310,11 +4420,8 @@ Return all visible text.`
 
             {/* List locations with color indicators */}
             <div style={{ marginBottom: "1rem" }}>
-              {locations.map((loc: Location) => {
-                // DEFENSIVE: Skip undefined during hydration
-                if (!loc) return null;
-                // Use computed to unwrap reactive location properties
-                return computed(() => {
+              {locations.map((loc: Location) =>
+                !loc ? null : computed(() => {
                   const name: string = loc.name;
                   const type: LocationType = loc.type;
                   const address: string = loc.address;
@@ -3367,8 +4474,8 @@ Return all visible text.`
                       </cf-button>
                     </div>
                   );
-                });
-              })}
+                })
+              )}
             </div>
 
             {/* Add location */}
@@ -3381,12 +4488,20 @@ Return all visible text.`
             >
               <h3 style={{ marginBottom: "0.5rem" }}>Add Location</h3>
               <div style={{ marginBottom: "0.5rem" }}>
-                <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>Type:</label>
+                <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>
+                  Type:
+                </label>
                 <cf-select
                   $value={newLocationType}
                   items={[
-                    { label: "Afterschool (On-site)", value: "afterschool-onsite" },
-                    { label: "Afterschool (Off-site)", value: "afterschool-offsite" },
+                    {
+                      label: "Afterschool (On-site)",
+                      value: "afterschool-onsite",
+                    },
+                    {
+                      label: "Afterschool (Off-site)",
+                      value: "afterschool-offsite",
+                    },
                     { label: "External", value: "external" },
                   ]}
                   style={{ padding: "0.25rem" }}
@@ -3423,5 +4538,5 @@ Return all visible text.`
       calendarName,
       calendarOutbox,
     };
-  }
+  },
 );

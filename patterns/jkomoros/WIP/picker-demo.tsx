@@ -1,7 +1,7 @@
 /// <cts-enable />
 /**
- * Demo pattern to test cf-render variant="preview" support.
- * Creates multiple instances and displays them in a cf-picker.
+ * Demo pattern to test ct-render variant="preview" support.
+ * Creates multiple instances and displays them in a ct-picker.
  */
 import { Cell, NAME, pattern, UI } from "commonfabric";
 import PreviewTest from "./preview-test.tsx";
@@ -32,14 +32,14 @@ export default pattern<Input>(
       [NAME]: "Picker Preview Demo",
       [UI]: (
         <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-          <h2 style={{ margin: 0 }}>cf-picker Preview Demo</h2>
-          <p style={{ margin: 0, color: "var(--cf-color-muted)" }}>
+          <h2 style={{ margin: 0 }}>ct-picker Preview Demo</h2>
+          <p style={{ margin: 0, color: "var(--ct-color-muted)" }}>
             The picker below should show "Preview Mode" badge (previewUI) instead of the full UI.
           </p>
 
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <h3 style={{ margin: "0 0 16px 0" }}>Picker (should use previewUI)</h3>
@@ -48,7 +48,7 @@ export default pattern<Input>(
 
           <div style={{
             padding: "16px",
-            background: "var(--cf-color-surface-container)",
+            background: "var(--ct-color-surface-container)",
             borderRadius: "8px"
           }}>
             <h3 style={{ margin: "0 0 8px 0" }}>Selected Index</h3>

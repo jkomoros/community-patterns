@@ -33,7 +33,7 @@ interface PreparedFoodInput {
 
 /** Prepared food item with serving time and dietary info. #preparedFood */
 interface PreparedFoodOutput extends PreparedFoodInput {
-  // Provide dietary compatibility for consistency with food-pattern
+  // Provide dietary compatibility for consistency with food-recipe
   dietaryCompatibility: {
     compatible: string[];
     incompatible: string[];

@@ -448,8 +448,8 @@ export default pattern(() => {
 
         <h2>What This Does NOT Have</h2>
         <ul>
-          <li><code>cf-autolayout</code> component</li>
-          <li><code>cf-code-editor</code> component</li>
+          <li><code>ct-autolayout</code> component</li>
+          <li><code>ct-code-editor</code> component</li>
           <li>Multiple tabs</li>
           <li>All the input handlers</li>
           <li>Relationship type pickers</li>

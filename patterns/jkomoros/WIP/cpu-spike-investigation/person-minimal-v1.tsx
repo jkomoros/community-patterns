@@ -3,10 +3,10 @@
  * @title Person Minimal V1
  * @description Stripped down person.tsx - minimal skeleton to find bug trigger
  *
- * This is person.tsx stripped to the absolute minimum while keeping the pattern structure.
+ * This is person.tsx stripped to the absolute minimum while keeping the recipe structure.
  * We'll add complexity back piece by piece to find what triggers the bug.
  *
- * V1: Just pattern + generateObject + simple UI (no cf-autolayout, no ifElse)
+ * V1: Just recipe + generateObject + simple UI (no ct-autolayout, no ifElse)
  */
 import {
   computed,
@@ -108,7 +108,7 @@ const PersonMinimalV1 = pattern<Input, Output>(
         <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
           <h2>Person Minimal V1</h2>
           <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST:</strong> Minimal pattern + generateObject (no cf-autolayout)
+            <strong>TEST:</strong> Minimal recipe + generateObject (no ct-autolayout)
           </div>
 
           <div style={{ marginBottom: "1rem" }}>

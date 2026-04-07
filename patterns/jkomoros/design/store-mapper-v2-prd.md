@@ -267,7 +267,7 @@ interface ShoppingItem {
 
 ## UI Component Breakdown
 
-### Component 1: `cf-store-diagram`
+### Component 1: `ct-store-diagram`
 Visual overhead view of store layout
 - Interactive diagram with tap-to-add zones
 - Shows aisles, perimeter sections, entrances
@@ -446,7 +446,7 @@ function optimizePath(
 
 ## Detailed Component Specs
 
-### `cf-store-diagram` Component
+### `ct-store-diagram` Component
 
 **Purpose:** Visual overhead view of store layout
 
@@ -472,10 +472,10 @@ interface StoreLayoutData {
   entrances: Entrance[];
 }
 
-<cf-store-diagram
+<ct-store-diagram
   layout={storeLayout}
-  oncf-entrance-add={handleEntranceAdd}
-  oncf-section-edit={handleSectionEdit}
+  onct-entrance-add={handleEntranceAdd}
+  onct-section-edit={handleSectionEdit}
   highlightGaps={true}
 />
 ```
@@ -497,7 +497,7 @@ interface StoreLayoutData {
   wall="back"
   presets={["Bakery", "Deli", "Meat", "Seafood"]}
   selected={selectedSections}
-  oncf-section-toggle={handleToggle}
+  onct-section-toggle={handleToggle}
 />
 ```
 
@@ -746,7 +746,7 @@ Total time: 2-3 minutes
 
 1. Review this PRD and refine based on feedback
 2. Design mockups for each wizard step
-3. Implement cf-store-diagram component
+3. Implement ct-store-diagram component
 4. Add perimeter section support to data model
 5. Update photo processing to handle multi-aisle extraction
 6. Implement entrance-aware path optimization
@@ -756,7 +756,7 @@ Total time: 2-3 minutes
 
 **New Files:**
 - `store-mapper-v2.tsx` - Enhanced wizard with all phases
-- `cf-store-diagram.tsx` - Visual layout component (if in labs)
+- `ct-store-diagram.tsx` - Visual layout component (if in labs)
 - `wall-section-picker.tsx` - Perimeter section UI
 - `entrance-selector.tsx` - Choose which entrance
 - `path-optimizer.ts` - Sorting algorithm

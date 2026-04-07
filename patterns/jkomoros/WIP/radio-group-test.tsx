@@ -1,6 +1,6 @@
 /// <cts-enable />
 /**
- * Test pattern for cf-radio-group with items prop
+ * Test pattern for ct-radio-group with items prop
  */
 import { Default, NAME, pattern, UI } from "commonfabric";
 

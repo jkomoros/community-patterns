@@ -19,7 +19,7 @@ import {
  * - Commit activity (bar chart)
  * - Momentum indicator (accelerating/steady/decelerating)
  *
- * Designed to be composed via cf-render in github-momentum-tracker.tsx
+ * Designed to be composed via ct-render in github-momentum-tracker.tsx
  */
 
 // =============================================================================

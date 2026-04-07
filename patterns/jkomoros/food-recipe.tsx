@@ -7,17 +7,17 @@
  * Current Status: BLOCKED - Unable to test due to build system issues
  *
  * What we learned:
- * 1. cf-image-input currently only accepts images (accept="image/*")
+ * 1. ct-image-input currently only accepts images (accept="image/*")
  * 2. Event handling was initially wrong:
- *    - cf-image-input fires: cf-change event with {images: ImageData[]}
+ *    - ct-image-input fires: ct-change event with {images: ImageData[]}
  *    - Pattern was listening for: oncf-upload with {text: string}
  *    - Fixed in handleImageUpload handler (lines 454-469)
- * 3. To support PDFs, cf-image-input would need:
+ * 3. To support PDFs, ct-image-input would need:
  *    - accept="image/*,application/pdf" attribute
  *    - _processFile method updated to skip Image() validation for PDFs
  *    - Already has type field in ImageData interface to distinguish file types
  * 4. Build system challenge:
- *    - cf-image-input is in labs/packages/ui
+ *    - ct-image-input is in labs/packages/ui
  *    - Component changes require running: deno task bundle
  *    - Bundle task failed with missing 'source-map-support' dependency
  *    - Even after clearing caches and restarting dev servers, old component persisted
@@ -27,10 +27,10 @@
  *
  * Next steps to continue investigation:
  * 1. Fix labs UI bundle task dependency issue
- * 2. Successfully bundle updated cf-image-input with PDF support
+ * 2. Successfully bundle updated ct-image-input with PDF support
  * 3. Verify component loads with updated accept attribute
  * 4. Upload PDF and test if Claude vision API can extract text from PDF data URLs
- * 5. If successful, consider PR to labs repo for cf-image-input PDF support
+ * 5. If successful, consider PR to labs repo for ct-image-input PDF support
  *
  * Alternative approach:
  * - Use separate PDF library to extract text from PDF before sending to Claude
@@ -51,10 +51,10 @@ import {
   UI,
   wish,
 } from "commonfabric";
-import { type MentionableCharm } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
+import { type MentionablePiece } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
-import RecipeAnalyzer from "./pattern-analyzer.tsx";
-import FoodRecipeViewer from "./food-pattern-viewer.tsx";
+import RecipeAnalyzer from "./recipe-analyzer.tsx";
+import FoodRecipeViewer from "./food-recipe-viewer.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
@@ -121,7 +121,7 @@ interface RecipeInput {
   name?: Default<string, "">;
   cuisine?: Default<string, "">;
   servings?: Default<number, 4>;
-  yield?: Default<string, "">; // What the pattern makes (e.g., "12 cookies", "1 loaf")
+  yield?: Default<string, "">; // What the recipe makes (e.g., "12 cookies", "1 loaf")
   difficulty?: Default<"easy" | "medium" | "hard", "medium">;
   prepTime?: Default<number, 0>; // minutes
   cookTime?: Default<number, 0>; // minutes
@@ -135,7 +135,7 @@ interface RecipeInput {
   source?: Default<string, "">;
 }
 
-/** Food pattern with ingredients, steps, and meal planning info. #pattern */
+/** Food recipe with ingredients, steps, and meal planning info. #recipe */
 interface RecipeOutput extends RecipeInput {
   // Derived for meal planning
   ovenRequirements: {
@@ -156,7 +156,7 @@ interface RecipeOutput extends RecipeInput {
 const handleCharmLinkClick = handler<
   {
     detail: {
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
     };
   },
   Record<string, never>
@@ -170,12 +170,12 @@ const handleNewBacklink = handler<
     detail: {
       text: string;
       charmId: any;
-      charm: Writable<MentionableCharm>;
+      charm: Writable<MentionablePiece>;
       navigate: boolean;
     };
   },
   {
-    mentionable: Writable<MentionableCharm[]>;
+    mentionable: Writable<MentionablePiece[]>;
   }
 >(({ detail }, { mentionable }) => {
   console.log("new charm", detail.text, detail.charmId);
@@ -791,9 +791,9 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     source,
   }) => {
     // Set up mentionable charms for @ references
-    const mentionableWish = wish<MentionableCharm[]>({ query: "#mentionable" });
+    const mentionableWish = wish<MentionablePiece[]>({ query: "#mentionable" });
     const mentionable = computed(() => mentionableWish?.result ?? []);
-    const mentioned = Writable.of<MentionableCharm[]>([]);
+    const mentioned = Writable.of<MentionablePiece[]>([]);
 
     // Computed values
     const totalTime = computed(
@@ -852,9 +852,9 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     const { result: imageTextResult, pending: imageExtractionPending } =
       generateObject({
         system:
-          `You are a pattern text extraction assistant. Extract ALL text from pattern images.
+          `You are a recipe text extraction assistant. Extract ALL text from recipe images.
 
-Your job is to extract the complete pattern text from the image, preserving:
+Your job is to extract the complete recipe text from the image, preserving:
 - Recipe title
 - All ingredients with amounts and units
 - All cooking steps/instructions
@@ -874,7 +874,7 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
             { type: "image" as const, image: img.data },
             {
               type: "text" as const,
-              text: `Extract all text from this pattern image. Preserve the complete pattern text including title, ingredients, instructions, timing, and any notes.`
+              text: `Extract all text from this recipe image. Preserve the complete recipe text including title, ingredients, instructions, timing, and any notes.`
             }
           ];
         }),
@@ -901,13 +901,13 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
       if (trigger && trigger.includes("---EXTRACT-")) {
         return trigger;
       }
-      return undefined;
+      return "";
     });
 
     const { result: extractionResult, pending: extractionPending } =
       generateObject({
         system:
-          `You are a pattern extraction assistant. Extract structured pattern information from unstructured text.
+          `You are a recipe extraction assistant. Extract structured recipe information from unstructured text.
 
 Extract the following fields if present:
 - name: Recipe title
@@ -919,7 +919,7 @@ Extract the following fields if present:
 - restTime: Time to rest after cooking before serving in minutes (as a number)
 - holdTime: Time dish can wait while maintaining quality in minutes (as a number)
 - category: Type of dish - one of "appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", or "other"
-- source: Where the pattern came from (URL, book, person)
+- source: Where the recipe came from (URL, book, person)
 - ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
 - stepGroups: Organize steps into logical groups based on timing:
   * Group similar prep/cooking phases together
@@ -1033,7 +1033,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     );
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during pattern discovery when map items change.
+    // This prevents N² re-evaluation during recipe discovery when map items change.
     // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
     const notesDiffChunks = computed(() => {
       const notesChange = changesPreview.find((c: { field: string }) => c.field === "Notes");
@@ -1050,7 +1050,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     const { result: timingSuggestions, pending: timingSuggestionPending } =
       generateObject({
         system:
-          `You are a pattern timing assistant. Analyze pattern step groups and suggest optimal timing organization.
+          `You are a recipe timing assistant. Analyze recipe step groups and suggest optimal timing organization.
 
 For each step group, analyze the steps and suggest:
 - nightsBeforeServing: For tasks that need to happen days before (1, 2, etc.) - use this for overnight marinades, dough rising, etc.
@@ -1112,7 +1112,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
     const { result: waitTimeSuggestions, pending: waitTimeSuggestionPending } =
       generateObject({
         system:
-          `You are a pattern timing assistant. Analyze pattern step groups and suggest maximum wait times.
+          `You are a recipe timing assistant. Analyze recipe step groups and suggest maximum wait times.
 
 For each step group, analyze the steps and suggest maxWaitMinutes - how long the output of this step group can wait before the next step without losing quality.
 
@@ -1246,7 +1246,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 theme="light"
                 wordWrap
                 tabIndent
-                placeholder="Paste a pattern here, upload an image, then click 'Extract Recipe Data' to auto-fill fields..."
+                placeholder="Paste a recipe here, upload an image, then click 'Extract Recipe Data' to auto-fill fields..."
                 style="min-height: 150px;"
               />
             </cf-vstack>
@@ -1833,7 +1833,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Source</h3>
               <cf-input
                 $value={source}
-                placeholder="Where did this pattern come from? (URL, book, person)"
+                placeholder="Where did this recipe come from? (URL, book, person)"
               />
             </cf-vstack>
           </cf-card>
@@ -1856,7 +1856,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
               <cf-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
                 <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following changes will be applied to your pattern:
+                  The following changes will be applied to your recipe:
                 </p>
 
                 <cf-vstack gap={2}>
@@ -1893,31 +1893,27 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                 ? (
                                   // PERFORMANCE FIX: Use pre-computed notesDiffChunks
                                   // instead of inline computeWordDiff call
-                                  notesDiffChunks.map(
-                                    (part: DiffChunk) => {
-                                      if (part.type === "removed") {
-                                        return (
-                                          <span style={{
-                                            color: "#dc2626",
-                                            textDecoration: "line-through",
-                                            backgroundColor: "#fee",
-                                          }}>
-                                            {part.word}
-                                          </span>
-                                        );
-                                      } else if (part.type === "added") {
-                                        return (
-                                          <span style={{
-                                            color: "#16a34a",
-                                            backgroundColor: "#efe",
-                                          }}>
-                                            {part.word}
-                                          </span>
-                                        );
-                                      } else {
-                                        return <span>{part.word}</span>;
-                                      }
-                                    },
+                                  notesDiffChunks.map((part: DiffChunk) =>
+                                    part.type === "removed"
+                                      ? (
+                                        <span style={{
+                                          color: "#dc2626",
+                                          textDecoration: "line-through",
+                                          backgroundColor: "#fee",
+                                        }}>
+                                          {part.word}
+                                        </span>
+                                      )
+                                      : part.type === "added"
+                                      ? (
+                                        <span style={{
+                                          color: "#16a34a",
+                                          backgroundColor: "#efe",
+                                        }}>
+                                          {part.word}
+                                        </span>
+                                      )
+                                      : <span>{part.word}</span>
                                   )
                                 )
                                 : (

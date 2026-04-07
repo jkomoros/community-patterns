@@ -41,11 +41,11 @@ const applyImageText = handler<
   return (
     <div>
       <span>✓ Text extracted</span>
-      <cf-button
+      <ct-button
         onClick={applyImageText({ notes, uploadedImage, extractedText: result.extractedText })}
       >
         Add to Notes
-      </cf-button>
+      </ct-button>
     </div>
   );
 })}
@@ -55,7 +55,7 @@ const applyImageText = handler<
   derive(imageTextResult, (result) => result && result.extractedText),
   <div>
     <span>✓ Text extracted</span>
-    <cf-button
+    <ct-button
       onClick={applyImageText({
         notes,
         uploadedImage,
@@ -63,7 +63,7 @@ const applyImageText = handler<
       })}
     >
       Add to Notes
-    </cf-button>
+    </ct-button>
   </div>,
   null
 )}
@@ -87,12 +87,12 @@ When calling a handler from inside a conditional rendering block:
 **Pattern A: Handler onClick directly in main UI (no conditional)**
 ```tsx
 // This works fine
-<cf-button
+<ct-button
   onClick={triggerExtraction({ notes, extractTrigger })}
   disabled={extractionPending}
 >
   Extract Recipe Data
-</cf-button>
+</ct-button>
 ```
 
 **Pattern B: Computed value + separate handler call**

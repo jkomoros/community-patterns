@@ -21,6 +21,12 @@ is_pattern() {
   grep -q "export default" "$1"
 }
 
+is_skipped() {
+  # Files can opt out of typecheck via a magic comment on the first 5 lines.
+  # Use sparingly — for files that hit cf compiler bugs or need owner attention.
+  head -5 "$1" | grep -q "@cf-typecheck-skip"
+}
+
 CF_ROOT_ARGS=()
 # Auto-inject --root for cross-repo import resolution (e.g., imports from ../labs/)
 if [ -d "$PROJECT_ROOT/../labs" ]; then
@@ -33,6 +39,12 @@ check_file() {
   # Skip non-pattern files (utilities, type definitions, etc.)
   if ! is_pattern "$file"; then
     echo "Skipping $file (not a pattern)"
+    return 0
+  fi
+
+  # Skip files that have explicitly opted out via magic comment
+  if is_skipped "$file"; then
+    echo "Skipping $file (@cf-typecheck-skip)"
     return 0
   fi
 

@@ -15,7 +15,7 @@ LinkedIn: linkedin.com/in/maya-rodriguez
 
 Biotech researcher specializing in CRISPR gene editing. Lead scientist at GeneTech Labs. Published 25+ peer-reviewed papers. Avid rock climber. Speaks Spanish and English. MIT PhD 2015.`;
 
-// Recipe demo: Four-Cheese Mac and Cheese - full pattern in notes format
+// Recipe demo: Four-Cheese Mac and Cheese - full recipe in notes format
 export const DEMO_RECIPE_NOTES = `Maya's Favorite Four-Cheese Mac and Cheese
 
 Serves: 8
@@ -23,7 +23,7 @@ Prep time: 20 minutes
 Cook time: 45 minutes
 Difficulty: Medium
 
-This is Maya Rodriguez's go-to comfort food pattern. A decadent blend of four cheeses creates the ultimate creamy mac and cheese with a crispy breadcrumb topping.
+This is Maya Rodriguez's go-to comfort food recipe. A decadent blend of four cheeses creates the ultimate creamy mac and cheese with a crispy breadcrumb topping.
 
 Ingredients:
 - 1 lb fusilli pasta

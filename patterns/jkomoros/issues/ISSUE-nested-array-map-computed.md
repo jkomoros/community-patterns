@@ -113,7 +113,7 @@ export function isOpaqueRefArrayMapCall(
 
 **Expected output at line 629:**
 ```tsx
-{item.tags.mapWithPattern(__ctHelpers.pattern(...), { ... })}
+{item.tags.mapWithPattern(__ctHelpers.recipe(...), { ... })}
 ```
 
 **This test fixture proves the framework EXPECTS `item.tags` to have `mapWithPattern()`**, but at runtime it doesn't.

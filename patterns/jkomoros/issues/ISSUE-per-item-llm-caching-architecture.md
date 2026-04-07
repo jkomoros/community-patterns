@@ -47,7 +47,7 @@ After extensive research, here's our best understanding:
 **What Doesn't Work:**
 1. ❌ **Cell.map() returns OpaqueRef, not Array** - can't aggregate completion across dynamic arrays
 2. ❌ **derive/computed on Cell.map() arrays** - items are proxied, `.pending` returns proxy not boolean
-3. ❌ **effect() not available** - exported from runner but not from commonfabric public API
+3. ❌ **effect() not available** - exported from runner but not from commontools public API
 
 **Recommended Approaches:**
 For our use case (dynamic per-item LLM processing with per-item caching):
@@ -150,7 +150,7 @@ state.items.map((item) => item.price * state.discount)
 The **ts-transformers** package transforms this to:
 ```typescript
 state.items.mapWithPattern(
-  pattern(({ element, params: { state } }) => element.price * state.discount),
+  recipe(({ element, params: { state } }) => element.price * state.discount),
   { state: { discount: state.discount } }
 )
 ```
@@ -159,7 +159,7 @@ From `closure-design.md`:
 > Map callbacks on reactive arrays that capture variables from outer scope need those values passed explicitly.
 
 This is why:
-1. The callback is wrapped in a `pattern()`
+1. The callback is wrapped in a `recipe()`
 2. Captured variables are passed as `params`
 3. The callback receives `{ element, index, array, params }`
 
@@ -528,7 +528,7 @@ const allDone = computed(() => article1Done && article2Done);
 - ❓ Untested if this actually works
 
 **4. effect() - Not Available to Patterns**
-The `effect()` function exists in `@commonfabric/runner` and is used internally by JSX rendering:
+The `effect()` function exists in `@commontools/runner` and is used internally by JSX rendering:
 ```typescript
 // From runner/src/reactivity.ts
 export const effect = <T>(
@@ -541,7 +541,7 @@ export const effect = <T>(
   // ...
 };
 ```
-- ❌ Not exported from `commonfabric` public API
+- ❌ Not exported from `commontools` public API
 - ❌ Cannot be used in patterns
 
 **Question for framework author:** Is there an idiomatic way to:
@@ -1256,7 +1256,7 @@ But it lacks primitives for:
 #### API Design
 
 ```typescript
-import { whenAll } from "commonfabric";
+import { whenAll } from "commontools";
 
 // Input: array of async cells (generateObject, fetchData, etc.)
 const extractions = parsedArticles.map(article =>
@@ -1672,7 +1672,7 @@ Instead of `whenAll()`, consider requesting:
 #### Option A: Export `effect()` to Patterns
 
 ```typescript
-import { effect } from "commonfabric";
+import { effect } from "commontools";
 
 // Patterns can build their own aggregation
 let completed = 0;
@@ -1951,7 +1951,7 @@ A reactive `reduce()` would:
 #### Proposed API
 
 ```typescript
-import { reduce } from "commonfabric";
+import { reduce } from "commontools";
 
 // Basic usage
 const completedLinks = reduce(
@@ -2041,7 +2041,7 @@ const links = extractions.reduce(
 **Transformed to:**
 ```typescript
 const links = extractions.reduceWithRecipe(
-  pattern(({ accumulator, element, params }) =>
+  recipe(({ accumulator, element, params }) =>
     element.pending ? accumulator : [...accumulator, ...element.result.links]
   ),
   { /* captured variables */ },

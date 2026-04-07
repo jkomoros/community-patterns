@@ -6,8 +6,8 @@ Add optional voice input support to the `chatbot.tsx` pattern in labs, enabling 
 
 ## Current State
 
-- `cf-voice-input` component exists and works well
-  - Location: `/packages/ui/src/v2/components/cf-voice-input/cf-voice-input.ts`
+- `ct-voice-input` component exists and works well
+  - Location: `/packages/ui/src/v2/components/ct-voice-input/ct-voice-input.ts`
   - Features: hold or toggle recording, auto-transcription via Whisper, returns text + timestamps
 - `chatbot.tsx` and `omnibox-fab.tsx` have **no voice input**
 - Users must type all interactions with omnibot
@@ -16,7 +16,7 @@ Add optional voice input support to the `chatbot.tsx` pattern in labs, enabling 
 
 ### Option C: Add `showVoice` prop to Chatbot pattern (Recommended)
 
-Add an opt-in `showVoice?: boolean` prop that includes `cf-voice-input` alongside `cf-prompt-input`.
+Add an opt-in `showVoice?: boolean` prop that includes `ct-voice-input` alongside `ct-prompt-input`.
 
 ### Implementation
 
@@ -61,15 +61,15 @@ const handleVoiceTranscription = handler<
 
 ```tsx
 const promptInput = showVoice ? (
-  <cf-hstack align="center" gap="tight" style="width: 100%;">
-    <cf-voice-input
+  <ct-hstack align="center" gap="tight" style="width: 100%;">
+    <ct-voice-input
       recordingMode="toggle"
       showWaveform={false}
       autoTranscribe
-      oncf-transcription-complete={handleVoiceTranscription({ addMessage })}
+      onct-transcription-complete={handleVoiceTranscription({ addMessage })}
       style="flex-shrink: 0;"
     />
-    <cf-prompt-input
+    <ct-prompt-input
       style="flex: 1;"
       slot="footer"
       placeholder="Ask the LLM a question..."
@@ -77,20 +77,20 @@ const promptInput = showVoice ? (
       $mentionable={mentionable}
       modelItems={items}
       $model={model}
-      oncf-send={sendMessage({ addMessage })}
-      oncf-stop={cancelGeneration}
+      onct-send={sendMessage({ addMessage })}
+      onct-stop={cancelGeneration}
     />
-  </cf-hstack>
+  </ct-hstack>
 ) : (
-  <cf-prompt-input
+  <ct-prompt-input
     slot="footer"
     placeholder="Ask the LLM a question..."
     pending={pending}
     $mentionable={mentionable}
     modelItems={items}
     $model={model}
-    oncf-send={sendMessage({ addMessage })}
-    oncf-stop={cancelGeneration}
+    onct-send={sendMessage({ addMessage })}
+    onct-stop={cancelGeneration}
   />
 );
 ```
@@ -153,8 +153,8 @@ No intermediate "review" step - voice goes directly to chat. This matches the ex
 
 ## Related Components
 
-- `/packages/ui/src/v2/components/cf-voice-input/cf-voice-input.ts` - Already exists, production-ready
-- `/packages/patterns/voice-note.tsx` - Example pattern using cf-voice-input
+- `/packages/ui/src/v2/components/ct-voice-input/ct-voice-input.ts` - Already exists, production-ready
+- `/packages/patterns/voice-note.tsx` - Example pattern using ct-voice-input
 - `/packages/toolshed/routes/ai/voice/` - Transcription API (FAL AI Whisper)
 
 ## Future Enhancements

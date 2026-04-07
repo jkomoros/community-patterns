@@ -605,7 +605,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
         }}>
           <style>{`
             /* Team selection buttons */
-            cf-button.team-red-active::part(button) {
+            ct-button.team-red-active::part(button) {
               background-color: #dc2626;
               color: white;
               border: 2px solid #dc2626;
@@ -613,7 +613,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            cf-button.team-red-inactive::part(button) {
+            ct-button.team-red-inactive::part(button) {
               background-color: #f3f4f6;
               color: #000;
               border: 2px solid #dc2626;
@@ -621,7 +621,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            cf-button.team-blue-active::part(button) {
+            ct-button.team-blue-active::part(button) {
               background-color: #2563eb;
               color: white;
               border: 2px solid #2563eb;
@@ -629,7 +629,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            cf-button.team-blue-inactive::part(button) {
+            ct-button.team-blue-inactive::part(button) {
               background-color: #f3f4f6;
               color: #000;
               border: 2px solid #2563eb;
@@ -639,14 +639,14 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Mode toggle buttons */
-            cf-button.mode-setup::part(button) {
+            ct-button.mode-setup::part(button) {
               background-color: #8b5cf6;
               color: white;
               border-radius: 0.375rem;
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            cf-button.mode-game::part(button) {
+            ct-button.mode-game::part(button) {
               background-color: #10b981;
               color: white;
               border-radius: 0.375rem;
@@ -655,7 +655,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Color assignment buttons */
-            cf-button.color-red::part(button) {
+            ct-button.color-red::part(button) {
               background-color: #dc2626;
               color: white;
               border: 2px solid #000;
@@ -664,7 +664,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            cf-button.color-blue::part(button) {
+            ct-button.color-blue::part(button) {
               background-color: #2563eb;
               color: white;
               border: 2px solid #000;
@@ -673,7 +673,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            cf-button.color-neutral::part(button) {
+            ct-button.color-neutral::part(button) {
               background-color: #d4d4d8;
               color: #000;
               border: 2px solid #000;
@@ -682,7 +682,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            cf-button.color-assassin::part(button) {
+            ct-button.color-assassin::part(button) {
               background-color: #000000;
               color: white;
               border: 2px solid #000;
@@ -691,7 +691,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            cf-button.color-clear::part(button) {
+            ct-button.color-clear::part(button) {
               background-color: #e5e7eb;
               color: #000;
               border: 2px solid #000;
@@ -702,7 +702,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Initialize button */
-            cf-button.btn-initialize::part(button) {
+            ct-button.btn-initialize::part(button) {
               background-color: #3b82f6;
               color: white;
               border-radius: 0.5rem;
@@ -711,7 +711,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Reset button */
-            cf-button.btn-reset::part(button) {
+            ct-button.btn-reset::part(button) {
               background-color: #ef4444;
               color: white;
               border-radius: 0.375rem;

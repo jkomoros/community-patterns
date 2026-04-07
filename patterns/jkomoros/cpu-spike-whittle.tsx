@@ -137,9 +137,9 @@ export default pattern<Input, Output>(
     // Auth status indicator
     const authStatusDot = computed(() => {
       const state = authState;
-      if (state === "authenticated") return "var(--cf-color-green-500, #22c55e)";
-      if (state === "not-found" || state === "found-not-authenticated") return "var(--cf-color-red-500, #ef4444)";
-      return "var(--cf-color-yellow-500, #eab308)";
+      if (state === "authenticated") return "var(--ct-color-green-500, #22c55e)";
+      if (state === "not-found" || state === "found-not-authenticated") return "var(--ct-color-red-500, #ef4444)";
+      return "var(--ct-color-yellow-500, #eab308)";
     });
 
     const authStatusText = computed(() => {

@@ -344,8 +344,8 @@ interface TrackerOutput {
 
 ## Future: Generalized OAuth Component in Framework
 
-Instead of per-provider auth patterns, the framework could have a `<cf-oauth>` component
-(like `<cf-google-oauth>`) that works with arbitrary OAuth providers.
+Instead of per-provider auth patterns, the framework could have a `<ct-oauth>` component
+(like `<ct-google-oauth>`) that works with arbitrary OAuth providers.
 
 ### What Would It Take?
 
@@ -353,7 +353,7 @@ Instead of per-provider auth patterns, the framework could have a `<cf-oauth>` c
 
 ```typescript
 // Hypothetical usage
-<cf-oauth
+<ct-oauth
   $auth={auth}
   provider={{
     name: "GitHub",
@@ -387,7 +387,7 @@ Instead of per-provider auth patterns, the framework could have a `<cf-oauth>` c
 
 | Component | Effort | Notes |
 |-----------|--------|-------|
-| `<cf-oauth>` component | 2-3 weeks | UI, state management, redirect handling |
+| `<ct-oauth>` component | 2-3 weeks | UI, state management, redirect handling |
 | Server endpoints | 1-2 weeks | Callback, exchange, refresh |
 | Provider configs | 1 week | GitHub, Google, others |
 | Secret management | 1 week | Secure storage, rotation |
@@ -414,7 +414,7 @@ Instead of per-provider auth patterns, the framework could have a `<cf-oauth>` c
 - Could support many providers with config
 - But significant investment
 
-**Middle ground:** If GitHub-specific OAuth is needed later, could add `<cf-github-oauth>` as a one-off (like `<cf-google-oauth>`), then generalize if pattern emerges.
+**Middle ground:** If GitHub-specific OAuth is needed later, could add `<ct-github-oauth>` as a one-off (like `<ct-google-oauth>`), then generalize if pattern emerges.
 
 ## Open Questions
 
@@ -422,7 +422,7 @@ Instead of per-provider auth patterns, the framework could have a `<cf-oauth>` c
 2. Should there be a "portfolio score" aggregating all repos?
 3. Should we support GitHub orgs (fetch all repos from an org)?
 4. Export functionality (CSV, image)?
-5. **Should we lobby for `<cf-github-oauth>` component in framework?** (Better UX than PAT)
+5. **Should we lobby for `<ct-github-oauth>` component in framework?** (Better UX than PAT)
 
 ## Status
 
@@ -461,7 +461,7 @@ The framework's `.map()` creates derived cells for each item, but `fetchData` ca
 
 This is likely a framework limitation with how `.map()` interacts with side-effectful operations like `fetchData`.
 
-### The Solution: Pattern Composition with `cf-render`
+### The Solution: Pattern Composition with `ct-render`
 
 **Architecture change**: Split into two patterns:
 
@@ -477,18 +477,18 @@ This is likely a framework limitation with how `.map()` interacts with side-effe
 2. **`github-momentum-tracker.tsx`** (REFACTORED) - Orchestrator pattern
    - Manages list of repo names
    - Handles authentication (wish + inline fallback)
-   - Uses `cf-render` to instantiate a `github-repo-card` for each repo
+   - Uses `ct-render` to instantiate a `github-repo-card` for each repo
    - Each card is a **true pattern instance** (not a derived cell)
 
-### Why `cf-render` Solves This
+### Why `ct-render` Solves This
 
 From COMPONENTS.md:
-> The `cf-render` component displays pattern instances within another pattern. Use this for **pattern composition** - combining multiple patterns together in a single pattern.
+> The `ct-render` component displays pattern instances within another pattern. Use this for **pattern composition** - combining multiple patterns together in a single pattern.
 
 Key insight from docs:
-> Use **cf-render** when the pattern wasn't instantiated from within this pattern but was passed in or **was stored in a list**.
+> Use **ct-render** when the pattern wasn't instantiated from within this pattern but was passed in or **was stored in a list**.
 
-Each `cf-render` instance:
+Each `ct-render` instance:
 - Has its own complete reactive graph
 - Has its own independent `fetchData` calls
 - Properly initializes when created, cleans up when removed
@@ -511,7 +511,7 @@ Each `cf-render` instance:
   - [ ] Keep: Auth logic (wish + inline fallback)
   - [ ] Keep: Repo list management (add/remove)
   - [ ] Keep: URL parsing utilities
-  - [ ] Change: Use `cf-render` to render repo cards
+  - [ ] Change: Use `ct-render` to render repo cards
   - [ ] Change: Pass `token` and `repoName` to each card instance
 
 - [ ] Test multi-repo functionality
@@ -574,9 +574,9 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
         {/* Auth UI */}
         {/* Repo input UI */}
 
-        {/* Render each card using cf-render */}
+        {/* Render each card using ct-render */}
         {repoCards.map((card) => (
-          <cf-render $cell={card} />
+          <ct-render $cell={card} />
         ))}
       </div>
     ),

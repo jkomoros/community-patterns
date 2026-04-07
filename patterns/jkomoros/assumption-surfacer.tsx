@@ -136,7 +136,7 @@ const clearChat = handler<
   userContext.set([]);
 });
 
-// Handler for cf-radio-group change event
+// Handler for ct-radio-group change event
 const onAssumptionChange = handler<
   { detail: { value: string } },
   {
@@ -370,7 +370,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         return (
           <div
             style={{
-              color: "var(--cf-color-text-secondary, #888)",
+              color: "var(--ct-color-text-secondary, #888)",
               fontStyle: "italic",
               textAlign: "center",
               padding: "1rem",
@@ -387,7 +387,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         return (
           <div
             style={{
-              color: "var(--cf-color-text-secondary, #888)",
+              color: "var(--ct-color-text-secondary, #888)",
               fontStyle: "italic",
               textAlign: "center",
               padding: "1rem",
@@ -417,20 +417,20 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
           ? correction.correctedIndex
           : assumption.selectedIndex;
 
-        // Convert alternatives to cf-radio-group items format
+        // Convert alternatives to ct-radio-group items format
         const radioItems = assumption.alternatives.map((alt, idx) => ({
           label: alt.value,
           value: String(idx),
         }));
 
-        // Assumption card container with cf-radio-group
+        // Assumption card container with ct-radio-group
         elements.push(
           <div
             key={elementIndex++}
             style={{
               marginBottom: "0.5rem",
               borderRadius: "6px",
-              border: "1px solid var(--cf-color-border, #e0e0e0)",
+              border: "1px solid var(--ct-color-border, #e0e0e0)",
               overflow: "hidden",
             }}
           >
@@ -438,16 +438,16 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
             <div
               style={{
                 padding: "0.4rem 0.6rem",
-                backgroundColor: "var(--cf-color-surface-secondary, #f5f5f5)",
+                backgroundColor: "var(--ct-color-surface-secondary, #f5f5f5)",
                 fontWeight: 600,
                 fontSize: "0.75rem",
-                borderBottom: "1px solid var(--cf-color-border, #e0e0e0)",
+                borderBottom: "1px solid var(--ct-color-border, #e0e0e0)",
               }}
             >
               {assumptionLabel}
             </div>
 
-            {/* Alternatives using cf-radio-group */}
+            {/* Alternatives using ct-radio-group */}
             <div style={{ padding: "0.3rem", fontSize: "0.75rem" }}>
               <cf-radio-group
                 value={String(currentSelectedIndex)}
@@ -521,7 +521,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
             <div
               style={{
                 flex: 1,
-                borderLeft: "1px solid var(--cf-color-border, #e0e0e0)",
+                borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
@@ -532,7 +532,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
               <div
                 style={{
                   padding: "0.75rem 1rem",
-                  borderBottom: "1px solid var(--cf-color-border, #e0e0e0)",
+                  borderBottom: "1px solid var(--ct-color-border, #e0e0e0)",
                   fontWeight: 600,
                   display: "flex",
                   alignItems: "center",
@@ -544,7 +544,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                   <span
                     style={{
                       fontSize: "0.75rem",
-                      color: "var(--cf-color-text-secondary, #888)",
+                      color: "var(--ct-color-text-secondary, #888)",
                       fontWeight: 400,
                     }}
                   >
@@ -565,7 +565,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
               {hasUserContext && (
                 <div
                   style={{
-                    borderTop: "1px solid var(--cf-color-border, #e0e0e0)",
+                    borderTop: "1px solid var(--ct-color-border, #e0e0e0)",
                     padding: "0.75rem 1rem",
                   }}
                 >
@@ -581,7 +581,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                   <div
                     style={{
                       fontSize: "0.8rem",
-                      color: "var(--cf-color-text-secondary, #666)",
+                      color: "var(--ct-color-text-secondary, #666)",
                     }}
                   >
                     {userContextCount} note{userContextCount !== 1 && "s"}{" "}

@@ -1,9 +1,9 @@
 /// <cts-enable />
 
 /**
- * Autocomplete Value Demo - Demonstrates cf-autocomplete $value binding
+ * Autocomplete Value Demo - Demonstrates ct-autocomplete $value binding
  *
- * This pattern shows the $value binding for cf-autocomplete in both
+ * This pattern shows the $value binding for ct-autocomplete in both
  * single-select and multi-select modes.
  *
  * Features demonstrated:
@@ -53,7 +53,7 @@ export default pattern<Input, Result>(
         <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Autocomplete Value Binding Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            Demonstrates the new <code>$value</code> binding for cf-autocomplete
+            Demonstrates the new <code>$value</code> binding for ct-autocomplete
             in single-select and multi-select modes.
           </p>
 

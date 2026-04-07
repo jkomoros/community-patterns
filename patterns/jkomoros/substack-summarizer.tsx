@@ -23,7 +23,6 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
     settings: {
       gmailFilterQuery,
       limit,
-      historyId: "",
       debugMode: false,
       autoFetchOnAuth: false,
       resolveInlineImages: false,

@@ -260,7 +260,7 @@ Adapt from reward-spinner:
 ### Phase 7: Polish ✅
 - [x] Goal name editing (retitling) - tappable header with ✏️ icon
 - [x] Optional goal description - shows in italics below goal name
-- [x] Settings view with cf-input for both fields
+- [x] Settings view with ct-input for both fields
 - [x] Fixed timezone bug (local dates vs UTC)
 - [x] Fixed layout overflow (removed minHeight: 100dvh)
 
@@ -346,7 +346,7 @@ Adapt from reward-spinner:
 - Tappable header in main view (with ✏️ icon) enters settings
 - Settings view has:
   - Back button
-  - Goal Name input (cf-input with $value binding)
+  - Goal Name input (ct-input with $value binding)
   - Description input (optional, shows placeholder)
   - Done button to return to main view
 - Description shows in italics below goal name when set

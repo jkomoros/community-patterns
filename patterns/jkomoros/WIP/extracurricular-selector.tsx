@@ -632,7 +632,7 @@ const clearUploadedFiles = handler<
   uploadedFiles.set([]);
 });
 
-// ImageData type for cf-image-input
+// ImageData type for ct-image-input
 type ImageData = { id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number };
 
 // Handle image upload for OCR - extracts first image from the array
@@ -1143,7 +1143,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Settings dialog state - starts open by default, closes only when user manually closes
     const showSettingsDialog = Writable.of<boolean>(true);
 
-    // Active tab state for custom tab UI (cf-tabs not available in JSX types)
+    // Active tab state for custom tab UI (ct-tabs not available in JSX types)
     const activeTab = Writable.of<"dashboard" | "configure" | "import" | "selection">("dashboard");
 
     // Computed values for tab visibility
@@ -1152,10 +1152,10 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const isImportTab = computed(() => activeTab.get() === "import");
     const isSelectionTab = computed(() => activeTab.get() === "selection");
 
-    // File upload state - stores uploaded files (cf-file-input provides FileData[])
+    // File upload state - stores uploaded files (ct-file-input provides FileData[])
     const uploadedFiles = Writable.of<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
 
-    // Image upload state for OCR - stores array of images (cf-image-input uses $images two-way binding)
+    // Image upload state for OCR - stores array of images (ct-image-input uses $images two-way binding)
     const uploadedImagesForOcr = Writable.of<ImageData[]>([]);
 
     // Extraction trigger - user must click button to extract classes
@@ -2086,7 +2086,7 @@ Return the complete extracted text.`
             </cf-hstack>
           </div>
 
-          {/* Custom Tab Navigation (cf-tabs not available in JSX types) */}
+          {/* Custom Tab Navigation (ct-tabs not available in JSX types) */}
           <div style="display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
             {ifElse(
               isDashboardTab,

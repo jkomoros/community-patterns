@@ -1098,8 +1098,8 @@ interface HotelMembershipInput {
 
 1. **Deploy a fresh gmail-auth charm:**
    ```bash
-   CF_API_URL=http://localhost:8000 CF_IDENTITY=../community-patterns/claude.key \
-     deno task cf charm new ../community-patterns/patterns/jkomoros/gmail-auth.tsx \
+   CT_API_URL=http://localhost:8000 CT_IDENTITY=../community-patterns/claude.key \
+     deno task ct charm new ../community-patterns/patterns/jkomoros/gmail-auth.tsx \
      --space hotel-test
    # Returns: baedreig...abc (gmail-auth charm ID)
    ```
@@ -1112,8 +1112,8 @@ interface HotelMembershipInput {
 
 3. **Link gmail-auth output to your pattern's input:**
    ```bash
-   CF_API_URL=http://localhost:8000 CF_IDENTITY=../community-patterns/claude.key \
-     deno task cf charm link GMAIL_AUTH_ID/auth YOUR_PATTERN_ID/auth \
+   CT_API_URL=http://localhost:8000 CT_IDENTITY=../community-patterns/claude.key \
+     deno task ct charm link GMAIL_AUTH_ID/auth YOUR_PATTERN_ID/auth \
      --space hotel-test
    ```
 
@@ -1145,12 +1145,12 @@ interface HotelMembershipInput {
 
 ```bash
 # 1. Deploy gmail-auth (fresh each test session)
-GMAIL_AUTH_ID=$(CF_API_URL=http://localhost:8000 CF_IDENTITY=claude.key \
-  deno task cf charm new patterns/jkomoros/gmail-auth.tsx --space test | tail -1)
+GMAIL_AUTH_ID=$(CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm new patterns/jkomoros/gmail-auth.tsx --space test | tail -1)
 
 # 2. Deploy your pattern
-PATTERN_ID=$(CF_API_URL=http://localhost:8000 CF_IDENTITY=claude.key \
-  deno task cf charm new patterns/jkomoros/hotel-membership-extractor.tsx --space test | tail -1)
+PATTERN_ID=$(CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm new patterns/jkomoros/hotel-membership-extractor.tsx --space test | tail -1)
 
 # 3. In Playwright/browser:
 #    - Navigate to gmail-auth charm
@@ -1158,8 +1158,8 @@ PATTERN_ID=$(CF_API_URL=http://localhost:8000 CF_IDENTITY=claude.key \
 #    - Verify "✅ Authenticated"
 
 # 4. Link auth
-CF_API_URL=http://localhost:8000 CF_IDENTITY=claude.key \
-  deno task cf charm link $GMAIL_AUTH_ID/auth $PATTERN_ID/auth --space test
+CT_API_URL=http://localhost:8000 CT_IDENTITY=claude.key \
+  deno task ct charm link $GMAIL_AUTH_ID/auth $PATTERN_ID/auth --space test
 
 # 5. Navigate to pattern - ready to test!
 ```

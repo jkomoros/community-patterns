@@ -37,7 +37,7 @@ As a Codenames spymaster, I want to:
 ### 1. Board Input
 **Options:**
 - **Manual Entry**: Text input for 25 words in 5×5 grid
-- **Image Input**: Use `cf-image-input` to photograph the board
+- **Image Input**: Use `ct-image-input` to photograph the board
   - Vision model extracts words and positions
   - User can correct any OCR errors
 
@@ -155,8 +155,8 @@ interface ClueRecommendation {
 - Or: bulk text input (25 words, one per line)
 
 **Camera Input:**
-- cf-image-input for board photo
-- cf-image-input for key card photo
+- ct-image-input for board photo
+- ct-image-input for key card photo
 - Confirmation/correction UI
 
 **4. Clue Assistant Panel**
@@ -246,10 +246,10 @@ Are any of these important for v1, or defer to later?
 4. Refine prompt based on testing
 
 **Phase 3: Image Input**
-1. Add cf-image-input for board
+1. Add ct-image-input for board
 2. Implement vision-based word extraction
 3. Add error correction UI
-4. Add cf-image-input for key card
+4. Add ct-image-input for key card
 5. Implement pattern recognition for key
 
 **Phase 4: Polish**
@@ -297,10 +297,10 @@ Are any of these important for v1, or defer to later?
 - [ ] Clue validation (not on board, single word, etc.)
 
 ### Phase 3: Camera Input
-- [ ] cf-image-input for board photo
+- [ ] ct-image-input for board photo
 - [ ] Vision-based word extraction
 - [ ] OCR error correction UI
-- [ ] cf-image-input for key card photo
+- [ ] ct-image-input for key card photo
 - [ ] Pattern recognition for key card
 
 ### Phase 4: Polish

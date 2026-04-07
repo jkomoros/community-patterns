@@ -1,9 +1,9 @@
 /// <cts-enable />
 
 /**
- * Tag Selector Demo - Demonstrates cf-autocomplete with a tag/chip list
+ * Tag Selector Demo - Demonstrates ct-autocomplete with a tag/chip list
  *
- * This pattern shows how to wire cf-autocomplete to a userland tag display,
+ * This pattern shows how to wire ct-autocomplete to a userland tag display,
  * creating a multi-select experience from the single-select autocomplete component.
  */
 
@@ -60,7 +60,7 @@ export default pattern<Input, Result>(
         <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Tag Selector Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            This demonstrates using <code>cf-autocomplete</code> with a userland
+            This demonstrates using <code>ct-autocomplete</code> with a userland
             tag display to create a multi-select experience.
           </p>
 

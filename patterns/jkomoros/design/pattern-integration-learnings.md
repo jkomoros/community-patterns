@@ -22,7 +22,7 @@ We have TWO options:
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
-export default pattern("Prompt Injection Tracker", () => {
+export default recipe("Prompt Injection Tracker", () => {
   // Create auth instance
   const auth = GmailAuth({ auth: { /* defaults */ } });
 
@@ -45,7 +45,7 @@ export default pattern("Prompt Injection Tracker", () => {
 
 #### Option B: Link to external GmailImporter charm (MORE FLEXIBLE)
 ```typescript
-export default pattern<{ gmailImporter: any }>(
+export default recipe<{ gmailImporter: any }>(
   "Prompt Injection Tracker",
   ({ gmailImporter }) => {
     const emails = gmailImporter.emails; // Cell<Email[]>
@@ -111,9 +111,9 @@ const triggerExtraction = handler<
 );
 
 // 4. Use pending state in UI
-<cf-button onClick={triggerExtraction({ notes, extractTrigger })} disabled={extractionPending}>
+<ct-button onClick={triggerExtraction({ notes, extractTrigger })} disabled={extractionPending}>
   {extractionPending ? "Extracting..." : "Extract Recipe"}
-</cf-button>
+</ct-button>
 
 // 5. Check if result exists before showing
 const hasResult = derive(extractionResult, (result) => {
@@ -625,9 +625,9 @@ const { result, pending } = generateObject({
   schema: { /* ... */ },
 });
 
-<cf-button onClick={startProcess({ inputData, trigger })} disabled={pending}>
+<ct-button onClick={startProcess({ inputData, trigger })} disabled={pending}>
   {pending ? "Processing..." : "Process"}
-</cf-button>
+</ct-button>
 ```
 
 ### From meta-analyzer: Check Result Before Showing
