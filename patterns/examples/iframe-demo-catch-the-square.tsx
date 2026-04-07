@@ -70,18 +70,19 @@ const inst: IFrameRecipe = /* IFRAME-V0 */ {
   "name": "IFrame Demo: Catch the Square",
 }; /* IFRAME-V0 */
 
-const runIframeRecipe = (
-  { argumentSchema, resultSchema, src, name }: IFrameRecipe,
-) =>
-  pattern(
-    (data: any) => ({
-      [NAME]: name,
-      [UI]: <cf-iframe src={src} $context={data as CellLike<any>}></cf-iframe>,
-      score: data.score,
-      speed: data.speed,
-    }),
-    argumentSchema,
-    resultSchema,
-  );
-
-export default runIframeRecipe(inst);
+// Inlined at the export site: the new SES sandbox rejects function-valued
+// const bindings at module scope (only plain-data values may survive module
+// evaluation). Wrapping the pattern() call in a helper would leave a function
+// value bound to a top-level identifier, which fails plain-data validation.
+export default pattern(
+  (data: any) => ({
+    [NAME]: inst.name,
+    [UI]: (
+      <cf-iframe src={inst.src} $context={data as CellLike<any>}></cf-iframe>
+    ),
+    score: data.score,
+    speed: data.speed,
+  }),
+  inst.argumentSchema,
+  inst.resultSchema,
+);
