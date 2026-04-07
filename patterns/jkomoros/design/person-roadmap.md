@@ -403,7 +403,7 @@ type ProfileData = {
 ```typescript
 // meta-analyzer.tsx - Separate pattern for cross-profile analysis
 
-const MetaAnalyzer = recipe(
+const MetaAnalyzer = pattern(
   "MetaAnalyzer",
   ({ personCharms }: { personCharms: Array<OpaqueRef<Person>> }) => {
 
@@ -502,9 +502,9 @@ const handlePaste = handler<
 );
 
 // In UI:
-<ct-code-editor
+<cf-code-editor
   $value={notes}
-  onct-paste={handlePaste({ notes, extractTrigger })}
+  oncf-paste={handlePaste({ notes, extractTrigger })}
   // ... other props
 />
 ```
@@ -516,10 +516,10 @@ const handlePaste = handler<
 ### Setup (Before investors arrive)
 ```bash
 # Create demo space
-export CT_API_URL="http://localhost:8000/"
-export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
+export CF_API_URL="http://localhost:8000/"
+export CF_IDENTITY="/Users/alex/Code/labs/claude.key"
 
-deno task ct charm new \
+deno task cf charm new \
   --space alex-person-demo-v2 \
   /Users/alex/Code/recipes/recipes/alex/WIP/person-updated.tsx
 ```

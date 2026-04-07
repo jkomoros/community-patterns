@@ -1,15 +1,15 @@
-# ct-google-oauth Component Displays OAuth Tokens in HTML
+# cf-google-oauth Component Displays OAuth Tokens in HTML
 
 **Related to**: QA-BUGS-google-auth-1219.md (Bug #2)
 **Severity**: High (Security Concern)
-**Component**: `ct-google-oauth` web component (framework)
-**Location**: `packages/ui/src/v2/components/ct-google-oauth/ct-google-oauth.ts`
+**Component**: `cf-google-oauth` web component (framework)
+**Location**: `packages/ui/src/v2/components/cf-google-oauth/cf-google-oauth.ts`
 
 ---
 
 ## Summary
 
-After completing OAuth flow, the `ct-google-oauth` component renders a debug block that displays the complete `authResult` object as JSON, including:
+After completing OAuth flow, the `cf-google-oauth` component renders a debug block that displays the complete `authResult` object as JSON, including:
 - OAuth access token (in plain text)
 - OAuth refresh token
 - Token expiry
@@ -25,7 +25,7 @@ This is a **security concern** as tokens are exposed in rendered HTML where they
 
 ## Reproduction Steps
 
-1. Open a pattern using `<ct-google-oauth>` (e.g., google-auth.tsx)
+1. Open a pattern using `<cf-google-oauth>` (e.g., google-auth.tsx)
 2. Click "Sign in with Google"
 3. Complete OAuth flow
 4. Observe the "Authentication Result" section showing raw JSON
@@ -62,7 +62,7 @@ No permanent pattern-level fix exists since the debug block is in the framework 
 
 ## Root Cause
 
-In `ct-google-oauth.ts` (approximately lines 189-196):
+In `cf-google-oauth.ts` (approximately lines 189-196):
 
 ```typescript
 ${this.authResult
@@ -100,7 +100,7 @@ ${this.debug && this.authResult
 
 ## Impact
 
-- **Users affected**: Any user completing OAuth in patterns using ct-google-oauth
+- **Users affected**: Any user completing OAuth in patterns using cf-google-oauth
 - **Data exposed**: Access tokens, refresh tokens, user email/name
 - **Transient**: Only visible immediately after OAuth, disappears on navigation
 

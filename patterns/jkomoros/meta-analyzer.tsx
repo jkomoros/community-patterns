@@ -13,7 +13,7 @@ import {
   UI,
   wish,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Type for a person charm reference
 type PersonCharm = {
@@ -150,20 +150,20 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
     return {
       [NAME]: str`⚡ Meta Analyzer (${personCount} profiles)`,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2 style={{ margin: 0 }}>Field Suggestions</h2>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style={{ padding: "16px", gap: "12px" }}>
-              <ct-hstack style={{ alignItems: "center", gap: "12px" }}>
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style={{ padding: "16px", gap: "12px" }}>
+              <cf-hstack style={{ alignItems: "center", gap: "12px" }}>
                 <div style={{ flex: 1 }}>
                   <p style={{ margin: 0, color: "#666", fontSize: "13px" }}>
                     {personCount} profile{personCount !== 1 ? "s" : ""} • Click Analyze to find common fields
                   </p>
                 </div>
-                <ct-button
+                <cf-button
                   onClick={triggerAnalysis({ analysisInput, personCharms, hasAnalyzed })}
                   disabled={analysisPending}
                   variant="secondary"
@@ -171,20 +171,20 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                   {ifElse(
                     analysisPending,
                     <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing...
                     </span>,
                     "Analyze Profiles"
                   )}
-                </ct-button>
-              </ct-hstack>
+                </cf-button>
+              </cf-hstack>
 
               {ifElse(
                 computed(() => suggestions.length > 0),
-                <ct-vstack style={{ gap: "12px" }}>
+                <cf-vstack style={{ gap: "12px" }}>
                   <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Suggested Fields</h3>
                   {suggestions.map((suggestion: FieldSuggestion) => (
-                  <ct-vstack
+                  <cf-vstack
                     style={{
                       padding: "12px",
                       background: "#f9fafb",
@@ -193,7 +193,7 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                       gap: "8px",
                     }}
                   >
-                    <ct-hstack style={{ alignItems: "center", gap: "12px" }}>
+                    <cf-hstack style={{ alignItems: "center", gap: "12px" }}>
                       <div style={{ flex: 1 }}>
                         <strong style={{ fontSize: "14px" }}>
                           {suggestion.fieldLabel}
@@ -202,12 +202,12 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                           Found in {suggestion.frequency} profile{suggestion.frequency !== 1 ? "s" : ""} • {suggestion.dataType}
                         </div>
                       </div>
-                      <ct-button variant="secondary" size="sm" disabled>
+                      <cf-button variant="secondary" size="sm" disabled>
                         Field
-                      </ct-button>
-                    </ct-hstack>
+                      </cf-button>
+                    </cf-hstack>
 
-                    <ct-vstack style={{ gap: "6px" }}>
+                    <cf-vstack style={{ gap: "6px" }}>
                       <div style={{ fontSize: "12px", fontWeight: "500", color: "#555" }}>
                         Examples:
                       </div>
@@ -224,10 +224,10 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                           <strong>{sample.personName}:</strong> {sample.value}
                         </div>
                       ))}
-                    </ct-vstack>
-                  </ct-vstack>
+                    </cf-vstack>
+                  </cf-vstack>
                 ))}
-                </ct-vstack>,
+                </cf-vstack>,
                 ifElse(
                   computed(() => hasAnalyzed.get() && !analysisPending),
                   <div style={{ padding: "16px", textAlign: "center", color: "#666", fontSize: "13px" }}>
@@ -236,9 +236,9 @@ Return an array of suggestions, or an empty array if no patterns are found.`,
                   null
                 )
               )}
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
       suggestions,
       isAnalyzing: analysisPending,

@@ -17,7 +17,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // =============================================================================
 // A simple pattern (NOT GoogleAuth) to test if it's pattern instantiation
@@ -95,12 +95,12 @@ export default pattern<Input, Output>(
             <p>Step 3 (simple pattern): <strong>???</strong></p>
           </div>
 
-          <ct-button
+          <cf-button
             variant="primary"
             onClick={createSimplePattern({})}
           >
             Create Simple Pattern (No GoogleAuth)
-          </ct-button>
+          </cf-button>
         </div>
       ),
       testName: "CPU Spike Whittle 3",

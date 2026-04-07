@@ -24,7 +24,7 @@ import {
   UI,
   wish,
   Writable,
-} from "commontools";
+} from "commonfabric";
 import Family from "./family.tsx";
 import CalendarViewer from "../../../labs/packages/patterns/google/core/experimental/calendar-viewer.tsx";
 import GoogleCalendarImporter from "../../../labs/packages/patterns/google/core/google-calendar-importer.tsx";
@@ -839,14 +839,14 @@ const HostingTracker = pattern<HostingTrackerInput>(
       notes: "",
     });
 
-    // Form state for new rule - using separate cells for ct-input compatibility
+    // Form state for new rule - using separate cells for cf-input compatibility
     const newRuleForm = Writable.of<Partial<ClassificationRule>>({
       name: "",
       pattern: "",
       type: "location_exact",
       category: "they-hosted",
     });
-    // Separate writable cells for ct-input binding (avoids undefined type issue)
+    // Separate writable cells for cf-input binding (avoids undefined type issue)
     const newRuleName = Writable.of<string>("");
     const newRulePattern = Writable.of<string>("");
 
@@ -1033,19 +1033,19 @@ Include reasoning for each suggestion and potential false positives to watch for
     return {
       [NAME]: str`Hosting Tracker (${eventCount} events)`,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
-            <ct-hstack align="center" gap="2">
-              <ct-heading level={3}>Family Hosting Tracker</ct-heading>
-            </ct-hstack>
+            <cf-hstack align="center" gap="2">
+              <cf-heading level={3}>Family Hosting Tracker</cf-heading>
+            </cf-hstack>
           </div>
 
-          <ct-autolayout tabNames={["Dashboard", "Families", "Events", "Rules"]}>
+          <cf-autolayout tabNames={["Dashboard", "Families", "Events", "Rules"]}>
             {/* ========== TAB 1: DASHBOARD ========== */}
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style="padding: 16px; gap: 16px;">
+            <cf-vscroll flex showScrollbar>
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 {/* Setup Status Section */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">Setup Status</h3>
 
                   {/* Tip explaining the system */}
@@ -1064,7 +1064,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                   </div>
 
                   {/* Status rows */}
-                  <ct-vstack style="gap: 6px;">
+                  <cf-vstack style="gap: 6px;">
                     {/* Family status */}
                     <div
                       style={{
@@ -1093,9 +1093,9 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <span style={{ fontSize: "12px", color: "#22c55e" }}>
                           {familyCount} connected
                         </span>,
-                        <ct-button size="sm" onClick={createFamily()}>
+                        <cf-button size="sm" onClick={createFamily()}>
                           + Add Family
-                        </ct-button>
+                        </cf-button>
                       )}
                     </div>
 
@@ -1127,9 +1127,9 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <span style={{ fontSize: "12px", color: "#22c55e" }}>
                           Connected
                         </span>,
-                        <ct-button size="sm" variant="secondary" onClick={createGoogleCalendar()}>
+                        <cf-button size="sm" variant="secondary" onClick={createGoogleCalendar()}>
                           + Connect
-                        </ct-button>
+                        </cf-button>
                       )}
                     </div>
 
@@ -1161,16 +1161,16 @@ Include reasoning for each suggestion and potential false positives to watch for
                         <span style={{ fontSize: "12px", color: "#22c55e" }}>
                           Connected
                         </span>,
-                        <ct-button size="sm" variant="secondary" onClick={createAppleCalendar()}>
+                        <cf-button size="sm" variant="secondary" onClick={createAppleCalendar()}>
                           + Connect
-                        </ct-button>
+                        </cf-button>
                       )}
                     </div>
-                  </ct-vstack>
-                </ct-vstack>
+                  </cf-vstack>
+                </cf-vstack>
 
                 {/* Summary Stats */}
-                <ct-hstack style="gap: 12px; flex-wrap: wrap;">
+                <cf-hstack style="gap: 12px; flex-wrap: wrap;">
                   <div
                     style={{
                       padding: "12px 16px",
@@ -1218,12 +1218,12 @@ Include reasoning for each suggestion and potential false positives to watch for
                     </div>
                     <div style={{ fontSize: "12px", color: "#666" }}>Overdue</div>
                   </div>
-                </ct-hstack>
+                </cf-hstack>
 
                 {/* Overdue Families */}
                 {ifElse(
                   computed(() => overdueStats.length > 0),
-                  <ct-vstack style="gap: 8px;">
+                  <cf-vstack style="gap: 8px;">
                     <h3
                       style={{
                         margin: 0,
@@ -1271,14 +1271,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                         </div>
                       ))}
                     </div>
-                  </ct-vstack>,
+                  </cf-vstack>,
                   <></>
                 )}
 
                 {/* We Owe Families */}
                 {ifElse(
                   computed(() => weOweStats.length > 0),
-                  <ct-vstack style="gap: 8px;">
+                  <cf-vstack style="gap: 8px;">
                     <h3
                       style={{
                         margin: 0,
@@ -1312,14 +1312,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                         </div>
                       ))}
                     </div>
-                  </ct-vstack>,
+                  </cf-vstack>,
                   <></>
                 )}
 
                 {/* Balanced Families */}
                 {ifElse(
                   computed(() => balancedStats.length > 0),
-                  <ct-vstack style="gap: 8px;">
+                  <cf-vstack style="gap: 8px;">
                     <h3
                       style={{
                         margin: 0,
@@ -1353,19 +1353,19 @@ Include reasoning for each suggestion and potential false positives to watch for
                         </div>
                       ))}
                     </div>
-                  </ct-vstack>,
+                  </cf-vstack>,
                   <></>
                 )}
 
                 {/* Recent Events */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">Recent Events</h3>
                   {ifElse(
                     computed(() => recentEvents.length === 0),
                     <div style="color: #666; font-size: 13px;">
                       No events recorded yet
                     </div>,
-                    <ct-vstack style="gap: 4px;">
+                    <cf-vstack style="gap: 4px;">
                       {recentEvents.map((event) => (
                         <div
                           style={{
@@ -1402,15 +1402,15 @@ Include reasoning for each suggestion and potential false positives to watch for
                           </span>
                         </div>
                       ))}
-                    </ct-vstack>
+                    </cf-vstack>
                   )}
-                </ct-vstack>
-              </ct-vstack>
-            </ct-vscroll>
+                </cf-vstack>
+              </cf-vstack>
+            </cf-vscroll>
 
             {/* ========== TAB 2: FAMILIES ========== */}
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style="padding: 16px; gap: 16px;">
+            <cf-vscroll flex showScrollbar>
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 <div
                   style={{
                     padding: "12px",
@@ -1424,9 +1424,9 @@ Include reasoning for each suggestion and potential false positives to watch for
                   want to track. After creating, favorite it (star icon) with the{" "}
                   <code>#family</code> hashtag so this tracker can discover it.
                   <div style={{ marginTop: "8px" }}>
-                    <ct-button size="sm" onClick={createFamily()}>
+                    <cf-button size="sm" onClick={createFamily()}>
                       + Create Family
-                    </ct-button>
+                    </cf-button>
                   </div>
                 </div>
 
@@ -1439,7 +1439,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                   <div style="color: #666; font-size: 13px; padding: 20px; text-align: center;">
                     No families found. Create a Family charm and favorite it.
                   </div>,
-                  <ct-vstack style="gap: 8px;">
+                  <cf-vstack style="gap: 8px;">
                     {trackedFamilies.map((family) => {
                       const stat = computed(() =>
                         familyStats.find((s) => s.familyId === family.id)
@@ -1459,7 +1459,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                             ),
                           }}
                         >
-                          <ct-hstack style="justify-content: space-between; align-items: center;">
+                          <cf-hstack style="justify-content: space-between; align-items: center;">
                             <div>
                               <strong style={{ fontSize: "15px" }}>
                                 {family.name}
@@ -1501,20 +1501,20 @@ Include reasoning for each suggestion and potential false positives to watch for
                                 )
                               )}
                             </div>
-                          </ct-hstack>
+                          </cf-hstack>
                         </div>
                       );
                     })}
-                  </ct-vstack>
+                  </cf-vstack>
                 )}
-              </ct-vstack>
-            </ct-vscroll>
+              </cf-vstack>
+            </cf-vscroll>
 
             {/* ========== TAB 3: EVENTS ========== */}
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style="padding: 16px; gap: 16px;">
+            <cf-vscroll flex showScrollbar>
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 {/* Unclassified Events Section */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">
                     Unclassified Events ({unclassifiedCount})
                   </h3>
@@ -1525,7 +1525,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                       No unclassified calendar events. Connect a calendar or add
                       events manually.
                     </div>,
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       {computed(() =>
                           unclassifiedEvents.slice(0, 10).map((event) => {
                             const suggestion = eventSuggestions[event.id];
@@ -1581,7 +1581,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                                   <></>
                                 )}
 
-                                <ct-hstack style="gap: 8px; flex-wrap: wrap;">
+                                <cf-hstack style="gap: 8px; flex-wrap: wrap;">
                                   {/* Apply Suggestion button if available */}
                                   {hasSuggestion && suggestion.category ? (
                                     <button
@@ -1678,17 +1678,17 @@ Include reasoning for each suggestion and potential false positives to watch for
                                   >
                                     Neutral
                                   </button>
-                                </ct-hstack>
+                                </cf-hstack>
                               </div>
                             );
                           })
                       )}
-                    </ct-vstack>
+                    </cf-vstack>
                   )}
-                </ct-vstack>
+                </cf-vstack>
 
                 {/* Manual Event Entry */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">Add Manual Event</h3>
                   <div
                     style={{
@@ -1698,31 +1698,31 @@ Include reasoning for each suggestion and potential false positives to watch for
                       border: "1px solid #e5e7eb",
                     }}
                   >
-                    <ct-vstack style="gap: 8px;">
-                      <ct-hstack style="gap: 8px;">
+                    <cf-vstack style="gap: 8px;">
+                      <cf-hstack style="gap: 8px;">
                         <label style={{ flex: 2 }}>
                           Title
-                          <ct-input
+                          <cf-input
                             $value={manualEventForm.key("title")}
                             placeholder="Event title"
                           />
                         </label>
                         <label style={{ flex: 1 }}>
                           Date
-                          <ct-input
+                          <cf-input
                             $value={manualEventForm.key("date")}
                             placeholder="YYYY-MM-DD"
                           />
                         </label>
-                      </ct-hstack>
+                      </cf-hstack>
                       <label>
                         Location
-                        <ct-input
+                        <cf-input
                           $value={manualEventForm.key("location")}
                           placeholder="Where?"
                         />
                       </label>
-                      <ct-hstack style="gap: 8px;">
+                      <cf-hstack style="gap: 8px;">
                         <label style={{ flex: 1 }}>
                           Family
                           <select
@@ -1761,24 +1761,24 @@ Include reasoning for each suggestion and potential false positives to watch for
                             <option value="neutral">Neutral</option>
                           </select>
                         </label>
-                      </ct-hstack>
-                      <ct-hstack style="gap: 8px;">
-                        <ct-button onClick={addManualEvent({ hostingEvents, manualEventForm })}>
+                      </cf-hstack>
+                      <cf-hstack style="gap: 8px;">
+                        <cf-button onClick={addManualEvent({ hostingEvents, manualEventForm })}>
                           Add Event
-                        </ct-button>
-                        <ct-button
+                        </cf-button>
+                        <cf-button
                           variant="secondary"
                           onClick={addEventAndSuggestRules({ hostingEvents, manualEventForm, ruleSuggestionPrompt })}
                         >
                           Add & Suggest Rules
-                        </ct-button>
-                      </ct-hstack>
-                    </ct-vstack>
+                        </cf-button>
+                      </cf-hstack>
+                    </cf-vstack>
                   </div>
-                </ct-vstack>
+                </cf-vstack>
 
                 {/* Event History */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">
                     Event History ({eventCount})
                   </h3>
@@ -1787,7 +1787,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                     <div style="color: #666; font-size: 13px;">
                       No events recorded yet
                     </div>,
-                    <ct-vstack style="gap: 4px;">
+                    <cf-vstack style="gap: 4px;">
                       {hostingEvents.map((event) => (
                         <div
                           style={{
@@ -1832,17 +1832,17 @@ Include reasoning for each suggestion and potential false positives to watch for
                           </button>
                         </div>
                       ))}
-                    </ct-vstack>
+                    </cf-vstack>
                   )}
-                </ct-vstack>
-              </ct-vstack>
-            </ct-vscroll>
+                </cf-vstack>
+              </cf-vstack>
+            </cf-vscroll>
 
             {/* ========== TAB 4: RULES ========== */}
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style="padding: 16px; gap: 16px;">
+            <cf-vscroll flex showScrollbar>
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 {/* My Addresses */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">My Addresses</h3>
                   <p style="margin: 0; font-size: 12px; color: #666;">
                     Events at these addresses are classified as "we-hosted"
@@ -1853,7 +1853,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                     <div style="color: #666; font-size: 13px;">
                       No addresses added yet
                     </div>,
-                    <ct-vstack style="gap: 4px;">
+                    <cf-vstack style="gap: 4px;">
                       {myAddresses.map((addr) => (
                         <div
                           style={{
@@ -1891,16 +1891,16 @@ Include reasoning for each suggestion and potential false positives to watch for
                           </button>
                         </div>
                       ))}
-                    </ct-vstack>
+                    </cf-vstack>
                   )}
-                  <ct-message-input
+                  <cf-message-input
                     placeholder="Add your address..."
-                    onct-send={addMyAddress({ myAddresses })}
+                    oncf-send={addMyAddress({ myAddresses })}
                   />
-                </ct-vstack>
+                </cf-vstack>
 
                 {/* Settings */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">Settings</h3>
                   <label>
                     Overdue Threshold (days)
@@ -1917,10 +1917,10 @@ Include reasoning for each suggestion and potential false positives to watch for
                       }}
                     />
                   </label>
-                </ct-vstack>
+                </cf-vstack>
 
                 {/* Classification Rules */}
-                <ct-vstack style="gap: 8px;">
+                <cf-vstack style="gap: 8px;">
                   <h3 style="margin: 0; font-size: 14px;">
                     Classification Rules ({computed(() => rules.length)})
                   </h3>
@@ -1930,7 +1930,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                     <div style="color: #666; font-size: 13px;">
                       No rules configured yet
                     </div>,
-                    <ct-vstack style="gap: 4px;">
+                    <cf-vstack style="gap: 4px;">
                       {rules.map((rule) => (
                         <div
                           style={{
@@ -1979,7 +1979,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                           </button>
                         </div>
                       ))}
-                    </ct-vstack>
+                    </cf-vstack>
                   )}
 
                   {/* Add Rule Form */}
@@ -1993,11 +1993,11 @@ Include reasoning for each suggestion and potential false positives to watch for
                     }}
                   >
                     <h4 style="margin: 0 0 8px 0; font-size: 13px;">Add New Rule</h4>
-                    <ct-vstack style="gap: 8px;">
-                      <ct-hstack style="gap: 8px;">
+                    <cf-vstack style="gap: 8px;">
+                      <cf-hstack style="gap: 8px;">
                         <label style={{ flex: 1 }}>
                           Name
-                          <ct-input
+                          <cf-input
                             $value={newRuleName}
                             placeholder="Rule name"
                           />
@@ -2022,15 +2022,15 @@ Include reasoning for each suggestion and potential false positives to watch for
                             <option value="attendee_email">Attendee email</option>
                           </select>
                         </label>
-                      </ct-hstack>
+                      </cf-hstack>
                       <label>
                         Pattern
-                        <ct-input
+                        <cf-input
                           $value={newRulePattern}
                           placeholder="Pattern to match"
                         />
                       </label>
-                      <ct-hstack style="gap: 8px;">
+                      <cf-hstack style="gap: 8px;">
                         <label style={{ flex: 1 }}>
                           Category
                           <select
@@ -2049,14 +2049,14 @@ Include reasoning for each suggestion and potential false positives to watch for
                             <option value="neutral">Neutral</option>
                           </select>
                         </label>
-                        <ct-button
+                        <cf-button
                           onClick={addRule({ rules, newRule: newRuleForm, newRuleName, newRulePattern })}
                           style={{ alignSelf: "flex-end" }}
                         >
                           Add Rule
-                        </ct-button>
-                      </ct-hstack>
-                    </ct-vstack>
+                        </cf-button>
+                      </cf-hstack>
+                    </cf-vstack>
                   </div>
 
                   {/* LLM Rule Suggestions */}
@@ -2071,18 +2071,18 @@ Include reasoning for each suggestion and potential false positives to watch for
                         border: "1px solid #f59e0b",
                       }}
                     >
-                      <ct-hstack style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                      <cf-hstack style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
                         <h4 style="margin: 0; font-size: 13px; color: #d97706;">
                           AI Rule Suggestions
                         </h4>
-                        <ct-button
+                        <cf-button
                           variant="ghost"
                           onClick={dismissSuggestions({ ruleSuggestionPrompt })}
                           style={{ fontSize: "12px" }}
                         >
                           Dismiss
-                        </ct-button>
-                      </ct-hstack>
+                        </cf-button>
+                      </cf-hstack>
 
                       {ifElse(
                         llmSuggestions.pending,
@@ -2094,7 +2094,7 @@ Include reasoning for each suggestion and potential false positives to watch for
                           <div style="color: #dc2626; font-size: 13px;">
                             Error: {llmSuggestions.error}
                           </div>,
-                          <ct-vstack style="gap: 8px;">
+                          <cf-vstack style="gap: 8px;">
                             {computed(() => llmSuggestions.result?.suggestions || []).map((suggestion) => (
                               <div
                                 style={{
@@ -2104,8 +2104,8 @@ Include reasoning for each suggestion and potential false positives to watch for
                                   border: "1px solid #fcd34d",
                                 }}
                               >
-                                <ct-hstack style="justify-content: space-between; align-items: flex-start;">
-                                  <ct-vstack style="gap: 4px; flex: 1;">
+                                <cf-hstack style="justify-content: space-between; align-items: flex-start;">
+                                  <cf-vstack style="gap: 4px; flex: 1;">
                                     <strong style={{ fontSize: "13px" }}>{suggestion.name}</strong>
                                     <span style="font-size: 12px; color: #666;">
                                       {suggestion.type}: "{suggestion.pattern}"
@@ -2120,27 +2120,27 @@ Include reasoning for each suggestion and potential false positives to watch for
                                       </span>,
                                       <></>
                                     )}
-                                  </ct-vstack>
-                                  <ct-button
+                                  </cf-vstack>
+                                  <cf-button
                                     onClick={acceptSuggestion({ rules, suggestion, ruleSuggestionPrompt })}
                                     style={{ fontSize: "12px" }}
                                   >
                                     Accept
-                                  </ct-button>
-                                </ct-hstack>
+                                  </cf-button>
+                                </cf-hstack>
                               </div>
                             ))}
-                          </ct-vstack>
+                          </cf-vstack>
                         )
                       )}
                     </div>,
                     <></>
                   )}
-                </ct-vstack>
-              </ct-vstack>
-            </ct-vscroll>
-          </ct-autolayout>
-        </ct-screen>
+                </cf-vstack>
+              </cf-vstack>
+            </cf-vscroll>
+          </cf-autolayout>
+        </cf-screen>
       ),
 
       // Output all fields

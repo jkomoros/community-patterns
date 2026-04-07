@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, NAME, pattern, UI, wish } from "commontools";
+import { computed, Default, NAME, pattern, UI, wish } from "commonfabric";
 
 // ============================================================================
 // Types
@@ -826,11 +826,11 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
         {/* Auto-detection toggle */}
         <div style={{ marginBottom: "1rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <ct-checkbox $checked={autoDetectEnabled}>
+            <cf-checkbox $checked={autoDetectEnabled}>
               <span style={{ fontSize: "13px" }}>
                 Auto-detect common PII patterns (supplements manual entries)
               </span>
-            </ct-checkbox>
+            </cf-checkbox>
           </div>
           <div style={{ fontSize: "11px", color: "#666", marginTop: "4px", marginLeft: "24px" }}>
             Detects: US emails, phones, SSNs, credit cards. Does NOT detect: names, addresses, international formats.
@@ -922,7 +922,7 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
           <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
             Input Text (may contain PII)
           </h3>
-          <ct-input
+          <cf-input
             $value={inputText}
             placeholder="Paste or link text that may contain PII..."
           />
@@ -1023,7 +1023,7 @@ export default pattern<InputSchema, OutputSchema>(({ title, piiEntries, inputTex
           <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "14px" }}>
             LLM Response (paste or link response here)
           </h3>
-          <ct-input
+          <cf-input
             $value={llmResponse}
             placeholder="Paste or link LLM response containing nonces..."
           />

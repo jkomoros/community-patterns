@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { handler, NAME, navigateTo, pattern, UI } from "commontools";
+import { handler, NAME, navigateTo, pattern, UI } from "commonfabric";
 
 // Demo data for extraction demos
 import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";
@@ -10,7 +10,7 @@ import Counter from "../../../labs/packages/patterns/counter/counter.tsx";
 import ShoppingListLauncher from "./shopping-list-launcher.tsx";
 import { createStoreMapper } from "./store-mapper.tsx";
 import MetaAnalyzer from "./meta-analyzer.tsx";
-import FoodRecipe from "./food-recipe.tsx";
+import FoodRecipe from "./food-pattern.tsx";
 import PromptInjectionTracker from "./prompt-injection-tracker.tsx";
 import SubstackSummarizer from "./substack-summarizer.tsx";
 import CozyPoll from "./cozy-poll.tsx";
@@ -61,109 +61,109 @@ export default pattern<Input, Output>(
     return {
       [NAME]: "Page Creator",
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2 style="margin: 0; fontSize: 18px;">Create New Page</h2>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style="padding: 16px; gap: 12px;">
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style="padding: 16px; gap: 12px;">
               <p style="margin: 0; fontSize: 13px; color: #666;">Select a page type to create:</p>
 
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                  <ct-button onClick={handleCreatePerson()} size="lg">
+                  <cf-button onClick={handleCreatePerson()} size="lg">
                     👤 New Person
-                  </ct-button>
-                  <ct-button onClick={handleCreatePersonDemo()} variant="secondary" size="sm">
+                  </cf-button>
+                  <cf-button onClick={handleCreatePersonDemo()} variant="secondary" size="sm">
                     Demo
-                  </ct-button>
+                  </cf-button>
                 </div>
 
-                <ct-button onClick={handleCreateCounter()} size="lg">
+                <cf-button onClick={handleCreateCounter()} size="lg">
                   🔢 New Counter
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateShoppingList()} size="lg">
+                <cf-button onClick={handleCreateShoppingList()} size="lg">
                   🛒 Shopping List
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateStoreMapper()} size="lg">
+                <cf-button onClick={handleCreateStoreMapper()} size="lg">
                   🗺️ Store Mapper
-                </ct-button>
+                </cf-button>
 
                 <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                  <ct-button onClick={handleCreateFoodRecipe()} size="lg">
+                  <cf-button onClick={handleCreateFoodRecipe()} size="lg">
                     🍳 New Recipe
-                  </ct-button>
-                  <ct-button onClick={handleCreateFoodRecipeDemo()} variant="secondary" size="sm">
+                  </cf-button>
+                  <cf-button onClick={handleCreateFoodRecipeDemo()} variant="secondary" size="sm">
                     Demo
-                  </ct-button>
+                  </cf-button>
                 </div>
 
-                <ct-button onClick={handleCreateMetaAnalyzer()} size="lg">
+                <cf-button onClick={handleCreateMetaAnalyzer()} size="lg">
                   ⚡ Field Suggestions (Meta Analyzer)
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreatePromptInjectionTracker()} size="lg">
+                <cf-button onClick={handleCreatePromptInjectionTracker()} size="lg">
                   🔒 Prompt Injection Tracker
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateSubstackSummarizer()} size="lg">
+                <cf-button onClick={handleCreateSubstackSummarizer()} size="lg">
                   📧 Substack Summarizer
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateCozyPoll()} size="lg">
+                <cf-button onClick={handleCreateCozyPoll()} size="lg">
                   🗳️ Cozy Poll
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateRewardSpinner()} size="lg">
+                <cf-button onClick={handleCreateRewardSpinner()} size="lg">
                   🎰 Reward Spinner
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateCheeseboardSchedule()} size="lg">
+                <cf-button onClick={handleCreateCheeseboardSchedule()} size="lg">
                   🍕 Cheeseboard Schedule
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateMealOrchestrator()} size="lg">
+                <cf-button onClick={handleCreateMealOrchestrator()} size="lg">
                   🍽️ Meal Orchestrator
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreatePreparedFood()} size="lg">
+                <cf-button onClick={handleCreatePreparedFood()} size="lg">
                   🛒 Prepared Food
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateHotelMembershipExtractor()} size="lg">
+                <cf-button onClick={handleCreateHotelMembershipExtractor()} size="lg">
                   🏨 Hotel Membership Extractor
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateGoogleCalendarImporter()} size="lg">
+                <cf-button onClick={handleCreateGoogleCalendarImporter()} size="lg">
                   📅 Google Calendar Importer
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateSmartRubric()} size="lg">
+                <cf-button onClick={handleCreateSmartRubric()} size="lg">
                   📊 Smart Rubric
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateFavoritesViewer()} size="lg">
+                <cf-button onClick={handleCreateFavoritesViewer()} size="lg">
                   ⭐ Favorites Viewer
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateStarChart()} size="lg">
+                <cf-button onClick={handleCreateStarChart()} size="lg">
                   ⭐ Star Chart
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateStoryWeaver()} size="lg">
+                <cf-button onClick={handleCreateStoryWeaver()} size="lg">
                   🧵 Story Weaver
-                </ct-button>
+                </cf-button>
 
-                <ct-button onClick={handleCreateCodenamesHelper()} size="lg">
+                <cf-button onClick={handleCreateCodenamesHelper()} size="lg">
                   🕵️ Codenames Helper
-                </ct-button>
-              </ct-vstack>
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+                </cf-button>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
     };
   },

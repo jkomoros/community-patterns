@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 /**
  * Star Chart Pattern
@@ -421,7 +421,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
     return {
       [NAME]: "Star Chart",
       [UI]: (
-        <ct-screen style="background: linear-gradient(180deg, #fef3c7 0%, #fef9c3 100%); font-family: system-ui, sans-serif;">
+        <cf-screen style="background: linear-gradient(180deg, #fef3c7 0%, #fef9c3 100%); font-family: system-ui, sans-serif;">
           {ifElse(
             isSettingsMode,
             /* Settings View - Edit Goal Name & Description */
@@ -482,7 +482,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                 >
                   Goal Name
                 </div>
-                <ct-input
+                <cf-input
                   type="text"
                   $value={goalName}
                   placeholder="e.g., Dry Night, Big Kid Day"
@@ -515,7 +515,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
                 >
                   Description (optional)
                 </div>
-                <ct-input
+                <cf-input
                   type="text"
                   $value={goalDescription}
                   placeholder="e.g., Stay dry all night long!"
@@ -1162,7 +1162,7 @@ const StarChart = pattern<StarChartInput, StarChartOutput>(
               transform: scale(0.9);
             }
           `}</style>
-        </ct-screen>
+        </cf-screen>
       ),
       goalName,
       goalDescription,

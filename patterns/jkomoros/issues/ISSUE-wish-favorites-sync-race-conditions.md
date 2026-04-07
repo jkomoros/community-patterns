@@ -248,7 +248,7 @@ favorites.filter(...) finds no hashtags in empty tags
 
 ### Test 1: Basic Favorite Persistence Failure
 
-1. Deploy a pattern: `deno task ct charm new patterns/examples/counter.tsx --space test`
+1. Deploy a pattern: `deno task cf charm new patterns/examples/counter.tsx --space test`
 2. Navigate to the charm URL
 3. Verify star is empty (☆)
 4. Click star button → star fills (⭐)

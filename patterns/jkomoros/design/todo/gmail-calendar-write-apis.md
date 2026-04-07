@@ -45,7 +45,7 @@ const SCOPE_MAP = {
 
 1. **SHA Verification**: Patterns with a verified SHA can be trusted for declassification
 2. **User-land flexibility**: No need to modify labs - patterns can be blessed by SHA
-3. **Existing components**: Use ct-card, ct-button, ct-alert for confirmation UI
+3. **Existing components**: Use cf-card, cf-button, cf-alert for confirmation UI
 4. **Auditability**: Pattern source is versioned and auditable
 
 ### Core Principle
@@ -80,7 +80,7 @@ const policy = {
 import {
   Cell, cell, Default, derive, handler, ifElse,
   NAME, pattern, UI, wish
-} from "commontools";
+} from "commonfabric";
 import { GmailSendClient } from "./util/gmail-send-client.ts";
 import type { Auth } from "./google-auth.tsx";
 
@@ -168,51 +168,51 @@ export default pattern<Input>(({ draft }) => {
   return {
     [NAME]: "Gmail Sender",
     [UI]: (
-      <ct-screen>
+      <cf-screen>
         <div slot="header">
-          <ct-heading level={3}>Send Email</ct-heading>
+          <cf-heading level={3}>Send Email</cf-heading>
         </div>
 
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack padding="6" gap="4">
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack padding="6" gap="4">
             {/* Auth status */}
             {ifElse(
               hasAuth,
               <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #d1fae5; border-radius: 6px;">
                 <span>Sending as: <strong>{senderEmail}</strong></span>
               </div>,
-              <ct-alert variant="warning">
+              <cf-alert variant="warning">
                 <span slot="title">Not authenticated</span>
                 <span slot="description">
                   Please create and favorite a Google Auth charm with Gmail Send permission.
                 </span>
-              </ct-alert>
+              </cf-alert>
             )}
 
             {/* Compose form */}
-            <ct-vstack gap="3">
+            <cf-vstack gap="3">
               <div>
-                <ct-label>To</ct-label>
-                <ct-input $value={draft.to} placeholder="recipient@example.com" />
+                <cf-label>To</cf-label>
+                <cf-input $value={draft.to} placeholder="recipient@example.com" />
               </div>
               <div>
-                <ct-label>CC (optional)</ct-label>
-                <ct-input $value={draft.cc} placeholder="cc@example.com" />
+                <cf-label>CC (optional)</cf-label>
+                <cf-input $value={draft.cc} placeholder="cc@example.com" />
               </div>
               <div>
-                <ct-label>Subject</ct-label>
-                <ct-input $value={draft.subject} placeholder="Email subject" />
+                <cf-label>Subject</cf-label>
+                <cf-input $value={draft.subject} placeholder="Email subject" />
               </div>
               <div>
-                <ct-label>Message</ct-label>
-                <ct-textarea
+                <cf-label>Message</cf-label>
+                <cf-textarea
                   $value={draft.body}
                   placeholder="Write your message..."
                   style="min-height: 200px;"
                 />
               </div>
 
-              <ct-button
+              <cf-button
                 variant="primary"
                 onClick={prepareToSend({ showConfirmation })}
                 disabled={derive(
@@ -222,31 +222,31 @@ export default pattern<Input>(({ draft }) => {
                 )}
               >
                 Review & Send
-              </ct-button>
-            </ct-vstack>
+              </cf-button>
+            </cf-vstack>
 
             {/* Result display */}
             {ifElse(
               derive(result, r => r?.success === true),
-              <ct-alert variant="success" dismissible>
+              <cf-alert variant="success" dismissible>
                 <span slot="title">Email sent!</span>
                 <span slot="description">Message ID: {derive(result, r => r?.messageId)}</span>
-              </ct-alert>,
+              </cf-alert>,
               null
             )}
             {ifElse(
               derive(result, r => r?.success === false),
-              <ct-alert variant="destructive" dismissible>
+              <cf-alert variant="destructive" dismissible>
                 <span slot="title">Failed to send</span>
                 <span slot="description">{derive(result, r => r?.error)}</span>
-              </ct-alert>,
+              </cf-alert>,
               null
             )}
 
             {/* CONFIRMATION DIALOG */}
             {ifElse(
               showConfirmation,
-              <ct-card style="border: 2px solid #dc2626; margin-top: 16px;">
+              <cf-card style="border: 2px solid #dc2626; margin-top: 16px;">
                 <div slot="header" style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 20px;">📧</span>
                   <h3 style="margin: 0; color: #dc2626;">Confirm Send Email</h3>
@@ -282,37 +282,37 @@ export default pattern<Input>(({ draft }) => {
                     </div>
                   </div>
 
-                  <ct-alert variant="warning">
+                  <cf-alert variant="warning">
                     <span slot="title">This will send a real email</span>
                     <span slot="description">
                       The recipient will receive this email from your Google account.
                       This action cannot be undone.
                     </span>
-                  </ct-alert>
+                  </cf-alert>
                 </div>
 
                 <div slot="footer" style="display: flex; gap: 12px; justify-content: flex-end;">
-                  <ct-button
+                  <cf-button
                     variant="outline"
                     onClick={cancelSend({ showConfirmation })}
                     disabled={sending}
                   >
                     Cancel
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     variant="destructive"
                     onClick={confirmAndSend({ draft, auth, sending, result, showConfirmation })}
                     disabled={sending}
                   >
                     {ifElse(sending, "Sending...", "Send Email")}
-                  </ct-button>
+                  </cf-button>
                 </div>
-              </ct-card>,
+              </cf-card>,
               null
             )}
-          </ct-vstack>
-        </ct-vscroll>
-      </ct-screen>
+          </cf-vstack>
+        </cf-vscroll>
+      </cf-screen>
     ),
     draft,
     result,
@@ -329,7 +329,7 @@ export default pattern<Input>(({ draft }) => {
 import {
   Cell, cell, Default, derive, handler, ifElse,
   NAME, pattern, UI, wish
-} from "commontools";
+} from "commonfabric";
 import { CalendarWriteClient } from "./util/calendar-write-client.ts";
 import type { Auth } from "./google-auth.tsx";
 import type { Calendar, CalendarEvent } from "./google-calendar-importer.tsx";
@@ -548,54 +548,54 @@ export default pattern<Input>(({ selectedEvent }) => {
   return {
     [NAME]: "Calendar Manager",
     [UI]: (
-      <ct-screen>
+      <cf-screen>
         <div slot="header">
-          <ct-heading level={3}>Calendar Event Manager</ct-heading>
+          <cf-heading level={3}>Calendar Event Manager</cf-heading>
         </div>
 
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack padding="6" gap="4">
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack padding="6" gap="4">
             {/* Auth status */}
             {ifElse(
               hasAuth,
               <div style="display: flex; align-items: center; gap: 8px; padding: 8px; background: #d1fae5; border-radius: 6px;">
                 <span>Managing calendar for: <strong>{userEmail}</strong></span>
               </div>,
-              <ct-alert variant="warning">
+              <cf-alert variant="warning">
                 <span slot="title">Not authenticated</span>
                 <span slot="description">
                   Please create and favorite a Google Auth charm with Calendar Write permission.
                 </span>
-              </ct-alert>
+              </cf-alert>
             )}
 
             {/* Event form */}
-            <ct-vstack gap="3">
+            <cf-vstack gap="3">
               <div>
-                <ct-label>Event Title</ct-label>
-                <ct-input $value={draft.summary} placeholder="Meeting with team" />
+                <cf-label>Event Title</cf-label>
+                <cf-input $value={draft.summary} placeholder="Meeting with team" />
               </div>
-              <ct-hstack gap="3">
+              <cf-hstack gap="3">
                 <div style="flex: 1;">
-                  <ct-label>Start</ct-label>
-                  <ct-input type="datetime-local" $value={draft.start} />
+                  <cf-label>Start</cf-label>
+                  <cf-input type="datetime-local" $value={draft.start} />
                 </div>
                 <div style="flex: 1;">
-                  <ct-label>End</ct-label>
-                  <ct-input type="datetime-local" $value={draft.end} />
+                  <cf-label>End</cf-label>
+                  <cf-input type="datetime-local" $value={draft.end} />
                 </div>
-              </ct-hstack>
+              </cf-hstack>
               <div>
-                <ct-label>Location (optional)</ct-label>
-                <ct-input $value={draft.location} placeholder="Conference Room A" />
+                <cf-label>Location (optional)</cf-label>
+                <cf-input $value={draft.location} placeholder="Conference Room A" />
               </div>
               <div>
-                <ct-label>Description (optional)</ct-label>
-                <ct-textarea $value={draft.description} placeholder="Event details..." />
+                <cf-label>Description (optional)</cf-label>
+                <cf-textarea $value={draft.description} placeholder="Event details..." />
               </div>
               <div>
-                <ct-label>Attendees (comma-separated emails)</ct-label>
-                <ct-input
+                <cf-label>Attendees (comma-separated emails)</cf-label>
+                <cf-input
                   value={derive(draft.attendees, a => (a || []).join(", "))}
                   onchange={(e: any) => {
                     const emails = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -605,8 +605,8 @@ export default pattern<Input>(({ selectedEvent }) => {
                 />
               </div>
 
-              <ct-hstack gap="3">
-                <ct-button
+              <cf-hstack gap="3">
+                <cf-button
                   variant="primary"
                   onClick={prepareOperation({ operation: "create" }, { draft, pendingOp, selectedEvent })}
                   disabled={derive(
@@ -616,14 +616,14 @@ export default pattern<Input>(({ selectedEvent }) => {
                   )}
                 >
                   Create Event
-                </ct-button>
-              </ct-hstack>
-            </ct-vstack>
+                </cf-button>
+              </cf-hstack>
+            </cf-vstack>
 
             {/* Result display */}
             {ifElse(
               derive(result, r => r?.success === true),
-              <ct-alert variant="success" dismissible>
+              <cf-alert variant="success" dismissible>
                 <span slot="title">
                   {derive(result, r => {
                     switch (r?.operation) {
@@ -635,15 +635,15 @@ export default pattern<Input>(({ selectedEvent }) => {
                     }
                   })}
                 </span>
-              </ct-alert>,
+              </cf-alert>,
               null
             )}
             {ifElse(
               derive(result, r => r?.success === false),
-              <ct-alert variant="destructive" dismissible>
+              <cf-alert variant="destructive" dismissible>
                 <span slot="title">Operation failed</span>
                 <span slot="description">{derive(result, r => r?.error)}</span>
-              </ct-alert>,
+              </cf-alert>,
               null
             )}
 
@@ -658,7 +658,7 @@ export default pattern<Input>(({ selectedEvent }) => {
                 const icon = isDelete ? "🗑️" : op.operation === "rsvp" ? "📬" : "📅";
 
                 return (
-                  <ct-card style={`border: 2px solid ${borderColor}; margin-top: 16px;`}>
+                  <cf-card style={`border: 2px solid ${borderColor}; margin-top: 16px;`}>
                     <div slot="header" style="display: flex; align-items: center; gap: 8px;">
                       <span style="font-size: 20px;">{icon}</span>
                       <h3 style={`margin: 0; color: ${borderColor};`}>
@@ -708,21 +708,21 @@ export default pattern<Input>(({ selectedEvent }) => {
                         )}
                       </div>
 
-                      <ct-alert variant={isDelete ? "destructive" : "warning"}>
+                      <cf-alert variant={isDelete ? "destructive" : "warning"}>
                         <span slot="title">{warning.title}</span>
                         <span slot="description">{warning.desc}</span>
-                      </ct-alert>
+                      </cf-alert>
                     </div>
 
                     <div slot="footer" style="display: flex; gap: 12px; justify-content: flex-end;">
-                      <ct-button
+                      <cf-button
                         variant="outline"
                         onClick={cancelOperation({ pendingOp })}
                         disabled={processing}
                       >
                         Cancel
-                      </ct-button>
-                      <ct-button
+                      </cf-button>
+                      <cf-button
                         variant={isDelete ? "destructive" : "primary"}
                         onClick={confirmOperation({ pendingOp, auth, processing, result, draft })}
                         disabled={processing}
@@ -732,16 +732,16 @@ export default pattern<Input>(({ selectedEvent }) => {
                           op.operation === "update" ? "Update Event" :
                           op.operation === "delete" ? "Delete Event" : "Send RSVP"
                         )}
-                      </ct-button>
+                      </cf-button>
                     </div>
-                  </ct-card>
+                  </cf-card>
                 );
               }),
               null
             )}
-          </ct-vstack>
-        </ct-vscroll>
-      </ct-screen>
+          </cf-vstack>
+        </cf-vscroll>
+      </cf-screen>
     ),
     draft,
     result,
@@ -759,10 +759,10 @@ export default pattern<Input>(({ selectedEvent }) => {
 ```typescript
 // util/gmail-send-client.ts
 
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Cell, getPatternEnvironment } from "commonfabric";
 import type { Auth } from "../google-auth.tsx";
 
-const env = getRecipeEnvironment();
+const env = getPatternEnvironment();
 
 export interface SendEmailParams {
   to: string;
@@ -890,11 +890,11 @@ export class GmailSendClient {
 ```typescript
 // util/calendar-write-client.ts
 
-import { Cell, getRecipeEnvironment } from "commontools";
+import { Cell, getPatternEnvironment } from "commonfabric";
 import type { Auth } from "../google-auth.tsx";
 import type { CalendarEvent } from "../google-calendar-importer.tsx";
 
-const env = getRecipeEnvironment();
+const env = getPatternEnvironment();
 
 export interface CreateEventParams {
   calendarId: string;

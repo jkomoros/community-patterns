@@ -9,19 +9,19 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * Context-Aware Note Taker
  *
  * Demonstrates wish() for contextual actions.
- * When you're looking at something (a recipe, article, task),
+ * When you're looking at something (a pattern, article, task),
  * this pattern uses wish() to create notes that are contextually
  * linked to what you're viewing.
  */
 
 interface ContextItem {
-  type: "recipe" | "article" | "task" | "idea" | "custom";
+  type: "pattern" | "article" | "task" | "idea" | "custom";
   title: string;
   content: string;
 }
@@ -36,7 +36,7 @@ interface Note {
 
 interface ContextNoterInput {
   currentContext: Default<ContextItem, {
-    type: "recipe";
+    type: "pattern";
     title: "Margherita Pizza";
     content: "A classic Italian pizza with tomatoes, mozzarella, and fresh basil";
   }>;
@@ -101,7 +101,7 @@ const removeNote = handler<
 // Context type icons
 function getContextIcon(type: ContextItem["type"]): string {
   switch (type) {
-    case "recipe": return "🍳";
+    case "pattern": return "🍳";
     case "article": return "📰";
     case "task": return "✅";
     case "idea": return "💡";
@@ -175,7 +175,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
               Type:
             </label>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {(["recipe", "article", "task", "idea", "custom"] as const).map(type => (
+              {(["pattern", "article", "task", "idea", "custom"] as const).map(type => (
                 <button
                   onClick={setContextType({ currentContext, type })}
                   style={{
@@ -211,9 +211,9 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
             }}>
               {contextTitle}
             </div>
-            <ct-message-input
+            <cf-message-input
               placeholder="Type new title and press enter..."
-              onct-send={setContextTitle({ currentContext })}
+              oncf-send={setContextTitle({ currentContext })}
             />
           </div>
 
@@ -232,9 +232,9 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
             }}>
               {contextContent}
             </div>
-            <ct-message-input
+            <cf-message-input
               placeholder="Type new description and press enter..."
-              onct-send={setContextContent({ currentContext })}
+              oncf-send={setContextContent({ currentContext })}
             />
           </div>
         </div>
@@ -254,9 +254,9 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
               <h3 style={{ margin: "0 0 0.5rem 0", color: "#28a745" }}>
                 Add a note about {contextTitle}
               </h3>
-              <ct-message-input
+              <cf-message-input
                 placeholder="Write your note..."
-                onct-send={addNote({ notes, currentContext })}
+                oncf-send={addNote({ notes, currentContext })}
               />
             </div>
 
@@ -359,12 +359,12 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
               <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
                 Based on your current context, here's something that might help:
               </p>
-              <ct-cell-context $cell={contextualSuggestion} label="AI Suggestion">
+              <cf-cell-context $cell={contextualSuggestion} label="AI Suggestion">
                 {derive(contextualSuggestion, (r) => {
                   if (!r) {
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#666" }}>
-                        <ct-loader size="sm"></ct-loader>
+                        <cf-loader size="sm"></cf-loader>
                         <span>Finding suggestions...</span>
                       </div>
                     );
@@ -374,7 +374,7 @@ export default pattern<ContextNoterInput>(({ currentContext, notes }) => {
                   }
                   return r.result ?? r;
                 })}
-              </ct-cell-context>
+              </cf-cell-context>
             </div>
           </div>
         </div>

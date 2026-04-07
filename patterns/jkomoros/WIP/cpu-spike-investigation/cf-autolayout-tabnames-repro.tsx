@@ -1,22 +1,22 @@
 /// <cts-enable />
 /**
  * @title CTAutoLayout TabNames Bug Repro
- * @description Minimal test for ct-autolayout tabNames undefined issue
+ * @description Minimal test for cf-autolayout tabNames undefined issue
  */
 import {
   handler,
   ifElse,
   NAME,
-  recipe,
+  pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Props = {
   notes?: string;
 };
 
-// Handlers defined OUTSIDE the recipe
+// Handlers defined OUTSIDE the pattern
 const showModalHandler = handler<void, { showModal: Writable<boolean> }>(
   (_, { showModal }) => {
     console.log("[TEST] Showing modal...");
@@ -31,44 +31,44 @@ const hideModalHandler = handler<void, { showModal: Writable<boolean> }>(
   }
 );
 
-export default recipe<Props>(({ notes }) => {
+export default pattern<Props>(({ notes }) => {
   const showModal = Writable.of(false);
 
   return {
     [NAME]: "CTAutoLayout TabNames Test",
     [UI]: (
-      <ct-screen>
+      <cf-screen>
         <div slot="header">
           <h2>TabNames Bug Test</h2>
         </div>
 
         {ifElse(
           showModal,
-          // Modal view with ct-autolayout
-          <ct-autolayout tabNames={["Modal Content"]}>
-            <ct-vstack style={{ padding: "16px", gap: "12px" }}>
+          // Modal view with cf-autolayout
+          <cf-autolayout tabNames={["Modal Content"]}>
+            <cf-vstack style={{ padding: "16px", gap: "12px" }}>
               <h3>Modal is Open</h3>
               <p>If this appeared without freezing, tabNames was defined.</p>
               <p>Notes: {notes}</p>
-              <ct-button onClick={hideModalHandler({ showModal })}>
+              <cf-button onClick={hideModalHandler({ showModal })}>
                 Close Modal
-              </ct-button>
-            </ct-vstack>
-          </ct-autolayout>,
+              </cf-button>
+            </cf-vstack>
+          </cf-autolayout>,
           // Form view
-          <ct-autolayout tabNames={["Form"]}>
-            <ct-vstack style={{ padding: "16px", gap: "12px" }}>
+          <cf-autolayout tabNames={["Form"]}>
+            <cf-vstack style={{ padding: "16px", gap: "12px" }}>
               <div style={{ backgroundColor: "#fee2e2", padding: "12px", borderRadius: "4px" }}>
-                <strong>Bug Test:</strong> Click button to show modal with ct-autolayout.
+                <strong>Bug Test:</strong> Click button to show modal with cf-autolayout.
               </div>
               <p>Notes: {notes}</p>
-              <ct-button onClick={showModalHandler({ showModal })}>
+              <cf-button onClick={showModalHandler({ showModal })}>
                 Show Modal (test tabNames)
-              </ct-button>
-            </ct-vstack>
-          </ct-autolayout>
+              </cf-button>
+            </cf-vstack>
+          </cf-autolayout>
         )}
-      </ct-screen>
+      </cf-screen>
     ),
     notes,
   };

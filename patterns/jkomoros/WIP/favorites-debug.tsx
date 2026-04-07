@@ -5,7 +5,7 @@
  * Debug pattern to see what's actually in the favorites list
  * Following the same approach as favorites-manager.tsx from labs
  */
-import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commonfabric";
 
 // Match the labs favorites-manager type (but use 'tag' since that's what the schema says)
 type Favorite = { cell: Writable<{ [NAME]?: string }>; tag: string };
@@ -30,7 +30,7 @@ export default pattern<Record<string, never>>((_) => {
               borderRadius: "4px",
             }}>
               <div><strong>Entry {i}:</strong></div>
-              <div>Cell: <ct-cell-link $cell={item.cell} /></div>
+              <div>Cell: <cf-cell-link $cell={item.cell} /></div>
               <div>Tag value: "{item.tag}"</div>
               <div>Tag length: {computed(() => item?.tag?.length ?? 0)}</div>
               <div>Has googleAuth: {computed(() => String(item?.tag?.toLowerCase().includes("googleauth") ?? false))}</div>

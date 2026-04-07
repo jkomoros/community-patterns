@@ -20,7 +20,7 @@
  * ```
  */
 
-import type { Writable } from "commontools";
+import type { Writable } from "commonfabric";
 import type { Auth } from "../../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 import {
   CalendarWriteClient,
@@ -412,11 +412,11 @@ export async function exportToGoogle(
 
 /**
  * Export events as ICS content.
- * Returns the ICS content and filename for use with <ct-file-download>.
+ * Returns the ICS content and filename for use with <cf-file-download>.
  *
  * @param events - Events to export
  * @param config - Export configuration
- * @returns Export result with ICS content (use <ct-file-download> for actual download)
+ * @returns Export result with ICS content (use <cf-file-download> for actual download)
  */
 export function exportToICS(
   events: ExportableEvent[],

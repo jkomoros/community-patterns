@@ -18,7 +18,7 @@ import {
   UI,
   pattern,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Utility to check if something is a Cell/proxy
 function isProxy(value: any): boolean {

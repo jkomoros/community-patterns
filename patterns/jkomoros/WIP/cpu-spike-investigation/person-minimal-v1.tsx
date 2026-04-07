@@ -3,10 +3,10 @@
  * @title Person Minimal V1
  * @description Stripped down person.tsx - minimal skeleton to find bug trigger
  *
- * This is person.tsx stripped to the absolute minimum while keeping the recipe structure.
+ * This is person.tsx stripped to the absolute minimum while keeping the pattern structure.
  * We'll add complexity back piece by piece to find what triggers the bug.
  *
- * V1: Just recipe + generateObject + simple UI (no ct-autolayout, no ifElse)
+ * V1: Just pattern + generateObject + simple UI (no cf-autolayout, no ifElse)
  */
 import {
   computed,
@@ -14,11 +14,11 @@ import {
   generateObject,
   handler,
   NAME,
-  recipe,
+  pattern,
   str,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Minimal extraction result
 interface ExtractionResult {
@@ -55,7 +55,7 @@ interface Output {
   notes?: string;
 }
 
-const PersonMinimalV1 = recipe<Input, Output>(
+const PersonMinimalV1 = pattern<Input, Output>(
   "Person Minimal V1",
   ({ displayName, givenName, familyName, notes }) => {
     // Single computed for display name
@@ -108,7 +108,7 @@ const PersonMinimalV1 = recipe<Input, Output>(
         <div style={{ padding: "1rem", fontFamily: "sans-serif" }}>
           <h2>Person Minimal V1</h2>
           <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST:</strong> Minimal recipe + generateObject (no ct-autolayout)
+            <strong>TEST:</strong> Minimal pattern + generateObject (no cf-autolayout)
           </div>
 
           <div style={{ marginBottom: "1rem" }}>
@@ -118,12 +118,12 @@ const PersonMinimalV1 = recipe<Input, Output>(
             </pre>
           </div>
 
-          <ct-button
+          <cf-button
             onClick={triggerExtraction({ notes, extractTrigger })}
             disabled={extractionPending}
           >
             {extractionPending ? "Extracting..." : "Extract Data from Notes"}
-          </ct-button>
+          </cf-button>
 
           {resultDisplay && (
             <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#d1fae5" }}>

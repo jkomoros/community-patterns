@@ -6,7 +6,7 @@
  *
  * ## Usage
  *
- * These utilities are used in person.tsx and food-recipe.tsx to show
+ * These utilities are used in person.tsx and food-pattern.tsx to show
  * field-by-field diffs when extracting data from unstructured notes.
  *
  * Example pattern:
@@ -51,7 +51,7 @@
  *
  * ### Option B: Micro-Recipe for Diff Rendering (Medium Abstraction)
  *
- * Could create `lib/diff-text.tsx` as a tiny recipe just for rendering:
+ * Could create `lib/diff-text.tsx` as a tiny pattern just for rendering:
  * - Takes: from/to strings
  * - Returns: Styled diff JSX
  * - Pros: Reusable rendering logic (~20 lines saved)

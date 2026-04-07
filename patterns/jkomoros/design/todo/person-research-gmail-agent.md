@@ -26,7 +26,7 @@ A pattern that uses Gmail to research information about a person. Given a name (
 
 1. **person.tsx exports `#person` tag** (requires adding to person.tsx)
 2. **Research pattern calls `wish("#person")`**
-3. **If multiple person charms exist**, the new `wish.tsx` pattern renders with `ct-picker`
+3. **If multiple person charms exist**, the new `wish.tsx` pattern renders with `cf-picker`
 4. **User selects which person to research** from the picker
 5. **Pattern reads selected person's name/email** to build search context
 6. **Agent searches Gmail** and reports findings
@@ -34,7 +34,7 @@ A pattern that uses Gmail to research information about a person. Given a name (
 
 ### Why This Approach
 
-- **Leverages new ct-picker**: When wish has multiple candidates, picker UI appears automatically
+- **Leverages new cf-picker**: When wish has multiple candidates, picker UI appears automatically
 - **No manual linking needed**: Just wish for `#person` and pick from results
 - **Fallback to manual entry**: If no person charms exist, user can type name manually
 - **Future-proof**: Can later auto-write results back via cell linkage
@@ -65,7 +65,7 @@ return {
 │ │                                                             │ │
 │ │ If 0 results: Show "Enter name manually" input              │ │
 │ │ If 1 result: Auto-select that person                        │ │
-│ │ If 2+ results: ct-picker appears for user selection         │ │
+│ │ If 2+ results: cf-picker appears for user selection         │ │
 │ └─────────────────────────────────────────────────────────────┘ │
 │                              │                                  │
 │                              ▼                                  │
@@ -553,14 +553,14 @@ interface PersonResearchOutput extends PersonResearchInput {
 - `person.tsx` - Target for research output (needs `#person` tag)
 - `person-roadmap.md` - Vision for person enhancements
 - `/Users/alex/Code/labs/packages/patterns/wish.tsx` - Wish picker implementation
-- `/Users/alex/Code/labs/packages/ui/src/v2/components/ct-picker/ct-picker.ts` - Picker component
+- `/Users/alex/Code/labs/packages/ui/src/v2/components/cf-picker/cf-picker.ts` - Picker component
 
 ---
 
 ## Notes from User Discussion
 
 1. **Relationship tags:** Using closed set of 26 tags (awaiting user feedback on final list)
-2. **Person linkage:** Option C with wish("#person") + ct-picker for selection
+2. **Person linkage:** Option C with wish("#person") + cf-picker for selection
 3. **Disambiguation:** Agent clusters by email, reports ambiguity, uses context for filtering
 4. **Output format:** Brief with footnotes for Phase 1; future UI with accept/reject per finding
 5. **Search scope:** All time, sent mail included, ~10 searches by default
@@ -572,7 +572,7 @@ interface PersonResearchOutput extends PersonResearchInput {
 ### ✅ Implemented
 
 - [x] Pattern composes `GmailAgenticSearch` for auth + search UI
-- [x] Manual input form with `ct-input` bidirectional binding:
+- [x] Manual input form with `cf-input` bidirectional binding:
   - Person's Name (required)
   - Known Email (optional)
   - Context notes (optional)
@@ -615,7 +615,7 @@ interface PersonResearchOutput extends PersonResearchInput {
 
 ### 🐛 Known Issues
 
-1. **Native `<input>` doesn't bind** - Fixed by using `<ct-input $value={cell}>`
+1. **Native `<input>` doesn't bind** - Fixed by using `<cf-input $value={cell}>`
 2. **Single-cell derive may need array syntax** - `derive([cell], ([val]) => ...)` instead of `derive(cell, (val) => ...)`
 3. **Wish causes reactive loops in composed patterns** - Removed for MVP
 
@@ -623,4 +623,4 @@ interface PersonResearchOutput extends PersonResearchInput {
 
 ## Session Log
 
-- **2025-12-04:** Initial implementation. Removed wish due to reactive loops. Fixed input binding by switching to ct-input. Fixed derive array syntax for proper cell unwrapping. Pattern deployed and working with manual name entry.
+- **2025-12-04:** Initial implementation. Removed wish due to reactive loops. Fixed input binding by switching to cf-input. Fixed derive array syntax for proper cell unwrapping. Pattern deployed and working with manual name entry.

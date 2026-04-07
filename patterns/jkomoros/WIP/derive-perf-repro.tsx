@@ -7,7 +7,7 @@ import {
   pattern,
   UI,
   NAME,
-} from "commontools";
+} from "commonfabric";
 
 // Minimal event type
 type FakeEvent = {

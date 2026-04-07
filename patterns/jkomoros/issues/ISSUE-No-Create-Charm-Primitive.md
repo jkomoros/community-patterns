@@ -20,7 +20,7 @@ The CommonTools framework lacks a primitive function to programmatically create 
    - **Side effect**: May persist the charm during navigation
    - **Problem**: Always navigates away, returns boolean not charm reference
 
-3. **ct-code-editor Component**
+3. **cf-code-editor Component**
    - Can create charms when user types `[[New Page]]`
    - Internal implementation not exposed to pattern developers
    - Passes created charm to `onbacklink-create` handler
@@ -125,7 +125,7 @@ if (!didNavigate) {
 ## Questions for Framework Authors
 
 1. **Is this intentionally not exposed?** If so, why?
-2. **Does ct-code-editor use internal APIs we can't access?** Can those be exposed?
+2. **Does cf-code-editor use internal APIs we can't access?** Can those be exposed?
 3. **Is there a pattern I'm missing?** How should batch charm creation work?
 4. **Should `navigateTo()` be split?** One for "create and persist" and one for "navigate to existing"?
 
@@ -161,7 +161,7 @@ if (detail.navigate) {
   mentionable.push(detail.charm as unknown as MentionableCharm);
 }
 ```
-**Finding**: The charm is **already created by ct-code-editor**, handler just decides navigation vs adding to array. This doesn't help us create charms programmatically.
+**Finding**: The charm is **already created by cf-code-editor**, handler just decides navigation vs adding to array. This doesn't help us create charms programmatically.
 
 ## Related Code
 

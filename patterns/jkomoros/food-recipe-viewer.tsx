@@ -8,9 +8,9 @@ import {
   pattern,
   str,
   UI,
-} from "commontools";
+} from "commonfabric";
 
-// Import types from food-recipe (these should match exactly)
+// Import types from food-pattern (these should match exactly)
 interface Ingredient {
   item: string;
   amount: string;
@@ -52,7 +52,7 @@ interface GroupCompletion {
 }
 
 interface ViewerInput {
-  // Recipe data passed in as cells from the source recipe
+  // Recipe data passed in as cells from the source pattern
   recipeName: Default<string, "">;
   recipeServings: Default<number, 4>;
   recipeIngredients: Default<Ingredient[], []>;
@@ -150,7 +150,7 @@ function formatTiming(group: StepGroup): string {
 
 export default pattern<ViewerInput, ViewerOutput>(
   ({ recipeName, recipeServings, recipeIngredients, recipeStepGroups, completedSteps, completedGroups }) => {
-    // Recipe data is passed in directly as cells from the source recipe
+    // Recipe data is passed in directly as cells from the source pattern
 
     const displayName = computed(() =>
       recipeName.trim() || "Untitled Recipe"
@@ -159,7 +159,7 @@ export default pattern<ViewerInput, ViewerOutput>(
     return {
       [NAME]: str`👨‍🍳 ${displayName} - Cooking View`,
       [UI]: (
-        <ct-vstack gap={1} style="padding: 12px; max-width: 800px;">
+        <cf-vstack gap={1} style="padding: 12px; max-width: 800px;">
           {/* Header with navigation */}
           <div
             style={{
@@ -178,12 +178,12 @@ export default pattern<ViewerInput, ViewerOutput>(
           </p>
 
           {/* Ingredients Section (Read-only) */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 8px 0", fontSize: "16px" }}>
                 Ingredients
               </h3>
-              <ct-vstack gap={0}>
+              <cf-vstack gap={0}>
                 {computed(() =>
                   recipeIngredients.length > 0
                     ? recipeIngredients.map((ing) => (
@@ -213,12 +213,12 @@ export default pattern<ViewerInput, ViewerOutput>(
                         </p>
                       )
                 )}
-              </ct-vstack>
-            </ct-vstack>
-          </ct-card>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-card>
 
           {/* Step Groups Section with Completion Tracking */}
-          <ct-vstack gap={2}>
+          <cf-vstack gap={2}>
             {computed(() =>
               recipeStepGroups.length > 0
                 ? recipeStepGroups.map((group) => {
@@ -227,8 +227,8 @@ export default pattern<ViewerInput, ViewerOutput>(
                     );
 
                     return (
-                      <ct-card>
-                        <ct-vstack gap={1}>
+                      <cf-card>
+                        <cf-vstack gap={1}>
                           {/* Group header with checkbox */}
                           <div
                             style={{
@@ -293,7 +293,7 @@ export default pattern<ViewerInput, ViewerOutput>(
                           </div>
 
                           {/* Steps with individual checkboxes */}
-                          <ct-vstack gap={0}>
+                          <cf-vstack gap={0}>
                             {group.steps.map((step, stepIndex) => {
                               const stepCompleted = computed(() =>
                                 completedSteps.some((s) => s.groupId === group.id && s.stepIndex === stepIndex)
@@ -353,13 +353,13 @@ export default pattern<ViewerInput, ViewerOutput>(
                                 </div>
                               );
                             })}
-                          </ct-vstack>
-                        </ct-vstack>
-                      </ct-card>
+                          </cf-vstack>
+                        </cf-vstack>
+                      </cf-card>
                     );
                   })
                 : (
-                    <ct-card>
+                    <cf-card>
                       <p
                         style={{
                           margin: "0",
@@ -369,13 +369,13 @@ export default pattern<ViewerInput, ViewerOutput>(
                           textAlign: "center",
                         }}
                       >
-                        No step groups in this recipe
+                        No step groups in this pattern
                       </p>
-                    </ct-card>
+                    </cf-card>
                   )
             )}
-          </ct-vstack>
-        </ct-vstack>
+          </cf-vstack>
+        </cf-vstack>
       ),
       recipeName,
       recipeServings,

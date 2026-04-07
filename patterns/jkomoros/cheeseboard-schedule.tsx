@@ -1,9 +1,9 @@
 /// <cts-enable />
-import { computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI, Writable } from "commontools";
+import { computed, Default, fetchData, handler, ifElse, lift, NAME, pattern, UI, Writable } from "commonfabric";
 
-// ct-loader is a Web Component for showing loading spinners
+// cf-loader is a Web Component for showing loading spinners
 // Properties: size="sm"|"md"|"lg", show-elapsed (boolean attr), show-stop (boolean attr)
-// Events: ct-stop (fired when stop button clicked)
+// Events: cf-stop (fired when stop button clicked)
 
 /**
  * Cheeseboard Pizza Schedule with Ingredient Preferences
@@ -402,7 +402,7 @@ const CheeseboardSchedule = pattern<CheeseboardScheduleInput, CheeseboardSchedul
             {ifElse(
               pending,
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "2rem", justifyContent: "center" }}>
-                <ct-loader show-elapsed></ct-loader>
+                <cf-loader show-elapsed></cf-loader>
                 <span style={{ color: "#666" }}>Fetching pizza schedule...</span>
               </div>,
               null

@@ -31,7 +31,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Item = {
   id: number;
@@ -108,10 +108,10 @@ export default pattern<Props>(() => {
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <ct-button onClick={loadData({ items, outerCount, innerCount })}>
+          <cf-button onClick={loadData({ items, outerCount, innerCount })}>
             Load Data (triggers O(n²))
-          </ct-button>
-          <ct-button onClick={clearData({ items })}>Clear Data</ct-button>
+          </cf-button>
+          <cf-button onClick={clearData({ items })}>Clear Data</cf-button>
         </div>
 
         <div style={{ marginBottom: "1rem" }}>

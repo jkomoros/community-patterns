@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, handler, NAME, navigateTo, pattern, str, UI, Writable } from "commontools";
+import { computed, Default, handler, NAME, navigateTo, pattern, str, UI, Writable } from "commonfabric";
 import CozyPollBallot from "./cozy-poll-ballot.tsx";
 
 /**
@@ -261,12 +261,12 @@ export default pattern<ViewerInput, ViewerOutput>(
             <div style={{ fontSize: "0.875rem", marginBottom: "1rem", color: "#1e3a8a" }}>
               Create your personal ballot and enter your name. Bookmark your ballot URL to return later!
             </div>
-            <ct-button
+            <cf-button
               style="background-color: #3b82f6; color: white; font-weight: 600; padding: 0.75rem 1.5rem; font-size: 1rem; border-radius: 6px;"
               onClick={createBallot({ question, options, votes, voterPieces })}
             >
               Create My Ballot
-            </ct-button>
+            </cf-button>
           </div>
 
           <div style={{ padding: "1rem", backgroundColor: "#fef3c7", borderRadius: "4px", fontSize: "0.875rem", color: "#78350f", textAlign: "center" }}>

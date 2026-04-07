@@ -56,7 +56,7 @@ The fix simplified class cards to just name/location. Need to restore ALL functi
 
 5. **Image Import** - Add ability to upload an image (photo of schedule) and have LLM extract text from it before import processing.
 
-6. **File Upload** - Add `ct-file-upload` component for importing schedule files (PDF, text, etc.)
+6. **File Upload** - Add `cf-file-upload` component for importing schedule files (PDF, text, etc.)
 
 ## Acceptance Testing Feedback (2025-12-14)
 
@@ -477,15 +477,15 @@ Link an existing person.tsx charm to extracurricular-selector at deploy time:
 
 ```bash
 # 1. Create person.tsx for child
-deno task ct charm new ... patterns/jkomoros/person.tsx
+deno task cf charm new ... patterns/jkomoros/person.tsx
 # Returns: person-charm-id
 
 # 2. Create extracurricular-selector
-deno task ct charm new ... patterns/jkomoros/WIP/extracurricular-selector.tsx
+deno task cf charm new ... patterns/jkomoros/WIP/extracurricular-selector.tsx
 # Returns: selector-charm-id
 
 # 3. Link person's profile to selector's childProfile
-deno task ct charm link \
+deno task cf charm link \
   --identity your-key \
   --api-url http://localhost:8000 \
   --space myspace \
@@ -534,7 +534,7 @@ const wishedPerson = wish<PersonOutput>({
 });
 
 // In UI:
-<ct-button onClick={() => showFinder.set(true)}>Find Child Profile</ct-button>
+<cf-button onClick={() => showFinder.set(true)}>Find Child Profile</cf-button>
 {ifElse(showFinder, <div>{wishedPerson?.$UI}</div>, null)}
 ```
 

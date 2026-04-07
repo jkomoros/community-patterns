@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { generateObject, pattern, UI, NAME, toSchema } from "commontools";
+import { generateObject, pattern, UI, NAME, toSchema } from "commonfabric";
 
 // Test nested arrays with toSchema<T>()
 interface NestedItem {

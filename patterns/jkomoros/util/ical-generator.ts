@@ -5,7 +5,7 @@
  * Generates RFC 5545 compliant iCalendar content for calendar events.
  * Supports recurring events with RRULE for weekly schedules.
  *
- * Note: Use <ct-file-download> component to trigger downloads.
+ * Note: Use <cf-file-download> component to trigger downloads.
  *
  * Usage:
  * ```ts
@@ -338,7 +338,7 @@ export function dayToICalDay(day: DayOfWeek): string {
  * Generates a deterministic unique ID for an event based on its properties.
  * This allows duplicate detection - same event properties = same UID.
  *
- * Format: {name-slug}-{day}-{time}-{startDate}@commontools.app
+ * Format: {name-slug}-{day}-{time}-{startDate}@commonfabric.app
  *
  * @param name - Event name/summary
  * @param day - Day of week (e.g., "monday")
@@ -356,7 +356,7 @@ export function generateEventUID(
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") // trim leading/trailing dashes
     .slice(0, 60);
-  return `${slug}@commontools.app`;
+  return `${slug}@commonfabric.app`;
 }
 
 /**
@@ -369,7 +369,7 @@ export function generateEventUIDLegacy(name: string, index: number = 0): string 
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 30);
-  return `${nameSlug}-${index}-${timestamp}@commontools`;
+  return `${nameSlug}-${index}-${timestamp}@commonfabric`;
 }
 
 /**

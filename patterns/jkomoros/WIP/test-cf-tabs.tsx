@@ -1,14 +1,14 @@
 /// <cts-enable />
-import { Writable, Default, handler, NAME, recipe, str, UI } from "commontools";
+import { Writable, Default, handler, NAME, pattern, str, UI } from "commonfabric";
 
 /**
- * Test pattern for ct-tabs with $value cell binding
+ * Test pattern for cf-tabs with $value cell binding
  *
  * Tests:
  * 1. Initial tab selection from cell value
  * 2. Tab switching updates cell
  * 3. Programmatic cell update changes selected tab (two-way binding)
- * 4. onct-change event fires with value and oldValue
+ * 4. oncf-change event fires with value and oldValue
  */
 
 interface TabsTestInput {
@@ -43,13 +43,13 @@ const switchToTab2 = handler<unknown, { activeTab: Writable<string> }>(
   }
 );
 
-export default recipe<TabsTestInput, TabsTestOutput>(
+export default pattern<TabsTestInput, TabsTestOutput>(
   ({ activeTab, changeCount }) => {
     return {
-      [NAME]: str`ct-tabs Test (${activeTab})`,
+      [NAME]: str`cf-tabs Test (${activeTab})`,
       [UI]: (
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
-          <h1>ct-tabs $value Test</h1>
+          <h1>cf-tabs $value Test</h1>
 
           <div
             style={{
@@ -73,51 +73,51 @@ export default recipe<TabsTestInput, TabsTestOutput>(
             <div
               style={{ display: "flex", gap: "10px", marginTop: "8px" }}
             >
-              <ct-button
+              <cf-button
                 variant="outline"
                 onClick={switchToTab1({ activeTab })}
               >
                 Switch to Tab 1
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 variant="outline"
                 onClick={switchToTab2({ activeTab })}
               >
                 Switch to Tab 2
-              </ct-button>
+              </cf-button>
             </div>
           </div>
 
-          <ct-tabs $value={activeTab} onct-change={onTabChange({ changeCount })}>
-            <ct-tab-list>
-              <ct-tab value="tab1">Tab 1</ct-tab>
-              <ct-tab value="tab2">Tab 2</ct-tab>
-              <ct-tab value="tab3" disabled>
+          <cf-tabs $value={activeTab} oncf-change={onTabChange({ changeCount })}>
+            <cf-tab-list>
+              <cf-tab value="tab1">Tab 1</cf-tab>
+              <cf-tab value="tab2">Tab 2</cf-tab>
+              <cf-tab value="tab3" disabled>
                 Tab 3 (Disabled)
-              </ct-tab>
-            </ct-tab-list>
-            <ct-tab-panel value="tab1">
-              <ct-card>
+              </cf-tab>
+            </cf-tab-list>
+            <cf-tab-panel value="tab1">
+              <cf-card>
                 <h2>Tab 1 Content</h2>
                 <p>This is the content for Tab 1. Click Tab 2 to switch.</p>
-              </ct-card>
-            </ct-tab-panel>
-            <ct-tab-panel value="tab2">
-              <ct-card>
+              </cf-card>
+            </cf-tab-panel>
+            <cf-tab-panel value="tab2">
+              <cf-card>
                 <h2>Tab 2 Content</h2>
                 <p>
                   This is the content for Tab 2. The tab should be selected and
                   this panel visible.
                 </p>
-              </ct-card>
-            </ct-tab-panel>
-            <ct-tab-panel value="tab3">
-              <ct-card>
+              </cf-card>
+            </cf-tab-panel>
+            <cf-tab-panel value="tab3">
+              <cf-card>
                 <h2>Tab 3 Content</h2>
                 <p>This tab is disabled, so you shouldn't see this.</p>
-              </ct-card>
-            </ct-tab-panel>
-          </ct-tabs>
+              </cf-card>
+            </cf-tab-panel>
+          </cf-tabs>
 
           <div
             style={{
@@ -138,7 +138,7 @@ export default recipe<TabsTestInput, TabsTestOutput>(
               </li>
               <li>"Switch to Tab 2" button should change tabs programmatically</li>
               <li>Tab 3 should be disabled and not clickable</li>
-              <li>onct-change should fire with value and oldValue</li>
+              <li>oncf-change should fire with value and oldValue</li>
             </ol>
           </div>
         </div>

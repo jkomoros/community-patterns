@@ -8,7 +8,7 @@
  * Note: Links to charms in other spaces may not work until
  * navigateTo supports multi-space navigation.
  */
-import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commonfabric";
 
 // Favorites can have either 'tag' or 'description' field depending on version
 type Favorite = { cell: Writable<{ [NAME]?: string }>; tag?: string; description?: string };
@@ -99,7 +99,7 @@ const FavoritesViewer = pattern<Record<string, never>>((_) => {
             <span style={{ fontSize: "20px" }}>⭐</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: "500" }}>
-                <ct-cell-link $cell={fav.cell} />
+                <cf-cell-link $cell={fav.cell} />
               </div>
               <div
                 style={{

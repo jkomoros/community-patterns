@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { pattern } from "commontools";
+import { pattern } from "commonfabric";
 import SpaceSetup from "./space-setup.tsx";
 import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";
 

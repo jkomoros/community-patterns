@@ -10,17 +10,17 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * Adaptive Recipe Companion
  *
  * Demonstrates the new open-ended wish() capability.
  * Takes a food description and user preferences, then wishes for
- * a complementary recipe that pairs well with it.
+ * a complementary pattern that pairs well with it.
  *
  * The wish() call uses AI to:
- * 1. Search the pattern index for food/recipe patterns
+ * 1. Search the pattern index for food/pattern patterns
  * 2. Find and run an appropriate pattern
  * 3. Return the result dynamically
  */
@@ -88,7 +88,7 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
       else if (p.preference === "disliked") disliked.push(p.ingredient);
     }
 
-    let query = `Suggest a recipe that complements: "${food}"`;
+    let query = `Suggest a pattern that complements: "${food}"`;
     if (liked.length > 0) {
       query += `. I especially like: ${liked.join(", ")}`;
     }
@@ -114,7 +114,7 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
       <div style={{ padding: "1rem", maxWidth: "800px" }}>
         <h2>Adaptive Recipe Companion</h2>
         <p style={{ color: "#666", marginBottom: "1rem" }}>
-          Describe what you're eating, and I'll suggest a complementary recipe using AI-powered pattern discovery.
+          Describe what you're eating, and I'll suggest a complementary pattern using AI-powered pattern discovery.
         </p>
 
         {/* Main dish input */}
@@ -125,9 +125,9 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
           borderRadius: "8px",
         }}>
           <h3 style={{ margin: "0 0 0.5rem 0" }}>What are you eating?</h3>
-          <ct-message-input
+          <cf-message-input
             placeholder="Describe your main dish..."
-            onct-send={updateFood({ foodDescription })}
+            oncf-send={updateFood({ foodDescription })}
           />
           <div style={{
             marginTop: "0.5rem",
@@ -153,18 +153,18 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
               <label style={{ display: "block", marginBottom: "0.25rem", color: "#28a745" }}>
                 Add liked ingredient:
               </label>
-              <ct-message-input
+              <cf-message-input
                 placeholder="e.g., garlic"
-                onct-send={addPreference({ preferences, type: "liked" })}
+                oncf-send={addPreference({ preferences, type: "liked" })}
               />
             </div>
             <div style={{ flex: 1 }}>
               <label style={{ display: "block", marginBottom: "0.25rem", color: "#dc3545" }}>
                 Add disliked ingredient:
               </label>
-              <ct-message-input
+              <cf-message-input
                 placeholder="e.g., cilantro"
-                onct-send={addPreference({ preferences, type: "disliked" })}
+                oncf-send={addPreference({ preferences, type: "disliked" })}
               />
             </div>
           </div>
@@ -270,14 +270,14 @@ export default pattern<RecipeCompanionInput>(({ foodDescription, preferences }) 
           <h3 style={{ margin: "0 0 1rem 0", color: "#28a745" }}>
             Suggested Companion Recipe
           </h3>
-          <ct-cell-context $cell={companionRecipe} label="Companion Recipe">
+          <cf-cell-context $cell={companionRecipe} label="Companion Recipe">
             {derive(companionRecipe, (r) => {
               if (!r) return <span style={{ color: "#666" }}>Searching for recipes...</span>;
               if (r.error) return <span style={{ color: "#dc3545" }}>Error: {r.error}</span>;
               // The result should contain the dynamically created/found pattern
               return r.result ?? r;
             })}
-          </ct-cell-context>
+          </cf-cell-context>
         </div>
       </div>
     ),

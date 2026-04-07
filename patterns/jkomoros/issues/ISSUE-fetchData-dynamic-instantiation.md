@@ -42,10 +42,10 @@ TypeError: Cannot read properties of undefined (reading 'data')
 Error: Frame mismatch
 ```
 
-### Attempt 2: Recipe Composition with ct-render
+### Attempt 2: Recipe Composition with cf-render
 
 ```typescript
-export const RepoCard = recipe<{repo: Cell<string>}>((state) => {
+export const RepoCard = pattern<{repo: Cell<string>}>((state) => {
   const metadata = fetchData({ url: derive(state.repo, r => `.../${r}`) });
   return {
     [NAME]: derive(state.repo, r => r),
@@ -53,7 +53,7 @@ export const RepoCard = recipe<{repo: Cell<string>}>((state) => {
   };
 });
 
-export default recipe<{repos: Cell<string[]>}>((state) => {
+export default pattern<{repos: Cell<string[]>}>((state) => {
   return {
     [UI]: (
       <div>
@@ -362,7 +362,7 @@ Please use `github-momentum-tracker.tsx` as the reproduction case:
 
 ```bash
 cd labs
-deno task ct charm new ../community-patterns-2/patterns/jkomoros/github-momentum-tracker.tsx \
+deno task cf charm new ../community-patterns-2/patterns/jkomoros/github-momentum-tracker.tsx \
   --api-url http://localhost:8000 \
   --identity ../community-patterns-2/claude.key \
   --space test-repro
@@ -500,7 +500,7 @@ The `starHistory` cell is **undefined** when accessed via `derive()` in the UI r
 **To reproduce:**
 ```bash
 cd labs
-deno task ct charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-stripped.tsx \
+deno task cf charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-stripped.tsx \
   --api-url http://localhost:8000 \
   --identity ../community-patterns-2/claude.key \
   --space test-repro
@@ -515,7 +515,7 @@ deno task ct charm new ../community-patterns-2/patterns/jkomoros/WIP/momentum-st
 
 ```typescript
 /// <cts-enable />
-import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, fetchData, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   items?: Default<string[], []>;

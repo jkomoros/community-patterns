@@ -1,10 +1,10 @@
 /// <cts-enable />
 /**
  * @title Person Perf Tabs
- * @description Test if ct-autolayout tabs cause the ~60s CPU spike
+ * @description Test if cf-autolayout tabs cause the ~60s CPU spike
  *
  * HYPOTHESIS: The ~60 second CPU spike in person.tsx is caused by
- * the tabbed interface (ct-autolayout with tabNames prop).
+ * the tabbed interface (cf-autolayout with tabNames prop).
  *
  * This pattern takes the autolayout test (~4.6s) and adds tabs
  * similar to person.tsx structure.
@@ -22,7 +22,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Inline the diff utilities to avoid import path issues
 type DiffChunk = {
@@ -283,12 +283,12 @@ export default pattern(() => {
     [UI]: (
       // ============================================================
       // THIS IS THE KEY CHANGE WE'RE TESTING
-      // ct-autolayout with tabNames prop, similar to person.tsx
+      // cf-autolayout with tabNames prop, similar to person.tsx
       // ============================================================
-      <ct-autolayout tabNames={["Details", "Relationship", "Notes"]}>
+      <cf-autolayout tabNames={["Details", "Relationship", "Notes"]}>
         {/* Tab 1: Details - Test area with extraction button */}
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack style="padding: 16px; gap: 12px;">
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack style="padding: 16px; gap: 12px;">
             <h1>Person Perf Tabs Test</h1>
 
             <div
@@ -298,15 +298,15 @@ export default pattern(() => {
                 marginBottom: "1rem",
               }}
             >
-              <strong>HYPOTHESIS:</strong> Tabbed interface (ct-autolayout with tabNames) causes ~60s spike
+              <strong>HYPOTHESIS:</strong> Tabbed interface (cf-autolayout with tabNames) causes ~60s spike
             </div>
 
-            <ct-button
+            <cf-button
               onClick={triggerExtraction({ trigger, startTimeMs })}
               disabled={extractionPending}
             >
               {extractionPending ? "Extracting..." : "Run Extraction"}
-            </ct-button>
+            </cf-button>
 
             <h2>Status</h2>
 
@@ -403,16 +403,16 @@ export default pattern(() => {
                       marginTop: "12px",
                     }}
                   >
-                    <ct-button
+                    <cf-button
                       onClick={cancelExtraction({ extractedData: extractionResult })}
                     >
                       Cancel
-                    </ct-button>
-                    <ct-button
+                    </cf-button>
+                    <cf-button
                       onClick={applyExtractedData({ extractedData: extractionResult })}
                     >
                       Accept Changes
-                    </ct-button>
+                    </cf-button>
                   </div>
 
                   {timingDisplay && (
@@ -440,30 +440,30 @@ export default pattern(() => {
 
             <h2>What This Tests</h2>
             <ul>
-              <li><code>ct-autolayout tabNames</code> (THE KEY TEST - 3 tabs)</li>
-              <li><code>ct-vscroll</code> scrollable content</li>
-              <li><code>ct-vstack</code> vertical layout</li>
+              <li><code>cf-autolayout tabNames</code> (THE KEY TEST - 3 tabs)</li>
+              <li><code>cf-vscroll</code> scrollable content</li>
+              <li><code>cf-vstack</code> vertical layout</li>
               <li>Everything from autolayout test (4.6s)</li>
             </ul>
-          </ct-vstack>
-        </ct-vscroll>
+          </cf-vstack>
+        </cf-vscroll>
 
         {/* Tab 2: Relationship - Empty placeholder */}
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack style="padding: 16px; gap: 12px;">
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack style="padding: 16px; gap: 12px;">
             <h2>Relationship Tab</h2>
             <p>This tab is empty - just testing tab structure overhead.</p>
-          </ct-vstack>
-        </ct-vscroll>
+          </cf-vstack>
+        </cf-vscroll>
 
         {/* Tab 3: Notes - Empty placeholder */}
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack style="padding: 16px; gap: 12px;">
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack style="padding: 16px; gap: 12px;">
             <h2>Notes Tab</h2>
             <p>This tab is empty - just testing tab structure overhead.</p>
-          </ct-vstack>
-        </ct-vscroll>
-      </ct-autolayout>
+          </cf-vstack>
+        </cf-vscroll>
+      </cf-autolayout>
     ),
   };
 });

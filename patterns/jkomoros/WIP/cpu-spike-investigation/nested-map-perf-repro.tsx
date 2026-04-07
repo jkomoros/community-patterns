@@ -40,7 +40,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Item = {
   id: number;
@@ -119,10 +119,10 @@ export default pattern<Props>(({ itemCount, childCount }) => {
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <ct-button onClick={triggerRender({ items, itemCount, childCount })}>
+          <cf-button onClick={triggerRender({ items, itemCount, childCount })}>
             Load Items (triggers bug)
-          </ct-button>
-          <ct-button onClick={clearItems({ items })}>Clear Items</ct-button>
+          </cf-button>
+          <cf-button onClick={clearItems({ items })}>Clear Items</cf-button>
         </div>
 
         <div style={{ marginBottom: "1rem" }}>

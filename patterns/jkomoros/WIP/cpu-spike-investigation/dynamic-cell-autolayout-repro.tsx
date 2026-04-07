@@ -1,17 +1,17 @@
 /// <cts-enable />
 /**
- * @title Dynamic Cell + ct-autolayout Repro
- * @description Tests if ct-autolayout triggers the ~35s freeze
+ * @title Dynamic Cell + cf-autolayout Repro
+ * @description Tests if cf-autolayout triggers the ~35s freeze
  *
  * ## Hypothesis
  *
  * The CTAutoLayout.render error during person.tsx freeze suggests
- * ct-autolayout might be involved. This repro adds ct-autolayout
+ * cf-autolayout might be involved. This repro adds cf-autolayout
  * to the dynamic cell creation test.
  *
  * ## What's Different from dynamic-cell-creation-repro.tsx
  *
- * - Uses ct-autolayout with ifElse (like person.tsx)
+ * - Uses cf-autolayout with ifElse (like person.tsx)
  * - Form view vs results view (like person.tsx extraction modal)
  */
 import {
@@ -21,7 +21,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Item = {
   id: number;
@@ -66,19 +66,19 @@ export default pattern<Props>(() => {
   const innerCount = 60;
 
   return {
-    [NAME]: "Dynamic Cell + ct-autolayout Repro",
+    [NAME]: "Dynamic Cell + cf-autolayout Repro",
     [UI]: (
-      <ct-screen>
+      <cf-screen>
         <div slot="header">
-          <h2>ct-autolayout Test</h2>
+          <h2>cf-autolayout Test</h2>
         </div>
 
         {ifElse(
           hasResults,
           // Results view (like person.tsx extraction modal)
-          <ct-autolayout tabNames={["Results"]}>
-            <ct-vscroll flex showScrollbar>
-              <ct-vstack style={{ padding: "16px", gap: "8px" }}>
+          <cf-autolayout tabNames={["Results"]}>
+            <cf-vscroll flex showScrollbar>
+              <cf-vstack style={{ padding: "16px", gap: "8px" }}>
                 <h3>Results Loaded</h3>
                 <p>Loaded {outerCount * innerCount} items</p>
 
@@ -108,15 +108,15 @@ export default pattern<Props>(() => {
                   </div>
                 ))}
 
-                <ct-button onClick={clearData({ items, hasResults })}>
+                <cf-button onClick={clearData({ items, hasResults })}>
                   Clear Data
-                </ct-button>
-              </ct-vstack>
-            </ct-vscroll>
-          </ct-autolayout>,
+                </cf-button>
+              </cf-vstack>
+            </cf-vscroll>
+          </cf-autolayout>,
           // Form view (like person.tsx form)
-          <ct-autolayout tabNames={["Form"]}>
-            <ct-vstack style={{ padding: "16px", gap: "12px" }}>
+          <cf-autolayout tabNames={["Form"]}>
+            <cf-vstack style={{ padding: "16px", gap: "12px" }}>
               <div
                 style={{
                   backgroundColor: "#fee2e2",
@@ -124,7 +124,7 @@ export default pattern<Props>(() => {
                   borderRadius: "4px",
                 }}
               >
-                <strong>⚠️ BUG TEST:</strong> Does ct-autolayout + ifElse + dynamic maps trigger the freeze?
+                <strong>⚠️ BUG TEST:</strong> Does cf-autolayout + ifElse + dynamic maps trigger the freeze?
               </div>
 
               <div>
@@ -132,22 +132,22 @@ export default pattern<Props>(() => {
                 <div>Items: {outerCount} × {innerCount} = {outerCount * innerCount}</div>
               </div>
 
-              <ct-button onClick={loadData({ items, hasResults, outerCount, innerCount })}>
+              <cf-button onClick={loadData({ items, hasResults, outerCount, innerCount })}>
                 Load Data (triggers ifElse switch)
-              </ct-button>
+              </cf-button>
 
               <div style={{ marginTop: "1rem" }}>
                 <h3>What This Tests</h3>
                 <ul style={{ fontSize: "0.875rem" }}>
-                  <li>ct-autolayout with ifElse switching</li>
+                  <li>cf-autolayout with ifElse switching</li>
                   <li>Dynamic nested maps in the "results" branch</li>
                   <li>Same structure as person.tsx extraction modal</li>
                 </ul>
               </div>
-            </ct-vstack>
-          </ct-autolayout>
+            </cf-vstack>
+          </cf-autolayout>
         )}
-      </ct-screen>
+      </cf-screen>
     ),
     items,
   };

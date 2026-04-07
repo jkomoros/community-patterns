@@ -1,13 +1,13 @@
 /// <cts-enable />
 
 /**
- * Tag Selector Demo - Demonstrates ct-autocomplete with a tag/chip list
+ * Tag Selector Demo - Demonstrates cf-autocomplete with a tag/chip list
  *
- * This pattern shows how to wire ct-autocomplete to a userland tag display,
+ * This pattern shows how to wire cf-autocomplete to a userland tag display,
  * creating a multi-select experience from the single-select autocomplete component.
  */
 
-import { Writable, computed, Default, NAME, pattern, UI, equals } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI, equals } from "commonfabric";
 
 // Sample relationship types for demo
 const RELATIONSHIP_ITEMS = [
@@ -57,15 +57,15 @@ export default pattern<Input, Result>(
     return {
       [NAME]: "Tag Selector Demo",
       [UI]: (
-        <ct-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
+        <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Tag Selector Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            This demonstrates using <code>ct-autocomplete</code> with a userland
+            This demonstrates using <code>cf-autocomplete</code> with a userland
             tag display to create a multi-select experience.
           </p>
 
-          <ct-card>
-            <ct-vstack gap="3">
+          <cf-card>
+            <cf-vstack gap="3">
               <label style={{ fontWeight: "500" }}>Relationship Types</label>
 
               {/* Selected tags display - using Cell.map() */}
@@ -120,10 +120,10 @@ export default pattern<Input, Result>(
               </div>
 
               {/* Autocomplete for adding */}
-              <ct-autocomplete
+              <cf-autocomplete
                 items={availableItems}
                 placeholder="Search to add..."
-                onct-select={(e: { detail: { value: string } }) => {
+                oncf-select={(e: { detail: { value: string } }) => {
                   const value = e.detail?.value;
                   if (value) {
                     const current = selectedTags.get() || [];
@@ -135,12 +135,12 @@ export default pattern<Input, Result>(
                 }}
                 allowCustom={true}
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Debug output */}
-          <ct-card>
-            <ct-vstack gap="2">
+          <cf-card>
+            <cf-vstack gap="2">
               <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>Selected Values (debug)</label>
               <code style={{
                 padding: "0.5rem",
@@ -151,14 +151,14 @@ export default pattern<Input, Result>(
               }}>
                 {computed(() => JSON.stringify(selectedTags || [], null, 2))}
               </code>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           <p style={{ color: "#666", fontSize: "0.75rem" }}>
             Try typing "sister" to find "Sibling" (via searchAliases), or type
             a custom value and press Enter to add it.
           </p>
-        </ct-vstack>
+        </cf-vstack>
       ),
       selectedTags,
     };

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI, Writable } from "commontools";
+import { computed, Default, generateObject, handler, ifElse, ImageData, NAME, pattern, toSchema, UI, Writable } from "commonfabric";
 
 // ===== TYPE DEFINITIONS =====
 
@@ -605,7 +605,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
         }}>
           <style>{`
             /* Team selection buttons */
-            ct-button.team-red-active::part(button) {
+            cf-button.team-red-active::part(button) {
               background-color: #dc2626;
               color: white;
               border: 2px solid #dc2626;
@@ -613,7 +613,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            ct-button.team-red-inactive::part(button) {
+            cf-button.team-red-inactive::part(button) {
               background-color: #f3f4f6;
               color: #000;
               border: 2px solid #dc2626;
@@ -621,7 +621,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            ct-button.team-blue-active::part(button) {
+            cf-button.team-blue-active::part(button) {
               background-color: #2563eb;
               color: white;
               border: 2px solid #2563eb;
@@ -629,7 +629,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            ct-button.team-blue-inactive::part(button) {
+            cf-button.team-blue-inactive::part(button) {
               background-color: #f3f4f6;
               color: #000;
               border: 2px solid #2563eb;
@@ -639,14 +639,14 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Mode toggle buttons */
-            ct-button.mode-setup::part(button) {
+            cf-button.mode-setup::part(button) {
               background-color: #8b5cf6;
               color: white;
               border-radius: 0.375rem;
               font-weight: 600;
               padding: 0.5rem 1rem;
             }
-            ct-button.mode-game::part(button) {
+            cf-button.mode-game::part(button) {
               background-color: #10b981;
               color: white;
               border-radius: 0.375rem;
@@ -655,7 +655,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Color assignment buttons */
-            ct-button.color-red::part(button) {
+            cf-button.color-red::part(button) {
               background-color: #dc2626;
               color: white;
               border: 2px solid #000;
@@ -664,7 +664,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            ct-button.color-blue::part(button) {
+            cf-button.color-blue::part(button) {
               background-color: #2563eb;
               color: white;
               border: 2px solid #000;
@@ -673,7 +673,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            ct-button.color-neutral::part(button) {
+            cf-button.color-neutral::part(button) {
               background-color: #d4d4d8;
               color: #000;
               border: 2px solid #000;
@@ -682,7 +682,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            ct-button.color-assassin::part(button) {
+            cf-button.color-assassin::part(button) {
               background-color: #000000;
               color: white;
               border: 2px solid #000;
@@ -691,7 +691,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               text-transform: capitalize;
               padding: 0.5rem 1rem;
             }
-            ct-button.color-clear::part(button) {
+            cf-button.color-clear::part(button) {
               background-color: #e5e7eb;
               color: #000;
               border: 2px solid #000;
@@ -702,7 +702,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Initialize button */
-            ct-button.btn-initialize::part(button) {
+            cf-button.btn-initialize::part(button) {
               background-color: #3b82f6;
               color: white;
               border-radius: 0.5rem;
@@ -711,7 +711,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             }
 
             /* Reset button */
-            ct-button.btn-reset::part(button) {
+            cf-button.btn-reset::part(button) {
               background-color: #ef4444;
               color: white;
               border-radius: 0.375rem;
@@ -742,27 +742,27 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
               marginBottom: "1rem",
             }}>
               <span style={{ fontWeight: "500" }}>My Team:</span>
-              <ct-button
+              <cf-button
                 onClick={() => myTeam.set("red")}
                 className={myTeam.get() === "red" ? "team-red-active" : "team-red-inactive"}
               >
                 Red Team
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={() => myTeam.set("blue")}
                 className={myTeam.get() === "blue" ? "team-blue-active" : "team-blue-inactive"}
               >
                 Blue Team
-              </ct-button>
+              </cf-button>
             </div>
 
             {/* Mode Toggle */}
-            <ct-button
+            <cf-button
               onClick={() => setupMode.set(!setupMode.get())}
               className={setupMode.get() ? "mode-setup" : "mode-game"}
             >
               {setupMode.get() ? "Setup Mode" : "Game Mode"}
-            </ct-button>
+            </cf-button>
           </div>
 
           {/* Initialize Board Button - only show if board is empty */}
@@ -776,12 +776,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                   marginBottom: "1rem",
                   textAlign: "center",
                 }}>
-                  <ct-button
+                  <cf-button
                     onClick={initializeBoardHandler({ board, setupMode })}
                     className="btn-initialize"
                   >
                     Create 5×5 Game Board
-                  </ct-button>
+                  </cf-button>
                 </div>
               );
             }
@@ -796,12 +796,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 marginBottom: "1rem",
                 textAlign: "center",
               }}>
-                <ct-button
+                <cf-button
                   onClick={initializeBoardHandler({ board, setupMode })}
                   className="btn-initialize"
                 >
                   Create 5×5 Game Board
-                </ct-button>
+                </cf-button>
               </div>
             );
           })}
@@ -1006,36 +1006,36 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 flexWrap: "wrap",
                 marginBottom: "1rem",
               }}>
-                <ct-button
+                <cf-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "red" })}
                   className="color-red"
                 >
                   red
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "blue" })}
                   className="color-blue"
                 >
                   blue
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "neutral" })}
                   className="color-neutral"
                 >
                   neutral
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "assassin" })}
                   className="color-assassin"
                 >
                   assassin
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={assignColor({ board, selectedWordIndex, owner: "unassigned" })}
                   className="color-clear"
                 >
                   Clear
-                </ct-button>
+                </cf-button>
               </div>
 
               {/* Reset Board Colors button */}
@@ -1043,12 +1043,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 marginTop: "0.5rem",
                 textAlign: "center",
               }}>
-                <ct-button
+                <cf-button
                   onClick={resetAllColors({ board, selectedWordIndex })}
                   className="btn-reset"
                 >
                   Reset All Colors
-                </ct-button>
+                </cf-button>
               </div>
 
               {/* AI Image Upload */}
@@ -1074,7 +1074,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                 }}>
                   Upload photos of your board and key card to automatically extract words and colors.
                 </p>
-                <ct-image-input
+                <cf-image-input
                   multiple
                   maxImages={5}
                   maxSizeBytes={4000000}
@@ -1109,7 +1109,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.75rem", color: "#92400e" }}>
-                              <ct-loader size="sm" show-elapsed></ct-loader>
+                              <cf-loader size="sm" show-elapsed></cf-loader>
                               Photo {photoIdx + 1}: Analyzing...
                             </div>
                           </div>
@@ -1346,7 +1346,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                             gap: "0.5rem",
                             flexWrap: "wrap",
                           }}>
-                            <ct-button
+                            <cf-button
                               onClick={applyExtractedData({ board, extraction, approvalState, idx: photoIdx })}
                               disabled={!validation.isValid}
                               style={{
@@ -1360,8 +1360,8 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               }}
                             >
                               ✓ Approve & Apply to Board
-                            </ct-button>
-                            <ct-button
+                            </cf-button>
+                            <cf-button
                               onClick={rejectExtraction({ uploadedPhotos, idx: photoIdx, approvalState })}
                               style={{
                                 fontSize: "0.75rem",
@@ -1373,7 +1373,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                               }}
                             >
                               ✗ Reject
-                            </ct-button>
+                            </cf-button>
                           </div>
                         </div>
                       );
@@ -1429,7 +1429,7 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
                       color: "#92400e",
                       fontSize: "0.875rem",
                     }}>
-                      <ct-loader show-elapsed></ct-loader>
+                      <cf-loader show-elapsed></cf-loader>
                       Analyzing board and generating clues...
                     </div>
                   );
@@ -1517,12 +1517,12 @@ Suggest 3 creative one-word clues that connect 2-4 of MY team's words while avoi
             paddingTop: "1rem",
             borderTop: "2px solid #e5e7eb",
           }}>
-            <ct-button
+            <cf-button
               onClick={initializeBoardHandler({ board, setupMode })}
               className="btn-reset"
             >
               Reset Board
-            </ct-button>
+            </cf-button>
           </div>
         </div>
       ),

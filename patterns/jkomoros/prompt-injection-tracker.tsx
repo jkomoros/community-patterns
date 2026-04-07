@@ -116,7 +116,7 @@ import {
   str,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
 
 // =============================================================================

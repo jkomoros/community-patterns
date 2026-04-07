@@ -1075,7 +1075,7 @@ function ExtractionPicker({ candidates, onSelect }) {
           </div>
           <div class="explanation">${c.explanation}</div>
           <div class="preview">
-            <ct-render $cell=${c.previewCharm} />
+            <cf-render $cell=${c.previewCharm} />
           </div>
           <div class="actions">
             <button onClick=${() => onSelect(c, true)}>✓ Keep</button>

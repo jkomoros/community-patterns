@@ -9,12 +9,12 @@ import {
   navigateTo,
   type Opaque,
   patternTool,
-  recipe,
+  pattern,
   str,
   UI,
   wish,
   Writable,
-} from "commontools";
+} from "commonfabric";
 // Inline type to avoid import issues during bisection
 type MentionableCharm = {
   displayName?: string;
@@ -282,7 +282,7 @@ const RELATIONSHIP_TYPE_GROUPS = {
   ] as RelationshipType[],
 };
 
-// Items for ct-autocomplete relationship type picker
+// Items for cf-autocomplete relationship type picker
 const RELATIONSHIP_TYPE_ITEMS = Object.entries(RELATIONSHIP_TYPE_GROUPS)
   .flatMap(([group, types]) => types.map((type) => ({
     value: type, label: RELATIONSHIP_TYPE_LABELS[type], group,
@@ -679,7 +679,7 @@ const applyExtractedData = handler<
   },
 );
 
-// Pattern tool callbacks - must be at module scope (not created inside recipe)
+// Pattern tool callbacks - must be at module scope (not created inside pattern)
 const getContactInfoCallback = (
   { displayName, emails, phones }: { displayName: string; emails: EmailEntry[]; phones: PhoneEntry[] }
 ) => {
@@ -715,7 +715,7 @@ const getSocialLinksCallback = (
   });
 };
 
-const Person = recipe<Input, Output>(
+const Person = pattern<Input, Output>(
   "Person",
   ({
     displayName,
@@ -869,7 +869,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     });
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during recipe discovery when map items change.
+    // This prevents N² re-evaluation during pattern discovery when map items change.
     // See: patterns/jkomoros/design/todo/cpu-spike-investigation.md
     const notesDiffChunks = computed(() => {
       const t0 = PERF_MEASURE ? Date.now() : 0;
@@ -887,7 +887,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
     return {
       [NAME]: str`👤 ${effectiveDisplayName}`,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2>Person</h2>
           </div>
@@ -896,8 +896,8 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
             hasExtractionResults,
             (
               // Show changes review modal
-              <ct-vscroll flex showScrollbar>
-                <ct-vstack
+              <cf-vscroll flex showScrollbar>
+                <cf-vstack
                   style={{
                     padding: "20px 16px",
                     gap: "12px",
@@ -910,7 +910,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     The following changes will be applied to your profile:
                   </p>
 
-                  <ct-vstack style={{ gap: "6px" }}>
+                  <cf-vstack style={{ gap: "6px" }}>
                     {changesPreview.map((change) => (
                       <div
                         style={{
@@ -920,7 +920,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           borderRadius: "4px",
                         }}
                       >
-                        <ct-vstack style={{ gap: "2px" }}>
+                        <cf-vstack style={{ gap: "2px" }}>
                           <strong style={{ fontSize: "12px" }}>
                             {change.field}
                           </strong>
@@ -1016,26 +1016,26 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                                 </span>
                               </div>
                             )}
-                        </ct-vstack>
+                        </cf-vstack>
                       </div>
                     ))}
-                  </ct-vstack>
+                  </cf-vstack>
 
-                  <ct-hstack
+                  <cf-hstack
                     style={{
                       gap: "8px",
                       justifyContent: "flex-end",
                       marginTop: "12px",
                     }}
                   >
-                    <ct-button
+                    <cf-button
                       onClick={cancelExtraction({
                         extractedData: extractionResult,
                       })}
                     >
                       Cancel
-                    </ct-button>
-                    <ct-button
+                    </cf-button>
+                    <cf-button
                       onClick={applyExtractedData({
                         extractedData: extractionResult,
                         displayName,
@@ -1051,33 +1051,33 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       })}
                     >
                       Accept Changes
-                    </ct-button>
-                  </ct-hstack>
-                </ct-vstack>
-              </ct-vscroll>
+                    </cf-button>
+                  </cf-hstack>
+                </cf-vstack>
+              </cf-vscroll>
             ),
             (
               // Show normal profile form with two-pane layout
-              <ct-autolayout tabNames={["Details", "Relationship", "Notes"]}>
+              <cf-autolayout tabNames={["Details", "Relationship", "Notes"]}>
                 {/* Tab 1: Details - Form fields */}
-                <ct-vscroll flex showScrollbar>
-                  <ct-vstack style="padding: 16px; gap: 12px;">
+                <cf-vscroll flex showScrollbar>
+                  <cf-vstack style="padding: 16px; gap: 12px;">
                     {/* Basic Identity Section */}
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       <h3 style="margin: 0 0 4px 0; font-size: 14px;">Basic Information</h3>
 
                       <label>
                         Display Name
-                        <ct-input
+                        <cf-input
                           $value={displayName}
                           placeholder="How should we call you?"
                         />
                       </label>
 
-                      <ct-hstack style="gap: 10px;">
+                      <cf-hstack style="gap: 10px;">
                         <label style="flex: 1;">
                           First Name
-                          <ct-input
+                          <cf-input
                             $value={givenName}
                             placeholder="First name"
                           />
@@ -1085,7 +1085,7 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                         <label style="flex: 1;">
                           Nickname
-                          <ct-input
+                          <cf-input
                             $value={nickname}
                             placeholder="Optional"
                           />
@@ -1093,16 +1093,16 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                         <label style="flex: 1;">
                           Last Name
-                          <ct-input
+                          <cf-input
                             $value={familyName}
                             placeholder="Last name"
                           />
                         </label>
-                      </ct-hstack>
+                      </cf-hstack>
 
                       <label>
                         Pronouns
-                        <ct-input
+                        <cf-input
                           $value={pronouns}
                           placeholder="e.g., they/them, she/her, he/him"
                         />
@@ -1110,45 +1110,45 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                       <label>
                         Birthday
-                        <ct-input
+                        <cf-input
                           $value={birthday}
                           placeholder="YYYY-MM-DD"
                         />
                       </label>
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Contact Section */}
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       <h3 style="margin: 0 0 4px 0; font-size: 14px;">Contact Information</h3>
 
                       <label>
                         Email
-                        <ct-input
+                        <cf-input
                           value={emailValue}
-                          onct-input={updateEmail({ emails })}
+                          oncf-input={updateEmail({ emails })}
                           placeholder="email@example.com"
                         />
                       </label>
 
                       <label>
                         Phone
-                        <ct-input
+                        <cf-input
                           value={phoneValue}
-                          onct-input={updatePhone({ phones })}
+                          oncf-input={updatePhone({ phones })}
                           placeholder="+1 (555) 123-4567"
                         />
                       </label>
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Social Media Section */}
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       <h3 style="margin: 0 0 4px 0; font-size: 14px;">Social Media</h3>
 
                       <label>
                         Twitter / X
-                        <ct-input
+                        <cf-input
                           value={twitterHandle}
-                          onct-input={updateSocial({
+                          oncf-input={updateSocial({
                             socialLinks,
                             platform: "twitter",
                           })}
@@ -1158,9 +1158,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                       <label>
                         LinkedIn
-                        <ct-input
+                        <cf-input
                           value={linkedinHandle}
-                          onct-input={updateSocial({
+                          oncf-input={updateSocial({
                             socialLinks,
                             platform: "linkedin",
                           })}
@@ -1170,9 +1170,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                       <label>
                         GitHub
-                        <ct-input
+                        <cf-input
                           value={githubHandle}
-                          onct-input={updateSocial({
+                          oncf-input={updateSocial({
                             socialLinks,
                             platform: "github",
                           })}
@@ -1182,9 +1182,9 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                       <label>
                         Instagram
-                        <ct-input
+                        <cf-input
                           value={instagramHandle}
-                          onct-input={updateSocial({
+                          oncf-input={updateSocial({
                             socialLinks,
                             platform: "instagram",
                           })}
@@ -1194,24 +1194,24 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
 
                       <label>
                         Mastodon
-                        <ct-input
+                        <cf-input
                           value={mastodonHandle}
-                          onct-input={updateSocial({
+                          oncf-input={updateSocial({
                             socialLinks,
                             platform: "mastodon",
                           })}
                           placeholder="@user@instance.social"
                         />
                       </label>
-                    </ct-vstack>
-                  </ct-vstack>
-                </ct-vscroll>
+                    </cf-vstack>
+                  </cf-vstack>
+                </cf-vscroll>
 
                 {/* Tab 2: Relationship */}
-                <ct-vscroll flex showScrollbar>
-                  <ct-vstack style="padding: 16px; gap: 16px;">
+                <cf-vscroll flex showScrollbar>
+                  <cf-vstack style="padding: 16px; gap: 16px;">
                     {/* Relationship Types Section */}
-                    <ct-vstack style="gap: 8px;">
+                    <cf-vstack style="gap: 8px;">
                       <h3 style="margin: 0; font-size: 14px;">Relationship Type</h3>
                       <p style="margin: 0; font-size: 12px; color: #666;">
                         Select all that apply. Family modifiers (in-law, step, etc.) stack with base types.
@@ -1264,18 +1264,18 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                       </div>
 
                       {/* Autocomplete for adding relationship types - uses $value two-way binding */}
-                      <ct-autocomplete
+                      <cf-autocomplete
                         items={RELATIONSHIP_TYPE_ITEMS}
                         $value={relationshipTypes}
                         multiple={true}
                         placeholder="Search to add..."
                       />
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Closeness Section */}
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       <h3 style="margin: 0; font-size: 14px;">Closeness</h3>
-                      <ct-select
+                      <cf-select
                         $value={closeness}
                         items={[
                           { label: "Not set", value: "" },
@@ -1285,14 +1285,14 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           })),
                         ]}
                       />
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Origin Section */}
-                    <ct-vstack style="gap: 8px;">
+                    <cf-vstack style="gap: 8px;">
                       <h3 style="margin: 0; font-size: 14px;">How You Met</h3>
                       <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                         {Object.entries(ORIGIN_LABELS).map(([origin, label]) => (
-                          <ct-button
+                          <cf-button
                             size="sm"
                             variant={computed(() => {
                               const originsList = origins as Origin[];
@@ -1304,15 +1304,15 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                             })}
                           >
                             {label}
-                          </ct-button>
+                          </cf-button>
                         ))}
                       </div>
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Gift Tier Section */}
-                    <ct-vstack style="gap: 6px;">
+                    <cf-vstack style="gap: 6px;">
                       <h3 style="margin: 0; font-size: 14px;">Gift Giving</h3>
-                      <ct-select
+                      <cf-select
                         $value={giftTier}
                         items={[
                           { label: "Not set", value: "" },
@@ -1322,12 +1322,12 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           })),
                         ]}
                       />
-                    </ct-vstack>
+                    </cf-vstack>
 
                     {/* Quick Flags Section */}
-                    <ct-vstack style="gap: 8px;">
+                    <cf-vstack style="gap: 8px;">
                       <h3 style="margin: 0; font-size: 14px;">Quick Flags</h3>
-                      <ct-vstack style="gap: 6px;">
+                      <cf-vstack style="gap: 6px;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                           <input
                             type="checkbox"
@@ -1352,15 +1352,15 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                           />
                           <span style="font-size: 13px;">Professional Reference</span>
                         </label>
-                      </ct-vstack>
-                    </ct-vstack>
-                  </ct-vstack>
-                </ct-vscroll>
+                      </cf-vstack>
+                    </cf-vstack>
+                  </cf-vstack>
+                </cf-vscroll>
 
                 {/* Tab 3: Notes editor */}
-                <ct-vstack style="height: 100%; gap: 8px; padding: 16px;">
+                <cf-vstack style="height: 100%; gap: 8px; padding: 16px;">
                   <h3 style="margin: 0; font-size: 14px;">Notes</h3>
-                  <ct-code-editor
+                  <cf-code-editor
                     $value={notes}
                     $mentionable={mentionable}
                     $mentioned={mentioned}
@@ -1374,19 +1374,19 @@ Return only the fields you can confidently extract. Leave remainingNotes with an
                     placeholder="Add any additional information here..."
                     style="flex: 1;"
                   />
-                  <ct-button
+                  <cf-button
                     onClick={triggerExtraction({ notes, extractTrigger })}
                     disabled={extractionPending}
                   >
                     {extractionPending
                       ? "Extracting..."
                       : "Extract Data from Notes"}
-                  </ct-button>
-                </ct-vstack>
-              </ct-autolayout>
+                  </cf-button>
+                </cf-vstack>
+              </cf-autolayout>
             ),
           )}
-        </ct-screen>
+        </cf-screen>
       ),
       // TODO: Re-enable after fixing infinite loop issue
       // Make this charm discoverable via wish("#person")

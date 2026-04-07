@@ -18,7 +18,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import ExtractTarget from "./navigateto-generateobject-target.tsx";
 
@@ -58,9 +58,9 @@ export default pattern(() => {
         </code>
         <p>Extraction in directly-deployed charm is nearly instant.</p>
 
-        <ct-button onClick={launchTarget()}>
+        <cf-button onClick={launchTarget()}>
           Launch Extract Target
-        </ct-button>
+        </cf-button>
       </div>
     ),
   };

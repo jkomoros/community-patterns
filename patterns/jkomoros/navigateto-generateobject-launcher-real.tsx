@@ -11,7 +11,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import Person from "./person.tsx";
 import { DEMO_PERSON_NOTES } from "./demo-constants.ts";
@@ -43,14 +43,14 @@ export default pattern(() => {
           <li>If fast: Bug may be environment/state dependent</li>
         </ol>
 
-        <ct-button onClick={launchPerson()}>
+        <cf-button onClick={launchPerson()}>
           Launch Real Person (with demo notes)
-        </ct-button>
+        </cf-button>
 
         <div style={{ marginTop: "1rem" }}>
-          <ct-button onClick={launchPersonEmpty()}>
+          <cf-button onClick={launchPersonEmpty()}>
             Launch Real Person (empty)
-          </ct-button>
+          </cf-button>
         </div>
       </div>
     ),

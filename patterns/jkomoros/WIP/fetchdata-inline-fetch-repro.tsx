@@ -20,7 +20,7 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 import AuthConfig from "./auth-config.tsx";
 
 // Types

@@ -1,4 +1,4 @@
-# PRD: ct-search-select Built-in Component
+# PRD: cf-search-select Built-in Component
 
 **Status:** TODO - Waiting for implementation
 **Priority:** Medium
@@ -19,12 +19,12 @@ A user-land pattern prototype was built but hit framework limitations:
 
 ## Proposed Solution
 
-A built-in `ct-search-select` component with full DOM access.
+A built-in `cf-search-select` component with full DOM access.
 
 ## Component API
 
 ```typescript
-<ct-search-select
+<cf-search-select
   // Items to choose from
   items={[
     { value: "colleague", label: "Colleague", group: "Professional" },
@@ -182,7 +182,7 @@ A built-in component has access to:
 ## Implementation Path
 
 1. Review this PRD with framework team
-2. Add to `labs/packages/shell/src/components/` as `ct-search-select.tsx`
+2. Add to `labs/packages/shell/src/components/` as `cf-search-select.tsx`
 3. Register in component registry
 4. Add TypeScript types for JSX
 5. Write tests

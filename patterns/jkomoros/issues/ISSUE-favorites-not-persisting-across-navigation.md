@@ -92,7 +92,7 @@ The PR description says it "Shows the Home space when visiting the root path" - 
 For each commit tested:
 1. `git checkout <commit>` in labs
 2. `./scripts/restart-local-dev.sh --force`
-3. Deploy a counter charm: `deno task ct charm new patterns/examples/counter.tsx --space jkomoros-test`
+3. Deploy a counter charm: `deno task cf charm new patterns/examples/counter.tsx --space jkomoros-test`
 4. Navigate to the charm in browser
 5. Click favorite star (verify it turns ⭐)
 6. Navigate to `/jkomoros-test` (space root)

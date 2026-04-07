@@ -22,7 +22,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // =============================================================================
 // CONSTANTS
@@ -1626,7 +1626,7 @@ Make them diverse in genre and tone:
               }}
             >
               <div style={{ flex: 1 }}>
-                <ct-input
+                <cf-input
                   $value={boardTitle}
                   placeholder="Story Board Title"
                   style={{
@@ -1662,7 +1662,7 @@ Make them diverse in genre and tone:
             <div style={{ fontWeight: "600", marginBottom: "8px" }}>
               Level 0 - Synopsis (Root)
             </div>
-            <ct-input
+            <cf-input
               $value={synopsisText}
               placeholder="Enter your story synopsis or seed idea..."
               style="width: 100%; min-height: 100px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;"
@@ -1724,7 +1724,7 @@ Make them diverse in genre and tone:
                     (gen: { pending: boolean }) => gen.pending
                   ),
                   <div style={{ color: "#6b7280", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <ct-loader size="sm" show-elapsed></ct-loader>
+                    <cf-loader size="sm" show-elapsed></cf-loader>
                     Generating ideas...
                   </div>,
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -1981,7 +1981,7 @@ Make them diverse in genre and tone:
                           {ifElse(
                             result.isGenerating,
                             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <ct-loader size="sm"></ct-loader>
+                              <cf-loader size="sm"></cf-loader>
                               Generating options...
                             </span>,
                             ifElse(
@@ -2249,7 +2249,7 @@ Make them diverse in genre and tone:
                           gap: "16px",
                         }}
                       >
-                        <ct-loader size="lg" show-elapsed></ct-loader>
+                        <cf-loader size="lg" show-elapsed></cf-loader>
                         <div style={{ color: "#6b7280", fontSize: "14px" }}>
                           Generating options...
                         </div>
@@ -2409,7 +2409,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            <ct-markdown content={result.option0} />
+                            <cf-markdown content={result.option0} />
                           </div>
                         </div>,
                         null
@@ -2521,7 +2521,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            <ct-markdown content={result.option1} />
+                            <cf-markdown content={result.option1} />
                           </div>
                         </div>,
                         null
@@ -2633,7 +2633,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            <ct-markdown content={result.option2} />
+                            <cf-markdown content={result.option2} />
                           </div>
                         </div>,
                         null
@@ -2745,7 +2745,7 @@ Make them diverse in genre and tone:
                               ),
                             }}
                           >
-                            <ct-markdown content={result.option3} />
+                            <cf-markdown content={result.option3} />
                           </div>
                         </div>,
                         null
@@ -2993,7 +2993,7 @@ Make them diverse in genre and tone:
                   >
                     Branch Factor (children per parent)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={newLevelBranch}
                     min="1"
@@ -3084,7 +3084,7 @@ Make them diverse in genre and tone:
                   >
                     Title
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={editLevelTitle}
                     placeholder="e.g., Chapters"
                     style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px;"
@@ -3102,7 +3102,7 @@ Make them diverse in genre and tone:
                   >
                     Default Prompt
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={editLevelPrompt}
                     placeholder="Enter the prompt for this level..."
                     style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; min-height: 120px;"
@@ -3459,7 +3459,7 @@ Make them diverse in genre and tone:
                   >
                     Spindle Prompt
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={editSpindlePromptText}
                     placeholder="Enter spindle-specific guidance..."
                     style="width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 14px; min-height: 120px;"
@@ -3748,10 +3748,10 @@ Make them diverse in genre and tone:
               </div>
 
               {/* Content - show current option
-                  TODO: Integrate ct-picker component here to display options.
+                  TODO: Integrate cf-picker component here to display options.
                   Challenge: Need to create Cell array with UI for each option without
-                  causing reactivity loops. See labs/packages/ui/src/v2/components/ct-picker/
-                  and labs/packages/patterns/wish.tsx for examples of ct-picker usage.
+                  causing reactivity loops. See labs/packages/ui/src/v2/components/cf-picker/
+                  and labs/packages/patterns/wish.tsx for examples of cf-picker usage.
               */}
               <div
                 style={{
@@ -3773,7 +3773,7 @@ Make them diverse in genre and tone:
                   }}
                 >
                   <p style={{ color: "#6b7280", textAlign: "center" }}>
-                    Fullscreen picker coming soon - use ct-picker integration
+                    Fullscreen picker coming soon - use cf-picker integration
                   </p>
                 </div>
               </div>

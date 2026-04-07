@@ -17,7 +17,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // =============================================================================
 // Pattern that mimics GoogleAuth's computed-in-map pattern
@@ -152,12 +152,12 @@ export default pattern<Input, Output>(
             <p>Step 4 (computed in map): <strong>???</strong></p>
           </div>
 
-          <ct-button
+          <cf-button
             variant="primary"
             onClick={createComplexPattern({})}
           >
             Create Complex Pattern (computed in map)
-          </ct-button>
+          </cf-button>
         </div>
       ),
       testName: "CPU Spike Whittle 4",

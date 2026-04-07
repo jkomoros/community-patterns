@@ -14,7 +14,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Import GoogleAuth pattern for creating new auth charms
 import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.tsx";
@@ -81,12 +81,12 @@ export default pattern<Input, Output>(
             Step 1 (with wish + computed states): <strong>40+ seconds</strong>
           </p>
 
-          <ct-button
+          <cf-button
             variant="primary"
             onClick={createGoogleAuth({})}
           >
             Create Google Auth (No Wish Test)
-          </ct-button>
+          </cf-button>
         </div>
       ),
       testName: "CPU Spike Whittle 2",

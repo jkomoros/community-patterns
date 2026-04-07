@@ -17,7 +17,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type CFC<T, C extends string> = T;
 type Confidential<T> = CFC<T, "confidential">;
@@ -143,7 +143,7 @@ export default pattern<{
   return {
     [NAME]: derive(messageCount, (count: number) => `iMessage (${count} messages)`),
     [UI]: (
-      <ct-screen style={{ display: "flex", flexDirection: "column", backgroundColor: "#f5f5f5" }}>
+      <cf-screen style={{ display: "flex", flexDirection: "column", backgroundColor: "#f5f5f5" }}>
         {/* Header */}
         <div style={{
           padding: "12px 16px",
@@ -269,7 +269,7 @@ export default pattern<{
             )
           )}
         </div>
-      </ct-screen>
+      </cf-screen>
     ),
     messages,
   };

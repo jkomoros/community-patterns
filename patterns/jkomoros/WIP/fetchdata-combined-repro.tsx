@@ -22,7 +22,7 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 import SimpleConfig from "./simple-config.tsx";
 
 // Types

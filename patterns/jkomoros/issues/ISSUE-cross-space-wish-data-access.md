@@ -34,7 +34,7 @@ Debug JSON shows full data:
       "user": { "email": "jkomoros@gmail.com", "name": "Alex Komoroske" }
     }
   },
-  "$UI": { "type": "vnode", "name": "ct-cell-link", ... }
+  "$UI": { "type": "vnode", "name": "cf-cell-link", ... }
 }
 ```
 
@@ -50,7 +50,7 @@ wishResult {result: ...}                    // Eventually finds something
 But debug JSON only shows:
 ```json
 {
-  "$UI": { "type": "vnode", "name": "ct-cell-link", "props": {}, "children": [] }
+  "$UI": { "type": "vnode", "name": "cf-cell-link", "props": {}, "children": [] }
 }
 ```
 
@@ -137,14 +137,14 @@ In response to framework developer feedback that the bug couldn't be reproduced 
       "user": { "email": "jkomoros@gmail.com", "name": "Alex Komoroske" }
     }
   },
-  "$UI": { "type": "vnode", "name": "ct-cell-link", "props": {...}, "children": [...] }
+  "$UI": { "type": "vnode", "name": "cf-cell-link", "props": {...}, "children": [...] }
 }
 ```
 
 **Cross-space (space-a → space-b):**
 ```json
 {
-  "$UI": { "type": "vnode", "name": "ct-cell-link", "props": {}, "children": [] }
+  "$UI": { "type": "vnode", "name": "cf-cell-link", "props": {}, "children": [] }
 }
 ```
 

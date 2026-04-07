@@ -1,13 +1,13 @@
 /// <cts-enable />
 /**
- * @title Extract Target V2 (recipe)
- * @description Test 1: Uses recipe() wrapper instead of pattern()
+ * @title Extract Target V2 (pattern)
+ * @description Test 1: Uses pattern() wrapper instead of pattern()
  *
- * HYPOTHESIS: The ~90s CPU spike is caused by recipe() wrapper + navigateTo,
+ * HYPOTHESIS: The ~90s CPU spike is caused by pattern() wrapper + navigateTo,
  * not pattern() wrapper.
  *
- * person.tsx uses recipe(), our minimal repro used pattern().
- * This tests if recipe() alone triggers the bug.
+ * person.tsx uses pattern(), our minimal repro used pattern().
+ * This tests if pattern() alone triggers the bug.
  */
 import {
   computed,
@@ -15,11 +15,11 @@ import {
   generateObject,
   handler,
   NAME,
-  recipe,
+  pattern,
   toSchema,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // 14-field schema to match person.tsx
 interface ExtractionResult {
@@ -61,8 +61,8 @@ interface Output {
   notes: string;
 }
 
-// Use recipe() like person.tsx does
-const ExtractTargetV2 = recipe<Input, Output>(
+// Use pattern() like person.tsx does
+const ExtractTargetV2 = pattern<Input, Output>(
   "Extract Target V2",
   ({ notes }) => {
     const extractTrigger = Writable.of<string>("");
@@ -99,15 +99,15 @@ const ExtractTargetV2 = recipe<Input, Output>(
       notes,
       [UI]: (
         <div style={{ padding: "1rem", fontFamily: "monospace" }}>
-          <h1>Extract Target V2 (recipe)</h1>
+          <h1>Extract Target V2 (pattern)</h1>
 
           <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST 1:</strong> Using recipe() wrapper instead of pattern()
+            <strong>TEST 1:</strong> Using pattern() wrapper instead of pattern()
           </div>
 
-          <ct-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
+          <cf-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
             {pending ? "Extracting..." : "Run Extraction"}
-          </ct-button>
+          </cf-button>
 
           {result && (
             <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>

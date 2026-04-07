@@ -8,7 +8,7 @@ When deploying a pattern to a **new space** and visiting it for the first time, 
 
 1. Deploy a pattern to a **new** space:
    ```bash
-   deno task ct charm new pattern.tsx --space NEW-SPACE-NAME --api-url http://localhost:8000 --identity claude.key
+   deno task cf charm new pattern.tsx --space NEW-SPACE-NAME --api-url http://localhost:8000 --identity claude.key
    ```
 
 2. Navigate to the pattern URL in browser
@@ -37,7 +37,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // ============================================================================
 // Types (from spec's Interface section)
@@ -327,7 +327,7 @@ export default pattern<CheeseboardInput, CheeseboardOutput>(({ preferences, hist
           {ifElse(
             pending,
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "2rem", justifyContent: "center" }}>
-              <ct-loader show-elapsed></ct-loader>
+              <cf-loader show-elapsed></cf-loader>
               <span style={{ color: "#666" }}>Fetching pizza schedule...</span>
             </div>,
             null
@@ -662,7 +662,7 @@ Suggests the issue is related to **new space initialization**, not the pattern i
 ## Environment
 
 - CommonTools framework (local dev)
-- `deno task ct` commands
+- `deno task cf` commands
 - localhost:8000 toolshed
 - macOS
 

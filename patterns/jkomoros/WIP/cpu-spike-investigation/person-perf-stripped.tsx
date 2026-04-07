@@ -22,7 +22,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 // Inline the diff utilities to avoid import path issues
 type DiffChunk = {
   type: "removed" | "added" | "unchanged";
@@ -300,12 +300,12 @@ export default pattern(() => {
           <strong>HYPOTHESIS:</strong> changesPreview + modal causes ~60s spike
         </div>
 
-        <ct-button
+        <cf-button
           onClick={triggerExtraction({ trigger, startTimeMs })}
           disabled={extractionPending}
         >
           {extractionPending ? "Extracting..." : "Run Extraction"}
-        </ct-button>
+        </cf-button>
 
         <h2>Status</h2>
 
@@ -402,16 +402,16 @@ export default pattern(() => {
                   marginTop: "12px",
                 }}
               >
-                <ct-button
+                <cf-button
                   onClick={cancelExtraction({ extractedData: extractionResult })}
                 >
                   Cancel
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={applyExtractedData({ extractedData: extractionResult })}
                 >
                   Accept Changes
-                </ct-button>
+                </cf-button>
               </div>
 
               {timingDisplay && (
@@ -448,8 +448,8 @@ export default pattern(() => {
 
         <h2>What This Does NOT Have</h2>
         <ul>
-          <li><code>ct-autolayout</code> component</li>
-          <li><code>ct-code-editor</code> component</li>
+          <li><code>cf-autolayout</code> component</li>
+          <li><code>cf-code-editor</code> component</li>
           <li>Multiple tabs</li>
           <li>All the input handlers</li>
           <li>Relationship type pickers</li>

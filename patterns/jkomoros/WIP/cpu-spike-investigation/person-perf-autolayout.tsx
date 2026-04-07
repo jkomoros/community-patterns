@@ -1,16 +1,16 @@
 /// <cts-enable />
 /**
  * @title Person Perf Autolayout
- * @description Test if ct-autolayout causes the ~60s CPU spike
+ * @description Test if cf-autolayout causes the ~60s CPU spike
  *
  * HYPOTHESIS: The ~60 second CPU spike in person.tsx is caused by
- * the `ct-autolayout` component, which throws TypeError during rendering.
+ * the `cf-autolayout` component, which throws TypeError during rendering.
  *
  * This pattern takes the fast stripped repro (~3.9s) and adds ONLY
- * ct-autolayout to test if that's the root cause.
+ * cf-autolayout to test if that's the root cause.
  *
  * EXPECTED:
- * - If ~60 seconds: ct-autolayout is the cause
+ * - If ~60 seconds: cf-autolayout is the cause
  * - If ~4 seconds: Need to add more complexity
  */
 import {
@@ -22,7 +22,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Inline the diff utilities to avoid import path issues
 type DiffChunk = {
@@ -283,9 +283,9 @@ export default pattern(() => {
     [UI]: (
       // ============================================================
       // THIS IS THE KEY CHANGE WE'RE TESTING
-      // Wrapping in ct-autolayout to test if it causes the ~60s spike
+      // Wrapping in cf-autolayout to test if it causes the ~60s spike
       // ============================================================
-      <ct-autolayout style={{ padding: "1rem", fontFamily: "monospace" }}>
+      <cf-autolayout style={{ padding: "1rem", fontFamily: "monospace" }}>
         <h1>Person Perf Autolayout Test</h1>
 
         <div
@@ -295,15 +295,15 @@ export default pattern(() => {
             marginBottom: "1rem",
           }}
         >
-          <strong>HYPOTHESIS:</strong> ct-autolayout causes ~60s spike
+          <strong>HYPOTHESIS:</strong> cf-autolayout causes ~60s spike
         </div>
 
-        <ct-button
+        <cf-button
           onClick={triggerExtraction({ trigger, startTimeMs })}
           disabled={extractionPending}
         >
           {extractionPending ? "Extracting..." : "Run Extraction"}
-        </ct-button>
+        </cf-button>
 
         <h2>Status</h2>
 
@@ -400,16 +400,16 @@ export default pattern(() => {
                   marginTop: "12px",
                 }}
               >
-                <ct-button
+                <cf-button
                   onClick={cancelExtraction({ extractedData: extractionResult })}
                 >
                   Cancel
-                </ct-button>
-                <ct-button
+                </cf-button>
+                <cf-button
                   onClick={applyExtractedData({ extractedData: extractionResult })}
                 >
                   Accept Changes
-                </ct-button>
+                </cf-button>
               </div>
 
               {timingDisplay && (
@@ -437,7 +437,7 @@ export default pattern(() => {
 
         <h2>What This Tests</h2>
         <ul>
-          <li><code>ct-autolayout</code> wrapper (THE KEY TEST)</li>
+          <li><code>cf-autolayout</code> wrapper (THE KEY TEST)</li>
           <li><code>changesPreview</code> computed cell (14 field comparisons)</li>
           <li><code>hasExtractionResults</code> computed cell</li>
           <li><code>notesDiffChunks</code> computed cell</li>
@@ -446,8 +446,8 @@ export default pattern(() => {
         </ul>
 
         <h2>What person-perf-stripped.tsx Did NOT Have</h2>
-        <p>This pattern adds ct-autolayout to the stripped repro which completed in ~3.9s</p>
-      </ct-autolayout>
+        <p>This pattern adds cf-autolayout to the stripped repro which completed in ~3.9s</p>
+      </cf-autolayout>
     ),
   };
 });

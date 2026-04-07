@@ -3,7 +3,7 @@
  * Test pattern to verify previewUI in the picker.
  * Uses wish("#googleAuth") to trigger the multi-account picker.
  */
-import { NAME, pattern, UI, wish } from "commontools";
+import { NAME, pattern, UI, wish } from "commonfabric";
 
 interface Input {}
 interface Output {}

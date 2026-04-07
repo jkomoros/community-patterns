@@ -22,7 +22,7 @@ import {
   Stream,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 
 // Auth type (inline to avoid import issues)
 type Auth = {

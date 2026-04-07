@@ -25,7 +25,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Import actual GoogleAuth pattern
 import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.tsx";
@@ -262,12 +262,12 @@ export default pattern<TestInput, TestOutput>(({ preCreatedSimpleConfig, preCrea
             ✅ CONFIRMED WORKING in Round 1
           </p>
           <div style={{ display: "flex", gap: "8px" }}>
-            <ct-button onClick={createSimpleWithPlainObject({})}>
+            <cf-button onClick={createSimpleWithPlainObject({})}>
               1A: Plain Object
-            </ct-button>
-            <ct-button onClick={createSimpleWithCellRef({ configCell: preCreatedSimpleConfig })}>
+            </cf-button>
+            <cf-button onClick={createSimpleWithCellRef({ configCell: preCreatedSimpleConfig })}>
               1B: Cell Ref
-            </ct-button>
+            </cf-button>
           </div>
         </div>
 
@@ -280,12 +280,12 @@ export default pattern<TestInput, TestOutput>(({ preCreatedSimpleConfig, preCrea
             ✅ CONFIRMED WORKING - Both work fine
           </p>
           <div style={{ display: "flex", gap: "8px" }}>
-            <ct-button onClick={createComplexWithPlainObject({})}>
+            <cf-button onClick={createComplexWithPlainObject({})}>
               2A: Plain Object
-            </ct-button>
-            <ct-button onClick={createComplexWithCellRef({ scopesCell: preCreatedScopes })}>
+            </cf-button>
+            <cf-button onClick={createComplexWithCellRef({ scopesCell: preCreatedScopes })}>
               2B: Cell Ref
-            </ct-button>
+            </cf-button>
           </div>
         </div>
 
@@ -301,12 +301,12 @@ export default pattern<TestInput, TestOutput>(({ preCreatedSimpleConfig, preCrea
             ⚠️ Test 3A may cause CPU spike - this is the REAL test
           </p>
           <div style={{ display: "flex", gap: "8px" }}>
-            <ct-button variant="destructive" onClick={createGoogleAuthWithPlainObject({})}>
+            <cf-button variant="destructive" onClick={createGoogleAuthWithPlainObject({})}>
               3A: GoogleAuth + Plain ⚠️
-            </ct-button>
-            <ct-button onClick={createGoogleAuthWithCellRef({ scopesCell: preCreatedScopes })}>
+            </cf-button>
+            <cf-button onClick={createGoogleAuthWithCellRef({ scopesCell: preCreatedScopes })}>
               3B: GoogleAuth + Cell Ref
-            </ct-button>
+            </cf-button>
           </div>
         </div>
 

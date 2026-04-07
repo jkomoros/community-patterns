@@ -30,7 +30,7 @@ export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
         {items.map((item) => (
           <div>
             {/* TypeScript allows this, but it silently fails at runtime */}
-            <ct-checkbox $checked={item.selected} />
+            <cf-checkbox $checked={item.selected} />
             <span>{item.name}</span>
           </div>
         ))}
@@ -43,7 +43,7 @@ export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
 ### What Happens
 
 1. User clicks checkbox
-2. `ct-checkbox.setChecked(true)` is called
+2. `cf-checkbox.setChecked(true)` is called
 3. `CellController.setValue(newValue)` runs
 4. `defaultSetValue()` checks `isCell(value)` → **FALSE** (it's a boolean from OpaqueRef)
 5. The else branch does nothing → **write is silently dropped**
@@ -180,7 +180,7 @@ export default pattern<{ items: Cell<Item[]> }>(({ items }) => {
         {items.map((item, idx) => (
           <div>
             {/* Use checked (not $checked) + onClick handler */}
-            <ct-checkbox
+            <cf-checkbox
               checked={item.selected}
               onClick={toggleSelection({ arr: items, idx })}
             />
@@ -221,7 +221,7 @@ But at runtime, the binding doesn't work because the CellController needs a Cell
 |------|-----------|
 | `labs/packages/common/src/cell.ts` | Cell.map() returns OpaqueRef |
 | `labs/packages/ui/src/v2/core/cell-controller.ts` | defaultSetValue() silently ignores non-Cells |
-| `labs/packages/ui/src/v2/components/ct-checkbox/ct-checkbox.ts` | Uses CellController for $checked |
+| `labs/packages/ui/src/v2/components/cf-checkbox/cf-checkbox.ts` | Uses CellController for $checked |
 | `labs/packages/html/src/render.ts:271` | Where "unexpected object" warning originates |
 
 ---

@@ -20,7 +20,7 @@ import {
   pattern,
   str,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 interface Item {
   id: string;

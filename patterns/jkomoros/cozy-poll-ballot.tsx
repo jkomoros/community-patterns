@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, handler, ifElse, NAME, navigateTo, pattern, str, UI, Writable } from "commontools";
+import { computed, Default, handler, ifElse, NAME, navigateTo, pattern, str, UI, Writable } from "commonfabric";
 
 /**
  * Cozy Poll Ballot Pattern
@@ -159,9 +159,9 @@ export default pattern<VoterInput, VoterOutput>(
               <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
                 ⚠️ Please enter your name to start voting
               </div>
-              <ct-message-input
+              <cf-message-input
                 placeholder="Enter your name..."
-                onct-send={(e: { detail: { message: string } }) => {
+                oncf-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {
                     myName.set(name);
@@ -312,7 +312,7 @@ export default pattern<VoterInput, VoterOutput>(
                   </div>
 
                   {/* Vote buttons */}
-                  <ct-button
+                  <cf-button
                     style={myVoteByOption[option.id] === "green"
                       ? "background-color: #22c55e; color: white; font-weight: bold; border: 2px solid #16a34a;"
                       : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
@@ -324,8 +324,8 @@ export default pattern<VoterInput, VoterOutput>(
                     }}
                   >
                     🟢
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     style={myVoteByOption[option.id] === "yellow"
                       ? "background-color: #eab308; color: white; font-weight: bold; border: 2px solid #ca8a04;"
                       : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
@@ -337,8 +337,8 @@ export default pattern<VoterInput, VoterOutput>(
                     }}
                   >
                     🟡
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     style={myVoteByOption[option.id] === "red"
                       ? "background-color: #ef4444; color: white; font-weight: bold; border: 2px solid #dc2626;"
                       : myVoteByOption[option.id] ? "opacity: 0.4;" : ""}
@@ -350,15 +350,15 @@ export default pattern<VoterInput, VoterOutput>(
                     }}
                   >
                     🔴
-                  </ct-button>
-                  <ct-button onClick={() => {
+                  </cf-button>
+                  <cf-button onClick={() => {
                     const currentName = myName.get();
                     const allVotes = votes.get();
                     const filtered = allVotes.filter(v => !(v.voterName === currentName && v.optionId === option.id));
                     votes.set(filtered);
                   }}>
                     Clear
-                  </ct-button>
+                  </cf-button>
                 </div>
               </div>
             ))}

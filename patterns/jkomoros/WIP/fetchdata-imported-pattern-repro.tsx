@@ -18,7 +18,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 import SimpleConfig from "./simple-config.tsx";
 
 // Types

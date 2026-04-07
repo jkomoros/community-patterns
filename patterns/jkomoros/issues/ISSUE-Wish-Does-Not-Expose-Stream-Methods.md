@@ -17,13 +17,13 @@ Two test charms are provided in `patterns/jkomoros/WIP/`:
 
 ```bash
 # Deploy auth charm to auth-test space
-deno task ct charm new patterns/jkomoros/WIP/google-auth-short-ttl.tsx \
+deno task cf charm new patterns/jkomoros/WIP/google-auth-short-ttl.tsx \
   --api-url http://localhost:8000 \
   --identity claude.key \
   --space auth-test
 
 # Deploy consumer to SAME space
-deno task ct charm new patterns/jkomoros/WIP/test-auth-consumer.tsx \
+deno task cf charm new patterns/jkomoros/WIP/test-auth-consumer.tsx \
   --api-url http://localhost:8000 \
   --identity claude.key \
   --space auth-test

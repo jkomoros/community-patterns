@@ -113,7 +113,7 @@ const calculateScore = (option: RubricOption) => {
 │ [Quick Add Item] (prompts for context)                      │
 ├───────────────────────────────┬─────────────────────────────┤
 │ Ranked Options (Left Pane)   │ Detail Pane (Right)         │
-│ ct-vscroll                    │                             │
+│ cf-vscroll                    │                             │
 │                               │                             │
 │ 🥇 Apartment A (Score: 85)    │ Selected: Apartment A       │
 │    [↑] [↓]                    │                             │
@@ -248,7 +248,7 @@ options.map((option, index) => {
 - Follows pattern established in store-mapper.tsx
 
 ### Phase 2: Core UI
-- [ ] Two-pane layout with ct-hstack
+- [ ] Two-pane layout with cf-hstack
 - [ ] Left pane: Scrollable list of options with scores
 - [ ] Right pane: Detail view for selected option
 - [ ] Add option button
@@ -257,8 +257,8 @@ options.map((option, index) => {
 ### Phase 3: Dynamic Value Editing
 - [ ] Detail pane shows all dimensions
 - [ ] For each dimension, show current value for selected option
-- [ ] Categorical: ct-select with bidirectional binding
-- [ ] Numeric: ct-input type="number" with bidirectional binding
+- [ ] Categorical: cf-select with bidirectional binding
+- [ ] Numeric: cf-input type="number" with bidirectional binding
 - [ ] Helper functions:
   - `getOptionValue(option, dimensionName) → value | null`
   - `setOptionValue(option, dimensionName, value)` → updates/adds to values array
@@ -358,7 +358,7 @@ OR suggest a missing dimension if weights alone can't explain the gap.
 
 ### Low Risk 🟢
 4. **UI complexity**: Two-pane layout with dynamic forms
-   - Mitigation: Use existing patterns (ct-hstack, ct-vstack, ct-input, ct-select)
+   - Mitigation: Use existing patterns (cf-hstack, cf-vstack, cf-input, cf-select)
 
 ## Next Steps
 
@@ -409,7 +409,7 @@ OR suggest a missing dimension if weights alone can't explain the gap.
 - Handlers that access `.key("values")` on Cells passed from derive blocks lose space context
 
 **What We Learned**:
-- ct-select and ct-input with `$value` require direct Cell references
+- cf-select and cf-input with `$value` require direct Cell references
 - One-way binding with handlers + value prop doesn't work reliably for dynamic lookups
 - The reactive context (space) gets lost when passing Cell references through derive blocks
 
@@ -461,14 +461,14 @@ According to `/community-docs/superstitions/2025-01-23-onclick-handlers-conditio
 **Key discovery**: todo-list.tsx uses inline arrow functions that access Cells from closure:
 ```typescript
 {items.map((item) => (
-  <ct-button
+  <cf-button
     onClick={() => {
       const current = items.get();  // Accesses Cell from outer scope
       // ... works!
     }}
   >
     ×
-  </ct-button>
+  </cf-button>
 ))}
 ```
 
@@ -618,7 +618,7 @@ const changeNumericValue = handler<
 ```
 
 **Other Fixes:**
-- Changed all `<button>` elements to `<ct-button>` components (framework standard)
+- Changed all `<button>` elements to `<cf-button>` components (framework standard)
 - Removed debug logging (console.log statements)
 
 **Testing Results:**
@@ -669,7 +669,7 @@ const sortedBoxedItems = derive(boxedItems, (boxed) => {
 
 // 3. Individual items remain reactive
 {group.items.map(({ assignment }) => (
-  <ct-checkbox $checked={assignment.item.done} />  // ✅ Still interactive!
+  <cf-checkbox $checked={assignment.item.done} />  // ✅ Still interactive!
 ))}
 ```
 
@@ -853,8 +853,8 @@ const moveOptionUp = handler<
 
     return (
       <div>
-        <ct-button onClick={moveOptionUp({ optionCell, optionsCell })}>▲</ct-button>
-        <ct-button onClick={moveOptionDown({ optionCell, optionsCell })}>▼</ct-button>
+        <cf-button onClick={moveOptionUp({ optionCell, optionsCell })}>▲</cf-button>
+        <cf-button onClick={moveOptionDown({ optionCell, optionsCell })}>▼</cf-button>
         <span>{index + 1}. {optionName}</span>
       </div>
     );
@@ -976,7 +976,7 @@ const moveOptionUp = handler<unknown, { index: number, optionsCell: Cell<RubricO
 
 // Pass index from map
 {options.map((option, index) => (
-  <ct-button onClick={moveOptionUp({ index, optionsCell })}>▲</ct-button>
+  <cf-button onClick={moveOptionUp({ index, optionsCell })}>▲</cf-button>
 ))}
 ```
 
@@ -1063,7 +1063,7 @@ const removeItem = handler<
 
 // In JSX, items are Cells
 {items.map((item, index) => (
-  <ct-button onClick={removeItem({ items, item })}>Remove</ct-button>
+  <cf-button onClick={removeItem({ items, item })}>Remove</cf-button>
 ))}
 ```
 
@@ -1186,9 +1186,9 @@ Added a "Quick Add" section that uses LLM to extract option names and dimension 
 })}
 
 // Action buttons OUTSIDE derive - handlers can write
-<ct-button onClick={acceptResult({ resultCell, promptCell })}>
+<cf-button onClick={acceptResult({ resultCell, promptCell })}>
   Accept
-</ct-button>
+</cf-button>
 ```
 
 **Handler reads from result Cell:**

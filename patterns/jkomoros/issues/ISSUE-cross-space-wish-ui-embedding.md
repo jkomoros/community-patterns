@@ -1,8 +1,8 @@
-# Bug: ct-cell-link Navigates to Wrong Space for Cross-Space Charms
+# Bug: cf-cell-link Navigates to Wrong Space for Cross-Space Charms
 
 ## Problem
 
-When using `wish()` to find a charm in another space, clicking the rendered `ct-cell-link` navigates to the **current space** with the charm ID, instead of the **source space** where the charm actually exists. This results in a blank page.
+When using `wish()` to find a charm in another space, clicking the rendered `cf-cell-link` navigates to the **current space** with the charm ID, instead of the **source space** where the charm actually exists. This results in a blank page.
 
 ## Confirmed Reproduction (2025-12-03)
 
@@ -22,31 +22,31 @@ When using `wish()` to find a charm in another space, clicking the rendered `ct-
 
 ## Root Cause
 
-The `ct-cell-link` component doesn't include the source space in its navigation. It assumes the charm is in the current space.
+The `cf-cell-link` component doesn't include the source space in its navigation. It assumes the charm is in the current space.
 
 ## Code Pattern
 
 ```tsx
 const wishResult = wish<GoogleAuthCharm>({ query: "#googleAuth" });
 
-// Renders ct-cell-link like "Google Auth #sfcpfm"
+// Renders cf-cell-link like "Google Auth #sfcpfm"
 // Link href is just the charm ID, missing the source space
 {wishResult.result}
 ```
 
 ## Impact
 
-- Users cannot navigate to cross-space charms via ct-cell-link
+- Users cannot navigate to cross-space charms via cf-cell-link
 - The "favorite once, use everywhere" pattern breaks for UI navigation
 - Workaround: manually construct URLs with correct space name
 
 ## Suggested Fix
 
-The `ct-cell-link` component should include the source space in its `href` or navigation logic when rendering a cross-space charm reference.
+The `cf-cell-link` component should include the source space in its `href` or navigation logic when rendering a cross-space charm reference.
 
 ## Same-Space Navigation Works
 
-When the consuming pattern is in the **same space** as the wished charm, ct-cell-link navigation works correctly:
+When the consuming pattern is in the **same space** as the wished charm, cf-cell-link navigation works correctly:
 - Wish Auth Test in `jkomoros` → click link → navigates to `jkomoros/CHARM-ID` ✅
 - Google Auth UI renders correctly
 

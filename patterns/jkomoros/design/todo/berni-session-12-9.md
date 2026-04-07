@@ -179,7 +179,7 @@ ct.render(googleAuthCharm)
 - Handlers crash with "Cannot create cell link: space is required" when trying to access wished cells
 
 - [x] Remove await from handlers - **REVERTED** (approach didn't work)
-- [x] Use ct-render for google-auth charm - **REVERTED** (approach didn't work)
+- [x] Use cf-render for google-auth charm - **REVERTED** (approach didn't work)
 - [x] Add refresh button using refreshTokenStream.send() - **REVERTED** (approach didn't work)
 - [x] Create derived for token validity - **REVERTED** (approach didn't work)
 - [x] Update scanning condition - **REVERTED** (approach didn't work)

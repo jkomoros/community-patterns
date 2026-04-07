@@ -68,7 +68,7 @@ The old charm instance was probably updated using `charm setsrc`, which is known
 
 ```bash
 cd ~/Code/labs
-deno task ct charm new \
+deno task cf charm new \
   --api-url http://localhost:8000 \
   --identity ../community-patterns/claude.key \
   --space YOUR-SPACE \

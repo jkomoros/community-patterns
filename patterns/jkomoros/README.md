@@ -316,7 +316,7 @@ Display stats for a single GitHub repository.
 - Star growth sparkline via API sampling
 - Commit activity bar chart
 - Momentum indicator (accelerating/steady/decelerating)
-- Designed for composition via ct-render
+- Designed for composition via cf-render
 
 #### `gmail-agentic-search.tsx`
 Base pattern for building Gmail-based agentic searchers. Handles auth and provides tools for LLM agents.
@@ -429,7 +429,7 @@ See `issues/ISSUE-one-shot-population-from-llm.md` for details.
 **Known issue:** During LLM extraction, checkboxes thrash wildly (100% CPU). After extraction settles, checkbox clicks may not persist properly. The core problem is the "initialize from derived data, then allow mutation" pattern which appears to conflict with the reactive model. Seeking framework author guidance.
 
 #### `WIP/autocomplete-value-demo.tsx`
-Demo pattern for ct-autocomplete $value binding in single-select and multi-select modes.
+Demo pattern for cf-autocomplete $value binding in single-select and multi-select modes.
 
 **Interesting features:**
 - Single-select mode: shows selected label in input, backspace to clear

@@ -1,4 +1,4 @@
-# ct-image-input Component Design Document
+# cf-image-input Component Design Document
 
 ## Overview
 
@@ -48,11 +48,11 @@ The HTML5 `<input type="file">` naturally supports both:
 - **Without `capture` attribute**: Shows file picker (desktop) or camera option in picker (mobile)
 - **With `capture` attribute**: Opens camera directly on mobile devices
 
-This means one `ct-image-input` component can handle all use cases via props, without needing separate components.
+This means one `cf-image-input` component can handle all use cases via props, without needing separate components.
 
 ## API Design
 
-### Component: `ct-image-input`
+### Component: `cf-image-input`
 
 #### Properties
 
@@ -138,13 +138,13 @@ interface ExifData {
 
 ```typescript
 // Fired when image(s) are added
-@fires ct-change - { images: ImageData[] }
+@fires cf-change - { images: ImageData[] }
 
 // Fired when an image is removed
-@fires ct-remove - { id: string, images: ImageData[] }
+@fires cf-remove - { id: string, images: ImageData[] }
 
 // Fired when camera access fails
-@fires ct-error - { error: Error, message: string }
+@fires cf-error - { error: Error, message: string }
 ```
 
 #### Slots
@@ -199,10 +199,10 @@ const handlePhotoUpload = handler<
 });
 
 // In UI - Opens camera directly on mobile
-<ct-image-input
+<cf-image-input
   capture="environment"
   buttonText="📸 Scan Shopping List"
-  onct-change={handlePhotoUpload({ items })}
+  oncf-change={handlePhotoUpload({ items })}
 />
 ```
 
@@ -213,7 +213,7 @@ const profilePhoto = cell<ImageData | null>(null);
 
 // On mobile: Opens front camera
 // On desktop: Opens file picker
-<ct-image-input
+<cf-image-input
   capture="user"
   multiple={false}
   buttonText="Upload Photo"
@@ -228,7 +228,7 @@ const profilePhoto = cell<ImageData | null>(null);
 const profilePhoto = cell<ImageData | null>(null);
 
 // Always shows file picker, no camera capture
-<ct-image-input
+<cf-image-input
   capture={false}
   multiple={false}
   buttonText="Choose Photo"
@@ -243,7 +243,7 @@ const profilePhoto = cell<ImageData | null>(null);
 const photos = cell<ImageData[]>([]);
 
 // File picker mode - good for uploading multiple existing photos
-<ct-image-input
+<cf-image-input
   multiple
   maxImages={5}
   capture={false}
@@ -278,11 +278,11 @@ const handleReceipt = handler<{ detail: { images: ImageData[] } }>(
   }
 );
 
-<ct-image-input
+<cf-image-input
   capture="environment"
   buttonText="📄 Scan Receipt"
   showPreview={false}
-  onct-change={handleReceipt}
+  oncf-change={handleReceipt}
 />
 ```
 
@@ -339,19 +339,19 @@ This is why one component works for both use cases.
 ## Component Structure
 
 ```
-packages/ui/src/v2/components/ct-image-input/
-├── ct-image-input.ts       # Main component
+packages/ui/src/v2/components/cf-image-input/
+├── cf-image-input.ts       # Main component
 ├── index.ts                # Export and registration
 └── styles.ts               # Optional: complex styles
 ```
 
 ## Design Decisions (Finalized)
 
-✅ **Single Component** - One `ct-image-input` handles both file upload and camera capture via `capture` prop
+✅ **Single Component** - One `cf-image-input` handles both file upload and camera capture via `capture` prop
 
 ✅ **EXIF Metadata** - Extract and include in `ImageData.exif` field
 
-✅ **No Crop/Edit UI** - Keep component focused; create separate `ct-image-editor` if needed later
+✅ **No Crop/Edit UI** - Keep component focused; create separate `cf-image-editor` if needed later
 
 ## Open Questions
 
@@ -361,7 +361,7 @@ packages/ui/src/v2/components/ct-image-input/
    - **Proposal**: Add optional `maxWidth` / `maxHeight` / `quality` props
 
 2. **Progress Indication?** - For large uploads or processing?
-   - **Proposal**: Show spinner while reading file, emit `ct-loading` event
+   - **Proposal**: Show spinner while reading file, emit `cf-loading` event
 
 3. **Auto-rotation?** - Should we auto-rotate images based on EXIF orientation?
    - Pro: Images display correctly

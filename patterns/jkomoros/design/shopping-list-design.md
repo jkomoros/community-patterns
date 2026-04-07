@@ -493,8 +493,8 @@ These features would make the system production-ready but are skipped for the de
 
 ```bash
 # Create fresh demo space
-export CT_API_URL="http://localhost:8000/"
-export CT_IDENTITY="/Users/alex/Code/labs/claude.key"
+export CF_API_URL="http://localhost:8000/"
+export CF_IDENTITY="/Users/alex/Code/labs/claude.key"
 
 # Deploy demo-setup pattern
 /Users/alex/Code/labs/dist/ct charm new \

@@ -8,7 +8,7 @@ import {
   str,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 interface PreparedFoodInput {
   // Basic Info
@@ -33,7 +33,7 @@ interface PreparedFoodInput {
 
 /** Prepared food item with serving time and dietary info. #preparedFood */
 interface PreparedFoodOutput extends PreparedFoodInput {
-  // Provide dietary compatibility for consistency with food-recipe
+  // Provide dietary compatibility for consistency with food-pattern
   dietaryCompatibility: {
     compatible: string[];
     incompatible: string[];
@@ -143,7 +143,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
     return {
       [NAME]: str`🛒 ${displayName}`,
       [UI]: (
-        <ct-vstack gap={1} style="padding: 8px; max-width: 700px;">
+        <cf-vstack gap={1} style="padding: 8px; max-width: 700px;">
           {/* Header */}
           <div>
             <h1 style={{ margin: "0 0 2px 0", fontSize: "20px", fontWeight: "700" }}>
@@ -155,8 +155,8 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
           </div>
 
           {/* Basic Info */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Basic Info
               </h3>
@@ -166,7 +166,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Name
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={name}
                     placeholder="e.g., Costco Rotisserie Chicken"
                   />
@@ -176,7 +176,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Source
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={source}
                     placeholder="e.g., Costco, Aunt Mary, Whole Foods"
                   />
@@ -186,7 +186,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Servings
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${servings}`}
                     min="1"
@@ -197,7 +197,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Category
                   </label>
-                  <ct-select
+                  <cf-select
                     $value={category}
                     items={[
                       { label: "Appetizer", value: "appetizer" },
@@ -217,17 +217,17 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                   Description
                 </label>
-                <ct-input
+                <cf-input
                   $value={description}
                   placeholder="e.g., Whole roasted chicken, ready to serve"
                 />
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Dietary Tags */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Dietary Compatibility
               </h3>
@@ -292,17 +292,17 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
               </div>
 
               {/* Custom tag input */}
-              <ct-message-input
+              <cf-message-input
                 placeholder="Add custom dietary tag..."
                 appearance="rounded"
-                onct-send={addDietaryTag({ dietaryTags })}
+                oncf-send={addDietaryTag({ dietaryTags })}
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Primary Ingredients */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Main Ingredients
               </h3>
@@ -343,17 +343,17 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
               </div>
 
               {/* Add ingredient input */}
-              <ct-message-input
+              <cf-message-input
                 placeholder="Add main ingredient..."
                 appearance="rounded"
-                onct-send={addIngredient({ primaryIngredients })}
+                oncf-send={addIngredient({ primaryIngredients })}
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Prep Details */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Prep Details (Optional)
               </h3>
@@ -363,7 +363,7 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Prep Time (min)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${prepTime}`}
                     min="0"
@@ -373,14 +373,14 @@ const PreparedFood = pattern<PreparedFoodInput, PreparedFoodOutput>(
 
                 <div>
                   <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "500" }}>
-                    <ct-checkbox $checked={requiresReheating} />
+                    <cf-checkbox $checked={requiresReheating} />
                     Requires Reheating
                   </label>
                 </div>
               </div>
-            </ct-vstack>
-          </ct-card>
-        </ct-vstack>
+            </cf-vstack>
+          </cf-card>
+        </cf-vstack>
       ),
       name,
       servings,

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, handler, NAME, pattern, UI } from "commonfabric";
 
 // PII categories for structured input
 type PIICategory = "name" | "email" | "phone" | "ssn" | "address" | "custom";
@@ -118,7 +118,7 @@ export default pattern<InputSchema, Output>(({ title, entries }) => {
             >
               Category
             </label>
-            <ct-select
+            <cf-select
               $value={newCategory}
               items={[
                 { label: "Name", value: "name" },
@@ -141,13 +141,13 @@ export default pattern<InputSchema, Output>(({ title, entries }) => {
             >
               Value
             </label>
-            <ct-input $value={newValue} placeholder={currentPlaceholder} />
+            <cf-input $value={newValue} placeholder={currentPlaceholder} />
           </div>
-          <ct-button
+          <cf-button
             onClick={addEntry({ entries, category: newCategory, value: newValue })}
           >
             Add
-          </ct-button>
+          </cf-button>
         </div>
 
         {/* Entries list */}
@@ -203,13 +203,13 @@ export default pattern<InputSchema, Output>(({ title, entries }) => {
               <span style={{ flex: 1, fontFamily: "monospace" }}>
                 {entry.value}
               </span>
-              <ct-button
+              <cf-button
                 variant="destructive"
                 size="sm"
                 onClick={removeEntry({ entries, entry })}
               >
                 Remove
-              </ct-button>
+              </cf-button>
             </div>
           ))}
         </div>

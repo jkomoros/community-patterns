@@ -93,12 +93,12 @@ Bread, bagels, donuts...
     47 shoppers have used this mapping. Last updated 5 days ago.
   </div>
   <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-    <ct-button variant="primary" onclick={loadExistingMapping}>
+    <cf-button variant="primary" onclick={loadExistingMapping}>
       Use This Mapping
-    </ct-button>
-    <ct-button variant="secondary" onclick={previewMapping}>
+    </cf-button>
+    <cf-button variant="secondary" onclick={previewMapping}>
       Preview Layout
-    </ct-button>
+    </cf-button>
   </div>
 </div>
 ```
@@ -113,9 +113,9 @@ Bread, bagels, donuts...
     Be the first to map this store and help other shoppers!
   </div>
   <div style="margin-top: 1rem;">
-    <ct-button variant="primary" onclick={startMapping}>
+    <cf-button variant="primary" onclick={startMapping}>
       Map This Store
-    </ct-button>
+    </cf-button>
   </div>
 </div>
 ```

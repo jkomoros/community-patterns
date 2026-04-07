@@ -1,8 +1,8 @@
-# Issue: Request for ct-chart Component
+# Issue: Request for cf-chart Component
 
 ## Summary
 
-Patterns cannot use SVG elements (`<svg>`, `<path>`, `<polyline>`, etc.) because they're not in `JSX.IntrinsicElements`. This makes it impossible to create line charts, sparklines, or other data visualizations. Requesting a `ct-chart` component to fill this gap.
+Patterns cannot use SVG elements (`<svg>`, `<path>`, `<polyline>`, etc.) because they're not in `JSX.IntrinsicElements`. This makes it impossible to create line charts, sparklines, or other data visualizations. Requesting a `cf-chart` component to fill this gap.
 
 ## Use Case
 
@@ -43,7 +43,7 @@ SVG elements are not in the allowed JSX elements.
 
 **Works** but doesn't show trends as clearly as connected lines.
 
-## Proposal: ct-chart Component
+## Proposal: cf-chart Component
 
 ### Recommended Approach: Vega-Lite Inspired
 
@@ -64,11 +64,11 @@ SVG elements are not in the allowed JSX elements.
 }
 ```
 
-### Proposed ct-chart API
+### Proposed cf-chart API
 
 **Option A: Vega-Lite spec as attribute**
 ```html
-<ct-chart
+<cf-chart
   data={weeklyData}
   spec={{
     mark: "line",
@@ -84,7 +84,7 @@ SVG elements are not in the allowed JSX elements.
 
 **Option B: Simpler props-based API (like Recharts)**
 ```html
-<ct-chart
+<cf-chart
   type="line"
   data={weeklyData}
   xKey="week"
@@ -97,7 +97,7 @@ SVG elements are not in the allowed JSX elements.
 
 **Option C: Sparkline-specific component**
 ```html
-<ct-sparkline
+<cf-sparkline
   data={[10, 25, 15, 30, 22, 18, 35]}
   width={100}
   height={30}
@@ -127,7 +127,7 @@ For patterns, even a simple component supporting just:
 
 ## Desired Behavior
 
-1. Pattern can import or use `ct-chart` component
+1. Pattern can import or use `cf-chart` component
 2. Pass data as array of objects or numbers
 3. Specify chart type (line, bar, sparkline)
 4. Component renders SVG internally (hidden from pattern author)
@@ -136,9 +136,9 @@ For patterns, even a simple component supporting just:
 ## Questions
 
 1. **Is adding SVG to JSX.IntrinsicElements feasible?** That would be the simplest solution.
-2. **Would a ct-chart component be considered?** What's the appetite for visualization components?
+2. **Would a cf-chart component be considered?** What's the appetite for visualization components?
 3. **Which charting library/semantics would fit best?** Vega-Lite spec would be powerful but maybe overkill for simple use cases.
-4. **Would a simple ct-sparkline be easier to start with?** Limited scope, high value.
+4. **Would a simple cf-sparkline be easier to start with?** Limited scope, high value.
 
 ## Environment
 

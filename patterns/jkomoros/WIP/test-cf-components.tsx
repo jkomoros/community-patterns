@@ -5,7 +5,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 interface TestInput {
   value: Default<string, "Hello">;
@@ -17,15 +17,15 @@ export default pattern<TestInput>(({ value }) => {
     [UI]: (
       <div style={{ padding: "16px" }}>
         <h1>Testing CT Components</h1>
-        <ct-card>
+        <cf-card>
           <div style={{ padding: "8px" }}>
-            <ct-input
+            <cf-input
               $value={value}
               placeholder="Type something..."
             />
-            <ct-button>Click Me</ct-button>
+            <cf-button>Click Me</cf-button>
           </div>
-        </ct-card>
+        </cf-card>
       </div>
     ),
     value,

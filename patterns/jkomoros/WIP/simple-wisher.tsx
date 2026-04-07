@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { NAME, pattern, UI, wish } from "commontools";
+import { NAME, pattern, UI, wish } from "commonfabric";
 
 /** Wishes for simple target and shows link. */
 export default pattern<{}, {}>(

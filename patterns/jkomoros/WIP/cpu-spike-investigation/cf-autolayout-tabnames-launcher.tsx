@@ -1,15 +1,15 @@
 /// <cts-enable />
 /**
  * @title CTAutoLayout TabNames Launcher
- * @description Launcher to test ct-autolayout via navigateTo
+ * @description Launcher to test cf-autolayout via navigateTo
  *
  * ## Purpose
  *
  * This launcher tests if navigateTo causes the tabNames bug:
- * 1. Click "Launch Test" to navigateTo the ct-autolayout test pattern
+ * 1. Click "Launch Test" to navigateTo the cf-autolayout test pattern
  * 2. In that pattern, click "Show Modal"
- * 3. If it freezes for ~40 seconds, the bug is in navigateTo + ct-autolayout
- * 4. If it's instant, the bug is NOT in ct-autolayout's tabNames
+ * 3. If it freezes for ~40 seconds, the bug is in navigateTo + cf-autolayout
+ * 4. If it's instant, the bug is NOT in cf-autolayout's tabNames
  */
 import {
   handler,
@@ -17,9 +17,9 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
-import CTAutoLayoutTest from "./ct-autolayout-tabnames-repro.tsx";
+import CTAutoLayoutTest from "./cf-autolayout-tabnames-repro.tsx";
 
 // Same demo notes that trigger the bug in person.tsx
 const DEMO_NOTES = `Dr. Maya Rodriguez (she/her)
@@ -32,7 +32,7 @@ LinkedIn: linkedin.com/in/maya-rodriguez
 Biotech researcher specializing in CRISPR gene editing at GeneTech Labs. Previously at MIT. Published 15+ papers on genetic modification.`;
 
 const launchTest = handler<void, void>(() => {
-  console.log("[LAUNCHER] Navigating to ct-autolayout test...");
+  console.log("[LAUNCHER] Navigating to cf-autolayout test...");
   navigateTo(CTAutoLayoutTest({ notes: DEMO_NOTES }));
 });
 
@@ -46,7 +46,7 @@ export default pattern(() => {
         <div style={{ backgroundColor: "#dbeafe", padding: "0.75rem", marginBottom: "1rem", borderRadius: "4px" }}>
           <strong>Test Hypothesis:</strong>
           <br />
-          The ~40s freeze is caused by <code>ct-autolayout</code> having undefined <code>tabNames</code>
+          The ~40s freeze is caused by <code>cf-autolayout</code> having undefined <code>tabNames</code>
           during certain render cycles when using navigateTo.
         </div>
 
@@ -56,13 +56,13 @@ export default pattern(() => {
             <li>Click "Launch Test" below</li>
             <li>In the new charm, click "Show Modal"</li>
             <li>If it freezes ~40 seconds → tabNames bug confirmed</li>
-            <li>If instant → bug is NOT in ct-autolayout tabNames</li>
+            <li>If instant → bug is NOT in cf-autolayout tabNames</li>
           </ol>
         </div>
 
-        <ct-button onClick={launchTest()}>
+        <cf-button onClick={launchTest()}>
           Launch Test (via navigateTo)
-        </ct-button>
+        </cf-button>
       </div>
     ),
   };

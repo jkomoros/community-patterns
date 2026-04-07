@@ -3,7 +3,7 @@
  * Simple test pattern for userChip verification.
  * Links directly to a google-auth charm to bypass wish picker.
  */
-import { NAME, pattern, UI } from "commontools";
+import { NAME, pattern, UI } from "commonfabric";
 import { createGoogleAuth, type ScopeKey } from "../../../labs/packages/patterns/google/core/util/google-auth-manager.tsx";
 
 interface Input {}

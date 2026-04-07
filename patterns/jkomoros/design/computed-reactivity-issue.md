@@ -115,9 +115,9 @@ computed(() => {
 ### Option A: Manual button
 ```typescript
 // Show button when LLM generates a query
-<ct-button onClick={() => gmailFilterQuery.set(queryResult.get().query)}>
+<cf-button onClick={() => gmailFilterQuery.set(queryResult.get().query)}>
   Use Query: {queryResult.get().query}
-</ct-button>
+</cf-button>
 ```
 **Pros:** Simple, reliable, gives user control
 **Cons:** Not automatic, requires user action
@@ -134,7 +134,7 @@ const autoQuery = derive([queryResult, queryPending], ([result, pending]) => {
 
 ## Environment
 
-- Framework: commontools (labs repository)
+- Framework: commonfabric (labs repository)
 - Pattern: patterns/jkomoros/hotel-membership-extractor.tsx
 - File: `/Users/alex/Code/community-patterns/patterns/jkomoros/hotel-membership-extractor.tsx`
 

@@ -11,7 +11,7 @@ import {
   Stream,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // ============================================================================
 // Types
@@ -136,7 +136,7 @@ const clearChat = handler<
   userContext.set([]);
 });
 
-// Handler for ct-radio-group change event
+// Handler for cf-radio-group change event
 const onAssumptionChange = handler<
   { detail: { value: string } },
   {
@@ -370,7 +370,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         return (
           <div
             style={{
-              color: "var(--ct-color-text-secondary, #888)",
+              color: "var(--cf-color-text-secondary, #888)",
               fontStyle: "italic",
               textAlign: "center",
               padding: "1rem",
@@ -387,7 +387,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
         return (
           <div
             style={{
-              color: "var(--ct-color-text-secondary, #888)",
+              color: "var(--cf-color-text-secondary, #888)",
               fontStyle: "italic",
               textAlign: "center",
               padding: "1rem",
@@ -417,20 +417,20 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
           ? correction.correctedIndex
           : assumption.selectedIndex;
 
-        // Convert alternatives to ct-radio-group items format
+        // Convert alternatives to cf-radio-group items format
         const radioItems = assumption.alternatives.map((alt, idx) => ({
           label: alt.value,
           value: String(idx),
         }));
 
-        // Assumption card container with ct-radio-group
+        // Assumption card container with cf-radio-group
         elements.push(
           <div
             key={elementIndex++}
             style={{
               marginBottom: "0.5rem",
               borderRadius: "6px",
-              border: "1px solid var(--ct-color-border, #e0e0e0)",
+              border: "1px solid var(--cf-color-border, #e0e0e0)",
               overflow: "hidden",
             }}
           >
@@ -438,21 +438,21 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
             <div
               style={{
                 padding: "0.4rem 0.6rem",
-                backgroundColor: "var(--ct-color-surface-secondary, #f5f5f5)",
+                backgroundColor: "var(--cf-color-surface-secondary, #f5f5f5)",
                 fontWeight: 600,
                 fontSize: "0.75rem",
-                borderBottom: "1px solid var(--ct-color-border, #e0e0e0)",
+                borderBottom: "1px solid var(--cf-color-border, #e0e0e0)",
               }}
             >
               {assumptionLabel}
             </div>
 
-            {/* Alternatives using ct-radio-group */}
+            {/* Alternatives using cf-radio-group */}
             <div style={{ padding: "0.3rem", fontSize: "0.75rem" }}>
-              <ct-radio-group
+              <cf-radio-group
                 value={String(currentSelectedIndex)}
                 items={radioItems}
-                onct-change={onAssumptionChange({
+                oncf-change={onAssumptionChange({
                   messageIndex,
                   assumptionLabel,
                   originalIndex: assumption.selectedIndex,
@@ -473,20 +473,20 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
     return {
       [NAME]: title,
       [UI]: (
-        <ct-screen>
-          <ct-vstack slot="header">
-            <ct-heading level={4}>{title}</ct-heading>
-            <ct-hstack align="center" gap="1">
-              <ct-button
+        <cf-screen>
+          <cf-vstack slot="header">
+            <cf-heading level={4}>{title}</cf-heading>
+            <cf-hstack align="center" gap="1">
+              <cf-button
                 variant="pill"
                 type="button"
                 title="Clear chat"
                 onClick={clearChat({ messages, assumptionsByMessage, corrections, userContext })}
               >
                 Clear
-              </ct-button>
-            </ct-hstack>
-          </ct-vstack>
+              </cf-button>
+            </cf-hstack>
+          </cf-vstack>
 
           {/* Main content area: Chat + Sidebar */}
           <div
@@ -506,22 +506,22 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                 overflow: "hidden",
               }}
             >
-              <ct-vscroll
+              <cf-vscroll
                 style="padding: 1rem; flex: 1;"
                 flex
                 showScrollbar
                 fadeEdges
                 snapToBottom
               >
-                <ct-chat $messages={messages} pending={pending} />
-              </ct-vscroll>
+                <cf-chat $messages={messages} pending={pending} />
+              </cf-vscroll>
             </div>
 
             {/* Assumptions sidebar */}
             <div
               style={{
                 flex: 1,
-                borderLeft: "1px solid var(--ct-color-border, #e0e0e0)",
+                borderLeft: "1px solid var(--cf-color-border, #e0e0e0)",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
@@ -532,7 +532,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
               <div
                 style={{
                   padding: "0.75rem 1rem",
-                  borderBottom: "1px solid var(--ct-color-border, #e0e0e0)",
+                  borderBottom: "1px solid var(--cf-color-border, #e0e0e0)",
                   fontWeight: 600,
                   display: "flex",
                   alignItems: "center",
@@ -544,7 +544,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                   <span
                     style={{
                       fontSize: "0.75rem",
-                      color: "var(--ct-color-text-secondary, #888)",
+                      color: "var(--cf-color-text-secondary, #888)",
                       fontWeight: 400,
                     }}
                   >
@@ -553,19 +553,19 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                 )}
               </div>
 
-              <ct-vscroll style="padding: 1rem; flex: 1;" flex showScrollbar>
+              <cf-vscroll style="padding: 1rem; flex: 1;" flex showScrollbar>
                 {/* JSX computed inside assumptionsJsx to enable reactivity
                     See: community-docs/superstitions/2025-11-21-cannot-map-computed-arrays-in-jsx.md
                     Also avoids CPU loop by reading generateObject result directly
                     See: community-docs/superstitions/2025-12-06-computed-set-causes-cpu-loop.md */}
                 {assumptionsJsx}
-              </ct-vscroll>
+              </cf-vscroll>
 
               {/* User context section */}
               {hasUserContext && (
                 <div
                   style={{
-                    borderTop: "1px solid var(--ct-color-border, #e0e0e0)",
+                    borderTop: "1px solid var(--cf-color-border, #e0e0e0)",
                     padding: "0.75rem 1rem",
                   }}
                 >
@@ -581,7 +581,7 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
                   <div
                     style={{
                       fontSize: "0.8rem",
-                      color: "var(--ct-color-text-secondary, #666)",
+                      color: "var(--cf-color-text-secondary, #666)",
                     }}
                   >
                     {userContextCount} note{userContextCount !== 1 && "s"}{" "}
@@ -593,14 +593,14 @@ export default pattern<AssumptionSurfacerInput, AssumptionSurfacerOutput>(
           </div>
 
           {/* Message input */}
-          <ct-prompt-input
+          <cf-prompt-input
             slot="footer"
             placeholder="Ask a question..."
             pending={pending}
-            onct-send={sendMessage({ addMessage })}
-            onct-stop={cancelGeneration}
+            oncf-send={sendMessage({ addMessage })}
+            oncf-stop={cancelGeneration}
           />
-        </ct-screen>
+        </cf-screen>
       ),
       messages,
       assumptionsByMessage,

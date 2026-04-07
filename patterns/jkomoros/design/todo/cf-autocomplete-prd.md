@@ -1,9 +1,9 @@
-# PRD: ct-autocomplete Built-in Component
+# PRD: cf-autocomplete Built-in Component
 
 **Status:** In Progress
 **Priority:** High
-**Branch (labs):** `feature/ct-autocomplete`
-**Branch (community-patterns):** `feature/ct-autocomplete`
+**Branch (labs):** `feature/cf-autocomplete`
+**Branch (community-patterns):** `feature/cf-autocomplete`
 **Prototype:** `patterns/jkomoros/components/search-select-prototype.tsx`
 
 ## Problem Statement
@@ -20,23 +20,23 @@ A user-land pattern prototype was built but hit framework limitations:
 
 ## Design Decision: Decomposed Architecture
 
-**Previous approach (rejected):** A monolithic `ct-search-select` that combined autocomplete + tag display + multi-select wiring.
+**Previous approach (rejected):** A monolithic `cf-search-select` that combined autocomplete + tag display + multi-select wiring.
 
 **New approach:** Two separate concerns:
 
-1. **`ct-autocomplete`** (built-in) - Search input + filterable dropdown. Outputs single selection.
-2. **`tag-selector`** (userland pattern) - Displays selected items as chips, wires to `ct-autocomplete` for adding.
+1. **`cf-autocomplete`** (built-in) - Search input + filterable dropdown. Outputs single selection.
+2. **`tag-selector`** (userland pattern) - Displays selected items as chips, wires to `cf-autocomplete` for adding.
 
 This decomposition is better because:
-- More composable - use `ct-autocomplete` alone for single-select
+- More composable - use `cf-autocomplete` alone for single-select
 - Simpler built-in component - one job done well
 - Userland can customize tag display without framework changes
 - Easier to test each piece independently
 
-## ct-autocomplete Component API
+## cf-autocomplete Component API
 
 ```typescript
-<ct-autocomplete
+<cf-autocomplete
   // Items to choose from (static list - v1)
   items={[
     { value: "colleague", label: "Colleague", group: "Professional" },
@@ -130,9 +130,9 @@ Enables matching items by related terms not in the display label:
 
 | Event | Detail | When |
 |-------|--------|------|
-| `ct-select` | `{ value, label, group?, isCustom }` | Item selected |
-| `ct-open` | `{}` | Dropdown opened |
-| `ct-close` | `{}` | Dropdown closed |
+| `cf-select` | `{ value, label, group?, isCustom }` | Item selected |
+| `cf-open` | `{}` | Dropdown opened |
+| `cf-close` | `{}` | Dropdown closed |
 
 ## Implementation Notes
 
@@ -179,7 +179,7 @@ A built-in component has access to:
 
 ## Test Cases
 
-1. **Basic selection**: Click item, fires `ct-select` event
+1. **Basic selection**: Click item, fires `cf-select` event
 2. **Search filter**: Typing filters options by label, value, group, aliases
 3. **Keyboard navigation**: Arrow keys move highlight, Enter selects
 4. **Escape closes**: Pressing Escape closes dropdown
@@ -190,7 +190,7 @@ A built-in component has access to:
 
 ## Userland tag-selector Pattern
 
-The userland pattern wires `ct-autocomplete` to a chip display:
+The userland pattern wires `cf-autocomplete` to a chip display:
 
 ```tsx
 // patterns/jkomoros/WIP/tag-selector.tsx
@@ -216,7 +216,7 @@ const TagSelector = ({ items, $selected }) => {
       ))}
 
       {/* Autocomplete for adding */}
-      <ct-autocomplete
+      <cf-autocomplete
         items={items.filter(i => !selected.get().includes(i.value))}
         onselect={addItem}
         placeholder="+ Add..."
@@ -229,7 +229,7 @@ const TagSelector = ({ items, $selected }) => {
 ## Implementation Path
 
 1. ✅ Create feature branches (labs + community-patterns)
-2. ⬜ Scaffold `ct-autocomplete` component in `labs/packages/ui/src/v2/components/`
+2. ⬜ Scaffold `cf-autocomplete` component in `labs/packages/ui/src/v2/components/`
 3. ⬜ Implement core rendering (input + dropdown)
 4. ⬜ Implement filtering logic with searchAliases
 5. ⬜ Implement keyboard navigation
@@ -242,7 +242,7 @@ const TagSelector = ({ items, $selected }) => {
 
 ## Related Files
 
-- **Old PRD**: `patterns/jkomoros/design/todo/ct-search-select-prd.md` (superseded)
+- **Old PRD**: `patterns/jkomoros/design/todo/cf-search-select-prd.md` (superseded)
 - **Prototype**: `patterns/jkomoros/components/search-select-prototype.tsx`
 - **Issue**: `patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md`
 

@@ -61,14 +61,14 @@ When you use `navigateTo(Person({ notes }))`:
 
 ### CTAutoLayout is a RED HERRING - NOT the root cause!
 
-**Test performed:** Created `person-no-autolayout.tsx` - exact copy of person.tsx with `<ct-autolayout>` replaced by simple `<div>`.
+**Test performed:** Created `person-no-autolayout.tsx` - exact copy of person.tsx with `<cf-autolayout>` replaced by simple `<div>`.
 
-| Test | ct-autolayout? | Result |
+| Test | cf-autolayout? | Result |
 |------|----------------|--------|
 | person.tsx via navigateTo | YES | **~40 second FREEZE** |
 | person-no-autolayout.tsx via navigateTo | NO | **~40 second FREEZE** |
 
-**The freeze still happens WITHOUT ct-autolayout!** The TypeError in CTAutoLayout.render() is a symptom of the freeze, not the cause.
+**The freeze still happens WITHOUT cf-autolayout!** The TypeError in CTAutoLayout.render() is a symptom of the freeze, not the cause.
 
 ---
 
@@ -86,7 +86,7 @@ When you use `navigateTo(Person({ notes }))`:
 
 ---
 
-## Remaining Hypotheses (after ruling out ct-autolayout)
+## Remaining Hypotheses (after ruling out cf-autolayout)
 
 ### 1. storageManager.synced() blocking (HIGH CONFIDENCE)
 
@@ -120,10 +120,10 @@ ID_FIELD matching loop does storage reads per array element. With large arrays, 
 
 ### ~~Root Cause Identified: CTAutoLayout.render() Error Loop~~
 
-~~**File:** `/Users/alex/Code/labs/packages/ui/src/v2/components/ct-autolayout/ct-autolayout.ts`~~
+~~**File:** `/Users/alex/Code/labs/packages/ui/src/v2/components/cf-autolayout/cf-autolayout.ts`~~
 ~~**Line:** 578~~
 
-**DISPROVEN:** Removing ct-autolayout did NOT fix the freeze. The TypeError is a symptom, not the cause.
+**DISPROVEN:** Removing cf-autolayout did NOT fix the freeze. The TypeError is a symptom, not the cause.
 
 **Console error during freeze:**
 ```
@@ -203,8 +203,8 @@ navigateTo(Person({ notes: DEMO_NOTES }))
 - Direct deployment via `charm new`
 - Short notes with fewer fields to extract
 - `navigateTo()` itself (works fine with short notes)
-- `ct-autolayout` itself (works fine in minimal repros)
-- `recipe()` wrapper (works fine in minimal repros)
+- `cf-autolayout` itself (works fine in minimal repros)
+- `pattern()` wrapper (works fine in minimal repros)
 
 ### Console Observations During Delay
 - `TypeError: Cannot read properties of undefined (reading 'length')` in CTAutoLayout.render
@@ -231,7 +231,7 @@ patterns/jkomoros/
 
 patterns/jkomoros/WIP/
 ├── person-minimal-v1.tsx         # Minimal person skeleton - FAST
-├── person-minimal-v2.tsx         # With ct-autolayout - FAST
+├── person-minimal-v2.tsx         # With cf-autolayout - FAST
 └── person-minimal-launcher.tsx   # Launcher for minimal versions
 ```
 
@@ -241,7 +241,7 @@ patterns/jkomoros/WIP/
 cd ~/Code/labs
 
 # Bug reproduction (SLOW - ~30s) - Long notes with Twitter/LinkedIn
-deno task ct charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space person-long-notes ../community-patterns/patterns/jkomoros/person-test-launcher.tsx
+deno task cf charm new --api-url http://localhost:8000 --identity ../community-patterns/claude.key --space person-long-notes ../community-patterns/patterns/jkomoros/person-test-launcher.tsx
 # person-test-launcher.tsx uses long DEMO_NOTES with Twitter/LinkedIn
 # Then: Click Launch Person → Extract Data from Notes → ~30s delay
 
@@ -272,10 +272,10 @@ deno task ct charm new --api-url http://localhost:8000 --identity ../community-p
 **Test:** Start empty, button click creates 9 × 60 = 540 nested items dynamically
 **Result:** **INSTANT** - No delay
 
-### Attempt 4: ct-autolayout + ifElse + Dynamic Maps (540 items)
+### Attempt 4: cf-autolayout + ifElse + Dynamic Maps (540 items)
 **File:** `WIP/dynamic-cell-autolayout-repro.tsx`
-**Hypothesis:** ct-autolayout component causes the freeze (CTAutoLayout.render error during freeze)
-**Test:** ct-autolayout with ifElse switching between Form view and Results view with 540 dynamic items
+**Hypothesis:** cf-autolayout component causes the freeze (CTAutoLayout.render error during freeze)
+**Test:** cf-autolayout with ifElse switching between Form view and Results view with 540 dynamic items
 **Result:** **INSTANT** - No delay
 
 ### Attempt 5: Properly Instrumented Repro (call counts, not handler timing)
@@ -292,7 +292,7 @@ deno task ct charm new --api-url http://localhost:8000 --identity ../community-p
 | nested-map-perf-repro.tsx | 45 | Yes (button) | FAST |
 | generateobject-map-perf-repro.tsx | 45 | Yes (generateObject) | FAST |
 | dynamic-cell-creation-repro.tsx | 540 | Yes (button) | FAST |
-| dynamic-cell-autolayout-repro.tsx | 540 | Yes (button + ct-autolayout) | FAST |
+| dynamic-cell-autolayout-repro.tsx | 540 | Yes (button + cf-autolayout) | FAST |
 | perf-instrumented-repro.tsx | 540 | Yes (button + call counting) | FAST |
 | **person.tsx (real)** | ~70 | Yes (generateObject) | **~35s FREEZE** |
 
@@ -306,18 +306,18 @@ These do NOT cause the bug (confirmed by fast repros):
 - ❌ `pattern()` wrapper
 - ❌ Dynamic cell creation in general
 - ❌ O(n²) in scheduler (at least not at this scale)
-- ❌ `ct-autolayout` component alone
-- ❌ `ct-autolayout` + `ifElse` + dynamic maps combination
+- ❌ `cf-autolayout` component alone
+- ❌ `cf-autolayout` + `ifElse` + dynamic maps combination
 
 ### What's Different About person.tsx?
 
 | Aspect | person.tsx | Our Repros |
 |--------|------------|------------|
-| Wrapper | `recipe()` | `pattern()` |
+| Wrapper | `pattern()` | `pattern()` |
 | Field Cells | 14+ separate Cells | Single prop or few cells |
 | `changesPreview` | Depends on 14 field Cells via `compareFields()` | Simple computed |
 | Reactive Graph | Deep - many interdependent cells | Shallow |
-| Components | `ct-autolayout`, `ct-vscroll`, `ct-screen` | Simple divs |
+| Components | `cf-autolayout`, `cf-vscroll`, `cf-screen` | Simple divs |
 | Console Error | `TypeError in CTAutoLayout.render` | None |
 
 ### Suspicious Clue: CTAutoLayout Error
@@ -328,18 +328,18 @@ TypeError: Cannot read properties of undefined (reading 'length')
     at CTAutoLayout.render
 ```
 
-This error appears repeatedly during the ~35s freeze. Could `ct-autolayout` be crashing and retrying in a loop?
+This error appears repeatedly during the ~35s freeze. Could `cf-autolayout` be crashing and retrying in a loop?
 
 ---
 
 ## Next Steps
 
 ### Ruled Out (Tested):
-- ~~Test with `ct-autolayout`~~ - TESTED: ct-autolayout + ifElse + 540 items = FAST
+- ~~Test with `cf-autolayout`~~ - TESTED: cf-autolayout + ifElse + 540 items = FAST
 
 ### Remaining Hypotheses:
 
-1. **Test with `recipe()` wrapper** - Does switching from `pattern()` to `recipe()` trigger the bug?
+1. **Test with `pattern()` wrapper** - Does switching from `pattern()` to `pattern()` trigger the bug?
 2. **Test with many field Cells (14+)** - person.tsx has 14+ individual Cells that `changesPreview` depends on via `compareFields()`
 3. **Test with deep reactive graph** - person.tsx has many interdependent computed cells
 4. **Profile person.tsx directly** - Add instrumentation (call counters, not timing) to person.tsx itself
@@ -350,7 +350,7 @@ This error appears repeatedly during the ~35s freeze. Could `ct-autolayout` be c
 The bug is NOT caused by any single factor we've tested in isolation. It must be a **combination** of factors unique to person.tsx, or there's something we haven't identified yet.
 
 Possible unexplored factors:
-- The `recipe()` wrapper creating additional reactive overhead
+- The `pattern()` wrapper creating additional reactive overhead
 - The `compareFields()` function doing expensive operations on every recompute
 - The `computeWordDiff()` function (even though it was moved to pre-computed)
 - Some interaction between navigateTo() and the charm's initialization state
@@ -365,11 +365,11 @@ patterns/jkomoros/WIP/
 ├── generateobject-map-perf-repro.tsx   # Test generateObject + ifElse + maps - FAST
 ├── generateobject-map-launcher.tsx     # Launcher for above
 ├── dynamic-cell-creation-repro.tsx     # Test 540 dynamic items - FAST
-├── dynamic-cell-autolayout-repro.tsx   # Test ct-autolayout + ifElse + 540 items - FAST
+├── dynamic-cell-autolayout-repro.tsx   # Test cf-autolayout + ifElse + 540 items - FAST
 └── perf-instrumented-repro.tsx         # Test with call counters (correct measurement) - FAST
 
 patterns/jkomoros/
-├── person-no-autolayout.tsx            # person.tsx WITHOUT ct-autolayout - STILL FREEZES!
+├── person-no-autolayout.tsx            # person.tsx WITHOUT cf-autolayout - STILL FREEZES!
 └── person-no-autolayout-launcher.tsx   # Launcher for above via navigateTo
 ```
 
@@ -386,7 +386,7 @@ patterns/jkomoros/
 
 ### Framework Fix (labs repo)
 
-**File:** `/Users/alex/Code/labs/packages/ui/src/v2/components/ct-autolayout/ct-autolayout.ts`
+**File:** `/Users/alex/Code/labs/packages/ui/src/v2/components/cf-autolayout/cf-autolayout.ts`
 **Line:** 578
 
 ```typescript
@@ -402,7 +402,7 @@ const contentTabs: string[] = (tabNames.length === defaults.length)
 
 ### Workaround (pattern level)
 
-Until the framework is fixed, patterns using ct-autolayout might need to ensure props are never undefined during render cycles.
+Until the framework is fixed, patterns using cf-autolayout might need to ensure props are never undefined during render cycles.
 
 ---
 

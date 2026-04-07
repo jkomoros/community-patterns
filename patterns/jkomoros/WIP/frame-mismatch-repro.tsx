@@ -13,7 +13,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Simple type for the array items
 interface Item {
@@ -97,13 +97,13 @@ export default pattern<ReproInput, ReproOutput>(({ items }) => {
         ) : (
           <p>No items yet</p>
         )}
-        <ct-button
+        <cf-button
           onClick={() => {
             items.push({ id: `item-${Date.now()}`, label: "Test Item" });
           }}
         >
           Add Item
-        </ct-button>
+        </cf-button>
       </div>
     ),
     items,

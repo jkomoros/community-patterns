@@ -18,7 +18,7 @@ import {
   pattern,
   toSchema,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // 14-field schema to match person.tsx (where the bug was discovered)
 interface ExtractionResult {
@@ -94,9 +94,9 @@ export default pattern<Props>(({ notes }) => {
           <strong>BUG:</strong> This is fast when deployed directly, but ~90s when created via navigateTo
         </div>
 
-        <ct-button onClick={triggerExtraction({ trigger, startTimeMs })} disabled={pending}>
+        <cf-button onClick={triggerExtraction({ trigger, startTimeMs })} disabled={pending}>
           {pending ? "Extracting..." : "Run Extraction"}
-        </ct-button>
+        </cf-button>
 
         {result && (
           <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>

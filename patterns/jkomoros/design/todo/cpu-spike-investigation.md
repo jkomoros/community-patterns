@@ -265,7 +265,7 @@ When processing LLM extraction results with 14+ fields, each with nested objects
 
 | File | Purpose |
 |------|---------|
-| `labs/packages/ts-transformers/src/ct-pipeline.ts` | CTS transformation pipeline |
+| `labs/packages/ts-transformers/src/cf-pipeline.ts` | CTS transformation pipeline |
 | `labs/packages/ts-transformers/src/computed/transformer.ts` | computed() → derive() conversion |
 | `labs/packages/ts-transformers/src/closures/strategies/derive-strategy.ts` | Closure extraction |
 | `labs/packages/runner/src/builder/module.ts` | Runtime computed/derive implementation |

@@ -8,10 +8,10 @@ import {
   handler,
   ifElse,
   NAME,
-  recipe,
+  pattern,
   str,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * Performance Test: computed() with closures vs derive() with explicit params
@@ -82,7 +82,7 @@ const updateField = handler<
   }
 );
 
-const TestPattern = recipe<Input, Output>(
+const TestPattern = pattern<Input, Output>(
   "TestPattern",
   ({
     field1,
@@ -209,15 +209,15 @@ const TestPattern = recipe<Input, Output>(
     return {
       [NAME]: str`Performance Test: ${computed(() => useDerive ? "derive()" : "computed()")}`,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2>computed() vs derive() Performance Test</h2>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style={{ padding: "20px", gap: "16px", maxWidth: "800px", margin: "0 auto" }}>
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style={{ padding: "20px", gap: "16px", maxWidth: "800px", margin: "0 auto" }}>
               {/* Mode Toggle */}
-              <ct-vstack style={{ gap: "8px", padding: "16px", background: "#f3f4f6", borderRadius: "8px" }}>
+              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#f3f4f6", borderRadius: "8px" }}>
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Test Mode</h3>
                 <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
                   <input
@@ -236,141 +236,141 @@ const TestPattern = recipe<Input, Output>(
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
                   Toggle to compare the two approaches. Check the browser console for timing details.
                 </p>
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Input Fields */}
-              <ct-vstack style={{ gap: "8px" }}>
+              <cf-vstack style={{ gap: "8px" }}>
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Input Fields (14 total)</h3>
                 <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
                   Fill in some values to test with. Both versions will process the same data.
                 </p>
 
-                <ct-vstack style={{ gap: "6px" }}>
+                <cf-vstack style={{ gap: "6px" }}>
                   <label style={{ fontSize: "13px" }}>
                     Field 1
-                    <ct-input
+                    <cf-input
                       value={field1}
-                      onct-input={updateField({ field: field1 })}
+                      oncf-input={updateField({ field: field1 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 2
-                    <ct-input
+                    <cf-input
                       value={field2}
-                      onct-input={updateField({ field: field2 })}
+                      oncf-input={updateField({ field: field2 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 3
-                    <ct-input
+                    <cf-input
                       value={field3}
-                      onct-input={updateField({ field: field3 })}
+                      oncf-input={updateField({ field: field3 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 4
-                    <ct-input
+                    <cf-input
                       value={field4}
-                      onct-input={updateField({ field: field4 })}
+                      oncf-input={updateField({ field: field4 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 5
-                    <ct-input
+                    <cf-input
                       value={field5}
-                      onct-input={updateField({ field: field5 })}
+                      oncf-input={updateField({ field: field5 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 6
-                    <ct-input
+                    <cf-input
                       value={field6}
-                      onct-input={updateField({ field: field6 })}
+                      oncf-input={updateField({ field: field6 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 7
-                    <ct-input
+                    <cf-input
                       value={field7}
-                      onct-input={updateField({ field: field7 })}
+                      oncf-input={updateField({ field: field7 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 8
-                    <ct-input
+                    <cf-input
                       value={field8}
-                      onct-input={updateField({ field: field8 })}
+                      oncf-input={updateField({ field: field8 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 9
-                    <ct-input
+                    <cf-input
                       value={field9}
-                      onct-input={updateField({ field: field9 })}
+                      oncf-input={updateField({ field: field9 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 10
-                    <ct-input
+                    <cf-input
                       value={field10}
-                      onct-input={updateField({ field: field10 })}
+                      oncf-input={updateField({ field: field10 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 11
-                    <ct-input
+                    <cf-input
                       value={field11}
-                      onct-input={updateField({ field: field11 })}
+                      oncf-input={updateField({ field: field11 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 12
-                    <ct-input
+                    <cf-input
                       value={field12}
-                      onct-input={updateField({ field: field12 })}
+                      oncf-input={updateField({ field: field12 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 13
-                    <ct-input
+                    <cf-input
                       value={field13}
-                      onct-input={updateField({ field: field13 })}
+                      oncf-input={updateField({ field: field13 })}
                       placeholder="Enter value..."
                     />
                   </label>
                   <label style={{ fontSize: "13px" }}>
                     Field 14
-                    <ct-input
+                    <cf-input
                       value={field14}
-                      onct-input={updateField({ field: field14 })}
+                      oncf-input={updateField({ field: field14 })}
                       placeholder="Enter value..."
                     />
                   </label>
-                </ct-vstack>
-              </ct-vstack>
+                </cf-vstack>
+              </cf-vstack>
 
               {/* Trigger Button */}
-              <ct-button
+              <cf-button
                 onClick={triggerCompute({ computeTrigger })}
                 style={{ padding: "12px 24px", fontSize: "16px" }}
               >
                 Run Test
-              </ct-button>
+              </cf-button>
 
               {/* Results */}
-              <ct-vstack style={{ gap: "8px", padding: "16px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
+              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#f9fafb", borderRadius: "8px", border: "1px solid #e5e7eb" }}>
                 <h3 style={{ margin: 0, fontSize: "16px" }}>Result</h3>
                 <pre style={{
                   margin: 0,
@@ -384,10 +384,10 @@ const TestPattern = recipe<Input, Output>(
                 <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#666" }}>
                   Check the browser console for detailed timing measurements.
                 </p>
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Explanation */}
-              <ct-vstack style={{ gap: "8px", padding: "16px", background: "#fef3c7", borderRadius: "8px", border: "1px solid #fbbf24" }}>
+              <cf-vstack style={{ gap: "8px", padding: "16px", background: "#fef3c7", borderRadius: "8px", border: "1px solid #fbbf24" }}>
                 <h3 style={{ margin: 0, fontSize: "16px" }}>How This Test Works</h3>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", lineHeight: "1.6" }}>
                   <li>
@@ -408,10 +408,10 @@ const TestPattern = recipe<Input, Output>(
                     Expected result: derive() should show ~40-50% less blocking time than computed().
                   </li>
                 </ul>
-              </ct-vstack>
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
 
       field1,

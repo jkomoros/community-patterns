@@ -47,7 +47,7 @@ export function isFavorite(runtime: Runtime, charm: Cell<unknown>): boolean {
 
 ### But Patterns Can't Call It
 
-Patterns only have access to `getRecipeEnvironment()` which returns:
+Patterns only have access to `getPatternEnvironment()` which returns:
 ```typescript
 { apiUrl: string }
 ```
@@ -79,8 +79,8 @@ const isFavorited = isFavorited();  // Doesn't exist
 ### 3. Pass from framework
 
 ```typescript
-// getRecipeEnvironment doesn't provide this
-const { isFavorited } = getRecipeEnvironment();  // Not available
+// getPatternEnvironment doesn't provide this
+const { isFavorited } = getPatternEnvironment();  // Not available
 ```
 
 ---
@@ -91,12 +91,12 @@ Add a new builtin that patterns can call:
 
 ```typescript
 // Option 1: Builtin function
-import { isFavoritedCharm } from "commontools";
+import { isFavoritedCharm } from "commonfabric";
 
 const isFavorited = isFavoritedCharm(); // Returns boolean for current charm
 
-// Option 2: Add to getRecipeEnvironment
-const env = getRecipeEnvironment();
+// Option 2: Add to getPatternEnvironment
+const env = getPatternEnvironment();
 const isFavorited = env.isFavoritedCharm?.() ?? false;
 ```
 

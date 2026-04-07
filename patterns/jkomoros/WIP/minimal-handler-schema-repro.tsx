@@ -12,7 +12,7 @@
  * Look for the generated schemas - the generic handler's input schema
  * will be missing fields that only exist in the type parameter.
  */
-import { Writable, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Writable, generateObject, handler, NAME, pattern, UI } from "commonfabric";
 
 // ============================================================================
 // ISSUE: Generic type parameters produce incomplete schemas

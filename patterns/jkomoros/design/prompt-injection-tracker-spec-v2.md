@@ -31,8 +31,8 @@ Recent labs/ commits that remove need for workarounds:
    - **Impact**: The `lift` workaround for processing importer.emails may no longer be needed
    - **Action**: Test if we can use `derive` directly on `importer.emails`
 
-2. **fcef38199** - "feat: introduce pattern() function to replace recipe() with cleaner API"
-   - **Impact**: New `pattern()` function available as alternative to `recipe()`
+2. **fcef38199** - "feat: introduce pattern() function to replace pattern() with cleaner API"
+   - **Impact**: New `pattern()` function available as alternative to `pattern()`
    - **Action**: Consider modernizing to `pattern()` if clearer
 
 3. **c1ce57735** - "fix transformers w.r.t. map over opaqueref inside derive"
@@ -394,7 +394,7 @@ const processAllAlerts = handler<unknown, {
 
 **Current**:
 ```typescript
-export default recipe<Input, Output>("Prompt Injection Alert Tracker", ({ emails }) => {
+export default pattern<Input, Output>("Prompt Injection Alert Tracker", ({ emails }) => {
   // ...
 });
 ```
@@ -466,7 +466,7 @@ const ReportCard = ({ report, onToggleRead }: {
   report: OpaqueRef<PromptInjectionReport>;
   onToggleRead: (id: string) => void;
 }) => (
-  <ct-card
+  <cf-card
     style={{
       marginBottom: "12px",
       background: report.isRead ? "#ffffff" : "#dbeafe",
@@ -476,7 +476,7 @@ const ReportCard = ({ report, onToggleRead }: {
     onClick={() => onToggleRead(report.id)}
   >
     {/* Card content */}
-  </ct-card>
+  </cf-card>
 );
 ```
 

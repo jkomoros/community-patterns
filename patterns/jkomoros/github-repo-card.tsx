@@ -8,7 +8,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * GitHub Repo Card
@@ -19,7 +19,7 @@ import {
  * - Commit activity (bar chart)
  * - Momentum indicator (accelerating/steady/decelerating)
  *
- * Designed to be composed via ct-render in github-momentum-tracker.tsx
+ * Designed to be composed via cf-render in github-momentum-tracker.tsx
  */
 
 // =============================================================================
@@ -461,12 +461,12 @@ export default pattern<Input, Output>(({ repoName, token, onRemove }) => {
           </div>
           {ifElse(
             onRemove,
-            <ct-button
+            <cf-button
               onClick={onRemove}
               variant="destructive"
             >
               Remove
-            </ct-button>,
+            </cf-button>,
             null
           )}
         </div>

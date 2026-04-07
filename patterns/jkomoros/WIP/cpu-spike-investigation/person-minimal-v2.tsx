@@ -1,9 +1,9 @@
 /// <cts-enable />
 /**
  * @title Person Minimal V2
- * @description V2: Adding ct-autolayout with tabs
+ * @description V2: Adding cf-autolayout with tabs
  *
- * V1 was fast - no bug. Now adding ct-autolayout to see if that triggers it.
+ * V1 was fast - no bug. Now adding cf-autolayout to see if that triggers it.
  */
 import {
   computed,
@@ -11,11 +11,11 @@ import {
   generateObject,
   handler,
   NAME,
-  recipe,
+  pattern,
   str,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Minimal extraction result
 interface ExtractionResult {
@@ -52,7 +52,7 @@ interface Output {
   notes?: string;
 }
 
-const PersonMinimalV2 = recipe<Input, Output>(
+const PersonMinimalV2 = pattern<Input, Output>(
   "Person Minimal V2",
   ({ displayName, givenName, familyName, notes }) => {
     const effectiveDisplayName = computed(() => {
@@ -97,13 +97,13 @@ const PersonMinimalV2 = recipe<Input, Output>(
       familyName,
       notes,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2>Person Minimal V2</h2>
           </div>
 
-          {/* V2: Adding ct-autolayout with tabs */}
-          <ct-autolayout tabNames={["Details", "Notes"]}>
+          {/* V2: Adding cf-autolayout with tabs */}
+          <cf-autolayout tabNames={["Details", "Notes"]}>
             {/* Tab 1: Details */}
             <div style={{ padding: "1rem" }}>
               <h3>Details Tab</h3>
@@ -122,15 +122,15 @@ const PersonMinimalV2 = recipe<Input, Output>(
               <pre style={{ background: "#f5f5f5", padding: "0.5rem", whiteSpace: "pre-wrap" }}>
                 {notesDisplay}
               </pre>
-              <ct-button
+              <cf-button
                 onClick={triggerExtraction({ notes, extractTrigger })}
                 disabled={extractionPending}
               >
                 {extractionPending ? "Extracting..." : "Extract Data from Notes"}
-              </ct-button>
+              </cf-button>
             </div>
-          </ct-autolayout>
-        </ct-screen>
+          </cf-autolayout>
+        </cf-screen>
       ),
     };
   },

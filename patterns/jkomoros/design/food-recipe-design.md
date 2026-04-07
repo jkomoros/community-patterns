@@ -169,7 +169,7 @@ applyExtraction: handler<ExtractedRecipe, RecipeData>
 - [ ] Core data model with TypeScript types
 - [ ] Basic UI with two-pane layout
 - [ ] Manual entry of structured fields
-- [ ] Notes field with ct-code-editor
+- [ ] Notes field with cf-code-editor
 - [ ] Basic handlers for add/remove/update operations
 - [ ] Computed values (total time, counts)
 
@@ -213,8 +213,8 @@ applyExtraction: handler<ExtractedRecipe, RecipeData>
 ## Technical Notes
 
 - Follow person.tsx pattern for structured fields + notes
-- Use ct-code-editor for markdown notes with @mention support
-- Use ct-autolayout for responsive two-pane design
+- Use cf-code-editor for markdown notes with @mention support
+- Use cf-autolayout for responsive two-pane design
 - Use handlers for all state mutations (no direct cell.set() in UI)
 - Use derive() for all computed values
 - Keep extraction logic similar to person.tsx for consistency

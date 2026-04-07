@@ -9,7 +9,7 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * Dynamic Dashboard
@@ -131,7 +131,7 @@ const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => v
             padding: "1rem",
             overflow: "auto",
           }}>
-            <ct-cell-context $cell={wishResult} label={widget.query}>
+            <cf-cell-context $cell={wishResult} label={widget.query}>
               {ifElse(
                 isLoading,
                 <div style={{
@@ -142,7 +142,7 @@ const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => v
                   height: "100%",
                   color: "#666",
                 }}>
-                  <ct-loader size="md" show-elapsed></ct-loader>
+                  <cf-loader size="md" show-elapsed></cf-loader>
                   <span style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
                     Finding patterns...
                   </span>
@@ -161,7 +161,7 @@ const DashboardWidgetView = pattern<{ widget: DashboardWidget; onRemove: () => v
                   return r.result ?? r;
                 })
               )}
-            </ct-cell-context>
+            </cf-cell-context>
           </div>
         </div>
       ),
@@ -220,9 +220,9 @@ export default pattern<DynamicDashboardInput>(({ widgets }) => {
           <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "600" }}>
             Add a widget:
           </label>
-          <ct-message-input
+          <cf-message-input
             placeholder="Try: a counter, a todo list, a poem about code..."
-            onct-send={addWidget({ widgets })}
+            oncf-send={addWidget({ widgets })}
           />
         </div>
 

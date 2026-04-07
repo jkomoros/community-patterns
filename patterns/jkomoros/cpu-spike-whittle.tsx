@@ -18,7 +18,7 @@ import {
   UI,
   wish,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 // Import GoogleAuth pattern for creating new auth charms
 import GoogleAuth from "../../../labs/packages/patterns/google/core/google-auth.tsx";
@@ -137,9 +137,9 @@ export default pattern<Input, Output>(
     // Auth status indicator
     const authStatusDot = computed(() => {
       const state = authState;
-      if (state === "authenticated") return "var(--ct-color-green-500, #22c55e)";
-      if (state === "not-found" || state === "found-not-authenticated") return "var(--ct-color-red-500, #ef4444)";
-      return "var(--ct-color-yellow-500, #eab308)";
+      if (state === "authenticated") return "var(--cf-color-green-500, #22c55e)";
+      if (state === "not-found" || state === "found-not-authenticated") return "var(--cf-color-red-500, #ef4444)";
+      return "var(--cf-color-yellow-500, #eab308)";
     });
 
     const authStatusText = computed(() => {
@@ -203,12 +203,12 @@ export default pattern<Input, Output>(
                   <p style={{ fontSize: "13px", color: "#666", margin: "0 0 12px 0" }}>
                     No Google Auth charm found. Create one to connect to Google Docs.
                   </p>
-                  <ct-button
+                  <cf-button
                     variant="primary"
                     onClick={createGoogleAuth({})}
                   >
                     Create Google Auth ⚠️ (May spike CPU)
-                  </ct-button>
+                  </cf-button>
                   <p style={{ fontSize: "11px", color: "#999", margin: "12px 0 0 0" }}>
                     After signing in, favorite the charm (star icon) to use it across patterns.
                   </p>
@@ -218,18 +218,18 @@ export default pattern<Input, Output>(
                     Found a Google Auth charm but you're not signed in.
                   </p>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <ct-button
+                    <cf-button
                       variant="primary"
                       onClick={goToAuthCharm({ authCharm: wishedAuthCharm })}
                     >
                       Go to Auth Charm
-                    </ct-button>
-                    <ct-button
+                    </cf-button>
+                    <cf-button
                       variant="secondary"
                       onClick={createGoogleAuth({})}
                     >
                       Create New Auth ⚠️
-                    </ct-button>
+                    </cf-button>
                   </div>
                 </div>
               )}

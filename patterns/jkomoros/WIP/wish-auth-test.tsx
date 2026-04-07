@@ -10,7 +10,7 @@
  * 2. Deploy gmail-auth.tsx in any space, authenticate, and favorite it
  * 3. Refresh this pattern - should now find and display the auth
  */
-import { computed, Default, NAME, pattern, UI, wish } from "commontools";
+import { computed, Default, NAME, pattern, UI, wish } from "commonfabric";
 
 // The Auth type we expect from gmail-auth
 type Auth = {

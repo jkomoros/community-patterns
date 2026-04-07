@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, NAME, pattern, UI } from "commontools";
+import { computed, Default, NAME, pattern, UI } from "commonfabric";
 import GmailImporter from "../../../labs/packages/patterns/google/core/gmail-importer.tsx";
 
 interface SubstackInput {
@@ -73,9 +73,9 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
   return {
     [NAME]: "📧 Substack Summarizer",
     [UI]: (
-      <ct-screen>
-        <ct-vscroll>
-          <ct-vstack gap={4} style="padding: 1rem;">
+      <cf-screen>
+        <cf-vscroll>
+          <cf-vstack gap={4} style="padding: 1rem;">
             {/* Grouped by Newsletter - at top */}
             <div>
               <div style={{ display: "flex", gap: "1rem", alignItems: "center", marginBottom: "0.5rem" }}>
@@ -121,9 +121,9 @@ const SubstackSummarizer = pattern<SubstackInput, Output>(({ gmailFilterQuery, l
                 {importer}
               </div>
             </details>
-          </ct-vstack>
-        </ct-vscroll>
-      </ct-screen>
+          </cf-vstack>
+        </cf-vscroll>
+      </cf-screen>
     ),
     groupedByNewsletter,
     newsletterCount,

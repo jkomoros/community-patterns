@@ -385,9 +385,9 @@ const registryState = derive(registryWish, (wr) => {
   derive(registryState, s => s === "not_found"),
   <div>
     <p>No community query registry found.</p>
-    <ct-button onClick={createRegistry}>
+    <cf-button onClick={createRegistry}>
       Create Community Registry
-    </ct-button>
+    </cf-button>
   </div>,
   null
 )}

@@ -207,7 +207,7 @@ Initial design included creating stub charms for unmatched items, but discovered
 - The framework has no `createCharm()` primitive for programmatic charm creation without navigation
 - `navigateTo()` navigates AND has side effects that may persist charms, but returns boolean not reference
 - Pattern functions are for reactive composition, not storage
-- ct-code-editor component must use internal APIs not exposed to pattern developers
+- cf-code-editor component must use internal APIs not exposed to pattern developers
 
 **Filed Issue:**
 - Created comprehensive issue file: `issues/ISSUE-No-Create-Charm-Primitive.md`
@@ -377,7 +377,7 @@ export type MentionableCharm = {
 
 ### Current Mentionable Usage
 - `const mentionable = wish<any[]>("#mentionable")`
-- Used for ct-code-editor @ references
+- Used for cf-code-editor @ references
 - Already working for recipes and prepared foods sections
 
 ### Stub Creation Approaches
@@ -424,9 +424,9 @@ From `community-docs/superstitions/2025-11-22-at-reference-opaque-ref-arrays.md`
 ```tsx
 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
   <h3>📝 Planning Notes</h3>
-  <ct-button onClick={triggerAnalysis} disabled={analysisPending}>
+  <cf-button onClick={triggerAnalysis} disabled={analysisPending}>
     {analysisPending ? "Analyzing..." : "🔗 Link Recipes"}
-  </ct-button>
+  </cf-button>
 </div>
 ```
 

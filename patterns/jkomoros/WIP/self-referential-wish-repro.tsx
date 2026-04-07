@@ -24,7 +24,7 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 
 // ============================================================================
 // DATA STRUCTURES (simplified from MembershipRecord)

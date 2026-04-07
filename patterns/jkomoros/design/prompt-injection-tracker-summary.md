@@ -15,7 +15,7 @@
 - **Commit 8e55ed865**: "don't treat inputs to patterns/recipes as OpaqueRef anymore"
   - This potentially removes the need for the `lift` workaround
   - Tested and documented in v2
-- **Commit fcef38199**: New `pattern()` function available as alternative to `recipe()`
+- **Commit fcef38199**: New `pattern()` function available as alternative to `pattern()`
 - **Commit c1ce57735**: Fixed transformers for map over OpaqueRef inside derive
 
 **Critical Bugs Documented**:
@@ -452,7 +452,7 @@ console.log("[V2-PARSE] Found", results.length, "new articles");
 ```bash
 # From recipes directory
 cd /Users/alex/Code/labs
-deno task ct charm new --space claude-alex1114-pit-v2 \
+deno task cf charm new --space claude-alex1114-pit-v2 \
   ../recipes/recipes/alex/WIP/prompt-injection-tracker-v2.tsx
 ```
 

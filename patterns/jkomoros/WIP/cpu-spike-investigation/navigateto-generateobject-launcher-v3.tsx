@@ -9,7 +9,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import ExtractTargetV3 from "./navigateto-generateobject-target-v3.tsx";
 
@@ -25,7 +25,7 @@ export default pattern(() => {
         <h1>Extract Launcher V3</h1>
 
         <div style={{ backgroundColor: "#dbeafe", padding: "0.5rem", marginBottom: "1rem" }}>
-          <strong>TEST 2:</strong> Target uses recipe() + changesPreview + notesDiffChunks
+          <strong>TEST 2:</strong> Target uses pattern() + changesPreview + notesDiffChunks
         </div>
 
         <h2>Reproduction Steps</h2>
@@ -36,9 +36,9 @@ export default pattern(() => {
           <li>If ~4 seconds: Need to add more complexity</li>
         </ol>
 
-        <ct-button onClick={launchTarget()}>
+        <cf-button onClick={launchTarget()}>
           Launch Extract Target V3
-        </ct-button>
+        </cf-button>
       </div>
     ),
   };

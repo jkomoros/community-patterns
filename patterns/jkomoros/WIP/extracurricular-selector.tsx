@@ -27,7 +27,7 @@ import {
   str,
   toSchema,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // ============================================================================
 // TYPES
@@ -632,7 +632,7 @@ const clearUploadedFiles = handler<
   uploadedFiles.set([]);
 });
 
-// ImageData type for ct-image-input
+// ImageData type for cf-image-input
 type ImageData = { id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string; width?: number; height?: number };
 
 // Handle image upload for OCR - extracts first image from the array
@@ -1143,7 +1143,7 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     // Settings dialog state - starts open by default, closes only when user manually closes
     const showSettingsDialog = Writable.of<boolean>(true);
 
-    // Active tab state for custom tab UI (ct-tabs not available in JSX types)
+    // Active tab state for custom tab UI (cf-tabs not available in JSX types)
     const activeTab = Writable.of<"dashboard" | "configure" | "import" | "selection">("dashboard");
 
     // Computed values for tab visibility
@@ -1152,10 +1152,10 @@ export default pattern<ExtracurricularSelectorInput, ExtracurricularSelectorOutp
     const isImportTab = computed(() => activeTab.get() === "import");
     const isSelectionTab = computed(() => activeTab.get() === "selection");
 
-    // File upload state - stores uploaded files (ct-file-input provides FileData[])
+    // File upload state - stores uploaded files (cf-file-input provides FileData[])
     const uploadedFiles = Writable.of<Array<{ id: string; name: string; url: string; data: string; timestamp: number; size: number; type: string }>>([]);
 
-    // Image upload state for OCR - stores array of images (ct-image-input uses $images two-way binding)
+    // Image upload state for OCR - stores array of images (cf-image-input uses $images two-way binding)
     const uploadedImagesForOcr = Writable.of<ImageData[]>([]);
 
     // Extraction trigger - user must click button to extract classes
@@ -2071,22 +2071,22 @@ Return the complete extracted text.`
       importLocationId,
       [NAME]: patternName,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           {/* Header */}
           <div style="padding: 16px; border-bottom: 1px solid #e5e7eb;">
-            <ct-hstack style="justify-content: space-between; align-items: center;">
+            <cf-hstack style="justify-content: space-between; align-items: center;">
               <h1 style="font-size: 24px; font-weight: bold; margin: 0;">
                 {patternName}
               </h1>
-              <ct-hstack style="gap: 16px; font-size: 14px; color: #6b7280; align-items: center;">
+              <cf-hstack style="gap: 16px; font-size: 14px; color: #6b7280; align-items: center;">
                 <span>{locationCount} locations</span>
                 <span>{classCount} classes</span>
                 <span>{friendCount} friends</span>
-              </ct-hstack>
-            </ct-hstack>
+              </cf-hstack>
+            </cf-hstack>
           </div>
 
-          {/* Custom Tab Navigation (ct-tabs not available in JSX types) */}
+          {/* Custom Tab Navigation (cf-tabs not available in JSX types) */}
           <div style="display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
             {ifElse(
               isDashboardTab,
@@ -2143,7 +2143,7 @@ Return the complete extracted text.`
             {/* ========== TAB 1: DASHBOARD ========== */}
             {ifElse(
               isDashboardTab,
-              <ct-vstack style="padding: 16px; gap: 16px;">
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Dashboard</h2>
 
                 {/* Child Profile Summary */}
@@ -2192,14 +2192,14 @@ Return the complete extracted text.`
                   </h3>
                   {statusSummaryDisplay}
                 </div>
-              </ct-vstack>,
+              </cf-vstack>,
               null
             )}
 
             {/* ========== TAB 2: CONFIGURE ========== */}
             {ifElse(
               isConfigureTab,
-              <ct-vstack style="padding: 16px; gap: 16px;">
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Configure</h2>
 
                 {/* Child Profile Section */}
@@ -2207,12 +2207,12 @@ Return the complete extracted text.`
                   <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #374151;">
                     Child Profile
                   </h3>
-                  <ct-vstack style="gap: 12px;">
+                  <cf-vstack style="gap: 12px;">
                     <div>
                       <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                         Name
                       </label>
-                      <ct-input
+                      <cf-input
                         placeholder="Child's name"
                         $value={childName}
                       />
@@ -2221,7 +2221,7 @@ Return the complete extracted text.`
                       <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                         Grade
                       </label>
-                      <ct-select
+                      <cf-select
                         $value={childGrade}
                         items={GRADE_OPTIONS.map((g) => ({ label: g, value: g }))}
                       />
@@ -2230,7 +2230,7 @@ Return the complete extracted text.`
                       <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                         Birth Date
                       </label>
-                      <ct-input
+                      <cf-input
                         type="date"
                         $value={childBirthDate}
                       />
@@ -2239,13 +2239,13 @@ Return the complete extracted text.`
                       <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                         Eligibility Notes
                       </label>
-                      <ct-input
+                      <cf-input
                         style={{ height: "60px" }}
                         placeholder="Any special eligibility requirements or notes..."
                         $value={childEligibilityNotes}
                       />
                     </div>
-                  </ct-vstack>
+                  </cf-vstack>
                 </div>
 
                 {/* Locations Section */}
@@ -2259,7 +2259,7 @@ Return the complete extracted text.`
                     // Defensive filtering: arrays may contain undefined elements
                     const locs = (rawLocs || []).filter((l) => l != null);
                     return locs.length > 0 ? (
-                      <ct-vstack style="gap: 8px; margin-bottom: 16px;">
+                      <cf-vstack style="gap: 8px; margin-bottom: 16px;">
                         {locs.map((loc) => (
                           <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
                             <div>
@@ -2269,16 +2269,16 @@ Return the complete extracted text.`
                                 {loc.hasFlatDailyRate && ` - $${loc.dailyRate}/day flat rate`}
                               </div>
                             </div>
-                            <ct-button
+                            <cf-button
                               size="sm"
                               variant="destructive"
                               onClick={removeLocation({ locations, locationId: loc.id })}
                             >
                               Remove
-                            </ct-button>
+                            </cf-button>
                           </div>
                         ))}
-                      </ct-vstack>
+                      </cf-vstack>
                     ) : (
                       <div style="color: #9ca3af; font-style: italic; margin-bottom: 16px;">
                         No locations added yet.
@@ -2291,8 +2291,8 @@ Return the complete extracted text.`
                     <h4 style="font-size: 12px; font-weight: 600; margin: 0 0 8px 0; color: #6b7280;">
                       Add Location
                     </h4>
-                    <ct-vstack style="gap: 8px;">
-                      <ct-input
+                    <cf-vstack style="gap: 8px;">
+                      <cf-input
                         placeholder="Location name (e.g., TBS Afterschool)"
                         $value={newLocationForm.key("name")}
                       />
@@ -2304,18 +2304,18 @@ Return the complete extracted text.`
                         <option value="afterschool-offsite">Afterschool - Off-site</option>
                         <option value="external">External Location</option>
                       </select>
-                      <ct-input
+                      <cf-input
                         placeholder="Address (optional)"
                         $value={newLocationForm.key("address")}
                       />
-                      <ct-hstack style="gap: 8px; align-items: center;">
-                        <ct-checkbox
+                      <cf-hstack style="gap: 8px; align-items: center;">
+                        <cf-checkbox
                           $checked={newLocationForm.key("hasFlatDailyRate")}
                         />
                         <span style="font-size: 14px;">Has flat daily rate</span>
                         {ifElse(
                           newLocationForm.key("hasFlatDailyRate"),
-                          <ct-input
+                          <cf-input
                             type="number"
                             style={{ width: "80px" }}
                             placeholder="$/day"
@@ -2323,13 +2323,13 @@ Return the complete extracted text.`
                           />,
                           null
                         )}
-                      </ct-hstack>
-                      <ct-button
+                      </cf-hstack>
+                      <cf-button
                         onClick={addLocation({ locations, newLocationForm })}
                       >
                         + Add Location
-                      </ct-button>
-                    </ct-vstack>
+                      </cf-button>
+                    </cf-vstack>
                   </div>
                 </div>
 
@@ -2343,7 +2343,7 @@ Return the complete extracted text.`
                     <p style="font-size: 12px; color: #6b7280; margin: 0 0 12px 0;">
                       Set travel time (in minutes) between each pair of locations. Used for detecting schedule conflicts.
                     </p>
-                    <ct-vstack style="gap: 12px;">
+                    <cf-vstack style="gap: 12px;">
                       {locationPairs.map((pair) => (
                         <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #e5e7eb;">
                           <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -2351,8 +2351,8 @@ Return the complete extracted text.`
                             <span style="font-size: 12px; color: #9ca3af;">↔</span>
                             <span style="font-size: 13px; font-weight: 500;">{pair.loc2Name}</span>
                           </div>
-                          <ct-hstack style="gap: 8px; align-items: center;">
-                            <ct-button
+                          <cf-hstack style="gap: 8px; align-items: center;">
+                            <cf-button
                               onClick={setTravelTime({
                                 travelTimes,
                                 fromLocationId: pair.loc1Id,
@@ -2361,11 +2361,11 @@ Return the complete extracted text.`
                               })}
                             >
                               − 5 min
-                            </ct-button>
+                            </cf-button>
                             <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 6px; font-size: 16px; font-weight: 600; min-width: 80px; text-align: center;">
                               {pair.minutes} min
                             </div>
-                            <ct-button
+                            <cf-button
                               onClick={setTravelTime({
                                 travelTimes,
                                 fromLocationId: pair.loc1Id,
@@ -2374,11 +2374,11 @@ Return the complete extracted text.`
                               })}
                             >
                               + 5 min
-                            </ct-button>
-                          </ct-hstack>
+                            </cf-button>
+                          </cf-hstack>
                         </div>
                       ))}
-                    </ct-vstack>
+                    </cf-vstack>
                   </div>,
                   null
                 )}
@@ -2393,35 +2393,35 @@ Return the complete extracted text.`
                   </p>
 
                   {/* Existing tags */}
-                  <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                  <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
                     {categoryTags.map((tag) => (
                       <div style={`display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: ${tag.color}20; border: 1px solid ${tag.color}; border-radius: 16px;`}>
                         <span style={`color: ${tag.color}; font-size: 12px; font-weight: 500;`}>{tag.name}</span>
-                        <ct-button
+                        <cf-button
                           size="sm"
                           variant="ghost"
                           onClick={removeCategoryTag({ categoryTags, tagId: tag.id })}
                         >
                           ×
-                        </ct-button>
+                        </cf-button>
                       </div>
                     ))}
-                  </ct-hstack>
+                  </cf-hstack>
 
                   {/* Add new tag */}
-                  <ct-hstack style="gap: 8px;">
-                    <ct-input
+                  <cf-hstack style="gap: 8px;">
+                    <cf-input
                       style={{ flex: "1" }}
                       placeholder="New tag name..."
                       $value={newTagName}
                     />
-                    <ct-button
+                    <cf-button
                       variant="secondary"
                       onClick={addCategoryTag({ categoryTags, newTagName })}
                     >
                       Add
-                    </ct-button>
-                  </ct-hstack>
+                    </cf-button>
+                  </cf-hstack>
                 </div>
 
                 {/* Friends Section */}
@@ -2436,20 +2436,20 @@ Return the complete extracted text.`
                   {/* Existing friends */}
                   {derive(friends, (f) =>
                     f.length > 0 ? (
-                      <ct-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                      <cf-hstack style="flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
                         {f.map((friend) => (
                           <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; background: #dbeafe; border-radius: 16px;">
                             <span style="color: #1d4ed8; font-size: 12px; font-weight: 500;">{friend.name}</span>
-                            <ct-button
+                            <cf-button
                               size="sm"
                               variant="ghost"
                               onClick={removeFriend({ friends, friendId: friend.id })}
                             >
                               ×
-                            </ct-button>
+                            </cf-button>
                           </div>
                         ))}
-                      </ct-hstack>
+                      </cf-hstack>
                     ) : (
                       <div style="color: #9ca3af; font-style: italic; margin-bottom: 12px;">
                         No friends added yet.
@@ -2458,28 +2458,28 @@ Return the complete extracted text.`
                   )}
 
                   {/* Add new friend */}
-                  <ct-hstack style="gap: 8px;">
-                    <ct-input
+                  <cf-hstack style="gap: 8px;">
+                    <cf-input
                       style={{ flex: "1" }}
                       placeholder="Friend's name..."
                       $value={newFriendName}
                     />
-                    <ct-button
+                    <cf-button
                       variant="default"
                       onClick={addFriend({ friends, newFriendName })}
                     >
                       Add
-                    </ct-button>
-                  </ct-hstack>
+                    </cf-button>
+                  </cf-hstack>
                 </div>
-              </ct-vstack>,
+              </cf-vstack>,
               null
             )}
 
             {/* ========== TAB 3: IMPORT ========== */}
             {ifElse(
               isImportTab,
-              <ct-vstack style="padding: 16px; gap: 16px;">
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Import Classes</h2>
 
                 <div style="background: #f9fafb; border-radius: 8px; padding: 16px;">
@@ -2498,7 +2498,7 @@ Return the complete extracted text.`
                       <div style="color: #f59e0b; font-size: 14px;">
                         Add locations in the Configure tab before importing classes.
                       </div>,
-                      <ct-select
+                      <cf-select
                         $value={importLocationId}
                         items={derive(locations, (locs: Location[]) => [
                           { label: "Select a location...", value: "" },
@@ -2511,14 +2511,14 @@ Return the complete extracted text.`
                   {/* File upload section */}
                   <div style="margin-bottom: 12px; padding: 12px; background: white; border: 1px dashed #d1d5db; border-radius: 8px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                      <ct-file-input
+                      <cf-file-input
                         accept=".txt,.html,.htm,.pdf"
                         buttonText="📄 Upload File"
                         variant="outline"
                         size="sm"
                         showPreview={false}
                         $files={uploadedFiles}
-                        onct-change={handleFileUploadChange({ importText })}
+                        oncf-change={handleFileUploadChange({ importText })}
                       />
                       <span style="font-size: 12px; color: #6b7280;">
                         Upload a .txt, .html, or .pdf schedule file
@@ -2536,7 +2536,7 @@ Return the complete extracted text.`
                   {/* Image upload section for OCR */}
                   <div style="margin-bottom: 12px; padding: 12px; background: white; border: 1px dashed #d1d5db; border-radius: 8px;">
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                      <ct-image-input
+                      <cf-image-input
                         buttonText="📷 Upload Photo"
                         variant="outline"
                         size="sm"
@@ -2568,13 +2568,13 @@ Return the complete extracted text.`
                         <div style="font-size: 12px; color: #059669; margin-bottom: 4px;">
                           ✓ Text extracted from image
                         </div>
-                        <ct-button
+                        <cf-button
                           size="sm"
                           variant="outline"
                           onClick={copyOcrToImportText({ imageOcrResult, importText })}
                         >
                           Use Extracted Text →
-                        </ct-button>
+                        </cf-button>
                       </div>,
                       null
                     )}
@@ -2585,7 +2585,7 @@ Return the complete extracted text.`
                     <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px;">
                       Schedule Text (paste or use upload above)
                     </label>
-                    <ct-textarea
+                    <cf-textarea
                       style={{ width: "100%", minHeight: "200px" }}
                       placeholder="Paste the class schedule here, or upload a file/photo above..."
                       $value={importText}
@@ -2596,14 +2596,14 @@ Return the complete extracted text.`
                   <div style="margin-bottom: 12px;">
                     {ifElse(
                       canExtract,
-                      <ct-button
+                      <cf-button
                         onClick={triggerExtraction({ importText, extractionTriggerText })}
                       >
                         🔍 Extract Classes
-                      </ct-button>,
-                      <ct-button disabled>
+                      </cf-button>,
+                      <cf-button disabled>
                         🔍 Extract Classes
-                      </ct-button>
+                      </cf-button>
                     )}
                     {ifElse(
                       showExtractionHelp,
@@ -2623,7 +2623,7 @@ Return the complete extracted text.`
                     isExtractionPending,
                     <div style="padding: 16px; background: #dbeafe; border-radius: 8px; margin-bottom: 12px;">
                       <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-                        <ct-loader />
+                        <cf-loader />
                         <span style="color: #1e40af; font-weight: 500;">Extracting classes...</span>
                       </div>
                       <div style="text-align: center; color: #1e40af; font-size: 12px; margin-top: 8px;">
@@ -2637,7 +2637,7 @@ Return the complete extracted text.`
                 {/* Triage results from extraction - uses handler for checkbox toggling */}
                 {ifElse(
                   hasStagedClasses,
-                  <ct-vstack style="gap: 16px;">
+                  <cf-vstack style="gap: 16px;">
                     {/* Auto-kept classes (eligible) - using filtered computed + handler */}
                     {ifElse(
                       hasAutoKeptClasses,
@@ -2657,13 +2657,13 @@ Return the complete extracted text.`
                             >None</button>
                           </div>
                         </div>
-                        <ct-vstack style="gap: 8px;">
+                        <cf-vstack style="gap: 8px;">
                           {autoKeptClasses.map((cls: StagedClassWithSelection) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
                                 {/* TODO: Individual checkbox toggle doesn't work - onClick inside computed.map()
                                     causes framework issues. All/None buttons work as workaround. */}
-                                <ct-checkbox
+                                <cf-checkbox
                                   checked={cls.selected}
                                   disabled
                                 />
@@ -2681,7 +2681,7 @@ Return the complete extracted text.`
                               </div>
                             </div>
                           ))}
-                        </ct-vstack>
+                        </cf-vstack>
                       </div>,
                       null
                     )}
@@ -2705,11 +2705,11 @@ Return the complete extracted text.`
                             >None</button>
                           </div>
                         </div>
-                        <ct-vstack style="gap: 8px;">
+                        <cf-vstack style="gap: 8px;">
                           {needsReviewClasses.map((cls: StagedClassWithSelection) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                <ct-checkbox
+                                <cf-checkbox
                                   checked={cls.selected}
                                   disabled
                                 />
@@ -2727,7 +2727,7 @@ Return the complete extracted text.`
                               </div>
                             </div>
                           ))}
-                        </ct-vstack>
+                        </cf-vstack>
                       </div>,
                       null
                     )}
@@ -2751,11 +2751,11 @@ Return the complete extracted text.`
                             >None</button>
                           </div>
                         </div>
-                        <ct-vstack style="gap: 8px;">
+                        <cf-vstack style="gap: 8px;">
                           {autoDiscardedClasses.map((cls: StagedClassWithSelection) => (
                             <div style="background: white; border-radius: 4px; padding: 8px 12px; opacity: 0.7;">
                               <div style="display: flex; gap: 12px; align-items: flex-start;">
-                                <ct-checkbox
+                                <cf-checkbox
                                   checked={cls.selected}
                                   disabled
                                 />
@@ -2772,7 +2772,7 @@ Return the complete extracted text.`
                               </div>
                             </div>
                           ))}
-                        </ct-vstack>
+                        </cf-vstack>
                       </div>,
                       null
                     )}
@@ -2802,20 +2802,20 @@ Return the complete extracted text.`
                     {ifElse(
                       hasSelectedClasses,
                       <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 8px; padding: 16px; text-align: center;">
-                        <ct-button
+                        <cf-button
                           variant="default"
                           style={{ width: "100%", padding: "12px 24px", fontSize: "16px", fontWeight: "600" }}
                           onClick={confirmImportHandler({ classes, importText, stagedClassSelections, classesToImport })}
                         >
                           Import {selectedClassCount} Class{ifElse(selectedClassCountIsOne, "", "es")}
-                        </ct-button>
+                        </cf-button>
                         <div style="font-size: 12px; color: #059669; margin-top: 8px;">
                           Selected classes will be added to your class list.
                         </div>
                       </div>,
                       null
                     )}
-                  </ct-vstack>,
+                  </cf-vstack>,
                   null
                 )}
 
@@ -2828,13 +2828,13 @@ Return the complete extracted text.`
                     Add a single class directly without LLM extraction.
                   </p>
 
-                  <ct-vstack style="gap: 12px;">
-                    <ct-hstack style="gap: 12px;">
+                  <cf-vstack style="gap: 12px;">
+                    <cf-hstack style="gap: 12px;">
                       <div style="flex: 2;">
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Class Name *
                         </label>
-                        <ct-input
+                        <cf-input
                           placeholder="e.g., Ballet, Soccer, Robotics"
                           $value={manualClassForm.key("name")}
                         />
@@ -2843,19 +2843,19 @@ Return the complete extracted text.`
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Day
                         </label>
-                        <ct-select
+                        <cf-select
                           $value={manualClassForm.key("day")}
                           items={DAYS_OF_WEEK.map((d) => ({ label: DAY_LABELS[d], value: d }))}
                         />
                       </div>
-                    </ct-hstack>
+                    </cf-hstack>
 
-                    <ct-hstack style="gap: 12px;">
+                    <cf-hstack style="gap: 12px;">
                       <div style="flex: 1;">
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Start Time
                         </label>
-                        <ct-input
+                        <cf-input
                           type="time"
                           $value={manualClassForm.key("startTime")}
                         />
@@ -2864,7 +2864,7 @@ Return the complete extracted text.`
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           End Time
                         </label>
-                        <ct-input
+                        <cf-input
                           type="time"
                           $value={manualClassForm.key("endTime")}
                         />
@@ -2873,7 +2873,7 @@ Return the complete extracted text.`
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Cost ($)
                         </label>
-                        <ct-input
+                        <cf-input
                           type="number"
                           placeholder="0"
                           $value={manualClassForm.key("cost")}
@@ -2883,7 +2883,7 @@ Return the complete extracted text.`
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Per
                         </label>
-                        <ct-select
+                        <cf-select
                           $value={manualClassForm.key("costPer")}
                           items={[
                             { label: "Session", value: "session" },
@@ -2892,14 +2892,14 @@ Return the complete extracted text.`
                           ]}
                         />
                       </div>
-                    </ct-hstack>
+                    </cf-hstack>
 
-                    <ct-hstack style="gap: 12px;">
+                    <cf-hstack style="gap: 12px;">
                       <div style="flex: 1;">
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Grade Min
                         </label>
-                        <ct-input
+                        <cf-input
                           placeholder="e.g., K"
                           $value={manualClassForm.key("gradeMin")}
                         />
@@ -2908,18 +2908,18 @@ Return the complete extracted text.`
                         <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                           Grade Max
                         </label>
-                        <ct-input
+                        <cf-input
                           placeholder="e.g., 3"
                           $value={manualClassForm.key("gradeMax")}
                         />
                       </div>
-                    </ct-hstack>
+                    </cf-hstack>
 
                     <div>
                       <label style="display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: #6b7280;">
                         Notes (optional)
                       </label>
-                      <ct-input
+                      <cf-input
                         placeholder="Any additional details..."
                         $value={manualClassForm.key("description")}
                       />
@@ -2930,23 +2930,23 @@ Return the complete extracted text.`
                       <div style="color: #f59e0b; font-size: 12px;">
                         Select a location above before adding a class.
                       </div>,
-                      <ct-button
+                      <cf-button
                         variant="default"
                         onClick={addManualClass({ classes, manualClassForm, importLocationId, locations })}
                       >
                         Add Class
-                      </ct-button>
+                      </cf-button>
                     )}
-                  </ct-vstack>
+                  </cf-vstack>
                 </div>
-              </ct-vstack>,
+              </cf-vstack>,
               null
             )}
 
             {/* ========== TAB 4: SELECTION ========== */}
             {ifElse(
               isSelectionTab,
-              <ct-vstack style="padding: 16px; gap: 16px;">
+              <cf-vstack style="padding: 16px; gap: 16px;">
                 <h2 style="font-size: 18px; font-weight: 600; margin: 0;">Selection Builder</h2>
 
                 {/* Show message if no classes imported yet */}
@@ -2963,7 +2963,7 @@ Return the complete extracted text.`
                 {/* Main selection builder - using computed values and ifElse instead of derive */}
                 {ifElse(
                   hasClasses,
-                  <ct-hstack style="gap: 16px; align-items: flex-start;">
+                  <cf-hstack style="gap: 16px; align-items: flex-start;">
                     {/* Left column: Pinned Schedule */}
                     <div style="flex: 1; min-width: 300px;">
                       {/* Set tabs - using computed for display, handlers bound outside */}
@@ -2996,13 +2996,13 @@ Return the complete extracted text.`
                             </h3>
                             {ifElse(
                               canDeleteSet,
-                              <ct-button
+                              <cf-button
                                 size="sm"
                                 variant="destructive"
                                 onClick={boundDeleteActiveSet}
                               >
                                 Delete Set
-                              </ct-button>,
+                              </cf-button>,
                               null
                             )}
                           </div>
@@ -3022,9 +3022,9 @@ Return the complete extracted text.`
                           {/* Day-by-day schedule */}
                           {ifElse(
                             hasPinnedClasses,
-                            <ct-vstack style="gap: 8px;">
+                            <cf-vstack style="gap: 8px;">
                               {pinnedScheduleByDay}
-                            </ct-vstack>,
+                            </cf-vstack>,
                             <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
                               No classes pinned yet. Add classes from the right panel.
                             </p>
@@ -3058,10 +3058,10 @@ Return the complete extracted text.`
                           <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 12px 0; color: #166534;">
                             💡 Suggested Sets
                           </h3>
-                          <ct-vstack style="gap: 8px;">
+                          <cf-vstack style="gap: 8px;">
                             {/* Use pre-computed JSX - cannot map computed arrays directly in JSX */}
                             {suggestedSetsDisplay}
-                          </ct-vstack>
+                          </cf-vstack>
                         </div>,
                         null
                       )}
@@ -3077,24 +3077,24 @@ Return the complete extracted text.`
 
                         {ifElse(
                           hasRankedClasses,
-                          <ct-vstack style="gap: 8px;">
+                          <cf-vstack style="gap: 8px;">
                             {/* Use pre-computed JSX - cannot map computed arrays directly in JSX */}
                             {rankedClassesDisplay}
-                          </ct-vstack>,
+                          </cf-vstack>,
                           <p style="color: #9ca3af; font-size: 13px; font-style: italic; margin: 0;">
                             All classes are pinned to this set!
                           </p>
                         )}
                       </div>
                     </div>
-                  </ct-hstack>,
+                  </cf-hstack>,
                   null
                 )}
-              </ct-vstack>,
+              </cf-vstack>,
               null
             )}
           </div>
-        </ct-screen>
+        </cf-screen>
       ),
     };
   }

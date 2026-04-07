@@ -29,7 +29,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Props = {
   notes: string;
@@ -180,15 +180,15 @@ export default pattern<Props>(({ notes }) => {
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <ct-button
+          <cf-button
             onClick={triggerExtraction({ notes, extractTrigger })}
             disabled={extractionPending}
           >
             {extractionPending ? "Extracting..." : "Extract Data"}
-          </ct-button>
-          <ct-button onClick={clearExtraction({ extractedData: extractionResult })}>
+          </cf-button>
+          <cf-button onClick={clearExtraction({ extractedData: extractionResult })}>
             Clear Results
-          </ct-button>
+          </cf-button>
         </div>
 
         {/* This is the key pattern: ifElse switching to a branch with nested maps */}

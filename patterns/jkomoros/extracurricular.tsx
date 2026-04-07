@@ -15,7 +15,7 @@
  * via a modal dialog that shows exactly what will be exported. This pattern
  * serves as a declassification gate for future policy-based trust systems.
  */
-import { Writable, computed, Default, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, equals, generateObject, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 import {
   generateICS,
   generateEventUID,
@@ -1107,7 +1107,7 @@ const confirmCalendarExport = handler<
       };
       outbox.set(updatedOutbox);
 
-      // Prepare ICS file for download via ct-file-download component
+      // Prepare ICS file for download via cf-file-download component
       const dateStr = now.split("T")[0];
       const childSlug = sanitizeFilename(pending.childName).toLowerCase();
       const setSlug = sanitizeFilename(pending.setName).toLowerCase();
@@ -1124,7 +1124,7 @@ const confirmCalendarExport = handler<
         icsFilename: filename,
       };
     } else {
-      // ICS: Prepare file for download via ct-file-download component
+      // ICS: Prepare file for download via cf-file-download component
       const dateStr = now.split("T")[0];
       const childSlug = sanitizeFilename(pending.childName).toLowerCase();
       const setSlug = sanitizeFilename(pending.setName).toLowerCase();
@@ -1490,7 +1490,7 @@ Also extract session-level dates that apply to ALL classes (often in header/foot
 - noClassDates: holidays/breaks that apply to all classes, empty if not found`;
     });
 
-    // Run LLM extraction - destructure result/pending like food-recipe.tsx
+    // Run LLM extraction - destructure result/pending like food-pattern.tsx
     const { result: extractionResponse, pending: extractionPending } = generateObject({
       model: "anthropic:claude-sonnet-4-5",
       prompt: extractionPrompt,
@@ -2004,9 +2004,9 @@ Return all visible text.`
                 </select>
               </div>
               <div>
-                <ct-message-input
+                <cf-message-input
                   placeholder="New option name..."
-                  onct-send={(e: { detail: { message: string } }) => {
+                  oncf-send={(e: { detail: { message: string } }) => {
                     const name = e.detail?.message?.trim();
                     if (name) {
                       const current = pinnedSetNames.get();
@@ -2230,20 +2230,20 @@ Return all visible text.`
                   <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester Start:</label>
-                      <ct-input
+                      <cf-input
                         type="date"
                         style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
                         value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.startDate || ""; })}
-                        onct-change={setSemesterStart({ dates: semesterDates })}
+                        oncf-change={setSemesterStart({ dates: semesterDates })}
                       />
                     </div>
                     <div>
                       <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>Semester End:</label>
-                      <ct-input
+                      <cf-input
                         type="date"
                         style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc" }}
                         value={computed(() => { const s: SemesterDates = semesterDates.get(); return s.endDate || ""; })}
-                        onct-change={setSemesterEnd({ dates: semesterDates })}
+                        oncf-change={setSemesterEnd({ dates: semesterDates })}
                       />
                     </div>
                   </div>
@@ -2253,7 +2253,7 @@ Return all visible text.`
                     <label style={{ display: "block", fontSize: "0.8em", marginBottom: "0.25rem" }}>
                       Target Calendar Name:
                     </label>
-                    <ct-input
+                    <cf-input
                       type="text"
                       placeholder="e.g., Kids Activities, Family"
                       style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid #ccc", width: "250px" }}
@@ -2265,7 +2265,7 @@ Return all visible text.`
                   </div>
 
                   {/* Export button */}
-                  <ct-button
+                  <cf-button
                     variant="primary"
                     disabled={computed(() => !canExportCalendar)}
                     style={{
@@ -2282,7 +2282,7 @@ Return all visible text.`
                     })}
                   >
                     Export to iCal (.ics)
-                  </ct-button>
+                  </cf-button>
 
                   {/* Validation message */}
                   {ifElse(
@@ -2357,7 +2357,7 @@ Return all visible text.`
               {/* Download button for ICS files */}
               {ifElse(
                 computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return !!r?.icsContent; }),
-                <ct-file-download
+                <cf-file-download
                   $data={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsContent || ""; })}
                   $filename={computed(() => { const r: CalendarExportResult = calendarExportResult.get(); return r?.icsFilename || "calendar.ics"; })}
                   mime-type="text/calendar"
@@ -2365,7 +2365,7 @@ Return all visible text.`
                   size="sm"
                 >
                   Download ICS
-                </ct-file-download>,
+                </cf-file-download>,
                 null
               )}
               <button
@@ -2852,14 +2852,14 @@ Return all visible text.`
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: 1 }}>
                           {/* Pin button */}
-                          <ct-button
+                          <cf-button
                             variant="ghost"
                             style={{ padding: "2px 6px", fontSize: "1em", minWidth: "auto" }}
                             onClick={togglePinClass({ classList: classes, activeSet: activeSetName, idx })}
                             title={isPinned ? "Unpin from set" : "Pin to set"}
                           >
                             {isPinned ? "📍" : "📌"}
-                          </ct-button>
+                          </cf-button>
                           <span style={{ fontWeight: "bold" }}>{name}</span>
                           <span style={{ color: "#666", fontSize: "0.9em" }}>
                             @ {location?.name || "Unknown"}
@@ -2869,14 +2869,14 @@ Return all visible text.`
                           </span>
                         </div>
                         <div style={{ display: "flex", gap: "0.25rem" }}>
-                          <ct-button
+                          <cf-button
                             variant="ghost"
                             style={{ padding: "2px 6px", fontSize: "0.85em" }}
                             onClick={() => editingClassIndex.set(isEditing ? -1 : idx)}
                           >
                             {isEditing ? "Done" : "Edit"}
-                          </ct-button>
-                          <ct-button
+                          </cf-button>
+                          <cf-button
                             variant="ghost"
                             style={{ padding: "2px 6px", fontSize: "0.85em", color: "#c62828" }}
                             onClick={() => {
@@ -2888,7 +2888,7 @@ Return all visible text.`
                             }}
                           >
                             ✕
-                          </ct-button>
+                          </cf-button>
                         </div>
                       </div>
 
@@ -2999,22 +2999,22 @@ Return all visible text.`
                                   style={{ width: "60px", padding: "0.25rem" }}
                                   onChange={updateClassTimeSlot({ classList: classes, classIdx: idx, slotIdx, field: "endTime" })}
                                 />
-                                <ct-button
+                                <cf-button
                                   variant="ghost"
                                   style={{ padding: "2px 6px", fontSize: "0.8em" }}
                                   onClick={removeClassTimeSlot({ classList: classes, classIdx: idx, slotIdx })}
                                 >
                                   ✕
-                                </ct-button>
+                                </cf-button>
                               </div>
                             ))}
-                            <ct-button
+                            <cf-button
                               variant="ghost"
                               style={{ padding: "2px 6px", fontSize: "0.8em", marginTop: "0.25rem" }}
                               onClick={addClassTimeSlot({ classList: classes, idx })}
                             >
                               + Add Time Slot
-                            </ct-button>
+                            </cf-button>
                           </div>
                         </div>
                       )}
@@ -3051,9 +3051,9 @@ Return all visible text.`
                   })}
                 </select>
               </div>
-              <ct-message-input
+              <cf-message-input
                 placeholder="Class name (e.g., Robotics, Dance)"
-                onct-send={(e: { detail?: { message?: string } }) => {
+                oncf-send={(e: { detail?: { message?: string } }) => {
                   const name = e.detail?.message?.trim();
                   const locIdx = selectedLocationIndex.get();
                   const locs = locations.get();
@@ -3112,11 +3112,11 @@ Return all visible text.`
               {/* Phase 5.5: Unified Upload Section */}
               <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "4px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                  <ct-file-input
+                  <cf-file-input
                     accept="image/*,.txt,.md,.html,.htm"
                     buttonText="Upload Schedule"
                     maxSizeBytes={3932160}
-                    onct-change={handleFileUpload({
+                    oncf-change={handleFileUpload({
                       uploadedFile,
                       processingStatus: uploadProcessingStatus,
                       extractedText: uploadExtractedText,
@@ -3156,13 +3156,13 @@ Return all visible text.`
                   <div style={{ marginBottom: "0.5rem", color: "#166534", fontWeight: "bold", fontSize: "0.9em" }}>
                     Text Extracted - Review & Edit
                   </div>
-                  <ct-textarea
+                  <cf-textarea
                     style={{ width: "100%", minHeight: "200px", fontFamily: "monospace", fontSize: "0.85em" }}
                     placeholder="Extracted text will appear here..."
                     $value={previewText}
                   />
                   <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-                    <ct-button
+                    <cf-button
                       variant="primary"
                       onClick={applyExtractedText({
                         extractedText: uploadExtractedText,
@@ -3173,8 +3173,8 @@ Return all visible text.`
                       })}
                     >
                       Use This Text
-                    </ct-button>
-                    <ct-button
+                    </cf-button>
+                    <cf-button
                       variant="secondary"
                       onClick={cancelUpload({
                         uploadedFile,
@@ -3184,7 +3184,7 @@ Return all visible text.`
                       })}
                     >
                       Cancel
-                    </ct-button>
+                    </cf-button>
                   </div>
                 </div>,
                 null
@@ -3195,7 +3195,7 @@ Return all visible text.`
                 <label style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.9em" }}>
                   Paste schedule text:
                 </label>
-                <ct-textarea
+                <cf-textarea
                   style={{ width: "100%", minHeight: "150px" }}
                   placeholder="Paste schedule HTML or text here..."
                   $value={importText}
@@ -3203,7 +3203,7 @@ Return all visible text.`
               </div>
 
               {/* Extract button */}
-              <ct-button
+              <cf-button
                 style={{ padding: "0.5rem 1rem", marginBottom: "1rem" }}
                 onClick={() => {
                   const text = importText.get();
@@ -3213,7 +3213,7 @@ Return all visible text.`
                 }}
               >
                 Extract Classes
-              </ct-button>
+              </cf-button>
 
               {/* Extraction status */}
               {ifElse(
@@ -3242,7 +3242,7 @@ Return all visible text.`
                     }}
                   >
                     {/* WORKAROUND: Use onClick handler instead of $checked - see ISSUE file */}
-                    <ct-checkbox
+                    <cf-checkbox
                       checked={s.selected}
                       onClick={toggleStagedSelection({ staged: stagedClasses, idx })}
                     />
@@ -3282,7 +3282,7 @@ Return all visible text.`
               {/* Import button - using pre-computed values */}
               {ifElse(
                 hasStaged,
-                <ct-button
+                <cf-button
                   variant="primary"
                   style={{ marginTop: "0.5rem" }}
                   disabled={importButtonDisabled}
@@ -3298,7 +3298,7 @@ Return all visible text.`
                   })}
                 >
                   {importButtonText}
-                </ct-button>,
+                </cf-button>,
                 null
               )}
             </div>
@@ -3351,7 +3351,7 @@ Return all visible text.`
                           - {address}
                         </span>
                       )}
-                      <ct-button
+                      <cf-button
                         style={{ marginLeft: "auto" }}
                         onClick={() => {
                           const current = locations.get();
@@ -3364,7 +3364,7 @@ Return all visible text.`
                         }}
                       >
                         Remove
-                      </ct-button>
+                      </cf-button>
                     </div>
                   );
                 });
@@ -3382,7 +3382,7 @@ Return all visible text.`
               <h3 style={{ marginBottom: "0.5rem" }}>Add Location</h3>
               <div style={{ marginBottom: "0.5rem" }}>
                 <label style={{ fontSize: "0.9em", marginRight: "0.5rem" }}>Type:</label>
-                <ct-select
+                <cf-select
                   $value={newLocationType}
                   items={[
                     { label: "Afterschool (On-site)", value: "afterschool-onsite" },
@@ -3392,10 +3392,10 @@ Return all visible text.`
                   style={{ padding: "0.25rem" }}
                 />
               </div>
-              <ct-message-input
+              <cf-message-input
                 placeholder="Location name (e.g., TBS, BAM)"
                 button-text="Add"
-                onct-send={(e: { detail: { message: string } }) => {
+                oncf-send={(e: { detail: { message: string } }) => {
                   const name = e.detail?.message?.trim();
                   if (name) {
                     locations.push({

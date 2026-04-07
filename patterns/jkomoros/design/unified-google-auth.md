@@ -149,7 +149,7 @@ const hasCalendarScope = derive(authCharm, (charm) =>
 
 ## Dependencies
 
-- None - uses existing `<ct-google-oauth>` component
+- None - uses existing `<cf-google-oauth>` component
 - Backend already supports arbitrary scopes
 
 ## Success Criteria

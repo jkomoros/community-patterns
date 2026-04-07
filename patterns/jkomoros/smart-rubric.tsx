@@ -11,7 +11,7 @@ import {
   pattern,
   toSchema,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 /**
  * Smart Rubric - Decision Making Tool
@@ -427,11 +427,11 @@ Be precise with categorical values - use exact label matches.`;
     return {
       [NAME]: "Smart Rubric (Phase 5)",
       [UI]: (
-        <ct-vstack gap="2" style="padding: 1rem; max-width: 1200px; margin: 0 auto;">
+        <cf-vstack gap="2" style="padding: 1rem; max-width: 1200px; margin: 0 auto;">
           {/* Header */}
           <div style={{ marginBottom: "1rem" }}>
             <h2 style={{ margin: "0 0 0.5rem 0" }}>Smart Rubric - Phase 5</h2>
-            <ct-input $value={title} placeholder="Rubric Title" style="width: 100%;" />
+            <cf-input $value={title} placeholder="Rubric Title" style="width: 100%;" />
           </div>
 
           {/* Quick Add with LLM */}
@@ -445,19 +445,19 @@ Be precise with categorical values - use exact label matches.`;
             <h3 style={{ margin: "0 0 0.75rem 0", color: "#004085" }}>
               🤖 Quick Add (AI-Powered)
             </h3>
-            <ct-hstack gap="1" style={{ marginBottom: "0.75rem" }}>
-              <ct-input
+            <cf-hstack gap="1" style={{ marginBottom: "0.75rem" }}>
+              <cf-input
                 $value={quickAddPromptCell}
                 placeholder="Describe an option... e.g., 'Apartment A: 2br in Mission District, $2100/mo, 800sqft'"
                 style="flex: 1;"
               />
-              <ct-button
+              <cf-button
                 onClick={submitQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
                 style={{ background: "#007bff", color: "white" }}
               >
                 Analyze
-              </ct-button>
-            </ct-hstack>
+              </cf-button>
+            </cf-hstack>
 
             {/* LLM Extraction Results - Display only, no handlers inside derive */}
             {derive(
@@ -470,7 +470,7 @@ Be precise with categorical values - use exact label matches.`;
                 if (pending && hasSubmittedPrompt) {
                   return (
                     <div style={{ color: "#004085", padding: "0.5rem", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing description...
                     </div>
                   );
@@ -535,8 +535,8 @@ Be precise with categorical values - use exact label matches.`;
             )}
 
             {/* Action buttons OUTSIDE derive to avoid ReadOnlyAddressError */}
-            <ct-hstack gap="1" style={{ marginTop: "0.5rem" }}>
-              <ct-button
+            <cf-hstack gap="1" style={{ marginTop: "0.5rem" }}>
+              <cf-button
                 onClick={acceptQuickAddFromResult({
                   resultCell: quickAddExtraction.result,
                   optionsCell,
@@ -546,28 +546,28 @@ Be precise with categorical values - use exact label matches.`;
                 style={{ background: "#28a745", color: "white" }}
               >
                 ✓ Accept & Add
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={clearQuickAdd({ promptCell: quickAddPromptCell, submittedCell: quickAddSubmittedCell })}
                 style={{ background: "#6c757d", color: "white" }}
               >
                 ✗ Clear
-              </ct-button>
-            </ct-hstack>
+              </cf-button>
+            </cf-hstack>
           </div>
 
           {/* Test Controls */}
-          <ct-hstack gap="1" style="margin-bottom: 1rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;">
-            <ct-button onClick={addTestOption({ options })}>+ Add Test Option</ct-button>
-            <ct-button onClick={addTestDimension({ dimensions })}>+ Add Test Dimension</ct-button>
-            <ct-button onClick={resetManualRanks({ optionsCell })}>Reset Manual Ranks</ct-button>
-          </ct-hstack>
+          <cf-hstack gap="1" style="margin-bottom: 1rem; padding: 1rem; background: #f5f5f5; border-radius: 4px;">
+            <cf-button onClick={addTestOption({ options })}>+ Add Test Option</cf-button>
+            <cf-button onClick={addTestDimension({ dimensions })}>+ Add Test Dimension</cf-button>
+            <cf-button onClick={resetManualRanks({ optionsCell })}>Reset Manual Ranks</cf-button>
+          </cf-hstack>
 
           {/* Main Layout: Two Panes */}
-          <ct-hstack gap="2" style="align-items: stretch; min-height: 400px;">
+          <cf-hstack gap="2" style="align-items: stretch; min-height: 400px;">
 
             {/* LEFT PANE: Ranked Options */}
-            <ct-vstack
+            <cf-vstack
               gap="1"
               style="flex: 1; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"
             >
@@ -623,7 +623,7 @@ Be precise with categorical values - use exact label matches.`;
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
                         {/* Up/Down Buttons */}
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <ct-button
+                          <cf-button
                             onClick={moveOptionUp({ optionCell, optionsCell })}
                             style={{
                               padding: "2px 6px",
@@ -633,8 +633,8 @@ Be precise with categorical values - use exact label matches.`;
                             }}
                           >
                             ▲
-                          </ct-button>
-                          <ct-button
+                          </cf-button>
+                          <cf-button
                             onClick={moveOptionDown({ optionCell, optionsCell })}
                             style={{
                               padding: "2px 6px",
@@ -644,7 +644,7 @@ Be precise with categorical values - use exact label matches.`;
                             }}
                           >
                             ▼
-                          </ct-button>
+                          </cf-button>
                         </div>
 
                         {/* Option Name - Clickable */}
@@ -685,10 +685,10 @@ Be precise with categorical values - use exact label matches.`;
                   );
                 })
               )}
-            </ct-vstack>
+            </cf-vstack>
 
             {/* RIGHT PANE: Detail or Instructions */}
-            <ct-vstack
+            <cf-vstack
               gap="1"
               style="flex: 1; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #fafafa;"
             >
@@ -766,7 +766,7 @@ Be precise with categorical values - use exact label matches.`;
                                   dim.categories.length > 0 ? (
                                     <div style={{ fontSize: "0.9em" }}>
                                       {dim.categories.map((cat) => (
-                                        <ct-button
+                                        <cf-button
                                           onClick={changeCategoricalValue({
                                             optionName: selectedData.name,
                                             optionsCell,
@@ -785,7 +785,7 @@ Be precise with categorical values - use exact label matches.`;
                                           }}
                                         >
                                           {cat.label} ({cat.score} pts)
-                                        </ct-button>
+                                        </cf-button>
                                       ))}
                                     </div>
                                   ) : (
@@ -795,7 +795,7 @@ Be precise with categorical values - use exact label matches.`;
                                   )
                                 ) : (
                                   <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                                    <ct-button
+                                    <cf-button
                                       onClick={changeNumericValue({
                                         optionName: selectedData.name,
                                         optionsCell,
@@ -814,7 +814,7 @@ Be precise with categorical values - use exact label matches.`;
                                       }}
                                     >
                                       -
-                                    </ct-button>
+                                    </cf-button>
 
                                     <span style={{
                                       flex: 1,
@@ -825,7 +825,7 @@ Be precise with categorical values - use exact label matches.`;
                                       {currentValue || dim.numericMin}
                                     </span>
 
-                                    <ct-button
+                                    <cf-button
                                       onClick={changeNumericValue({
                                         optionName: selectedData.name,
                                         optionsCell,
@@ -844,7 +844,7 @@ Be precise with categorical values - use exact label matches.`;
                                       }}
                                     >
                                       +
-                                    </ct-button>
+                                    </cf-button>
 
                                     <span style={{ color: "#666", fontSize: "0.85em", whiteSpace: "nowrap" }}>
                                       ({dim.numericMin}-{dim.numericMax})
@@ -860,11 +860,11 @@ Be precise with categorical values - use exact label matches.`;
                   );
                 }
               )}
-            </ct-vstack>
-          </ct-hstack>
+            </cf-vstack>
+          </cf-hstack>
 
           {/* DIMENSIONS SECTION */}
-          <ct-vstack gap="1" style="margin-top: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
+          <cf-vstack gap="1" style="margin-top: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;">
             <h3 style={{ margin: "0 0 1rem 0" }}>Dimensions</h3>
 
             {dimensions.length === 0 ? (
@@ -887,17 +887,17 @@ Be precise with categorical values - use exact label matches.`;
                       </span>
                     </div>
 
-                    <ct-hstack gap="1">
+                    <cf-hstack gap="1">
                       <span style={{ marginRight: "0.5rem" }}>
                         Weight: {dim.multiplier.toFixed(1)}×
                       </span>
-                      <ct-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: -0.5 })}>
+                      <cf-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: -0.5 })}>
                         -
-                      </ct-button>
-                      <ct-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: 0.5 })}>
+                      </cf-button>
+                      <cf-button onClick={changeDimensionMultiplier({ dimensionsCell: dimensions, dimensionName: dim.name, delta: 0.5 })}>
                         +
-                      </ct-button>
-                    </ct-hstack>
+                      </cf-button>
+                    </cf-hstack>
                   </div>
 
                   {dim.type === "categorical" && dim.categories.length > 0 && (
@@ -914,7 +914,7 @@ Be precise with categorical values - use exact label matches.`;
                 </div>
               ))
             )}
-          </ct-vstack>
+          </cf-vstack>
 
           {/* DEBUG INFO */}
           <details style={{ marginTop: "1rem", padding: "1rem", background: "#f0f0f0", borderRadius: "4px" }}>
@@ -929,7 +929,7 @@ Be precise with categorical values - use exact label matches.`;
               }, null, 2)}
             </pre>
           </details>
-        </ct-vstack>
+        </cf-vstack>
       ),
       title,
       options,

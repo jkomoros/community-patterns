@@ -18,7 +18,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Types
 type User = { id: number; name: string; email: string };

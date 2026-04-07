@@ -9,7 +9,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import Person from "./person.tsx";
 
@@ -38,9 +38,9 @@ export default pattern(() => {
           <strong>TEST:</strong> Fresh launcher importing person.tsx (not a copy)
         </div>
 
-        <ct-button onClick={launchPerson()}>
+        <cf-button onClick={launchPerson()}>
           Launch Person (with notes)
-        </ct-button>
+        </cf-button>
       </div>
     ),
   };

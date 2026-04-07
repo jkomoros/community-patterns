@@ -5,7 +5,7 @@
 ### Current State (Commit: 04a3e0c)
 
 **Working**:
-- ✅ ct-image-input button "📷 Scan Aisle Signs"
+- ✅ cf-image-input button "📷 Scan Aisle Signs"
 - ✅ Image upload with bidirectional binding ($images)
 - ✅ Photo processing structure with generateText()
 - ✅ Extraction results display
@@ -19,7 +19,7 @@
 ### Next Steps
 
 1. **Image Compression Required**:
-   - ct-image-input needs to compress images client-side before upload
+   - cf-image-input needs to compress images client-side before upload
    - Target: <4.5MB to leave headroom under 5MB limit
    - Options: Canvas API resize/recompress, or third-party lib
    - See: `recipes/alex/CT-IMAGE-INPUT-DESIGN.md` for compression strategy
@@ -27,7 +27,7 @@
 2. **Auto-Add Feature**: Requires framework fix for closure limitation (see section 2 below)
 
 3. **Phone-a-Berni**: Ask about:
-   - Recommended image compression approach for ct-image-input
+   - Recommended image compression approach for cf-image-input
    - Whether component should auto-compress or require user configuration
    - Closure limitation workarounds for auto-add buttons
 

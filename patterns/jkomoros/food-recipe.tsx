@@ -7,17 +7,17 @@
  * Current Status: BLOCKED - Unable to test due to build system issues
  *
  * What we learned:
- * 1. ct-image-input currently only accepts images (accept="image/*")
+ * 1. cf-image-input currently only accepts images (accept="image/*")
  * 2. Event handling was initially wrong:
- *    - ct-image-input fires: ct-change event with {images: ImageData[]}
- *    - Pattern was listening for: onct-upload with {text: string}
+ *    - cf-image-input fires: cf-change event with {images: ImageData[]}
+ *    - Pattern was listening for: oncf-upload with {text: string}
  *    - Fixed in handleImageUpload handler (lines 454-469)
- * 3. To support PDFs, ct-image-input would need:
+ * 3. To support PDFs, cf-image-input would need:
  *    - accept="image/*,application/pdf" attribute
  *    - _processFile method updated to skip Image() validation for PDFs
  *    - Already has type field in ImageData interface to distinguish file types
  * 4. Build system challenge:
- *    - ct-image-input is in labs/packages/ui
+ *    - cf-image-input is in labs/packages/ui
  *    - Component changes require running: deno task bundle
  *    - Bundle task failed with missing 'source-map-support' dependency
  *    - Even after clearing caches and restarting dev servers, old component persisted
@@ -27,10 +27,10 @@
  *
  * Next steps to continue investigation:
  * 1. Fix labs UI bundle task dependency issue
- * 2. Successfully bundle updated ct-image-input with PDF support
+ * 2. Successfully bundle updated cf-image-input with PDF support
  * 3. Verify component loads with updated accept attribute
  * 4. Upload PDF and test if Claude vision API can extract text from PDF data URLs
- * 5. If successful, consider PR to labs repo for ct-image-input PDF support
+ * 5. If successful, consider PR to labs repo for cf-image-input PDF support
  *
  * Alternative approach:
  * - Use separate PDF library to extract text from PDF before sending to Claude
@@ -50,11 +50,11 @@ import {
   str,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 import { type MentionableCharm } from "../../../labs/packages/patterns/system/backlinks-index.tsx";
 import { compareFields, computeWordDiff, type DiffChunk } from "./utils/diff-utils.ts";
-import RecipeAnalyzer from "./recipe-analyzer.tsx";
-import FoodRecipeViewer from "./food-recipe-viewer.tsx";
+import RecipeAnalyzer from "./pattern-analyzer.tsx";
+import FoodRecipeViewer from "./food-pattern-viewer.tsx";
 
 // Predefined units for ingredients
 const UNITS = [
@@ -121,7 +121,7 @@ interface RecipeInput {
   name?: Default<string, "">;
   cuisine?: Default<string, "">;
   servings?: Default<number, 4>;
-  yield?: Default<string, "">; // What the recipe makes (e.g., "12 cookies", "1 loaf")
+  yield?: Default<string, "">; // What the pattern makes (e.g., "12 cookies", "1 loaf")
   difficulty?: Default<"easy" | "medium" | "hard", "medium">;
   prepTime?: Default<number, 0>; // minutes
   cookTime?: Default<number, 0>; // minutes
@@ -135,7 +135,7 @@ interface RecipeInput {
   source?: Default<string, "">;
 }
 
-/** Food recipe with ingredients, steps, and meal planning info. #recipe */
+/** Food pattern with ingredients, steps, and meal planning info. #pattern */
 interface RecipeOutput extends RecipeInput {
   // Derived for meal planning
   ovenRequirements: {
@@ -852,9 +852,9 @@ const FoodRecipe = pattern<RecipeInput, RecipeOutput>(
     const { result: imageTextResult, pending: imageExtractionPending } =
       generateObject({
         system:
-          `You are a recipe text extraction assistant. Extract ALL text from recipe images.
+          `You are a pattern text extraction assistant. Extract ALL text from pattern images.
 
-Your job is to extract the complete recipe text from the image, preserving:
+Your job is to extract the complete pattern text from the image, preserving:
 - Recipe title
 - All ingredients with amounts and units
 - All cooking steps/instructions
@@ -874,7 +874,7 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
             { type: "image" as const, image: img.data },
             {
               type: "text" as const,
-              text: `Extract all text from this recipe image. Preserve the complete recipe text including title, ingredients, instructions, timing, and any notes.`
+              text: `Extract all text from this pattern image. Preserve the complete pattern text including title, ingredients, instructions, timing, and any notes.`
             }
           ];
         }),
@@ -907,7 +907,7 @@ Return the extracted text as faithfully as possible. Preserve line breaks and st
     const { result: extractionResult, pending: extractionPending } =
       generateObject({
         system:
-          `You are a recipe extraction assistant. Extract structured recipe information from unstructured text.
+          `You are a pattern extraction assistant. Extract structured pattern information from unstructured text.
 
 Extract the following fields if present:
 - name: Recipe title
@@ -919,7 +919,7 @@ Extract the following fields if present:
 - restTime: Time to rest after cooking before serving in minutes (as a number)
 - holdTime: Time dish can wait while maintaining quality in minutes (as a number)
 - category: Type of dish - one of "appetizer", "main", "side", "starch", "vegetable", "dessert", "bread", or "other"
-- source: Where the recipe came from (URL, book, person)
+- source: Where the pattern came from (URL, book, person)
 - ingredients: Array of objects with {item, amount, unit}. Parse amounts and units separately.
 - stepGroups: Organize steps into logical groups based on timing:
   * Group similar prep/cooking phases together
@@ -1033,7 +1033,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     );
 
     // PERFORMANCE FIX: Pre-compute the word diff for Notes field OUTSIDE of .map() JSX
-    // This prevents N² re-evaluation during recipe discovery when map items change.
+    // This prevents N² re-evaluation during pattern discovery when map items change.
     // See: community-docs/superstitions/2025-12-16-expensive-computation-inside-map-jsx.md
     const notesDiffChunks = computed(() => {
       const notesChange = changesPreview.find((c: { field: string }) => c.field === "Notes");
@@ -1050,7 +1050,7 @@ Return only the fields you can confidently extract. Be thorough with ingredients
     const { result: timingSuggestions, pending: timingSuggestionPending } =
       generateObject({
         system:
-          `You are a recipe timing assistant. Analyze recipe step groups and suggest optimal timing organization.
+          `You are a pattern timing assistant. Analyze pattern step groups and suggest optimal timing organization.
 
 For each step group, analyze the steps and suggest:
 - nightsBeforeServing: For tasks that need to happen days before (1, 2, etc.) - use this for overnight marinades, dough rising, etc.
@@ -1112,7 +1112,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
     const { result: waitTimeSuggestions, pending: waitTimeSuggestionPending } =
       generateObject({
         system:
-          `You are a recipe timing assistant. Analyze recipe step groups and suggest maximum wait times.
+          `You are a pattern timing assistant. Analyze pattern step groups and suggest maximum wait times.
 
 For each step group, analyze the steps and suggest maxWaitMinutes - how long the output of this step group can wait before the next step without losing quality.
 
@@ -1160,17 +1160,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
     return {
       [NAME]: str`🍳 ${displayName}`,
       [UI]: (
-        <ct-vstack gap={1} style="padding: 12px; max-width: 800px;">
+        <cf-vstack gap={1} style="padding: 12px; max-width: 800px;">
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h1 style={{ margin: "0", fontSize: "20px" }}>{displayName}</h1>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-              <ct-button
+              <cf-button
                 onClick={createCookingView({ name, servings, ingredients, stepGroups })}
                 variant="secondary"
               >
                 👨‍🍳 Create Cooking View
-              </ct-button>
+              </cf-button>
               <div style={{ fontSize: "13px", color: "#666" }}>
                 {totalTime} min total
               </div>
@@ -1178,30 +1178,30 @@ Return suggestions for ALL groups with their IDs preserved.`,
           </div>
 
           {/* Recipe Input Section - Notes with Image Upload */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Recipe Input</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <ct-image-input
-                    onct-change={handleImageUpload({ uploadedImage })}
+                  <cf-image-input
+                    oncf-change={handleImageUpload({ uploadedImage })}
                     maxSizeBytes={3932160}
                   >
                     📷 Add Photo
-                  </ct-image-input>
-                  <ct-button
+                  </cf-image-input>
+                  <cf-button
                     onClick={triggerExtraction({ notes, extractTrigger })}
                     disabled={extractionPending}
                   >
                     {ifElse(
                       extractionPending,
                       <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        <cf-loader size="sm" show-elapsed></cf-loader>
                         Extracting...
                       </span>,
                       "Extract Recipe Data"
                     )}
-                  </ct-button>
+                  </cf-button>
                 </div>
               </div>
 
@@ -1221,22 +1221,22 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   {ifElse(
                     imageExtractionPending,
                     <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      <cf-loader size="sm" show-elapsed></cf-loader>
                       Extracting text from image...
                     </span>,
                     "📷 Upload an image to extract text"
                   )}
                 </span>
-                <ct-button
+                <cf-button
                   onClick={applyImageText({ notes, uploadedImage, imageTextResult })}
                   disabled={imageExtractionPending}
                   style={{ fontSize: "12px", padding: "4px 8px" }}
                 >
                   Add to Notes
-                </ct-button>
+                </cf-button>
               </div>
 
-              <ct-code-editor
+              <cf-code-editor
                 $value={notes}
                 $mentionable={mentionable}
                 $mentioned={mentioned}
@@ -1246,40 +1246,40 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 theme="light"
                 wordWrap
                 tabIndent
-                placeholder="Paste a recipe here, upload an image, then click 'Extract Recipe Data' to auto-fill fields..."
+                placeholder="Paste a pattern here, upload an image, then click 'Extract Recipe Data' to auto-fill fields..."
                 style="min-height: 150px;"
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Scaling Controls */}
-          <ct-card>
+          <cf-card>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <strong style={{ fontSize: "14px" }}>Scale Recipe:</strong>
-              <ct-button
+              <cf-button
                 onClick={scaleRecipe({ servings, ingredients, scaleFactor: 0.5 })}
                 variant="secondary"
               >
                 ÷ 2 (Half)
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={scaleRecipe({ servings, ingredients, scaleFactor: 2 })}
                 variant="secondary"
               >
                 × 2 (Double)
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={scaleRecipe({ servings, ingredients, scaleFactor: 1.5 })}
                 variant="secondary"
               >
                 × 1.5
-              </ct-button>
+              </cf-button>
             </div>
-          </ct-card>
+          </cf-card>
 
           {/* Basic Info Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Basic Info</h3>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
@@ -1287,7 +1287,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Recipe Name
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={name}
                     placeholder="e.g., Chocolate Chip Cookies"
                   />
@@ -1297,7 +1297,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Cuisine
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={cuisine}
                     placeholder="e.g., Italian, Thai"
                   />
@@ -1307,7 +1307,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Servings
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${servings}`}
                     min="1"
@@ -1318,7 +1318,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Yield
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={recipeYield}
                     placeholder="e.g., 12 cookies, 1 loaf"
                   />
@@ -1328,7 +1328,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Difficulty
                   </label>
-                  <ct-select
+                  <cf-select
                     $value={difficulty}
                     items={[
                       { label: "Easy", value: "easy" },
@@ -1342,7 +1342,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Prep Time (min)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${prepTime}`}
                     min="0"
@@ -1353,7 +1353,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Cook Time (min)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${cookTime}`}
                     min="0"
@@ -1364,7 +1364,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Rest Time (min)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${restTime}`}
                     min="0"
@@ -1376,7 +1376,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Hold Time (min)
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${holdTime}`}
                     min="0"
@@ -1388,7 +1388,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Category
                   </label>
-                  <ct-select
+                  <cf-select
                     $value={category}
                     items={[
                       { label: "Appetizer", value: "appetizer" },
@@ -1403,20 +1403,20 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   />
                 </div>
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Ingredients Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Ingredients ({ingredientCount})</h3>
-                <ct-button onClick={addIngredient({ ingredients })}>
+                <cf-button onClick={addIngredient({ ingredients })}>
                   + Add Ingredient
-                </ct-button>
+                </cf-button>
               </div>
 
-              <ct-vstack gap={1}>
+              <cf-vstack gap={1}>
                 {ingredients.map((ingredient) => (
                   <div
                     style={{
@@ -1429,32 +1429,32 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       borderRadius: "4px",
                     }}
                   >
-                    <ct-input
+                    <cf-input
                       $value={ingredient.item}
                       placeholder="Ingredient name"
                     />
-                    <ct-input
+                    <cf-input
                       $value={ingredient.amount}
                       placeholder="Amount"
                     />
-                    <ct-select
+                    <cf-select
                       $value={ingredient.unit}
                       items={UNIT_ITEMS}
                     />
-                    <ct-button
+                    <cf-button
                       onClick={removeIngredient({ ingredients, ingredient })}
                       style={{ padding: "4px 8px", fontSize: "18px" }}
                     >
                       ×
-                    </ct-button>
+                    </cf-button>
                   </div>
                 ))}
-              </ct-vstack>
-            </ct-vstack>
-          </ct-card>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-card>
 
           {/* Dietary Analysis Section */}
-          <ct-card>
+          <cf-card>
             <div>
               <h4 style={{ margin: "0 0 8px 0" }}>Dietary Analysis</h4>
               {computed(
@@ -1463,7 +1463,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   const dc = analyzer.dietaryCompatibility;
                   if (pending) {
                     return <div style={{ fontStyle: "italic", color: "#666", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <ct-loader size="sm"></ct-loader>
+                      <cf-loader size="sm"></cf-loader>
                       Analyzing dietary compatibility...
                     </div>;
                   }
@@ -1524,15 +1524,15 @@ Return suggestions for ALL groups with their IDs preserved.`,
                 }
               )}
             </div>
-          </ct-card>
+          </cf-card>
 
           {/* Step Groups Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                 <h3 style={{ margin: "0", fontSize: "14px" }}>Step Groups ({stepGroupCount})</h3>
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <ct-button
+                  <cf-button
                     onClick={triggerTimingSuggestion({ stepGroups, timingSuggestionTrigger })}
                     disabled={computed(() => stepGroups.length === 0) || timingSuggestionPending}
                     variant="secondary"
@@ -1540,13 +1540,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     {ifElse(
                       timingSuggestionPending,
                       <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        <cf-loader size="sm" show-elapsed></cf-loader>
                         Analyzing...
                       </span>,
                       "Organize by Timing"
                     )}
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     onClick={triggerWaitTimeSuggestion({ stepGroups, waitTimeSuggestionTrigger })}
                     disabled={computed(() => stepGroups.length === 0) || waitTimeSuggestionPending}
                     variant="secondary"
@@ -1554,50 +1554,50 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     {ifElse(
                       waitTimeSuggestionPending,
                       <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <ct-loader size="sm" show-elapsed></ct-loader>
+                        <cf-loader size="sm" show-elapsed></cf-loader>
                         Analyzing...
                       </span>,
                       "Suggest Wait Times"
                     )}
-                  </ct-button>
-                  <ct-button onClick={addStepGroup({ stepGroups })}>
+                  </cf-button>
+                  <cf-button onClick={addStepGroup({ stepGroups })}>
                     + Add Group
-                  </ct-button>
+                  </cf-button>
                 </div>
               </div>
 
-              <ct-vstack gap={1}>
+              <cf-vstack gap={1}>
                 {stepGroups.map((stepGroup, groupIndex) => (
-                  <ct-card style={{ background: "#f9fafb" }}>
-                    <ct-vstack gap={1}>
+                  <cf-card style={{ background: "#f9fafb" }}>
+                    <cf-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <ct-button
+                          <cf-button
                             onClick={moveGroupUp({ stepGroups, stepGroup })}
                             disabled={groupIndex === 0}
                             style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                           >
                             ↑
-                          </ct-button>
-                          <ct-button
+                          </cf-button>
+                          <cf-button
                             onClick={moveGroupDown({ stepGroups, stepGroup })}
                             disabled={computed(() => groupIndex >= stepGroups.length - 1)}
                             style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                           >
                             ↓
-                          </ct-button>
+                          </cf-button>
                         </div>
-                        <ct-input
+                        <cf-input
                           $value={stepGroup.name}
                           placeholder="Group name (e.g., Prep, Cooking)"
                           style="flex: 1; fontWeight: 600;"
                         />
-                        <ct-button
+                        <cf-button
                           onClick={removeStepGroup({ stepGroups, stepGroup })}
                           style={{ padding: "4px 8px", fontSize: "18px" }}
                         >
                           × Remove Group
-                        </ct-button>
+                        </cf-button>
                       </div>
 
                       {/* Timing Metadata */}
@@ -1615,7 +1615,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                             Timing
                           </label>
                           <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                            <ct-input
+                            <cf-input
                               type="number"
                               $value={str`${stepGroup.nightsBeforeServing}`}
                               min="0"
@@ -1623,7 +1623,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               style="flex: 1; fontSize: 13px;"
                             />
                             <span style={{ fontSize: "11px", color: "#999" }}>nights OR</span>
-                            <ct-input
+                            <cf-input
                               type="number"
                               $value={str`${stepGroup.minutesBeforeServing}`}
                               min="0"
@@ -1638,7 +1638,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Duration (min)
                           </label>
-                          <ct-input
+                          <cf-input
                             type="number"
                             $value={str`${stepGroup.duration}`}
                             min="0"
@@ -1651,7 +1651,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Max Wait Time (min)
                           </label>
-                          <ct-input
+                          <cf-input
                             type="number"
                             $value={str`${stepGroup.maxWaitMinutes}`}
                             min="0"
@@ -1679,10 +1679,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Temp (°F)
                           </label>
-                          <ct-input
+                          <cf-input
                             type="number"
                             $value={str`${computed(() => stepGroup.requiresOven?.temperature ?? "")}`}
-                            onct-change={updateOvenTemp({ stepGroup })}
+                            oncf-change={updateOvenTemp({ stepGroup })}
                             min="0"
                             placeholder="350"
                             style="fontSize: 13px;"
@@ -1693,10 +1693,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Duration (min)
                           </label>
-                          <ct-input
+                          <cf-input
                             type="number"
                             $value={str`${computed(() => stepGroup.requiresOven?.duration ?? "")}`}
-                            onct-change={updateOvenDuration({ stepGroup })}
+                            oncf-change={updateOvenDuration({ stepGroup })}
                             min="0"
                             placeholder="30"
                             style="fontSize: 13px;"
@@ -1707,10 +1707,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Height Slots
                           </label>
-                          <ct-input
+                          <cf-input
                             type="number"
                             $value={str`${computed(() => stepGroup.requiresOven?.racksNeeded?.heightSlots ?? "")}`}
-                            onct-change={updateOvenHeightSlots({ stepGroup })}
+                            oncf-change={updateOvenHeightSlots({ stepGroup })}
                             min="1"
                             placeholder="1-5"
                             style="fontSize: 13px;"
@@ -1721,9 +1721,9 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", fontWeight: "500", color: "#666" }}>
                             Rack Width
                           </label>
-                          <ct-select
+                          <cf-select
                             $value={computed(() => stepGroup.requiresOven?.racksNeeded?.width ?? "")}
-                            onct-change={updateOvenRackWidth({ stepGroup })}
+                            oncf-change={updateOvenRackWidth({ stepGroup })}
                             items={[
                               { label: "---", value: "" },
                               { label: "Full", value: "full" },
@@ -1734,60 +1734,60 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         </div>
                       </div>
 
-                      <ct-vstack gap={1}>
+                      <cf-vstack gap={1}>
                         {stepGroup.steps.map((step, index) => (
                           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                             <span style={{ fontWeight: "bold", color: "#666", minWidth: "20px" }}>
                               {index + 1}.
                             </span>
                             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <ct-button
+                              <cf-button
                                 onClick={moveStepUp({ stepGroup, stepIndex: index })}
                                 disabled={index === 0}
                                 style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                               >
                                 ↑
-                              </ct-button>
-                              <ct-button
+                              </cf-button>
+                              <cf-button
                                 onClick={moveStepDown({ stepGroup, stepIndex: index })}
                                 disabled={computed(() => index >= stepGroup.steps.length - 1)}
                                 style={{ padding: "2px 6px", fontSize: "14px", lineHeight: "1" }}
                               >
                                 ↓
-                              </ct-button>
+                              </cf-button>
                             </div>
-                            <ct-input
+                            <cf-input
                               $value={step.description}
                               placeholder="Step description..."
                               style="flex: 1;"
                             />
-                            <ct-button
+                            <cf-button
                               onClick={removeStepFromGroup({ stepGroup, stepIndex: index })}
                               style={{ padding: "4px 8px", fontSize: "18px" }}
                             >
                               ×
-                            </ct-button>
+                            </cf-button>
                           </div>
                         ))}
-                      </ct-vstack>
+                      </cf-vstack>
 
-                      <ct-button
+                      <cf-button
                         onClick={addStepToGroup({ stepGroup })}
                         variant="secondary"
                         style={{ alignSelf: "flex-start" }}
                       >
                         + Add Step to Group
-                      </ct-button>
-                    </ct-vstack>
-                  </ct-card>
+                      </cf-button>
+                    </cf-vstack>
+                  </cf-card>
                 ))}
-              </ct-vstack>
-            </ct-vstack>
-          </ct-card>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-card>
 
           {/* Tags Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Tags</h3>
 
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
@@ -1804,7 +1804,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       }}
                     >
                       <span>{tag}</span>
-                      <ct-button
+                      <cf-button
                         onClick={removeTag({ tags, tag })}
                         style={{
                           padding: "0 4px",
@@ -1814,34 +1814,34 @@ Return suggestions for ALL groups with their IDs preserved.`,
                         }}
                       >
                         ×
-                      </ct-button>
+                      </cf-button>
                     </div>
                   ))}
                 </div>
 
-              <ct-message-input
+              <cf-message-input
                 placeholder="Add tag (e.g., vegetarian, quick, dessert)..."
                 appearance="rounded"
-                onct-send={addTag({ tags })}
+                oncf-send={addTag({ tags })}
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Source Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px" }}>Source</h3>
-              <ct-input
+              <cf-input
                 $value={source}
-                placeholder="Where did this recipe come from? (URL, book, person)"
+                placeholder="Where did this pattern come from? (URL, book, person)"
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Extraction Results Modal */}
           {ifElse(
             hasExtractionResult,
-            <ct-card style={{
+            <cf-card style={{
               position: "fixed",
               top: "50%",
               left: "50%",
@@ -1853,13 +1853,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
               zIndex: "1000",
               boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
             }}>
-              <ct-vstack gap={1} style="padding: 12px;">
+              <cf-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Extracted Changes</h3>
                 <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
-                  The following changes will be applied to your recipe:
+                  The following changes will be applied to your pattern:
                 </p>
 
-                <ct-vstack gap={2}>
+                <cf-vstack gap={2}>
                   {changesPreview.map((change) => (
                     <div style={{
                       padding: "6px 10px",
@@ -1867,7 +1867,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                       border: "1px solid #e5e7eb",
                       borderRadius: "4px",
                     }}>
-                      <ct-vstack gap={0}>
+                      <cf-vstack gap={0}>
                         <strong style={{ fontSize: "12px" }}>
                           {change.field}
                         </strong>
@@ -1944,7 +1944,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                               </div>
                             )}
                         </div>
-                      </ct-vstack>
+                      </cf-vstack>
                     </div>
                   ))}
 
@@ -1954,7 +1954,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     if (!result) return null;
 
                     return (
-                      <ct-vstack gap={2}>
+                      <cf-vstack gap={2}>
                         {/* Ingredients */}
                         {result?.ingredients && result.ingredients.length > 0 && (
                           <div style={{
@@ -2021,10 +2021,10 @@ Return suggestions for ALL groups with their IDs preserved.`,
                             </div>
                           </div>
                         )}
-                      </ct-vstack>
+                      </cf-vstack>
                     );
                   })}
-                </ct-vstack>
+                </cf-vstack>
 
                 <div style={{
                   display: "flex",
@@ -2032,12 +2032,12 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   justifyContent: "flex-end",
                   marginTop: "1rem",
                 }}>
-                  <ct-button
+                  <cf-button
                     onClick={cancelExtraction({ extractedData: extractionResult })}
                   >
                     Cancel
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     onClick={applyExtractedData({
                       extractedData: extractionResult,
                       name,
@@ -2058,17 +2058,17 @@ Return suggestions for ALL groups with their IDs preserved.`,
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
                     Apply
-                  </ct-button>
+                  </cf-button>
                 </div>
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             <div />
           )}
 
           {/* Timing Suggestions Modal */}
           {ifElse(
             computed(() => timingSuggestions && Array.isArray(timingSuggestions.stepGroups)),
-            <ct-card style={{
+            <cf-card style={{
               position: "fixed",
               top: "50%",
               left: "50%",
@@ -2080,13 +2080,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
               zIndex: "1000",
               boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
             }}>
-              <ct-vstack gap={1} style="padding: 12px;">
+              <cf-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Timing Suggestions</h3>
                 <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
                   The following timing changes will be applied to your step groups:
                 </p>
 
-                <ct-vstack gap={2}>
+                <cf-vstack gap={2}>
                   {computed(() =>
                     timingSuggestions?.stepGroups?.map((suggestion: any) => {
                       const currentGroupCell = stepGroups.find((g: any) => {
@@ -2104,7 +2104,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           border: "1px solid #e5e7eb",
                           borderRadius: "4px",
                         }}>
-                          <ct-vstack gap={1}>
+                          <cf-vstack gap={1}>
                             <strong style={{ fontSize: "13px" }}>
                               {currentData?.name || suggestion.id}
                             </strong>
@@ -2155,12 +2155,12 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                 </div>
                               )}
                             </div>
-                          </ct-vstack>
+                          </cf-vstack>
                         </div>
                       );
                     })
                   )}
-                </ct-vstack>
+                </cf-vstack>
 
                 <div style={{
                   display: "flex",
@@ -2168,27 +2168,27 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   justifyContent: "flex-end",
                   marginTop: "1rem",
                 }}>
-                  <ct-button
+                  <cf-button
                     onClick={clearTimingSuggestions({ timingSuggestions })}
                   >
                     Cancel
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     onClick={applyTimingSuggestions({ timingSuggestions, stepGroups })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
                     Apply
-                  </ct-button>
+                  </cf-button>
                 </div>
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             <div />
           )}
 
           {/* Wait Time Suggestions Modal */}
           {ifElse(
             computed(() => waitTimeSuggestions && Array.isArray(waitTimeSuggestions.stepGroups)),
-            <ct-card style={{
+            <cf-card style={{
               position: "fixed",
               top: "50%",
               left: "50%",
@@ -2200,13 +2200,13 @@ Return suggestions for ALL groups with their IDs preserved.`,
               zIndex: "1000",
               boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
             }}>
-              <ct-vstack gap={1} style="padding: 12px;">
+              <cf-vstack gap={1} style="padding: 12px;">
                 <h3 style={{ margin: "0 0 6px 0", fontSize: "16px" }}>Review Wait Time Suggestions</h3>
                 <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#666" }}>
                   The following wait time changes will be applied to your step groups:
                 </p>
 
-                <ct-vstack gap={2}>
+                <cf-vstack gap={2}>
                   {computed(() =>
                     waitTimeSuggestions?.stepGroups?.map((suggestion: any) => {
                       const currentGroupCell = stepGroups.find((g: any) => {
@@ -2224,7 +2224,7 @@ Return suggestions for ALL groups with their IDs preserved.`,
                           border: "1px solid #e5e7eb",
                           borderRadius: "4px",
                         }}>
-                          <ct-vstack gap={1}>
+                          <cf-vstack gap={1}>
                             <strong style={{ fontSize: "13px" }}>
                               {currentData?.name || suggestion.id}
                             </strong>
@@ -2241,12 +2241,12 @@ Return suggestions for ALL groups with their IDs preserved.`,
                                 {suggestion.maxWaitMinutes} min
                               </span>
                             </div>
-                          </ct-vstack>
+                          </cf-vstack>
                         </div>
                       );
                     })
                   )}
-                </ct-vstack>
+                </cf-vstack>
 
                 <div style={{
                   display: "flex",
@@ -2254,23 +2254,23 @@ Return suggestions for ALL groups with their IDs preserved.`,
                   justifyContent: "flex-end",
                   marginTop: "1rem",
                 }}>
-                  <ct-button
+                  <cf-button
                     onClick={clearWaitTimeSuggestions({ waitTimeSuggestions })}
                   >
                     Cancel
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     onClick={applyWaitTimeSuggestions({ waitTimeSuggestions, stepGroups })}
                     style={{ backgroundColor: "#2563eb", color: "white" }}
                   >
                     Apply
-                  </ct-button>
+                  </cf-button>
                 </div>
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             <div />
           )}
-        </ct-vstack>
+        </cf-vstack>
       ),
       name,
       cuisine,

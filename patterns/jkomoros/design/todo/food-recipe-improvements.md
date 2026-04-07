@@ -48,7 +48,7 @@ This document outlines major improvements to the food-recipe pattern:
 - Completion tracking: try boxing pattern, fall back to name->boolean map
 
 ### Image Import
-- Use `ct-image-input` component
+- Use `cf-image-input` component
 - Transcribes to text, populates notes field
 - Existing extraction flow handles the rest
 - PDF support: future enhancement (likely requires special handling)
@@ -165,27 +165,27 @@ interface RecipeOutput extends RecipeInput {
 ### 2. Notes Section Enhancement
 
 ```tsx
-<ct-card>
-  <ct-vstack gap={2} style="padding: 12px;">
+<cf-card>
+  <cf-vstack gap={2} style="padding: 12px;">
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <h3>Recipe Input</h3>
       <div style={{ display: "flex", gap: "8px" }}>
-        <ct-image-input
+        <cf-image-input
           onupload={handleImageUpload({ notes })}
         >
           Upload Image
-        </ct-image-input>
-        <ct-button onClick={triggerExtraction(...)}>
+        </cf-image-input>
+        <cf-button onClick={triggerExtraction(...)}>
           Extract Recipe Data
-        </ct-button>
+        </cf-button>
       </div>
     </div>
-    <ct-code-editor
+    <cf-code-editor
       $value={notes}
       placeholder="Paste a recipe here, or upload an image, then click 'Extract Recipe Data'..."
     />
-  </ct-vstack>
-</ct-card>
+  </cf-vstack>
+</cf-card>
 ```
 
 ### 3. Step Groups Section (New)
@@ -457,12 +457,12 @@ const { result: waitTimeSuggestion } = generateObject({
 
 ### Phase 1: Image Import (Implement First)
 
-**Component**: `ct-image-input`
+**Component**: `cf-image-input`
 
 **Flow**:
 1. User clicks "Upload Image" button in Notes section
 2. File picker opens, user selects image
-3. Image is transcribed to text (happens automatically with ct-image-input)
+3. Image is transcribed to text (happens automatically with cf-image-input)
 4. Transcribed text is inserted into notes field
 5. User clicks "Extract Recipe Data" to run existing extraction
 

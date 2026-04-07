@@ -17,7 +17,7 @@ import {
   pattern,
   str,
   UI,
-} from "commontools";
+} from "commonfabric";
 import {
   Address,
   FamilyMember,
@@ -213,22 +213,22 @@ const Family = pattern<FamilyInput, FamilyOutput>(
     return {
       [NAME]: str`Family: ${displayName}`,
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2>Family</h2>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style="padding: 16px; gap: 20px;">
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style="padding: 16px; gap: 20px;">
               {/* Basic Info Section */}
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600;">
                   Basic Information
                 </h3>
 
                 <label>
                   Family Name
-                  <ct-input
+                  <cf-input
                     $value={familyName}
                     placeholder="e.g., The Smiths"
                   />
@@ -236,15 +236,15 @@ const Family = pattern<FamilyInput, FamilyOutput>(
 
                 <label>
                   Connection Origin
-                  <ct-input
+                  <cf-input
                     $value={connectionOrigin}
                     placeholder="How you met (School, Sports team, etc.)"
                   />
                 </label>
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Members Section */}
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600;">
                   Family Members
                 </h3>
@@ -254,7 +254,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   <div style="color: #666; font-size: 13px; padding: 8px 0;">
                     No members added yet
                   </div>,
-                  <ct-vstack style="gap: 6px;">
+                  <cf-vstack style="gap: 6px;">
                     {members.map((member) => (
                       <div
                         style={{
@@ -305,17 +305,17 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                         </button>
                       </div>
                     ))}
-                  </ct-vstack>
+                  </cf-vstack>
                 )}
 
-                <ct-message-input
+                <cf-message-input
                   placeholder="Add family member..."
-                  onct-send={addMember({ members })}
+                  oncf-send={addMember({ members })}
                 />
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Addresses Section */}
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600;">
                   Addresses
                 </h3>
@@ -328,7 +328,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   <div style="color: #666; font-size: 13px; padding: 8px 0;">
                     No addresses added yet
                   </div>,
-                  <ct-vstack style="gap: 6px;">
+                  <cf-vstack style="gap: 6px;">
                     {addresses.map((addr) => (
                       <div
                         style={{
@@ -340,7 +340,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                             : "1px solid #e5e7eb",
                         }}
                       >
-                        <ct-hstack style="gap: 8px; align-items: center;">
+                        <cf-hstack style="gap: 8px; align-items: center;">
                           <input
                             type="text"
                             value={addr.label}
@@ -404,20 +404,20 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                           >
                             ×
                           </button>
-                        </ct-hstack>
+                        </cf-hstack>
                       </div>
                     ))}
-                  </ct-vstack>
+                  </cf-vstack>
                 )}
 
-                <ct-message-input
+                <cf-message-input
                   placeholder="Add address..."
-                  onct-send={addAddress({ addresses })}
+                  oncf-send={addAddress({ addresses })}
                 />
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Tags Section */}
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600;">
                   Tags
                 </h3>
@@ -455,18 +455,18 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   ))}
                 </div>
 
-                <ct-message-input
+                <cf-message-input
                   placeholder="Add tag..."
-                  onct-send={addTag({ tags })}
+                  oncf-send={addTag({ tags })}
                 />
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Notes Section */}
-              <ct-vstack style="gap: 8px;">
+              <cf-vstack style="gap: 8px;">
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600;">
                   Notes
                 </h3>
-                <ct-code-editor
+                <cf-code-editor
                   $value={notes}
                   language="text/markdown"
                   theme="light"
@@ -474,7 +474,7 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   placeholder="Any notes about this family..."
                   style="min-height: 120px;"
                 />
-              </ct-vstack>
+              </cf-vstack>
 
               {/* Summary Section */}
               <div
@@ -504,9 +504,9 @@ const Family = pattern<FamilyInput, FamilyOutput>(
                   return parts.join(" - ");
                 })}
               </div>
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
 
       // Output all fields

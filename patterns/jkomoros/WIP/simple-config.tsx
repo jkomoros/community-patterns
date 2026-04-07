@@ -3,7 +3,7 @@
  * Simple config pattern - used as imported dependency for repro testing
  */
 
-import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   multiplier?: Default<number, 1>;

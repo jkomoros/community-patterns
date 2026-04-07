@@ -42,9 +42,9 @@ const saveResults = handler<unknown, {
 });
 
 // UI Button
-<ct-button onClick={saveResults({ memberships, brandHistory, extractorResult, queryResult, emails })}>
+<cf-button onClick={saveResults({ memberships, brandHistory, extractorResult, queryResult, emails })}>
   💾 Save Results
-</ct-button>
+</cf-button>
 ```
 
 ## What We Tried (Failed Attempts)
@@ -114,7 +114,7 @@ Here's the complete pattern showing where automatic save is needed:
 
 ```typescript
 /// <cts-enable />
-import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commontools";
+import { Cell, computed, Default, derive, generateObject, handler, NAME, pattern, UI } from "commonfabric";
 import GmailAuth from "./gmail-auth.tsx";
 import GmailImporter from "./gmail-importer.tsx";
 
@@ -446,19 +446,19 @@ Return empty array if no NEW memberships found.`,
   return {
     [NAME]: "🏨 Hotel Membership Extractor",
     [UI]: (
-      <ct-screen>
+      <cf-screen>
         <div slot="header">
           <h2 style="margin: 0; fontSize: 18px;">Hotel Memberships</h2>
         </div>
 
-        <ct-vscroll flex showScrollbar>
-          <ct-vstack style="padding: 16px; gap: 16px;">
-            <ct-button
+        <cf-vscroll flex showScrollbar>
+          <cf-vstack style="padding: 16px; gap: 16px;">
+            <cf-button
               onClick={startScan({ queryGeneratorInput, isScanning, currentQuery, auth })}
               size="lg"
             >
               🔍 Scan for Hotel Memberships
-            </ct-button>
+            </cf-button>
 
             {/* Display extracted memberships */}
             <div>
@@ -492,9 +492,9 @@ Return empty array if no NEW memberships found.`,
                 ));
               })}
             </details>
-          </ct-vstack>
-        </ct-vscroll>
-      </ct-screen>
+          </cf-vstack>
+        </cf-vscroll>
+      </cf-screen>
     ),
   };
 });

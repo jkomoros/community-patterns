@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, fetchData, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 /**
  * GitHub Personal Access Token Authentication
@@ -215,7 +215,7 @@ export default pattern<Input, Output>(({ token }) => {
             Personal Access Token
           </label>
           <div style={{ display: "flex", gap: "8px" }}>
-            <ct-input
+            <cf-input
               type="password"
               $value={token}
               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"

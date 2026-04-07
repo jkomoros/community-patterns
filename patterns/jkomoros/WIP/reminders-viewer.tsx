@@ -17,7 +17,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type CFC<T, C extends string> = T;
 type Confidential<T> = CFC<T, "confidential">;
@@ -188,7 +188,7 @@ export default pattern<{
       (count: number) => `Reminders (${count} items)`
     ),
     [UI]: (
-      <ct-screen
+      <cf-screen
         style={{
           display: "flex",
           flexDirection: "column",
@@ -474,7 +474,7 @@ export default pattern<{
             )
           )}
         </div>
-      </ct-screen>
+      </cf-screen>
     ),
     reminders,
   };

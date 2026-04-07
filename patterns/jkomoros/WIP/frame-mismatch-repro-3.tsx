@@ -17,7 +17,7 @@ import {
   pattern,
   Stream,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Nested type structure matching the original
 interface Alternative {
@@ -150,7 +150,7 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
         <h2>Frame Mismatch Repro 3 (nested types)</h2>
         <div style={{ display: "flex", gap: "1rem" }}>
           <div style={{ flex: 2 }}>
-            <ct-chat $messages={messages} pending={pending} />
+            <cf-chat $messages={messages} pending={pending} />
           </div>
           <div style={{ flex: 1 }}>
             <h3>Assumptions</h3>
@@ -174,11 +174,11 @@ export default pattern<ReproInput, ReproOutput>(({ messages, assumptions }) => {
             )}
           </div>
         </div>
-        <ct-prompt-input
+        <cf-prompt-input
           placeholder="Ask a question..."
           pending={pending}
-          onct-send={sendMessage({ addMessage })}
-          onct-stop={cancelGeneration}
+          oncf-send={sendMessage({ addMessage })}
+          oncf-stop={cancelGeneration}
         />
       </div>
     ),

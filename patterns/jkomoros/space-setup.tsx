@@ -11,14 +11,14 @@ import {
   pattern,
   Stream,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Import patterns directly - optional defaults make {} work for all fields
 import Note from "../../../labs/packages/patterns/notes/note.tsx";
 import Person from "./person.tsx";
 import PageCreator from "./page-creator.tsx";
 import StoreMapper from "./store-mapper.tsx";
-import FoodRecipe from "./food-recipe.tsx";
+import FoodRecipe from "./food-pattern.tsx";
 
 type Input = {
   instructions: Default<string, "">;
@@ -204,7 +204,7 @@ export default pattern<Input, Output>(
       },
       createFoodRecipe: {
         description:
-          "Create a new Food Recipe charm with name and notes fields for recipe data extraction demo",
+          "Create a new Food Recipe charm with name and notes fields for pattern data extraction demo",
         handler: createFoodRecipe({ createdCharms }),
       },
       listCreatedCharms: {
@@ -242,7 +242,7 @@ Execute the instructions by calling the appropriate tools immediately, then conf
     const { addMessage, pending } = llmState;
 
     const executeButton = (
-      <ct-button
+      <cf-button
         onClick={startExecution({ addMessage, instructions, executed, cacheBuster })}
         disabled={computed(() => {
           // Disable if instructions are empty/undefined or if already executing
@@ -260,22 +260,22 @@ Execute the instructions by calling the appropriate tools immediately, then conf
           if (!hasInstructions) return "Loading...";
           return "Execute Setup";
         })}
-      </ct-button>
+      </cf-button>
     );
 
     return {
       [NAME]: "Space Setup",
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
-            <ct-heading level={3}>Space Setup Orchestrator</ct-heading>
+            <cf-heading level={3}>Space Setup Orchestrator</cf-heading>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style="padding: 12px;" gap="2">
-              <ct-vstack gap="1">
-                <ct-heading level={5} style="margin: 0; font-size: 13px; font-weight: 600;">Setup Instructions</ct-heading>
-                <ct-text style="
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style="padding: 12px;" gap="2">
+              <cf-vstack gap="1">
+                <cf-heading level={5} style="margin: 0; font-size: 13px; font-weight: 600;">Setup Instructions</cf-heading>
+                <cf-text style="
                     white-space: pre-wrap;
                     background: #f5f5f5;
                     padding: 10px;
@@ -286,46 +286,46 @@ Execute the instructions by calling the appropriate tools immediately, then conf
                     lineHeight: 1.4;
                   ">
                   {instructions}
-                </ct-text>
-              </ct-vstack>
+                </cf-text>
+              </cf-vstack>
 
-              <ct-hstack gap="2">
+              <cf-hstack gap="2">
                 {executeButton}
-                <ct-button
+                <cf-button
                   onClick={resetExecution({ messages, createdCharms, executed, cacheBuster })}
                   variant="secondary"
                 >
                   Reset
-                </ct-button>
-              </ct-hstack>
+                </cf-button>
+              </cf-hstack>
 
-              <ct-vstack gap="1">
-                <ct-heading level={6} style="margin: 0; font-size: 12px; font-weight: 600;">Created Charms</ct-heading>
+              <cf-vstack gap="1">
+                <cf-heading level={6} style="margin: 0; font-size: 12px; font-weight: 600;">Created Charms</cf-heading>
                 {computed(() => {
                   const charms = createdCharms.get();
                   if (charms.length === 0) {
-                    return <ct-text style="color: #666;">None yet</ct-text>;
+                    return <cf-text style="color: #666;">None yet</cf-text>;
                   }
                   return (
-                    <ct-vstack gap="1">
-                      {charms.map((charm: string) => <ct-text>• {charm}</ct-text>)}
-                    </ct-vstack>
+                    <cf-vstack gap="1">
+                      {charms.map((charm: string) => <cf-text>• {charm}</cf-text>)}
+                    </cf-vstack>
                   );
                 })}
-              </ct-vstack>
+              </cf-vstack>
 
-              <ct-vstack gap="1">
-                <ct-heading level={6} style="margin: 0; font-size: 12px; font-weight: 600;">Execution Log</ct-heading>
+              <cf-vstack gap="1">
+                <cf-heading level={6} style="margin: 0; font-size: 12px; font-weight: 600;">Execution Log</cf-heading>
                 <div style="min-height: 150px;">
-                  <ct-chat
+                  <cf-chat
                     $messages={messages}
                     pending={pending}
                   />
                 </div>
-              </ct-vstack>
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
       messages,
       executeSetup: startExecution({ addMessage, instructions, executed, cacheBuster }),

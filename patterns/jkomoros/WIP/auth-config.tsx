@@ -4,7 +4,7 @@
  * Simulates GitHubAuth - a pattern that itself has fetchData calls
  */
 
-import { Writable, computed, Default, fetchData, handler, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, fetchData, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   token?: Default<string, "">;

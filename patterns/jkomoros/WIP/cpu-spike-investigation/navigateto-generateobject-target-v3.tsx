@@ -1,9 +1,9 @@
 /// <cts-enable />
 /**
  * @title Extract Target V3 (changesPreview)
- * @description Test 2: Uses recipe() + changesPreview computed like person.tsx
+ * @description Test 2: Uses pattern() + changesPreview computed like person.tsx
  *
- * Building on Test 1 (recipe() alone didn't trigger bug).
+ * Building on Test 1 (pattern() alone didn't trigger bug).
  * Adding changesPreview computed to see if post-extraction processing triggers it.
  */
 import {
@@ -12,11 +12,11 @@ import {
   generateObject,
   handler,
   NAME,
-  recipe,
+  pattern,
   toSchema,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 // Inline the diff utilities to avoid import issues
 type DiffChunk = {
   type: "removed" | "added" | "unchanged";
@@ -130,8 +130,8 @@ interface Output {
   notes: string;
 }
 
-// Use recipe() like person.tsx does
-const ExtractTargetV3 = recipe<Input, Output>(
+// Use pattern() like person.tsx does
+const ExtractTargetV3 = pattern<Input, Output>(
   "Extract Target V3",
   ({ notes }) => {
     const extractTrigger = Writable.of<string>("");
@@ -223,12 +223,12 @@ const ExtractTargetV3 = recipe<Input, Output>(
           <h1>Extract Target V3 (changesPreview)</h1>
 
           <div style={{ backgroundColor: "#fef3c7", padding: "0.5rem", marginBottom: "1rem" }}>
-            <strong>TEST 2:</strong> Using recipe() + changesPreview + notesDiffChunks computed
+            <strong>TEST 2:</strong> Using pattern() + changesPreview + notesDiffChunks computed
           </div>
 
-          <ct-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
+          <cf-button onClick={triggerExtraction({ extractTrigger, startTimeMs })} disabled={pending}>
             {pending ? "Extracting..." : "Run Extraction"}
-          </ct-button>
+          </cf-button>
 
           {hasExtractionResults && (
             <div style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#f0fdf4" }}>

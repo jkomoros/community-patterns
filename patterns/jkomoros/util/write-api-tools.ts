@@ -36,7 +36,7 @@
  * }
  * ```
  */
-import { Writable, handler, JSONSchema } from "commontools";
+import { Writable, handler, JSONSchema } from "commonfabric";
 
 // =============================================================================
 // EMAIL SUGGESTION TOOL

@@ -1,9 +1,9 @@
 /// <cts-enable />
 
 /**
- * Autocomplete Value Demo - Demonstrates ct-autocomplete $value binding
+ * Autocomplete Value Demo - Demonstrates cf-autocomplete $value binding
  *
- * This pattern shows the $value binding for ct-autocomplete in both
+ * This pattern shows the $value binding for cf-autocomplete in both
  * single-select and multi-select modes.
  *
  * Features demonstrated:
@@ -14,7 +14,7 @@
  * - Custom values with "Add X" option
  */
 
-import { Writable, computed, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, Default, NAME, pattern, UI } from "commonfabric";
 
 // Sample items for demo
 const CATEGORY_ITEMS = [
@@ -50,18 +50,18 @@ export default pattern<Input, Result>(
     return {
       [NAME]: "Autocomplete Value Demo",
       [UI]: (
-        <ct-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
+        <cf-vstack gap="4" style={{ padding: "1rem", maxWidth: "500px" }}>
           <h2>Autocomplete Value Binding Demo</h2>
           <p style={{ color: "#666", fontSize: "0.875rem" }}>
-            Demonstrates the new <code>$value</code> binding for ct-autocomplete
+            Demonstrates the new <code>$value</code> binding for cf-autocomplete
             in single-select and multi-select modes.
           </p>
 
           {/* Single Select Section */}
-          <ct-card>
-            <ct-vstack gap="3">
+          <cf-card>
+            <cf-vstack gap="3">
               <label style={{ fontWeight: "500" }}>Single Select (with $value)</label>
-              <ct-autocomplete
+              <cf-autocomplete
                 items={CATEGORY_ITEMS}
                 $value={singleValue}
                 placeholder="Select a category..."
@@ -70,12 +70,12 @@ export default pattern<Input, Result>(
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
                 Selected: <strong>{computed(() => singleValue.get() || "(none)")}</strong>
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Multi Select Section */}
-          <ct-card>
-            <ct-vstack gap="3">
+          <cf-card>
+            <cf-vstack gap="3">
               <label style={{ fontWeight: "500" }}>Multi Select (with $value + multiple)</label>
 
               {/* Tag display for selected items */}
@@ -126,7 +126,7 @@ export default pattern<Input, Result>(
                 ))}
               </div>
 
-              <ct-autocomplete
+              <cf-autocomplete
                 items={CATEGORY_ITEMS}
                 $value={multiValues}
                 multiple={true}
@@ -136,12 +136,12 @@ export default pattern<Input, Result>(
               <div style={{ fontSize: "0.75rem", color: "#666" }}>
                 Count: {computed(() => (multiValues.get() || []).length)} selected
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Debug output */}
-          <ct-card>
-            <ct-vstack gap="2">
+          <cf-card>
+            <cf-vstack gap="2">
               <label style={{ fontWeight: "500", fontSize: "0.875rem" }}>Debug State</label>
               <code style={{
                 padding: "0.5rem",
@@ -165,14 +165,14 @@ export default pattern<Input, Result>(
                   `multiValues: ${JSON.stringify(multiValues.get() || [])}`
                 )}
               </code>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           <p style={{ color: "#666", fontSize: "0.75rem" }}>
             The single-select shows the selected label in the input. The multi-select
             filters out already-selected items from the dropdown.
           </p>
-        </ct-vstack>
+        </cf-vstack>
       ),
       singleValue,
       multiValues,

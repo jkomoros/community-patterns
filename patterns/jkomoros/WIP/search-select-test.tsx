@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, derive, Default, NAME, pattern, UI } from "commontools";
+import { Writable, computed, derive, Default, NAME, pattern, UI } from "commonfabric";
 // TODO: search-select.tsx component doesn't exist yet - create it or remove this test file
 // import SearchSelect, { SearchSelectItem } from "./components/search-select.tsx";
 
@@ -59,8 +59,8 @@ export default pattern<TestInput>(({ initialSelected }) => {
     [NAME]: "Search Select Test",
     selected,
     [UI]: (
-      <ct-vstack gap="4" style={{ padding: "20px", maxWidth: "600px" }}>
-        <ct-card>
+      <cf-vstack gap="4" style={{ padding: "20px", maxWidth: "600px" }}>
+        <cf-card>
           <h2 style={{ margin: "0 0 16px 0" }}>Search Select Component Test</h2>
 
           <div style={{ marginBottom: "16px" }}>
@@ -85,8 +85,8 @@ export default pattern<TestInput>(({ initialSelected }) => {
               {selectionDisplay}
             </div>
           </div>
-        </ct-card>
-      </ct-vstack>
+        </cf-card>
+      </cf-vstack>
     ),
   };
 });

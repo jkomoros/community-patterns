@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, computed, Default, handler, NAME, pattern, str, UI } from "commontools";
+import { Writable, computed, Default, handler, NAME, pattern, str, UI } from "commonfabric";
 
 /**
  * Reward Spinner Pattern
@@ -272,7 +272,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
     return {
       [NAME]: str`Reward Spinner`,
       [UI]: (
-        <ct-screen style="background-color: white; font-family: system-ui, sans-serif; overflow: hidden;">
+        <cf-screen style="background-color: white; font-family: system-ui, sans-serif; overflow: hidden;">
           <div
             style={{
               display: "flex",
@@ -786,7 +786,7 @@ const RewardSpinner = pattern<SpinnerInput, SpinnerOutput>(
             </div>
           </div>
         </div>
-        </ct-screen>
+        </cf-screen>
       ),
       currentEmoji,
       isSpinning,

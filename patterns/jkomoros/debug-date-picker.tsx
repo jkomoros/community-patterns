@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Writable, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Writable, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 /**
  * Debug Date Picker
@@ -72,7 +72,7 @@ export default pattern<DatePickerInput, DatePickerOutput>(({ date }) => {
           Debug Date Override
         </div>
 
-        <ct-input
+        <cf-input
           type="date"
           $value={date}
           style={{

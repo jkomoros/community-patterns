@@ -47,7 +47,7 @@
  *
  * See: community-docs/superstitions/2025-12-04-tool-handler-schemas-not-functions.md
  */
-import { Writable, handler, JSONSchema } from "commontools";
+import { Writable, handler, JSONSchema } from "commonfabric";
 
 /**
  * Config passed when binding the handler (pattern author provides this).

@@ -244,9 +244,9 @@ const stagedClasses = computed(() => {
 
 // 4. Triage UI - $checked binds directly to object property
 {stagedClasses.map(cls => (
-  <ct-checkbox $checked={cls.selected}>
+  <cf-checkbox $checked={cls.selected}>
     {cls.name}
-  </ct-checkbox>
+  </cf-checkbox>
 ))}
 
 // 5. Confirm import - filter by property, push to classes
@@ -304,7 +304,7 @@ const toggleStatus = (cls: Class, statusKey: keyof StatusFlags) => {
 };
 
 // Or with $checked binding if framework supports nested property paths
-<ct-checkbox $checked={cls.statuses.registered}>Registered</ct-checkbox>
+<cf-checkbox $checked={cls.statuses.registered}>Registered</cf-checkbox>
 ```
 
 ### 5. Conflict Detection

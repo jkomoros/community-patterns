@@ -4,7 +4,7 @@
  *
  * This is a prototype exploring search-select functionality as a user-land pattern.
  * It demonstrates the desired UX but has limitations that require a proper
- * built-in ct-search-select component.
+ * built-in cf-search-select component.
  *
  * STATUS: Prototype - DO NOT USE in production patterns
  *
@@ -13,7 +13,7 @@
  * 2. Dropdown position is hardcoded (no getBoundingClientRect access)
  * 3. No programmatic focus control
  *
- * See: patterns/jkomoros/design/todo/ct-search-select-prd.md for the proper component spec
+ * See: patterns/jkomoros/design/todo/cf-search-select-prd.md for the proper component spec
  * See: patterns/jkomoros/issues/ISSUE-Map-Style-Reactivity.md for technical details
  */
 import {
@@ -25,7 +25,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // =============================================================================
 // Types
@@ -326,13 +326,13 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             ))}
 
             {/* Add button */}
-            <ct-button
+            <cf-button
               size="sm"
               variant="secondary"
               onClick={toggleDropdown({ isOpen, searchQuery, highlightedIndex })}
             >
               + Add
-            </ct-button>
+            </cf-button>
           </div>
 
           {/* Dropdown with backdrop - using ifElse for conditional rendering */}
@@ -340,35 +340,35 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
             isOpen,
             <>
               {/* Keyboard navigation */}
-              <ct-keybind
+              <cf-keybind
                 code="Escape"
-                onct-keybind={closeDropdown({
+                oncf-keybind={closeDropdown({
                   isOpen,
                   searchQuery,
                   highlightedIndex,
                 })}
               />
-              <ct-keybind
+              <cf-keybind
                 code="ArrowUp"
                 ignore-editable={false}
                 preventDefault
-                onct-keybind={moveUp({ isOpen, highlightedIndex })}
+                oncf-keybind={moveUp({ isOpen, highlightedIndex })}
               />
-              <ct-keybind
+              <cf-keybind
                 code="ArrowDown"
                 ignore-editable={false}
                 preventDefault
-                onct-keybind={moveDown({
+                oncf-keybind={moveDown({
                   isOpen,
                   highlightedIndex,
                   maxItems: filteredCount,
                 })}
               />
-              <ct-keybind
+              <cf-keybind
                 code="Enter"
                 ignore-editable={false}
                 preventDefault
-                onct-keybind={selectHighlighted({
+                oncf-keybind={selectHighlighted({
                   isOpen,
                   selected,
                   searchQuery,
@@ -408,7 +408,7 @@ export default pattern<SearchSelectInput, SearchSelectOutput>(
                 <div
                   style={{ padding: "8px", borderBottom: "1px solid #e2e8f0" }}
                 >
-                  <ct-input
+                  <cf-input
                     placeholder={placeholder}
                     $value={searchQuery}
                     style={{ width: "100%" }}

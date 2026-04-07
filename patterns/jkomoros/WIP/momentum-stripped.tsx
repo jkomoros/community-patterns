@@ -11,7 +11,7 @@ import {
   pattern,
   UI,
   wish,
-} from "commontools";
+} from "commonfabric";
 import GitHubAuth from "./github-auth.tsx";
 
 /**
@@ -564,7 +564,7 @@ export default pattern<Input, Output>(({ repos, authCharm }) => {
           <p style={{ margin: "0 0 12px 0", fontSize: "14px", color: "#666" }}>
             Paste GitHub URLs or owner/repo references (one per line or comma-separated)
           </p>
-          <ct-input
+          <cf-input
             $value={inputText}
             placeholder="anthropics/claude-code, facebook/react, owner/repo"
             style={{

@@ -1,13 +1,13 @@
-# Feature Request: ct-message-input buttonText Enum Support
+# Feature Request: cf-message-input buttonText Enum Support
 
 **Date:** 2025-12-15
-**Component:** ct-message-input
+**Component:** cf-message-input
 **Type:** Feature Request
 **Priority:** Low (UX polish)
 
 ## Summary
 
-The `ct-message-input` component intentionally restricts `buttonText` customization for security/UX reasons (preventing misleading labels). However, the restriction is too broad - a pre-enumerated set of safe values should be supported.
+The `cf-message-input` component intentionally restricts `buttonText` customization for security/UX reasons (preventing misleading labels). However, the restriction is too broad - a pre-enumerated set of safe values should be supported.
 
 ## Current Behavior
 
@@ -15,7 +15,7 @@ The button always displays "Send" regardless of context:
 
 ```typescript
 // This doesn't work - buttonText not in JSX types
-<ct-message-input
+<cf-message-input
   placeholder="Location name..."
   buttonText="Add"  // Ignored
 />
@@ -61,18 +61,18 @@ The enum approach maintains security while allowing legitimate customization.
 
 ```typescript
 // Current: Shows "Send" which is confusing
-<ct-message-input
+<cf-message-input
   placeholder="Location name (e.g., TBS, BAM)"
-  onct-send={(e) => {
+  oncf-send={(e) => {
     locations.push({ name: e.detail.message, ... });
   }}
 />
 
 // Desired: Shows "Add" which matches the action
-<ct-message-input
+<cf-message-input
   placeholder="Location name (e.g., TBS, BAM)"
   buttonText="Add"
-  onct-send={(e) => {
+  oncf-send={(e) => {
     locations.push({ name: e.detail.message, ... });
   }}
 />
@@ -104,29 +104,29 @@ The enum approach maintains security while allowing legitimate customization.
 
 | File | Change |
 |------|--------|
-| `packages/ui/src/v2/components/ct-message-input/ct-message-input.ts` | Add enum validation |
+| `packages/ui/src/v2/components/cf-message-input/cf-message-input.ts` | Add enum validation |
 | `packages/html/src/jsx.d.ts` | Add `buttonText` with enum type to CTMessageInputAttributes |
 
 ## Comparison with Similar Components
 
 | Component | buttonText | Reasoning |
 |-----------|-----------|-----------|
-| ct-file-input | Unrestricted | "Upload" context is unambiguous |
-| ct-image-input | Unrestricted | "Upload" context is unambiguous |
-| ct-message-input | **Enum (proposed)** | Message context needs safe labels |
+| cf-file-input | Unrestricted | "Upload" context is unambiguous |
+| cf-image-input | Unrestricted | "Upload" context is unambiguous |
+| cf-message-input | **Enum (proposed)** | Message context needs safe labels |
 
 ## Workaround Until Fixed
 
-Use separate `ct-input` + `ct-button` components:
+Use separate `cf-input` + `cf-button` components:
 
 ```typescript
 <div style={{ display: "flex", gap: "0.5rem" }}>
-  <ct-input
+  <cf-input
     placeholder="Location name..."
     $value={inputValue}
     onKeyDown={(e) => e.key === "Enter" && handleAdd()}
   />
-  <ct-button onClick={handleAdd}>Add</ct-button>
+  <cf-button onClick={handleAdd}>Add</cf-button>
 </div>
 ```
 
@@ -136,6 +136,6 @@ This loses the nice integrated styling but allows custom button text.
 
 ## Related
 
-- Superstition: `community-docs/superstitions/2025-12-15-ct-message-input-buttontext-restricted.md`
-- Component source: `packages/ui/src/v2/components/ct-message-input/ct-message-input.ts`
+- Superstition: `community-docs/superstitions/2025-12-15-cf-message-input-buttontext-restricted.md`
+- Component source: `packages/ui/src/v2/components/cf-message-input/cf-message-input.ts`
 - JSX types: `packages/html/src/jsx.d.ts` (CTMessageInputAttributes ~line 3122)

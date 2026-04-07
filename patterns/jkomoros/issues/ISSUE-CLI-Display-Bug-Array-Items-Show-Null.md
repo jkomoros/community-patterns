@@ -19,7 +19,7 @@ The `ct charm get`, `ct charm inspect`, and other CLI commands display array ite
 
 ```bash
 # Inspecting the charm
-$ deno task ct charm inspect --url "http://localhost:8000/jkomoros/baedreiac34vce2hd3upexd7bjekxztgfynribfqwlr2qfhbzchznttxbdq"
+$ deno task cf charm inspect --url "http://localhost:8000/jkomoros/baedreiac34vce2hd3upexd7bjekxztgfynribfqwlr2qfhbzchznttxbdq"
 
 --- Source (Inputs) ---
 {

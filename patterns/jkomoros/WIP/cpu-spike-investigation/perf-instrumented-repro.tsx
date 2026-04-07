@@ -22,7 +22,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
 type Item = {
   id: number;
@@ -122,11 +122,11 @@ export default pattern<Props>(() => {
         </div>
 
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <ct-button onClick={loadData({ items, outerCount, innerCount })}>
+          <cf-button onClick={loadData({ items, outerCount, innerCount })}>
             Load Data
-          </ct-button>
-          <ct-button onClick={clearData({ items })}>Clear</ct-button>
-          <ct-button onClick={showStats({})}>Show Stats</ct-button>
+          </cf-button>
+          <cf-button onClick={clearData({ items })}>Clear</cf-button>
+          <cf-button onClick={showStats({})}>Show Stats</cf-button>
         </div>
 
         <h2>Rendered Items</h2>

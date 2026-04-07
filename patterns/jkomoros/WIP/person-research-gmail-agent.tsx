@@ -15,7 +15,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 import GmailAgenticSearch, {
   type SearchProgress,
   type DebugLogEntry,
@@ -762,15 +762,15 @@ IMPORTANT: Report each finding immediately as you discover it!`,
       lastScanAt,
 
       [UI]: (
-        <ct-screen>
+        <cf-screen>
           <div slot="header">
             <h2 style={{ margin: "0", fontSize: "18px" }}>Person Research</h2>
           </div>
 
-          <ct-vscroll flex showScrollbar>
-            <ct-vstack style="padding: 16px; gap: 16px;">
+          <cf-vscroll flex showScrollbar>
+            <cf-vstack style="padding: 16px; gap: 16px;">
               {/* Person Input Section */}
-              <ct-card>
+              <cf-card>
                 <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
                   Who to Research
                 </h3>
@@ -787,7 +787,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                   >
                     Person's Name *
                   </label>
-                  <ct-input
+                  <cf-input
                     placeholder="e.g., Sarah Chen"
                     $value={localPersonName}
                   />
@@ -803,7 +803,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                   >
                     Known Email (optional)
                   </label>
-                  <ct-input
+                  <cf-input
                     placeholder="e.g., sarah@acme.com"
                     $value={localKnownEmail}
                   />
@@ -819,12 +819,12 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                   >
                     Context (optional)
                   </label>
-                  <ct-input
+                  <cf-input
                     placeholder="e.g., colleague from Acme, friend from college"
                     $value={localContextNotes}
                   />
                 </div>
-              </ct-card>
+              </cf-card>
 
               {/* Embed the base searcher - provides auth + scan UI */}
               {derive([effectiveName], ([name]: [string]) =>
@@ -848,7 +848,7 @@ IMPORTANT: Report each finding immediately as you discover it!`,
               {/* Findings Summary */}
               {derive(totalFindings, (count: number) =>
                 count > 0 ? (
-                  <ct-card>
+                  <cf-card>
                     <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
                       Findings ({count})
                     </h3>
@@ -1030,14 +1030,14 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                         </div>
                       ) : null,
                     )}
-                  </ct-card>
+                  </cf-card>
                 ) : null,
               )}
 
               {/* Generated Notes */}
               {derive(generatedNotes, (notes: string) =>
                 notes ? (
-                  <ct-card>
+                  <cf-card>
                     <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>
                       Agentic Notes
                     </h3>
@@ -1064,12 +1064,12 @@ IMPORTANT: Report each finding immediately as you discover it!`,
                     >
                       Copy this to the person's notes field for reference
                     </div>
-                  </ct-card>
+                  </cf-card>
                 ) : null,
               )}
-            </ct-vstack>
-          </ct-vscroll>
-        </ct-screen>
+            </cf-vstack>
+          </cf-vscroll>
+        </cf-screen>
       ),
     };
   },

@@ -9,7 +9,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import PersonDebug from "./person-debug.tsx";
 
@@ -42,14 +42,14 @@ export default pattern(() => {
         <h2>person-debug.tsx (copy of person.tsx)</h2>
         <p>Should be SLOW (~90s) - confirms bug exists in copy</p>
 
-        <ct-button onClick={launchDebug()}>
+        <cf-button onClick={launchDebug()}>
           Launch Debug (with notes)
-        </ct-button>
+        </cf-button>
 
         <div style={{ marginTop: "0.5rem" }}>
-          <ct-button onClick={launchDebugEmpty()}>
+          <cf-button onClick={launchDebugEmpty()}>
             Launch Debug (empty)
-          </ct-button>
+          </cf-button>
         </div>
       </div>
     ),

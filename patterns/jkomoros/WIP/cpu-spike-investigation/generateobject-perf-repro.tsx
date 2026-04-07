@@ -26,7 +26,7 @@ import {
   Writable,
   computed,
   handler,
-} from "commontools";
+} from "commonfabric";
 
 // Handler to trigger extraction
 const triggerExtraction = handler<
@@ -118,11 +118,11 @@ export default pattern(() => {
           causes ~60 second CPU freeze AFTER the LLM responds.
         </div>
 
-        <ct-button
+        <cf-button
           onClick={triggerExtraction({ trigger, startTimeMs, elapsedMs })}
         >
           Run 14-Field Extraction
-        </ct-button>
+        </cf-button>
 
         <h2>Status</h2>
         {!trigger.get() ? (

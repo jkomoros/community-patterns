@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { computed, Default, equals, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI, Writable } from "commontools";
+import { computed, Default, equals, handler, ifElse, NAME, navigateTo, OpaqueRef, pattern, str, UI, Writable } from "commonfabric";
 import CozyPollLobby from "./cozy-poll-lobby.tsx";
 
 /**
@@ -211,9 +211,9 @@ const CozyPoll = pattern<PollInput, PollOutput>(
             <div style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.5rem", color: "#92400e" }}>
               Poll Question: <strong style={{ fontSize: "1rem", color: "#78350f" }}>{question || "(not set)"}</strong>
             </div>
-            <ct-message-input
+            <cf-message-input
               placeholder="Enter poll question (e.g., Where should we go for lunch?)..."
-              onct-send={(e: { detail: { message: string } }) => {
+              oncf-send={(e: { detail: { message: string } }) => {
                 const q = e.detail?.message?.trim();
                 if (q) {
                   question.set(q);
@@ -230,7 +230,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
             <div style={{ fontSize: "0.875rem", marginBottom: "0.75rem", color: "#1e3a8a" }}>
               Create a public lobby page where your team can enter their names and vote. Share that URL with your team.
             </div>
-            <ct-button
+            <cf-button
               onClick={createViewer({
                 question,
                 options,
@@ -240,7 +240,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
               style="background-color: #3b82f6; color: white; font-weight: 600; font-size: 1rem; padding: 0.75rem 1.5rem;"
             >
               🚀 Create Public Lobby
-            </ct-button>
+            </cf-button>
           </div>
 
           {/* Top Choice Display */}
@@ -426,7 +426,7 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                   </div>
 
                   {/* Remove button */}
-                  <ct-button
+                  <cf-button
                     onClick={() => {
                       const current = options.get();
                       const index = current.findIndex((el) => equals(option, el));
@@ -436,16 +436,16 @@ const CozyPoll = pattern<PollInput, PollOutput>(
                     }}
                   >
                     Remove
-                  </ct-button>
+                  </cf-button>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Add Option */}
-          <ct-message-input
+          <cf-message-input
             placeholder="Add an option (e.g., restaurant name)..."
-            onct-send={(e: { detail: { message: string } }) => {
+            oncf-send={(e: { detail: { message: string } }) => {
               const title = e.detail?.message?.trim();
               if (title) {
                 const currentId = nextOptionId.get();
@@ -474,26 +474,26 @@ const CozyPoll = pattern<PollInput, PollOutput>(
               Admin Controls
             </div>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <ct-button
+              <cf-button
                 onClick={startNewSession({ question, options })}
               >
                 🔄 Start New Session
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={() => {
                   votes.set([]);
                 }}
               >
                 Reset Votes
-              </ct-button>
-              <ct-button
+              </cf-button>
+              <cf-button
                 onClick={() => {
                   options.set([]);
                   votes.set([]);
                 }}
               >
                 Clear All Options
-              </ct-button>
+              </cf-button>
             </div>
             <div style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "0.5rem" }}>
               "Start New Session" creates a fresh lobby with the same question/options but no votes - perfect for reusing this poll with a different group.

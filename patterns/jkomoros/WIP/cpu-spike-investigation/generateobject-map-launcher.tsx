@@ -9,7 +9,7 @@ import {
   navigateTo,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 import GenerateObjectMapRepro from "./generateobject-map-perf-repro.tsx";
 
@@ -64,9 +64,9 @@ export default pattern(() => {
           <p style={{ fontSize: "0.875rem", color: "#666" }}>
             Should trigger the bug if the issue is field count + nested maps
           </p>
-          <ct-button onClick={launchWithLongNotes()}>
+          <cf-button onClick={launchWithLongNotes()}>
             Launch with Long Notes
-          </ct-button>
+          </cf-button>
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
@@ -74,9 +74,9 @@ export default pattern(() => {
           <p style={{ fontSize: "0.875rem", color: "#666" }}>
             Should be fast (below threshold)
           </p>
-          <ct-button onClick={launchWithShortNotes()}>
+          <cf-button onClick={launchWithShortNotes()}>
             Launch with Short Notes
-          </ct-button>
+          </cf-button>
         </div>
 
         <h2>What to Test</h2>

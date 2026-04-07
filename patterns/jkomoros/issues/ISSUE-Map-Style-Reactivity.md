@@ -127,7 +127,7 @@ const listWithReadState = derive(
 
 2. Is there a correct pattern for achieving per-item reactive styles based on external state (like a "selected index")?
 
-3. Should this be implemented as a built-in component (`ct-search-select`) to have full DOM access for proper reactivity?
+3. Should this be implemented as a built-in component (`cf-search-select`) to have full DOM access for proper reactivity?
 
 4. Does the framework intentionally freeze/memoize the `.map()` output to prevent re-renders?
 

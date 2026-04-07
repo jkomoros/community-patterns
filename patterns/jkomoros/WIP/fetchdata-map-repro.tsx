@@ -15,7 +15,7 @@ import {
   NAME,
   pattern,
   UI,
-} from "commontools";
+} from "commonfabric";
 
 // Types
 type Todo = { userId: number; id: number; title: string; completed: boolean };

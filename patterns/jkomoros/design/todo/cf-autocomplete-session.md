@@ -1,24 +1,24 @@
-# ct-autocomplete Session Notes - Value Binding Exploration
+# cf-autocomplete Session Notes - Value Binding Exploration
 
 ## Current State
 
-ct-autocomplete is implemented and working with:
+cf-autocomplete is implemented and working with:
 - Search filtering (label, value, group, searchAliases)
 - Keyboard navigation with scroll-into-view
 - Fixed positioning dropdown (escapes overflow:hidden)
 - `allowCustom` for free-form values
-- Event-only API: `onct-select`, `onct-open`, `onct-close`
+- Event-only API: `oncf-select`, `oncf-open`, `oncf-close`
 
 ## The Question
 
-Should ct-autocomplete have `$value` binding like ct-select, making it hold state internally rather than just firing events?
+Should cf-autocomplete have `$value` binding like cf-select, making it hold state internally rather than just firing events?
 
-## ct-select Analysis
+## cf-select Analysis
 
-Looking at ct-select for reference:
+Looking at cf-select for reference:
 
 ```typescript
-// ct-select properties
+// cf-select properties
 static override properties = {
   disabled: { type: Boolean, reflect: true },
   multiple: { type: Boolean, reflect: true },  // <-- supports multiple!
@@ -31,17 +31,17 @@ private _cellController = createCellController<unknown | unknown[]>(this, {
   timing: { strategy: "immediate" },
   onChange: (newValue, oldValue) => {
     this.applyValueToDom();
-    this.emit("ct-change", { value: newValue, oldValue, items: this.items });
+    this.emit("cf-change", { value: newValue, oldValue, items: this.items });
   },
 });
 ```
 
-ct-select with `multiple={true}`:
+cf-select with `multiple={true}`:
 - `value` is an array of selected items
 - User can select/deselect from dropdown
 - `$value` binds bidirectionally to a Cell
 
-## Proposed Design: Make ct-autocomplete Mirror ct-select
+## Proposed Design: Make cf-autocomplete Mirror cf-select
 
 ### New Properties
 
@@ -69,7 +69,7 @@ static override properties = {
 ```tsx
 const selected = cell<string | undefined>(undefined);
 
-<ct-autocomplete
+<cf-autocomplete
   items={relationshipTypes}
   $value={selected}
   placeholder="Search..."
@@ -81,14 +81,14 @@ const selected = cell<string | undefined>(undefined);
 - Selecting an item sets `value` to that item's value
 - Input shows the selected item's label (not cleared!)
 - Can clear by selecting again or backspace
-- Fires `ct-change` with `{ value, oldValue }`
+- Fires `cf-change` with `{ value, oldValue }`
 
 ### Multi Select Mode (`multiple={true}`)
 
 ```tsx
 const selected = cell<string[]>([]);
 
-<ct-autocomplete
+<cf-autocomplete
   items={relationshipTypes}
   $value={selected}
   multiple={true}
@@ -101,7 +101,7 @@ const selected = cell<string[]>([]);
 - Selecting an item adds to array (if not present)
 - Input clears after selection (search for next)
 - Selected items filtered from dropdown
-- Fires `ct-change` with `{ value, oldValue }`
+- Fires `cf-change` with `{ value, oldValue }`
 - **No built-in tag display** - userland handles that (like tag-selector-demo)
 
 ### Visual Difference
@@ -117,7 +117,7 @@ const selected = cell<string[]>([]);
      timing: { strategy: "immediate" },
      onChange: (newValue, oldValue) => {
        this.requestUpdate();
-       this.emit("ct-change", { value: newValue, oldValue });
+       this.emit("cf-change", { value: newValue, oldValue });
      },
    });
    ```
@@ -169,9 +169,9 @@ const selected = cell<string[]>([]);
 ```tsx
 const tags = cell<{value: string}[]>([]);
 
-<ct-autocomplete
+<cf-autocomplete
   items={items}
-  onct-select={(e) => {
+  oncf-select={(e) => {
     const current = tags.get();
     if (!current.some(t => t.value === e.detail.value)) {
       tags.push({ value: e.detail.value });
@@ -184,7 +184,7 @@ const tags = cell<{value: string}[]>([]);
 ```tsx
 const selected = cell<string[]>([]);
 
-<ct-autocomplete
+<cf-autocomplete
   items={items}
   $value={selected}
   multiple={true}
@@ -195,9 +195,9 @@ Much cleaner! The tag-selector-demo would become simpler.
 
 ### Events (Still Supported)
 
-- `ct-change` - `{ value, oldValue }` - fired on any value change
-- `ct-select` - `{ value, label, group?, isCustom }` - fired on each selection (useful for side effects)
-- `ct-open` / `ct-close` - dropdown state
+- `cf-change` - `{ value, oldValue }` - fired on any value change
+- `cf-select` - `{ value, label, group?, isCustom }` - fired on each selection (useful for side effects)
+- `cf-open` / `cf-close` - dropdown state
 
 ### Questions to Resolve
 
@@ -236,6 +236,6 @@ Much cleaner! The tag-selector-demo would become simpler.
 
 ## Files to Modify
 
-- `packages/ui/src/v2/components/ct-autocomplete/ct-autocomplete.ts`
+- `packages/ui/src/v2/components/cf-autocomplete/cf-autocomplete.ts`
 - `packages/html/src/jsx.d.ts` (add $value, multiple)
 - `patterns/jkomoros/WIP/tag-selector-demo.tsx` (simplify with $value)

@@ -5,7 +5,7 @@
  * Debug pattern to understand why wish({ tag: "#googleAuth" }) fails
  * even when favorites-debug shows the tag is present
  */
-import { Writable, computed, NAME, pattern, UI, wish } from "commontools";
+import { Writable, computed, NAME, pattern, UI, wish } from "commonfabric";
 
 type Favorite = { cell: Writable<unknown>; tag: string };
 

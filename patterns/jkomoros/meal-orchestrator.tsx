@@ -13,9 +13,9 @@ import {
   UI,
   wish,
   Writable,
-} from "commontools";
+} from "commonfabric";
 
-import FoodRecipe from "./food-recipe.tsx";
+import FoodRecipe from "./food-pattern.tsx";
 import PreparedFood from "./prepared-food.tsx";
 
 // Oven configuration
@@ -30,7 +30,7 @@ interface GuestDietaryProfile {
   requirements: Default<string[], []>;
 }
 
-// Food recipe interface (from food-recipe.tsx)
+// Food pattern interface (from food-pattern.tsx)
 interface FoodRecipe {
   name: string;
   servings: number;
@@ -193,10 +193,10 @@ const removeRecipe = handler<
   unknown,
   {
     recipes: Writable<Array<Writable<OpaqueRef<FoodRecipe>>>>;
-    recipe: Writable<OpaqueRef<FoodRecipe>>;
+    pattern: Writable<OpaqueRef<FoodRecipe>>;
   }
->((_event, { recipes, recipe }) => {
-  recipes.remove(recipe);
+>((_event, { recipes, pattern }) => {
+  recipes.remove(pattern);
 });
 
 // Handler for removing prepared foods
@@ -214,7 +214,7 @@ const removePreparedFood = handler<
 interface FoodItem {
   originalText: string;
   normalizedName: string;
-  type: "recipe" | "prepared";
+  type: "pattern" | "prepared";
   contextSnippet: string;
   servings?: number;
   category?: string;
@@ -334,7 +334,7 @@ const applyLinking = handler<
       });
 
       if (charm) {
-        if (item.type === "recipe") {
+        if (item.type === "pattern") {
           recipesToAdd.push(charm);
         } else {
           preparedToAdd.push(charm);
@@ -342,7 +342,7 @@ const applyLinking = handler<
       }
     } else {
       // No match - create a new charm with LLM-extracted data
-      const newCharm = item.type === "recipe"
+      const newCharm = item.type === "pattern"
         ? FoodRecipe({
             name: item.normalizedName,
             cuisine: "",
@@ -378,7 +378,7 @@ const applyLinking = handler<
 
       // Add to appropriate array for this meal
       // OpaqueRef properties are now directly accessible after framework fix
-      if (item.type === "recipe") {
+      if (item.type === "pattern") {
         recipesToAdd.push(newCharm);
       } else {
         preparedToAdd.push(newCharm);
@@ -423,8 +423,8 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
     // These will be exported as mentionable so they become discoverable
     const createdCharms = Writable.of<any[]>([]);
 
-    // Writables for ct-code-editor inputs and outputs
-    // $mentioned is automatically populated by ct-code-editor with charm references
+    // Writables for cf-code-editor inputs and outputs
+    // $mentioned is automatically populated by cf-code-editor with charm references
     const recipeInputText = Writable.of<string>("");
     const recipeMentioned = Writable.of<any[]>([]);
     const preparedFoodInputText = Writable.of<string>("");
@@ -440,7 +440,7 @@ const MealOrchestrator = pattern<MealOrchestratorInput, MealOrchestratorOutput>(
 
 Your task:
 1. Parse the planning notes to identify all food items mentioned
-2. Classify each item as either "recipe" (homemade) or "prepared" (store-bought, guest-brought, takeout)
+2. Classify each item as either "pattern" (homemade) or "prepared" (store-bought, guest-brought, takeout)
 3. Match each item to existing recipes/prepared foods in the space using fuzzy matching
 4. Extract contextual details from the notes (servings, category, description, source)
 
@@ -473,7 +473,7 @@ Return all items found in the planning notes, matched or unmatched.`,
                   properties: {
                     originalText: { type: "string", description: "Raw text from planning notes" },
                     normalizedName: { type: "string", description: "Cleaned name for the item" },
-                    type: { type: "string", enum: ["recipe", "prepared"], description: "Item classification" },
+                    type: { type: "string", enum: ["pattern", "prepared"], description: "Item classification" },
                     contextSnippet: { type: "string", description: "Surrounding context from notes" },
                     servings: { type: "number", description: "Extracted serving size if found" },
                     category: {
@@ -541,7 +541,7 @@ Return all items found in the planning notes, matched or unmatched.`,
 
       const recipesSummary = (recipeList || [])
         .filter((r: any) => r != null)
-        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [recipe]`)
+        .map((r: any) => `- ${r.name} (${r.category}, ${r.servings} servings) [pattern]`)
         .join("\n");
 
       const preparedSummary = (preparedList || [])
@@ -637,16 +637,16 @@ Be concise and practical in your analysis.`,
       const events: OvenTimelineEvent[] = [];
 
       // Extract all oven events from recipes
-      recipeList.forEach((recipe: any) => {
-        if (recipe.stepGroups) {
-          recipe.stepGroups.forEach((stepGroup: any) => {
+      recipeList.forEach((pattern: any) => {
+        if (pattern.stepGroups) {
+          pattern.stepGroups.forEach((stepGroup: any) => {
               if (stepGroup.requiresOven) {
                 const startMinutes = stepGroup.minutesBeforeServing || 0;
                 const duration = stepGroup.requiresOven.duration || 0;
                 const endMinutes = startMinutes - duration; // Earlier time (more minutes before)
 
                 events.push({
-                  recipeName: recipe.name,
+                  recipeName: pattern.name,
                   stepGroupName: stepGroup.name,
                   startMinutesBeforeServing: startMinutes,
                   endMinutesBeforeServing: endMinutes,
@@ -710,20 +710,20 @@ Be concise and practical in your analysis.`,
     return {
       [NAME]: str`🍽️ ${displayName}`,
       [UI]: (
-        <ct-vstack gap={1} style="padding: 8px; max-width: 900px;">
+        <cf-vstack gap={1} style="padding: 8px; max-width: 900px;">
           {/* Header */}
           <div style={{ marginBottom: "4px" }}>
             <h1 style={{ margin: "0 0 2px 0", fontSize: "20px", fontWeight: "700" }}>
               {displayName}
             </h1>
             <div style={{ fontSize: "13px", color: "#666" }}>
-              Plan multi-recipe meals with equipment scheduling and dietary analysis
+              Plan multi-pattern meals with equipment scheduling and dietary analysis
             </div>
           </div>
 
           {/* Event Information */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Event Information
               </h3>
@@ -733,7 +733,7 @@ Be concise and practical in your analysis.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Meal Name
                   </label>
-                  <ct-input
+                  <cf-input
                     $value={mealName}
                     placeholder="e.g., Thanksgiving Dinner 2024"
                   />
@@ -743,7 +743,7 @@ Be concise and practical in your analysis.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Guest Count
                   </label>
-                  <ct-input
+                  <cf-input
                     type="number"
                     $value={str`${guestCount}`}
                     min="1"
@@ -754,7 +754,7 @@ Be concise and practical in your analysis.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Date
                   </label>
-                  <ct-input
+                  <cf-input
                     type="date"
                     $value={mealDate}
                     placeholder="2024-11-28"
@@ -765,29 +765,29 @@ Be concise and practical in your analysis.`,
                   <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                     Serving Time
                   </label>
-                  <ct-input
+                  <cf-input
                     type="time"
                     $value={mealTime}
                     placeholder="18:00"
                   />
                 </div>
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Equipment Configuration */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Equipment ({ovenCount} ovens)
                 </h3>
-                <ct-button onClick={addOven({ ovens })}>
+                <cf-button onClick={addOven({ ovens })}>
                   + Add Oven
-                </ct-button>
+                </cf-button>
               </div>
 
-              <ct-vstack gap={1}>
+              <cf-vstack gap={1}>
                 {ovens.map((oven, index) => (
                   <div
                     style={{
@@ -808,7 +808,7 @@ Be concise and practical in your analysis.`,
                       <label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
                         Rack Positions
                       </label>
-                      <ct-input
+                      <cf-input
                         type="number"
                         $value={str`${oven.rackPositions}`}
                         min="3"
@@ -819,28 +819,28 @@ Be concise and practical in your analysis.`,
                       <label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
                         Physical Racks
                       </label>
-                      <ct-input
+                      <cf-input
                         type="number"
                         $value={str`${oven.physicalRacks}`}
                         min="1"
                         max="3"
                       />
                     </div>
-                    <ct-button
+                    <cf-button
                       onClick={removeOven({ ovens, oven })}
                       style={{ padding: "6px 12px", fontSize: "18px" }}
                     >
                       ×
-                    </ct-button>
+                    </cf-button>
                   </div>
                 ))}
-              </ct-vstack>
+              </cf-vstack>
 
               <div style={{ marginTop: "8px" }}>
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "14px", fontWeight: "500" }}>
                   Stovetop Burners
                 </label>
-                <ct-input
+                <cf-input
                   type="number"
                   $value={str`${stovetopBurners}`}
                   min="1"
@@ -848,37 +848,37 @@ Be concise and practical in your analysis.`,
                   style="max-width: 150px;"
                 />
               </div>
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Dietary Requirements */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   Dietary Requirements ({profileCount} guests)
                 </h3>
-                <ct-button onClick={addDietaryProfile({ dietaryProfiles })}>
+                <cf-button onClick={addDietaryProfile({ dietaryProfiles })}>
                   + Add Guest
-                </ct-button>
+                </cf-button>
               </div>
 
-              <ct-vstack gap={1}>
+              <cf-vstack gap={1}>
                 {dietaryProfiles.map((profile, index) => (
-                  <ct-card style={{ background: "#f9fafb" }}>
-                    <ct-vstack gap={1}>
+                  <cf-card style={{ background: "#f9fafb" }}>
+                    <cf-vstack gap={1}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <ct-input
+                        <cf-input
                           $value={profile.guestName}
                           placeholder={`Guest ${index + 1} (optional name)`}
                           style="flex: 1; marginRight: 8px;"
                         />
-                        <ct-button
+                        <cf-button
                           onClick={removeDietaryProfile({ dietaryProfiles, profile })}
                           style={{ padding: "4px 8px", fontSize: "18px" }}
                         >
                           ×
-                        </ct-button>
+                        </cf-button>
                       </div>
 
                       <div>
@@ -914,60 +914,60 @@ Be concise and practical in your analysis.`,
                             </div>
                           ))}
                         </div>
-                        <ct-message-input
+                        <cf-message-input
                           placeholder="Add requirement (vegan, gluten-free, no-mushrooms)..."
                           appearance="rounded"
-                          onct-send={addDietaryRequirement({ profile })}
+                          oncf-send={addDietaryRequirement({ profile })}
                         />
                       </div>
-                    </ct-vstack>
-                  </ct-card>
+                    </cf-vstack>
+                  </cf-card>
                 ))}
-              </ct-vstack>
-            </ct-vstack>
-          </ct-card>
+              </cf-vstack>
+            </cf-vstack>
+          </cf-card>
 
           {/* Planning Notes Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h3 style={{ margin: "0", fontSize: "14px", fontWeight: "600" }}>
                   📝 Planning Notes
                 </h3>
-                <ct-button
+                <cf-button
                   onClick={triggerRecipeLinking({ planningNotes, mentionable, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                   disabled={linkingPending}
                 >
                   {ifElse(
                     linkingPending,
                     <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <ct-loader size="sm" show-elapsed></ct-loader>
+                      <cf-loader size="sm" show-elapsed></cf-loader>
                       Analyzing...
                     </span>,
                     "🔗 Link Recipes"
                   )}
-                </ct-button>
+                </cf-button>
               </div>
               <div style={{ fontSize: "13px", color: "#666", marginBottom: "4px" }}>
                 Free-form brainstorming space for rough ideas and menu thoughts.
               </div>
-              <ct-input
+              <cf-input
                 $value={planningNotes}
                 placeholder="Jot down ideas for the meal..."
                 style="min-height: 120px; width: 100%;"
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Recipes Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Recipes ({recipeCount})
               </h3>
 
               {/* Input for adding recipes via wiki links */}
-              <ct-code-editor
+              <cf-code-editor
                 $value={recipeInputText}
                 $mentionable={mentionable}
                 $mentioned={recipeMentioned}
@@ -981,7 +981,7 @@ Be concise and practical in your analysis.`,
               {/* List of added recipes */}
               {ifElse(
                 computed(() => recipeMentioned.get().filter(Boolean).length > 0),
-                <ct-vstack gap={1} style="margin-top: 8px;">
+                <cf-vstack gap={1} style="margin-top: 8px;">
                   {recipeMentioned.map((itemCell: any, index: number) => (
                     <div
                       key={index}
@@ -1006,29 +1006,29 @@ Be concise and practical in your analysis.`,
                           )}
                         </div>
                       </div>
-                      <ct-button
-                        onClick={removeRecipe({ recipes: recipeMentioned, recipe: itemCell })}
+                      <cf-button
+                        onClick={removeRecipe({ recipes: recipeMentioned, pattern: itemCell })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
-                      </ct-button>
+                      </cf-button>
                     </div>
                   ))}
-                </ct-vstack>,
+                </cf-vstack>,
                 null,
               )}
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Prepared Foods Section */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 🛒 Prepared/Store-Bought ({preparedFoodCount})
               </h3>
 
               {/* Input for adding prepared foods via wiki links */}
-              <ct-code-editor
+              <cf-code-editor
                 $value={preparedFoodInputText}
                 $mentionable={mentionable}
                 $mentioned={preparedFoodMentioned}
@@ -1042,7 +1042,7 @@ Be concise and practical in your analysis.`,
               {/* List of added prepared foods */}
               {ifElse(
                 computed(() => preparedFoodMentioned.get().filter(Boolean).length > 0),
-                <ct-vstack gap={1} style="margin-top: 8px;">
+                <cf-vstack gap={1} style="margin-top: 8px;">
                   {preparedFoodMentioned.map((itemCell: any, index: number) => (
                     <div
                       key={index}
@@ -1069,25 +1069,25 @@ Be concise and practical in your analysis.`,
                           )}
                         </div>
                       </div>
-                      <ct-button
+                      <cf-button
                         onClick={removePreparedFood({ preparedFoods: preparedFoodMentioned, preparedFood: itemCell })}
                         style={{ padding: "2px 6px", fontSize: "16px" }}
                       >
                         ×
-                      </ct-button>
+                      </cf-button>
                     </div>
                   ))}
-                </ct-vstack>,
+                </cf-vstack>,
                 null,
               )}
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Meal Balance Analysis */}
           {ifElse(
             computed(() => (recipes.length + preparedFoods.length) > 0),
-            <ct-card>
-              <ct-vstack gap={1}>
+            <cf-card>
+              <cf-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                   📊 Meal Balance Analysis
                 </h3>
@@ -1095,10 +1095,10 @@ Be concise and practical in your analysis.`,
                 {ifElse(
                   analysisPending,
                   <div style={{ fontSize: "13px", color: "#666", fontStyle: "italic", display: "flex", alignItems: "center", gap: "8px" }}>
-                    <ct-loader size="sm" show-elapsed></ct-loader>
+                    <cf-loader size="sm" show-elapsed></cf-loader>
                     Analyzing menu...
                   </div>,
-                  <ct-vstack gap={1}>
+                  <cf-vstack gap={1}>
                     {/* Category Breakdown */}
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
@@ -1171,18 +1171,18 @@ Be concise and practical in your analysis.`,
                       </div>,
                       null,
                     )}
-                  </ct-vstack>,
+                  </cf-vstack>,
                 )}
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             null,
           )}
 
           {/* Oven Timeline Visualization */}
           {ifElse(
             computed(() => ovenTimeline.hasData),
-            <ct-card>
-              <ct-vstack gap={1}>
+            <cf-card>
+              <cf-vstack gap={1}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                   🔥 Oven Timeline
                 </h3>
@@ -1243,7 +1243,7 @@ Be concise and practical in your analysis.`,
                     };
 
                     return (
-                      <ct-vstack gap={1}>
+                      <cf-vstack gap={1}>
                         {/* Time axis */}
                         <div
                           style={{
@@ -1345,7 +1345,7 @@ Be concise and practical in your analysis.`,
                           }}
                         >
                           <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                            Timeline shows when each recipe uses the oven
+                            Timeline shows when each pattern uses the oven
                           </div>
                           <div style={{ display: "flex", gap: "16px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1372,31 +1372,31 @@ Be concise and practical in your analysis.`,
                             </div>
                           </div>
                         </div>
-                      </ct-vstack>
+                      </cf-vstack>
                     );
                   })}
                 </div>
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             null,
           )}
 
           {/* Notes */}
-          <ct-card>
-            <ct-vstack gap={1}>
+          <cf-card>
+            <cf-vstack gap={1}>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "14px", fontWeight: "600" }}>
                 Notes
               </h3>
-              <ct-input
+              <cf-input
                 $value={notes}
                 placeholder="Additional notes or special instructions..."
                 style="width: 100%;"
               />
-            </ct-vstack>
-          </ct-card>
+            </cf-vstack>
+          </cf-card>
 
           {/* Placeholder sections for future features */}
-          <ct-card style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
+          <cf-card style={{ background: "#f0fdf4", border: "1px solid #86efac" }}>
             <div style={{ padding: "8px" }}>
               <div style={{ fontSize: "13px", fontWeight: "600", marginBottom: "4px", color: "#166534" }}>
                 Coming Soon:
@@ -1407,12 +1407,12 @@ Be concise and practical in your analysis.`,
                 <li>Stovetop burner timeline</li>
               </ul>
             </div>
-          </ct-card>
+          </cf-card>
 
           {/* Recipe Linking Results Modal */}
           {ifElse(
             hasLinkingResult,
-            <ct-card style={{
+            <cf-card style={{
               position: "fixed",
               top: "50%",
               left: "50%",
@@ -1424,7 +1424,7 @@ Be concise and practical in your analysis.`,
               zIndex: "1000",
               boxShadow: "0 4px 6px rgba(0,0,0,0.1), 0 0 0 9999px rgba(0,0,0,0.5)",
             }}>
-              <ct-vstack gap={1} style="padding: 16px;">
+              <cf-vstack gap={1} style="padding: 16px;">
                 <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "600" }}>
                   Review Recipe Links
                 </h3>
@@ -1433,7 +1433,7 @@ Be concise and practical in your analysis.`,
                 </div>
 
                 {/* Display each match with checkbox */}
-                <ct-vstack gap={1}>
+                <cf-vstack gap={1}>
                   {computed(() => {
                     const result = linkingResult;
                     if (!result || !result.matches) return [];
@@ -1453,7 +1453,7 @@ Be concise and practical in your analysis.`,
                           <div style={{ display: "flex", gap: "12px", alignItems: "start" }}>
                             {/* Checkbox */}
                             <div style={{ paddingTop: "2px" }}>
-                              <ct-checkbox checked={matchResult.selected} />
+                              <cf-checkbox checked={matchResult.selected} />
                             </div>
 
                             <div style={{ flex: 1 }}>
@@ -1464,12 +1464,12 @@ Be concise and practical in your analysis.`,
                                 </span>
                                 <span style={{
                                   padding: "2px 6px",
-                                  background: item.type === "recipe" ? "#dbeafe" : "#fef3c7",
+                                  background: item.type === "pattern" ? "#dbeafe" : "#fef3c7",
                                   borderRadius: "8px",
                                   fontSize: "11px",
                                   fontWeight: "500",
                                 }}>
-                                  {item.type === "recipe" ? "🍳 Recipe" : "🛒 Prepared"}
+                                  {item.type === "pattern" ? "🍳 Recipe" : "🛒 Prepared"}
                                 </span>
                               </div>
 
@@ -1485,7 +1485,7 @@ Be concise and practical in your analysis.`,
                                 </div>
                               ) : (
                                 <div style={{ fontSize: "12px", color: "#10b981", marginBottom: "4px" }}>
-                                  ✨ Will create new {item.type === "recipe" ? "recipe" : "prepared food"} charm
+                                  ✨ Will create new {item.type === "pattern" ? "pattern" : "prepared food"} charm
                                 </div>
                               )}
 
@@ -1521,17 +1521,17 @@ Be concise and practical in your analysis.`,
                       );
                     });
                   })}
-                </ct-vstack>
+                </cf-vstack>
 
                 {/* Action buttons */}
                 <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid #e5e7eb" }}>
-                  <ct-button
+                  <cf-button
                     onClick={cancelLinking({ linkingAnalysisTrigger })}
                     style={{ padding: "8px 16px" }}
                   >
                     Cancel
-                  </ct-button>
-                  <ct-button
+                  </cf-button>
+                  <cf-button
                     onClick={applyLinking({ linkingResult, mentionable, createdCharms, recipeMentioned, preparedFoodMentioned, linkingAnalysisTrigger })}
                     style={{
                       padding: "8px 16px",
@@ -1540,13 +1540,13 @@ Be concise and practical in your analysis.`,
                     }}
                   >
                     Apply Links
-                  </ct-button>
+                  </cf-button>
                 </div>
-              </ct-vstack>
-            </ct-card>,
+              </cf-vstack>
+            </cf-card>,
             <div />
           )}
-        </ct-vstack>
+        </cf-vstack>
       ),
       mealName,
       mealDate,

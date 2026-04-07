@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { generateObject, pattern, UI, NAME, toSchema } from "commontools";
+import { generateObject, pattern, UI, NAME, toSchema } from "commonfabric";
 
 interface TestResult {
   message: string;
