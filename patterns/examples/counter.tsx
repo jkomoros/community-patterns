@@ -1,61 +1,98 @@
 /// <cts-enable />
-import { Default, handler, NAME, recipe, str, UI, Writable } from "commontools";
+import {
+  action,
+  computed,
+  Default,
+  handler,
+  NAME,
+  pattern,
+  Stream,
+  UI,
+  type VNode,
+  Writable,
+} from "commonfabric";
 
 /**
  * Example: Simple Counter Pattern
  *
  * This demonstrates:
- * - Basic recipe structure
+ * - Basic pattern structure
  * - Using Default<> for state with default values
- * - Using handlers for button clicks
- * - Simple styling with object syntax
+ * - Using a module-scope handler for one button
+ * - Using a pattern-body action() for another (preferred for single-use)
+ * - Computed values
+ * - Built-in cf-* components
  */
 
 interface CounterInput {
-  count: Default<number, 0>;
+  value?: Writable<Default<number, 0>>;
 }
 
 interface CounterOutput {
-  count: Default<number, 0>;
+  [NAME]: string;
+  [UI]: VNode;
+  value: number;
+  increment: Stream<void>;
+  decrement: Stream<void>;
 }
 
-const decrement = handler<unknown, { count: Writable<number> }>(
-  (_, { count }) => {
-    count.set(count.get() - 1);
-  }
+const increment = handler<void, { value: Writable<number> }>(
+  (_, { value }) => {
+    value.set(value.get() + 1);
+  },
 );
 
-const reset = handler<unknown, { count: Writable<number> }>(
-  (_, { count }) => {
-    count.set(0);
-  }
-);
+const Counter = pattern<CounterInput, CounterOutput>(({ value }) => {
+  const boundIncrement = increment({ value });
 
-const increment = handler<unknown, { count: Writable<number> }>(
-  (_, { count }) => {
-    count.set(count.get() + 1);
-  }
-);
+  const decrement = action(() => {
+    value.set(value.get() - 1);
+  });
 
-export default recipe<CounterInput, CounterOutput>(({ count }) => {
+  const displayName = computed(() => `Counter: ${value.get()}`);
+
   return {
-    [NAME]: str`Counter: ${count}`,
+    [NAME]: displayName,
     [UI]: (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        <h1 style={{ marginBottom: "1rem" }}>Count: {count}</h1>
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-          <ct-button onClick={decrement({ count })}>
-            Decrement
-          </ct-button>
-          <ct-button onClick={reset({ count })}>
-            Reset
-          </ct-button>
-          <ct-button onClick={increment({ count })}>
-            Increment
-          </ct-button>
-        </div>
-      </div>
+      <cf-screen>
+        <cf-vstack slot="header" gap="1">
+          <cf-heading level={4}>Simple Counter</cf-heading>
+        </cf-vstack>
+
+        <cf-vstack gap="3" style="padding: 2rem; align-items: center;">
+          <div
+            style={{
+              fontSize: "3rem",
+              fontWeight: "bold",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {value}
+          </div>
+
+          <cf-hstack gap="2">
+            <cf-button
+              id="counter-decrement"
+              variant="secondary"
+              onClick={decrement}
+            >
+              - Decrement
+            </cf-button>
+            <cf-button
+              id="counter-increment"
+              variant="primary"
+              onClick={() => boundIncrement.send()}
+            >
+              + Increment
+            </cf-button>
+          </cf-hstack>
+        </cf-vstack>
+      </cf-screen>
     ),
-    count,
+    value,
+    increment: boundIncrement,
+    decrement,
   };
 });
+
+export default Counter;

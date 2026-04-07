@@ -303,16 +303,21 @@ echo "Created test pattern at patterns/$GITHUB_USER/counter.tsx"
 Deploy and test the counter:
 
 ```bash
+# Always run from the community-patterns repo via ./scripts/ct — that wrapper
+# auto-injects the --root flag so labs can resolve cross-repo imports. Calling
+# `deno task ct` directly inside labs will fail with "Main file ... must be
+# within root directory" because the pattern lives outside labs.
+cd "$COMMUNITY_PATTERNS_DIR"
+
 # Test syntax
-cd "$LABS_DIR"
-deno task ct dev "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx" --no-run
+./scripts/ct dev patterns/$GITHUB_USER/counter.tsx --no-run
 
 # Deploy (if syntax check passes)
-deno task ct piece new \
+./scripts/ct piece new \
   --api-url http://localhost:8000 \
   --identity "$LABS_DIR/claude.key" \
   --space test-$GITHUB_USER-1 \
-  "$COMMUNITY_PATTERNS_DIR/patterns/$GITHUB_USER/counter.tsx"
+  patterns/$GITHUB_USER/counter.tsx
 
 # Note the piece ID from output
 ```
