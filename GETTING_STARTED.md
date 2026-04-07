@@ -173,7 +173,7 @@ cd "$COMMUNITY_PATTERNS_DIR"
 
 # Create identity key in labs directory (shared across all community-patterns repos)
 if [ ! -f "$LABS_DIR/claude.key" ]; then
-  deno task -c "$LABS_DIR/deno.json" ct id new > "$LABS_DIR/claude.key"
+  deno task -c "$LABS_DIR/deno.json" cf id new > "$LABS_DIR/claude.key"
   chmod 600 "$LABS_DIR/claude.key"
   echo "Created identity key at $LABS_DIR/claude.key"
 else

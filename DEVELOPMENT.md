@@ -687,7 +687,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
    - Claude Code auto-starts them, or manually:
    - `cd ~/Code/labs/packages/toolshed && deno task dev`
    - `cd ~/Code/labs/packages/shell && deno task dev-local`
-2. Syntax correct? Run `ct dev --no-run` first
+2. Syntax correct? Run `./scripts/cf dev --no-run` first
 3. Correct paths? Should be `../community-patterns/patterns/YOUR-USERNAME/...`
 4. Identity key exists? `ls claude.key`
 

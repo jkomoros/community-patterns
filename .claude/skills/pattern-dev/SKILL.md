@@ -8,9 +8,9 @@ description: >
 
 # Pattern Development Best Practices
 
-## CT Commands: Use `./scripts/cf` Wrapper
+## CF Commands: Use `./scripts/cf` Wrapper
 
-**CRITICAL: Always use `./scripts/cf` for all ct commands:**
+**CRITICAL: Always use `./scripts/cf` for all cf commands:**
 
 ```bash
 # ✅ CORRECT - Use the wrapper from community-patterns
