@@ -39,14 +39,24 @@ export default pattern(
       [UI]: (
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>Computed Array Map Test</h2>
-          <button onClick={increment({ counter })} style={{ padding: "10px 20px", fontSize: "16px" }}>
+          <button
+            onClick={increment({ counter })}
+            style={{ padding: "10px 20px", fontSize: "16px" }}
+          >
             Count: {counter}
           </button>
           <div style={{ marginTop: "20px" }}>
             <h3>Items (mapped from computed array):</h3>
             {/* This line causes "mapWithPattern is not a function" */}
             {items.map((item) => (
-              <div key={item.id} style={{ padding: "5px", margin: "5px 0", background: "#f0f0f0" }}>
+              <div
+                key={item.id}
+                style={{
+                  padding: "5px",
+                  margin: "5px 0",
+                  background: "#f0f0f0",
+                }}
+              >
                 {item.label}
               </div>
             ))}
@@ -54,5 +64,5 @@ export default pattern(
         </div>
       ),
     };
-  }
+  },
 );

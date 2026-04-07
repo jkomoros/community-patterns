@@ -1,41 +1,50 @@
 # Superstition Verification Skill
 
-Use this skill to systematically verify superstitions in `community-docs/superstitions/`.
+Use this skill to systematically verify superstitions in
+`community-docs/superstitions/`.
 
 ## Purpose
 
 Superstitions are observations that may be:
+
 - **No longer relevant** (framework fixed it)
 - **Has limitations** (partially correct)
 - **Actually confirmed** (should be promoted)
 
-This workflow tests each superstition and creates documentation for framework author review.
+This workflow tests each superstition and creates documentation for framework
+author review.
 
 ## CRITICAL: Pattern Cleanup is Required for Disconfirmation
 
 > **⚠️ NEVER disconfirm a superstition based solely on a minimal repro!**
 >
 > Minimal repros can give **false negatives** due to:
+>
 > - Different type signatures (e.g., auto-unwrapping vs explicit `Cell<>`)
 > - Missing complexity that triggers the real issue
 > - Different runtime conditions
 >
 > **The ONLY way to disconfirm a superstition is to:**
+>
 > 1. Find the original pattern(s) that use the workaround
 > 2. Remove the workaround code
 > 3. Test the cleaned pattern in Playwright
 > 4. Verify it still works correctly
 >
-> If you can't find original patterns or can't test the cleanup, you **cannot disconfirm** - at best you can note "unable to verify" in the log.
+> If you can't find original patterns or can't test the cleanup, you **cannot
+> disconfirm** - at best you can note "unable to verify" in the log.
 
 ## Workflow
 
 ### 1. Select a Superstition
 
-Check `community-docs/superstitions/VERIFICATION-LOG.md` for the oldest unverified superstition.
+Check `community-docs/superstitions/VERIFICATION-LOG.md` for the oldest
+unverified superstition.
 
 Skip superstitions that are:
-- Environment-specific and hard to reproduce (e.g., "MCP Chrome stuck after sleep")
+
+- Environment-specific and hard to reproduce (e.g., "MCP Chrome stuck after
+  sleep")
 - About external tools, not the framework itself
 
 ### 2. Assess Evidence Weight
@@ -43,49 +52,60 @@ Skip superstitions that are:
 **Read the superstition's metadata carefully:**
 
 ```yaml
-confirmed_count: 1     # How many times confirmed?
-sessions: [...]        # Which sessions encountered this?
-stars: ⭐              # Rating/importance
+confirmed_count: 1 # How many times confirmed?
+sessions: [...] # Which sessions encountered this?
+stars: ⭐ # Rating/importance
 ```
 
-**Also check for guestbook entries** - these indicate multiple people have encountered the issue.
+**Also check for guestbook entries** - these indicate multiple people have
+encountered the issue.
 
 **Evidence levels:**
-- **Low evidence** (confirmed_count=1, no guestbook): Minimal repro may be sufficient
-- **Medium evidence** (confirmed_count=2-3, some guestbook): Need to check original patterns
-- **High evidence** (confirmed_count>3, active guestbook): High bar - must clean up original patterns and test thoroughly
 
-**High-evidence superstitions require extra scrutiny** - if minimal repro doesn't reproduce but original patterns have workarounds, the superstition might be valid for complex cases we didn't capture.
+- **Low evidence** (confirmed_count=1, no guestbook): Minimal repro may be
+  sufficient
+- **Medium evidence** (confirmed_count=2-3, some guestbook): Need to check
+  original patterns
+- **High evidence** (confirmed_count>3, active guestbook): High bar - must clean
+  up original patterns and test thoroughly
+
+**High-evidence superstitions require extra scrutiny** - if minimal repro
+doesn't reproduce but original patterns have workarounds, the superstition might
+be valid for complex cases we didn't capture.
 
 ### 3. Read and Understand
 
 1. Read the superstition file thoroughly
 2. Understand the **claim** - what behavior is being described?
 3. Understand the **context** - what was the user trying to accomplish?
-4. **Note the original patterns** - which patterns are mentioned in `sessions` or context?
+4. **Note the original patterns** - which patterns are mentioned in `sessions`
+   or context?
 
 ### 4. Investigate
 
 Use multiple techniques:
 
 **Check official docs:**
+
 ```bash
 grep -r "relevant term" ~/Code/labs/docs/common/
 ```
 
-**Check framework source:**
-Look for relevant code in `~/Code/labs/packages/` that might explain the behavior.
+**Check framework source:** Look for relevant code in `~/Code/labs/packages/`
+that might explain the behavior.
 
-**Check if already documented:**
-The behavior might now be in official docs, making the superstition redundant.
+**Check if already documented:** The behavior might now be in official docs,
+making the superstition redundant.
 
 ### 5. Create Minimal Repro
 
 Create a minimal pattern that demonstrates the claimed behavior:
 
-**File location:** `community-docs/superstitions/repros/YYYY-MM-DD-short-name.tsx`
+**File location:**
+`community-docs/superstitions/repros/YYYY-MM-DD-short-name.tsx`
 
 The repro should:
+
 - Be as minimal as possible while still demonstrating the issue
 - Include comments explaining what behavior to look for
 - Be deployable and runnable
@@ -93,6 +113,7 @@ The repro should:
 ### 6. Deploy and Test Minimal Repro
 
 Deploy the repro to a test space:
+
 ```bash
 cd ~/Code/labs && deno task cf piece new [path-to-repro.tsx] \
   --api-url http://localhost:8000 \
@@ -102,33 +123,40 @@ cd ~/Code/labs && deno task cf piece new [path-to-repro.tsx] \
 
 Test the actual behavior. Does it match the superstition's claim?
 
-**Be wary of false negatives** - a minimal repro might not trigger the issue if it depends on specific conditions.
+**Be wary of false negatives** - a minimal repro might not trigger the issue if
+it depends on specific conditions.
 
 ### 7. Find and Clean Up Original Patterns (REQUIRED FOR DISCONFIRMATION)
 
 > **⚠️ This step is MANDATORY before disconfirming any superstition.**
 >
-> A minimal repro that "works" is NOT sufficient evidence. You MUST verify
-> that the original patterns work without their workarounds.
+> A minimal repro that "works" is NOT sufficient evidence. You MUST verify that
+> the original patterns work without their workarounds.
 
 **Steps:**
 
-1. **Find the original patterns** mentioned in the superstition's `sessions` field
-2. **Look for workaround code** - does the pattern use the "solution" described in the superstition?
-3. **Try removing the workaround** - clean up the pattern to use the "problematic" approach
+1. **Find the original patterns** mentioned in the superstition's `sessions`
+   field
+2. **Look for workaround code** - does the pattern use the "solution" described
+   in the superstition?
+3. **Try removing the workaround** - clean up the pattern to use the
+   "problematic" approach
 4. **Deploy and test in Playwright** - does the pattern still work correctly?
 
 **Outcomes:**
 
-| Cleanup Result | Conclusion |
-|----------------|------------|
-| **Cleanup works** | Strong evidence superstition is invalid - proceed to disconfirm |
-| **Cleanup breaks** | Superstition is VALID - do not disconfirm! Tighten scope or confirm |
-| **No patterns found** | Cannot disconfirm - mark as "unable to verify" |
+| Cleanup Result        | Conclusion                                                          |
+| --------------------- | ------------------------------------------------------------------- |
+| **Cleanup works**     | Strong evidence superstition is invalid - proceed to disconfirm     |
+| **Cleanup breaks**    | Superstition is VALID - do not disconfirm! Tighten scope or confirm |
+| **No patterns found** | Cannot disconfirm - mark as "unable to verify"                      |
 
 **Real Example (2025-12-02):**
 
-The superstition "cannot map computed arrays in JSX" had a minimal repro that appeared to work. However, when we tried to remove the workaround from `reward-spinner.tsx`:
+The superstition "cannot map computed arrays in JSX" had a minimal repro that
+appeared to work. However, when we tried to remove the workaround from
+`reward-spinner.tsx`:
+
 - Cleanup **failed** with `mapWithPattern is not a function`
 - The minimal repro worked because it used auto-unwrapping input types
 - The real pattern with explicit `Cell<>` types triggered the actual bug
@@ -136,15 +164,15 @@ The superstition "cannot map computed arrays in JSX" had a minimal repro that ap
 
 ### 8. Create Verification File
 
-Create `community-docs/superstitions/verifications/YYYY-MM-DD-short-name.md` using this template:
+Create `community-docs/superstitions/verifications/YYYY-MM-DD-short-name.md`
+using this template:
 
-```markdown
+````markdown
 # Verification: [Short Name]
 
-**Superstition:** `../YYYY-MM-DD-full-filename.md`
-**Last verified:** YYYY-MM-DD
-**Status:** awaiting-maintainer-review
-**Evidence level:** low/medium/high (confirmed_count=X, Y guestbook entries)
+**Superstition:** `../YYYY-MM-DD-full-filename.md` **Last verified:** YYYY-MM-DD
+**Status:** awaiting-maintainer-review **Evidence level:** low/medium/high
+(confirmed_count=X, Y guestbook entries)
 
 ---
 
@@ -154,20 +182,23 @@ Create `community-docs/superstitions/verifications/YYYY-MM-DD-short-name.md` usi
 
 ### Context
 
-[1-2 paragraphs explaining what we're trying to accomplish, the claim being made,
-and why this matters. Give enough context that the framework author understands
-the situation without reading other files.]
+[1-2 paragraphs explaining what we're trying to accomplish, the claim being
+made, and why this matters. Give enough context that the framework author
+understands the situation without reading other files.]
 
 ### Minimal Repro
 
 <!-- Source: repros/YYYY-MM-DD-short-name.tsx -->
+
 ```tsx
 [FULL pattern code here - everything needed to understand and run the repro]
 ```
+````
 
 ### Question
 
 **Does this behavior match your expectations?**
+
 - [ ] Yes, this is correct and won't change
 - [ ] Yes, but we plan to change it
 - [ ] No, this looks like a bug
@@ -177,8 +208,8 @@ the situation without reading other files.]
 
 ## Verification Details
 
-**Verified by:** Claude (superstition-verification workflow)
-**Date:** YYYY-MM-DD
+**Verified by:** Claude (superstition-verification workflow) **Date:**
+YYYY-MM-DD
 
 ### Investigation
 
@@ -202,8 +233,8 @@ the situation without reading other files.]
 ### Recommendation
 
 [What you think should happen to this superstition]
-```
 
+````
 ### 9. Check In With Maintainer
 
 Present your findings to the community-patterns maintainer (in the Claude session):
@@ -305,7 +336,7 @@ git checkout -b superstition-auto-land
 git cherry-pick <commit1> <commit2> ...
 
 # Create and merge PR immediately (or after quick maintainer review)
-```
+````
 
 ```bash
 # Create review branch from main
@@ -321,18 +352,20 @@ git cherry-pick <commit3> <commit4> ...
 ### PR Templates
 
 **Auto-land PR:**
+
 ```markdown
 ## Superstition Verifications (Auto-land)
 
 These verifications have clear outcomes and don't need framework author review.
 
 ### Changes
+
 - [x] Removed: `superstition-name` - disconfirmed via pattern cleanup
-- [x] Confirmed: `superstition-name` - documented limitation
-...
+- [x] Confirmed: `superstition-name` - documented limitation ...
 ```
 
 **Needs-review PR:**
+
 ```markdown
 ## Superstition Verifications (Needs Framework Review)
 
@@ -340,9 +373,9 @@ These verifications have clear outcomes and don't need framework author review.
 verification file and respond to the "Framework Author Review" section.
 
 ### Awaiting Review
+
 - [ ] `verifications/YYYY-MM-DD-name.md` - Is this behavior intentional?
-- [ ] `verifications/YYYY-MM-DD-other.md` - Bug or working as designed?
-...
+- [ ] `verifications/YYYY-MM-DD-other.md` - Bug or working as designed? ...
 ```
 
 ## File Locations
@@ -354,8 +387,16 @@ verification file and respond to the "Framework Author Review" section.
 
 ## Important Notes
 
-- **Minimal repros WILL give false negatives** - this is not theoretical, we've seen it happen. Complex patterns trigger issues that minimal repros don't due to type differences, runtime conditions, and missing complexity.
-- **Pattern cleanup is the ONLY valid evidence for disconfirmation** - if you can remove workarounds and patterns still work after Playwright testing, that's proof. Anything less is insufficient.
-- **High-evidence superstitions need high-bar disconfirmation** - multiple confirmations and guestbook entries mean real developers hit this issue. Don't dismiss based on a minimal repro.
-- **When in doubt, tighten scope rather than delete** - better to have a narrower superstition than miss a real issue.
-- **If cleanup breaks, the superstition is VALID** - even if minimal repro worked. Trust the real-world evidence over synthetic tests.
+- **Minimal repros WILL give false negatives** - this is not theoretical, we've
+  seen it happen. Complex patterns trigger issues that minimal repros don't due
+  to type differences, runtime conditions, and missing complexity.
+- **Pattern cleanup is the ONLY valid evidence for disconfirmation** - if you
+  can remove workarounds and patterns still work after Playwright testing,
+  that's proof. Anything less is insufficient.
+- **High-evidence superstitions need high-bar disconfirmation** - multiple
+  confirmations and guestbook entries mean real developers hit this issue. Don't
+  dismiss based on a minimal repro.
+- **When in doubt, tighten scope rather than delete** - better to have a
+  narrower superstition than miss a real issue.
+- **If cleanup breaks, the superstition is VALID** - even if minimal repro
+  worked. Trust the real-world evidence over synthetic tests.

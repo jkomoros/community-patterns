@@ -15,9 +15,9 @@ interface Item {
 interface Input {
   selectedId: Default<number, 0>;
   items: Default<Item[], [
-    { id: 1, name: "Apple" },
-    { id: 2, name: "Banana" },
-    { id: 3, name: "Cherry" }
+    { id: 1; name: "Apple" },
+    { id: 2; name: "Banana" },
+    { id: 3; name: "Cherry" },
   ]>;
 }
 
@@ -53,7 +53,10 @@ const CellHandlerTest = pattern<Input, Output>(
             {items.map((item) => (
               <button
                 key={item.id}
-                onClick={selectItem({ id: item.id, selectedCell: selectedIdCell })}
+                onClick={selectItem({
+                  id: item.id,
+                  selectedCell: selectedIdCell,
+                })}
                 style={{
                   display: "block",
                   margin: "8px 0",
@@ -76,7 +79,7 @@ const CellHandlerTest = pattern<Input, Output>(
         </div>
       ),
     };
-  }
+  },
 );
 
 export default CellHandlerTest;

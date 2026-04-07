@@ -42,7 +42,11 @@ export default pattern(
 
           <button
             onClick={toggle({ isActive })}
-            style={{ padding: "10px 20px", fontSize: "16px", marginBottom: "20px" }}
+            style={{
+              padding: "10px 20px",
+              fontSize: "16px",
+              marginBottom: "20px",
+            }}
           >
             Toggle Active State (currently: {isActive ? "ACTIVE" : "INACTIVE"})
           </button>
@@ -54,14 +58,16 @@ export default pattern(
               <p style={{ fontSize: "12px", color: "#666" }}>
                 (Claimed to NOT work)
               </p>
-              <span style={{
-                backgroundColor: bgColor1,
-                color: textColor1,
-                padding: "12px 24px",
-                borderRadius: "8px",
-                fontWeight: "bold",
-                display: "inline-block",
-              }}>
+              <span
+                style={{
+                  backgroundColor: bgColor1,
+                  color: textColor1,
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  fontWeight: "bold",
+                  display: "inline-block",
+                }}
+              >
                 GREEN when active
               </span>
             </div>
@@ -78,7 +84,14 @@ export default pattern(
             </div>
           </div>
 
-          <div style={{ marginTop: "30px", padding: "15px", background: "#f5f5f5", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginTop: "30px",
+              padding: "15px",
+              background: "#f5f5f5",
+              borderRadius: "8px",
+            }}
+          >
             <h4>Expected Behavior:</h4>
             <ul>
               <li>When INACTIVE: Both boxes should be gray</li>
@@ -89,5 +102,5 @@ export default pattern(
         </div>
       ),
     };
-  }
+  },
 );

@@ -3,7 +3,11 @@
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["@playwright/mcp@latest"],
+      "args": [
+        "@playwright/mcp@latest",
+        "--config",
+        "/Users/alex/.config/playwright-mcp/config.json"
+      ],
       "env": {}
     }
   }

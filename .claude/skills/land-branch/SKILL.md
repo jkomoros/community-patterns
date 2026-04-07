@@ -10,8 +10,8 @@ description: >
 
 **Use this skill to land a feature branch in one smooth flow.**
 
-> **Note:** Steps 1-2 use scripts in `./scripts/` that are pre-allowlisted in settings.json,
-> so they won't require permission prompts.
+> **Note:** Steps 1-2 use scripts in `./scripts/` that are pre-allowlisted in
+> settings.json, so they won't require permission prompts.
 
 ## Prerequisites
 
@@ -27,6 +27,7 @@ description: >
 ```
 
 This script checks:
+
 - You're not on `main` (need to be on a feature branch)
 - No uncommitted changes (commit or stash first)
 
@@ -52,6 +53,7 @@ git log --oneline -5
 ```
 
 **Why this works:**
+
 - `git branch` creates a new branch pointing to your current commit
 - `git reset --hard origin/main` moves main back to where it should be
 - Your commits are preserved on the new branch
@@ -66,16 +68,20 @@ Now continue with the land-branch workflow from Step 2.
 ```
 
 This script:
+
 - Detects fork vs direct repo (reads `.claude-workspace`)
 - Fetches latest main from correct remote
 - Rebases current branch onto main
 - Pushes with `--force-with-lease` (safe force push)
 
-If rebase has conflicts, resolve them manually, run `git rebase --continue`, then re-run the script.
+If rebase has conflicts, resolve them manually, run `git rebase --continue`,
+then re-run the script.
 
 ## Step 2.5: Check for Downstream Dependencies
 
-**IMPORTANT:** If your changes modified any pattern's input type (the type parameter to `pattern<Input>`), you MUST check if other patterns import and use that pattern.
+**IMPORTANT:** If your changes modified any pattern's input type (the type
+parameter to `pattern<Input>`), you MUST check if other patterns import and use
+that pattern.
 
 ```bash
 # Get list of changed .tsx files
@@ -105,16 +111,19 @@ fi
 ```
 
 **What to check:**
+
 - If you changed a pattern's input type (added/removed/renamed fields)
 - Find all patterns that import and instantiate that pattern
 - Update their instantiation calls to match the new type
 - Common case: `page-creator.tsx` imports many patterns for its launcher buttons
 
-**Example:** If `hotel-membership-extractor.tsx` input changes from 10 fields to 3 fields, `page-creator.tsx` must be updated to only pass the 3 valid fields.
+**Example:** If `hotel-membership-extractor.tsx` input changes from 10 fields to
+3 fields, `page-creator.tsx` must be updated to only pass the 3 valid fields.
 
 ### Verify Importing Patterns Deploy Successfully
 
-After updating any importing patterns, **you MUST verify they compile and deploy**:
+After updating any importing patterns, **you MUST verify they compile and
+deploy**:
 
 ```bash
 # For each pattern that imports the changed pattern, test deployment
@@ -128,11 +137,14 @@ cd ../labs && deno task cf piece new \
 ```
 
 **Why this matters:**
+
 - TypeScript compilation happens at deploy time, not at save time
-- A pattern may look fine in your editor but fail to deploy due to type mismatches
+- A pattern may look fine in your editor but fail to deploy due to type
+  mismatches
 - Catching these errors before landing prevents broken patterns on main
 
 **If deployment fails:**
+
 1. Read the error message (usually shows the exact type mismatch)
 2. Fix the instantiation call to match the new input type
 3. Re-deploy to verify the fix
@@ -140,7 +152,9 @@ cd ../labs && deno task cf piece new \
 
 ## Step 2.6: Verify Pattern README is Up to Date
 
-**IMPORTANT:** Before creating a PR, verify that `patterns/$GITHUB_USER/README.md` is up to date for any patterns touched in this branch.
+**IMPORTANT:** Before creating a PR, verify that
+`patterns/$GITHUB_USER/README.md` is up to date for any patterns touched in this
+branch.
 
 ```bash
 # Get list of changed pattern files
@@ -159,7 +173,8 @@ fi
 1. **New patterns** - Add a complete entry to README.md:
    - Pattern name as heading
    - One-line description
-   - "Interesting features" bullet list highlighting notable implementation details
+   - "Interesting features" bullet list highlighting notable implementation
+     details
    - Place in correct section (Stable Patterns or WIP Patterns)
 
 2. **Significantly modified patterns** - Review the existing entry:
@@ -172,24 +187,29 @@ fi
    - Add to Stable Patterns section with full description
 
 **Example README entry format:**
+
 ```markdown
 #### `pattern-name.tsx`
+
 One-line description of what this pattern does.
 
 **Interesting features:**
+
 - Notable implementation detail or framework feature used
 - Interesting pattern or technique
 - Integration with other patterns
 ```
 
 **If README needs updating:**
+
 1. Edit `patterns/$GITHUB_USER/README.md` to add/update pattern entries
 2. Commit the README update
 3. Continue with creating the PR
 
 ## Step 2.7: Verify Pattern Compiles Before PR
 
-**CRITICAL:** Always verify changed patterns compile before creating a PR. This catches missing imports, type mismatches, and other errors that will fail CI.
+**CRITICAL:** Always verify changed patterns compile before creating a PR. This
+catches missing imports, type mismatches, and other errors that will fail CI.
 
 ```bash
 # From community-patterns directory, test that a pattern compiles
@@ -199,7 +219,9 @@ cd ../labs && deno task cf piece new --identity ../labs/claude.key --api-url htt
 
 **If compilation succeeds:** You'll see a piece ID like `baedrei...`
 
-**If compilation fails:** You'll see a `CompilerError` with the exact file and line:
+**If compilation fails:** You'll see a `CompilerError` with the exact file and
+line:
+
 ```
 [ERROR] Cannot find name 'computed'.
 1039 |     const notesDiffChunks = computed(() => {
@@ -207,6 +229,7 @@ cd ../labs && deno task cf piece new --identity ../labs/claude.key --api-url htt
 ```
 
 **To fix:**
+
 1. Read the error message - it shows the exact file and line
 2. Fix the issue (often a missing import like `computed`, `cell`, `derive`)
 3. Commit the fix
@@ -214,6 +237,7 @@ cd ../labs && deno task cf piece new --identity ../labs/claude.key --api-url htt
 5. Continue with creating the PR
 
 **Why this matters:**
+
 - CI runs typecheck on all PRs - failures will block the merge
 - Catching errors locally is faster than waiting for CI
 - Common issues: missing imports after adding new framework features
@@ -289,6 +313,7 @@ echo "PR #$PR_NUMBER ready"
 ```
 
 The `land-pr` script:
+
 - Waits for all CI checks to pass (unless `--force` is used)
 - Merges with rebase strategy
 - Deletes the feature branch
@@ -325,4 +350,5 @@ All steps use allowlisted scripts that don't require permission prompts:
 - If the PR needs review, stop after Step 3 and wait for approval
 - For self-merging (when you have write access), all steps can run automatically
 - **Always verify README.md** is current with pattern changes (Step 2.6)
-- **Always run typecheck** before creating PR to catch CI failures early (Step 2.7)
+- **Always run typecheck** before creating PR to catch CI failures early (Step
+  2.7)

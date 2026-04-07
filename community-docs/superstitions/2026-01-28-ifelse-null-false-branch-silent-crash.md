@@ -1,7 +1,7 @@
 # ifElse() with null False Branch Silently Crashes Rendering
 
-**Date:** 2026-01-28 **Status:** confirmed regression (VDOM reconciler #2686 / #2698)
-**Confidence:** high **Stars:** 4
+**Date:** 2026-01-28 **Status:** confirmed regression (VDOM reconciler #2686 /
+#2698) **Confidence:** high **Stars:** 4
 
 ## TL;DR - The Rule
 
@@ -56,23 +56,22 @@ to `ifElse()`, not a structural issue with reactive children.
   `{ type: "null" }` to the VDOM children schema and restructured `asCell`
   placement.
 
-The bug is in the new reconciler at
-`packages/html/src/worker/reconciler.ts` (`updateChildren`, ~line 835-851).
-When a Cell child resolves to `null`, `renderCellChild` leaves
-`childState.nodeId` at `-1` (sentinel for "no DOM node"). The ordering loop
-then unconditionally uses this value as `nextNodeId`, corrupting the insertion
-reference for all preceding siblings. The applicator
+The bug is in the new reconciler at `packages/html/src/worker/reconciler.ts`
+(`updateChildren`, ~line 835-851). When a Cell child resolves to `null`,
+`renderCellChild` leaves `childState.nodeId` at `-1` (sentinel for "no DOM
+node"). The ordering loop then unconditionally uses this value as `nextNodeId`,
+corrupting the insertion reference for all preceding siblings. The applicator
 (`packages/html/src/main/applicator.ts`, line 340-343) silently ignores
-`insert-child` ops with unknown node IDs, so siblings fail to be inserted
-with zero errors.
+`insert-child` ops with unknown node IDs, so siblings fail to be inserted with
+zero errors.
 
-The **legacy renderer** (`packages/html/src/render.ts`, line 400-432)
-handled null children by converting them to empty text nodes via
-`stringifyText`, always producing a valid DOM node. The new worker
-reconciler's sentinel-based approach was not adapted for this case.
+The **legacy renderer** (`packages/html/src/render.ts`, line 400-432) handled
+null children by converting them to empty text nodes via `stringifyText`, always
+producing a valid DOM node. The new worker reconciler's sentinel-based approach
+was not adapted for this case.
 
-The `ifElse` runtime and builder handle `null` fine at the cell/link level —
-the issue is purely in the new rendering pipeline.
+The `ifElse` runtime and builder handle `null` fine at the cell/link level — the
+issue is purely in the new rendering pipeline.
 
 ## Correct Patterns
 

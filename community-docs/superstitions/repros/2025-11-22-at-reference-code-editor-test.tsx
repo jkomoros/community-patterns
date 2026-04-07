@@ -8,7 +8,16 @@
  *
  * CLAIM: onbacklink-create receives detail.charm as Cell reference
  */
-import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commonfabric";
+import {
+  Cell,
+  Default,
+  handler,
+  NAME,
+  OpaqueRef,
+  pattern,
+  UI,
+  wish,
+} from "commonfabric";
 
 interface Item {
   name: string;
@@ -39,7 +48,7 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
         detail: {
           text: string;
           charmId: any;
-          charm: Cell<any>;  // This should be the actual Cell ref
+          charm: Cell<any>; // This should be the actual Cell ref
           navigate: boolean;
         };
       },
@@ -50,13 +59,15 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
     >(({ detail }, { items, lastAction }) => {
       const { text, charmId, charm } = detail;
 
-      lastAction.set(`backlink-create: text="${text}", charmId=${charmId}, hasCharm=${!!charm}`);
+      lastAction.set(
+        `backlink-create: text="${text}", charmId=${charmId}, hasCharm=${!!charm}`,
+      );
 
       if (charm) {
         const currentItems = items.get();
         // Check if already in list using .equals()
         const alreadyExists = currentItems.some((existing) => {
-          if (typeof existing === 'object' && 'equals' in existing) {
+          if (typeof existing === "object" && "equals" in existing) {
             return (existing as any).equals(charm);
           }
           return false;
@@ -77,10 +88,19 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>cf-code-editor Backlink Test</h2>
 
-          <div style={{ marginBottom: "20px", padding: "15px", background: "#f5f5f5", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginBottom: "20px",
+              padding: "15px",
+              background: "#f5f5f5",
+              borderRadius: "8px",
+            }}
+          >
             <h3>Instructions:</h3>
             <ol>
-              <li>Type <code>[[</code> in the editor below (wiki-link syntax)</li>
+              <li>
+                Type <code>[[</code> in the editor below (wiki-link syntax)
+              </li>
               <li>A dropdown should appear with available charms</li>
               <li>Select a charm</li>
               <li>The charm should be added to the list below</li>
@@ -91,7 +111,13 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
             <strong>Mentionable count:</strong> {mentionable.length}
           </div>
 
-          <div style={{ marginBottom: "20px", border: "1px solid #ccc", borderRadius: "4px" }}>
+          <div
+            style={{
+              marginBottom: "20px",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+            }}
+          >
             <cf-code-editor
               $value={editorText}
               $mentionable={mentionable}
@@ -111,29 +137,29 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
 
           <div>
             <h3>Added Items ({items.length}):</h3>
-            {items.length === 0 ? (
-              <p style={{ color: "#666" }}>No items yet. Use [[ to add.</p>
-            ) : (
-              items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    padding: "10px",
-                    margin: "5px 0",
-                    background: "#e8f5e9",
-                    borderRadius: "4px",
-                  }}
-                >
-                  Item {index + 1}: {item.name || "(loading...)"}
-                </div>
-              ))
-            )}
+            {items.length === 0
+              ? <p style={{ color: "#666" }}>No items yet. Use [[ to add.</p>
+              : (
+                items.map((item, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      padding: "10px",
+                      margin: "5px 0",
+                      background: "#e8f5e9",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    Item {index + 1}: {item.name || "(loading...)"}
+                  </div>
+                ))
+              )}
           </div>
         </div>
       ),
       items,
     };
-  }
+  },
 );
 
 export default CodeEditorBacklinkTest;

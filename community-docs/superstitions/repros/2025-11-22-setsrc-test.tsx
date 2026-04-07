@@ -15,9 +15,11 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
     [UI]: (
       <div style={{ padding: "20px", fontFamily: "system-ui" }}>
         <h2>SetSrc Test Pattern</h2>
-        <p>Current version: <strong>{version}</strong></p>
+        <p>
+          Current version: <strong>{version}</strong>
+        </p>
         <p>If you see "v2", the setsrc update worked.</p>
       </div>
     ),
-  })
+  }),
 );

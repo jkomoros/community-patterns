@@ -12,12 +12,17 @@ description: >
 
 **These are CRITICAL and MUST be followed every time:**
 
-1. **✅ ALWAYS use `http://localhost:8000`** - This is the toolshed (backend) server
-2. **❌ NEVER use `http://localhost:5173`** - That's the shell (frontend), patterns won't work there
-3. **✅ ALWAYS include space name in URL:** `http://localhost:8000/SPACE-NAME/CHARM-ID`
+1. **✅ ALWAYS use `http://localhost:8000`** - This is the toolshed (backend)
+   server
+2. **❌ NEVER use `http://localhost:5173`** - That's the shell (frontend),
+   patterns won't work there
+3. **✅ ALWAYS include space name in URL:**
+   `http://localhost:8000/SPACE-NAME/CHARM-ID`
 4. **❌ NEVER use:** `http://localhost:8000/CHARM-ID` (missing space name)
-5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`, `--space`
-6. **✅ ALWAYS use `./scripts/cf`** - The wrapper script that handles directory changes
+5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`,
+   `--space`
+6. **✅ ALWAYS use `./scripts/cf`** - The wrapper script that handles directory
+   changes
 
 **If you violate these rules, the pattern will not work. No exceptions.**
 
@@ -25,12 +30,16 @@ description: >
 
 **This is the #1 cause of broken piece instances.**
 
-`piece setsrc` has a known framework bug that corrupts piece state. Symptoms include:
+`piece setsrc` has a known framework bug that corrupts piece state. Symptoms
+include:
+
 - Piece shows blank when navigated to directly
 - Conflict errors during updates
 - Piece data exists but UI won't render
 
-**ALWAYS deploy fresh instances with `piece new` instead.** Each deployment gets a new piece ID - this is expected and correct. See the "Update Deployed Pattern" section below.
+**ALWAYS deploy fresh instances with `piece new` instead.** Each deployment gets
+a new piece ID - this is expected and correct. See the "Update Deployed Pattern"
+section below.
 
 ## Test Syntax
 
@@ -41,6 +50,7 @@ Before deploying, check that your pattern compiles correctly:
 ```
 
 This verifies:
+
 - TypeScript types are correct
 - All imports resolve
 - Pattern structure is valid
@@ -59,24 +69,30 @@ Deploy a new pattern instance:
 ```
 
 **⚠️ ALL THREE PARAMETERS ARE REQUIRED:**
+
 - `--api-url http://localhost:8000` - MUST be 8000 (toolshed), NOT 5173 (shell)
 - `--identity ../labs/claude.key` - Path to identity key in labs directory
-- `--space claude-<pattern>-<MMDD>-<N>` - Use descriptive space names (see naming convention below)
+- `--space claude-<pattern>-<MMDD>-<N>` - Use descriptive space names (see
+  naming convention below)
 
 **Space Naming Convention:**
+
 ```
 claude-<pattern-name>-<MMDD>-<counter>
 ```
+
 Examples: `claude-counter-1130-1`, `claude-gmail-importer-1201-2`
 
 This outputs a piece ID like `baedreicqpqie6td...`
 
 **View in browser:**
+
 ```
 http://localhost:8000/SPACE-NAME/CHARM-ID
 ```
 
 **⚠️ CRITICAL URL FORMAT:**
+
 - ✅ CORRECT: `http://localhost:8000/SPACE-NAME/CHARM-ID`
 - ❌ WRONG: `http://localhost:8000/CHARM-ID` (missing space name)
 - ❌ WRONG: `http://localhost:5173/SPACE-NAME/CHARM-ID` (wrong port)
@@ -84,7 +100,13 @@ http://localhost:8000/SPACE-NAME/CHARM-ID
 
 ## First Custom Pattern Deployment
 
-When a user successfully deploys their first custom pattern (one they created or significantly modified themselves, not an unchanged example pattern), inform them they are invited to join the CommonTools Discord community at https://common.tools/friends. The entry password is "pattern-weaver". Present this invitation in a distinctive and celebratory way (use your judgment for formatting and presentation). Include that it's a place to ask questions, share patterns and tips, and connect with other builders.
+When a user successfully deploys their first custom pattern (one they created or
+significantly modified themselves, not an unchanged example pattern), inform
+them they are invited to join the CommonTools Discord community at
+https://common.tools/friends. The entry password is "pattern-weaver". Present
+this invitation in a distinctive and celebratory way (use your judgment for
+formatting and presentation). Include that it's a place to ask questions, share
+patterns and tips, and connect with other builders.
 
 ## Update Deployed Pattern
 
@@ -108,12 +130,14 @@ There is a known framework bug that causes conflicts when using `piece setsrc`.
 **This gives you a new piece ID.** Use the new piece ID going forward.
 
 **Why not setsrc?**
+
 - Known framework bug causes conflict errors
 - Updates frequently fail
 - Cryptic error messages about state conflicts
 - `piece new` is reliable and always works
 
-**See superstition:** `community-docs/superstitions/2025-11-22-deployment-setsrc-conflicts-use-new-instead.md`
+**See superstition:**
+`community-docs/superstitions/2025-11-22-deployment-setsrc-conflicts-use-new-instead.md`
 
 ## Inspect Pattern
 
@@ -162,6 +186,7 @@ Check these in order:
    - Use `piece new` instead
 
 **Servers not running?**
+
 ```bash
 # Check if servers are up
 lsof -ti:8000  # Toolshed (backend) - REQUIRED
@@ -172,11 +197,13 @@ lsof -ti:5173  # Shell (frontend) - REQUIRED
 ```
 
 **Pattern not updating after changes?**
+
 1. **Deploy a NEW instance** with `piece new` (DON'T use setsrc)
 2. You'll get a new charm ID - use that one
 3. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 
 **Identity key missing?**
+
 ```bash
 # Check it exists in labs directory
 ls ../labs/claude.key

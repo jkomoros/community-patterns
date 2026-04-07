@@ -2,11 +2,15 @@
 
 ## Overview
 
-Add an interactive charm linking feature to the Pattern Launcher (`tools/launch.ts`). This allows users to connect charm outputs to charm inputs directly from the CLI, with intelligent suggestions and visual feedback about type compatibility.
+Add an interactive charm linking feature to the Pattern Launcher
+(`tools/launch.ts`). This allows users to connect charm outputs to charm inputs
+directly from the CLI, with intelligent suggestions and visual feedback about
+type compatibility.
 
 ## Problem Statement
 
 Currently linking charms requires:
+
 ```bash
 cd ../labs && deno task cf charm link \
   --api-url http://localhost:8000 \
@@ -17,6 +21,7 @@ cd ../labs && deno task cf charm link \
 ```
 
 **Pain points:**
+
 - Must remember long charm IDs
 - Must know the exact field paths
 - No visibility into what fields exist on each charm
@@ -28,7 +33,8 @@ cd ../labs && deno task cf charm link \
 1. **Interactive linking**: Visual UI to browse and link charms
 2. **Charm history**: Remember deployed charms with their IDs for easy reference
 3. **Schema exploration**: Show available input/output fields on each charm
-4. **Compatibility hints**: Highlight when types appear compatible (green) vs incompatible (red)
+4. **Compatibility hints**: Highlight when types appear compatible (green) vs
+   incompatible (red)
 5. **Easy navigation**: Arrow keys to move between charms and fields
 
 ## User Experience
@@ -67,16 +73,19 @@ Based on your recent deployments, here are recommended links:
 ```
 
 **Smart suggestion algorithm:**
+
 1. Look at recently deployed charms
 2. Find output fields that match input field types
 3. Prioritize exact type matches, then structural matches
 4. Show top 5-10 recommendations
 
-Selecting a suggestion immediately creates the link. Selecting "Manual selection..." enters the full browse flow.
+Selecting a suggestion immediately creates the link. Selecting "Manual
+selection..." enters the full browse flow.
 
 ### Step 1b: Select Space (Manual Flow)
 
-**Note: Cross-space linking is supported.** Source and target can be in different spaces.
+**Note: Cross-space linking is supported.** Source and target can be in
+different spaces.
 
 ```
 🔗 Charm Linker - Manual Mode
@@ -89,7 +98,8 @@ Select SOURCE space (↑/↓ to move, Enter to select):
   ✨ Enter space name...
 ```
 
-After selecting source charm, user selects TARGET space (can be same or different).
+After selecting source charm, user selects TARGET space (can be same or
+different).
 
 ### Step 2: Select Source Charm (outputs)
 
@@ -108,6 +118,7 @@ After selecting source charm, user selects TARGET space (can be same or differen
 ```
 
 Shows:
+
 - Recently deployed charms (from launcher history) first
 - Other charms in the space below
 - Both name and truncated ID for reference
@@ -138,6 +149,7 @@ Type compatibility: ✅ COMPATIBLE (number → number)
 ```
 
 **Navigation:**
+
 - **← →** (left/right arrows): Switch between SOURCE and TARGET columns
 - **↑ ↓** (up/down arrows): Navigate fields within current column
 - **Enter**: Create the link
@@ -145,12 +157,14 @@ Type compatibility: ✅ COMPATIBLE (number → number)
 - **Q**: Cancel/quit
 
 **Visual Feedback:**
+
 - **✅ Green**: Types appear compatible
 - **⚠️ Yellow**: Types might be compatible (e.g., `any` involved)
 - **❌ Red**: Types appear incompatible
 - **→** indicator shows which side is active
 
 **Type Compatibility Rules:**
+
 ```
 COMPATIBLE:
 - Same primitive type (number→number, string→string)
@@ -256,21 +270,21 @@ interface LinkSuggestion {
     apiUrl: string;
   };
   compatibility: "compatible" | "maybe" | "incompatible";
-  score: number;  // Higher = better suggestion
+  score: number; // Higher = better suggestion
 }
 
 interface CharmField {
-  path: string[];          // e.g., ["users", "0", "email"]
-  type: string;            // e.g., "string", "number", "object", "array"
-  fullPath: string;        // e.g., "users/0/email"
-  value?: unknown;         // Current value (for type inference)
+  path: string[]; // e.g., ["users", "0", "email"]
+  type: string; // e.g., "string", "number", "object", "array"
+  fullPath: string; // e.g., "users/0/email"
+  value?: unknown; // Current value (for type inference)
 }
 
 interface CharmSchema {
   charmId: string;
   name?: string;
-  inputs: CharmField[];    // Flattened input fields
-  outputs: CharmField[];   // Flattened output fields
+  inputs: CharmField[]; // Flattened input fields
+  outputs: CharmField[]; // Flattened output fields
 }
 ```
 
@@ -281,20 +295,20 @@ interface CharmSchema {
 async function getSpaceCharms(
   space: string,
   apiUrl: string,
-  labsDir: string
-): Promise<CharmSchema[]>
+  labsDir: string,
+): Promise<CharmSchema[]>;
 
 // Flatten an object into field paths with types
 function flattenToFields(
   obj: unknown,
-  basePath: string[] = []
-): CharmField[]
+  basePath: string[] = [],
+): CharmField[];
 
 // Check type compatibility between two fields
 function checkTypeCompatibility(
   source: CharmField,
-  target: CharmField
-): "compatible" | "maybe" | "incompatible"
+  target: CharmField,
+): "compatible" | "maybe" | "incompatible";
 
 // Create a link between charms
 async function createLink(
@@ -304,14 +318,14 @@ async function createLink(
   sourcePath: string[],
   targetCharmId: string,
   targetPath: string[],
-  labsDir: string
-): Promise<void>
+  labsDir: string,
+): Promise<void>;
 
 // Interactive two-column field selector
 async function interactiveFieldLinker(
   sourceCharm: CharmSchema,
-  targetCharm: CharmSchema
-): Promise<{ sourcePath: string[]; targetPath: string[] } | null>
+  targetCharm: CharmSchema,
+): Promise<{ sourcePath: string[]; targetPath: string[] } | null>;
 ```
 
 ### CLI Commands Used
@@ -331,7 +345,8 @@ deno task cf charm link --space $SPACE --api-url $API_URL --identity $IDENTITY $
 
 Since we get actual values from `inspect`, not schema definitions:
 
-1. **Primitive detection**: `typeof value` gives us `string`, `number`, `boolean`, `object`
+1. **Primitive detection**: `typeof value` gives us `string`, `number`,
+   `boolean`, `object`
 2. **Array detection**: `Array.isArray(value)`
 3. **Null handling**: `value === null` → treat as `any`
 4. **Object structure**: Recursively analyze nested objects
@@ -352,24 +367,28 @@ function inferType(value: unknown): string {
 ## Implementation Phases
 
 ### Phase 1: Infrastructure (This PR)
+
 - [ ] Update config to store charm deployment history
 - [ ] Capture charm ID when deploying via launcher
 - [ ] Store `recentCharms` with space, charmId, name, apiUrl
 - [ ] Add "Link charms..." menu option (placeholder)
 
 ### Phase 2: Smart Suggestions
+
 - [ ] Generate link suggestions from recent charms
 - [ ] Type compatibility scoring algorithm
 - [ ] Show suggestions as default entry point
 - [ ] One-click linking from suggestions
 
 ### Phase 3: Manual Selection Flow
+
 - [ ] Space selection (for source, then target - can differ)
 - [ ] Charm selection within space
 - [ ] Cross-space linking support
 - [ ] Simple field listing (flat, no nested)
 
 ### Phase 4: Interactive Field Browser
+
 - [ ] Two-column display
 - [ ] Left/right navigation between columns
 - [ ] Up/down navigation within columns
@@ -377,6 +396,7 @@ function inferType(value: unknown): string {
 - [ ] Visual compatibility feedback (colors)
 
 ### Phase 5: Polish
+
 - [ ] Nested field expansion (drill into objects)
 - [ ] Type filtering (show only compatible targets)
 - [ ] "Link another?" flow
@@ -410,16 +430,16 @@ function inferType(value: unknown): string {
 ## Open Questions
 
 1. **Nested fields**: How deep should we show?
-   - *Proposal*: Show top-level, allow "expand" action
+   - _Proposal_: Show top-level, allow "expand" action
 
 2. **Large objects**: What if a charm has 50+ fields?
-   - *Proposal*: Type-to-filter within field list
+   - _Proposal_: Type-to-filter within field list
 
 3. **Array elements**: Link to specific index or whole array?
-   - *Proposal*: Show both options, default to whole array
+   - _Proposal_: Show both options, default to whole array
 
 4. **Well-known IDs**: Support linking well-known charm list?
-   - *Proposal*: Phase 2, after basics work
+   - _Proposal_: Phase 2, after basics work
 
 ---
 

@@ -11,18 +11,18 @@ import { Cell, Default, handler, NAME, pattern, UI } from "commonfabric";
 // CLAIMED PROBLEMATIC: Default in nested properties
 interface DimensionNested {
   name: string;
-  multiplier: Default<number, 1>;  // CLAIMED: This causes push errors
+  multiplier: Default<number, 1>; // CLAIMED: This causes push errors
 }
 
 // CLAIMED WORKING: Plain types in nested, Default at array level
 interface DimensionPlain {
   name: string;
-  multiplier: number;  // Plain type
+  multiplier: number; // Plain type
 }
 
 interface Input {
-  nestedDefaults: Default<DimensionNested[], []>;  // Nested Default<> in items
-  plainNested: Default<DimensionPlain[], []>;      // Plain types in items
+  nestedDefaults: Default<DimensionNested[], []>; // Nested Default<> in items
+  plainNested: Default<DimensionPlain[], []>; // Plain types in items
 }
 
 export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
@@ -33,9 +33,9 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
         // CLAIMED: This should cause TypeScript errors!
         arr.push({
           name: "Test",
-          multiplier: 1,  // Plain number - claimed to fail
+          multiplier: 1, // Plain number - claimed to fail
         });
-      }
+      },
     );
 
     // Try to push to array with plain nested types
@@ -46,7 +46,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           name: "Test",
           multiplier: 1,
         });
-      }
+      },
     );
 
     return {
@@ -54,7 +54,9 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
       [UI]: (
         <div style={{ padding: "20px" }}>
           <h2>Nested Default Test</h2>
-          <p>If this compiles and deploys, the superstition may need revision.</p>
+          <p>
+            If this compiles and deploys, the superstition may need revision.
+          </p>
           <p>Nested defaults count: {nestedDefaults.length}</p>
           <p>Plain nested count: {plainNested.length}</p>
           <button onClick={pushNested({ arr: nestedDefaults })}>
@@ -66,5 +68,5 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
         </div>
       ),
     };
-  }
+  },
 );

@@ -8,7 +8,15 @@
  *
  * This test compares both to see if the bug is specific to native inputs.
  */
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
+import {
+  Cell,
+  Default,
+  handler,
+  ifElse,
+  NAME,
+  pattern,
+  UI,
+} from "commonfabric";
 
 interface Input {
   showNative: Default<boolean, true>;
@@ -20,27 +28,35 @@ interface Input {
 }
 
 export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
-  ({ showNative, showCtInput, nativeValue, ctValue, nativeResult, ctResult }) => {
-    const submitNative = handler<unknown, { value: Cell<string>; result: Cell<string> }>(
+  (
+    { showNative, showCtInput, nativeValue, ctValue, nativeResult, ctResult },
+  ) => {
+    const submitNative = handler<
+      unknown,
+      { value: Cell<string>; result: Cell<string> }
+    >(
       (_, { value, result }) => {
         const got = value.get();
         result.set(`Got: "${got}" (length: ${got.length})`);
-      }
+      },
     );
 
-    const submitCt = handler<unknown, { value: Cell<string>; result: Cell<string> }>(
+    const submitCt = handler<
+      unknown,
+      { value: Cell<string>; result: Cell<string> }
+    >(
       (_, { value, result }) => {
         const got = value.get();
         result.set(`Got: "${got}" (length: ${got.length})`);
-      }
+      },
     );
 
     const toggleNative = handler<unknown, { show: Cell<boolean> }>(
-      (_, { show }) => show.set(!show.get())
+      (_, { show }) => show.set(!show.get()),
     );
 
     const toggleCt = handler<unknown, { show: Cell<boolean> }>(
-      (_, { show }) => show.set(!show.get())
+      (_, { show }) => show.set(!show.get()),
     );
 
     return {
@@ -49,14 +65,31 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>ifElse Binding: Native input vs cf-input</h2>
 
-          <div style={{ marginBottom: "20px", background: "#fff3cd", padding: "15px", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginBottom: "20px",
+              background: "#fff3cd",
+              padding: "15px",
+              borderRadius: "8px",
+            }}
+          >
             <h3>Purpose</h3>
-            <p>Compare native &lt;input&gt; vs &lt;cf-input&gt; in ifElse branches.</p>
+            <p>
+              Compare native &lt;input&gt; vs &lt;cf-input&gt; in ifElse
+              branches.
+            </p>
             <p>Original superstition used native input with value={"{cell}"}</p>
           </div>
 
           {/* TEST: Native <input> */}
-          <div style={{ marginBottom: "30px", border: "2px solid #f44336", padding: "15px", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginBottom: "30px",
+              border: "2px solid #f44336",
+              padding: "15px",
+              borderRadius: "8px",
+            }}
+          >
             <h3>Native &lt;input value={"{cell}"}&gt;</h3>
             <button
               onClick={toggleNative({ show: showNative })}
@@ -67,16 +100,31 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 
             {ifElse(
               showNative,
-              <div style={{ background: "#ffebee", padding: "15px", borderRadius: "8px" }}>
-                <p><strong>Native input:</strong></p>
+              <div
+                style={{
+                  background: "#ffebee",
+                  padding: "15px",
+                  borderRadius: "8px",
+                }}
+              >
+                <p>
+                  <strong>Native input:</strong>
+                </p>
                 <input
                   type="text"
                   value={nativeValue}
                   placeholder="Type here..."
-                  style={{ width: "200px", marginRight: "10px", padding: "8px" }}
+                  style={{
+                    width: "200px",
+                    marginRight: "10px",
+                    padding: "8px",
+                  }}
                 />
                 <button
-                  onClick={submitNative({ value: nativeValue, result: nativeResult })}
+                  onClick={submitNative({
+                    value: nativeValue,
+                    result: nativeResult,
+                  })}
                   style={{ padding: "8px 16px" }}
                 >
                   Submit Native
@@ -85,18 +133,38 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   Cell value: "{nativeValue}"
                 </p>
               </div>,
-              <div style={{ background: "#eee", padding: "15px", borderRadius: "8px" }}>
+              <div
+                style={{
+                  background: "#eee",
+                  padding: "15px",
+                  borderRadius: "8px",
+                }}
+              >
                 <p>Native input is hidden</p>
-              </div>
+              </div>,
             )}
 
-            <div style={{ marginTop: "10px", padding: "10px", background: "#f5f5f5", borderRadius: "4px" }}>
+            <div
+              style={{
+                marginTop: "10px",
+                padding: "10px",
+                background: "#f5f5f5",
+                borderRadius: "4px",
+              }}
+            >
               <strong>Native Result:</strong> {nativeResult}
             </div>
           </div>
 
           {/* TEST: <cf-input> */}
-          <div style={{ marginBottom: "30px", border: "2px solid #4caf50", padding: "15px", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginBottom: "30px",
+              border: "2px solid #4caf50",
+              padding: "15px",
+              borderRadius: "8px",
+            }}
+          >
             <h3>&lt;cf-input $value={"{cell}"}&gt;</h3>
             <button
               onClick={toggleCt({ show: showCtInput })}
@@ -107,8 +175,16 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
 
             {ifElse(
               showCtInput,
-              <div style={{ background: "#e8f5e9", padding: "15px", borderRadius: "8px" }}>
-                <p><strong>cf-input:</strong></p>
+              <div
+                style={{
+                  background: "#e8f5e9",
+                  padding: "15px",
+                  borderRadius: "8px",
+                }}
+              >
+                <p>
+                  <strong>cf-input:</strong>
+                </p>
                 <cf-input
                   $value={ctValue}
                   placeholder="Type here..."
@@ -124,27 +200,53 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
                   Cell value: "{ctValue}"
                 </p>
               </div>,
-              <div style={{ background: "#eee", padding: "15px", borderRadius: "8px" }}>
+              <div
+                style={{
+                  background: "#eee",
+                  padding: "15px",
+                  borderRadius: "8px",
+                }}
+              >
                 <p>cf-input is hidden</p>
-              </div>
+              </div>,
             )}
 
-            <div style={{ marginTop: "10px", padding: "10px", background: "#f5f5f5", borderRadius: "4px" }}>
+            <div
+              style={{
+                marginTop: "10px",
+                padding: "10px",
+                background: "#f5f5f5",
+                borderRadius: "4px",
+              }}
+            >
               <strong>cf-input Result:</strong> {ctResult}
             </div>
           </div>
 
           {/* Interpretation */}
-          <div style={{ background: "#e3f2fd", padding: "15px", borderRadius: "8px" }}>
+          <div
+            style={{
+              background: "#e3f2fd",
+              padding: "15px",
+              borderRadius: "8px",
+            }}
+          >
             <h3>Interpretation</h3>
             <ul>
-              <li><strong>Native fails, cf-input works:</strong> Bug is specific to native inputs in ifElse</li>
-              <li><strong>Both fail:</strong> Bug affects all inputs in ifElse</li>
-              <li><strong>Both work:</strong> Bug may be context-specific or fixed</li>
+              <li>
+                <strong>Native fails, cf-input works:</strong>{" "}
+                Bug is specific to native inputs in ifElse
+              </li>
+              <li>
+                <strong>Both fail:</strong> Bug affects all inputs in ifElse
+              </li>
+              <li>
+                <strong>Both work:</strong> Bug may be context-specific or fixed
+              </li>
             </ul>
           </div>
         </div>
       ),
     };
-  }
+  },
 );

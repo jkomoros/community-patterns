@@ -19,6 +19,7 @@ http://localhost:8000/SPACE-NAME/CHARM-ID
 ```
 
 **⚠️ COMMON MISTAKES TO AVOID:**
+
 - ❌ `http://localhost:5173/...` - WRONG PORT (that's the shell, not toolshed)
 - ❌ `http://localhost:8000/CHARM-ID` - MISSING SPACE NAME
 - ❌ `http://localhost:5173/CHARM-ID` - WRONG PORT AND MISSING SPACE
@@ -32,6 +33,7 @@ Use Playwright to navigate to: http://localhost:8000/SPACE-NAME/CHARM-ID
 ```
 
 **Example:**
+
 ```
 http://localhost:8000/claude-counter-1130-1/baedreicqpqie6td...
 ```
@@ -39,7 +41,10 @@ http://localhost:8000/claude-counter-1130-1/baedreicqpqie6td...
 ## Test Pattern Functionality
 
 Once the page loads:
-1. **Wait briefly before first snapshot** - Sometimes the initial load shows a login/registration screen for a moment. Wait 1-2 seconds before taking your first snapshot to ensure the pattern has fully rendered.
+
+1. **Wait briefly before first snapshot** - Sometimes the initial load shows a
+   login/registration screen for a moment. Wait 1-2 seconds before taking your
+   first snapshot to ensure the pattern has fully rendered.
 2. Take a snapshot to see the UI: `browser_snapshot`
 3. Interact with elements: click buttons, fill inputs, check boxes
 4. Verify behavior: check that counters increment, items are added, etc.
@@ -48,6 +53,7 @@ Once the page loads:
 ## Registering (First Time Only)
 
 If you see a login/registration page:
+
 1. Click "Register" or "Generate Passphrase"
 2. Follow the registration flow
 3. Then navigate back to the pattern URL
@@ -59,6 +65,7 @@ Use descriptive space names with the `claude-` prefix:
 **Format:** `claude-<pattern-name>-<MMDD>-<counter>`
 
 **Examples:**
+
 - `claude-counter-1130-1`
 - `claude-shopping-list-1201-2`
 - `claude-prompt-injection-tracker-1130-1`
@@ -66,6 +73,7 @@ Use descriptive space names with the `claude-` prefix:
 ## Testing Workflow
 
 **After deploying a new pattern:**
+
 ```
 1. Deploy with: deno task cf piece new --api-url http://localhost:8000 --identity ../labs/claude.key --space claude-my-pattern-1130-1 pattern.tsx
 2. Note the piece ID from output
@@ -76,6 +84,7 @@ Use descriptive space names with the `claude-` prefix:
 ```
 
 **After updating a pattern:**
+
 ```
 1. Deploy NEW instance with `piece new` (see warning below)
 2. Note the NEW piece ID
@@ -85,9 +94,12 @@ Use descriptive space names with the `claude-` prefix:
 
 **🚨 NEVER use `piece setsrc` to update patterns!**
 
-`piece setsrc` corrupts piece state and causes pieces to render blank on direct navigation. ALWAYS use `piece new` to deploy a fresh instance instead. Getting a new piece ID each time is expected and correct.
+`piece setsrc` corrupts piece state and causes pieces to render blank on direct
+navigation. ALWAYS use `piece new` to deploy a fresh instance instead. Getting a
+new piece ID each time is expected and correct.
 
 **When Playwright unavailable:**
+
 - Suggest user test manually in browser
 - Provide the URL to test
 - Ask them to report any issues
@@ -96,22 +108,29 @@ Use descriptive space names with the `claude-` prefix:
 
 **If screenshot shows login/registration screen instead of pattern:**
 
-The page may not have fully loaded. Wait 1-2 seconds before taking the first snapshot:
+The page may not have fully loaded. Wait 1-2 seconds before taking the first
+snapshot:
+
 ```
 Use browser_wait_for with time: 2 before taking the snapshot
 ```
 
-This is common when navigating to a pattern URL—the authentication check may briefly show the login screen before the pattern renders.
+This is common when navigating to a pattern URL—the authentication check may
+briefly show the login screen before the pattern renders.
 
 **If Playwright starts opening many tabs:**
 
-This can happen after user suspends/resumes their computer. The Chrome connection gets confused.
+This can happen after user suspends/resumes their computer. The Chrome
+connection gets confused.
 
 **Solution:** Ask user to:
-1. Quit the Chrome instance that Playwright opened (the one with "Chrome is being controlled by automated test software" banner)
+
+1. Quit the Chrome instance that Playwright opened (the one with "Chrome is
+   being controlled by automated test software" banner)
 2. Next Playwright command will open a fresh browser and work normally
 
 **Tell user:**
+
 ```
 Playwright's browser connection got confused after your computer woke up.
 Please quit the Chrome window with the yellow "automated test software" banner,

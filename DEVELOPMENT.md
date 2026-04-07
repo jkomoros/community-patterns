@@ -1,8 +1,10 @@
 # Development Guide
 
-This guide covers normal day-to-day pattern development workflows, best practices, and common patterns.
+This guide covers normal day-to-day pattern development workflows, best
+practices, and common patterns.
 
-**New to pattern development?** Start with [GETTING_STARTED.md](GETTING_STARTED.md) first.
+**New to pattern development?** Start with
+[GETTING_STARTED.md](GETTING_STARTED.md) first.
 
 ---
 
@@ -24,6 +26,7 @@ This guide covers normal day-to-day pattern development workflows, best practice
 ### Morning Setup
 
 **Option 1: Let Claude Code handle it (recommended)**
+
 ```bash
 cd ~/Code/community-patterns
 # Launch Claude Code - it will auto-start both dev servers
@@ -32,6 +35,7 @@ cd ~/Code/community-patterns
 **Option 2: Manual server startup**
 
 **Terminal 1: Toolshed (backend)**
+
 ```bash
 cd ~/Code/labs/packages/toolshed
 deno task dev
@@ -39,6 +43,7 @@ deno task dev
 ```
 
 **Terminal 2: Shell (frontend)**
+
 ```bash
 cd ~/Code/labs/packages/shell
 deno task dev-local
@@ -46,6 +51,7 @@ deno task dev-local
 ```
 
 **Terminal 3: Your Workspace**
+
 ```bash
 cd ~/Code/community-patterns
 # Updates are checked automatically when you launch Claude Code
@@ -54,8 +60,10 @@ cd ~/Code/community-patterns
 ### Development Cycle
 
 1. **Create/Edit Pattern** in `patterns/YOUR-USERNAME/`
-2. **Test Syntax**: `./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
-3. **Deploy**: Use launcher tool or ask Claude (see [Deploying Patterns](#deploying-patterns))
+2. **Test Syntax**:
+   `./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
+3. **Deploy**: Use launcher tool or ask Claude (see
+   [Deploying Patterns](#deploying-patterns))
 4. **Test in Browser**: Open `http://localhost:8000/space/charm-id`
 5. **Iterate**: Update with `piece setsrc` or re-deploy
 6. **Commit**: `git add`, `git commit`, `git push`
@@ -77,12 +85,14 @@ git push origin main
 ### Creating a New Pattern
 
 **1. Create the file in your namespace:**
+
 ```bash
 cd ~/Code/community-patterns/patterns/YOUR-USERNAME
 touch my-pattern.tsx
 ```
 
 **2. Start with basic structure:**
+
 ```typescript
 /// <cts-enable />
 import { Cell, Default, NAME, pattern, UI } from "commonfabric";
@@ -107,11 +117,12 @@ export default pattern<MyPatternInput, MyPatternOutput>(
       ),
       // Export properties
     };
-  }
+  },
 );
 ```
 
 **3. Build incrementally:**
+
 - Start with static UI
 - Add interactivity with bidirectional binding (`$checked`, `$value`)
 - Add handlers for complex operations
@@ -126,18 +137,21 @@ Before deploying, check that your pattern compiles correctly:
 ```
 
 This verifies:
+
 - TypeScript types are correct
 - All imports resolve
 - Pattern structure is valid
 - No syntax errors
 
-If you get errors, fix them before deploying. See [Troubleshooting](#troubleshooting) for common issues.
+If you get errors, fix them before deploying. See
+[Troubleshooting](#troubleshooting) for common issues.
 
 ---
 
 ## Deploying Patterns
 
-Once your pattern compiles, you can deploy it to test it in the browser. There are three methods:
+Once your pattern compiles, you can deploy it to test it in the browser. There
+are three methods:
 
 ### Method 1: Ask Claude (Easiest)
 
@@ -148,12 +162,14 @@ If you're working with Claude Code, just ask:
 ```
 
 Claude will:
+
 - Check syntax first
 - Deploy to an appropriate test space
 - Give you the URL to open
 - Handle any errors automatically
 
 **Pros:**
+
 - Easiest method - no commands to remember
 - Claude handles all the details
 - Automatic error handling and retry
@@ -170,6 +186,7 @@ cd ~/Code/community-patterns
 ```
 
 **Features:**
+
 - 🔄 **Recent patterns** - Shows your 10 most recently used patterns
 - 📁 **Browse mode** - Navigate through your patterns directory
 - 📅 **Smart spaces** - Suggests today's date space or increments last space
@@ -177,11 +194,13 @@ cd ~/Code/community-patterns
 - 🔗 **Auto-opens URL** - Shows full charm URL after deployment
 
 **Keyboard shortcuts:**
+
 - ↑/↓ - Navigate options
 - Enter - Select
 - Q - Quit/Cancel
 
 **Example workflow:**
+
 ```bash
 $ ./tools/launch.ts
 
@@ -211,11 +230,13 @@ Select space (↑/↓ to move, Enter to select):
 ```
 
 **The launcher will ask:**
+
 1. **Deployment target** - localhost or production (remembers your last choice)
 2. **Space** - Suggests recent spaces or today's date
 3. **Pattern** - Shows recent patterns or browse
 
 **Pros:**
+
 - Fast interactive workflow
 - Remembers your patterns, spaces, and deployment target
 - Smart space naming (date-based, incremental)
@@ -241,11 +262,13 @@ Use `./scripts/cf` commands when you need precise control:
 This outputs a piece ID like `baedreicqpqie6td...`
 
 **View in browser:**
+
 ```
 http://localhost:8000/test-space-1/CHARM-ID
 ```
 
-**IMPORTANT**: Always use `http://localhost:8000/SPACE-ID/CHARM-ID` format, not just `/charm/CHARM-ID`.
+**IMPORTANT**: Always use `http://localhost:8000/SPACE-ID/CHARM-ID` format, not
+just `/charm/CHARM-ID`.
 
 #### Update Deployed Pattern
 
@@ -260,7 +283,8 @@ After making changes to your pattern:
   patterns/YOUR-USERNAME/pattern.tsx
 ```
 
-Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows).
+Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on
+Windows).
 
 #### Inspect Pattern
 
@@ -287,6 +311,7 @@ export CF_IDENTITY=../labs/claude.key
 ```
 
 **Pros:**
+
 - Full control over all parameters
 - Scriptable (can use in automation)
 - Direct access to all cf CLI features
@@ -296,11 +321,14 @@ export CF_IDENTITY=../labs/claude.key
 ### Space Naming Conventions
 
 **For testing:**
-- `test-<username>-<counter>` - Simple sequential: `test-alice-1`, `test-alice-2`
+
+- `test-<username>-<counter>` - Simple sequential: `test-alice-1`,
+  `test-alice-2`
 - `<username>-<mmdd>-<counter>` - Date-based: `alice-1120-1`, `alice-1120-2`
 - `debug-<username>-<feature>` - Feature-specific: `debug-alice-shopping`
 
 **Tips:**
+
 - Use date-based spaces to organize by day: `jkomoros-1120-1`, `jkomoros-1120-2`
 - Increment counter for each new test within the same context
 - Launcher tool handles this automatically
@@ -308,6 +336,7 @@ export CF_IDENTITY=../labs/claude.key
 ### Deployment Troubleshooting
 
 **Servers not running?**
+
 ```bash
 # Check if servers are up
 lsof -ti:8000  # Toolshed (backend)
@@ -319,15 +348,18 @@ cd ~/Code/labs/packages/shell && deno task dev-local &
 ```
 
 **Wrong URL format?**
+
 - ✅ Correct: `http://localhost:8000/test-space/charm-id`
 - ❌ Wrong: `http://localhost:8000/charm/charm-id`
 
 **Pattern not updating?**
+
 1. Use `piece setsrc` to update (not `piece new` again)
 2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 3. Check you're using the correct piece ID
 
 **Identity key missing?**
+
 ```bash
 # Check it exists in labs directory
 ls ~/Code/labs/claude.key
@@ -362,6 +394,7 @@ Note: claude.key is in ../labs, not in the community-patterns directory
 **Folder conventions:**
 
 **`WIP/`** - Work in progress
+
 - Patterns you're actively developing
 - Experimental features
 - Not fully tested
@@ -369,23 +402,27 @@ Note: claude.key is in ../labs, not in the community-patterns directory
 - Move to root when stable
 
 **Importing from labs** - Direct cross-repo imports
+
 - Import patterns directly from `../../../labs/packages/patterns/...`
 - The `--root` flag is auto-injected by `scripts/cf` for cross-repo resolution
 - No need to copy files locally — always use the canonical version in labs
 - Everyone has labs cloned (required by `scripts/cf`)
 
 **Root level** - Stable/production patterns
+
 - Completed and tested
 - Ready for use or sharing
 - Well-documented
 - Can be organized into subdirectories if needed
 
 **Why this structure?**
+
 - Clear separation of work-in-progress vs stable
 - Easy to see what you're actively working on
 - Matches the structure used in the main patterns repo
 
 **Example workflow:**
+
 ```bash
 # 1. Start building in WIP/ — import from labs directly
 # In your .tsx file: import Counter from "../../../labs/packages/patterns/counter/counter.tsx";
@@ -427,19 +464,22 @@ patterns/YOUR-USERNAME/
 
 ### Using TODO Files as Working Memory
 
-For complex patterns, maintain a TODO file to track progress and design decisions.
+For complex patterns, maintain a TODO file to track progress and design
+decisions.
 
 **Location:** `patterns/YOUR-USERNAME/design/todo/pattern-name.md`
 
 **Example:** `patterns/jkomoros/design/todo/cheeseboard-schedule.md`
 
 **When to create:**
+
 - Pattern has multiple features or phases
 - Development spans multiple sessions
 - Design decisions need documentation
 - Pattern involves research or experimentation
 
 **What to include:**
+
 - **Requirements** - List of features to implement
 - **Design Decisions** - Why you chose approach X over Y
 - **Implementation Progress** - Checklist of completed/pending work
@@ -448,13 +488,16 @@ For complex patterns, maintain a TODO file to track progress and design decision
 - **Next Steps** - Clear priorities for future sessions
 
 **Example TODO file structure:**
+
 ```markdown
 # Cheeseboard Schedule - Development TODO
 
 ## Overview
+
 Fetches Cheeseboard pizza schedule, tracks ingredient preferences, ranks pizzas
 
 ## Implementation Progress
+
 - [x] Basic web fetch and parsing
 - [x] Ingredient extraction and cleaning
 - [x] Thumbs up/down UI
@@ -464,34 +507,40 @@ Fetches Cheeseboard pizza schedule, tracks ingredient preferences, ranks pizzas
 - [ ] Export preferences to other patterns
 
 ## Design Decisions
+
 - Using hash-based colors for neutral ingredients (distinctive but consistent)
 - Bold green/red for liked/disliked (high visibility)
 - Kept chronological order rather than sorting by score (easier to plan visits)
 
 ## Technical Notes
+
 - fetchData works with /api/agent-tools/web-read endpoint
 - Ingredient normalization handles plurals, synonyms, accents
 - computed() for reactive scoring - updates automatically
 - ifElse() for conditional rendering (ternaries don't work with elements)
 
 ## Next Steps
+
 - Add date filtering (show only upcoming pizzas)
 - Export ranked pizza list for calendar integration
 ```
 
 **Benefits:**
+
 - Resume work quickly in next session
 - Share context with collaborators
 - Document why decisions were made
 - Track pattern evolution over time
 
 **Update as you go:**
+
 - Mark tasks complete: `- [x] Feature implemented`
 - Add new learnings and decisions
 - Document blockers or questions
 - Keep next steps current
 
 **Difference from SNAPSHOT.md:**
+
 - TODO files are **permanent** (checked into git)
 - SNAPSHOT.md is **temporary** (delete after reading)
 - TODO documents full development journey
@@ -520,11 +569,15 @@ const MyList = pattern<{ items: Cell<Item[]> }>(({ items }) => {
             <cf-checkbox $checked={item.done}>{item.title}</cf-checkbox>
 
             {/* Remove button */}
-            <button onClick={() => {
-              const current = items.get();
-              const index = current.findIndex(el => Cell.equals(item, el));
-              if (index >= 0) items.set(current.toSpliced(index, 1));
-            }}>×</button>
+            <button
+              onClick={() => {
+                const current = items.get();
+                const index = current.findIndex((el) => Cell.equals(item, el));
+                if (index >= 0) items.set(current.toSpliced(index, 1));
+              }}
+            >
+              ×
+            </button>
           </div>
         ))}
 
@@ -548,18 +601,18 @@ const MyList = pattern<{ items: Cell<Item[]> }>(({ items }) => {
 ```typescript
 const MyFilteredList = pattern<{ items: Default<Item[], []> }>(({ items }) => {
   // Computed values update automatically
-  const activeItems = computed(() => items.filter(item => !item.done));
-  const completedItems = computed(() => items.filter(item => item.done));
+  const activeItems = computed(() => items.filter((item) => !item.done));
+  const completedItems = computed(() => items.filter((item) => item.done));
 
   return {
     [NAME]: "Filtered List",
     [UI]: (
       <div>
         <h3>Active ({activeItems.length})</h3>
-        {activeItems.map(item => <div>{item.title}</div>)}
+        {activeItems.map((item) => <div>{item.title}</div>)}
 
         <h3>Completed ({completedItems.length})</h3>
-        {completedItems.map(item => <div>{item.title}</div>)}
+        {completedItems.map((item) => <div>{item.title}</div>)}
       </div>
     ),
     items,
@@ -583,15 +636,15 @@ const AIPattern = pattern<{ prompt: Cell<string> }>(({ prompt }) => {
       <div>
         <cf-input $value={prompt} placeholder="Enter prompt..." />
 
-        {result.pending ? (
-          <div>Generating...</div>
-        ) : result.error ? (
-          <div>Error: {result.error}</div>
-        ) : (
-          <ul>
-            {result.result.ideas.map(idea => <li>{idea}</li>)}
-          </ul>
-        )}
+        {result.pending
+          ? <div>Generating...</div>
+          : result.error
+          ? <div>Error: {result.error}</div>
+          : (
+            <ul>
+              {result.result.ideas.map((idea) => <li>{idea}</li>)}
+            </ul>
+          )}
       </div>
     ),
     prompt,
@@ -607,24 +660,24 @@ See `patterns/examples/` for more working examples.
 
 ### DO
 
-✅ **Use bidirectional binding** (`$checked`, `$value`) for simple UI updates
-✅ **Test incrementally** - Deploy and test often
-✅ **Commit frequently** - Small, working increments
-✅ **Reference examples** - Check `patterns/examples/` when stuck
-✅ **Use computed()** for data transformations outside JSX
-✅ **Keep patterns focused** - One clear purpose per pattern
+✅ **Use bidirectional binding** (`$checked`, `$value`) for simple UI updates ✅
+**Test incrementally** - Deploy and test often ✅ **Commit frequently** - Small,
+working increments ✅ **Reference examples** - Check `patterns/examples/` when
+stuck ✅ **Use computed()** for data transformations outside JSX ✅ **Keep
+patterns focused** - One clear purpose per pattern
 
 ### DON'T
 
-❌ **Don't use handlers for simple updates** - Use bidirectional binding
-❌ **Don't access DOM directly** - Use cells and reactive patterns
-❌ **Don't use ternaries for conditional rendering** - Use `ifElse()`
-❌ **Don't call generateObject from handlers** - Only in pattern body
-❌ **Don't forget Cell<>** in signatures when you need `.set()`, `.update()`, etc.
+❌ **Don't use handlers for simple updates** - Use bidirectional binding ❌
+**Don't access DOM directly** - Use cells and reactive patterns ❌ **Don't use
+ternaries for conditional rendering** - Use `ifElse()` ❌ **Don't call
+generateObject from handlers** - Only in pattern body ❌ **Don't forget Cell<>**
+in signatures when you need `.set()`, `.update()`, etc.
 
 ### Type System
 
 **Use `Cell<>` only when you need write access:**
+
 ```typescript
 // ✅ Read-only (still reactive!)
 interface ReadOnlyInput {
@@ -634,18 +687,19 @@ interface ReadOnlyInput {
 
 // ✅ Write access (can mutate)
 interface WritableInput {
-  count: Cell<number>;      // Can call count.set()
-  items: Cell<Item[]>;      // Can call items.push()
+  count: Cell<number>; // Can call count.set()
+  items: Cell<Item[]>; // Can call items.push()
 }
 ```
 
 **In handlers, always use `Cell<T[]>` not `Cell<OpaqueRef<T>[]>`:**
+
 ```typescript
 // ✅ Correct
 const addItem = handler<unknown, { items: Cell<Item[]> }>(
   (_, { items }) => {
     items.push({ title: "New", done: false });
-  }
+  },
 );
 
 // ❌ Wrong
@@ -657,12 +711,14 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Styling
 
 **HTML elements use object syntax:**
+
 ```typescript
 <div style={{ display: "flex", padding: "1rem" }}>
 <span style={{ color: "red", fontWeight: "bold" }}>
 ```
 
 **Custom elements use string syntax:**
+
 ```typescript
 <common-hstack style="display: flex; padding: 1rem;">
 <cf-card style="border: 1px solid #ccc;">
@@ -675,6 +731,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Pattern Won't Compile
 
 **Check**:
+
 1. Missing imports? `import { Cell, ... } from "commonfabric"`
 2. Type errors? Look at the error message carefully
 3. Forgot `/// <cts-enable />`?
@@ -683,6 +740,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Pattern Won't Deploy
 
 **Check**:
+
 1. Are both dev servers running? Check ports 8000 (toolshed) and 5173 (shell)
    - Claude Code auto-starts them, or manually:
    - `cd ~/Code/labs/packages/toolshed && deno task dev`
@@ -694,6 +752,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Changes Not Showing
 
 **Solutions**:
+
 1. Did you run `piece setsrc` after changes?
 2. Hard refresh browser: Cmd+Shift+R (Mac), Ctrl+Shift+R (Windows)
 3. Check you're at right URL: `http://localhost:8000/space/charm-id`
@@ -701,7 +760,9 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Type Errors
 
 **Common issues**:
-- **"Type 'string' not assignable to 'CSSProperties'"** → Using string style on HTML element (use object)
+
+- **"Type 'string' not assignable to 'CSSProperties'"** → Using string style on
+  HTML element (use object)
 - **"Property 'set' does not exist"** → Missing `Cell<>` in signature
 - **Handler type mismatch** → Check `Cell<T[]>` vs `Cell<OpaqueRef<T>[]>`
 
@@ -714,21 +775,25 @@ See `~/Code/labs/docs/common/DEBUGGING.md` for more.
 ### Example Patterns
 
 **In this repo** (`patterns/examples/`):
+
 - `counter.tsx` - Simple counter
 - `todo-list.tsx` - List with add/remove
 - More added over time
 
 **In labs repo** (`~/Code/labs/packages/patterns/`):
+
 - Framework example patterns
 - Advanced techniques
 
 ### Documentation
 
 **In this repo**:
+
 - `GETTING_STARTED.md` - Initial setup
 - `DEVELOPMENT.md` - This file
 
 **In labs repo** (`~/Code/labs/docs/common/`):
+
 - `PATTERNS.md` - Pattern examples and levels
 - `COMPONENTS.md` - UI components reference
 - `CELLS_AND_REACTIVITY.md` - Reactivity system
@@ -766,9 +831,11 @@ Your fork can be private (only you see it) or public (others can browse).
 
 ### Working Directly on Upstream Repository
 
-**If you have direct access to jkomoros/community-patterns** (e.g., you're jkomoros or a collaborator):
+**If you have direct access to jkomoros/community-patterns** (e.g., you're
+jkomoros or a collaborator):
 
-**IMPORTANT: You MUST use branches and Pull Requests. Direct pushes to main are not allowed.**
+**IMPORTANT: You MUST use branches and Pull Requests. Direct pushes to main are
+not allowed.**
 
 ```bash
 # Create a feature branch
@@ -814,11 +881,13 @@ gh pr create \
 ```
 
 **Merge Policy:**
+
 - All PRs are merged using `--rebase` (preserves individual commit history)
 - NOT `--squash` or `--merge`
 - This keeps a linear, easy-to-follow git history
 
-Your patterns will be reviewed and merged, appearing in `patterns/YOUR-USERNAME/` for everyone!
+Your patterns will be reviewed and merged, appearing in
+`patterns/YOUR-USERNAME/` for everyone!
 
 ---
 
@@ -860,6 +929,7 @@ patterns/YOUR-USERNAME/
 ```
 
 Use relative imports:
+
 ```typescript
 // In main.tsx
 import { MySchema } from "./schemas.tsx";
@@ -887,7 +957,8 @@ patterns/YOUR-USERNAME/
 ./scripts/cf piece new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
 ```
 
-This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports from `../shared/`.
+This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports
+from `../shared/`.
 
 ---
 
@@ -896,18 +967,21 @@ This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports fro
 ### Deployment Methods
 
 **Easiest:**
+
 ```bash
 # Just ask Claude Code
 "Deploy my pattern to a test space"
 ```
 
 **Interactive (recommended for direct use):**
+
 ```bash
 cd ~/Code/community-patterns
 ./tools/launch.ts              # Asks: localhost or production?
 ```
 
 **Manual (full control):**
+
 ```bash
 # Test syntax
 ./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run

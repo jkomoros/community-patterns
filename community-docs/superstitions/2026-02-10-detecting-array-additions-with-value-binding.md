@@ -1,13 +1,14 @@
 # Detecting Array Additions with $value Binding
 
-**Date:** 2026-02-10
-**Status:** superstition
-**Confidence:** medium
-**Stars:** 3
+**Date:** 2026-02-10 **Status:** superstition **Confidence:** medium **Stars:**
+3
 
 ## TL;DR - The Rule
 
-**When using `$value` binding with `multiple` mode on cf-autocomplete (or similar), the array updates directly without selection events. To detect additions for side effects like telemetry, use `oncf-change` with a `previousValues` tracking pattern.**
+**When using `$value` binding with `multiple` mode on cf-autocomplete (or
+similar), the array updates directly without selection events. To detect
+additions for side effects like telemetry, use `oncf-change` with a
+`previousValues` tracking pattern.**
 
 ```typescript
 // Track previous state to detect additions
@@ -15,7 +16,11 @@ const previousTags = Writable.of<string[]>([]).for("previousTags");
 
 const onTagsChanged = handler<
   { value: string | string[]; oldValue: string | string[] },
-  { tags: Writable<string[]>; previousTags: Writable<string[]>; onAdd: (tag: string) => void }
+  {
+    tags: Writable<string[]>;
+    previousTags: Writable<string[]>;
+    onAdd: (tag: string) => void;
+  }
 >((event, { tags, previousTags, onAdd }) => {
   const current = tags.get() || [];
   const previous = previousTags.get() || [];
@@ -37,16 +42,22 @@ const onTagsChanged = handler<
 
 ## Summary
 
-The `$value` binding on cf-autocomplete with `multiple` mode provides bidirectional data binding - the array updates automatically as users add/remove items. However, there's no built-in way to detect when a specific item was *added* vs just the array changing.
+The `$value` binding on cf-autocomplete with `multiple` mode provides
+bidirectional data binding - the array updates automatically as users add/remove
+items. However, there's no built-in way to detect when a specific item was
+_added_ vs just the array changing.
 
 This is needed for:
+
 - Posting telemetry events when tags are added
 - Triggering side effects only on additions
 - Distinguishing adds from removes
 
 ## Why This Pattern Works
 
-The `oncf-change` event fires whenever the value changes, but it only provides the current and previous values - not a diff. By maintaining a separate `previousTags` Writable, we can compute the diff ourselves:
+The `oncf-change` event fires whenever the value changes, but it only provides
+the current and previous values - not a diff. By maintaining a separate
+`previousTags` Writable, we can compute the diff ourselves:
 
 1. **On each change:** Compare `current` to `previousTags`
 2. **Compute additions:** Filter items in current that aren't in previous
@@ -58,12 +69,13 @@ The `oncf-change` event from cf-autocomplete has this detail structure:
 
 ```typescript
 interface CtChangeEvent {
-  value: string | string[];    // Current value
+  value: string | string[]; // Current value
   oldValue: string | string[]; // Previous value (may not be reliable across renders)
 }
 ```
 
-**Note:** `oldValue` from the event may not be reliable across render cycles. Using a persistent `previousTags` Writable is more reliable.
+**Note:** `oldValue` from the event may not be reliable across render cycles.
+Using a persistent `previousTags` Writable is more reliable.
 
 ## Complete Pattern
 
@@ -114,7 +126,7 @@ const onTagsChanged = handler<
   multiple
   $value={tags}
   oncf-change={onTagsChanged({ tags, previousTags, scope, aggregatorStream })}
-/>
+/>;
 ```
 
 ## Detecting Removals Too
@@ -134,15 +146,18 @@ for (const tag of removed) {
 
 You might think `oncf-select` would work for detecting additions, but:
 
-1. **Across cf-render boundaries:** `event.detail` is undefined (see related superstition)
-2. **With $value binding:** The component may not fire select events when value binding handles the update
+1. **Across cf-render boundaries:** `event.detail` is undefined (see related
+   superstition)
+2. **With $value binding:** The component may not fire select events when value
+   binding handles the update
 3. **Multiple mode:** Selection behavior differs from single-select
 
 The `previousTags` pattern works reliably regardless of these edge cases.
 
 ## Alternative: Use derive to Watch for Changes
 
-If you only need reactive UI updates (not imperative side effects), you can use `derive`:
+If you only need reactive UI updates (not imperative side effects), you can use
+`derive`:
 
 ```typescript
 const newAdditions = derive(tags, previousTags, (current, previous) => {
@@ -154,8 +169,10 @@ But for side effects like telemetry, the handler approach is more appropriate.
 
 ## Related Superstitions
 
-- `2026-02-10-custom-event-detail-undefined-in-cf-render.md` - Why `$value` binding is preferred over event handlers
-- `2026-02-10-cross-charm-stream-invocation-via-wish.md` - How to call streams for telemetry
+- `2026-02-10-custom-event-detail-undefined-in-cf-render.md` - Why `$value`
+  binding is preferred over event handlers
+- `2026-02-10-cross-charm-stream-invocation-via-wish.md` - How to call streams
+  for telemetry
 
 ## Metadata
 
@@ -175,8 +192,14 @@ applies_to: [CommonTools]
 
 ## Guestbook
 
-- 2026-02-10 - Discovered while implementing folksonomy-tags pattern that needed to post telemetry events when tags were added. Since `$value` binding updates the array directly without selection events, we needed a way to detect additions. The `previousTags` tracking pattern reliably computes the diff on each change. (community-wisdom-tag-list)
+- 2026-02-10 - Discovered while implementing folksonomy-tags pattern that needed
+  to post telemetry events when tags were added. Since `$value` binding updates
+  the array directly without selection events, we needed a way to detect
+  additions. The `previousTags` tracking pattern reliably computes the diff on
+  each change. (community-wisdom-tag-list)
 
 ---
 
-**Remember:** With `$value` binding on multi-select components, track previous state yourself to detect additions/removals. The `oncf-change` event fires on any change, but you need to compute the diff.
+**Remember:** With `$value` binding on multi-select components, track previous
+state yourself to detect additions/removals. The `oncf-change` event fires on
+any change, but you need to compute the diff.

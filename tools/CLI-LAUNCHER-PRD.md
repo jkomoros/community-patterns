@@ -1,10 +1,14 @@
 # Pattern Launcher CLI - Product Requirements Document
 
 ## Overview
-A simple, interactive CLI tool to quickly deploy CommonTools patterns without typing long bash commands.
+
+A simple, interactive CLI tool to quickly deploy CommonTools patterns without
+typing long bash commands.
 
 ## Problem Statement
+
 Currently deploying a pattern requires:
+
 ```bash
 read -p "Space name: " SPACE && \
 export CF_IDENTITY="/Users/alex/Code/labs/claude.key" && \
@@ -13,6 +17,7 @@ export CF_API_URL="http://localhost:8000/" && \
 ```
 
 **Pain points:**
+
 - Command is too long to type repeatedly
 - Difficult to change pattern path
 - Must be in shell history to reuse
@@ -20,8 +25,10 @@ export CF_API_URL="http://localhost:8000/" && \
 - No memory of last space name used
 
 ## Goals
+
 1. **Quick launch**: Single command to deploy any pattern
-2. **Pattern history**: Remember and quickly reuse patterns you've deployed before
+2. **Pattern history**: Remember and quickly reuse patterns you've deployed
+   before
 3. **Space memory**: Remember last space name used
 4. **Easy discovery**: Browse filesystem for new patterns
 5. **Simple & scrappy**: Start basic, add features incrementally
@@ -29,6 +36,7 @@ export CF_API_URL="http://localhost:8000/" && \
 ## User Experience
 
 ### Launch Command
+
 ```bash
 ./launch.ts
 # or with deno:
@@ -38,16 +46,19 @@ deno run --allow-all launch.ts
 ### Interactive Flow
 
 **Step 1: Deployment Target**
+
 ```
 Select deployment target (↑/↓ to move, Enter to select):
 
 → 💻 localhost:8000 (last used)
   🌐 production (api.commonfabric.io)
 ```
+
 - Press Enter → uses last deployment target
 - Arrow keys → switch between localhost and production
 
 **Step 2: Space Name**
+
 ```
 Select space (↑/↓ to move, Enter to select):
 
@@ -55,10 +66,12 @@ Select space (↑/↓ to move, Enter to select):
   test-alex-6 (next)
   ✨ Enter new space name...
 ```
+
 - Press Enter → uses last space for this deployment target
 - Each target (localhost/production) tracks spaces separately
 
 **Step 3: Pattern Selection**
+
 ```
 Select a pattern:
   [Recent Patterns]
@@ -74,15 +87,18 @@ Enter selection: █
 ```
 
 **If browsing (option 'b'):**
+
 ```
 Browse for pattern (enter absolute path):
 /Users/alex/Code/community-patterns/patterns/jkomoros/WIP/█
 ```
+
 - Simple text input
 - Tab completion handled by shell
 - Validates file exists and is .tsx
 
 **Step 3: Deployment**
+
 ```
 Deploying...
   Pattern: patterns/jkomoros/WIP/cozy-poll.tsx
@@ -102,6 +118,7 @@ Press Enter to continue...
 ## Technical Design
 
 ### File Structure
+
 ```
 community-patterns/
 ├── launch.ts           # Main CLI script
@@ -109,6 +126,7 @@ community-patterns/
 ```
 
 ### Config File Format (.launcher-config)
+
 ```json
 {
   "lastSpace": "test-alex-5",
@@ -126,6 +144,7 @@ community-patterns/
 ```
 
 ### Environment Variables
+
 ```typescript
 // Default values
 const API_URL = prod ? "https://api.commonfabric.io" : "http://localhost:8000/";
@@ -146,24 +165,28 @@ const LABS_DIR = "/Users/alex/Code/labs";
 ### Implementation Strategy
 
 **Phase 1: MVP (Start here)**
+
 - Basic interactive prompts using Deno.stdin
 - Config file with JSON
 - Recent patterns list (last 10)
 - Simple deployment command execution
 
 **Phase 2: Polish**
+
 - Better error handling
 - Colored output
 - Relative time display ("2 min ago")
 - Input validation
 
 **Phase 3: Nice-to-haves**
+
 - Auto-complete for pattern paths
 - Pattern favorites/pinning
 - Multiple identity file support
 - Pattern metadata (description, tags)
 
 ## Non-Requirements (V1)
+
 - ❌ GUI interface
 - ❌ Pattern editing
 - ❌ Deployment history beyond "last used"
@@ -171,12 +194,14 @@ const LABS_DIR = "/Users/alex/Code/labs";
 - ❌ Pattern search/filtering (just recency sort)
 
 ## Success Criteria
+
 1. Can deploy a pattern in < 10 seconds
 2. Don't need to remember bash command anymore
 3. Can switch between patterns easily
 4. Never lose track of which patterns you've used
 
 ## Open Questions
+
 1. Should we support relative paths or only absolute?
    - **Decision**: Absolute paths for now (simpler, no ambiguity)
 
@@ -192,6 +217,7 @@ const LABS_DIR = "/Users/alex/Code/labs";
 ## Implementation Notes
 
 ### Deno Permissions Required
+
 ```bash
 deno run \
   --allow-read \    # Read config file and pattern files
@@ -204,6 +230,7 @@ deno run \
 Or just: `deno run --allow-all launch.ts`
 
 ### Key Deno APIs
+
 - `Deno.stdin.readable` - For interactive input
 - `Deno.readTextFile()` - Read config
 - `Deno.writeTextFile()` - Write config
@@ -211,6 +238,7 @@ Or just: `deno run --allow-all launch.ts`
 - `Deno.env.set()` - Set environment variables
 
 ## Example Session
+
 ```bash
 $ deno run --allow-all launch.ts
 

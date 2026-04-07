@@ -8,7 +8,16 @@
  * CLAIM: After page refresh in dev spaces, @ mentions should show dropdown
  * with available charms, and oncf-send receives mentions array.
  */
-import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commonfabric";
+import {
+  Cell,
+  Default,
+  handler,
+  NAME,
+  OpaqueRef,
+  pattern,
+  UI,
+  wish,
+} from "commonfabric";
 
 interface Item {
   name: string;
@@ -45,14 +54,16 @@ const AtReferenceTest = pattern<Input, Output>(
     >(({ detail }, { items, lastAction }) => {
       const { mentions, text } = detail;
 
-      lastAction.set(`Received: text="${text}", mentions=${mentions?.length || 0}`);
+      lastAction.set(
+        `Received: text="${text}", mentions=${mentions?.length || 0}`,
+      );
 
       if (mentions && mentions.length > 0) {
         const currentItems = items.get();
         const newItems = mentions.filter((mention: any) => {
           // Dedup using .equals() as superstition describes
           return !currentItems.some((existing) => {
-            if (typeof existing === 'object' && 'equals' in existing) {
+            if (typeof existing === "object" && "equals" in existing) {
               return (existing as any).equals(mention);
             }
             return false;
@@ -74,10 +85,20 @@ const AtReferenceTest = pattern<Input, Output>(
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
           <h2>@ Reference Test</h2>
 
-          <div style={{ marginBottom: "20px", padding: "15px", background: "#f5f5f5", borderRadius: "8px" }}>
+          <div
+            style={{
+              marginBottom: "20px",
+              padding: "15px",
+              background: "#f5f5f5",
+              borderRadius: "8px",
+            }}
+          >
             <h3>Instructions:</h3>
             <ol>
-              <li>Refresh page once after first deploy (BacklinksIndex needs to populate)</li>
+              <li>
+                Refresh page once after first deploy (BacklinksIndex needs to
+                populate)
+              </li>
               <li>Type "@" in the input below</li>
               <li>A dropdown should appear with available charms</li>
               <li>Select a charm and press Send</li>
@@ -106,29 +127,33 @@ const AtReferenceTest = pattern<Input, Output>(
 
           <div>
             <h3>Added Items ({items.length}):</h3>
-            {items.length === 0 ? (
-              <p style={{ color: "#666" }}>No items yet. Use @ mention to add.</p>
-            ) : (
-              items.map((item, index) => (
-                <div
-                  key={index}
-                  style={{
-                    padding: "10px",
-                    margin: "5px 0",
-                    background: "#e8f5e9",
-                    borderRadius: "4px",
-                  }}
-                >
-                  Item {index + 1}: {item.name || "(loading...)"}
-                </div>
-              ))
-            )}
+            {items.length === 0
+              ? (
+                <p style={{ color: "#666" }}>
+                  No items yet. Use @ mention to add.
+                </p>
+              )
+              : (
+                items.map((item, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      padding: "10px",
+                      margin: "5px 0",
+                      background: "#e8f5e9",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    Item {index + 1}: {item.name || "(loading...)"}
+                  </div>
+                ))
+              )}
           </div>
         </div>
       ),
       items,
     };
-  }
+  },
 );
 
 export default AtReferenceTest;

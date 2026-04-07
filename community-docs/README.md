@@ -1,12 +1,15 @@
 # Community Docs - Superstitions
 
-Empirical observations discovered during pattern development that haven't yet been verified or upstreamed to official documentation.
+Empirical observations discovered during pattern development that haven't yet
+been verified or upstreamed to official documentation.
 
 ## Important
 
-**These are NOT official framework documentation.** Always check `~/Code/labs/docs/common/` first.
+**These are NOT official framework documentation.** Always check
+`~/Code/labs/docs/common/` first.
 
-Superstitions capture single observations - things that seemed to work in a specific context but may be coincidence, misunderstanding, or context-specific.
+Superstitions capture single observations - things that seemed to work in a
+specific context but may be coincidence, misunderstanding, or context-specific.
 
 ## Superstitions (⚠️ Treat With Skepticism)
 
@@ -14,9 +17,8 @@ Superstitions capture single observations - things that seemed to work in a spec
 
 Single observations only. May be wrong, incomplete, or context-specific.
 
-**Reliability:** Unknown - highly suspect
-**When to use:** When completely stuck and nothing else works
-**Caution:** DO NOT trust without thorough verification
+**Reliability:** Unknown - highly suspect **When to use:** When completely stuck
+and nothing else works **Caution:** DO NOT trust without thorough verification
 
 Each superstition has a prominent warning disclaimer at the top.
 
@@ -27,11 +29,13 @@ Each superstition has a prominent warning disclaimer at the top.
 **Priority order:**
 
 1. **Check official docs first:** `~/Code/labs/docs/common/`
-2. **Check superstitions:** `community-docs/superstitions/` (with extreme skepticism)
+2. **Check superstitions:** `community-docs/superstitions/` (with extreme
+   skepticism)
 
 ### If a Superstition Works
 
-If you verify a superstition is correct, **upstream it to labs docs** instead of keeping it here:
+If you verify a superstition is correct, **upstream it to labs docs** instead of
+keeping it here:
 
 1. Identify the appropriate doc in `~/Code/labs/docs/common/`
 2. Add the information to that doc
@@ -51,7 +55,8 @@ If you verify a superstition is correct, **upstream it to labs docs** instead of
    ```
 
 2. **Create file:** `superstitions/YYYY-MM-DD-topic-brief-description.md`
-   - Use topic prefixes: `types-`, `reactivity-`, `jsx-`, `handlers-`, `llm-`, `patterns-`, etc.
+   - Use topic prefixes: `types-`, `reactivity-`, `jsx-`, `handlers-`, `llm-`,
+     `patterns-`, etc.
 
 3. **Copy template** from `superstitions/README.md`
 
@@ -73,6 +78,7 @@ If you verify a superstition is correct, **upstream it to labs docs** instead of
 **Format:** `YYYY-MM-DD-topic-brief-description.md`
 
 **Topic prefixes:**
+
 - `patterns-` - Pattern structure and composition
 - `reactivity-` - Cells, computed, reactive values
 - `types-` - TypeScript type issues
@@ -83,8 +89,11 @@ If you verify a superstition is correct, **upstream it to labs docs** instead of
 - `debugging-` - General debugging strategies
 - `framework-` - Core framework behavior
 
-Verified knowledge should be upstreamed directly to `~/Code/labs/docs/common/` rather than maintained separately here. Community-patterns only holds unverified superstitions.
+Verified knowledge should be upstreamed directly to `~/Code/labs/docs/common/`
+rather than maintained separately here. Community-patterns only holds unverified
+superstitions.
 
 ---
 
-**Remember:** Superstitions are a safety net for edge cases, not a primary reference. When in doubt, trust official docs!
+**Remember:** Superstitions are a safety net for edge cases, not a primary
+reference. When in doubt, trust official docs!

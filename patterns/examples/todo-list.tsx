@@ -47,11 +47,9 @@ export default pattern<TodoListInput, TodoListOutput>(
                 {/* Bidirectional binding - checkbox automatically updates item.done */}
                 <cf-checkbox $checked={item.done}>
                   <span
-                    style={
-                      item.done
-                        ? { textDecoration: "line-through", color: "#999" }
-                        : {}
-                    }
+                    style={item.done
+                      ? { textDecoration: "line-through", color: "#999" }
+                      : {}}
                   >
                     {item.title}
                   </span>
@@ -77,7 +75,7 @@ export default pattern<TodoListInput, TodoListOutput>(
           {/* Add new item */}
           <cf-message-input
             placeholder="Add new task..."
-            oncf-send={(e: { detail: { message: string; }; }) => {
+            oncf-send={(e: { detail: { message: string } }) => {
               const title = e.detail?.message?.trim();
               if (title) {
                 items.push({ title, done: false });
@@ -88,5 +86,5 @@ export default pattern<TodoListInput, TodoListOutput>(
       ),
       items,
     };
-  }
+  },
 );
