@@ -130,7 +130,7 @@ OTEL_ENABLED=false
 
 ## REQUIRED: Anthropic API Key
 # Get from: https://console.anthropic.com/
-CTTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-their-actual-key-here
+CFTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-their-actual-key-here
 
 ## OPTIONAL: Jina AI web reader API key (only needed for web search in patterns)
 # Get from: https://jina.ai/
