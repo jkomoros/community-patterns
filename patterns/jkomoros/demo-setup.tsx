@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { pattern } from "commonfabric";
+import { NAME, pattern, UI } from "commonfabric";
 import SpaceSetup from "./space-setup.tsx";
 import { DEMO_PERSON_NOTES, DEMO_RECIPE_NOTES } from "./demo-constants.ts";
 
@@ -35,7 +35,13 @@ Then create a Food Recipe charm with only the notes field populated:
 
 Use the exact content and structure provided.`;
 
-  return SpaceSetup({
-    instructions: DEMO_INSTRUCTIONS,
-  });
+  // Wrap the child pattern as a JSX element so its [NAME] / [UI] flow through
+  // this pattern's output. Returning `SpaceSetup({...})` directly used to work
+  // in the old framework but now yields an OpaqueRef the shell can't render.
+  // See labs/packages/patterns/counter/counter.tsx (_CounterView) for the
+  // canonical "pattern as JSX element" wrapper idiom.
+  return {
+    [NAME]: "Space Setup (Demo)",
+    [UI]: <SpaceSetup instructions={DEMO_INSTRUCTIONS} />,
+  };
 });

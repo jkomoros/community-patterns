@@ -10,6 +10,7 @@ import {
   pattern,
   Stream,
   UI,
+  type VNode,
   Writable,
 } from "commonfabric";
 
@@ -26,7 +27,7 @@ type Input = {
 
 type Output = {
   [NAME]: string;
-  [UI]: unknown;
+  [UI]: VNode;
   messages: BuiltInLLMMessage[];
   executeSetup: Stream<void>;
 };
