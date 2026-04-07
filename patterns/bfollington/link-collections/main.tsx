@@ -7,7 +7,7 @@ import {
   pattern,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 import type {
   Collection,
   Link,
@@ -125,12 +125,12 @@ export default pattern<LinkCollectionsInput, LinkCollectionsOutput>(
             >
               New Collection
             </div>
-            <ct-input
+            <cf-input
               $value={nameInput}
               placeholder="Collection name"
               style="width: 100%; margin-bottom: 0.5rem;"
             />
-            <ct-input
+            <cf-input
               $value={descInput}
               placeholder="Description (optional)"
               style="width: 100%; margin-bottom: 0.75rem;"

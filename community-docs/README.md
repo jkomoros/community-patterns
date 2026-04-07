@@ -79,7 +79,7 @@ If you verify a superstition is correct, **upstream it to labs docs** instead of
 - `jsx-` - JSX rendering, components, styling
 - `handlers-` - Handler functions and event handling
 - `llm-` - LLM integration
-- `deployment-` - Deployment, ct CLI, servers
+- `deployment-` - Deployment, cf CLI, servers
 - `debugging-` - General debugging strategies
 - `framework-` - Core framework behavior
 

@@ -8,23 +8,23 @@ description: >
 
 # Pattern Development Best Practices
 
-## CT Commands: Use `./scripts/ct` Wrapper
+## CT Commands: Use `./scripts/cf` Wrapper
 
-**CRITICAL: Always use `./scripts/ct` for all ct commands:**
+**CRITICAL: Always use `./scripts/cf` for all ct commands:**
 
 ```bash
 # ✅ CORRECT - Use the wrapper from community-patterns
-./scripts/ct dev patterns/$GITHUB_USER/pattern.tsx --no-run
+./scripts/cf dev patterns/$GITHUB_USER/pattern.tsx --no-run
 
-# ❌ WRONG - Don't cd to labs and use deno task ct
+# ❌ WRONG - Don't cd to labs and use deno task cf
 cd ~/Code/labs
-deno task ct dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
+deno task cf dev ../community-patterns/patterns/$GITHUB_USER/pattern.tsx --no-run
 ```
 
 **Why the wrapper exists:**
 - Automatically handles directory changes to labs
 - Uses `$INIT_CWD` to preserve path resolution from community-patterns
-- Matches the permission rule `Bash(./scripts/ct:*)` - no prompts!
+- Matches the permission rule `Bash(./scripts/cf:*)` - no prompts!
 - Pattern paths stay simple: `patterns/$GITHUB_USER/foo.tsx`
 
 **For detailed deployment commands**, see the **deployment skill**.
@@ -144,9 +144,9 @@ echo "Both servers restarted"
 - Toolshed: `/tmp/toolshed-dev.log`
 - Shell: `/tmp/shell-dev.log`
 
-## Debugging with `<ct-cell-context>`
+## Debugging with `<cf-cell-context>`
 
-`<ct-cell-context>` is a debugging tool that annotates regions of the page with cell data. It's better than sprinkling `console.log` everywhere because inspection is conditional—users can watch and unwatch values on demand.
+`<cf-cell-context>` is a debugging tool that annotates regions of the page with cell data. It's better than sprinkling `console.log` everywhere because inspection is conditional—users can watch and unwatch values on demand.
 
 **When to use (sparingly, typically 1-2 per pattern):**
 - Important values that are otherwise difficult to access
@@ -155,9 +155,9 @@ echo "Both servers restarted"
 
 **Usage:**
 ```tsx
-<ct-cell-context $cell={result} label="Calculation Result">
+<cf-cell-context $cell={result} label="Calculation Result">
   <div>{result.value}</div>
-</ct-cell-context>
+</cf-cell-context>
 ```
 
 **API:**
@@ -176,7 +176,7 @@ Hold **Alt** and hover over a cell context region to see the debugging toolbar:
 - Don't use for trivial or obviously-accessible values
 - If a value is already easy to inspect via the UI, you probably don't need this
 
-**Note:** Every `[UI]` render is automatically wrapped in `ct-cell-context`, so you get top-level piece debugging for free.
+**Note:** Every `[UI]` render is automatically wrapped in `cf-cell-context`, so you get top-level piece debugging for free.
 
 ## Working with labs Repository
 

@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: derive() vs Direct Cell Access in generateObject
  *
@@ -10,8 +11,8 @@
  * 1. User input (typing in real-time)
  * 2. Static data in map()
  */
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
-import { generateObject } from "commontools";
+import { Cell, Default, derive, handler, NAME, pattern, UI } from "commonfabric";
+import { generateObject } from "commonfabric";
 
 // Simple schema for testing
 interface Sentiment {
@@ -115,7 +116,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
           <div style={{ marginBottom: "30px", border: "2px solid #2196f3", padding: "15px", borderRadius: "8px" }}>
             <h3>User Input Tests</h3>
             <p>Type below and watch both results:</p>
-            <ct-input
+            <cf-input
               $value={userInput}
               placeholder="Type something..."
               style={{ width: "300px", marginBottom: "10px" }}

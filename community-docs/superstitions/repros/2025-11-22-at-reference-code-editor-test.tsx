@@ -1,13 +1,14 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
- * Repro: @ Reference with ct-code-editor
+ * Repro: @ Reference with cf-code-editor
  *
- * Tests whether ct-code-editor's onbacklink-create provides actual Cell references.
+ * Tests whether cf-code-editor's onbacklink-create provides actual Cell references.
  * Uses [[ wiki-link syntax (not @).
  *
  * CLAIM: onbacklink-create receives detail.charm as Cell reference
  */
-import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commontools";
+import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commonfabric";
 
 interface Item {
   name: string;
@@ -32,7 +33,7 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
     // Track mentioned items
     const mentioned = Cell.of<any[]>([]);
 
-    // Handler for backlink-create event (ct-code-editor specific)
+    // Handler for backlink-create event (cf-code-editor specific)
     const handleBacklinkCreate = handler<
       {
         detail: {
@@ -74,7 +75,7 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
       [NAME]: "Code Editor Backlink Test",
       [UI]: (
         <div style={{ padding: "20px", fontFamily: "system-ui" }}>
-          <h2>ct-code-editor Backlink Test</h2>
+          <h2>cf-code-editor Backlink Test</h2>
 
           <div style={{ marginBottom: "20px", padding: "15px", background: "#f5f5f5", borderRadius: "8px" }}>
             <h3>Instructions:</h3>
@@ -91,7 +92,7 @@ const CodeEditorBacklinkTest = pattern<Input, Output>(
           </div>
 
           <div style={{ marginBottom: "20px", border: "1px solid #ccc", borderRadius: "4px" }}>
-            <ct-code-editor
+            <cf-code-editor
               $value={editorText}
               $mentionable={mentionable}
               $mentioned={mentioned}

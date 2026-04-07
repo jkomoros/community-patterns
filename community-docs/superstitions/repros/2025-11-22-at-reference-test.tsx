@@ -1,13 +1,14 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: @ Reference Support for OpaqueRef Arrays
  *
- * Tests whether wish("#mentionable") + ct-prompt-input enables @ referencing.
+ * Tests whether wish("#mentionable") + cf-prompt-input enables @ referencing.
  *
  * CLAIM: After page refresh in dev spaces, @ mentions should show dropdown
- * with available charms, and onct-send receives mentions array.
+ * with available charms, and oncf-send receives mentions array.
  */
-import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commontools";
+import { Cell, Default, handler, NAME, OpaqueRef, pattern, UI, wish } from "commonfabric";
 
 interface Item {
   name: string;
@@ -92,10 +93,10 @@ const AtReferenceTest = pattern<Input, Output>(
           </div>
 
           <div style={{ marginBottom: "20px" }}>
-            <ct-prompt-input
+            <cf-prompt-input
               placeholder="Type @ to mention charms..."
               $mentionable={mentionable}
-              onct-send={addMentions({ items, lastAction })}
+              oncf-send={addMentions({ items, lastAction })}
             />
           </div>
 

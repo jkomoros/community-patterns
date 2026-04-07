@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Reactive Style Objects in JSX
  *
@@ -8,9 +9,9 @@
  * CLAIM: Individual computed values within style object don't update reactively
  * WORKAROUND: Use single computed returning entire style object
  */
-import { cell, computed, handler, NAME, recipe, UI } from "commontools";
+import { cell, computed, handler, NAME, pattern, UI } from "commonfabric";
 
-export default recipe(
+export default pattern(
   "reactive-style-test",
   ({ isActive }: { isActive: boolean }) => {
     // === APPROACH 1: Individual computed properties (claimed to NOT work) ===

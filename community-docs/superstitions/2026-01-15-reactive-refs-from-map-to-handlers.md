@@ -150,7 +150,7 @@ The `todo-list.tsx` pattern appears to use `equals(item, el)` inside an inline o
 
 ```tsx
 {items.map((item) => (
-  <ct-button
+  <cf-button
     onClick={() => {
       const current = items.get();
       const index = current.findIndex((el) => equals(item, el));
@@ -160,7 +160,7 @@ The `todo-list.tsx` pattern appears to use `equals(item, el)` inside an inline o
     }}
   >
     ×
-  </ct-button>
+  </cf-button>
 ))}
 ```
 

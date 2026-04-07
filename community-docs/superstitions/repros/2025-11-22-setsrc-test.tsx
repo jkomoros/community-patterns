@@ -3,7 +3,7 @@
  * Simple pattern for testing charm setsrc behavior
  * Version 2 - UPDATED via setsrc test
  */
-import { Default, NAME, pattern, UI } from "commontools";
+import { Default, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   version: Default<string, "v2-setsrc">;

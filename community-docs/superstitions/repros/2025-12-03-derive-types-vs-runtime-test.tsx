@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: derive() Object Parameter - Types vs Runtime
  *
@@ -9,7 +10,7 @@
  *
  * This test verifies current behavior.
  */
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   flag: Default<boolean, true>;

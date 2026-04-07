@@ -8,7 +8,7 @@ Add an interactive charm linking feature to the Pattern Launcher (`tools/launch.
 
 Currently linking charms requires:
 ```bash
-cd ../labs && deno task ct charm link \
+cd ../labs && deno task cf charm link \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space my-space \
@@ -318,13 +318,13 @@ async function interactiveFieldLinker(
 
 ```bash
 # List charms in space
-deno task ct charm ls --space $SPACE --api-url $API_URL --identity $IDENTITY
+deno task cf charm ls --space $SPACE --api-url $API_URL --identity $IDENTITY
 
 # Inspect a charm (get source/result data)
-deno task ct charm inspect --space $SPACE --charm $CHARM_ID --api-url $API_URL --identity $IDENTITY --json
+deno task cf charm inspect --space $SPACE --charm $CHARM_ID --api-url $API_URL --identity $IDENTITY --json
 
 # Create a link
-deno task ct charm link --space $SPACE --api-url $API_URL --identity $IDENTITY $SOURCE_PATH $TARGET_PATH
+deno task cf charm link --space $SPACE --api-url $API_URL --identity $IDENTITY $SOURCE_PATH $TARGET_PATH
 ```
 
 ### Type Inference Strategy

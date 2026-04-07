@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Pre-populated Defaults + generateObject in map()
  *
@@ -9,8 +10,8 @@
  * Test A: Pre-populated default (reported broken)
  * Test B: Empty default + handler (reported working)
  */
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
-import { generateObject } from "commontools";
+import { Cell, Default, derive, handler, NAME, pattern, UI } from "commonfabric";
+import { generateObject } from "commonfabric";
 
 interface Sentiment {
   sentiment: "positive" | "negative" | "neutral";

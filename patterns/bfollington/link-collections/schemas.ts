@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Default, Writable } from "commontools";
+import { Default, Writable } from "commonfabric";
 
 /**
  * Link Collections - Data Types

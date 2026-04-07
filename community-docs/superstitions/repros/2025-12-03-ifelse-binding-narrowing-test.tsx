@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: ifElse Input Binding Narrowing Test
  *
@@ -11,7 +12,7 @@
  * If Test B works but Test A doesn't → transformer issue
  * If both fail → deeper runtime issue
  */
-import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, ifElse, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   showInputA: Default<boolean, true>;
@@ -51,7 +52,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
     const inputUIB = (
       <div style={{ background: "#e8f5e9", padding: "15px", borderRadius: "8px" }}>
         <p><strong>Input B (pulled out):</strong></p>
-        <ct-input
+        <cf-input
           $value={inputValueB}
           placeholder="Type here..."
           style={{ width: "200px", marginRight: "10px" }}
@@ -98,7 +99,7 @@ export default pattern<Input, { [NAME]: string; [UI]: JSX.Element }>(
               // INLINE UI - this is the pattern that's reported broken
               <div style={{ background: "#ffebee", padding: "15px", borderRadius: "8px" }}>
                 <p><strong>Input A (inline):</strong></p>
-                <ct-input
+                <cf-input
                   $value={inputValueA}
                   placeholder="Type here..."
                   style={{ width: "200px", marginRight: "10px" }}

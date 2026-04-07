@@ -134,7 +134,7 @@ community-patterns/        # THIS REPO (user's fork or direct)
 
 **Importing from labs** - Direct cross-repo imports
 - Import patterns directly from `../../../labs/packages/patterns/...`
-- The `--root` flag is auto-injected by `scripts/ct` for cross-repo resolution
+- The `--root` flag is auto-injected by `scripts/cf` for cross-repo resolution
 - No need to copy files locally — always use the canonical version in labs
 
 **Root level** - Stable patterns
@@ -239,7 +239,7 @@ $LABS_DIR/scripts/restart-local-dev.sh --force --clear-cache  # Both
 **For day-to-day pattern development, use the `pattern-development` skill.**
 
 The pattern-development skill covers:
-- Always using `deno task ct` (never `ct` directly)
+- Always using `deno task cf` (never the underlying `cf` binary directly)
 - Space naming conventions for testing
 - Communication guidelines
 - Incremental development and commit practices
@@ -369,7 +369,7 @@ Common mistakes when deploying without reading the skill:
 - ❌ Using `http://localhost:5173` (WRONG - that's the frontend)
 - ❌ Forgetting required parameters (--api-url, --identity, --space)
 - ❌ Missing space name in URL
-- ❌ Using `ct` directly instead of `deno task ct`
+- ❌ Bypassing `./scripts/cf` instead of using the wrapper
 
 **The deployment skill contains CRITICAL deployment rules that MUST be followed.**
 

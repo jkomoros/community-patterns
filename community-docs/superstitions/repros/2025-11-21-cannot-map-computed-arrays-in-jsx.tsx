@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Cannot Map Computed Arrays in JSX
  *
@@ -14,9 +15,9 @@
  *   });
  *   // In JSX: {itemsDisplay}
  */
-import { computed, handler, NAME, recipe, UI } from "commontools";
+import { computed, handler, NAME, pattern, UI } from "commonfabric";
 
-export default recipe(
+export default pattern(
   "computed-array-map-repro",
   ({ counter }: { counter: number }) => {
     // Computed array - mapping over this in JSX will fail

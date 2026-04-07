@@ -53,7 +53,7 @@ This will:
 Select deployment target (↑/↓ to move, Enter to select):
 
 → 💻 localhost:8000 (last used)
-  🌐 production (api.commontools.io)
+  🌐 production (api.commonfabric.io)
 
 [Use arrow keys, press Enter]
 ```

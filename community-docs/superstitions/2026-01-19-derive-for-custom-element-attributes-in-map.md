@@ -12,12 +12,12 @@
 ```tsx
 // BROKEN - Direct property access passes undefined to attribute
 {notes.map((note) => (
-  <ct-copy-button text={note.content} />  // text is undefined!
+  <cf-copy-button text={note.content} />  // text is undefined!
 ))}
 
 // CORRECT - derive() extracts the actual string value
 {notes.map((note) => (
-  <ct-copy-button text={derive(note, (n) => n.content)} />  // text is correct!
+  <cf-copy-button text={derive(note, (n) => n.content)} />  // text is correct!
 ))}
 ```
 
@@ -36,7 +36,7 @@ Inside a `.map()` callback over a reactive array, each item (e.g., `note`) is wr
 **For custom element attributes, this DOES NOT work** - custom elements (web components) expect actual values, not reactive references:
 
 ```tsx
-<ct-copy-button text={note.content} />  // Broken! Passes undefined
+<cf-copy-button text={note.content} />  // Broken! Passes undefined
 ```
 
 The `derive()` function properly resolves the reactive reference and passes the actual string value to the attribute.
@@ -45,7 +45,7 @@ The `derive()` function properly resolves the reactive reference and passes the 
 
 1. **Items in `.map()` are reactive cells** - The framework wraps each item to enable fine-grained reactivity
 2. **Property access returns reactive references** - `note.content` is itself a cell reference, not a string
-3. **Custom elements expect plain values** - Web components like `ct-copy-button` receive attributes as-is without reactive unwrapping
+3. **Custom elements expect plain values** - Web components like `cf-copy-button` receive attributes as-is without reactive unwrapping
 4. **No error is thrown** - The attribute is simply `undefined` or `null`, making debugging difficult
 
 This contrasts with the JSX transformer's behavior for text content and style properties, where reactive values are automatically unwrapped.
@@ -64,10 +64,10 @@ This pattern appears when rendering a list with custom UI components:
 ```tsx
 // BROKEN: Direct property access to custom element attribute
 {items.map((item) => (
-  <ct-card>
-    <ct-copy-button text={item.text} />  {/* text is undefined */}
+  <cf-card>
+    <cf-copy-button text={item.text} />  {/* text is undefined */}
     <my-custom-element data={item.data} /> {/* data is undefined */}
-  </ct-card>
+  </cf-card>
 ))}
 ```
 
@@ -78,10 +78,10 @@ Use `derive()` to extract values for custom element attributes:
 ```tsx
 // CORRECT: derive() extracts the actual value
 {items.map((item) => (
-  <ct-card>
-    <ct-copy-button text={derive(item, (i) => i.text)} />
+  <cf-card>
+    <cf-copy-button text={derive(item, (i) => i.text)} />
     <my-custom-element data={derive(item, (i) => i.data)} />
-  </ct-card>
+  </cf-card>
 ))}
 ```
 
@@ -91,7 +91,7 @@ You can also use `derive()` for formatting or transformations:
 {notes.map((note) => (
   <>
     <span>{derive(note, (n) => formatDate(n.date))}</span>
-    <ct-copy-button text={derive(note, (n) => n.content)} />
+    <cf-copy-button text={derive(note, (n) => n.content)} />
   </>
 ))}
 ```
@@ -99,13 +99,13 @@ You can also use `derive()` for formatting or transformations:
 ## Real-World Example
 
 **Pattern:** Email Notes
-**Bug:** `ct-copy-button` wasn't receiving the note content, so clicking "Copy" copied nothing
+**Bug:** `cf-copy-button` wasn't receiving the note content, so clicking "Copy" copied nothing
 
 ### Before (Broken)
 
 ```tsx
 {notes.map((note) => (
-  <ct-copy-button
+  <cf-copy-button
     text={note.content}  // undefined!
     variant="outline"
     size="sm"
@@ -119,7 +119,7 @@ You can also use `derive()` for formatting or transformations:
 
 ```tsx
 {notes.map((note) => (
-  <ct-copy-button
+  <cf-copy-button
     text={derive(note, (n) => n.content)}  // correctly passes string
     variant="outline"
     size="sm"
@@ -169,7 +169,7 @@ applies_to: [CommonTools]
 
 ## Guestbook
 
-- 2026-01-19 - Email Notes pattern `ct-copy-button` fix. The copy button's `text` attribute was receiving `undefined` when using `text={note.content}` inside `.map()`. Fixed by using `text={derive(note, (n) => n.content)}`. The issue is that custom elements (web components) don't automatically unwrap reactive references like JSX text interpolation does. (email-notes-copy-button-fix)
+- 2026-01-19 - Email Notes pattern `cf-copy-button` fix. The copy button's `text` attribute was receiving `undefined` when using `text={note.content}` inside `.map()`. Fixed by using `text={derive(note, (n) => n.content)}`. The issue is that custom elements (web components) don't automatically unwrap reactive references like JSX text interpolation does. (email-notes-copy-button-fix)
 
 ---
 

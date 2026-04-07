@@ -1,4 +1,5 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Framework Auto-Boxes Array Items; Use .equals() Instance Method
  *
@@ -10,7 +11,7 @@
  * 3. In handler, try to find item via .equals()
  * 4. Compare results
  */
-import { Cell, Default, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Item {
   id: number;

@@ -144,7 +144,7 @@ aggregatorStream.send(data);
 
 ## Related Superstitions
 
-- `2026-02-10-custom-event-detail-undefined-in-ct-render.md` - Related to cross-charm communication issues
+- `2026-02-10-custom-event-detail-undefined-in-cf-render.md` - Related to cross-charm communication issues
 - `2026-01-19-handlers-writable-wrapper-on-default-types.md` - Handler binding patterns (local only)
 
 ## Related Documentation

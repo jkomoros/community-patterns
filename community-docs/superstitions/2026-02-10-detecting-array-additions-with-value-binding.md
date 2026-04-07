@@ -7,7 +7,7 @@
 
 ## TL;DR - The Rule
 
-**When using `$value` binding with `multiple` mode on ct-autocomplete (or similar), the array updates directly without selection events. To detect additions for side effects like telemetry, use `onct-change` with a `previousValues` tracking pattern.**
+**When using `$value` binding with `multiple` mode on cf-autocomplete (or similar), the array updates directly without selection events. To detect additions for side effects like telemetry, use `oncf-change` with a `previousValues` tracking pattern.**
 
 ```typescript
 // Track previous state to detect additions
@@ -37,7 +37,7 @@ const onTagsChanged = handler<
 
 ## Summary
 
-The `$value` binding on ct-autocomplete with `multiple` mode provides bidirectional data binding - the array updates automatically as users add/remove items. However, there's no built-in way to detect when a specific item was *added* vs just the array changing.
+The `$value` binding on cf-autocomplete with `multiple` mode provides bidirectional data binding - the array updates automatically as users add/remove items. However, there's no built-in way to detect when a specific item was *added* vs just the array changing.
 
 This is needed for:
 - Posting telemetry events when tags are added
@@ -46,7 +46,7 @@ This is needed for:
 
 ## Why This Pattern Works
 
-The `onct-change` event fires whenever the value changes, but it only provides the current and previous values - not a diff. By maintaining a separate `previousTags` Writable, we can compute the diff ourselves:
+The `oncf-change` event fires whenever the value changes, but it only provides the current and previous values - not a diff. By maintaining a separate `previousTags` Writable, we can compute the diff ourselves:
 
 1. **On each change:** Compare `current` to `previousTags`
 2. **Compute additions:** Filter items in current that aren't in previous
@@ -54,7 +54,7 @@ The `onct-change` event fires whenever the value changes, but it only provides t
 
 ## The Event Shape
 
-The `onct-change` event from ct-autocomplete has this detail structure:
+The `oncf-change` event from cf-autocomplete has this detail structure:
 
 ```typescript
 interface CtChangeEvent {
@@ -104,16 +104,16 @@ const onTagsChanged = handler<
 });
 ```
 
-### Step 3: Bind to ct-autocomplete
+### Step 3: Bind to cf-autocomplete
 
 ```typescript
-<ct-autocomplete
+<cf-autocomplete
   items={autocompleteItems}
   placeholder="Add a tag..."
   allowCustom
   multiple
   $value={tags}
-  onct-change={onTagsChanged({ tags, previousTags, scope, aggregatorStream })}
+  oncf-change={onTagsChanged({ tags, previousTags, scope, aggregatorStream })}
 />
 ```
 
@@ -130,11 +130,11 @@ for (const tag of removed) {
 }
 ```
 
-## Why Not Use onct-select?
+## Why Not Use oncf-select?
 
-You might think `onct-select` would work for detecting additions, but:
+You might think `oncf-select` would work for detecting additions, but:
 
-1. **Across ct-render boundaries:** `event.detail` is undefined (see related superstition)
+1. **Across cf-render boundaries:** `event.detail` is undefined (see related superstition)
 2. **With $value binding:** The component may not fire select events when value binding handles the update
 3. **Multiple mode:** Selection behavior differs from single-select
 
@@ -154,13 +154,13 @@ But for side effects like telemetry, the handler approach is more appropriate.
 
 ## Related Superstitions
 
-- `2026-02-10-custom-event-detail-undefined-in-ct-render.md` - Why `$value` binding is preferred over event handlers
+- `2026-02-10-custom-event-detail-undefined-in-cf-render.md` - Why `$value` binding is preferred over event handlers
 - `2026-02-10-cross-charm-stream-invocation-via-wish.md` - How to call streams for telemetry
 
 ## Metadata
 
 ```yaml
-topic: events, ct-autocomplete, array-tracking, telemetry
+topic: events, cf-autocomplete, array-tracking, telemetry
 discovered: 2026-02-10
 confirmed_count: 1
 last_confirmed: 2026-02-10
@@ -179,4 +179,4 @@ applies_to: [CommonTools]
 
 ---
 
-**Remember:** With `$value` binding on multi-select components, track previous state yourself to detect additions/removals. The `onct-change` event fires on any change, but you need to compute the diff.
+**Remember:** With `$value` binding on multi-select components, track previous state yourself to detect additions/removals. The `oncf-change` event fires on any change, but you need to compute the diff.

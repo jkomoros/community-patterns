@@ -9,7 +9,7 @@ import {
   str,
   UI,
   Writable,
-} from "commontools";
+} from "commonfabric";
 import type {
   Collection,
   CollectionDetailInput,
@@ -176,7 +176,7 @@ const startEditing = handler<
   editingLinkUrl.set(link.url);
   editTitle.set(link.title);
   editUrl.set(link.url);
-  editDesc.set(link.description || "");
+  editDesc.set((link.description as string) || "");
 });
 
 // Handler to save edits to a link
@@ -405,7 +405,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                 </button>
                 {ifElse(
                   derive(exportOutput, (o: string) => o.length > 0),
-                  <ct-textarea
+                  <cf-textarea
                     $value={exportOutput}
                     style="width: 100%; min-height: 100px; font-family: monospace; font-size: 0.75rem;"
                   />,
@@ -425,7 +425,7 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                 >
                   Import (paste JSON)
                 </div>
-                <ct-textarea
+                <cf-textarea
                   $value={importInput}
                   placeholder='{"links": [{"title": "...", "url": "..."}]}'
                   style="width: 100%; min-height: 80px; font-family: monospace; font-size: 0.75rem; margin-bottom: 0.5rem;"
@@ -472,17 +472,17 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
             >
               Add Link
             </div>
-            <ct-input
+            <cf-input
               $value={titleInput}
               placeholder="Title"
               style="width: 100%; margin-bottom: 0.5rem;"
             />
-            <ct-input
+            <cf-input
               $value={urlInput}
               placeholder="URL (https://...)"
               style="width: 100%; margin-bottom: 0.5rem;"
             />
-            <ct-input
+            <cf-input
               $value={descInput}
               placeholder="Notes (optional)"
               style="width: 100%; margin-bottom: 0.75rem;"
@@ -534,21 +534,21 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                     {ifElse(
                       computed(() =>
                         editingLinkUrl.get() !== "" &&
-                        editingLinkUrl.get() === (link as unknown as Link).url
+                        editingLinkUrl.get() === (link as Link).url
                       ),
                       // Edit mode
                       <div>
-                        <ct-input
+                        <cf-input
                           $value={editTitle}
                           placeholder="Title"
                           style="width: 100%; margin-bottom: 0.5rem;"
                         />
-                        <ct-input
+                        <cf-input
                           $value={editUrl}
                           placeholder="URL"
                           style="width: 100%; margin-bottom: 0.5rem;"
                         />
-                        <ct-textarea
+                        <cf-textarea
                           $value={editDesc}
                           placeholder="Notes..."
                           style="width: 100%; margin-bottom: 0.5rem; min-height: 60px;"
@@ -714,13 +714,9 @@ export default pattern<CollectionDetailInput, CollectionDetailOutput>(
                             {derive(links, (allLinksInCollection: Link[]) =>
                               allLinksInCollection
                                 .filter((other) => {
-                                  const currentUrl =
-                                    (link as unknown as { url: string }).url;
+                                  const currentUrl = (link as Link).url;
                                   const relatedUrls = (
-                                    (link as unknown as {
-                                      relatedLinks?: Link[];
-                                    })
-                                      .relatedLinks || []
+                                    ((link as Link).relatedLinks) || []
                                   ).map((r) => r.url);
                                   return (
                                     other.url !== currentUrl &&

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Wrapper for ct CLI - handles directory changes internally
-# This allows simple allowlisting via Bash(./scripts/ct:*)
+# Wrapper for cf CLI - handles directory changes internally
+# This allows simple allowlisting via Bash(./scripts/cf:*)
 set -e
 
 # Find labs as peer directory to community-patterns repo root
@@ -19,9 +19,9 @@ export INIT_CWD="$REPO_ROOT"
 cd "$LABS_DIR"
 
 if [[ "${1:-}" == "piece" && "${2:-}" == "new" ]]; then
-  exec deno task ct piece new --root "$PARENT_DIR" "${@:3}"
+  exec deno task cf piece new --root "$PARENT_DIR" "${@:3}"
 elif [[ "${1:-}" == "dev" || "${1:-}" == "check" ]]; then
-  exec deno task ct "$1" --root "$PARENT_DIR" "${@:2}"
+  exec deno task cf "$1" --root "$PARENT_DIR" "${@:2}"
 else
-  exec deno task ct "$@"
+  exec deno task cf "$@"
 fi

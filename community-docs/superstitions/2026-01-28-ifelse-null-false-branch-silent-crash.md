@@ -113,9 +113,9 @@ blank despite the charm loading successfully with correct server-side data.
 {
   ifElse(
     computed(() => extractedStyles.get().length > 0),
-    <ct-vstack>
+    <cf-vstack>
       {extractedStyles.map((style) => <div>{style.name}: {style.value}</div>)}
-    </ct-vstack>,
+    </cf-vstack>,
     null,
   );
 }
@@ -130,9 +130,9 @@ blank. Zero console errors.
 {
   ifElse(
     computed(() => extractedStyles.get().length > 0),
-    <ct-vstack>
+    <cf-vstack>
       {extractedStyles.map((style) => <div>{style.name}: {style.value}</div>)}
-    </ct-vstack>,
+    </cf-vstack>,
     <div />,
   );
 }

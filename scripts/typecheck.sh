@@ -18,14 +18,13 @@ is_pattern() {
   # This works for all pattern variants:
   #   - export default pattern<...>(...)
   #   - const X = pattern<...>(...); export default X
-  #   - const X = recipe<...>(...); export default X
   grep -q "export default" "$1"
 }
 
-CT_ROOT_ARGS=()
+CF_ROOT_ARGS=()
 # Auto-inject --root for cross-repo import resolution (e.g., imports from ../labs/)
 if [ -d "$PROJECT_ROOT/../labs" ]; then
-  CT_ROOT_ARGS=(--root "$PROJECT_ROOT/..")
+  CF_ROOT_ARGS=(--root "$PROJECT_ROOT/..")
 fi
 
 check_file() {
@@ -38,7 +37,7 @@ check_file() {
   fi
 
   echo "Checking $file..."
-  if ! ct dev "$file" --no-run "${CT_ROOT_ARGS[@]}"; then
+  if ! cf dev "$file" --no-run "${CF_ROOT_ARGS[@]}"; then
     echo "❌ Error in $file"
     FAILED_FILES+=("$file")
   fi

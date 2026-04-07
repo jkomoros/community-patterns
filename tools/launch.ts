@@ -904,7 +904,7 @@ async function fetchCharmSchema(
     const command = new Deno.Command("deno", {
       args: [
         "task",
-        "ct",
+        "cf",
         "piece",
         "inspect",
         "--space",
@@ -1098,7 +1098,7 @@ async function importCharmsFromSpace(
     const command = new Deno.Command("deno", {
       args: [
         "task",
-        "ct",
+        "cf",
         "piece",
         "ls",
         "--space",
@@ -1223,7 +1223,7 @@ async function viewCharmLinks(
     const command = new Deno.Command("deno", {
       args: [
         "task",
-        "ct",
+        "cf",
         "piece",
         "inspect",
         "--space",
@@ -1354,7 +1354,7 @@ async function createCharmLink(
 
   // Debug: print what we're running
   console.log(
-    `   Running: deno task ct piece link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`,
+    `   Running: deno task cf piece link --space ${space} \\\n     ${sourceRef} \\\n     ${targetRef}`,
   );
   console.log(`   CWD: ${labsDir}`);
   console.log(`   API: ${apiUrl}`);
@@ -1363,7 +1363,7 @@ async function createCharmLink(
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "ct",
+      "cf",
       "piece",
       "link",
       "--space",
@@ -2739,8 +2739,8 @@ async function deployPattern(
   console.log(`  Identity: ${IDENTITY_PATH}\n`);
 
   // Set environment variables
-  Deno.env.set("CT_IDENTITY", IDENTITY_PATH);
-  Deno.env.set("CT_API_URL", apiUrl);
+  Deno.env.set("CF_IDENTITY", IDENTITY_PATH);
+  Deno.env.set("CF_API_URL", apiUrl);
 
   // Run deployment command - capture output to extract charm ID
   // Pass --root so patterns with ../ imports (e.g., extractors importing
@@ -2758,7 +2758,7 @@ async function deployPattern(
   const command = new Deno.Command("deno", {
     args: [
       "task",
-      "ct",
+      "cf",
       "piece",
       "new",
       "--root",

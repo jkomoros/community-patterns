@@ -22,9 +22,9 @@ This was discovered in `reward-spinner.tsx` and confirmed in `store-mapper.tsx` 
 <!-- Source: repros/2025-11-21-cannot-map-computed-arrays-in-jsx.tsx -->
 ```tsx
 /// <cts-enable />
-import { cell, computed, handler, NAME, recipe, UI } from "commontools";
+import { cell, computed, handler, NAME, recipe, UI } from "commonfabric";
 
-export default recipe(
+export default pattern(
   "computed-array-map-test",
   ({ counter }: { counter: number }) => {
     // Computed array - this is the problem

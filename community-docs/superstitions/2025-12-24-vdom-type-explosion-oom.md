@@ -28,7 +28,7 @@ TypeScript's type inference tries to deeply analyze the entire VDOM tree structu
 
 ```typescript
 // ❌ BAD - causes OOM during TypeScript compilation
-export const MyModule = recipe<MyInput, MyInput>(
+export const MyModule = pattern<MyInput, MyInput>(
   "MyModule",
   (input) => {
     return {
@@ -55,11 +55,11 @@ interface MyModuleOutput extends MyInput {
   settingsUI: unknown;  // `unknown` prevents deep type inference
   fabUI: unknown;
   sidebarUI: unknown;
-  embeddedUI: unknown;  // Minimal UI for ct-render variant="embedded"
+  embeddedUI: unknown;  // Minimal UI for cf-render variant="embedded"
   previewUI: unknown;   // Preview UI for pickers/lists
 }
 
-export const MyModule = recipe<MyInput, MyModuleOutput>(
+export const MyModule = pattern<MyInput, MyModuleOutput>(
   "MyModule",
   (input) => {
     return {
@@ -110,7 +110,7 @@ export default pattern<CharmsListInput, CharmsListOutput>((_) => {
   return {
     backlinksIndex: index,
     [NAME]: computed(() => `DefaultCharmList (${visibleCharms.length})`),
-    [UI]: <ct-screen>...</ct-screen>,
+    [UI]: <cf-screen>...</cf-screen>,
     sidebarUI: undefined,
     fabUI: fab[UI],
   };

@@ -1,10 +1,11 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: derive() Object Parameter Cell Unwrapping
  *
  * CLAIM: Single Cell param is auto-unwrapped, object param is NOT
  */
-import { Cell, Default, derive, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, derive, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Input {
   flag: Default<boolean, false>;

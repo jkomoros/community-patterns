@@ -7,9 +7,9 @@ A simple, interactive CLI tool to quickly deploy CommonTools patterns without ty
 Currently deploying a pattern requires:
 ```bash
 read -p "Space name: " SPACE && \
-export CT_IDENTITY="/Users/alex/Code/labs/claude.key" && \
-export CT_API_URL="http://localhost:8000/" && \
-(cd /Users/alex/Code/labs && deno task ct charm new --space "$SPACE" /path/to/pattern.tsx)
+export CF_IDENTITY="/Users/alex/Code/labs/claude.key" && \
+export CF_API_URL="http://localhost:8000/" && \
+(cd /Users/alex/Code/labs && deno task cf charm new --space "$SPACE" /path/to/pattern.tsx)
 ```
 
 **Pain points:**
@@ -42,7 +42,7 @@ deno run --allow-all launch.ts
 Select deployment target (↑/↓ to move, Enter to select):
 
 → 💻 localhost:8000 (last used)
-  🌐 production (api.commontools.io)
+  🌐 production (api.commonfabric.io)
 ```
 - Press Enter → uses last deployment target
 - Arrow keys → switch between localhost and production
@@ -90,7 +90,7 @@ Deploying...
   API: http://localhost:8000
   Identity: /Users/alex/Code/labs/claude.key
 
-Running: deno task ct charm new --space test-alex-5 ...
+Running: deno task cf charm new --space test-alex-5 ...
 [output from deployment command]
 
 ✓ Deployed successfully!
@@ -128,7 +128,7 @@ community-patterns/
 ### Environment Variables
 ```typescript
 // Default values
-const API_URL = prod ? "https://api.commontools.io" : "http://localhost:8000/";
+const API_URL = prod ? "https://api.commonfabric.io" : "http://localhost:8000/";
 const IDENTITY_PATH = "/Users/alex/Code/labs/claude.key";
 const LABS_DIR = "/Users/alex/Code/labs";
 ```
@@ -196,7 +196,7 @@ const LABS_DIR = "/Users/alex/Code/labs";
 deno run \
   --allow-read \    # Read config file and pattern files
   --allow-write \   # Write config file
-  --allow-run \     # Run deno task ct command
+  --allow-run \     # Run deno task cf command
   --allow-env \     # Set environment variables
   launch.ts
 ```

@@ -139,9 +139,9 @@ From shopping-list.tsx (working pattern):
 ```typescript
 // Line 512 - Direct binding inside .map()
 {items.map((item) => (
-  <ct-button onClick={removeItem({ items, item })}>
+  <cf-button onClick={removeItem({ items, item })}>
     ×
-  </ct-button>
+  </cf-button>
 ))}
 ```
 

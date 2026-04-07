@@ -113,7 +113,7 @@ Don't create if it already exists or is in official docs!
 - `jsx-` - JSX rendering, components, styling
 - `handlers-` - Handler functions and event handling
 - `llm-` - LLM integration (generateObject, generateText)
-- `deployment-` - Deployment, ct CLI, servers
+- `deployment-` - Deployment, cf CLI, servers
 - `debugging-` - General debugging strategies
 - `framework-` - Core framework behavior
 

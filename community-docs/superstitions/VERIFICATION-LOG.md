@@ -6,12 +6,12 @@ When a superstition is removed, also remove its entry from this log.
 
 ---
 
-## 2025-01-23-ct-image-input-base64-overhead.md
+## 2025-01-23-cf-image-input-base64-overhead.md
 
 **Last verified:** 2025-12-02
 **Status:** confirmed
 **Evidence level:** low (confirmed_count=1)
-**Notes:** Valid guidance. ct-image-input compresses to maxSizeBytes target (raw bytes), then base64 encodes. Pattern developers must account for ~33% base64 overhead when interfacing with APIs that have encoded size limits. food-recipe.tsx correctly uses 75% of API limit.
+**Notes:** Valid guidance. cf-image-input compresses to maxSizeBytes target (raw bytes), then base64 encodes. Pattern developers must account for ~33% base64 overhead when interfacing with APIs that have encoded size limits. food-recipe.tsx correctly uses 75% of API limit.
 
 ---
 
@@ -58,17 +58,17 @@ When a superstition is removed, also remove its entry from this log.
 **Evidence level:** medium (active repro testing)
 **Notes:** ACTIVELY VERIFIED. Mixed results:
 - ✅ `wish("#mentionable")` works - returns charms in space (no refresh needed in test)
-- ✅ `ct-prompt-input` @ dropdown appears, inserts markdown `[Name](/of:id)`
-- ❌ `ct-prompt-input` `detail.mentions` is EMPTY (0 items) - can't get Cell refs this way
-- ✅ `ct-code-editor` [[ dropdown appears, inserts wiki-link `[[Name(id)]]`
-- ❌ `ct-code-editor` `onbacklink-create` doesn't fire when selecting from dropdown
+- ✅ `cf-prompt-input` @ dropdown appears, inserts markdown `[Name](/of:id)`
+- ❌ `cf-prompt-input` `detail.mentions` is EMPTY (0 items) - can't get Cell refs this way
+- ✅ `cf-code-editor` [[ dropdown appears, inserts wiki-link `[[Name(id)]]`
+- ❌ `cf-code-editor` `onbacklink-create` doesn't fire when selecting from dropdown
 - The superstition's code example using `detail.mentions` is INCORRECT
 - chatbot.tsx just uses the text (parses markdown links), doesn't use mentions array
 - Superstition is good for UI/dropdown documentation but wrong about Cell ref extraction
 
 ---
 
-## 2025-11-22-ct-code-editor-wiki-link-syntax.md
+## 2025-11-22-cf-code-editor-wiki-link-syntax.md
 
 **Last verified:** 2025-12-02
 **Status:** confirmed
@@ -400,7 +400,7 @@ When a superstition is removed, also remove its entry from this log.
 **Last verified:** 2025-12-08
 **Status:** PROMOTED to folk_wisdom/jsx.md
 **Evidence level:** high (framework author confirmed as bug + multiple confirmations)
-**Notes:** Framework author confirmed: "that's a bug, and a very strange one." Narrowed down to native `<input>` elements - ct-input works correctly. PROMOTED to folk_wisdom.
+**Notes:** Framework author confirmed: "that's a bug, and a very strange one." Narrowed down to native `<input>` elements - cf-input works correctly. PROMOTED to folk_wisdom.
 
 ---
 
@@ -418,7 +418,7 @@ When a superstition is removed, also remove its entry from this log.
 **Last verified:** 2025-12-02
 **Status:** confirmed
 **Evidence level:** high (user explicit "NO NO NO NEVER" + jkomoros confirmation)
-**Notes:** Never use globalThis or raw input elements. Use `<ct-input $value={cell}>` for two-way binding. Raw `value={cell}` displays but doesn't UPDATE. Confirmed: branch factor input wasn't updating cell, fixed with ct-input. Critical architectural guidance.
+**Notes:** Never use globalThis or raw input elements. Use `<cf-input $value={cell}>` for two-way binding. Raw `value={cell}` displays but doesn't UPDATE. Confirmed: branch factor input wasn't updating cell, fixed with cf-input. Critical architectural guidance.
 
 ---
 
@@ -436,7 +436,7 @@ When a superstition is removed, also remove its entry from this log.
 **Last verified:** 2025-12-08
 **Status:** confirmed (code analysis)
 **Evidence level:** medium (single observation + code analysis)
-**Notes:** Kebab-case JSX attributes don't map to camelCase Lit properties. CommonTools sets properties using JSX attribute name directly, but Lit properties use camelCase. File documents the fix was applied to ct-autocomplete. Valid component authoring guidance.
+**Notes:** Kebab-case JSX attributes don't map to camelCase Lit properties. CommonTools sets properties using JSX attribute name directly, but Lit properties use camelCase. File documents the fix was applied to cf-autocomplete. Valid component authoring guidance.
 
 ---
 
@@ -512,12 +512,12 @@ When a superstition is removed, also remove its entry from this log.
 
 ---
 
-## 2025-12-07-use-ct-screen-for-full-width-patterns.md
+## 2025-12-07-use-cf-screen-for-full-width-patterns.md
 
 **Last verified:** 2025-12-08
 **Status:** confirmed (UI guidance)
 **Evidence level:** low (single observation)
-**Notes:** Use ct-screen wrapper for full-width patterns. Valid UI guidance.
+**Notes:** Use cf-screen wrapper for full-width patterns. Valid UI guidance.
 
 ---
 

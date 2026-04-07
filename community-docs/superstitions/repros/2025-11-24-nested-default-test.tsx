@@ -1,11 +1,12 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Default<> in Nested Interface Properties
  *
  * CLAIM: Default<> should only be at array level, not nested properties
  * If the claim is correct, this pattern should have TypeScript errors.
  */
-import { Cell, Default, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, NAME, pattern, UI } from "commonfabric";
 
 // CLAIMED PROBLEMATIC: Default in nested properties
 interface DimensionNested {

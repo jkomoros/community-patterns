@@ -54,7 +54,7 @@ cd ~/Code/community-patterns
 ### Development Cycle
 
 1. **Create/Edit Pattern** in `patterns/YOUR-USERNAME/`
-2. **Test Syntax**: `./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
+2. **Test Syntax**: `./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run`
 3. **Deploy**: Use launcher tool or ask Claude (see [Deploying Patterns](#deploying-patterns))
 4. **Test in Browser**: Open `http://localhost:8000/space/charm-id`
 5. **Iterate**: Update with `piece setsrc` or re-deploy
@@ -85,7 +85,7 @@ touch my-pattern.tsx
 **2. Start with basic structure:**
 ```typescript
 /// <cts-enable />
-import { Cell, Default, NAME, pattern, UI } from "commontools";
+import { Cell, Default, NAME, pattern, UI } from "commonfabric";
 
 interface MyPatternInput {
   // Your input properties
@@ -122,7 +122,7 @@ export default pattern<MyPatternInput, MyPatternOutput>(
 Before deploying, check that your pattern compiles correctly:
 
 ```bash
-./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
+./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 ```
 
 This verifies:
@@ -226,12 +226,12 @@ Select space (↑/↓ to move, Enter to select):
 
 ### Method 3: Manual Commands (Full Control)
 
-Use `./scripts/ct` commands when you need precise control:
+Use `./scripts/cf` commands when you need precise control:
 
 #### Deploy New Pattern
 
 ```bash
-./scripts/ct piece new \
+./scripts/cf piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
@@ -252,7 +252,7 @@ http://localhost:8000/test-space-1/CHARM-ID
 After making changes to your pattern:
 
 ```bash
-./scripts/ct piece setsrc \
+./scripts/cf piece setsrc \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
@@ -267,7 +267,7 @@ Then refresh your browser (or hard refresh: Cmd+Shift+R on Mac, Ctrl+Shift+R on 
 See pattern details:
 
 ```bash
-./scripts/ct piece inspect \
+./scripts/cf piece inspect \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space test-space-1 \
@@ -279,17 +279,17 @@ See pattern details:
 You can set these to avoid repeating flags:
 
 ```bash
-export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=../labs/claude.key
+export CF_API_URL=http://localhost:8000
+export CF_IDENTITY=../labs/claude.key
 
 # Then just:
-./scripts/ct piece new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
+./scripts/cf piece new --space test-space-1 patterns/YOUR-USERNAME/pattern.tsx
 ```
 
 **Pros:**
 - Full control over all parameters
 - Scriptable (can use in automation)
-- Direct access to all ct CLI features
+- Direct access to all cf CLI features
 
 **Best for:** Automation scripts, CI/CD, power users
 
@@ -334,7 +334,7 @@ ls ~/Code/labs/claude.key
 
 # If missing, recreate it
 cd ~/Code/labs
-deno task ct id new > claude.key
+deno task cf id new > claude.key
 chmod 600 claude.key
 ```
 
@@ -370,9 +370,9 @@ Note: claude.key is in ../labs, not in the community-patterns directory
 
 **Importing from labs** - Direct cross-repo imports
 - Import patterns directly from `../../../labs/packages/patterns/...`
-- The `--root` flag is auto-injected by `scripts/ct` for cross-repo resolution
+- The `--root` flag is auto-injected by `scripts/cf` for cross-repo resolution
 - No need to copy files locally — always use the canonical version in labs
-- Everyone has labs cloned (required by `scripts/ct`)
+- Everyone has labs cloned (required by `scripts/cf`)
 
 **Root level** - Stable/production patterns
 - Completed and tested
@@ -517,7 +517,7 @@ const MyList = pattern<{ items: Cell<Item[]> }>(({ items }) => {
         {items.map((item) => (
           <div style={{ display: "flex", gap: "0.5rem" }}>
             {/* Bidirectional binding - automatic updates */}
-            <ct-checkbox $checked={item.done}>{item.title}</ct-checkbox>
+            <cf-checkbox $checked={item.done}>{item.title}</cf-checkbox>
 
             {/* Remove button */}
             <button onClick={() => {
@@ -529,9 +529,9 @@ const MyList = pattern<{ items: Cell<Item[]> }>(({ items }) => {
         ))}
 
         {/* Add new item */}
-        <ct-message-input
+        <cf-message-input
           placeholder="Add item..."
-          onct-send={(e) => {
+          oncf-send={(e) => {
             const title = e.detail?.message?.trim();
             if (title) items.push({ title, done: false });
           }}
@@ -581,7 +581,7 @@ const AIPattern = pattern<{ prompt: Cell<string> }>(({ prompt }) => {
     [NAME]: "AI Generator",
     [UI]: (
       <div>
-        <ct-input $value={prompt} placeholder="Enter prompt..." />
+        <cf-input $value={prompt} placeholder="Enter prompt..." />
 
         {result.pending ? (
           <div>Generating...</div>
@@ -665,7 +665,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 **Custom elements use string syntax:**
 ```typescript
 <common-hstack style="display: flex; padding: 1rem;">
-<ct-card style="border: 1px solid #ccc;">
+<cf-card style="border: 1px solid #ccc;">
 ```
 
 ---
@@ -675,7 +675,7 @@ const addItem = handler<unknown, { items: Cell<OpaqueRef<Item>[]> }>(
 ### Pattern Won't Compile
 
 **Check**:
-1. Missing imports? `import { Cell, ... } from "commontools"`
+1. Missing imports? `import { Cell, ... } from "commonfabric"`
 2. Type errors? Look at the error message carefully
 3. Forgot `/// <cts-enable />`?
 4. Check similar examples in `patterns/examples/`
@@ -884,7 +884,7 @@ patterns/YOUR-USERNAME/
 
 ```bash
 # Deploy with --root to allow parent imports
-./scripts/ct piece new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
+./scripts/cf piece new --root ./patterns/YOUR-USERNAME ./patterns/YOUR-USERNAME/app-a/main.tsx
 ```
 
 This sets the import boundary to `patterns/YOUR-USERNAME/`, allowing imports from `../shared/`.
@@ -910,16 +910,16 @@ cd ~/Code/community-patterns
 **Manual (full control):**
 ```bash
 # Test syntax
-./scripts/ct dev patterns/YOUR-USERNAME/pattern.tsx --no-run
+./scripts/cf dev patterns/YOUR-USERNAME/pattern.tsx --no-run
 
 # Deploy
-./scripts/ct piece new --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
+./scripts/cf piece new --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space patterns/YOUR-USERNAME/pattern.tsx
 
 # Update
-./scripts/ct piece setsrc --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID patterns/YOUR-USERNAME/pattern.tsx
+./scripts/cf piece setsrc --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID patterns/YOUR-USERNAME/pattern.tsx
 
 # Inspect
-./scripts/ct piece inspect --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID
+./scripts/cf piece inspect --api-url http://localhost:8000 --identity ../labs/claude.key --space my-space --piece PIECE-ID
 ```
 
 ### Git Commands

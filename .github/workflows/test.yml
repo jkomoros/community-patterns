@@ -8,7 +8,7 @@ on:
     branches:
       - main
 env:
-  CT_COMMIT_SHA: 81e4ad33dd93b380fed0cbfea2e8b8ed29f44e33
+  CF_COMMIT_SHA: 81e4ad33dd93b380fed0cbfea2e8b8ed29f44e33
 
 jobs:
   check-patterns:
@@ -25,21 +25,21 @@ jobs:
       - name: 📥 Download tarball from GCS
         run: |
           mkdir -p downloaded-artifacts/
-          curl -sL https://storage.googleapis.com/commontools-build-artifacts/workspace-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz -o downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz 
+          curl -sL https://storage.googleapis.com/commontools-build-artifacts/workspace-artifacts/labs-${{ env.CF_COMMIT_SHA }}.tar.gz -o downloaded-artifacts/labs-${{ env.CF_COMMIT_SHA }}.tar.gz
 
           # Verify the tarball exists
-          if [ ! -f downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz ]; then
-            echo "::error::Artifact tarball for commit ${{ env.CT_COMMIT_SHA }} not found!"
+          if [ ! -f downloaded-artifacts/labs-${{ env.CF_COMMIT_SHA }}.tar.gz ]; then
+            echo "::error::Artifact tarball for commit ${{ env.CF_COMMIT_SHA }} not found!"
             echo "Make sure this commit was successfully built and artifacts were uploaded."
             exit 1
           fi
 
-      - name: 📥 Install ct
+      - name: 📥 Install cf
         run: |
           mkdir -p bin
           # Extract the jumble frontend artifacts from the tarball if they exist
           # or download them from a known location if stored separately
-          tar -xzf downloaded-artifacts/labs-${{ env.CT_COMMIT_SHA }}.tar.gz -C bin
+          tar -xzf downloaded-artifacts/labs-${{ env.CF_COMMIT_SHA }}.tar.gz -C bin
           chmod -R 755 bin
           # Set tools to path
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
@@ -48,12 +48,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: commontoolsinc/labs
-          ref: ${{ env.CT_COMMIT_SHA }}
+          ref: ${{ env.CF_COMMIT_SHA }}
           path: labs
 
-      - name: 👆 Initialize ct environment
+      - name: 👆 Initialize cf environment
         working-directory: repo
-        run: ct init
+        run: cf init
 
       - name: 🔡 Type Check
         working-directory: repo

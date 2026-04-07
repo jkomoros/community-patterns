@@ -1,4 +1,4 @@
-# CustomEvent.detail is Undefined Across ct-render Boundaries
+# CustomEvent.detail is Undefined Across cf-render Boundaries
 
 **Date:** 2026-02-10
 **Status:** superstition
@@ -7,19 +7,19 @@
 
 ## TL;DR - The Rule
 
-**Never rely on `event.detail` from custom events in ct-render handlers.** When embedding a sub-recipe via `<ct-render $cell={subRecipe} />`, custom events like `onct-select`, `onct-input`, etc. have their `event.detail` as `undefined`. Standard events like `onClick` work fine.
+**Never rely on `event.detail` from custom events in cf-render handlers.** When embedding a sub-recipe via `<cf-render $cell={subRecipe} />`, custom events like `oncf-select`, `oncf-input`, etc. have their `event.detail` as `undefined`. Standard events like `onClick` work fine.
 
 ```tsx
-// BROKEN - event.detail is undefined across ct-render boundary
-<ct-render
+// BROKEN - event.detail is undefined across cf-render boundary
+<cf-render
   $cell={subRecipeOutput}
-  onct-select={(event) => {
+  oncf-select={(event) => {
     console.log(event.detail);  // undefined!
   }}
 />
 
 // WORKAROUND - Use $value binding with multiple mode instead
-<ct-autocomplete
+<cf-autocomplete
   items={autocompleteItems}
   placeholder="Add a tag..."
   allowCustom
@@ -32,7 +32,7 @@
 
 ## Summary
 
-When using `<ct-render $cell={subRecipe} />` to embed a sub-recipe, custom events (like `onct-select`, `onct-input`, `onct-change`) have their `event.detail` property as `undefined`, while standard HTML events like `onClick`, `onchange` work fine.
+When using `<cf-render $cell={subRecipe} />` to embed a sub-recipe, custom events (like `oncf-select`, `oncf-input`, `oncf-change`) have their `event.detail` property as `undefined`, while standard HTML events like `onClick`, `onchange` work fine.
 
 The root cause appears to be that the worker-side renderer, which executes sub-recipes in a separate execution context, doesn't properly reconstruct the `CustomEvent.detail` object when events cross the worker boundary. Standard DOM events serialize/deserialize correctly, but CustomEvent.detail (a user-defined data object) gets lost in transit.
 
@@ -41,13 +41,13 @@ The root cause appears to be that the worker-side renderer, which executes sub-r
 The sub-recipe executes in a worker context separate from the main thread. When events fire:
 
 1. **Standard events** (`onClick`, `onchange`) work because their properties are part of the core DOM event contract and serialize cleanly
-2. **Custom events** (`onct-*`) fail because `CustomEvent.detail` is an arbitrary JavaScript object that doesn't survive the worker-to-main-thread serialization boundary
+2. **Custom events** (`oncf-*`) fail because `CustomEvent.detail` is an arbitrary JavaScript object that doesn't survive the worker-to-main-thread serialization boundary
 
 The pattern framework's event forwarding logic appears to reconstruct events without preserving the `.detail` payload.
 
 ## Symptoms
 
-- `event.detail === undefined` in ct-render custom event handlers
+- `event.detail === undefined` in cf-render custom event handlers
 - `TypeError: Cannot read properties of undefined (reading 'value')` when accessing `event.detail.value`
 - Standard events (`onClick`) work correctly in the same context
 - No error at compile time - fails silently at runtime
@@ -62,9 +62,9 @@ const tagPickerOutput = TagPicker({ items: availableTags });
 
 return {
   [UI]: (
-    <ct-render
+    <cf-render
       $cell={tagPickerOutput}
-      onct-select={(event) => {
+      oncf-select={(event) => {
         // BROKEN: event.detail is undefined
         const selectedValue = event.detail.value;  // TypeError!
         tags.push(selectedValue);
@@ -78,11 +78,11 @@ return {
 
 ### Option 1: Use $value Binding (Preferred)
 
-For ct-autocomplete and similar components, use bidirectional binding instead of event handlers:
+For cf-autocomplete and similar components, use bidirectional binding instead of event handlers:
 
 ```tsx
 // In the sub-recipe
-<ct-autocomplete
+<cf-autocomplete
   items={autocompleteItems}
   placeholder="Add a tag..."
   allowCustom
@@ -122,7 +122,7 @@ Standard events work fine - structure sub-recipes to use them when possible:
 ## Real-World Example
 
 **Pattern:** Folksonomy Tags (sub-recipe for tagging UI)
-**Bug:** `onct-select` handler received undefined event when trying to add tags
+**Bug:** `oncf-select` handler received undefined event when trying to add tags
 
 ### Before (Broken)
 
@@ -136,9 +136,9 @@ const onSelectTag = handler<CustomEvent, { tags: Writable<string[]> }>(
 );
 
 // In recipe return
-<ct-autocomplete
+<cf-autocomplete
   items={autocompleteItems}
-  onct-select={onSelectTag({ tags })}
+  oncf-select={onSelectTag({ tags })}
 />
 ```
 
@@ -148,7 +148,7 @@ const onSelectTag = handler<CustomEvent, { tags: Writable<string[]> }>(
 
 ```tsx
 // Use $value binding instead of event handler
-<ct-autocomplete
+<cf-autocomplete
   items={autocompleteItems}
   placeholder="Add a tag..."
   allowCustom
@@ -163,15 +163,15 @@ const onSelectTag = handler<CustomEvent, { tags: Writable<string[]> }>(
 
 | Issue | Symptom | Root Cause |
 |-------|---------|------------|
-| **This issue** | `event.detail === undefined` in ct-render | Worker boundary loses CustomEvent.detail |
+| **This issue** | `event.detail === undefined` in cf-render | Worker boundary loses CustomEvent.detail |
 | Handler state undefined | Handler state vars are undefined | Non-Writable cells passed to handler state |
 | Handler binding in .map() | "Handler used as lift" error | Direct binding required, not arrow functions |
 | Standard events not firing | onClick doesn't trigger | Event handler syntax or binding issue |
 
 ## Key Rules
 
-1. **Never rely on `event.detail` from custom events across ct-render boundaries**
-2. **Use `$value` binding** for components that support it (ct-autocomplete, ct-input)
+1. **Never rely on `event.detail` from custom events across cf-render boundaries**
+2. **Use `$value` binding** for components that support it (cf-autocomplete, cf-input)
 3. **Expose data in sub-recipe output** instead of relying on event details
 4. **Standard events work** - use `onClick`, `onchange` when possible
 5. **Test event handlers in sub-recipes** - they may fail silently
@@ -184,12 +184,12 @@ const onSelectTag = handler<CustomEvent, { tags: Writable<string[]> }>(
 ## Metadata
 
 ```yaml
-topic: events, custom-events, ct-render, worker-rendering, jsx
+topic: events, custom-events, cf-render, worker-rendering, jsx
 discovered: 2026-02-10
 confirmed_count: 1
 last_confirmed: 2026-02-10
 sessions: [community-wisdom-tag-list]
-related_functions: handler, ct-render
+related_functions: handler, cf-render
 pattern: packages/patterns/experimental/folksonomy-tags.tsx
 status: superstition
 confidence: medium
@@ -199,8 +199,8 @@ applies_to: [CommonTools]
 
 ## Guestbook
 
-- 2026-02-10 - Discovered while implementing folksonomy-tags sub-recipe with ct-autocomplete. The `onct-select` handler received `undefined` for the event parameter, preventing access to selected tag value. Standard events like `onClick` worked fine in the same pattern. Root cause: Worker-side renderer doesn't properly reconstruct CustomEvent.detail when events cross the ct-render boundary. Fixed by switching from `onct-select={handler}` to `$value={tags}` with `multiple` mode for bidirectional binding. (community-wisdom-tag-list)
+- 2026-02-10 - Discovered while implementing folksonomy-tags sub-recipe with cf-autocomplete. The `oncf-select` handler received `undefined` for the event parameter, preventing access to selected tag value. Standard events like `onClick` worked fine in the same pattern. Root cause: Worker-side renderer doesn't properly reconstruct CustomEvent.detail when events cross the cf-render boundary. Fixed by switching from `oncf-select={handler}` to `$value={tags}` with `multiple` mode for bidirectional binding. (community-wisdom-tag-list)
 
 ---
 
-**Remember:** CustomEvent.detail doesn't cross ct-render worker boundaries cleanly. Use `$value` binding or pattern output for data flow instead of relying on custom event details.
+**Remember:** CustomEvent.detail doesn't cross cf-render worker boundaries cleanly. Use `$value` binding or pattern output for data flow instead of relying on custom event details.

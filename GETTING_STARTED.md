@@ -69,11 +69,11 @@ gh repo clone commontoolsinc/patterns 2>/dev/null || echo "Note: patterns repo n
 2. Sign up/login → API Keys → Create key
 3. Save it securely
 
-**FAL AI** (for voice transcription with ct-voice-input):
+**FAL AI** (for voice transcription with cf-voice-input):
 1. Visit: https://fal.ai/
 2. Sign up/login → API Keys → Create key
 3. Save it securely
-4. Needed for `ct-voice-input` component to transcribe voice recordings
+4. Needed for `cf-voice-input` component to transcribe voice recordings
 
 **Google OAuth** (for Gmail, Calendar, and Drive patterns):
 1. Visit: https://console.cloud.google.com/apis/credentials
@@ -116,7 +116,7 @@ CTTS_AI_LLM_ANTHROPIC_API_KEY=sk-ant-xxxx-their-actual-key-here
 # Get from: https://jina.ai/
 # JINA_API_KEY=jina_xxxx-their-actual-key-here
 
-## OPTIONAL: FAL AI API key (only needed for voice transcription with ct-voice-input)
+## OPTIONAL: FAL AI API key (only needed for voice transcription with cf-voice-input)
 # Get from: https://fal.ai/
 # FAL_API_KEY=your-fal-key-here
 
@@ -303,17 +303,17 @@ echo "Created test pattern at patterns/$GITHUB_USER/counter.tsx"
 Deploy and test the counter:
 
 ```bash
-# Always run from the community-patterns repo via ./scripts/ct — that wrapper
+# Always run from the community-patterns repo via ./scripts/cf — that wrapper
 # auto-injects the --root flag so labs can resolve cross-repo imports. Calling
-# `deno task ct` directly inside labs will fail with "Main file ... must be
+# `deno task cf` directly inside labs will fail with "Main file ... must be
 # within root directory" because the pattern lives outside labs.
 cd "$COMMUNITY_PATTERNS_DIR"
 
 # Test syntax
-./scripts/ct dev patterns/$GITHUB_USER/counter.tsx --no-run
+./scripts/cf dev patterns/$GITHUB_USER/counter.tsx --no-run
 
 # Deploy (if syntax check passes)
-./scripts/ct piece new \
+./scripts/cf piece new \
   --api-url http://localhost:8000 \
   --identity "$LABS_DIR/claude.key" \
   --space test-$GITHUB_USER-1 \

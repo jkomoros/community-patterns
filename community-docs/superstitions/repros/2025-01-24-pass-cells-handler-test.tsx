@@ -1,10 +1,11 @@
 /// <cts-enable />
+// HISTORICAL: this repro captures behavior from before the commonfabric rename. The new compiler is stricter and may reject patterns that the old runtime accepted by design.
 /**
  * Repro: Pass Cells as Handler Params vs Closure
  *
  * Testing with `pattern` and default items
  */
-import { Cell, Default, handler, NAME, pattern, UI } from "commontools";
+import { Cell, Default, handler, NAME, pattern, UI } from "commonfabric";
 
 interface Item {
   id: number;

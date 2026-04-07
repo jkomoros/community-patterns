@@ -17,7 +17,7 @@ description: >
 3. **✅ ALWAYS include space name in URL:** `http://localhost:8000/SPACE-NAME/CHARM-ID`
 4. **❌ NEVER use:** `http://localhost:8000/CHARM-ID` (missing space name)
 5. **✅ ALWAYS include ALL THREE parameters:** `--api-url`, `--identity`, `--space`
-6. **✅ ALWAYS use `./scripts/ct`** - The wrapper script that handles directory changes
+6. **✅ ALWAYS use `./scripts/cf`** - The wrapper script that handles directory changes
 
 **If you violate these rules, the pattern will not work. No exceptions.**
 
@@ -37,7 +37,7 @@ description: >
 Before deploying, check that your pattern compiles correctly:
 
 ```bash
-./scripts/ct dev patterns/$GITHUB_USER/pattern.tsx --no-run
+./scripts/cf dev patterns/$GITHUB_USER/pattern.tsx --no-run
 ```
 
 This verifies:
@@ -51,7 +51,7 @@ This verifies:
 Deploy a new pattern instance:
 
 ```bash
-./scripts/ct piece new \
+./scripts/cf piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
@@ -95,10 +95,10 @@ There is a known framework bug that causes conflicts when using `piece setsrc`.
 
 ```bash
 # ❌ DON'T DO THIS - has conflicts due to framework bug
-# ./scripts/ct piece setsrc ...
+# ./scripts/cf piece setsrc ...
 
 # ✅ DO THIS INSTEAD - deploy a new instance
-./scripts/ct piece new \
+./scripts/cf piece new \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
@@ -120,7 +120,7 @@ There is a known framework bug that causes conflicts when using `piece setsrc`.
 See pattern details:
 
 ```bash
-./scripts/ct piece inspect \
+./scripts/cf piece inspect \
   --api-url http://localhost:8000 \
   --identity ../labs/claude.key \
   --space claude-my-pattern-1130-1 \
@@ -132,11 +132,11 @@ See pattern details:
 You can set these to avoid repeating flags:
 
 ```bash
-export CT_API_URL=http://localhost:8000
-export CT_IDENTITY=../labs/claude.key
+export CF_API_URL=http://localhost:8000
+export CF_IDENTITY=../labs/claude.key
 
 # Then just:
-./scripts/ct piece new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
+./scripts/cf piece new --space claude-counter-1130-1 patterns/$GITHUB_USER/pattern.tsx
 ```
 
 ## Deployment Troubleshooting
@@ -182,7 +182,7 @@ lsof -ti:5173  # Shell (frontend) - REQUIRED
 ls ../labs/claude.key
 
 # If missing, recreate it
-cd ../labs && deno task ct id new > claude.key && chmod 600 claude.key && cd -
+cd ../labs && deno task cf id new > claude.key && chmod 600 claude.key && cd -
 ```
 
 ## Related Skills

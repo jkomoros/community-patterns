@@ -7,7 +7,7 @@
 
 ## TL;DR - The Rule
 
-**Never call `array.get()` inside a `computed()` that returns UI elements (like `<ct-render>`).** The `.get()` subscribes to the ENTIRE array, so any change to any item -- even a deep nested property like a charm's `[NAME]` -- re-fires the computed, destroying and recreating the UI element. This causes input focus loss, cursor resets, scroll position loss, and general thrashing.
+**Never call `array.get()` inside a `computed()` that returns UI elements (like `<cf-render>`).** The `.get()` subscribes to the ENTIRE array, so any change to any item -- even a deep nested property like a charm's `[NAME]` -- re-fires the computed, destroying and recreating the UI element. This causes input focus loss, cursor resets, scroll position loss, and general thrashing.
 
 Use `array.key(idx)` instead, which creates a targeted dependency on a single element.
 
@@ -19,7 +19,7 @@ Use `array.key(idx)` instead, which creates a targeted dependency on a single el
     return <placeholder />;
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 
 // CORRECT - detail panel only re-renders when selection changes
@@ -29,7 +29,7 @@ Use `array.key(idx)` instead, which creates a targeted dependency on a single el
     return <placeholder />;
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 ```
 
@@ -37,15 +37,15 @@ Use `array.key(idx)` instead, which creates a targeted dependency on a single el
 
 ## Summary
 
-In a master-detail UI (e.g., a contacts list with a detail panel), the detail panel's `computed()` block may call `array.get()` for a seemingly innocent reason like bounds-checking. This creates a reactive dependency on the **entire array**. When the user types into a text input inside the detail view, the reactive chain propagates through the array and back to the detail panel's computed, which re-runs -- destroying the `<ct-render>` element and recreating it from scratch. The input loses focus mid-keystroke.
+In a master-detail UI (e.g., a contacts list with a detail panel), the detail panel's `computed()` block may call `array.get()` for a seemingly innocent reason like bounds-checking. This creates a reactive dependency on the **entire array**. When the user types into a text input inside the detail view, the reactive chain propagates through the array and back to the detail panel's computed, which re-runs -- destroying the `<cf-render>` element and recreating it from scratch. The input loses focus mid-keystroke.
 
 The reactive chain that causes the thrash:
 
-1. User types in a `<ct-input>` bound via `$value={person.key("firstName")}`
+1. User types in a `<cf-input>` bound via `$value={person.key("firstName")}`
 2. The person charm's `[NAME]` computed updates (it depends on firstName)
 3. The charm object stored in the `contacts` array reflects the change
 4. `contacts.get()` dependency in the detail panel computed fires
-5. The entire detail computed re-runs, destroying and recreating `<ct-render $cell={charm} />`
+5. The entire detail computed re-runs, destroying and recreating `<cf-render $cell={charm} />`
 6. The person form is rebuilt from scratch -- input loses focus, cursor resets
 
 ## Symptoms
@@ -61,7 +61,7 @@ The reactive chain that causes the thrash:
 
 The Common Tools reactive system tracks dependencies at the granularity of `.get()` calls. When you call `array.get()`, you subscribe to the **entire array value**. The array is a collection of charm references, and when any charm's computed properties (like `[NAME]`) update, the array itself is considered changed because it contains that charm reference.
 
-In contrast, `array.key(idx)` creates a dependency on just the **single element at that index**. The `<ct-render $cell={charm} />` element then manages its own internal reactive updates -- it does not need to be destroyed and recreated when the charm's data changes.
+In contrast, `array.key(idx)` creates a dependency on just the **single element at that index**. The `<cf-render $cell={charm} />` element then manages its own internal reactive updates -- it does not need to be destroyed and recreated when the charm's data changes.
 
 ### The Critical Distinction
 
@@ -89,7 +89,7 @@ This commonly appears in master-detail layouts where the detail panel uses the a
     return <div>Select a contact</div>;
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 ```
 
@@ -107,7 +107,7 @@ Remove the `array.get()` dependency entirely. Only depend on `selectedIndex`:
     return <div>Select a contact</div>;
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 ```
 
@@ -127,7 +127,7 @@ const selectContact = handler<{ idx: number }>((_, { idx }) => {
 {computed(() => {
   const idx = selectedIndex.get();
   if (idx < 0) return <div>Select a contact</div>;
-  return <ct-render $cell={contacts.key(idx)} />;
+  return <cf-render $cell={contacts.key(idx)} />;
 })}
 ```
 
@@ -144,18 +144,18 @@ const selectContact = handler<{ idx: number }>((_, { idx }) => {
   const idx = selectedIndex.get();
   if (idx < 0 || idx >= (contacts.get() || []).length) {
     return (
-      <ct-vstack style="align-items: center; justify-content: center; height: 100%; color: #888;">
+      <cf-vstack style="align-items: center; justify-content: center; height: 100%; color: #888;">
         <div style="font-size: 48px;">address book icon</div>
         <div>Select a contact</div>
-      </ct-vstack>
+      </cf-vstack>
     );
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 ```
 
-**Result:** Every keystroke in firstName, lastName, email, or any bound input caused the entire `<ct-render>` element to be destroyed and recreated. The person form rebuilt from scratch, losing focus, cursor position, and scroll state.
+**Result:** Every keystroke in firstName, lastName, email, or any bound input caused the entire `<cf-render>` element to be destroyed and recreated. The person form rebuilt from scratch, losing focus, cursor position, and scroll state.
 
 ### After (Fixed)
 
@@ -164,18 +164,18 @@ const selectContact = handler<{ idx: number }>((_, { idx }) => {
   const idx = selectedIndex.get();
   if (idx < 0) {
     return (
-      <ct-vstack style="align-items: center; justify-content: center; height: 100%; color: #888;">
+      <cf-vstack style="align-items: center; justify-content: center; height: 100%; color: #888;">
         <div style="font-size: 48px;">address book icon</div>
         <div>Select a contact</div>
-      </ct-vstack>
+      </cf-vstack>
     );
   }
   const charm = contacts.key(idx);
-  return <ct-render $cell={charm} />;
+  return <cf-render $cell={charm} />;
 })}
 ```
 
-**Result:** Detail panel is stable. Inputs retain focus. The `<ct-render>` element manages internal updates reactively without being destroyed.
+**Result:** Detail panel is stable. Inputs retain focus. The `<cf-render>` element manages internal updates reactively without being destroyed.
 
 ## Differentiating from Related Issues
 
@@ -192,7 +192,7 @@ const selectContact = handler<{ idx: number }>((_, { idx }) => {
 1. **Never call `.get()` on an array cell inside a computed that returns UI elements** -- it subscribes to the entire array
 2. **Use `.key(idx)` for targeted element access** -- it only subscribes to that slot
 3. **Move bounds-checking to handlers** -- validate the index when setting it, not when reading it
-4. **`<ct-render $cell={...}>` manages its own reactivity** -- it does not need the parent to rebuild it when data changes
+4. **`<cf-render $cell={...}>` manages its own reactivity** -- it does not need the parent to rebuild it when data changes
 5. **Be suspicious of `.get()` calls used "just for safety"** -- every `.get()` in a computed is a reactive dependency
 
 ## Detection
@@ -200,7 +200,7 @@ const selectContact = handler<{ idx: number }>((_, { idx }) => {
 If you see input focus loss or form thrashing in a master-detail layout, search for:
 
 ```bash
-# Look for array.get() inside computed blocks near ct-render
+# Look for array.get() inside computed blocks near cf-render
 grep -n "\.get()" your-pattern.tsx | grep -v "handler\|Handler"
 ```
 
@@ -227,7 +227,7 @@ discovered: 2026-01-29
 confirmed_count: 1
 last_confirmed: 2026-01-29
 sessions: [contacts-detail-view-thrash-fix]
-related_functions: computed, Cell.get, Cell.key, ct-render
+related_functions: computed, Cell.get, Cell.key, cf-render
 pattern: packages/patterns/base/contacts.tsx
 commits: [3af13931a]
 status: confirmed
@@ -238,7 +238,7 @@ applies_to: [CommonTools, general-reactive-programming]
 
 ## Guestbook
 
-- 2026-01-29 - Contacts pattern master-detail view. Typing into any text input in the person detail panel caused the entire form to thrash -- inputs lost focus on every keystroke. Root cause: the detail panel's `computed()` called `contacts.get()` for bounds-checking, which created a dependency on the entire contacts array. When typing changed a person's firstName, the charm's `[NAME]` computed updated, which propagated through the array, which re-fired the detail computed, which destroyed and recreated `<ct-render $cell={charm} />`. Fix: removed `contacts.get()` from the detail computed, only depending on `selectedIndex.get()` and `contacts.key(idx)`. The `<ct-render>` element handles its own internal reactive updates without needing to be recreated. (contacts-detail-view-thrash-fix)
+- 2026-01-29 - Contacts pattern master-detail view. Typing into any text input in the person detail panel caused the entire form to thrash -- inputs lost focus on every keystroke. Root cause: the detail panel's `computed()` called `contacts.get()` for bounds-checking, which created a dependency on the entire contacts array. When typing changed a person's firstName, the charm's `[NAME]` computed updated, which propagated through the array, which re-fired the detail computed, which destroyed and recreated `<cf-render $cell={charm} />`. Fix: removed `contacts.get()` from the detail computed, only depending on `selectedIndex.get()` and `contacts.key(idx)`. The `<cf-render>` element handles its own internal reactive updates without needing to be recreated. (contacts-detail-view-thrash-fix)
 
 ---
 

@@ -1,5 +1,5 @@
 /// <cts-enable />
-import { Default, equals, NAME, pattern, UI, Writable } from "commontools";
+import { Default, equals, NAME, pattern, UI, Writable } from "commonfabric";
 
 /**
  * Example: Todo List Pattern
@@ -45,7 +45,7 @@ export default pattern<TodoListInput, TodoListOutput>(
                 }}
               >
                 {/* Bidirectional binding - checkbox automatically updates item.done */}
-                <ct-checkbox $checked={item.done}>
+                <cf-checkbox $checked={item.done}>
                   <span
                     style={
                       item.done
@@ -55,7 +55,7 @@ export default pattern<TodoListInput, TodoListOutput>(
                   >
                     {item.title}
                   </span>
-                </ct-checkbox>
+                </cf-checkbox>
 
                 {/* Remove button */}
                 <button
@@ -75,9 +75,9 @@ export default pattern<TodoListInput, TodoListOutput>(
           </div>
 
           {/* Add new item */}
-          <ct-message-input
+          <cf-message-input
             placeholder="Add new task..."
-            onct-send={(e: { detail: { message: string; }; }) => {
+            oncf-send={(e: { detail: { message: string; }; }) => {
               const title = e.detail?.message?.trim();
               if (title) {
                 items.push({ title, done: false });

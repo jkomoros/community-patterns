@@ -149,9 +149,9 @@ const linkableSiblings = computed(() => {
   const name = p?.firstName;  // ERROR: Symbol.toPrimitive outside context
 
   return (
-    <ct-button onClick={setSameAs({ linkedPerson: p })}>
+    <cf-button onClick={setSameAs({ linkedPerson: p })}>
       {name}
-    </ct-button>
+    </cf-button>
   );
 })}
 ```
@@ -185,9 +185,9 @@ const linkableSiblings = computed(() => {
 
 // Iterate over plain data array
 {linkableSiblings.map((sib) => (
-  <ct-button onClick={setSameAs({ linkedPerson: sib.linkedPerson })}>
+  <cf-button onClick={setSameAs({ linkedPerson: sib.linkedPerson })}>
     {sib.name}
-  </ct-button>
+  </cf-button>
 ))}
 ```
 

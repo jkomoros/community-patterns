@@ -6,7 +6,7 @@ When you have multiple checkouts of the labs repository (e.g., `labs` and `labs-
 - Run the server from one checkout (e.g., `labs` on main branch)
 - Deploy patterns from another checkout (e.g., `labs-4` with development changes)
 
-Simply running `deno task ct charm new` from the development repo can cause version mismatch errors like:
+Simply running `deno task cf charm new` from the development repo can cause version mismatch errors like:
 - `TypeError: Cannot read properties of undefined (reading 'src')`
 - `TypeError: createModule is not a function`
 
@@ -19,7 +19,7 @@ Use the `ct` binary from the same repo as the running server, but point it to pa
 ```bash
 cd /path/to/labs  # The repo running the server
 
-deno task ct charm new \
+deno task cf charm new \
   --root /path/to/labs-4/packages/patterns \
   /path/to/labs-4/packages/patterns/your-pattern.tsx \
   -i /path/to/labs-4/claude.key \
@@ -34,7 +34,7 @@ cd ~/Code/labs
 
 SPACE="test-$(date +%s)"
 
-deno task ct charm new \
+deno task cf charm new \
   --root ~/Code/labs-4/packages/patterns \
   ~/Code/labs-4/packages/patterns/record.tsx \
   -i ~/Code/labs-4/claude.key \
@@ -48,9 +48,9 @@ echo "Navigate to: http://localhost:8000/$SPACE"
 
 1. **`--root` flag**: Sets the import resolution base directory to your development patterns folder. All relative imports (e.g., `./record/registry.ts`) resolve within that directory tree.
 
-2. **Absolute paths**: The `absPath()` function in the ct CLI correctly handles absolute paths without mangling them.
+2. **Absolute paths**: The `absPath()` function in the cf CLI correctly handles absolute paths without mangling them.
 
-3. **Same runtime**: Using `deno task ct` from the server's repo ensures the compiler and runtime APIs match.
+3. **Same runtime**: Using `deno task cf` from the server's repo ensures the compiler and runtime APIs match.
 
 ## Key Flags
 

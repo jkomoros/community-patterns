@@ -195,7 +195,7 @@ async function listPiecesInSpace(
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "ls",
       "--api-url",
@@ -256,7 +256,7 @@ async function isPieceValid(
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "get",
       "--api-url",
@@ -305,7 +305,7 @@ async function getPieceSourceFile(
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "get",
       "--api-url",
@@ -377,7 +377,7 @@ async function createPiece(
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "new",
       "--api-url",
@@ -475,7 +475,7 @@ async function readFromPiece<T>(options: PieceOptions): Promise<T | null> {
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "get",
       "--api-url",
@@ -519,7 +519,7 @@ async function readFromPiece<T>(options: PieceOptions): Promise<T | null> {
 async function writeToPiece(options: WriteToPieceOptions): Promise<void> {
   const { apiUrl, space, pieceId, path, data } = options;
 
-  // Use deno task ct piece set to write to the piece
+  // Use deno task cf piece set to write to the piece
   const labsDir = DEFAULT_LABS_DIR;
   const denoJson = `${labsDir}/deno.json`;
 
@@ -532,7 +532,7 @@ async function writeToPiece(options: WriteToPieceOptions): Promise<void> {
       "task",
       "--config",
       denoJson,
-      "ct",
+      "cf",
       "piece",
       "set",
       "--api-url",
